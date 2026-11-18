@@ -1,0 +1,332 @@
+-- Data.Time.Zone.Tzif: reading TZif files
+-- (design/datetime.md, layer L2, lane C; RFC 9636).
+--
+-- TZif is the binary format of the IANA time zone database as
+-- installed under /usr/share/zoneinfo. `parse-tzif name bytes` turns
+-- one file's bytes into a `TimeZone` named `name`, or says by name
+-- why it could not. It is pure: reading the file is
+-- `Effect.Time.Zone`'s.
+--
+-- THE FORMAT, as read here (all integers big-endian):
+--   - a 44-byte header: the magic "TZif", a version byte (NUL for
+--     version 1, the digits '2', '3', '4' for the later ones), 15
+--     reserved bytes, and six 32-bit counts: isutcnt, isstdcnt,
+--     leapcnt, timecnt, typecnt, charcnt;
+--   - a data block: timecnt transition instants (Unix seconds, 32-bit
+--     signed), timecnt one-byte local time type indices, typecnt
+--     six-byte local time types (32-bit signed UTC offset, a daylight
+--     flag byte, a byte index into the abbreviations), charcnt bytes
+--     of NUL-terminated abbreviations, leapcnt leap second records,
+--     isstdcnt and isutcnt indicator bytes;
+--   - in version 2 and later, a second header and a second data
+--     block with 64-bit instants, then a footer: a newline, a POSIX
+--     TZ string (possibly empty) and a newline. The second block is
+--     the one used; the first is only skipped over.
+--
+-- Design law shape. The zone is the table the file states, under
+-- `Data.Time.Zone`'s law: local time type 0 before the first
+-- transition, each transition's type from it on, and the footer's
+-- rule from the last transition on. Every field is read through one
+-- bounds-checked reader after the block's whole extent has been
+-- checked against the buffer's length, so no input, however
+-- malformed, can make a read fall outside the buffer; a file is
+-- either accepted whole or refused by name.
+--
+-- NAMED REFUSALS (each a `TzifError`):
+--   - fewer bytes than the header and counts require: `TzifTruncated`
+--     (also an empty input, and a version 2+ file cut anywhere in
+--     its second header, second block or footer).
+--   - a first or second header without the magic: `TzifBadMagic`.
+--   - a version byte other than NUL, '2', '3', '4':
+--     `TzifUnsupportedVersion`.
+--   - no local time type: `TzifNoLocalTimeTypes`.
+--   - a transition whose type index is not below typecnt:
+--     `TzifTypeIndexOutOfRange`.
+--   - transition instants not strictly ascending:
+--     `TzifUnsortedTransitions`.
+--   - a UTC offset outside `Data.Time.Offset`'s +-25:59:59:
+--     `TzifBadOffset`; a daylight flag other than 0 or 1:
+--     `TzifBadDstFlag`.
+--   - an abbreviation index outside the abbreviation bytes, or an
+--     abbreviation with no NUL before their end:
+--     `TzifAbbreviationOutOfRange`; abbreviation bytes that are not
+--     UTF-8: `TzifBadAbbreviation`.
+--   - leap second records (the "right/" files, whose instants are not
+--     Unix time): `TzifLeapSeconds`. Leap seconds are not modelled.
+--   - a footer that does not begin with a newline:
+--     `TzifMalformedFooter`; a footer string that is not a POSIX rule:
+--     `TzifBadFooter` with the parser's reason.
+--   The standard/wall and UT/local indicators are skipped: they only
+--   matter for interpreting a POSIX TZ string without rules against
+--   another file, which nothing here does.
+module Data.Time.Zone.Tzif where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zone.Posix
+
+  export TzifError, TzifTruncated, TzifBadMagic, TzifUnsupportedVersion
+  export TzifNoLocalTimeTypes, TzifTypeIndexOutOfRange
+  export TzifUnsortedTransitions, TzifBadOffset, TzifBadDstFlag
+  export TzifAbbreviationOutOfRange, TzifBadAbbreviation
+  export TzifLeapSeconds, TzifMalformedFooter, TzifBadFooter
+  export parse-tzif
+
+
+  -- Why bytes are not a usable TZif file (the header's list).
+  data TzifError where
+    TzifTruncated :: TzifError
+    TzifBadMagic :: TzifError
+    TzifUnsupportedVersion :: TzifError
+    TzifNoLocalTimeTypes :: TzifError
+    TzifTypeIndexOutOfRange :: TzifError
+    TzifUnsortedTransitions :: TzifError
+    TzifBadOffset :: TzifError
+    TzifBadDstFlag :: TzifError
+    TzifAbbreviationOutOfRange :: TzifError
+    TzifBadAbbreviation :: TzifError
+    TzifLeapSeconds :: TzifError
+    TzifMalformedFooter :: TzifError
+    TzifBadFooter :: PosixTzError -> TzifError
+
+  -- -----------------------------------------------------------------
+  -- Bounds-checked readers. Positions are machine words; a file
+  -- cannot be 2^63 bytes long, so position arithmetic on values
+  -- already compared against the length cannot wrap.
+  -- -----------------------------------------------------------------
+
+  length-of :: Bytes -> I64
+  length-of b = nat-to-i64 (bytes-len b)
+
+  -- The byte at `i`, or 0 outside the buffer. Every caller has
+  -- already checked its block's extent against the length, so the 0
+  -- is never observed; it is what makes the reader total.
+  byte :: Bytes -> I64 -> I64
+  byte b i =
+    if i >= 0 then
+      let n = nat-from-i64 i in
+      if n < bytes-len b then nat-to-i64 (bytes-get b n) else 0
+    else 0
+
+  -- Four bytes as an unsigned number, 0..=4294967295.
+  be-u32 :: Bytes -> I64 -> I64
+  be-u32 b i =
+    wrapping-add-i64 (wrapping-mul-i64 (byte b i) 16777216)
+      (wrapping-add-i64 (wrapping-mul-i64 (byte b (wrapping-add-i64 i 1)) 65536)
+        (wrapping-add-i64 (wrapping-mul-i64 (byte b (wrapping-add-i64 i 2)) 256) (byte b (wrapping-add-i64 i 3))))
+
+  -- Four bytes as a two's complement number.
+  be-i32 :: Bytes -> I64 -> I64
+  be-i32 b i =
+    let v = be-u32 b i in
+    if ge-i64 v 2147483648 then wrapping-sub-i64 v 4294967296 else v
+
+  -- Eight bytes as a two's complement number: the high word times
+  -- 2^32 plus the low word, in wrapping arithmetic, which is exactly
+  -- the 64-bit pattern.
+  be-i64 :: Bytes -> I64 -> I64
+  be-i64 b i =
+    wrapping-add-i64 (wrapping-mul-i64 (be-u32 b i) 4294967296) (be-u32 b (wrapping-add-i64 i 4))
+
+  -- The bytes `[start, stop)` as a fresh buffer; `None` unless
+  -- `0 <= start <= stop <= length`.
+  slice-bytes :: Bytes -> I64 -> I64 -> Option Bytes
+  slice-bytes b start stop =
+    if start >= 0 then
+      if start <= stop then
+        let s = nat-from-i64 start in
+        let e = nat-from-i64 stop in
+        if s <= e then
+          if e <= bytes-len b then
+            let n = e - s in
+            let out = bytes-new n in
+            let u = bytes-copy-range out b 0 s n in
+            Some out
+          else None
+        else None
+      else None
+    else None
+
+  -- The first index in `[i, stop)` holding byte `c`, or -1.
+  find-byte :: Bytes -> I64 -> I64 -> I64 -> I64
+  find-byte b c i stop =
+    if ge-i64 i stop then -1
+    else if eq-i64 (byte b i) c then i
+    else find-byte b c (wrapping-add-i64 i 1) stop
+
+  -- -----------------------------------------------------------------
+  -- Header.
+  -- -----------------------------------------------------------------
+
+  -- isutcnt, isstdcnt, leapcnt, timecnt, typecnt, charcnt.
+  data Header where
+    MkHeader :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Header
+
+  has-magic :: Bytes -> I64 -> Bool
+  has-magic b p =
+    eq-i64 (byte b p) 84 && eq-i64 (byte b (wrapping-add-i64 p 1)) 90
+      && eq-i64 (byte b (wrapping-add-i64 p 2)) 105 && eq-i64 (byte b (wrapping-add-i64 p 3)) 102
+
+  -- The six counts of the header at `p` (the caller has checked that
+  -- 44 bytes are there).
+  read-header :: Bytes -> I64 -> Header
+  read-header b p =
+    MkHeader (be-u32 b (wrapping-add-i64 p 20)) (be-u32 b (wrapping-add-i64 p 24)) (be-u32 b (wrapping-add-i64 p 28))
+      (be-u32 b (wrapping-add-i64 p 32)) (be-u32 b (wrapping-add-i64 p 36)) (be-u32 b (wrapping-add-i64 p 40))
+
+  -- The byte length of the data block a header describes, with
+  -- `width`-byte instants (4 or 8). Each count is below 2^32 and each
+  -- factor at most 12, so the sum is below 2^37 and cannot wrap.
+  block-size :: Header -> I64 -> I64
+  block-size h width = case h of
+    MkHeader isut isstd leap time types chars ->
+      wrapping-add-i64 (wrapping-mul-i64 time (wrapping-add-i64 width 1))
+        (wrapping-add-i64 (wrapping-mul-i64 types 6)
+          (wrapping-add-i64 chars
+            (wrapping-add-i64 (wrapping-mul-i64 leap (wrapping-add-i64 width 4))
+              (wrapping-add-i64 isstd isut))))
+
+  -- -----------------------------------------------------------------
+  -- Data block.
+  -- -----------------------------------------------------------------
+
+  -- Transition instants `i` down to 0, consed onto `acc`, so the list
+  -- comes out in file order.
+  collect-instants :: Bytes -> I64 -> I64 -> I64 -> List I64 -> List I64
+  collect-instants b base width i acc =
+    if lt-i64 i 0 then acc
+    else
+      let p = wrapping-add-i64 base (wrapping-mul-i64 i width) in
+      let v = if eq-i64 width 8 then be-i64 b p else be-i32 b p in
+      collect-instants b base width (wrapping-sub-i64 i 1) (Cons v acc)
+
+  collect-indices :: Bytes -> I64 -> I64 -> List I64 -> List I64
+  collect-indices b base i acc =
+    if lt-i64 i 0 then acc
+    else collect-indices b base (wrapping-sub-i64 i 1) (Cons (byte b (wrapping-add-i64 base i)) acc)
+
+  -- Local time type `k`: offset, daylight flag, abbreviation.
+  read-type :: Bytes -> I64 -> I64 -> I64 -> I64 -> Result TzifError OffsetInfo
+  read-type b types-at chars-at chars k =
+    let p = wrapping-add-i64 types-at (wrapping-mul-i64 k 6) in
+    let flag = byte b (wrapping-add-i64 p 4) in
+    let at = byte b (wrapping-add-i64 p 5) in
+    case offset-from-seconds (be-i32 b p) of
+      None -> Err TzifBadOffset
+      Some o ->
+        if gt-i64 flag 1 then Err TzifBadDstFlag
+        else if ge-i64 at chars then Err TzifAbbreviationOutOfRange
+        else
+          let start = wrapping-add-i64 chars-at at in
+          let stop = find-byte b 0 start (wrapping-add-i64 chars-at chars) in
+          if lt-i64 stop 0 then Err TzifAbbreviationOutOfRange
+          else case slice-bytes b start stop of
+            None -> Err TzifAbbreviationOutOfRange
+            Some raw -> case string-from-bytes raw of
+              None -> Err TzifBadAbbreviation
+              Some abbr -> Ok (offset-info o (eq-i64 flag 1) abbr)
+
+  -- Types `k` down to 0, consed onto `acc`.
+  collect-types :: Bytes -> I64 -> I64 -> I64 -> I64 -> List OffsetInfo -> Result TzifError (List OffsetInfo)
+  collect-types b types-at chars-at chars k acc =
+    if lt-i64 k 0 then Ok acc
+    else case read-type b types-at chars-at chars k of
+      Err e -> Err e
+      Ok info -> collect-types b types-at chars-at chars (wrapping-sub-i64 k 1) (Cons info acc)
+
+  table-error :: ZoneTableError -> TzifError
+  table-error e = case e of
+    ZoneNoTypes -> TzifNoLocalTimeTypes
+    -- Unreachable: both lists are built from the same count.
+    ZoneLengthMismatch -> TzifTruncated
+    ZoneUnsortedTransitions -> TzifUnsortedTransitions
+    ZoneTypeIndexOutOfRange -> TzifTypeIndexOutOfRange
+
+  -- The zone of the data block at `base` (whose extent the caller has
+  -- checked), with `width`-byte instants and the given tail rule.
+  read-block :: String -> Bytes -> I64 -> I64 -> Header -> Option PosixRule -> Result TzifError TimeZone
+  read-block name b base width h tail = case h of
+    MkHeader _ _ leap time types chars ->
+      if gt-i64 leap 0 then Err TzifLeapSeconds
+      else if eq-i64 types 0 then Err TzifNoLocalTimeTypes
+      else
+        let idx-at = wrapping-add-i64 base (wrapping-mul-i64 time width) in
+        let types-at = wrapping-add-i64 idx-at time in
+        let chars-at = wrapping-add-i64 types-at (wrapping-mul-i64 types 6) in
+        case collect-types b types-at chars-at chars (wrapping-sub-i64 types 1) Nil of
+          Err e -> Err e
+          Ok infos ->
+            let instants = collect-instants b base width (wrapping-sub-i64 time 1) Nil in
+            let indices = collect-indices b idx-at (wrapping-sub-i64 time 1) Nil in
+            case zone-from-table name instants indices infos tail of
+              Err e -> Err (table-error e)
+              Ok z -> Ok z
+
+  -- -----------------------------------------------------------------
+  -- Footer.
+  -- -----------------------------------------------------------------
+
+  -- The footer at `f`: newline, TZ string, newline. An empty string
+  -- means no rule.
+  read-footer :: Bytes -> I64 -> Result TzifError (Option PosixRule)
+  read-footer b f =
+    let len = length-of b in
+    if ge-i64 f len then Err TzifTruncated
+    else if ne-i64 (byte b f) 10 then Err TzifMalformedFooter
+    else
+      let start = wrapping-add-i64 f 1 in
+      let stop = find-byte b 10 start len in
+      if lt-i64 stop 0 then Err TzifTruncated
+      else if eq-i64 stop start then Ok None
+      else case slice-bytes b start stop of
+        None -> Err TzifTruncated
+        Some raw -> case parse-posix-tz-bytes raw of
+          Err e -> Err (TzifBadFooter e)
+          Ok r -> Ok (Some r)
+
+  -- -----------------------------------------------------------------
+  -- The file.
+  -- -----------------------------------------------------------------
+
+  -- Version 2 and later: skip the first block, read the second.
+  read-second :: String -> Bytes -> I64 -> Result TzifError TimeZone
+  read-second name b p2 =
+    let len = length-of b in
+    if lt-i64 len (wrapping-add-i64 p2 44) then Err TzifTruncated
+    else if not (has-magic b p2) then Err TzifBadMagic
+    else
+      let h = read-header b p2 in
+      let base = wrapping-add-i64 p2 44 in
+      let footer-at = wrapping-add-i64 base (block-size h 8) in
+      if lt-i64 len footer-at then Err TzifTruncated
+      else case read-footer b footer-at of
+        Err e -> Err e
+        Ok tail -> read-block name b base 8 h tail
+
+  -- A `TimeZone` named `name` from the bytes of a TZif file (the
+  -- header's format and refusals).
+  parse-tzif :: String -> Bytes -> Result TzifError TimeZone
+  parse-tzif name b =
+    let len = length-of b in
+    if lt-i64 len 4 then Err TzifTruncated
+    else if not (has-magic b 0) then Err TzifBadMagic
+    else if lt-i64 len 44 then Err TzifTruncated
+    else
+      let version = byte b 4 in
+      let h = read-header b 0 in
+      if eq-i64 version 0 then
+        (if lt-i64 len (wrapping-add-i64 44 (block-size h 4)) then Err TzifTruncated
+         else read-block name b 44 4 h None)
+      else if ge-i64 version 50 && le-i64 version 52 then
+        read-second name b (wrapping-add-i64 44 (block-size h 4))
+      else Err TzifUnsupportedVersion

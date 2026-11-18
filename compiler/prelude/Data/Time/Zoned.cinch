@@ -1,0 +1,227 @@
+-- Data.Time.Zoned: an instant in a place
+-- (design/datetime.md, layer L2, lane C).
+--
+-- A `Zoned` is a `Timestamp` together with the `TimeZone` it is to be
+-- read in, with that reading (the offset in force and the civil
+-- date-time) computed once and kept. It is what "2026-11-01 17:30 in
+-- New York" means: unlike a civil `DateTime` it names one instant,
+-- and unlike a `Timestamp` it knows how to show itself and what
+-- "tomorrow" is.
+--
+-- REPRESENTATION. Four fields behind the private constructor
+-- `MkZoned`: the instant, the zone, and the cached `Offset` and
+-- `DateTime` (section 4 of the design note). The constructor is not
+-- exported, so the cache cannot disagree with the instant.
+--
+-- Design law shape. INVARIANT: for every `Zoned` value `x`,
+-- `zoned-offset x` is `zone-offset-at (zoned-time-zone x)
+-- (zoned-timestamp x)` and `zoned-datetime x` is the civil reading of
+-- the instant at that offset. `zoned-from-timestamp` is total and
+-- `zoned-timestamp (zoned-from-timestamp z t)` is `t`.
+-- `zoned-from-datetime s z d` resolves the civil reading with the
+-- strategy `s` (T4; `Data.Time.Zone.Types`' table): when it answers
+-- `Ok x` and `d` is not in a gap, `zoned-datetime x` is `d`; in a gap
+-- `d` does not exist and the result reads as the shifted time (see
+-- the table). `zoned-with-time-zone` keeps the instant.
+-- `zoned-start-of-day x` is the first instant whose civil date in the
+-- zone is `x`'s: midnight when midnight exists, its first occurrence
+-- when it occurs twice, and the instant the clocks jumped when the
+-- day begins inside a gap (so 01:00 in America/Santiago on the day
+-- daylight time begins). Equality is the instant AND the zone's name;
+-- `zoned-cmp` orders by the instant alone.
+--
+-- NAMED REFUSALS:
+--   - a silent disambiguation (T4): `zoned-from-datetime` takes the
+--     strategy; the named forms carry it.
+--   - an `Ord` instance: the order is on instants and equality also
+--     looks at the zone, so `Ord` would call two values neither less
+--     nor greater yet unequal. `zoned-cmp` is the instant order.
+--   - equality of zones by their rules: names are compared (two
+--     lookups of one name agree; a zone and its alias do not).
+--   - arithmetic and rounding: `Data.Time.Zoned.Arithmetic` (lane F).
+--   - text: `Text.Time.Rfc9557` (lane F).
+--   - lookup of the zone by name, and "now": `Effect.Time.Zone`.
+module Data.Time.Zoned where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday)
+  import Data.Time.Date (Date)
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+
+  export Zoned
+  export zoned-from-timestamp, zoned-from-datetime
+  export zoned-from-datetime-compatible, zoned-from-datetime-earlier
+  export zoned-from-datetime-later, zoned-from-datetime-reject
+  export zoned-timestamp, zoned-time-zone, zoned-offset, zoned-datetime
+  export zoned-info, zoned-is-dst, zoned-abbreviation
+  export zoned-date, zoned-time-of-day
+  export zoned-year, zoned-month, zoned-day, zoned-weekday
+  export zoned-hour, zoned-minute, zoned-second, zoned-subsec-nanosecond
+  export zoned-with-time-zone, zoned-start-of-day
+  export zoned-cmp
+
+
+  -- Instant, zone, cached offset and civil reading (the invariant in
+  -- the header). Not exported.
+  data Zoned where
+    MkZoned :: Timestamp -> TimeZone -> Offset -> DateTime -> Zoned
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  -- An instant read in a zone. Total: every instant has one offset in
+  -- every zone and a civil reading at every offset.
+  zoned-from-timestamp :: TimeZone -> Timestamp -> Zoned
+  zoned-from-timestamp z t =
+    let o = zone-offset-at z t in
+    MkZoned t z o (offset-timestamp-to-datetime o t)
+
+  -- A civil reading in a zone, by the given strategy. `Err` when
+  -- `Reject` meets a gap or a fold, or the instant is outside the
+  -- timestamp range. The result is rebuilt from the instant, so the
+  -- invariant holds whatever the reading was (in a gap the cached
+  -- reading is the shifted one, not the argument).
+  zoned-from-datetime :: Disambiguation -> TimeZone -> DateTime -> Result AmbiguityError Zoned
+  zoned-from-datetime s z d = case zone-to-timestamp s z d of
+    Err e -> Err e
+    Ok t -> Ok (zoned-from-timestamp z t)
+
+  zoned-from-datetime-compatible :: TimeZone -> DateTime -> Result AmbiguityError Zoned
+  zoned-from-datetime-compatible z d = zoned-from-datetime Compatible z d
+
+  zoned-from-datetime-earlier :: TimeZone -> DateTime -> Result AmbiguityError Zoned
+  zoned-from-datetime-earlier z d = zoned-from-datetime Earlier z d
+
+  zoned-from-datetime-later :: TimeZone -> DateTime -> Result AmbiguityError Zoned
+  zoned-from-datetime-later z d = zoned-from-datetime Later z d
+
+  zoned-from-datetime-reject :: TimeZone -> DateTime -> Result AmbiguityError Zoned
+  zoned-from-datetime-reject z d = zoned-from-datetime Reject z d
+
+  -- -----------------------------------------------------------------
+  -- Parts. Each is a field read or a field of the cached reading.
+  -- -----------------------------------------------------------------
+
+  zoned-timestamp :: Zoned -> Timestamp
+  zoned-timestamp x = case x of
+    MkZoned t _ _ _ -> t
+
+  zoned-time-zone :: Zoned -> TimeZone
+  zoned-time-zone x = case x of
+    MkZoned _ z _ _ -> z
+
+  zoned-offset :: Zoned -> Offset
+  zoned-offset x = case x of
+    MkZoned _ _ o _ -> o
+
+  zoned-datetime :: Zoned -> DateTime
+  zoned-datetime x = case x of
+    MkZoned _ _ _ d -> d
+
+  -- Offset, daylight flag and abbreviation at the instant (looked up;
+  -- only the offset is cached).
+  zoned-info :: Zoned -> OffsetInfo
+  zoned-info x = zone-info-at (zoned-time-zone x) (zoned-timestamp x)
+
+  zoned-is-dst :: Zoned -> Bool
+  zoned-is-dst x = offset-info-is-dst (zoned-info x)
+
+  zoned-abbreviation :: Zoned -> String
+  zoned-abbreviation x = offset-info-abbreviation (zoned-info x)
+
+  zoned-date :: Zoned -> Date
+  zoned-date x = DT.date-part (zoned-datetime x)
+
+  zoned-time-of-day :: Zoned -> TimeOfDay
+  zoned-time-of-day x = DT.time-part (zoned-datetime x)
+
+  zoned-year :: Zoned -> InRange (-9999) 9999 I64
+  zoned-year x = DT.year (zoned-datetime x)
+
+  zoned-month :: Zoned -> InRange 1 12 I64
+  zoned-month x = DT.month (zoned-datetime x)
+
+  zoned-day :: Zoned -> InRange 1 31 I64
+  zoned-day x = DT.day (zoned-datetime x)
+
+  zoned-weekday :: Zoned -> Weekday
+  zoned-weekday x = DT.weekday (zoned-datetime x)
+
+  zoned-hour :: Zoned -> InRange 0 23 I64
+  zoned-hour x = DT.hour (zoned-datetime x)
+
+  zoned-minute :: Zoned -> InRange 0 59 I64
+  zoned-minute x = DT.minute (zoned-datetime x)
+
+  zoned-second :: Zoned -> InRange 0 59 I64
+  zoned-second x = DT.second (zoned-datetime x)
+
+  zoned-subsec-nanosecond :: Zoned -> InRange 0 999999999 I64
+  zoned-subsec-nanosecond x = DT.subsec-nanosecond (zoned-datetime x)
+
+  -- -----------------------------------------------------------------
+  -- Changing the zone; the start of the day.
+  -- -----------------------------------------------------------------
+
+  -- The same instant read in another zone.
+  zoned-with-time-zone :: TimeZone -> Zoned -> Zoned
+  zoned-with-time-zone z x = zoned-from-timestamp z (zoned-timestamp x)
+
+  -- The first instant of `x`'s civil day in its zone (the header's
+  -- law). `None` only when that instant is before the timestamp
+  -- range (the first day of the range).
+  --
+  -- Midnight of the day is resolved: one occurrence is the answer; of
+  -- two (a fold over midnight) the earlier is the first instant of
+  -- the day. In a gap, midnight was skipped and the day begins at the
+  -- transition that skipped it: reading midnight with the offset
+  -- AFTER the gap gives an instant before that transition and less
+  -- than a gap's length from it, so the transition is the next one
+  -- after that instant. (Shifting midnight forward by the gap's
+  -- length, the "compatible" reading, is only right when the gap
+  -- begins exactly at midnight.) The fallback arm, a gap with no
+  -- transition after it, cannot occur and reads as "compatible".
+  zoned-start-of-day :: Zoned -> Option Zoned
+  zoned-start-of-day x =
+    let z = zoned-time-zone x in
+    let midnight = DT.start-of-day (zoned-datetime x) in
+    case zone-to-ambiguous z midnight of
+      Unambiguous o -> at-offset z o midnight
+      Fold before _ -> at-offset z before midnight
+      Gap before after -> case offset-datetime-to-timestamp after midnight of
+        None -> at-offset z before midnight
+        Some early -> case zone-next-transition-unix-seconds z (timestamp-to-unix-seconds early) of
+          None -> at-offset z before midnight
+          Some s -> case timestamp-from-unix-seconds s of
+            None -> None
+            Some t -> Some (zoned-from-timestamp z t)
+
+  at-offset :: TimeZone -> Offset -> DateTime -> Option Zoned
+  at-offset z o d = case offset-datetime-to-timestamp o d of
+    None -> None
+    Some t -> Some (zoned-from-timestamp z t)
+
+  -- -----------------------------------------------------------------
+  -- Order and equality.
+  -- -----------------------------------------------------------------
+
+  -- The order of the instants (the zones are not consulted).
+  zoned-cmp :: Zoned -> Zoned -> Ordering
+  zoned-cmp a b = timestamp-cmp (zoned-timestamp a) (zoned-timestamp b)
+
+  -- The same instant in a zone of the same name.
+  implicit instance Eq_Zoned :: Eq Zoned where
+    (==) a b = zoned-timestamp a == zoned-timestamp b && zone-name (zoned-time-zone a) == zone-name (zoned-time-zone b)
+    (/=) a b = not (zoned-timestamp a == zoned-timestamp b && zone-name (zoned-time-zone a) == zone-name (zoned-time-zone b))

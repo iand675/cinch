@@ -1,0 +1,156 @@
+-- Lane B: Data.Time.Weekday. Numberings both ways, the checked
+-- readers' refusals, the cycle (next, previous, add-days for huge
+-- counts of either sign), days-until/days-since, and the ISO order.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Weekday as W
+
+  is-day :: Option Weekday -> Weekday -> Bool
+  is-day o d = case o of
+    None -> False
+    Some x -> x == d
+
+  refused :: Option Weekday -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  -- Every weekday reached by walking `next` from Monday.
+  nth-from-monday :: I64 -> Weekday
+  nth-from-monday n = if n <= 0 then Monday else W.next (nth-from-monday (wrapping-sub-i64 n 1))
+
+  -- 1: the three numberings.
+  check-numberings :: Int
+  check-numberings =
+    if W.to-monday-one Monday == 1 && W.to-monday-one Thursday == 4 && W.to-monday-one Sunday == 7
+       && W.to-monday-zero Monday == 0 && W.to-monday-zero Sunday == 6
+       && W.to-sunday-zero Sunday == 0 && W.to-sunday-zero Monday == 1 && W.to-sunday-zero Saturday == 6
+       && W.to-sunday-zero Wednesday == 3
+    then 0 else 1
+
+  -- The refined constructors invert the refined readers on all seven.
+  round-trips :: I64 -> Bool
+  round-trips n =
+    if n >= 7 then True
+    else
+      let d = nth-from-monday n in
+      if W.from-monday-one (W.to-monday-one d) == d
+         && W.from-monday-zero (W.to-monday-zero d) == d
+         && W.from-sunday-zero (W.to-sunday-zero d) == d
+         && W.to-monday-zero d == n
+      then round-trips (wrapping-add-i64 n 1) else False
+
+  -- 2: total refined constructors (literals discharge) and inverses.
+  check-refined :: Int
+  check-refined =
+    if W.from-monday-one 1 == Monday && W.from-monday-one 7 == Sunday
+       && W.from-monday-zero 0 == Monday && W.from-monday-zero 6 == Sunday
+       && W.from-sunday-zero 0 == Sunday && W.from-sunday-zero 6 == Saturday
+       && W.from-sunday-zero 4 == Thursday
+       && round-trips 0
+    then 0 else 2
+
+  -- 4: the checked readers and each refusal.
+  check-checked :: Int
+  check-checked =
+    if is-day (W.from-monday-one-checked 1) Monday && is-day (W.from-monday-one-checked 7) Sunday
+       && refused (W.from-monday-one-checked 0) && refused (W.from-monday-one-checked 8)
+       && refused (W.from-monday-one-checked (-1))
+       && is-day (W.from-monday-zero-checked 0) Monday && is-day (W.from-monday-zero-checked 6) Sunday
+       && refused (W.from-monday-zero-checked (-1)) && refused (W.from-monday-zero-checked 7)
+       && is-day (W.from-sunday-zero-checked 0) Sunday && is-day (W.from-sunday-zero-checked 6) Saturday
+       && refused (W.from-sunday-zero-checked (-1)) && refused (W.from-sunday-zero-checked 7)
+       && refused (W.from-sunday-zero-checked 9223372036854775807)
+       && refused (W.from-monday-one-checked (-9223372036854775808))
+    then 0 else 4
+
+  cycle-ok :: I64 -> Bool
+  cycle-ok n =
+    if n >= 7 then True
+    else
+      let d = nth-from-monday n in
+      if W.previous (W.next d) == d && W.next (W.previous d) == d
+         && W.add-days 1 d == W.next d && W.add-days (-1) d == W.previous d
+         && W.add-days 7 d == d && W.add-days (-7) d == d && W.add-days 0 d == d
+         && W.add-days 700000000000 d == d
+      then cycle-ok (wrapping-add-i64 n 1) else False
+
+  -- 8: next/previous and add-days, including the wrap at both ends.
+  check-cycle :: Int
+  check-cycle =
+    if W.next Sunday == Monday && W.previous Monday == Sunday && W.next Wednesday == Thursday
+       && nth-from-monday 7 == Monday && nth-from-monday 13 == Sunday
+       && cycle-ok 0
+       && W.add-days 3 Friday == Monday && W.add-days (-3) Tuesday == Saturday
+       && W.add-days 100 Monday == Wednesday && W.add-days (-100) Monday == Saturday
+    then 0 else 8
+
+  -- 16: add-days for the extreme counts. 2^63 - 1 is a multiple of 7,
+  -- so the largest count leaves the day alone and the least count
+  -- (-2^63, one less than a multiple of 7 below zero) steps back one.
+  check-huge :: Int
+  check-huge =
+    if W.add-days 9223372036854775807 Monday == Monday
+       && W.add-days 9223372036854775807 Sunday == Sunday
+       && W.add-days (-9223372036854775808) Monday == Sunday
+       && W.add-days (-9223372036854775808) Thursday == Wednesday
+       && W.add-days 9223372036854775806 Monday == Sunday
+    then 0 else 16
+
+  until-ok :: I64 -> I64 -> Bool
+  until-ok a b =
+    if a >= 7 then True
+    else if b >= 7 then until-ok (wrapping-add-i64 a 1) 0
+    else
+      let x = nth-from-monday a in
+      let y = nth-from-monday b in
+      let u = W.days-until x y in
+      if u >= 0 && u <= 6 && W.add-days u x == y
+         && W.days-since y x == u
+         && W.add-days (wrapping-neg-i64 (W.days-since x y)) x == y
+      then until-ok a (wrapping-add-i64 b 1) else False
+
+  -- 32: days-until and days-since over all 49 pairs.
+  check-until :: Int
+  check-until =
+    if W.days-until Monday Monday == 0 && W.days-until Monday Sunday == 6
+       && W.days-until Sunday Monday == 1 && W.days-until Wednesday Thursday == 1
+       && W.days-until Thursday Wednesday == 6
+       && W.days-since Monday Sunday == 1 && W.days-since Sunday Monday == 6
+       && until-ok 0 0
+    then 0 else 32
+
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    _ -> False
+
+  is-eq :: Ordering -> Bool
+  is-eq o = case o of
+    EQ -> True
+    _ -> False
+
+  is-gt :: Ordering -> Bool
+  is-gt o = case o of
+    GT -> True
+    _ -> False
+
+  -- 64: the ISO order, Monday first; the weekend.
+  check-order :: Int
+  check-order =
+    if Monday < Tuesday && Saturday < Sunday && Monday < Sunday
+       && Sunday > Monday && Monday <= Monday && Sunday >= Sunday
+       && Monday /= Sunday && Thursday == Thursday
+       && is-lt (W.cmp Monday Sunday) && is-eq (W.cmp Friday Friday) && is-gt (W.cmp Sunday Saturday)
+       && W.is-weekend Saturday && W.is-weekend Sunday
+       && (if W.is-weekend Friday then False else True)
+       && (if W.is-weekend Monday then False else True)
+    then 0 else 64
+
+  main :: Int
+  main = check-numberings + check-refined + check-checked + check-cycle + check-huge + check-until + check-order

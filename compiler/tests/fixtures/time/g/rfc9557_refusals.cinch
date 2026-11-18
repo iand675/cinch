@@ -1,0 +1,210 @@
+-- Lane G: Text.Time.Rfc9557, every parse refusal by name and byte
+-- position, in strict and in lenient mode: the date-time part (wrapped
+-- `IsoError`), a missing zone annotation, malformed brackets, the
+-- order and number of zone annotations, critical and calendar
+-- annotations, zone names and zone offsets outside the grammar, a date
+-- with no time; and the annotations that are accepted and ignored.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Text.Time.Rfc9557
+
+  -- A date-time refusal as `100000 + constructor number * 1000 +
+  -- position`, numbered in Text.Time.Iso's declaration order.
+  iso-code :: IsoError -> I64
+  iso-code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 101000 p
+    IsoExpectedDigit p -> wrapping-add-i64 102000 p
+    IsoExpectedDash p -> wrapping-add-i64 103000 p
+    IsoExpectedColon p -> wrapping-add-i64 104000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 105000 p
+    IsoMissingTime p -> wrapping-add-i64 106000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 107000 p
+    IsoTrailingInput p -> wrapping-add-i64 108000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 109000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 110000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 111000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 112000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 113000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 114000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 115000 p
+    IsoLeapSecond p -> wrapping-add-i64 116000 p
+    IsoEmptyFraction p -> wrapping-add-i64 117000 p
+    IsoFractionTooLong p -> wrapping-add-i64 118000 p
+    IsoMissingOffset p -> wrapping-add-i64 119000 p
+    IsoExpectedOffset p -> wrapping-add-i64 120000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 121000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 122000 p
+
+  -- A refusal as `constructor number * 1000 + position` (a date-time
+  -- refusal as its `iso-code`); -1 for `Ok`.
+  code :: Rfc9557Error -> I64
+  code e = case e of
+    Rfc9557DateTime inner -> iso-code inner
+    Rfc9557MissingTime p -> wrapping-add-i64 2000 p
+    Rfc9557MissingZoneAnnotation p -> wrapping-add-i64 3000 p
+    Rfc9557TrailingInput p -> wrapping-add-i64 4000 p
+    Rfc9557UnclosedAnnotation p -> wrapping-add-i64 5000 p
+    Rfc9557EmptyAnnotation p -> wrapping-add-i64 6000 p
+    Rfc9557InvalidAnnotation p -> wrapping-add-i64 7000 p
+    Rfc9557InvalidZoneName p -> wrapping-add-i64 8000 p
+    Rfc9557InvalidZoneOffset p -> wrapping-add-i64 9000 p
+    Rfc9557SubMinuteZoneOffset p -> wrapping-add-i64 10000 p
+    Rfc9557ZoneOffsetOutOfRange p -> wrapping-add-i64 11000 p
+    Rfc9557DuplicateZoneAnnotation p -> wrapping-add-i64 12000 p
+    Rfc9557ZoneAnnotationNotFirst p -> wrapping-add-i64 13000 p
+    Rfc9557CriticalUnknownAnnotation p -> wrapping-add-i64 14000 p
+    Rfc9557UnsupportedCalendar p -> wrapping-add-i64 15000 p
+    Rfc9557OffsetMismatch _ _ -> 16000
+    Rfc9557Ambiguous _ -> 17000
+    Rfc9557OutOfRange -> 18000
+
+  strict :: String -> I64
+  strict s = case parse-zoned-text s of
+    Ok _ -> -1
+    Err e -> code e
+
+  lenient :: String -> I64
+  lenient s = case parse-zoned-text-lenient s of
+    Ok _ -> -1
+    Err e -> code e
+
+  -- Both modes answer the same.
+  both :: String -> I64 -> Bool
+  both s c = strict s == c && lenient s == c
+
+  -- Strict and lenient differ.
+  each :: String -> I64 -> I64 -> Bool
+  each s c l = strict s == c && lenient s == l
+
+  -- 1: dates, times and offsets outside the grammar (the inner
+  -- `IsoError`); the lenient forms of the same texts.
+  check-date-time :: Int
+  check-date-time =
+    if both "junk" 102000
+       && both "2026-13-01T00:00[UTC]" 111005
+       && both "2026-11-12T25:00[UTC]" 113011
+       && both "2026-11-12" 106010
+       && both "2026-11-12X" 105010
+       && both "2026-11-12T10:00+26:00[UTC]" 121016
+       && both "2026-11-12T10:00+05:6[UTC]" 102021
+       && each "2026-11-12T10:00+0530[UTC]" 104019 (-1)
+       && each "2026-11-12T10:00z[UTC]" 120016 (-1)
+       && both "2026-11-12T10:00+5[UTC]" 102018
+       && both "2026-11-12T10:00+05:60[UTC]" 121016
+       && both "2026-11-12T10:00+05:30:60[UTC]" 121016
+       && both "2026-11-12T10:00+05:30:" 101023
+       && each "2026-11-12T10:00:60[UTC]" 116017 (-1)
+       && each "2026-11-12t10:00[UTC]" 105010 (-1)
+      then 0 else 1
+
+  -- 2: no time zone annotation: a timestamp or a civil date-time is not
+  -- a zoned date-time, with or without a calendar annotation.
+  check-missing-zone :: Int
+  check-missing-zone =
+    if both "2024-07-13T19:09:59Z" 3020
+       && both "2024-07-13T19:09:59" 3019
+       && both "2024-07-13T19:09:59-04:00" 3025
+       && both "2024-07-13T19:09:59.5+01" 3024
+       && both "2024-07-13T19:09:59Z[u-ca=gregory]" 3034
+      then 0 else 2
+
+  -- 4: malformed brackets and input around them.
+  check-brackets :: Int
+  check-brackets =
+    if both "2024-07-13T19:09:59Z[America/New_York" 5020
+       && both "2024-07-13T19:09:59Z[" 5020
+       && both "2024-07-13T19:09:59Z[America/New_York][u-ca=gregory" 5038
+       && both "2024-07-13T19:09:59Z[]" 6020
+       && both "2024-07-13T19:09:59Z[!]" 6020
+       && both "2024-07-13T19:09:59Z[UTC][]" 6025
+       && both "2024-07-13T19:09:59Z[UTC]x" 4025
+       && both "2024-07-13T19:09:59Z [UTC]" 4020
+       && both "2024-07-13T19:09:59Z[UTC] " 4025
+       && both "2024-07-13T19:09:59Z]UTC[" 4020
+       && both "2024-07-13T19:09:59Z[[UTC]]" 8021
+       && both "2024-07-13T19:09:59Z[UTC]]" 4025
+      then 0 else 4
+
+  -- 8: at most one zone annotation, and it comes first.
+  check-zone-order :: Int
+  check-zone-order =
+    if both "2024-07-13T19:09:59Z[America/New_York][Europe/London]" 12038
+       && both "2024-07-13T19:09:59Z[America/New_York][America/New_York]" 12038
+       && both "2024-07-13T19:09:59Z[UTC][+00:00]" 12025
+       && both "2024-07-13T19:09:59Z[UTC][u-ca=gregory][Europe/London]" 12039
+       && both "2024-07-13T19:09:59Z[u-ca=gregory][America/New_York]" 13034
+       && both "2024-07-13T19:09:59Z[u-foo=bar][+01:00]" 13031
+      then 0 else 8
+
+  -- 16: critical unknown keys, calendars other than the Gregorian one,
+  -- and keys or values outside the grammar.
+  check-keys :: Int
+  check-keys =
+    if both "2024-07-13T19:09:59Z[America/New_York][!u-foo=bar]" 14038
+       && both "2024-07-13T19:09:59Z[!u-foo=bar][America/New_York]" 14020
+       && both "2024-07-13T19:09:59Z[America/New_York][u-ca=hebrew]" 15038
+       && both "2024-07-13T19:09:59Z[America/New_York][!u-ca=hebrew]" 15038
+       && both "2024-07-13T19:09:59Z[America/New_York][u-ca=iso8601][u-ca=japanese]" 15052
+       && both "2024-07-13T19:09:59Z[UTC][U-CA=gregory]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][u-ca=]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][=x]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][a=b--c]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][a=b-]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][a=b_c]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][1a=b]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][a=b=c]" 7026
+       && both "2024-07-13T19:09:59Z[UTC][a b=c]" 7026
+      then 0 else 16
+
+  -- 32: zone names outside the grammar.
+  check-zone-names :: Int
+  check-zone-names =
+    if both "2024-07-13T19:09:59Z[America/]" 8021
+       && both "2024-07-13T19:09:59Z[/UTC]" 8021
+       && both "2024-07-13T19:09:59Z[..]" 8021
+       && both "2024-07-13T19:09:59Z[America/../UTC]" 8021
+       && both "2024-07-13T19:09:59Z[1abc]" 8021
+       && both "2024-07-13T19:09:59Z[America/New York]" 8021
+       && both "2024-07-13T19:09:59Z[!!UTC]" 8022
+       && both "2024-07-13T19:09:59Z[ UTC]" 8021
+      then 0 else 32
+
+  -- 64: zone offsets: exactly `+HH:MM` (seconds in lenient mode only).
+  check-zone-offsets :: Int
+  check-zone-offsets =
+    if both "2024-07-13T19:09:59Z[+05]" 9021
+       && both "2024-07-13T19:09:59Z[+0530]" 9021
+       && each "2024-07-13T19:09:59Z[+05:30:15]" 10021 (-1)
+       && both "2024-07-13T19:09:59Z[+26:00]" 11021
+       && both "2024-07-13T19:09:59Z[+05:60]" 11021
+       && both "2024-07-13T19:09:59Z[+05:3x]" 9021
+       && both "2024-07-13T19:09:59Z[+05:30x]" 9021
+       && both "2024-07-13T19:09:59Z[+05:30:1]" 9021
+       && each "2024-07-13T19:09:59Z[+05:30:60]" 10021 11021
+       && both "2024-07-13T19:09:59Z[-]" 9021
+       && both "2024-07-13T19:09:59Z[+05:30:15:00]" 9021
+      then 0 else 64
+
+  -- 128: a date with no time (strict refuses, lenient accepts), and the
+  -- annotations that are accepted and ignored.
+  check-date-only-and-accepted :: Int
+  check-date-only-and-accepted =
+    if each "2026-11-12[America/New_York]" 2010 (-1)
+       && both "2026-11-12+01:00[America/New_York]" 105010
+       && each "20261112[America/New_York]" 103004 (-1)
+       && both "2026-11-12T10[UTC]" 104013
+       && both "2024-07-13T19:09:59Z[America/New_York][u-foo=bar]" (-1)
+       && both "2024-07-13T19:09:59Z[America/New_York][u-ca=iso8601]" (-1)
+       && both "2024-07-13T19:09:59Z[!America/New_York]" (-1)
+       && both "2024-07-13T19:09:59Z[America/New_York][!u-ca=gregory][_k=v1-v2]" (-1)
+      then 0 else 128
+
+  main :: Int
+  main = check-date-time + check-missing-zone + check-brackets + check-zone-order
+    + check-keys + check-zone-names + check-zone-offsets + check-date-only-and-accepted

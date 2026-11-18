@@ -1,0 +1,185 @@
+-- Lane B: Data.Time.TimeOfDay. Field round trips, every construction
+-- refusal, the bounds, the wrapping addition with positive and
+-- negative day carry (including the extreme `I64` counts), the signed
+-- difference, and the order.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+
+  fields :: TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields t h m s ns = T.hour t == h && T.minute t == m && T.second t == s && T.subsec-nanosecond t == ns
+
+  is-hmsn :: Option TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  is-hmsn o h m s ns = case o of
+    None -> False
+    Some t -> fields t h m s ns
+
+  refused :: Option TimeOfDay -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The carry and the wrapped nanosecond count of a wrapping addition.
+  wraps-to :: (I64, TimeOfDay) -> I64 -> I64 -> Bool
+  wraps-to r carry nanos = case r of
+    (c, t) -> c == carry && T.to-nanos-of-day t == nanos
+
+  -- 1: the total constructor over literal fields and the accessors.
+  check-fields :: Int
+  check-fields =
+    let t = T.time-of-day 13 45 30 123456789 in
+    if fields t 13 45 30 123456789
+       && T.millisecond t == 123 && T.microsecond t == 456 && T.nanosecond t == 789
+       && T.to-nanos-of-day t == 49530123456789
+       && fields (T.time-of-day 0 0 0 0) 0 0 0 0
+       && fields (T.time-of-day 23 59 59 999999999) 23 59 59 999999999
+       && fields (T.hms 7 8 9) 7 8 9 0 && T.hms 7 8 9 == T.time-of-day 7 8 9 0
+       && fields (T.time-of-day 0 0 0 1) 0 0 0 1 && fields (T.time-of-day 0 0 1 0) 0 0 1 0
+       && fields (T.time-of-day 0 1 0 0) 0 1 0 0 && fields (T.time-of-day 1 0 0 0) 1 0 0 0
+       && T.millisecond (T.time-of-day 1 2 3 999000000) == 999
+       && T.microsecond (T.time-of-day 1 2 3 999000) == 999
+       && T.nanosecond (T.time-of-day 1 2 3 999) == 999
+       && T.millisecond (T.time-of-day 1 2 3 999999) == 0
+    then 0 else 1
+
+  -- 2: accessor results carry their ranges, so they feed the total
+  -- constructor directly; and the subsecond splits into its three
+  -- components.
+  check-refined-flow :: Int
+  check-refined-flow =
+    let t = T.time-of-day 13 45 30 123456789 in
+    let u = T.time-of-day (T.hour t) (T.minute t) (T.second t) (T.subsec-nanosecond t) in
+    let whole = T.time-of-day (T.hour t) 0 0 0 in
+    let sub = wrapping-add-i64 (wrapping-add-i64 (wrapping-mul-i64 (T.millisecond t) 1000000) (wrapping-mul-i64 (T.microsecond t) 1000)) (T.nanosecond t) in
+    if u == t && fields whole 13 0 0 0 && sub == T.subsec-nanosecond t then 0 else 2
+
+  -- 4: the checked constructor and every refusal.
+  check-checked :: Int
+  check-checked =
+    if is-hmsn (T.time-of-day-checked 13 45 30 123456789) 13 45 30 123456789
+       && is-hmsn (T.time-of-day-checked 0 0 0 0) 0 0 0 0
+       && is-hmsn (T.time-of-day-checked 23 59 59 999999999) 23 59 59 999999999
+       && refused (T.time-of-day-checked 24 0 0 0) && refused (T.time-of-day-checked (-1) 0 0 0)
+       && refused (T.time-of-day-checked 0 60 0 0) && refused (T.time-of-day-checked 0 (-1) 0 0)
+       && refused (T.time-of-day-checked 0 0 60 0) && refused (T.time-of-day-checked 0 0 (-1) 0)
+       && refused (T.time-of-day-checked 0 0 0 1000000000) && refused (T.time-of-day-checked 0 0 0 (-1))
+       && refused (T.time-of-day-checked 9223372036854775807 0 0 0)
+       && refused (T.time-of-day-checked 0 9223372036854775807 0 0)
+       && refused (T.time-of-day-checked 0 0 9223372036854775807 0)
+       && refused (T.time-of-day-checked 0 0 0 9223372036854775807)
+       && refused (T.time-of-day-checked (-9223372036854775808) 0 0 0)
+    then 0 else 4
+
+  -- 8: the nanosecond-of-day line and its bounds.
+  check-bounds :: Int
+  check-bounds =
+    if is-hmsn (T.from-nanos-of-day 0) 0 0 0 0
+       && is-hmsn (T.from-nanos-of-day 86399999999999) 23 59 59 999999999
+       && is-hmsn (T.from-nanos-of-day 49530123456789) 13 45 30 123456789
+       && refused (T.from-nanos-of-day (-1)) && refused (T.from-nanos-of-day 86400000000000)
+       && refused (T.from-nanos-of-day 9223372036854775807)
+       && refused (T.from-nanos-of-day (-9223372036854775808))
+       && T.to-nanos-of-day T.midnight == 0 && T.to-nanos-of-day T.noon == 43200000000000
+       && T.to-nanos-of-day T.min-time == 0 && T.to-nanos-of-day T.max-time == 86399999999999
+       && fields T.noon 12 0 0 0 && fields T.max-time 23 59 59 999999999
+       && T.midnight == T.min-time && T.nanos-per-day == 86400000000000
+    then 0 else 8
+
+  -- 16: wrapping addition, small and day-sized counts, both carries.
+  check-add-nanos :: Int
+  check-add-nanos =
+    let t = T.time-of-day 12 0 0 0 in
+    if wraps-to (T.add-nanos-wrapping 0 t) 0 43200000000000
+       && wraps-to (T.add-nanos-wrapping 1 t) 0 43200000000001
+       && wraps-to (T.add-nanos-wrapping (-1) t) 0 43199999999999
+       && wraps-to (T.add-nanos-wrapping 1 T.max-time) 1 0
+       && wraps-to (T.add-nanos-wrapping (-1) T.midnight) (-1) 86399999999999
+       && wraps-to (T.add-nanos-wrapping 43200000000000 t) 1 0
+       && wraps-to (T.add-nanos-wrapping 43199999999999 t) 0 86399999999999
+       && wraps-to (T.add-nanos-wrapping (-43200000000000) t) 0 0
+       && wraps-to (T.add-nanos-wrapping (-43200000000001) t) (-1) 86399999999999
+       && wraps-to (T.add-nanos-wrapping 86400000000000 (T.time-of-day 0 0 0 7)) 1 7
+       && wraps-to (T.add-nanos-wrapping (-86400000000000) (T.time-of-day 0 0 0 7)) (-1) 7
+       && wraps-to (T.add-nanos-wrapping 172800000000000 t) 2 43200000000000
+       && wraps-to (T.add-nanos-wrapping (-172800000000000) t) (-2) 43200000000000
+       && wraps-to (T.add-nanos-wrapping 86399999999999 T.max-time) 1 86399999999998
+    then 0 else 16
+
+  -- 32: wrapping addition at the extreme `I64` counts (the exact
+  -- quotients and remainders of the unbounded integer sums).
+  check-add-huge :: Int
+  check-add-huge =
+    if wraps-to (T.add-nanos-wrapping 9223372036854775807 T.midnight) 106751 85636854775807
+       && wraps-to (T.add-nanos-wrapping (-9223372036854775808) T.midnight) (-106752) 763145224192
+       && wraps-to (T.add-seconds-nanos-wrapping 9223372036854775807 9223372036854775807 T.max-time) 106751991274053 55043854775806
+       && wraps-to (T.add-seconds-nanos-wrapping (-9223372036854775808) (-9223372036854775808) T.midnight) (-106751991274053) 31355145224192
+       && wraps-to (T.add-seconds-nanos-wrapping (-9223372036854775808) 9223372036854775807 T.max-time) (-106751991060548) 29828854775806
+       && wraps-to (T.add-seconds-nanos-wrapping 9223372036854775807 (-9223372036854775808) T.midnight) 106751991060548 56570145224192
+    then 0 else 32
+
+  -- 64: seconds and nanoseconds together.
+  check-add-seconds :: Int
+  check-add-seconds =
+    let t = T.time-of-day 12 0 0 0 in
+    if wraps-to (T.add-seconds-nanos-wrapping 0 0 t) 0 43200000000000
+       && wraps-to (T.add-seconds-nanos-wrapping 86400 0 (T.time-of-day 0 0 0 5)) 1 5
+       && wraps-to (T.add-seconds-nanos-wrapping (-1) 0 T.midnight) (-1) 86399000000000
+       && wraps-to (T.add-seconds-nanos-wrapping 90000 (-1) t) 1 46799999999999
+       && wraps-to (T.add-seconds-nanos-wrapping 1 (-1000000000) t) 0 43200000000000
+       && wraps-to (T.add-seconds-nanos-wrapping (-43200) (-1) t) (-1) 86399999999999
+       && wraps-to (T.add-seconds-nanos-wrapping 43199 999999999 t) 0 86399999999999
+       && wraps-to (T.add-seconds-nanos-wrapping 43199 1000000000 t) 1 0
+    then 0 else 64
+
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    _ -> False
+
+  is-eq :: Ordering -> Bool
+  is-eq o = case o of
+    EQ -> True
+    _ -> False
+
+  is-gt :: Ordering -> Bool
+  is-gt o = case o of
+    GT -> True
+    _ -> False
+
+  -- The order of two times is the order of their nanosecond counts
+  -- and the sign of their difference.
+  agrees :: TimeOfDay -> TimeOfDay -> Bool
+  agrees a b =
+    let x = T.to-nanos-of-day a in
+    let y = T.to-nanos-of-day b in
+    if x < y then is-lt (T.cmp a b) && a < b && a <= b && a /= b && T.diff-nanos a b > 0
+                  && (if a > b then False else True) && (if a >= b then False else True)
+                  && (if a == b then False else True)
+    else if x == y then is-eq (T.cmp a b) && a == b && a <= b && a >= b && T.diff-nanos a b == 0
+                  && (if a < b then False else True) && (if a > b then False else True)
+                  && (if a /= b then False else True)
+    else is-gt (T.cmp a b) && a > b && a >= b && a /= b && T.diff-nanos a b < 0
+                  && (if a < b then False else True) && (if a <= b then False else True)
+
+  -- 128: the signed difference and the order.
+  check-diff-and-order :: Int
+  check-diff-and-order =
+    let a = T.time-of-day 1 59 59 999999999 in
+    let b = T.time-of-day 2 0 0 0 in
+    if T.diff-nanos a b == 1 && T.diff-nanos b a == -1 && T.diff-nanos a a == 0
+       && T.diff-nanos T.midnight T.max-time == 86399999999999
+       && T.diff-nanos T.max-time T.midnight == -86399999999999
+       && T.diff-nanos T.midnight T.noon == 43200000000000
+       && agrees a b && agrees b a && agrees a a && agrees T.midnight T.max-time
+       && agrees T.max-time T.midnight && agrees T.noon T.noon
+       && agrees (T.time-of-day 0 59 59 0) (T.time-of-day 1 0 0 0)
+       && agrees (T.time-of-day 5 0 59 999999999) (T.time-of-day 5 1 0 0)
+    then 0 else 128
+
+  main :: Int
+  main = check-fields + check-refined-flow + check-checked + check-bounds + check-add-nanos + check-add-huge + check-add-seconds + check-diff-and-order

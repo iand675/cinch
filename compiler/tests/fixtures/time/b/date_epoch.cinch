@@ -1,0 +1,194 @@
+-- Lane B: Data.Time.Date on the epoch-day line. Anchors (1970-01-01
+-- is 0, 1969-12-31 is -1, 2000-03-01, the range ends), loops over
+-- several thousand consecutive days checking that the conversions
+-- invert, weekdays succeed each other, tomorrow/yesterday agree and
+-- the word order agrees with the day order; add-days and diff-days;
+-- and the consistency of `cmp` with the epoch-day line.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday, Monday, Thursday)
+  import Data.Time.Weekday as W
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+
+  is-ymd :: Option Date -> I64 -> I64 -> I64 -> Bool
+  is-ymd o y m d = case o of
+    None -> False
+    Some x -> D.year x == y && D.month x == m && D.day x == d
+
+  is-date :: Option Date -> Date -> Bool
+  is-date o d = case o of
+    None -> False
+    Some x -> x == d
+
+  refused :: Option Date -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    _ -> False
+
+  is-eq :: Ordering -> Bool
+  is-eq o = case o of
+    EQ -> True
+    _ -> False
+
+  is-gt :: Ordering -> Bool
+  is-gt o = case o of
+    GT -> True
+    _ -> False
+
+  -- 1: the anchors, both directions.
+  check-anchors :: Int
+  check-anchors =
+    if D.to-epoch-days (D.date-of 1970 1 1) == 0
+       && D.to-epoch-days (D.date-constrain 1969 12 31) == -1
+       && D.to-epoch-days (D.date-of 2000 3 1) == 11017
+       && D.to-epoch-days (D.date-of 2000 1 1) == 10957
+       && D.to-epoch-days (D.date-constrain 2024 2 29) == 19782
+       && D.to-epoch-days (D.date-of 2026 11 17) == 20774
+       && D.to-epoch-days (D.date-of 0 1 1) == -719528
+       && D.to-epoch-days (D.date-constrain 0 2 29) == -719469
+       && D.to-epoch-days (D.date-constrain (-1) 12 31) == -719529
+       && D.to-epoch-days (D.date-of 1 1 1) == -719162
+       && D.to-epoch-days (D.date-of 1900 3 1) == -25508
+       && D.to-epoch-days (D.date-of (-100) 3 1) == -755993
+       && is-ymd (D.from-epoch-days 0) 1970 1 1 && is-ymd (D.from-epoch-days (-1)) 1969 12 31
+       && is-ymd (D.from-epoch-days 11017) 2000 3 1 && is-ymd (D.from-epoch-days 11016) 2000 2 29
+       && is-ymd (D.from-epoch-days 19782) 2024 2 29 && is-ymd (D.from-epoch-days (-719528)) 0 1 1
+       && is-ymd (D.from-epoch-days (-719529)) (-1) 12 31 && is-ymd (D.from-epoch-days (-25509)) 1900 2 28
+       && is-ymd (D.from-epoch-days 47540) 2100 2 28 && is-ymd (D.from-epoch-days 47541) 2100 3 1
+    then 0 else 1
+
+  -- 2: the range ends on the line, and the refusals around them.
+  check-ends :: Int
+  check-ends =
+    if D.min-epoch-day == -4371587 && D.max-epoch-day == 2932896
+       && D.to-epoch-days D.min-date == -4371587 && D.to-epoch-days D.max-date == 2932896
+       && is-date (D.from-epoch-days (-4371587)) D.min-date
+       && is-date (D.from-epoch-days 2932896) D.max-date
+       && is-ymd (D.from-epoch-days (-4371586)) (-9999) 1 2
+       && is-ymd (D.from-epoch-days 2932895) 9999 12 30
+       && refused (D.from-epoch-days (-4371588)) && refused (D.from-epoch-days 2932897)
+       && refused (D.from-epoch-days 9223372036854775807)
+       && refused (D.from-epoch-days (-9223372036854775808))
+       && D.diff-days D.min-date D.max-date == 7304483
+       && D.diff-days D.max-date D.min-date == -7304483
+    then 0 else 2
+
+  -- Walks `n` consecutive days starting after `d` (whose epoch day is
+  -- `z`), checking at each step: the conversions invert, the weekday
+  -- is the previous day's successor, tomorrow/yesterday are the
+  -- neighbours, the difference is one day, and the order is strict.
+  walk :: I64 -> I64 -> Date -> Bool
+  walk n z d =
+    if n == 0 then True
+    else
+      let z1 = wrapping-add-i64 z 1 in
+      case D.from-epoch-days z1 of
+        None -> False
+        Some e ->
+          if D.to-epoch-days e == z1
+             && D.weekday e == W.next (D.weekday d)
+             && is-date (D.tomorrow d) e && is-date (D.yesterday e) d
+             && is-date (D.add-days 1 d) e && is-date (D.add-days (-1) e) d
+             && D.diff-days d e == 1 && D.diff-days e d == -1
+             && d < e && e > d && d /= e && is-lt (D.cmp d e) && is-gt (D.cmp e d)
+             && is-date (D.date (D.year e) (D.month e) (D.day e)) e
+          then walk (wrapping-sub-i64 n 1) z1 e
+          else False
+
+  walk-from :: I64 -> I64 -> Bool
+  walk-from z n = case D.from-epoch-days z of
+    None -> False
+    Some d -> walk n z d
+
+  -- 4: 4000 days around the epoch (1964-07 to 1975-06).
+  check-walk-epoch :: Int
+  check-walk-epoch = if walk-from (-2000) 4000 then 0 else 4
+
+  -- 8: 3000 days across year 0 and the year -1/0/1 boundaries, 1500
+  -- days across the non-leap century 1900, and 1500 across the leap
+  -- century 2000.
+  check-walk-centuries :: Int
+  check-walk-centuries =
+    if walk-from (-721000) 3000 && walk-from (-26300) 1500 && walk-from 10200 1500 then 0 else 8
+
+  -- 16: the first and last 800 days of the range.
+  check-walk-ends :: Int
+  check-walk-ends =
+    if walk-from (-4371587) 800 && walk-from 2932096 800 then 0 else 16
+
+  -- 32: add-days over long and unbounded distances, and its refusals.
+  check-add-days :: Int
+  check-add-days =
+    let d = D.date-constrain 2024 2 29 in
+    if is-ymd (D.add-days 0 d) 2024 2 29 && is-ymd (D.add-days 1 d) 2024 3 1
+       && is-ymd (D.add-days (-1) d) 2024 2 28 && is-ymd (D.add-days 366 d) 2025 3 1
+       && is-ymd (D.add-days (-366) d) 2023 2 28 && is-ymd (D.add-days 365 (D.date-of 2023 1 1)) 2024 1 1
+       && is-ymd (D.add-days 146097 (D.date-of 2000 1 1)) 2400 1 1
+       && is-ymd (D.add-days (-146097) (D.date-of 2000 1 1)) 1600 1 1
+       && is-date (D.add-days 7304483 D.min-date) D.max-date
+       && is-date (D.add-days (-7304483) D.max-date) D.min-date
+       && refused (D.add-days 7304484 D.min-date) && refused (D.add-days (-7304484) D.max-date)
+       && refused (D.add-days 9223372036854775807 d) && refused (D.add-days (-9223372036854775808) d)
+       && refused (D.add-days 9223372036854775807 D.max-date)
+       && refused (D.add-days (-9223372036854775808) D.min-date)
+       && refused (D.add-days 9223372036854775807 D.min-date)
+    then 0 else 32
+
+  -- 64: diff-days is finish minus start and inverts add-days.
+  check-diff-days :: Int
+  check-diff-days =
+    let a = D.date-of 2024 1 1 in
+    let b = D.date-constrain 2024 12 31 in
+    if D.diff-days a b == 365 && D.diff-days b a == -365 && D.diff-days a a == 0
+       && D.diff-days (D.date-of 1970 1 1) (D.date-of 2000 3 1) == 11017
+       && D.diff-days (D.date-of 2000 3 1) (D.date-of 1970 1 1) == -11017
+       && D.diff-days (D.date-constrain (-1) 12 31) (D.date-of 1 1 1) == 367
+       && is-date (D.add-days (D.diff-days a b) a) b && is-date (D.add-days (D.diff-days b a) b) a
+       && D.diff-days (D.date-of 1900 2 28) (D.date-of 1900 3 1) == 1
+       && D.diff-days (D.date-of 2000 2 28) (D.date-of 2000 3 1) == 2
+    then 0 else 64
+
+  -- The order of two dates is the order of their epoch days, in all
+  -- three spellings (cmp, the instances, the difference's sign).
+  agrees :: Date -> Date -> Bool
+  agrees a b =
+    let x = D.to-epoch-days a in
+    let y = D.to-epoch-days b in
+    if x < y then is-lt (D.cmp a b) && a < b && a <= b && a /= b && D.diff-days a b > 0
+                  && (if a > b then False else True) && (if a >= b then False else True)
+                  && (if a == b then False else True)
+    else if x == y then is-eq (D.cmp a b) && a == b && a <= b && a >= b && D.diff-days a b == 0
+                  && (if a < b then False else True) && (if a > b then False else True)
+                  && (if a /= b then False else True)
+    else is-gt (D.cmp a b) && a > b && a >= b && a /= b && D.diff-days a b < 0
+                  && (if a < b then False else True) && (if a <= b then False else True)
+
+  -- 128: cmp against the epoch-day line, across signs of the year and
+  -- across month and day boundaries where a field-wise slip would show.
+  check-order :: Int
+  check-order =
+    let a = D.date-constrain (-1) 12 31 in
+    let b = D.date-of 0 1 1 in
+    let c = D.date-constrain 2024 1 31 in
+    let d = D.date-of 2024 2 1 in
+    let e = D.date-of 2024 2 1 in
+    if agrees a b && agrees b a && agrees c d && agrees d c && agrees d e
+       && agrees D.min-date D.max-date && agrees D.max-date D.min-date
+       && agrees D.min-date D.min-date && agrees a D.min-date && agrees b c
+       && agrees (D.date-of (-9999) 12 28) (D.date-of (-9998) 1 1)
+       && agrees (D.date-of (-1) 1 1) (D.date-of (-2) 12 28)
+       && agrees (D.date-of 2023 12 28) (D.date-of 2024 1 2)
+    then 0 else 128
+
+  main :: Int
+  main = check-anchors + check-ends + check-walk-epoch + check-walk-centuries + check-walk-ends + check-add-days + check-diff-days + check-order

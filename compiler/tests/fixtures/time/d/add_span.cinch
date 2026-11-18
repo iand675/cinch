@@ -1,0 +1,340 @@
+-- Lane D: Data.Time.Arithmetic, adding and subtracting spans. Dates
+-- (largest unit first, the day constrained to the month's length: the
+-- Jiff and Temporal vectors), the clock units of a span added to a
+-- date (whole 24-hour days only), date-times (carrying through
+-- midnight, month ends and year ends), the round trip that is not an
+-- identity (31 May plus then minus one month is 30 May), times of day
+-- (wrapping, calendar units ignored), timestamps (clock units only),
+-- and every refusal at the range ends.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  cal :: I64 -> I64 -> I64 -> I64 -> Span Calendar
+  cal y mo w d = sp y mo w d 0 0 0 0 0 0
+
+  -- 1: dates. Years and months first (as one month count, the day
+  -- constrained once), then weeks and days.
+  check-date-add :: Int
+  check-date-add =
+    if d-is (date-add-span (span-of-days 2) (ymd 2024 7 30)) 2024 8 1
+       && d-is (date-add-span (span-of-months 1) (ymd 2024 5 31)) 2024 6 30
+       && d-is (date-add-span (span-of-months 2) (ymd 2024 5 31)) 2024 7 31
+       && d-is (date-add-span (span-of-months 1) (ymd 2025 1 31)) 2025 2 28
+       && d-is (date-add-span (cal 1 2 0 5) (ymd 2024 2 29)) 2025 5 4
+       && d-is (date-add-span (span-of-years 1) (ymd 2024 2 29)) 2025 2 28
+       && d-is (date-add-span (span-of-years 4) (ymd 2024 2 29)) 2028 2 29
+       && d-is (date-add-span (cal 1 2 0 0) (ymd 2024 2 29)) 2025 4 29
+       && d-is (date-add-span (span-of-weeks 2) (ymd 2024 2 20)) 2024 3 5
+       && d-is (date-add-span (cal 0 1 0 1) (ymd 2024 1 31)) 2024 3 1
+       && d-is (date-add-span (cal 0 0 1 1) (ymd 2023 12 25)) 2024 1 2
+       && d-is (date-add-span (span-of-months (-1)) (ymd 2024 3 31)) 2024 2 29
+       && d-is (date-add-span (span-of-days (-1)) (ymd 2024 1 1)) 2023 12 31
+       && d-is (date-add-span (cal 0 (-1) 0 (-1)) (ymd 2024 3 1)) 2024 1 31
+       && d-is (date-add-span (span-of-months 13) (ymd 2023 12 31)) 2025 1 31
+       && d-is (date-add-span (span-of-months (-12)) (ymd 2024 2 29)) 2023 2 28
+       && d-is (date-add-span span-zero (ymd 2024 2 29)) 2024 2 29
+       && d-is (date-add-span (span-of-years (-2024)) (ymd 2024 6 15)) 0 6 15
+       && d-is (date-add-span (span-of-days 366) (ymd 2024 1 1)) 2025 1 1
+    then 0 else 1
+
+  -- 2: a date has no time of day, so the clock units of a span are
+  -- balanced into whole 24-hour days, truncated toward zero.
+  check-date-add-clock :: Int
+  check-date-add-clock =
+    let x = ymd 2024 2 28 in
+    if d-is (date-add-span (span-of-hours 25) x) 2024 2 29
+       && d-is (date-add-span (span-of-hours 23) x) 2024 2 28
+       && d-is (date-add-span (span-of-hours 24) x) 2024 2 29
+       && d-is (date-add-span (sp 0 0 0 0 47 59 59 999 999 999) x) 2024 2 29
+       && d-is (date-add-span (sp 0 0 0 0 47 59 59 999 999 1000) x) 2024 3 1
+       && d-is (date-add-span (span-of-hours (-25)) x) 2024 2 27
+       && d-is (date-add-span (span-of-hours (-23)) x) 2024 2 28
+       && d-is (date-add-span (sp 0 0 0 1 24 0 0 0 0 0) x) 2024 3 1
+       && d-is (date-add-span (sp 0 1 0 0 36 0 0 0 0 0) (ymd 2024 1 31)) 2024 3 1
+       && d-is (date-add-span (span-of-nanoseconds 86400000000000) x) 2024 2 29
+       && d-is (date-add-span (span-of-nanoseconds 86399999999999) x) 2024 2 28
+       && d-is (date-sub-span (span-of-minutes 1440) x) 2024 2 27
+    then 0 else 2
+
+  -- 4: date-times. The clock units move the time and carry whole days
+  -- into the date after the months have been applied.
+  check-datetime-add :: Int
+  check-datetime-add =
+    if dt-is (datetime-add-span (sp 0 1 0 0 1 30 0 0 0 0) (at 2024 2 1 17 30 0 0)) 2024 3 1 19 0 0 0
+       && dt-is (datetime-add-span (span-of-minutes 45) (at 2024 12 31 23 30 0 0)) 2025 1 1 0 15 0 0
+       && dt-is (datetime-add-span (span-of-nanoseconds (-1)) (at 2024 3 1 0 0 0 0)) 2024 2 29 23 59 59 999999999
+       && dt-is (datetime-add-span (sp 0 1 0 0 14 0 0 0 0 0) (at 2024 5 31 10 0 0 0)) 2024 7 1 0 0 0 0
+       && dt-is (datetime-add-span (sp 0 0 0 1 24 0 0 0 0 0) (at 2024 2 28 6 0 0 0)) 2024 3 1 6 0 0 0
+       && dt-is (datetime-add-span (sp 1 2 3 4 5 6 7 8 9 10) (at 2020 2 29 20 55 55 999999999)) 2021 5 25 2 2 3 8009009
+       && dt-is (datetime-add-span (sp (-1) (-2) (-3) (-4) (-5) (-6) (-7) (-8) (-9) (-10)) (at 2021 5 25 2 2 3 8009009)) 2020 2 28 20 55 55 999999999
+       && dt-is (datetime-add-span (span-of-hours 8784) (at 2024 1 1 0 0 0 0)) 2025 1 1 0 0 0 0
+       && dt-is (datetime-add-span (span-of-seconds (-1)) (at 1970 1 1 0 0 0 0)) 1969 12 31 23 59 59 0
+       && dt-is (datetime-add-span span-zero (at 2024 2 29 1 2 3 4)) 2024 2 29 1 2 3 4
+       && dt-is (datetime-sub-span (sp 0 1 0 0 1 30 0 0 0 0) (at 2024 3 1 19 0 0 0)) 2024 2 1 17 30 0 0
+       && dt-is (datetime-sub-span (span-of-months 1) (at 2024 3 31 12 0 0 0)) 2024 2 29 12 0 0 0
+    then 0 else 4
+
+  -- 8: subtracting is adding the negation, and adding then subtracting
+  -- is not always the identity: the day was constrained on the way out.
+  check-not-inverse :: Int
+  check-not-inverse =
+    let month = span-of-months 1 in
+    if d-is (date-add-span month (ymd 2024 5 31)) 2024 6 30
+       && d-is (date-sub-span month (ymd 2024 6 30)) 2024 5 30
+       && d-is (date-sub-span month (ymd 2024 3 31)) 2024 2 29
+       && d-is (date-add-span month (ymd 2024 2 29)) 2024 3 29
+       && d-is (date-sub-span (span-of-months (-1)) (ymd 2024 5 31)) 2024 6 30
+       && d-is (date-sub-span (span-of-days 2) (ymd 2024 8 1)) 2024 7 30
+       && d-is (date-sub-span (span-of-days (-2)) (ymd 2024 7 30)) 2024 8 1
+       && d-is (date-sub-span (span-of-years 1) (ymd 2024 2 29)) 2023 2 28
+       && dt-is (datetime-sub-span month (at 2024 6 30 8 0 0 0)) 2024 5 30 8 0 0 0
+       && d-is (date-sub-span (span-of-days 31) (ymd 2024 6 30)) 2024 5 30
+       && d-is (date-sub-span (span-of-days 30) (ymd 2024 6 30)) 2024 5 31
+    then 0 else 8
+
+  -- 16: times of day wrap around midnight and ignore the calendar
+  -- units of the span (Temporal's PlainTime.prototype.add).
+  check-time-add :: Int
+  check-time-add =
+    if time-add-span-wrapping (span-of-hours 2) (tod 23 0 0 0) == tod 1 0 0 0
+       && time-add-span-wrapping (span-of-nanoseconds (-1)) (tod 0 0 0 0) == tod 23 59 59 999999999
+       && time-add-span-wrapping (span-of-nanoseconds 1) (tod 23 59 59 999999999) == tod 0 0 0 0
+       && time-add-span-wrapping (sp 1 2 3 4 0 0 0 0 0 0) (tod 10 0 0 0) == tod 10 0 0 0
+       && time-add-span-wrapping (sp 0 0 0 1 1 0 0 0 0 0) (tod 10 0 0 0) == tod 11 0 0 0
+       && time-add-span-wrapping (sp (-5) 0 0 (-9) (-1) (-30) 0 0 0 0) (tod 1 0 0 0) == tod 23 30 0 0
+       && time-add-span-wrapping (span-of-hours 48) (tod 10 20 30 40) == tod 10 20 30 40
+       && time-add-span-wrapping (span-of-hours 175307616) (tod 10 20 30 40) == tod 10 20 30 40
+       && time-add-span-wrapping (span-of-hours (-175307615)) (tod 10 20 30 40) == tod 11 20 30 40
+       && time-add-span-wrapping (ck 1 1 1 1 1 1) (tod 22 58 58 998998999) == tod 0 0 0 0
+       && time-add-span-wrapping span-zero (tod 12 0 0 0) == tod 12 0 0 0
+       && time-sub-span-wrapping (span-of-hours 2) (tod 1 0 0 0) == tod 23 0 0 0
+       && time-sub-span-wrapping (span-of-minutes (-90)) (tod 23 0 0 0) == tod 0 30 0 0
+       && time-sub-span-wrapping (span-of-days 3) (tod 5 0 0 0) == tod 5 0 0 0
+    then 0 else 16
+
+  -- 32: timestamps take clock units only (Temporal's
+  -- Instant.prototype.add): a non-zero day or larger unit needs a
+  -- calendar, which an instant does not have.
+  check-timestamp-add :: Int
+  check-timestamp-add =
+    if tsr-is (timestamp-add-span (ck 1 30 0 0 0 0) (ts 0 0)) 5400 0
+       && tsr-is (timestamp-add-span (span-of-nanoseconds (-1)) (ts 0 0)) (-1) 999999999
+       && tsr-is (timestamp-add-span (ck 0 0 1 1 1 1) (ts 1704067200 999999999)) 1704067202 1001000
+       && tsr-is (timestamp-add-span (span-of-hours 24) (ts 1704067200 0)) 1704153600 0
+       && tsr-is (timestamp-add-span (sp 0 0 0 0 0 0 5 0 0 0) (ts 10 0)) 15 0
+       && tsr-is (timestamp-add-span (span-of-days 0) (ts 10 0)) 10 0
+       && tsr-is (timestamp-sub-span (ck 1 30 0 0 0 0) (ts 0 0)) (-5400) 0
+       && tsr-is (timestamp-sub-span (span-of-seconds (-5)) (ts 10 5)) 15 5
+       && err-is (timestamp-add-span (span-of-days 1) (ts 0 0)) 3
+       && err-is (timestamp-add-span (span-of-weeks 1) (ts 0 0)) 3
+       && err-is (timestamp-add-span (span-of-months (-1)) (ts 0 0)) 3
+       && err-is (timestamp-add-span (span-of-years 1) (ts 0 0)) 3
+       && err-is (timestamp-add-span (sp 0 0 0 1 1 0 0 0 0 0) (ts 0 0)) 3
+       && err-is (timestamp-sub-span (span-of-days 1) (ts 0 0)) 3
+       && err-is (timestamp-add-span (span-of-nanoseconds 1) max-timestamp) 6
+       && err-is (timestamp-add-span (span-of-nanoseconds (-1)) min-timestamp) 6
+       && err-is (timestamp-sub-span (span-of-hours 1) min-timestamp) 6
+       && err-is (timestamp-add-span (span-of-hours 175307616) (ts 0 0)) 6
+       && tsr-is (timestamp-add-span (span-of-nanoseconds (-1)) max-timestamp) 253402207200 999999998
+    then 0 else 32
+
+  -- 64: the range ends.
+  check-range :: Int
+  check-range =
+    if no-date (date-add-span (span-of-days 1) D.max-date)
+       && no-date (date-add-span (span-of-days (-1)) D.min-date)
+       && no-date (date-sub-span (span-of-days 1) D.min-date)
+       && no-date (date-add-span (span-of-years 8000) (ymd 2024 1 1))
+       && no-date (date-add-span (span-of-years 19998) (ymd 2024 1 1))
+       && no-date (date-add-span (span-of-months 1) (ymd 9999 12 1))
+       && no-date (date-add-span (span-of-hours 24) D.max-date)
+       && d-is (date-add-span (span-of-hours 23) D.max-date) 9999 12 31
+       && d-is (date-add-span (span-of-years 19998) D.min-date) 9999 1 1
+       && d-is (date-add-span (span-of-days 7304483) D.min-date) 9999 12 31
+       && d-is (date-add-span (span-of-days (-7304483)) D.max-date) (-9999) 1 1
+       && no-date (date-add-span (span-of-days 7304484) D.min-date)
+       && d-is (date-add-span (span-of-months 239975) D.min-date) 9998 12 1
+       && no-datetime (datetime-add-span (span-of-nanoseconds 1) DT.max-datetime)
+       && no-datetime (datetime-add-span (span-of-nanoseconds (-1)) DT.min-datetime)
+       && no-datetime (datetime-sub-span (span-of-hours 1) DT.min-datetime)
+       && dt-is (datetime-add-span (span-of-nanoseconds (-1)) DT.max-datetime) 9999 12 31 23 59 59 999999998
+       && dt-is (datetime-add-span (sp 0 0 0 7304483 23 59 59 999 999 999) DT.min-datetime) 9999 12 31 23 59 59 999999999
+       && no-datetime (datetime-add-span (span-of-hours 175307616) (at 2024 1 1 0 0 0 0))
+    then 0 else 64
+
+  main :: Int
+  main =
+    check-date-add + check-date-add-clock + check-datetime-add
+    + check-not-inverse + check-time-add + check-timestamp-add + check-range

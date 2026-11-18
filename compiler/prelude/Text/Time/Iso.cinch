@@ -1,0 +1,732 @@
+-- Text.Time.Iso: ISO 8601 extended format and RFC 3339, printing and
+-- parsing, for `Date`, `TimeOfDay`, `DateTime` and `Timestamp`.
+--
+-- Grammars (strict; each parser accepts exactly its grammar and nothing
+-- before or after it, design/datetime.md T9):
+--
+--     date       = year "-" month "-" day
+--     year       = 4DIGIT | ("+" | "-") 6DIGIT      ; "-000000" refused
+--     time       = hour ":" minute [":" second [("." | ",") 1*9DIGIT]]
+--     date-time  = date "T" time
+--     offset     = "Z" | ("+" | "-") hour ":" minute [":" second]
+--     timestamp  = date-time offset
+--
+-- The four-digit year is 0000..=9999; the signed six-digit form is the
+-- RFC 9557 / Temporal expanded year and is accepted for every year in
+-- -9999..=9999 (so `+002024-01-01` reads as 2024-01-01). The printer
+-- writes four digits for years 0..=9999 and the signed six-digit form
+-- otherwise (`-000044-03-15`).
+--
+-- The lenient parsers (`-lenient` in the name, `IsoLenient` at the
+-- cursor level) accept, in addition: the basic date `YYYYMMDD`; a
+-- lower case `t` or one space between date and time; a lower case `z`;
+-- and second 60, read as second 59 with the fraction kept (Temporal's
+-- reading of a leap second, since Unix time has none).
+--
+-- Offsets are plain `I64` seconds east of UTC within +-93599
+-- (+-25:59:59, T3); the `Offset`-typed wrappers belong to the zone
+-- layer. RFC 3339 has no seconds in an offset: the printer writes
+-- `+HH:MM` and adds `:SS` only when the offset has seconds, which is
+-- the RFC 9557 / Temporal extension and is not valid RFC 3339; the
+-- parser accepts the same optional `:SS`. `-00:00` (RFC 3339 "offset
+-- unknown") is accepted, reads as offset 0, and is reported as
+-- `IsoWrittenNegativeZero`, distinct from `Z` and from `+00:00`.
+--
+-- Design law shape.
+--   - Round trip: for every value `x` of each type,
+--     `T-from-string (T-to-string x) == Ok x`. The time printer writes
+--     the shortest fraction that is exact (trailing zeros trimmed, none
+--     when the subsecond is zero), so nothing is lost.
+--   - `time-to-string-precision k` writes exactly `k` fraction digits,
+--     truncating (never rounding: rounding can carry into the date).
+--   - `timestamp-from-string` requires an offset. A date-time with no
+--     offset is a civil reading, not an instant, and is refused with
+--     its own error, `IsoMissingOffset`.
+--   - `timestamp-to-string-with-offset off ts` prints the civil reading
+--     of `ts` at `off`; parsing it back yields `ts` and `off`.
+--   - Parsers are state machines over the input's bytes: one function
+--     per state (`st-*`), each taking the cursor position, branching on
+--     one byte or one fixed run of digits, and never going back. No
+--     `Char`, no list, no slice is allocated while parsing.
+--   - Printers compute the exact output length, allocate one `Bytes`
+--     of that length and fill it (`iso-*-length` and `iso-write-*`
+--     write into a caller's buffer at a position; `iso-*-bytes` answer
+--     the exactly-sized piece).
+--
+-- No operation faults: parsers answer `Result IsoError`, the offset
+-- printer answers `Option`, and the precision is a refined argument.
+--
+-- NAMED REFUSALS:
+--   - ISO 8601 forms outside the grammar above: the basic time
+--     (`HHMMSS`), week dates (`2024-W07-4`), ordinal dates (`2024-046`),
+--     reduced precision (`2024-02`, a bare hour), `24:00`, a fraction on
+--     the minute, offsets without a colon or without minutes. Each is a
+--     positioned error.
+--   - leap seconds: `23:59:60` is `IsoLeapSecond` in strict mode (no
+--     value represents it) and second 59 in lenient mode.
+--   - RFC 9557 annotations (`[Europe/Amsterdam]`, `[u-ca=...]`):
+--     Text.Time.Rfc9557, which continues from the cursor the `iso-parse-*`
+--     functions return.
+--   - `Text.Builder` forms (`iso-add-date :: Date -> Builder -> Builder`):
+--     `Text.Builder` is an on-disk module outside the base package, so
+--     importing it would make every project that uses this module ship
+--     it too. The `iso-*-bytes` pieces are what
+--     `builder-add-bytes` takes, so a builder user writes
+--     `builder-add-bytes (iso-date-bytes d) out` and no copy is made.
+--   - a no-copy view of the input: see Text.Time.Scan; one copy in, one
+--     copy out.
+--   - `Offset`, `Zoned`, `Span` and ISO 8601 durations: other modules.
+module Text.Time.Iso where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  export IsoError, IsoUnexpectedEnd, IsoExpectedDigit, IsoExpectedDash, IsoExpectedColon
+  export IsoExpectedTimeSeparator, IsoMissingTime, IsoUnexpectedTime, IsoTrailingInput
+  export IsoNegativeZeroYear, IsoYearOutOfRange, IsoMonthOutOfRange, IsoDayOutOfRange
+  export IsoHourOutOfRange, IsoMinuteOutOfRange, IsoSecondOutOfRange, IsoLeapSecond
+  export IsoEmptyFraction, IsoFractionTooLong
+  export IsoMissingOffset, IsoExpectedOffset, IsoOffsetOutOfRange, IsoTimestampOutOfRange
+  export iso-error-position
+  export IsoMode, IsoStrict, IsoLenient
+  export IsoOffsetForm, IsoWrittenZ, IsoWrittenNumeric, IsoWrittenNegativeZero
+  export IsoOffset, iso-offset-seconds, iso-offset-form
+  export date-to-string, date-from-string, date-from-string-lenient
+  export time-to-string, time-to-string-precision, time-from-string, time-from-string-lenient
+  export datetime-to-string, datetime-to-string-precision
+  export datetime-from-string, datetime-from-string-lenient
+  export timestamp-to-string, timestamp-to-string-precision, timestamp-to-string-with-offset
+  export timestamp-from-string, timestamp-from-string-lenient
+  export timestamp-from-string-with-offset, timestamp-from-string-with-offset-lenient
+  export iso-parse-date-at, iso-parse-time-at, iso-parse-datetime-at, iso-parse-offset-at
+  export iso-parse-timestamp-at, iso-expect-end
+  export iso-date-length, iso-write-date
+  export iso-fraction-digits, iso-time-length, iso-write-time
+  export iso-offset-length, iso-write-offset, iso-offset-in-range
+  export iso-date-bytes, iso-time-bytes, iso-datetime-bytes, iso-offset-bytes
+
+
+  -- Every refusal, each with the byte position it was detected at.
+  data IsoError where
+    -- The input ended where the grammar needs more.
+    IsoUnexpectedEnd :: I64 -> IsoError
+    -- A byte that is not an ASCII digit where a digit is required.
+    IsoExpectedDigit :: I64 -> IsoError
+    -- Not the `-` between date fields.
+    IsoExpectedDash :: I64 -> IsoError
+    -- Not the `:` between time (or offset) fields.
+    IsoExpectedColon :: I64 -> IsoError
+    -- Not the `T` between a date and a time.
+    IsoExpectedTimeSeparator :: I64 -> IsoError
+    -- A date-time was required and the input is a date only.
+    IsoMissingTime :: I64 -> IsoError
+    -- A date was required and a time follows it.
+    IsoUnexpectedTime :: I64 -> IsoError
+    -- Input after the end of the grammar.
+    IsoTrailingInput :: I64 -> IsoError
+    -- The expanded year `-000000`.
+    IsoNegativeZeroYear :: I64 -> IsoError
+    -- An expanded year outside -9999..=9999.
+    IsoYearOutOfRange :: I64 -> IsoError
+    IsoMonthOutOfRange :: I64 -> IsoError
+    -- A day of 00, or beyond the month's length in that year.
+    IsoDayOutOfRange :: I64 -> IsoError
+    IsoHourOutOfRange :: I64 -> IsoError
+    IsoMinuteOutOfRange :: I64 -> IsoError
+    IsoSecondOutOfRange :: I64 -> IsoError
+    -- Second 60 in strict mode.
+    IsoLeapSecond :: I64 -> IsoError
+    -- A `.` or `,` with no digit after it.
+    IsoEmptyFraction :: I64 -> IsoError
+    -- More than nine fraction digits.
+    IsoFractionTooLong :: I64 -> IsoError
+    -- A timestamp was required and the date-time carries no offset: a
+    -- civil reading is not an instant.
+    IsoMissingOffset :: I64 -> IsoError
+    -- Something follows the date-time that is not an offset.
+    IsoExpectedOffset :: I64 -> IsoError
+    -- An offset beyond +-25:59:59, or with a minute or second above 59.
+    IsoOffsetOutOfRange :: I64 -> IsoError
+    -- The instant is outside the `Timestamp` range.
+    IsoTimestampOutOfRange :: I64 -> IsoError
+
+  iso-error-position :: IsoError -> I64
+  iso-error-position e = case e of
+    IsoUnexpectedEnd p -> p
+    IsoExpectedDigit p -> p
+    IsoExpectedDash p -> p
+    IsoExpectedColon p -> p
+    IsoExpectedTimeSeparator p -> p
+    IsoMissingTime p -> p
+    IsoUnexpectedTime p -> p
+    IsoTrailingInput p -> p
+    IsoNegativeZeroYear p -> p
+    IsoYearOutOfRange p -> p
+    IsoMonthOutOfRange p -> p
+    IsoDayOutOfRange p -> p
+    IsoHourOutOfRange p -> p
+    IsoMinuteOutOfRange p -> p
+    IsoSecondOutOfRange p -> p
+    IsoLeapSecond p -> p
+    IsoEmptyFraction p -> p
+    IsoFractionTooLong p -> p
+    IsoMissingOffset p -> p
+    IsoExpectedOffset p -> p
+    IsoOffsetOutOfRange p -> p
+    IsoTimestampOutOfRange p -> p
+
+  data IsoMode where
+    IsoStrict :: IsoMode
+    IsoLenient :: IsoMode
+
+  -- How an offset was spelled.
+  data IsoOffsetForm where
+    IsoWrittenZ :: IsoOffsetForm
+    IsoWrittenNumeric :: IsoOffsetForm
+    IsoWrittenNegativeZero :: IsoOffsetForm
+
+  -- A parsed offset: seconds east of UTC within +-93599, and its
+  -- spelling. `Z` and `-00:00` both carry 0 seconds.
+  data IsoOffset where
+    MkIsoOffset :: I64 -> IsoOffsetForm -> IsoOffset
+
+  iso-offset-seconds :: IsoOffset -> I64
+  iso-offset-seconds o = case o of
+    MkIsoOffset s _ -> s
+
+  iso-offset-form :: IsoOffset -> IsoOffsetForm
+  iso-offset-form o = case o of
+    MkIsoOffset _ f -> f
+
+  -- -----------------------------------------------------------------
+  -- Whole-string parsers.
+  -- -----------------------------------------------------------------
+
+  date-from-string :: String -> Result IsoError Date
+  date-from-string s =
+    let b = scan-bytes-of-string s in
+    date-end b (iso-parse-date-at IsoStrict b 0)
+
+  -- Also accepts the basic format `YYYYMMDD`.
+  date-from-string-lenient :: String -> Result IsoError Date
+  date-from-string-lenient s =
+    let b = scan-bytes-of-string s in
+    date-end b (iso-parse-date-at IsoLenient b 0)
+
+  time-from-string :: String -> Result IsoError TimeOfDay
+  time-from-string s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-time-at IsoStrict b 0)
+
+  -- Also reads second 60 as second 59.
+  time-from-string-lenient :: String -> Result IsoError TimeOfDay
+  time-from-string-lenient s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-time-at IsoLenient b 0)
+
+  datetime-from-string :: String -> Result IsoError DateTime
+  datetime-from-string s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-datetime-at IsoStrict b 0)
+
+  -- Also accepts `t` or one space as the separator, the basic date and
+  -- second 60.
+  datetime-from-string-lenient :: String -> Result IsoError DateTime
+  datetime-from-string-lenient s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-datetime-at IsoLenient b 0)
+
+  timestamp-from-string :: String -> Result IsoError Timestamp
+  timestamp-from-string s = drop-offset (timestamp-from-string-with-offset s)
+
+  -- Also accepts `z`, and everything the lenient date-time accepts.
+  timestamp-from-string-lenient :: String -> Result IsoError Timestamp
+  timestamp-from-string-lenient s = drop-offset (timestamp-from-string-with-offset-lenient s)
+
+  -- The instant together with the offset as written (the zoned layer
+  -- needs both the seconds and whether it was `Z`).
+  timestamp-from-string-with-offset :: String -> Result IsoError (Timestamp, IsoOffset)
+  timestamp-from-string-with-offset s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-timestamp-at IsoStrict b 0)
+
+  timestamp-from-string-with-offset-lenient :: String -> Result IsoError (Timestamp, IsoOffset)
+  timestamp-from-string-with-offset-lenient s =
+    let b = scan-bytes-of-string s in
+    iso-expect-end b (iso-parse-timestamp-at IsoLenient b 0)
+
+  drop-offset :: Result IsoError (Timestamp, IsoOffset) -> Result IsoError Timestamp
+  drop-offset r = case r of
+    Err e -> Err e
+    Ok p -> case p of
+      (ts, o) -> Ok ts
+
+  -- The end of the grammar must be the end of the input.
+  iso-expect-end :: forall a. Bytes -> Result IsoError (a, I64) -> Result IsoError a
+  iso-expect-end b r = case r of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, i) -> if i == scan-length b then Ok v else Err (IsoTrailingInput i)
+
+  -- The same, naming the case of a time after a date.
+  date-end :: Bytes -> Result IsoError (Date, I64) -> Result IsoError Date
+  date-end b r = case r of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, i) ->
+        if i == scan-length b then Ok v
+        else if is-time-separator IsoLenient (scan-byte-at b i) then Err (IsoUnexpectedTime i)
+        else Err (IsoTrailingInput i)
+
+  -- -----------------------------------------------------------------
+  -- The date machine. States, in order:
+  --   st-year -> (st-year-plain | st-year-signed) -> st-month-sep
+  --   -> st-month -> st-day-sep -> st-day -> done.
+  -- `ext` is whether the date is in the extended format (dashes); the
+  -- basic format is reachable only in lenient mode, from st-month-sep.
+  -- -----------------------------------------------------------------
+
+  -- Parses a date at byte `i`; answers the date and the position after
+  -- it. Does not look at what follows.
+  iso-parse-date-at :: IsoMode -> Bytes -> I64 -> Result IsoError (Date, I64)
+  iso-parse-date-at mode b i = st-year mode b i
+
+  st-year :: IsoMode -> Bytes -> I64 -> Result IsoError (Date, I64)
+  st-year mode b i =
+    let c = scan-byte-at b i in
+    if c == 43 then st-year-signed mode b i False
+    else if c == 45 then st-year-signed mode b i True
+    else st-year-plain mode b i
+
+  st-year-plain :: IsoMode -> Bytes -> I64 -> Result IsoError (Date, I64)
+  st-year-plain mode b i =
+    let y = scan-digits b i 4 in
+    if y < 0 then Err (digit-error b i 4)
+    else st-month-sep mode b (plus i 4) y
+
+  -- `i` is at the sign.
+  st-year-signed :: IsoMode -> Bytes -> I64 -> Bool -> Result IsoError (Date, I64)
+  st-year-signed mode b i negative =
+    let y = scan-digits b (plus i 1) 6 in
+    if y < 0 then Err (digit-error b (plus i 1) 6)
+    else if y > 9999 then Err (IsoYearOutOfRange i)
+    else if negative then
+      (if y == 0 then Err (IsoNegativeZeroYear i) else st-month-sep mode b (plus i 7) (minus 0 y))
+    else st-month-sep mode b (plus i 7) y
+
+  st-month-sep :: IsoMode -> Bytes -> I64 -> I64 -> Result IsoError (Date, I64)
+  st-month-sep mode b i y =
+    let c = scan-byte-at b i in
+    if c == 45 then st-month b (plus i 1) y True
+    else if c < 0 then Err (IsoUnexpectedEnd i)
+    else case mode of
+      IsoStrict -> Err (IsoExpectedDash i)
+      IsoLenient -> if c >= 48 && c <= 57 then st-month b i y False else Err (IsoExpectedDash i)
+
+  st-month :: Bytes -> I64 -> I64 -> Bool -> Result IsoError (Date, I64)
+  st-month b i y ext =
+    let m = scan-digits b i 2 in
+    if m < 0 then Err (digit-error b i 2)
+    else if m < 1 || m > 12 then Err (IsoMonthOutOfRange i)
+    else st-day-sep b (plus i 2) y m ext
+
+  st-day-sep :: Bytes -> I64 -> I64 -> I64 -> Bool -> Result IsoError (Date, I64)
+  st-day-sep b i y m ext =
+    if ext then
+      let c = scan-byte-at b i in
+      if c == 45 then st-day b (plus i 1) y m
+      else if c < 0 then Err (IsoUnexpectedEnd i)
+      else Err (IsoExpectedDash i)
+    else st-day b i y m
+
+  st-day :: Bytes -> I64 -> I64 -> I64 -> Result IsoError (Date, I64)
+  st-day b i y m =
+    let d = scan-digits b i 2 in
+    if d < 0 then Err (digit-error b i 2)
+    else case D.date y m d of
+      None -> Err (IsoDayOutOfRange i)
+      Some x -> Ok (x, plus i 2)
+
+  -- -----------------------------------------------------------------
+  -- The time machine. States:
+  --   st-hour -> st-minute-sep -> st-minute -> st-second-sep
+  --   -> [st-second -> st-fraction-sep -> [st-fraction]] -> done.
+  -- -----------------------------------------------------------------
+
+  -- Parses a time at byte `i`; answers the time and the position after
+  -- it. The machine stops at the first byte that cannot continue a
+  -- time, except that a tenth fraction digit is an error rather than a
+  -- stop.
+  iso-parse-time-at :: IsoMode -> Bytes -> I64 -> Result IsoError (TimeOfDay, I64)
+  iso-parse-time-at mode b i = st-hour mode b i
+
+  st-hour :: IsoMode -> Bytes -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-hour mode b i =
+    let h = scan-digits b i 2 in
+    if h < 0 then Err (digit-error b i 2)
+    else if h > 23 then Err (IsoHourOutOfRange i)
+    else st-minute-sep mode b (plus i 2) h
+
+  st-minute-sep :: IsoMode -> Bytes -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-minute-sep mode b i h =
+    let c = scan-byte-at b i in
+    if c == 58 then st-minute mode b (plus i 1) h
+    else if c < 0 then Err (IsoUnexpectedEnd i)
+    else Err (IsoExpectedColon i)
+
+  st-minute :: IsoMode -> Bytes -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-minute mode b i h =
+    let m = scan-digits b i 2 in
+    if m < 0 then Err (digit-error b i 2)
+    else if m > 59 then Err (IsoMinuteOutOfRange i)
+    else st-second-sep mode b (plus i 2) h m
+
+  st-second-sep :: IsoMode -> Bytes -> I64 -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-second-sep mode b i h m =
+    if scan-byte-at b i == 58 then st-second mode b (plus i 1) h m
+    else time-done i h m 0 0
+
+  st-second :: IsoMode -> Bytes -> I64 -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-second mode b i h m =
+    let s = scan-digits b i 2 in
+    if s < 0 then Err (digit-error b i 2)
+    else if s > 60 then Err (IsoSecondOutOfRange i)
+    else if s == 60 then
+      (case mode of
+        IsoStrict -> Err (IsoLeapSecond i)
+        IsoLenient -> st-fraction-sep b (plus i 2) h m 59)
+    else st-fraction-sep b (plus i 2) h m s
+
+  st-fraction-sep :: Bytes -> I64 -> I64 -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-fraction-sep b i h m s =
+    let c = scan-byte-at b i in
+    if c == 46 || c == 44 then st-fraction b (plus i 1) h m s
+    else time-done i h m s 0
+
+  -- One to nine digits, scaled to nanoseconds: `k` digits are worth
+  -- `value * 10^(9 - k)`, below 10^9.
+  st-fraction :: Bytes -> I64 -> I64 -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  st-fraction b i h m s =
+    let k = scan-count-digits b i 10 in
+    if k == 0 then Err (IsoEmptyFraction i)
+    else if k > 9 then Err (IsoFractionTooLong i)
+    else time-done (plus i k) h m s (times (scan-digits b i k) (scan-pow10 (minus 9 k)))
+
+  -- The fields were range-checked by their states, so the checked
+  -- constructor answers `Some`; its `None` arm is unreachable and
+  -- reports the second.
+  time-done :: I64 -> I64 -> I64 -> I64 -> I64 -> Result IsoError (TimeOfDay, I64)
+  time-done i h m s ns = case T.time-of-day-checked h m s ns of
+    None -> Err (IsoSecondOutOfRange i)
+    Some t -> Ok (t, i)
+
+  -- -----------------------------------------------------------------
+  -- The date-time machine: date, st-time-sep, time.
+  -- -----------------------------------------------------------------
+
+  iso-parse-datetime-at :: IsoMode -> Bytes -> I64 -> Result IsoError (DateTime, I64)
+  iso-parse-datetime-at mode b i = case iso-parse-date-at mode b i of
+    Err e -> Err e
+    Ok p -> case p of
+      (d, j) -> st-time-sep mode b j d
+
+  st-time-sep :: IsoMode -> Bytes -> I64 -> Date -> Result IsoError (DateTime, I64)
+  st-time-sep mode b i d =
+    let c = scan-byte-at b i in
+    if c < 0 then Err (IsoMissingTime i)
+    else if is-time-separator mode c then
+      (case iso-parse-time-at mode b (plus i 1) of
+        Err e -> Err e
+        Ok p -> case p of
+          (t, j) -> Ok (DT.datetime d t, j))
+    else Err (IsoExpectedTimeSeparator i)
+
+  is-time-separator :: IsoMode -> I64 -> Bool
+  is-time-separator mode c = case mode of
+    IsoStrict -> c == 84
+    IsoLenient -> c == 84 || c == 116 || c == 32
+
+  -- -----------------------------------------------------------------
+  -- The offset machine. States:
+  --   st-offset -> (Z | st-offset-hour -> st-offset-minute
+  --   -> [st-offset-second]) -> done.
+  -- -----------------------------------------------------------------
+
+  -- Parses an offset at byte `i`. At the end of input the error is
+  -- `IsoMissingOffset`; at any other byte that cannot start an offset
+  -- it is `IsoExpectedOffset`.
+  iso-parse-offset-at :: IsoMode -> Bytes -> I64 -> Result IsoError (IsoOffset, I64)
+  iso-parse-offset-at mode b i = st-offset mode b i
+
+  st-offset :: IsoMode -> Bytes -> I64 -> Result IsoError (IsoOffset, I64)
+  st-offset mode b i =
+    let c = scan-byte-at b i in
+    if c < 0 then Err (IsoMissingOffset i)
+    else if c == 90 then Ok (MkIsoOffset 0 IsoWrittenZ, plus i 1)
+    else if c == 43 then st-offset-hour b i False
+    else if c == 45 then st-offset-hour b i True
+    else if c == 122 then
+      (case mode of
+        IsoStrict -> Err (IsoExpectedOffset i)
+        IsoLenient -> Ok (MkIsoOffset 0 IsoWrittenZ, plus i 1))
+    else Err (IsoExpectedOffset i)
+
+  -- `i` is at the sign.
+  st-offset-hour :: Bytes -> I64 -> Bool -> Result IsoError (IsoOffset, I64)
+  st-offset-hour b i negative =
+    let h = scan-digits b (plus i 1) 2 in
+    if h < 0 then Err (digit-error b (plus i 1) 2)
+    else if h > 25 then Err (IsoOffsetOutOfRange i)
+    else
+      let c = scan-byte-at b (plus i 3) in
+      if c == 58 then st-offset-minute b i negative h
+      else if c < 0 then Err (IsoUnexpectedEnd (plus i 3))
+      else Err (IsoExpectedColon (plus i 3))
+
+  -- The minute digits are at `i + 4`.
+  st-offset-minute :: Bytes -> I64 -> Bool -> I64 -> Result IsoError (IsoOffset, I64)
+  st-offset-minute b i negative h =
+    let m = scan-digits b (plus i 4) 2 in
+    if m < 0 then Err (digit-error b (plus i 4) 2)
+    else if m > 59 then Err (IsoOffsetOutOfRange i)
+    else if scan-byte-at b (plus i 6) == 58 then st-offset-second b i negative h m
+    else offset-done (plus i 6) negative (plus (times h 3600) (times m 60))
+
+  -- The second digits are at `i + 7`.
+  st-offset-second :: Bytes -> I64 -> Bool -> I64 -> I64 -> Result IsoError (IsoOffset, I64)
+  st-offset-second b i negative h m =
+    let s = scan-digits b (plus i 7) 2 in
+    if s < 0 then Err (digit-error b (plus i 7) 2)
+    else if s > 59 then Err (IsoOffsetOutOfRange i)
+    else offset-done (plus i 9) negative (plus (plus (times h 3600) (times m 60)) s)
+
+  -- `magnitude` is at most 25 * 3600 + 59 * 60 + 59 = 93599.
+  offset-done :: I64 -> Bool -> I64 -> Result IsoError (IsoOffset, I64)
+  offset-done j negative magnitude =
+    if negative then
+      (if magnitude == 0 then Ok (MkIsoOffset 0 IsoWrittenNegativeZero, j)
+       else Ok (MkIsoOffset (minus 0 magnitude) IsoWrittenNumeric, j))
+    else Ok (MkIsoOffset magnitude IsoWrittenNumeric, j)
+
+  -- -----------------------------------------------------------------
+  -- The timestamp machine: date-time, offset, then the instant.
+  -- -----------------------------------------------------------------
+
+  -- Parses a date-time and its offset at byte `i`; answers the instant,
+  -- the offset as written and the position after it (where an RFC 9557
+  -- annotation would begin).
+  --
+  -- Overflow argument: the civil seconds are within +-3.8e11 and the
+  -- offset within +-93599, so the subtraction does not wrap; the result
+  -- is then range-checked by the `Timestamp` constructor.
+  iso-parse-timestamp-at :: IsoMode -> Bytes -> I64 -> Result IsoError ((Timestamp, IsoOffset), I64)
+  iso-parse-timestamp-at mode b i = case iso-parse-datetime-at mode b i of
+    Err e -> Err e
+    Ok p -> case p of
+      (dt, j) -> case iso-parse-offset-at mode b j of
+        Err e -> Err e
+        Ok q -> case q of
+          (o, k) -> case DT.to-epoch-seconds-nanos-utc dt of
+            (secs, nanos) -> case timestamp-from-unix-seconds-and-nanos (minus secs (iso-offset-seconds o)) nanos of
+              None -> Err (IsoTimestampOutOfRange i)
+              Some ts -> Ok ((ts, o), k)
+
+  -- Which refusal a failed run of `n` digits at `i` is: the first
+  -- non-digit position, as the end of input or as a wrong byte.
+  digit-error :: Bytes -> I64 -> I64 -> IsoError
+  digit-error b i n =
+    let at = plus i (scan-count-digits b i n) in
+    if scan-byte-at b at < 0 then IsoUnexpectedEnd at else IsoExpectedDigit at
+
+  -- -----------------------------------------------------------------
+  -- Printing: lengths and writers. Each writer fills
+  -- `buffer[i .. i + length)` and answers `i + length`.
+  -- -----------------------------------------------------------------
+
+  -- 10 for years 0..=9999 (`YYYY-MM-DD`), 13 otherwise (`+YYYYYY-MM-DD`).
+  iso-date-length :: Date -> I64
+  iso-date-length d =
+    let y = D.year d in
+    if y >= 0 then 10 else 13
+
+  iso-write-date :: Bytes -> I64 -> Date -> I64
+  iso-write-date b i d =
+    let y = D.year d in
+    let j = if y >= 0 then scan-put-digits b i 4 y
+            else scan-put-digits b (scan-put-byte b i 45) 6 (minus 0 y) in
+    let k = scan-put-digits b (scan-put-byte b j 45) 2 (D.month d) in
+    scan-put-digits b (scan-put-byte b k 45) 2 (D.day d)
+
+  -- The number of fraction digits the shortest exact rendering needs:
+  -- 0 when the subsecond is zero, otherwise 9 less the trailing zeros.
+  iso-fraction-digits :: TimeOfDay -> InRange 0 9 I64
+  iso-fraction-digits t = scan-fraction-digits (T.subsec-nanosecond t)
+
+  -- `HH:MM:SS` is 8 bytes; a fraction adds the point and its digits.
+  iso-time-length :: (digits :: InRange 0 9 I64) -> I64
+  iso-time-length digits = if digits == 0 then 8 else plus 9 digits
+
+  -- Writes `HH:MM:SS` and, for `digits` above 0, `.` and the first
+  -- `digits` digits of the nine-digit subsecond (truncation).
+  iso-write-time :: Bytes -> I64 -> (digits :: InRange 0 9 I64) -> TimeOfDay -> I64
+  iso-write-time b i digits t =
+    let j = scan-put-digits b i 2 (T.hour t) in
+    let k = scan-put-digits b (scan-put-byte b j 58) 2 (T.minute t) in
+    let l = scan-put-digits b (scan-put-byte b k 58) 2 (T.second t) in
+    if digits == 0 then l
+    else scan-put-digits b (scan-put-byte b l 46) digits (scan-fraction-head (T.subsec-nanosecond t) digits)
+
+  iso-offset-in-range :: I64 -> Bool
+  iso-offset-in-range off = off >= -93599 && off <= 93599
+
+  -- 6 (`+HH:MM`), or 9 (`+HH:MM:SS`) when the offset has seconds.
+  iso-offset-length :: I64 -> I64
+  iso-offset-length off = if scan-rem off 60 == 0 then 6 else 9
+
+  -- Writes a numeric offset. The caller has it within +-93599 (the
+  -- hour field keeps its low two digits otherwise). Offset 0 is
+  -- `+00:00`; `Z` is the timestamp printer's choice, not this one's.
+  iso-write-offset :: Bytes -> I64 -> I64 -> I64
+  iso-write-offset b i off =
+    let a = if off < 0 then minus 0 off else off in
+    let j = scan-put-byte b i (if off < 0 then 45 else 43) in
+    let k = scan-put-digits b j 2 (scan-quot a 3600) in
+    let l = scan-put-digits b (scan-put-byte b k 58) 2 (scan-rem (scan-quot a 60) 60) in
+    if scan-rem a 60 == 0 then l
+    else scan-put-digits b (scan-put-byte b l 58) 2 (scan-rem a 60)
+
+  -- -----------------------------------------------------------------
+  -- Whole-value printers.
+  -- -----------------------------------------------------------------
+
+  date-to-string :: Date -> String
+  date-to-string d = scan-string-of-bytes (date-bytes d)
+
+  -- `HH:MM:SS` and the shortest exact fraction.
+  time-to-string :: TimeOfDay -> String
+  time-to-string t = scan-string-of-bytes (time-bytes (iso-fraction-digits t) t)
+
+  -- Exactly `digits` fraction digits, truncating.
+  time-to-string-precision :: (digits :: InRange 0 9 I64) -> TimeOfDay -> String
+  time-to-string-precision digits t = scan-string-of-bytes (time-bytes digits t)
+
+  datetime-to-string :: DateTime -> String
+  datetime-to-string x = scan-string-of-bytes (datetime-bytes (iso-fraction-digits (DT.time-part x)) x 0)
+
+  datetime-to-string-precision :: (digits :: InRange 0 9 I64) -> DateTime -> String
+  datetime-to-string-precision digits x = scan-string-of-bytes (datetime-bytes digits x 0)
+
+  -- The instant in UTC with `Z` and the shortest exact fraction.
+  timestamp-to-string :: Timestamp -> String
+  timestamp-to-string ts = case utc-reading ts 0 of
+    None -> empty-string
+    Some x -> scan-string-of-bytes (zulu-bytes (iso-fraction-digits (DT.time-part x)) x)
+
+  timestamp-to-string-precision :: (digits :: InRange 0 9 I64) -> Timestamp -> String
+  timestamp-to-string-precision digits ts = case utc-reading ts 0 of
+    None -> empty-string
+    Some x -> scan-string-of-bytes (zulu-bytes digits x)
+
+  -- The civil reading of the instant at `off` seconds east of UTC,
+  -- followed by the numeric offset (`+00:00` for 0, never `Z`). `None`
+  -- when the offset is outside +-93599. With seconds in the offset the
+  -- output has `+HH:MM:SS`, which is not RFC 3339 (see the header).
+  timestamp-to-string-with-offset :: I64 -> Timestamp -> Option String
+  timestamp-to-string-with-offset off ts =
+    if iso-offset-in-range off then
+      (case utc-reading ts off of
+        None -> None
+        Some x ->
+          let digits = iso-fraction-digits (DT.time-part x) in
+          let n = iso-offset-length off in
+          let b = datetime-bytes digits x n in
+          let u = iso-write-offset b (minus (scan-length b) n) off in
+          Some (scan-string-of-bytes b))
+    else None
+
+  -- The civil reading at an offset. Every `Timestamp` has one at every
+  -- offset within +-93599 (T3), so this is `Some` for the callers
+  -- above; the seconds are within +-3.8e11, so the sum does not wrap.
+  utc-reading :: Timestamp -> I64 -> Option DateTime
+  utc-reading ts off = case timestamp-to-unix-seconds-and-nanos ts of
+    (secs, nanos) -> DT.from-epoch-seconds-nanos-utc (plus secs off) nanos
+
+  date-bytes :: Date -> Bytes
+  date-bytes d =
+    let b = scan-new (iso-date-length d) in
+    let u = iso-write-date b 0 d in
+    b
+
+  time-bytes :: (digits :: InRange 0 9 I64) -> TimeOfDay -> Bytes
+  time-bytes digits t =
+    let b = scan-new (iso-time-length digits) in
+    let u = iso-write-time b 0 digits t in
+    b
+
+  -- The date, `T` and the time, in a buffer with `extra` unwritten
+  -- bytes after them (for `Z` or an offset).
+  datetime-bytes :: (digits :: InRange 0 9 I64) -> DateTime -> I64 -> Bytes
+  datetime-bytes digits x extra =
+    let d = DT.date-part x in
+    let b = scan-new (plus (plus (plus (iso-date-length d) 1) (iso-time-length digits)) extra) in
+    let j = scan-put-byte b (iso-write-date b 0 d) 84 in
+    let u = iso-write-time b j digits (DT.time-part x) in
+    b
+
+  zulu-bytes :: (digits :: InRange 0 9 I64) -> DateTime -> Bytes
+  zulu-bytes digits x =
+    let b = datetime-bytes digits x 1 in
+    let u = scan-put-byte b (minus (scan-length b) 1) 90 in
+    b
+
+  -- -----------------------------------------------------------------
+  -- Piece forms: each answers one exactly-sized fresh buffer, which is
+  -- what `Text.Builder.builder-add-bytes` appends without copying (see
+  -- NAMED REFUSALS for why the builder itself is not imported here).
+  -- -----------------------------------------------------------------
+
+  iso-date-bytes :: Date -> Bytes
+  iso-date-bytes d = date-bytes d
+
+  iso-time-bytes :: TimeOfDay -> Bytes
+  iso-time-bytes t = time-bytes (iso-fraction-digits t) t
+
+  iso-datetime-bytes :: DateTime -> Bytes
+  iso-datetime-bytes x = datetime-bytes (iso-fraction-digits (DT.time-part x)) x 0
+
+  -- The numeric offset; the empty buffer for one outside +-93599.
+  iso-offset-bytes :: I64 -> Bytes
+  iso-offset-bytes off =
+    if iso-offset-in-range off then
+      let b = scan-new (iso-offset-length off) in
+      let u = iso-write-offset b 0 off in
+      b
+    else scan-new 0
+
+  -- -----------------------------------------------------------------
+  -- Private arithmetic. Every use is on a byte position (below 2^62) or
+  -- a calendar field, so the wrapping operations never wrap.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b

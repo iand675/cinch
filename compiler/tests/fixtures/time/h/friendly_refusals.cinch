@@ -1,0 +1,189 @@
+-- Lane H: Text.Time.Duration, every friendly-format refusal, each by
+-- its named constructor and byte position (`refusal` is the
+-- constructor's number * 1000 + the position): order and repeats,
+-- fractions, designators, signs, the clock form, white space and
+-- trailing input, numbers and unit limits.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  check-order :: Int
+  check-order =
+    if refusal (span-from-friendly-string "1h 1d") == 7003
+       && refusal (span-from-friendly-string "1h 2h") == 8003
+       && refusal (span-from-friendly-string "1y 1y") == 8003
+       && refusal (span-from-friendly-string "1mo 1y") == 7004
+       && refusal (span-from-friendly-string "1ns 1us") == 7004
+       && refusal (span-from-friendly-string "1m1h") == 7002
+       && refusal (span-from-friendly-string "1 hour, 1 hr") == 8008
+       && refusal (span-from-friendly-string "1s 1sec") == 8003
+    then 0 else 1
+
+  check-fractions :: Int
+  check-fractions =
+    if refusal (span-from-friendly-string "1.5d") == 10001
+       && refusal (span-from-friendly-string "1.5y") == 10001
+       && refusal (span-from-friendly-string "1.5mo") == 10001
+       && refusal (span-from-friendly-string "1,5w") == 10001
+       && refusal (span-from-friendly-string "1.5ns") == 10001
+       && refusal (span-from-friendly-string "1.5h 2m") == 9005
+       && refusal (span-from-friendly-string "1.5h2m") == 9004
+       && refusal (span-from-friendly-string "1.5h, 2m") == 9006
+       && refusal (span-from-friendly-string "1.h") == 12002
+       && refusal (span-from-friendly-string "1,h") == 12002
+       && refusal (span-from-friendly-string "1.1234567890s") == 11002
+       && refusal (span-from-friendly-string "1.1234567ms") == 11002
+       && refusal (span-from-friendly-string "1.1234us") == 11002
+       && is (span-from-friendly-string "1.123456ms") 0 0 0 0 0 0 0 1 123 456
+       && is (span-from-friendly-string "1.123us") 0 0 0 0 0 0 0 0 1 123
+    then 0 else 2
+
+  check-designators :: Int
+  check-designators =
+    if refusal (span-from-friendly-string "1 fortnight") == 6002
+       && refusal (span-from-friendly-string "1") == 6001
+       && refusal (span-from-friendly-string "1 ") == 6002
+       && refusal (span-from-friendly-string "1hx") == 6001
+       && refusal (span-from-friendly-string "1hago") == 6001
+       && refusal (span-from-friendly-string "1 H") == 6002
+       && refusal (span-from-friendly-string "1 Hour") == 6002
+       && refusal (span-from-friendly-string "1 ago") == 6002
+       && refusal (span-from-friendly-string "1 2h") == 6002
+       && refusal (span-from-friendly-string "1.5") == 6003
+       && refusal (span-from-friendly-string "1 microsecondsss") == 6002
+       && refusal (span-from-friendly-string "1\u{00b5}") == 6001
+    then 0 else 4
+
+  check-signs :: Int
+  check-signs =
+    if refusal (span-from-friendly-string "-1h ago") == 16004
+       && refusal (span-from-friendly-string "+1h ago") == 16004
+       && refusal (span-from-friendly-string "-01:00:00 ago") == 16010
+       && refusal (span-from-friendly-string "-") == 4001
+       && refusal (span-from-friendly-string "+") == 4001
+       && refusal (span-from-friendly-string "--1h") == 5001
+       && refusal (span-from-friendly-string "- 1h") == 5001
+       && refusal (span-from-friendly-string "1h -30m") == 17003
+       && refusal (span-from-friendly-string "ago") == 5000
+       && refusal (span-from-friendly-string "1h ago ago") == 17006
+       && refusal (span-from-friendly-string "1h agox") == 17006
+       && refusal (span-from-friendly-string "1h ago ") == 17006
+    then 0 else 8
+
+  check-clock-form :: Int
+  check-clock-form =
+    if refusal (span-from-friendly-string "1h 01:02:03") == 7003
+       && refusal (span-from-friendly-string "1s 01:02:03") == 7003
+       && refusal (span-from-friendly-string "01:02") == 19005
+       && refusal (span-from-friendly-string "01:02 ") == 19005
+       && refusal (span-from-friendly-string "01::03") == 5003
+       && refusal (span-from-friendly-string "01:") == 5003
+       && refusal (span-from-friendly-string "01:02:") == 5006
+       && refusal (span-from-friendly-string "01:02:03x") == 17008
+       && refusal (span-from-friendly-string "01:02:03 1ms") == 17008
+       && refusal (span-from-friendly-string "01:02:03.") == 12009
+       && refusal (span-from-friendly-string "01:02:03.1234567890") == 11009
+       && refusal (span-from-friendly-string "01:02:03:04") == 17008
+       && refusal (span-from-friendly-string "175307617:00:00") == 14000
+       && refusal (span-from-friendly-string "00:10518456961:00") == 14003
+    then 0 else 16
+
+  check-shape :: Int
+  check-shape =
+    if refusal (span-from-friendly-string "") == 1000
+       && refusal (span-from-friendly-string " 1h") == 5000
+       && refusal (span-from-friendly-string "1h ") == 17002
+       && refusal (span-from-friendly-string "1h\n") == 17002
+       && refusal (span-from-friendly-string "1h junk") == 17003
+       && refusal (span-from-friendly-string "1h;") == 17002
+       && refusal (span-from-friendly-string "1h,") == 4003
+       && refusal (span-from-friendly-string "1h, ") == 4004
+       && refusal (span-from-friendly-string "1h, x") == 5004
+       && refusal (span-from-friendly-string "1h ,1m") == 17003
+       && refusal (span-from-friendly-string "1h,,1m") == 5003
+       && refusal (span-from-friendly-string "P1D") == 5000
+       && refusal (span-from-friendly-string "one hour") == 5000
+    then 0 else 32
+
+  -- 38 digits are read as a number (and are then over the limit); 39
+  -- are not. Each unit is checked against its limit where it stands. A
+  -- clock span and a duration refuse days and larger.
+  check-numbers-and-units :: Int
+  check-numbers-and-units =
+    if refusal (span-from-friendly-string "19999y") == 14000
+       && refusal (span-from-friendly-string "1y 239977mo") == 14003
+       && refusal (span-from-friendly-string "99999999999999999999999999999999999999y") == 14000
+       && refusal (span-from-friendly-string "999999999999999999999999999999999999999y") == 13000
+       && refusal (span-from-friendly-string "1h 999999999999999999999999999999999999999m") == 13003
+       && refusal (span-clock-from-friendly-string "1d") == 18000
+       && refusal (span-clock-from-friendly-string "0d") == 18000
+       && refusal (span-clock-from-friendly-string "1y 2h") == 18000
+       && refusal (span-clock-from-friendly-string "1w 01:00:00") == 18000
+       && refusal (duration-from-friendly-string "1d 2h") == 18000
+       && refusal (duration-from-friendly-string "2 months") == 18000
+    then 0 else 64
+
+  main :: Int
+  main = check-order + check-fractions + check-designators + check-signs + check-clock-form + check-shape + check-numbers-and-units

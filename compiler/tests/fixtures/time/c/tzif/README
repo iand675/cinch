@@ -1,0 +1,1 @@
+Test data for lane C (compiler/tests/lib_time_c.rs): TZif files copied from the system zoneinfo database, tzdata version 2026e (IANA, public domain). This README is also the fixtures' example of a file that is not TZif.

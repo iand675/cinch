@@ -1,0 +1,107 @@
+-- Lane A: Data.Time.Duration unit constructors and observers,
+-- including negative values and the truncation direction.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Time.Duration
+
+  is-some :: Option I64 -> I64 -> Bool
+  is-some o want = case o of
+    Some x -> eq-i64 x want
+    None -> False
+
+  -- 1: each unit constructor is its exact nanosecond count.
+  check-unit-constructors :: Int
+  check-unit-constructors =
+    if eq-i128 (duration-total-nanos (duration-from-nanos 7)) 7
+      && eq-i128 (duration-total-nanos (duration-from-micros 7)) 7000
+      && eq-i128 (duration-total-nanos (duration-from-millis 7)) 7000000
+      && eq-i128 (duration-total-nanos (duration-from-seconds 7)) 7000000000
+      && eq-i128 (duration-total-nanos (duration-from-minutes 7)) 420000000000
+      && eq-i128 (duration-total-nanos (duration-from-hours 7)) 25200000000000
+      && eq-i128 (duration-total-nanos duration-zero) 0
+      then 0 else 1
+
+  -- 2: negative counts, and units agree with each other.
+  check-negative-and-agreement :: Int
+  check-negative-and-agreement =
+    if eq-i128 (duration-total-nanos (duration-from-hours (-2))) (-7200000000000)
+      && duration-from-hours (-2) == duration-from-minutes (-120)
+      && duration-from-minutes 3 == duration-from-seconds 180
+      && duration-from-seconds (-3) == duration-from-millis (-3000)
+      && duration-from-millis 5 == duration-from-micros 5000
+      && duration-from-micros (-5) == duration-from-nanos (-5000)
+      && duration-from-seconds 1 /= duration-from-millis 999
+      then 0 else 2
+
+  -- 4: the unit constructors are total at the `I64` bounds (the
+  -- products are far inside the range).
+  check-i64-extremes :: Int
+  check-i64-extremes =
+    if eq-i128 (duration-total-nanos (duration-from-hours max-bound-i64)) 33204139332677192905200000000000
+      && eq-i128 (duration-total-nanos (duration-from-hours min-bound-i64)) (-33204139332677192908800000000000)
+      && eq-i128 (duration-total-nanos (duration-from-nanos min-bound-i64)) (-9223372036854775808)
+      && eq-i128 (duration-total-nanos (duration-from-seconds max-bound-i64)) 9223372036854775807000000000
+      then 0 else 4
+
+  -- 8: conversions to a coarser unit truncate toward zero, both signs.
+  check-truncation-toward-zero :: Int
+  check-truncation-toward-zero =
+    if is-some (duration-to-seconds (duration-from-millis 1500)) 1
+      && is-some (duration-to-seconds (duration-from-millis (-1500))) (-1)
+      && is-some (duration-to-seconds (duration-from-millis (-999))) 0
+      && is-some (duration-to-millis (duration-from-nanos (-1))) 0
+      && is-some (duration-to-millis (duration-from-nanos 1999999)) 1
+      && is-some (duration-to-micros (duration-from-nanos (-1999))) (-1)
+      && is-some (duration-to-nanos (duration-from-micros (-3))) (-3000)
+      && is-some (duration-to-minutes (duration-from-seconds (-119))) (-1)
+      && is-some (duration-to-hours (duration-from-minutes 179)) 2
+      then 0 else 8
+
+  -- 16: the subsecond part carries the duration's sign, and
+  -- whole-seconds * 10^9 + subsec-nanos is the count again.
+  check-subsec-nanos :: Int
+  check-subsec-nanos =
+    if eq-i64 (duration-subsec-nanos (duration-from-millis 1500)) 500000000
+      && eq-i64 (duration-subsec-nanos (duration-from-millis (-1500))) (-500000000)
+      && eq-i64 (duration-subsec-nanos (duration-from-nanos (-1))) (-1)
+      && eq-i64 (duration-subsec-nanos (duration-from-seconds (-4))) 0
+      && eq-i64 (duration-subsec-nanos (duration-from-nanos 999999999)) 999999999
+      && eq-i64 (duration-subsec-nanos (duration-from-nanos (-999999999))) (-999999999)
+      && duration-from-seconds-and-nanos (-1) (-500000000) == duration-from-millis (-1500)
+      && duration-from-seconds-and-nanos (-1) 999999999 == duration-from-nanos (-1)
+      && duration-from-seconds-and-nanos 2 2500000000 == duration-from-millis 4500
+      then 0 else 16
+
+  -- 32: the sign predicates.
+  check-sign-predicates :: Int
+  check-sign-predicates =
+    if duration-is-zero duration-zero
+      && duration-is-zero (duration-from-hours 0)
+      && duration-is-negative (duration-from-nanos (-1))
+      && duration-is-positive (duration-from-nanos 1)
+      then
+        if duration-is-zero (duration-from-nanos 1) then 32
+        else if duration-is-negative duration-zero then 32
+        else if duration-is-positive duration-zero then 32
+        else if duration-is-negative (duration-from-nanos 1) then 32
+        else if duration-is-positive (duration-from-nanos (-1)) then 32
+        else 0
+      else 32
+
+  -- 64: the saturating conversions agree with the checked ones in
+  -- range.
+  check-saturating-conversions-in-range :: Int
+  check-saturating-conversions-in-range =
+    if eq-i64 (duration-saturating-to-nanos (duration-from-micros (-3))) (-3000)
+      && eq-i64 (duration-saturating-to-micros (duration-from-nanos (-1999))) (-1)
+      && eq-i64 (duration-saturating-to-millis (duration-from-seconds 2)) 2000
+      && eq-i64 (duration-saturating-to-seconds (duration-from-millis (-1500))) (-1)
+      && eq-i64 (duration-saturating-to-minutes (duration-from-hours 2)) 120
+      && eq-i64 (duration-saturating-to-hours (duration-from-minutes (-179))) (-2)
+      then 0 else 64
+
+  main :: Int
+  main = check-unit-constructors + check-negative-and-agreement + check-i64-extremes
+    + check-truncation-toward-zero + check-subsec-nanos + check-sign-predicates
+    + check-saturating-conversions-in-range

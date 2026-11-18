@@ -1,0 +1,295 @@
+-- Lane H: Text.Time.Duration, the round-trip laws for spans. Friendly
+-- print then parse is the identity fieldwise for every designator
+-- style, spacing, comma setting and sign style (72 printers) over a
+-- sweep of mixed spans and over the edge spans; ISO print then parse
+-- keeps the calendar units, hours and minutes fieldwise and the length
+-- of the rest, but not the sub-second breakdown (2000 milliseconds
+-- comes back as 2 seconds); the fractional-unit and clock-form
+-- printers keep the length; `span-from-string` reads both prints.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  md :: I64 -> I64 -> I64
+  md a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
+
+  dv :: I64 -> I64 -> I64
+  dv a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  -- A non-negative pseudo-random word from two small indices (two
+  -- rounds of a multiplicative mix, the low bits dropped).
+  mix :: I64 -> I64 -> I64
+  mix k j =
+    let a = wrapping-add-i64 (wrapping-mul-i64 (wrapping-add-i64 k 1) 6364136223846793005) (wrapping-mul-i64 (wrapping-add-i64 j 7) 1442695040888963407) in
+    let c = wrapping-mul-i64 (wrapping-add-i64 a 1013904223) 2862933555777941757 in
+    mask-i64 (dv c 65536) 70368744177663
+
+  -- Field `j` of span `k`: zero one time in three, else below `bound`.
+  field :: I64 -> I64 -> I64 -> I64
+  field k j bound =
+    let h = mix k j in
+    if md h 3 == 0 then 0 else md (dv h 3) bound
+
+  -- Odd indices are negative.
+  sign-for :: I64 -> I64
+  sign-for k = if md k 2 == 1 then -1 else 1
+
+  -- Mixed spans over the whole of each unit's range (odd `k` negative).
+  wide-span :: I64 -> Span Calendar
+  wide-span k =
+    let s = sign-for k in
+    sp (wrapping-mul-i64 s (field k 0 19999)) (wrapping-mul-i64 s (field k 1 239977))
+       (wrapping-mul-i64 s (field k 2 1043498)) (wrapping-mul-i64 s (field k 3 7304485))
+       (wrapping-mul-i64 s (field k 4 175307617)) (wrapping-mul-i64 s (field k 5 10518456961))
+       (wrapping-mul-i64 s (field k 6 631107417601)) (wrapping-mul-i64 s (field k 7 70368744177663))
+       (wrapping-mul-i64 s (field k 8 70368744177663)) (wrapping-mul-i64 s (field k 9 70368744177663))
+
+  -- Mixed spans whose sub-second units are small, so the seconds ISO
+  -- folds them into stay within the seconds limit.
+  small-span :: I64 -> Span Calendar
+  small-span k =
+    let s = sign-for k in
+    sp (wrapping-mul-i64 s (field k 0 19999)) (wrapping-mul-i64 s (field k 1 239977))
+       (wrapping-mul-i64 s (field k 2 1043498)) (wrapping-mul-i64 s (field k 3 7304485))
+       (wrapping-mul-i64 s (field k 4 175307617)) (wrapping-mul-i64 s (field k 5 10518456961))
+       (wrapping-mul-i64 s (field k 6 600000000000)) (wrapping-mul-i64 s (field k 7 5000000000))
+       (wrapping-mul-i64 s (field k 8 5000000000)) (wrapping-mul-i64 s (field k 9 5000000000))
+
+  -- The edge spans: zero, each unit alone at its limit, every unit at
+  -- its limit, that negated, one of each, one nanosecond.
+  edge-span :: I64 -> Span Calendar
+  edge-span k =
+    if k == 0 then sp 0 0 0 0 0 0 0 0 0 0
+    else if k == 1 then sp 19998 0 0 0 0 0 0 0 0 0
+    else if k == 2 then sp 0 239976 0 0 0 0 0 0 0 0
+    else if k == 3 then sp 0 0 1043497 0 0 0 0 0 0 0
+    else if k == 4 then sp 0 0 0 7304484 0 0 0 0 0 0
+    else if k == 5 then sp 0 0 0 0 175307616 0 0 0 0 0
+    else if k == 6 then sp 0 0 0 0 0 10518456960 0 0 0 0
+    else if k == 7 then sp 0 0 0 0 0 0 631107417600 0 0 0
+    else if k == 8 then sp 0 0 0 0 0 0 0 631107417600000 0 0
+    else if k == 9 then sp 0 0 0 0 0 0 0 0 631107417600000000 0
+    else if k == 10 then sp 0 0 0 0 0 0 0 0 0 9223372036854775807
+    else if k == 11 then sp 19998 239976 1043497 7304484 175307616 10518456960 631107417600 631107417600000 631107417600000000 9223372036854775807
+    else if k == 12 then sp (-19998) (-239976) (-1043497) (-7304484) (-175307616) (-10518456960) (-631107417600) (-631107417600000) (-631107417600000000) (-9223372036854775807)
+    else if k == 13 then sp 1 1 1 1 1 1 1 1 1 1
+    else if k == 14 then sp (-1) (-1) (-1) (-1) (-1) (-1) (-1) (-1) (-1) (-1)
+    else sp 0 0 0 0 0 0 0 0 0 (-1)
+
+  -- Printer `n` of 72: designator style, spacing, comma, sign style.
+  printer :: I64 -> FriendlyPrinter
+  printer n =
+    let de = md n 3 in
+    let sc = md (dv n 3) 3 in
+    let sg = md (dv n 18) 4 in
+    friendly-with-sign (if sg == 0 then SignAuto else if sg == 1 then SignPrefix else if sg == 2 then SignForce else SignSuffix)
+      (friendly-with-comma (md (dv n 9) 2 == 1)
+        (friendly-with-spacing (if sc == 0 then SpacingNone else if sc == 1 then SpacingBetweenUnits else SpacingBetweenUnitsAndDesignators)
+          (friendly-with-designator (if de == 0 then DesignatorCompact else if de == 1 then DesignatorShort else DesignatorVerbose)
+            friendly-printer-default)))
+
+  lossless :: FriendlyPrinter -> Span Calendar -> Bool
+  lossless p x = case span-from-friendly-string (span-print-friendly p x) of
+    Err _ -> False
+    Ok y -> span-fieldwise-eq x y
+
+  -- Every printer `p..71` against wide spans `k..39`.
+  sweep-wide :: I64 -> I64 -> Bool
+  sweep-wide p k =
+    if p >= 72 then True
+    else if k >= 40 then sweep-wide (wrapping-add-i64 p 1) 0
+    else if lossless (printer p) (wide-span k) then sweep-wide p (wrapping-add-i64 k 1)
+    else False
+
+  sweep-edges :: I64 -> I64 -> Bool
+  sweep-edges p k =
+    if p >= 72 then True
+    else if k >= 16 then sweep-edges (wrapping-add-i64 p 1) 0
+    else if lossless (printer p) (edge-span k) then sweep-edges p (wrapping-add-i64 k 1)
+    else False
+
+  check-lossless-sweep :: Int
+  check-lossless-sweep = if sweep-wide 0 0 then 0 else 1
+
+  check-lossless-edges :: Int
+  check-lossless-edges = if sweep-edges 0 0 then 0 else 2
+
+  -- ISO keeps years, months, weeks, days, hours and minutes fieldwise
+  -- and the length of seconds and below.
+  iso-keeps :: Span Calendar -> Bool
+  iso-keeps x = case span-from-iso-string (span-to-iso-string x) of
+    Err _ -> False
+    Ok y ->
+      span-years x == span-years y && span-months x == span-months y && span-weeks x == span-weeks y
+      && span-days x == span-days y && span-hours x == span-hours y && span-minutes x == span-minutes y
+      && eq-i128 (span-time-nanos x) (span-time-nanos y)
+
+  sweep-iso :: I64 -> Bool
+  sweep-iso k =
+    if k >= 200 then True
+    else if iso-keeps (small-span k) then sweep-iso (wrapping-add-i64 k 1)
+    else False
+
+  check-iso-sweep :: Int
+  check-iso-sweep =
+    if sweep-iso 0 && iso-keeps (edge-span 0) && iso-keeps (edge-span 1) && iso-keeps (edge-span 2)
+       && iso-keeps (edge-span 3) && iso-keeps (edge-span 4) && iso-keeps (edge-span 5) && iso-keeps (edge-span 6)
+       && iso-keeps (edge-span 7) && iso-keeps (edge-span 8) && iso-keeps (edge-span 9) && iso-keeps (edge-span 10)
+       && iso-keeps (edge-span 13) && iso-keeps (edge-span 14) && iso-keeps (edge-span 15)
+    then 0 else 4
+
+  -- The clock part of a span as a clock span.
+  clock-of :: Span Calendar -> Span Clock
+  clock-of x = case span-clock-from-units (span-hours x) (span-minutes x) (span-seconds x) (span-milliseconds x) (span-microseconds x) (span-nanoseconds x) of
+    Err _ -> span-zero
+    Ok c -> c
+
+  is-eq :: Ordering -> Bool
+  is-eq o = case o of
+    EQ -> True
+    LT -> False
+    GT -> False
+
+  -- For clock spans the ISO round trip compares equal by length.
+  iso-same-length :: Span Clock -> Bool
+  iso-same-length x = case span-clock-from-iso-string (span-to-iso-string x) of
+    Err _ -> False
+    Ok y -> is-eq (span-compare x y)
+
+  sweep-iso-clock :: I64 -> Bool
+  sweep-iso-clock k =
+    if k >= 200 then True
+    else if iso-same-length (clock-of (small-span k)) then sweep-iso-clock (wrapping-add-i64 k 1)
+    else False
+
+  check-iso-clock-sweep :: Int
+  check-iso-clock-sweep = if sweep-iso-clock 0 then 0 else 8
+
+  -- The stated loss, and the friendly form beside it.
+  check-iso-loss :: Int
+  check-iso-loss =
+    if span-to-iso-string (sp 0 0 0 0 0 0 0 2000 0 0) == "PT2S"
+       && is (span-from-iso-string (span-to-iso-string (sp 0 0 0 0 0 0 0 2000 0 0))) 0 0 0 0 0 0 2 0 0 0
+       && span-to-friendly-string (sp 0 0 0 0 0 0 0 2000 0 0) == "2000ms"
+       && is (span-from-friendly-string (span-to-friendly-string (sp 0 0 0 0 0 0 0 2000 0 0))) 0 0 0 0 0 0 0 2000 0 0
+       && is (span-from-iso-string (span-to-iso-string (sp 0 0 0 0 0 0 0 0 0 9223372036854775807))) 0 0 0 0 0 0 9223372036 854 775 807
+       && is (span-from-iso-string (span-to-iso-string (sp 0 0 0 0 0 0 1 0 1500 0))) 0 0 0 0 0 0 1 1 500 0
+       && is (span-from-iso-string (span-to-iso-string (sp 0 0 0 0 0 120 0 0 0 0))) 0 0 0 0 0 120 0 0 0 0
+       && span-to-iso-string (sp 0 0 0 0 0 0 631107417600 631107417600000 631107417600000000 0) == "PT1893322252800S"
+       && refusal (span-from-iso-string "PT1893322252800S") == 14002
+       && span-to-iso-string (edge-span 11) == "P19998Y239976M1043497W7304484DT175307616H10518456960M1902545624836.854775807S"
+       && refusal (span-from-iso-string (span-to-iso-string (edge-span 11))) == 14053
+    then 0 else 16
+
+  -- The fractional-unit and clock-form printers keep the length of a
+  -- clock span (seconds and finer are exact in nine digits), not its
+  -- breakdown.
+  same-length-under :: FriendlyPrinter -> Span Clock -> Bool
+  same-length-under p x = case span-clock-from-friendly-string (span-print-friendly p x) of
+    Err _ -> False
+    Ok y -> is-eq (span-compare x y)
+
+  sweep-folding :: I64 -> Bool
+  sweep-folding k =
+    if k >= 100 then True
+    else if same-length-under (friendly-with-fractional FractionalSecond friendly-printer-default) (clock-of (small-span k))
+            && same-length-under (friendly-with-clock-form True friendly-printer-default) (clock-of (small-span k))
+            && same-length-under (friendly-with-clock-form True (printer k)) (clock-of (small-span k))
+    then sweep-folding (wrapping-add-i64 k 1)
+    else False
+
+  check-folding-printers :: Int
+  check-folding-printers =
+    if sweep-folding 0
+       && same-length-under (friendly-with-fractional FractionalMillisecond friendly-printer-default) (clock-of (sp 0 0 0 0 1 2 3 4 5 6))
+       && same-length-under (friendly-with-fractional FractionalMicrosecond friendly-printer-default) (clock-of (sp 0 0 0 0 1 2 3 4 5 6))
+       && same-length-under (friendly-with-fractional FractionalHour friendly-printer-default) (clock-of (sp 0 0 0 0 1 45 0 0 0 0))
+       && same-length-under (friendly-with-fractional FractionalMinute friendly-printer-default) (clock-of (sp 0 0 0 0 1 45 30 0 0 0))
+       && is (span-from-friendly-string (span-print-friendly (friendly-with-clock-form True friendly-printer-default) (sp 1 2 3 4 5 6 7 8 9 10))) 1 2 3 4 5 6 7 8 9 10
+       && is (span-from-friendly-string (span-print-friendly (friendly-with-fractional FractionalSecond friendly-printer-default) (sp 0 0 0 0 0 0 1 1500 0 0))) 0 0 0 0 0 0 2 500 0 0
+    then 0 else 32
+
+  either-reads :: Span Calendar -> Bool
+  either-reads x = case span-from-string (span-to-friendly-string x) of
+    Err _ -> False
+    Ok y -> case span-from-string (span-to-iso-string x) of
+      Err _ -> False
+      Ok z -> span-fieldwise-eq x y && eq-i128 (span-time-nanos x) (span-time-nanos z) && span-years x == span-years z
+
+  sweep-either :: I64 -> Bool
+  sweep-either k =
+    if k >= 60 then True
+    else if either-reads (small-span k) then sweep-either (wrapping-add-i64 k 1)
+    else False
+
+  check-either :: Int
+  check-either = if sweep-either 0 then 0 else 64
+
+  main :: Int
+  main = check-lossless-sweep + check-lossless-edges + check-iso-sweep + check-iso-clock-sweep + check-iso-loss + check-folding-printers + check-either

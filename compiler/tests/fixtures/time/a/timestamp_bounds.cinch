@@ -1,0 +1,155 @@
+-- Lane A: Data.Time.Timestamp bounds (min, max, one past each
+-- refused) and the Unix conversions, including the pre-epoch floor.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+
+  none-t :: Option Timestamp -> Bool
+  none-t o = case o of
+    None -> True
+    Some _ -> False
+
+  some-t :: Option Timestamp -> Timestamp -> Bool
+  some-t o want = case o of
+    Some t -> t == want
+    None -> False
+
+  -- The floored second and subsecond nanoseconds of `t`, by the pair
+  -- observer and by the two single observers.
+  splits :: Timestamp -> I64 -> I64 -> Bool
+  splits t secs nanos = case timestamp-to-unix-seconds-and-nanos t of
+    (s, n) -> eq-i64 s secs && eq-i64 n nanos
+      && eq-i64 (timestamp-to-unix-seconds t) secs
+      && eq-i64 (timestamp-subsec-nanos t) nanos
+
+  -- `from-unix-seconds-and-nanos` inverts `to-unix-seconds-and-nanos`.
+  round-trips :: Timestamp -> Bool
+  round-trips t = case timestamp-to-unix-seconds-and-nanos t of
+    (s, n) -> some-t (timestamp-from-unix-seconds-and-nanos s n) t
+
+  -- 1: the bounds are -9999-01-02T01:59:59Z and
+  -- 9999-12-30T22:00:00.999999999Z, and the epoch is zero.
+  check-bound-values :: Int
+  check-bound-values =
+    if eq-i128 (timestamp-to-unix-nanos min-timestamp) (-377705023201000000000)
+      && eq-i128 (timestamp-to-unix-nanos max-timestamp) 253402207200999999999
+      && eq-i128 (timestamp-to-unix-nanos timestamp-epoch) 0
+      && min-timestamp < timestamp-epoch
+      && timestamp-epoch < max-timestamp
+      && splits min-timestamp (-377705023201) 0
+      && splits max-timestamp 253402207200 999999999
+      && splits timestamp-epoch 0 0
+      then 0 else 1
+
+  -- 2: one nanosecond past either bound has no representation.
+  check-one-past-refused :: Int
+  check-one-past-refused =
+    if none-t (timestamp-from-unix-nanos-i128 (-377705023201000000001))
+      && none-t (timestamp-from-unix-nanos-i128 253402207201000000000)
+      && some-t (timestamp-from-unix-nanos-i128 (-377705023201000000000)) min-timestamp
+      && some-t (timestamp-from-unix-nanos-i128 253402207200999999999) max-timestamp
+      && none-t (timestamp-from-unix-nanos-i128 min-bound-i128)
+      && none-t (timestamp-from-unix-nanos-i128 max-bound-i128)
+      && some-t (timestamp-from-unix-seconds-and-nanos 253402207200 999999999) max-timestamp
+      && none-t (timestamp-from-unix-seconds-and-nanos 253402207200 1000000000)
+      && none-t (timestamp-from-unix-seconds-and-nanos (-377705023201) (-1))
+      && some-t (timestamp-from-unix-seconds-and-nanos (-377705023202) 1000000000) min-timestamp
+      && some-t (timestamp-from-unix-seconds-and-nanos (-377705023201) 0) min-timestamp
+      && none-t (timestamp-from-unix-seconds-and-nanos max-bound-i64 max-bound-i64)
+      && none-t (timestamp-from-unix-seconds-and-nanos min-bound-i64 min-bound-i64)
+      then 0 else 2
+
+  -- 4: the second, millisecond and microsecond constructors refuse
+  -- exactly past the bounds (and at the `I64` extremes).
+  check-unit-constructor-bounds :: Int
+  check-unit-constructor-bounds =
+    if some-t (timestamp-from-unix-seconds (-377705023201)) min-timestamp
+      && none-t (timestamp-from-unix-seconds (-377705023202))
+      && none-t (timestamp-from-unix-seconds 253402207201)
+      && some-t (timestamp-from-unix-millis (-377705023201000)) min-timestamp
+      && none-t (timestamp-from-unix-millis (-377705023201001))
+      && none-t (timestamp-from-unix-millis 253402207201000)
+      && some-t (timestamp-from-unix-micros (-377705023201000000)) min-timestamp
+      && none-t (timestamp-from-unix-micros (-377705023201000001))
+      && none-t (timestamp-from-unix-micros 253402207201000000)
+      && none-t (timestamp-from-unix-seconds max-bound-i64)
+      && none-t (timestamp-from-unix-seconds min-bound-i64)
+      && none-t (timestamp-from-unix-millis max-bound-i64)
+      && none-t (timestamp-from-unix-micros min-bound-i64)
+      then 0 else 4
+
+  -- 8: the last whole second, millisecond and microsecond inside the
+  -- range are accepted and lie just below the maximum.
+  check-last-units-accepted :: Int
+  check-last-units-accepted =
+    if some-t (timestamp-from-unix-seconds 253402207200) (timestamp-saturating-sub max-timestamp (duration-from-nanos 999999999))
+      && some-t (timestamp-from-unix-millis 253402207200999) (timestamp-saturating-sub max-timestamp (duration-from-nanos 999999))
+      && some-t (timestamp-from-unix-micros 253402207200999999) (timestamp-saturating-sub max-timestamp (duration-from-nanos 999))
+      && eq-i64 (timestamp-to-unix-millis max-timestamp) 253402207200999
+      && eq-i64 (timestamp-to-unix-micros max-timestamp) 253402207200999999
+      && eq-i64 (timestamp-to-unix-millis min-timestamp) (-377705023201000)
+      && eq-i64 (timestamp-to-unix-micros min-timestamp) (-377705023201000000)
+      then 0 else 8
+
+  -- 16: `I64` nanoseconds are total, and the checked `I64` observer
+  -- refuses what does not fit.
+  check-i64-nanos :: Int
+  check-i64-nanos =
+    if eq-i128 (timestamp-to-unix-nanos (timestamp-from-unix-nanos max-bound-i64)) 9223372036854775807
+      && eq-i128 (timestamp-to-unix-nanos (timestamp-from-unix-nanos min-bound-i64)) (-9223372036854775808)
+      && splits (timestamp-from-unix-nanos max-bound-i64) 9223372036 854775807
+      && splits (timestamp-from-unix-nanos min-bound-i64) (-9223372037) 145224192
+      then case timestamp-to-unix-nanos-i64 (timestamp-from-unix-nanos min-bound-i64) of
+        None -> 16
+        Some x -> if eq-i64 x min-bound-i64 then
+          case timestamp-to-unix-nanos-i64 max-timestamp of
+            Some _ -> 16
+            None -> case timestamp-to-unix-nanos-i64 min-timestamp of
+              Some _ -> 16
+              None -> case timestamp-to-unix-nanos-i64 (timestamp-saturating-add (timestamp-from-unix-nanos max-bound-i64) (duration-from-nanos 1)) of
+                Some _ -> 16
+                None -> 0
+          else 16
+      else 16
+
+  -- 32: before the epoch every conversion floors: 1 ns before it is
+  -- second -1 with 999999999 subsecond nanoseconds.
+  check-pre-epoch-floor :: Int
+  check-pre-epoch-floor =
+    if splits (timestamp-from-unix-nanos (-1)) (-1) 999999999
+      && eq-i64 (timestamp-to-unix-millis (timestamp-from-unix-nanos (-1))) (-1)
+      && eq-i64 (timestamp-to-unix-micros (timestamp-from-unix-nanos (-1))) (-1)
+      && splits (timestamp-from-unix-nanos (-1000000000)) (-1) 0
+      && splits (timestamp-from-unix-nanos (-1000000001)) (-2) 999999999
+      && splits (timestamp-from-unix-nanos (-999999999)) (-1) 1
+      && splits (timestamp-from-unix-nanos 1999999999) 1 999999999
+      && splits (timestamp-from-unix-nanos 1) 0 1
+      && eq-i64 (timestamp-to-unix-millis (timestamp-from-unix-nanos (-1000001))) (-2)
+      && eq-i64 (timestamp-to-unix-millis (timestamp-from-unix-nanos (-1000000))) (-1)
+      && eq-i64 (timestamp-to-unix-micros (timestamp-from-unix-nanos (-1001))) (-2)
+      && eq-i64 (timestamp-to-unix-millis (timestamp-from-unix-nanos 1999999)) 1
+      then 0 else 32
+
+  -- 64: the pair observer and the pair constructor are inverse, and
+  -- the unit constructors name the same instants.
+  check-round-trips-and-units :: Int
+  check-round-trips-and-units =
+    if round-trips min-timestamp && round-trips max-timestamp
+      && round-trips timestamp-epoch
+      && round-trips (timestamp-from-unix-nanos (-1))
+      && round-trips (timestamp-from-unix-nanos 1700000000123456789)
+      && round-trips (timestamp-from-unix-nanos min-bound-i64)
+      && some-t (timestamp-from-unix-seconds 1) (timestamp-from-unix-nanos 1000000000)
+      && some-t (timestamp-from-unix-millis (-1)) (timestamp-from-unix-nanos (-1000000))
+      && some-t (timestamp-from-unix-micros 1) (timestamp-from-unix-nanos 1000)
+      && some-t (timestamp-from-unix-seconds 0) timestamp-epoch
+      && some-t (timestamp-from-unix-seconds-and-nanos (-1) 999999999) (timestamp-from-unix-nanos (-1))
+      && some-t (timestamp-from-unix-seconds-and-nanos 0 (-1)) (timestamp-from-unix-nanos (-1))
+      then 0 else 64
+
+  main :: Int
+  main = check-bound-values + check-one-past-refused + check-unit-constructor-bounds
+    + check-last-units-accepted + check-i64-nanos + check-pre-epoch-floor
+    + check-round-trips-and-units

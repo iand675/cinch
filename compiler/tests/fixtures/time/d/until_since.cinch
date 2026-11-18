@@ -1,0 +1,364 @@
+-- Lane D: Data.Time.Arithmetic, the default differences. Dates (2024-
+-- 02-01 until 2024-03-01 is 29 days and the reverse -29; 2024-05-31
+-- until 2024-09-30 is 122 days), date-times (the Jiff announcement's
+-- 16 d 4 h 42 m 33 s 123 ms 456 us 789 ns), times of day and
+-- timestamps (seconds by default); `since` against `until`, the
+-- antisymmetry of the day-based forms over a sweep, `a + (a until b)
+-- = b`, the month-end cases where `until` and `add` are not inverses,
+-- and the whole range.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  date-plus :: I64 -> Date -> Date
+  date-plus n x = case D.add-days n x of
+    None -> D.min-date
+    Some d -> d
+
+  dt-plus :: I64 -> I64 -> DateTime -> DateTime
+  dt-plus secs nanos x = case DT.add-seconds-nanos secs nanos x of
+    None -> DT.min-datetime
+    Some d -> d
+
+  same-date :: Option Date -> Date -> Bool
+  same-date o x = case o of
+    None -> False
+    Some d -> d == x
+
+  same-datetime :: Option DateTime -> DateTime -> Bool
+  same-datetime o x = case o of
+    None -> False
+    Some d -> d == x
+
+  -- 1: dates, in days.
+  check-date :: Int
+  check-date =
+    if fields (date-until (ymd 2024 2 1) (ymd 2024 3 1)) 0 0 0 29 0 0 0 0 0 0
+       && fields (date-until (ymd 2024 3 1) (ymd 2024 2 1)) 0 0 0 (-29) 0 0 0 0 0 0
+       && fields (date-until (ymd 2024 5 31) (ymd 2024 9 30)) 0 0 0 122 0 0 0 0 0 0
+       && fields (date-until (ymd 2023 2 1) (ymd 2023 3 1)) 0 0 0 28 0 0 0 0 0 0
+       && fields (date-until (ymd 2024 1 1) (ymd 2025 1 1)) 0 0 0 366 0 0 0 0 0 0
+       && fields (date-until (ymd 1970 1 1) (ymd 2024 2 29)) 0 0 0 19782 0 0 0 0 0 0
+       && span-is-zero (date-until (ymd 2024 2 29) (ymd 2024 2 29))
+       && fields (date-since (ymd 2024 3 1) (ymd 2024 2 1)) 0 0 0 29 0 0 0 0 0 0
+       && fields (date-since (ymd 2024 2 1) (ymd 2024 3 1)) 0 0 0 (-29) 0 0 0 0 0 0
+       && span-is-zero (date-since (ymd 2024 2 29) (ymd 2024 2 29))
+       && fields (date-until (ymd (-1) 12 31) (ymd 0 1 1)) 0 0 0 1 0 0 0 0 0 0
+    then 0 else 1
+
+  date-pair-ok :: Date -> Date -> Bool
+  date-pair-ok a b =
+    let u = date-until a b in
+    span-fieldwise-eq (date-until b a) (span-negate u)
+    && span-fieldwise-eq (date-since a b) (span-negate u)
+    && span-fieldwise-eq (date-since b a) u
+    && same-date (date-add-span u a) b
+    && same-date (date-sub-span u b) a
+    && span-days u == D.diff-days a b
+
+  date-sweep :: I64 -> Bool
+  date-sweep i =
+    if i > 420 then True
+    else
+      let base = ymd 2023 11 20 in
+      let a = date-plus i base in
+      let b = date-plus (wrapping-sub-i64 (wrapping-mul-i64 i 37) 6000) base in
+      if date-pair-ok a b then date-sweep (wrapping-add-i64 i 1) else False
+
+  -- 2: over a sweep of date pairs: `until` reversed is the negation,
+  -- `since` is the negated `until`, and adding the difference to the
+  -- start gives the end (in days there is no month end to trip on).
+  check-date-laws :: Int
+  check-date-laws = if date-sweep 0 then 0 else 2
+
+  -- 4: date-times, in days and clock units. When the time of day runs
+  -- against the dates, a day moves into the clock units (01:00 on the
+  -- 2nd until 00:00 on the 3rd is 23 hours, not 1 day less 1 hour).
+  check-datetime :: Int
+  check-datetime =
+    let a = at 2024 5 15 14 30 54 0 in
+    let b = at 2024 5 31 19 13 27 123456789 in
+    if fields (datetime-until a b) 0 0 0 16 4 42 33 123 456 789
+       && fields (datetime-until b a) 0 0 0 (-16) (-4) (-42) (-33) (-123) (-456) (-789)
+       && fields (datetime-since b a) 0 0 0 16 4 42 33 123 456 789
+       && fields (datetime-since a b) 0 0 0 (-16) (-4) (-42) (-33) (-123) (-456) (-789)
+       && fields (datetime-until (at 2024 1 2 1 0 0 0) (at 2024 1 3 0 0 0 0)) 0 0 0 0 23 0 0 0 0 0
+       && fields (datetime-until (at 2024 1 3 0 0 0 0) (at 2024 1 2 1 0 0 0)) 0 0 0 0 (-23) 0 0 0 0 0
+       && fields (datetime-until (at 2024 2 28 23 59 59 999999999) (at 2024 3 1 0 0 0 0)) 0 0 0 1 0 0 0 0 0 1
+       && fields (datetime-until (at 2024 1 1 0 0 0 0) (at 2025 1 1 0 0 0 0)) 0 0 0 366 0 0 0 0 0 0
+       && span-is-zero (datetime-until a a) && span-is-zero (datetime-since b b)
+       && fields (datetime-until (at 2024 1 1 12 0 0 0) (at 2024 1 1 11 59 59 0)) 0 0 0 0 0 0 (-1) 0 0 0
+    then 0 else 4
+
+  datetime-pair-ok :: DateTime -> DateTime -> Bool
+  datetime-pair-ok a b =
+    let u = datetime-until a b in
+    span-fieldwise-eq (datetime-until b a) (span-negate u)
+    && span-fieldwise-eq (datetime-since a b) (span-negate u)
+    && same-datetime (datetime-add-span u a) b
+    && same-datetime (datetime-sub-span u b) a
+
+  datetime-sweep :: I64 -> Bool
+  datetime-sweep i =
+    if i > 300 then True
+    else
+      let base = at 2024 2 27 22 15 0 500 in
+      let a = dt-plus (wrapping-mul-i64 i 7919) (wrapping-mul-i64 i 999983) base in
+      let b = dt-plus (wrapping-sub-i64 (wrapping-mul-i64 i 104729) 9000000) (wrapping-mul-i64 i 31) base in
+      if datetime-pair-ok a b then datetime-sweep (wrapping-add-i64 i 1) else False
+
+  -- 8: the same laws over a sweep of date-time pairs.
+  check-datetime-laws :: Int
+  check-datetime-laws = if datetime-sweep 0 then 0 else 8
+
+  -- 16: times of day, in hours and smaller, never wrapping.
+  check-time :: Int
+  check-time =
+    if clock (time-until (tod 9 0 0 0) (tod 17 30 15 500000000)) 8 30 15 500 0 0
+       && clock (time-until (tod 17 30 15 500000000) (tod 9 0 0 0)) (-8) (-30) (-15) (-500) 0 0
+       && clock (time-since (tod 17 30 15 500000000) (tod 9 0 0 0)) 8 30 15 500 0 0
+       && clock (time-since (tod 9 0 0 0) (tod 17 30 15 500000000)) (-8) (-30) (-15) (-500) 0 0
+       && clock (time-until (tod 23 0 0 0) (tod 1 0 0 0)) (-22) 0 0 0 0 0
+       && clock (time-until T.min-time T.max-time) 23 59 59 999 999 999
+       && clock (time-until T.max-time T.min-time) (-23) (-59) (-59) (-999) (-999) (-999)
+       && span-is-zero (time-until (tod 12 0 0 0) (tod 12 0 0 0))
+       && clock (time-until (tod 0 0 0 1) (tod 0 0 0 0)) 0 0 0 0 0 (-1)
+       && time-add-span-wrapping (time-until (tod 23 0 0 0) (tod 1 0 0 0)) (tod 23 0 0 0) == tod 1 0 0 0
+    then 0 else 16
+
+  -- 32: timestamps, in seconds and smaller, agreeing with lane A's
+  -- exact `Duration` difference.
+  check-timestamp :: Int
+  check-timestamp =
+    let a = ts 1704067200 0 in
+    let b = ts 1704157323 500000000 in
+    if clock (timestamp-until-span a b) 0 0 90123 500 0 0
+       && clock (timestamp-until-span b a) 0 0 (-90123) (-500) 0 0
+       && clock (timestamp-since-span b a) 0 0 90123 500 0 0
+       && clock (timestamp-since-span a b) 0 0 (-90123) (-500) 0 0
+       && span-is-zero (timestamp-until-span a a)
+       && clock (timestamp-until-span (ts (-1) 999999999) (ts 0 1)) 0 0 0 0 0 2
+       && span-to-duration (timestamp-until-span a b) == timestamp-until a b
+       && span-to-duration (timestamp-until-span min-timestamp max-timestamp) == timestamp-until min-timestamp max-timestamp
+       && span-to-duration (timestamp-since-span min-timestamp max-timestamp) == timestamp-since min-timestamp max-timestamp
+       && span-seconds (timestamp-until-span min-timestamp max-timestamp) == 631107230401
+       && tsr-is (timestamp-add-span (timestamp-until-span a b) a) 1704157323 500000000
+    then 0 else 32
+
+  month :: Difference
+  month = difference-largest Month
+
+  -- 64: with a calendar largest unit the count is anchored at the first
+  -- argument, so `until` and `add` are inverses from the start but not
+  -- from the end, and `a since b` is not `b until a`.
+  --   2024-01-31 until 2024-03-01 is 1 month 1 day (31 January plus a
+  --   month is 29 February), and adding it back to the start gives the
+  --   end; subtracting it from the end happens to give the start.
+  --   2024-03-31 until 2024-02-29 is -1 month, and since is +1 month;
+  --   but 2024-02-29 until 2024-03-31 is 1 month 2 days, and
+  --   2024-02-29 plus 1 month is 2024-03-29, not the 31st.
+  check-month-ends :: Int
+  check-month-ends =
+    if sp-is (date-until-with month (ymd 2024 1 31) (ymd 2024 3 1)) 0 1 0 1 0 0 0 0 0 0
+       && d-is (date-add-span (sp 0 1 0 1 0 0 0 0 0 0) (ymd 2024 1 31)) 2024 3 1
+       && d-is (date-sub-span (sp 0 1 0 1 0 0 0 0 0 0) (ymd 2024 3 1)) 2024 1 31
+       && sp-is (date-until-with month (ymd 2024 3 31) (ymd 2024 2 29)) 0 (-1) 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with month (ymd 2024 3 31) (ymd 2024 2 29)) 0 1 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with month (ymd 2024 2 29) (ymd 2024 3 31)) 0 1 0 2 0 0 0 0 0 0
+       && d-is (date-add-span (span-of-months 1) (ymd 2024 2 29)) 2024 3 29
+       && d-is (date-add-span (span-of-months (-1)) (ymd 2024 3 31)) 2024 2 29
+       && sp-is (date-until-with month (ymd 2024 5 31) (ymd 2024 6 30)) 0 0 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with month (ymd 2024 6 30) (ymd 2024 5 31)) 0 0 0 (-30) 0 0 0 0 0 0
+       && sp-is (date-until-with month (ymd 2024 5 30) (ymd 2024 6 30)) 0 1 0 0 0 0 0 0 0 0
+       && d-is (date-add-span (span-of-months 1) (ymd 2024 5 31)) 2024 6 30
+    then 0 else 64
+
+  -- 128: the whole range.
+  check-range :: Int
+  check-range =
+    let whole = datetime-until DT.min-datetime DT.max-datetime in
+    if fields (date-until D.min-date D.max-date) 0 0 0 7304483 0 0 0 0 0 0
+       && fields (date-until D.max-date D.min-date) 0 0 0 (-7304483) 0 0 0 0 0 0
+       && fields (date-since D.min-date D.max-date) 0 0 0 (-7304483) 0 0 0 0 0 0
+       && fields whole 0 0 0 7304483 23 59 59 999 999 999
+       && fields (datetime-until DT.max-datetime DT.min-datetime) 0 0 0 (-7304483) (-23) (-59) (-59) (-999) (-999) (-999)
+       && same-datetime (datetime-add-span whole DT.min-datetime) DT.max-datetime
+       && same-datetime (datetime-sub-span whole DT.max-datetime) DT.min-datetime
+       && same-date (date-add-span (date-until D.min-date D.max-date) D.min-date) D.max-date
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-date + check-date-laws + check-datetime + check-datetime-laws
+    + check-time + check-timestamp + check-month-ends + check-range

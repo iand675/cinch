@@ -1,0 +1,243 @@
+-- Lane E: Text.Time.Strtime, parsing. The task's vectors (including
+-- the fields a format does not name staying absent), flexible digit
+-- counts, signs, two-digit years, names in any case and either length,
+-- the twelve-hour clock, fractions, white space, offsets, `%s`, `%Q`,
+-- and dates named by day of year, ISO week or POSIX week.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Strtime
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as a number: constructor * 1000000 + position * 1000 +
+  -- conversion byte (0 where the constructor has none).
+  code :: StrtimeError -> I64
+  code e = case e of
+    StrtimeUnknownConversion p c -> wrapping-add-i64 1000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeDanglingPercent p -> wrapping-add-i64 2000000 (wrapping-mul-i64 p 1000)
+    StrtimeWidthTooLarge p -> wrapping-add-i64 3000000 (wrapping-mul-i64 p 1000)
+    StrtimeModifierNotAllowed p -> wrapping-add-i64 4000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingField c -> wrapping-add-i64 5000000 c
+    StrtimeUnexpectedEnd p -> wrapping-add-i64 6000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedDigit p -> wrapping-add-i64 7000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedName p -> wrapping-add-i64 8000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedOffset p -> wrapping-add-i64 9000000 (wrapping-mul-i64 p 1000)
+    StrtimeLiteralMismatch p -> wrapping-add-i64 10000000 (wrapping-mul-i64 p 1000)
+    StrtimeFieldOutOfRange p c -> wrapping-add-i64 11000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeTrailingInput p -> wrapping-add-i64 12000000 (wrapping-mul-i64 p 1000)
+    StrtimeZoneAbbreviationNotParsed p -> wrapping-add-i64 13000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingYear -> 14000000
+    StrtimeMissingMonth -> 15000000
+    StrtimeMissingDay -> 16000000
+    StrtimeMissingHour -> 17000000
+    StrtimeMissingMeridiem -> 18000000
+    StrtimeMissingOffset -> 19000000
+    StrtimeInvalidDate -> 20000000
+    StrtimeDateMismatch -> 21000000
+    StrtimeWeekdayMismatch -> 22000000
+    StrtimeDayOfYearMismatch -> 23000000
+    StrtimeIsoWeekMismatch -> 24000000
+    StrtimeWeekNumberMismatch -> 25000000
+    StrtimeHourMismatch -> 26000000
+    StrtimeTimestampOutOfRange -> 27000000
+
+  -- `strftime f b` is `Ok expected`.
+  fb :: String -> BrokenDown -> String -> Bool
+  fb f b expected = case strftime f b of
+    Err _ -> False
+    Ok s -> s == expected
+
+  fd :: String -> Date -> String -> Bool
+  fd f d expected = fb f (broken-down-from-date d) expected
+
+  ft :: String -> TimeOfDay -> String -> Bool
+  ft f t expected = fb f (broken-down-from-time t) expected
+
+  fx :: String -> DateTime -> String -> Bool
+  fx f x expected = fb f (broken-down-from-datetime x) expected
+
+  -- The refusal of `strftime f b`; -1 for `Ok`.
+  fe :: String -> BrokenDown -> I64
+  fe f b = case strftime f b of
+    Ok _ -> -1
+    Err e -> code e
+
+  -- The refusal of `strptime f s`; -1 for `Ok`.
+  pe :: String -> String -> I64
+  pe f s = case strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  is :: Option I64 -> I64 -> Bool
+  is o v = case o of
+    None -> False
+    Some x -> x == v
+
+  none :: Option I64 -> Bool
+  none o = case o of
+    None -> True
+    Some _ -> False
+
+  pd :: String -> String -> Date -> Bool
+  pd f s d = case date-strptime f s of
+    Err _ -> False
+    Ok x -> x == d
+
+  pt :: String -> String -> TimeOfDay -> Bool
+  pt f s t = case time-strptime f s of
+    Err _ -> False
+    Ok x -> x == t
+
+  px :: String -> String -> DateTime -> Bool
+  px f s x = case datetime-strptime f s of
+    Err _ -> False
+    Ok y -> y == x
+
+  wd-is :: Option Weekday -> Weekday -> Bool
+  wd-is o w = case o of
+    None -> False
+    Some x -> x == w
+
+  -- The field readers of the parsed value, applied by `k`.
+  parsed :: String -> String -> BrokenDown
+  parsed f s = case strptime f s of
+    Err _ -> broken-down-empty
+    Ok b -> b
+
+  check-vectors :: Int
+  check-vectors =
+    let b = parsed "%a, %b %d, %Y %H:%M" "Fri, Nov 13, 2026 17:30" in
+    if pd "%m/%d/%Y" "11/13/2026" (ymd 2026 11 13)
+       && wd-is (broken-down-weekday b) Friday && is (broken-down-month b) 11 && is (broken-down-day b) 13
+       && is (broken-down-year b) 2026 && is (broken-down-hour b) 17 && is (broken-down-minute b) 30
+       && none (broken-down-second b) && none (broken-down-subsec-nanosecond b) && none (broken-down-offset b)
+       && none (broken-down-day-of-year b) && none (broken-down-hour12 b) && none (broken-down-unix-seconds b)
+       && px "%a, %b %d, %Y %H:%M" "Fri, Nov 13, 2026 17:30" (at 2026 11 13 17 30 0 0)
+       && px "%Y-%m-%dT%H:%M:%S%.f" "2026-11-13T17:30:05.25" (at 2026 11 13 17 30 5 250000000)
+       && px "%Y-%m-%dT%H:%M:%S%.f" "2026-11-13T17:30:05" (at 2026 11 13 17 30 5 0)
+       && px "%FT%T" "2026-11-13T17:30:05" (at 2026 11 13 17 30 5 0) && px "%F" "2026-11-13" (at 2026 11 13 0 0 0 0)
+    then 0 else 1
+
+  check-numbers :: Int
+  check-numbers =
+    if pd "%m/%d/%Y" "1/2/2026" (ymd 2026 1 2) && pd "%Y%m%d" "20261113" (ymd 2026 11 13)
+       && pd "%Y-%m-%e" "2026-11- 9" (ymd 2026 11 9) && pd "%Y-%m-%_d" "2026-11-  9" (ymd 2026 11 9)
+       && pd "%F" "-0044-03-15" (ymd (-44) 3 15) && pd "%F" "+2026-11-13" (ymd 2026 11 13) && pd "%F" "44-3-5" (ymd 44 3 5)
+       && pd "%F" "-9999-01-01" D.min-date && pd "%F" "9999-12-31" D.max-date
+       && pd "%Y-%j" "2026-317" (ymd 2026 11 13) && pd "%Y %j" "2024 366" (ymd 2024 12 31) && pd "%Y %j" "2026 1" (ymd 2026 1 1)
+       && pd "%D" "11/13/26" (ymd 2026 11 13) && pd "%y-%m-%d" "69-01-01" (ymd 1969 1 1) && pd "%y-%m-%d" "68-01-01" (ymd 2068 1 1)
+       && pd "%y-%m-%d" "99-12-31" (ymd 1999 12 31) && pd "%y-%m-%d" "00-01-01" (ymd 2000 1 1)
+       && pd "%C%y-%m-%d" "1926-11-13" (ymd 1926 11 13) && pd "%m %d %C" "11 13 20" (ymd 2000 11 13)
+       && pd "%y %Y-%m-%d" "99 2026-11-13" (ymd 2026 11 13)
+    then 0 else 2
+
+  check-names :: Int
+  check-names =
+    if pd "%a %b %d %Y" "FRI NOV 13 2026" (ymd 2026 11 13) && pd "%a %b %d %Y" "fri nov 13 2026" (ymd 2026 11 13)
+       && pd "%A %B %d %Y" "Friday November 13 2026" (ymd 2026 11 13) && pd "%a %b %d %Y" "Friday November 13 2026" (ymd 2026 11 13)
+       && pd "%A %B %d %Y" "fRiDaY nOvEmBeR 13 2026" (ymd 2026 11 13) && pd "%A, %h %d %Y" "Fri, Nov 13 2026" (ymd 2026 11 13)
+       && pd "%B %d %Y" "September 1 2026" (ymd 2026 9 1) && pd "%b %d %Y" "Sep 1 2026" (ymd 2026 9 1)
+       && pd "%B %d %Y" "May 1 2026" (ymd 2026 5 1) && pd "%b%d%Y" "Feb292024" (ymd 2024 2 29)
+       && pd "%B%d%Y" "February292024" (ymd 2024 2 29) && pd "%A %F" "Wednesday 2026-11-11" (ymd 2026 11 11)
+       && pd "%a %F" "Sat 2026-11-14" (ymd 2026 11 14) && pd "%a %F" "sunday 2026-11-15" (ymd 2026 11 15)
+       && pd "%a %F" "Mon 2026-11-09" (ymd 2026 11 9) && pd "%a %F" "Tuesday 2026-11-10" (ymd 2026 11 10)
+       && pd "%a %F" "thu 2026-11-12" (ymd 2026 11 12)
+    then 0 else 4
+
+  check-times :: Int
+  check-times =
+    if pt "%I:%M %p" "12:00 AM" T.midnight && pt "%I:%M %p" "12:00 PM" T.noon && pt "%I:%M %p" "11:59 pm" (hmsn 23 59 0 0)
+       && pt "%I:%M %P" "1:05 Am" (hmsn 1 5 0 0) && pt "%I%p" "9PM" (hmsn 21 0 0 0) && pt "%p %I" "pm 12" T.noon
+       && pt "%H:%M:%S" "23:59:59" (hmsn 23 59 59 0) && pt "%H" "7" (hmsn 7 0 0 0) && pt "%T" "4:5:6" (hmsn 4 5 6 0)
+       && pt "%R" "17:30" (hmsn 17 30 0 0) && pt "%H:%M:%S.%f" "01:02:03.5" (hmsn 1 2 3 500000000)
+       && pt "%H:%M:%S.%f" "01:02:03.123456789" (hmsn 1 2 3 123456789) && pt "%H:%M:%S.%3f" "01:02:03.000001" (hmsn 1 2 3 1000)
+       && pt "%H:%M:%S%.f" "01:02:03" (hmsn 1 2 3 0) && pt "%H:%M:%S%.f" "01:02:03.000000001" (hmsn 1 2 3 1)
+       && pt "%H:%M:%S%.3f" "01:02:03.25" (hmsn 1 2 3 250000000) && pt "%H %I %p" "17 05 PM" (hmsn 17 0 0 0)
+    then 0 else 8
+
+  check-white-space :: Int
+  check-white-space =
+    if pd "%Y %m %d" "2026 11 13" (ymd 2026 11 13) && pd "%Y %m %d" "2026   11\t13" (ymd 2026 11 13)
+       && pd "%Y %m %d" "20261113" (ymd 2026 11 13) && pd "%Y%n%m%t%d" "2026\n11 13" (ymd 2026 11 13)
+       && pd " %F " "2026-11-13" (ymd 2026 11 13) && pd " %F " "  2026-11-13  " (ymd 2026 11 13)
+       && pd "%F" "2026-11-13" (ymd 2026 11 13) && pd "on %F%%" "on 2026-11-13%" (ymd 2026 11 13)
+       && pe "%F" " 2026-11-13" == 7000000 && pe "%F" "2026-11-13 " == 12010000
+       && pe "%Y,%m" "2026 ,11" == 10004000 && pe "on %F" "On 2026-11-13" == 10000000
+    then 0 else 16
+
+  offset-of :: String -> String -> I64
+  offset-of f s = case broken-down-offset (parsed f s) of
+    None -> -1
+    Some v -> v
+
+  instant-is :: String -> String -> I64 -> Bool
+  instant-is f s unix = case strptime f s of
+    Err _ -> False
+    Ok b -> case broken-down-to-timestamp b of
+      Err _ -> False
+      Ok ts -> timestamp-to-unix-seconds ts == unix
+
+  zone-is :: String -> String -> String -> Bool
+  zone-is f s name = case broken-down-zone-name (parsed f s) of
+    None -> False
+    Some x -> x == name
+
+  check-offsets :: Int
+  check-offsets =
+    if offset-of "%z" "+0530" == 19800 && offset-of "%z" "-0330" == -12600 && offset-of "%z" "+0000" == 0
+       && offset-of "%z" "+001932" == 1172 && offset-of "%z" "-255959" == -93599
+       && offset-of "%:z" "+05:30" == 19800 && offset-of "%:z" "-03:30" == -12600 && offset-of "%:z" "+00:19:32" == 1172
+       && offset-of "%::z" "+05:30:00" == 19800 && offset-of "%::z" "-00:19:32" == -1172
+       && offset-of "%Q" "+05:30" == 19800 && offset-of "%Q" "-03:30" == -12600
+       && zone-is "%Q" "Europe/Amsterdam" "Europe/Amsterdam" && zone-is "%F %Q" "2026-11-13 America/Argentina/Buenos_Aires" "America/Argentina/Buenos_Aires"
+       && zone-is "[%Q]" "[Etc/GMT+5]" "Etc/GMT+5" && zone-is "%Q" "UTC" "UTC"
+       && instant-is "%F %T %z" "2026-11-12 15:36:00 -0500" 1794515760 && instant-is "%F %T %:z" "2026-11-12 20:36:00 +00:00" 1794515760
+       && instant-is "%FT%T%:z" "2026-11-13T02:06:00+05:30" 1794515760 && instant-is "%s" "1793423700" 1793423700
+       && instant-is "%s" "-1" (-1) && instant-is "%s" "0" 0 && instant-is "%s" "+42" 42
+       && instant-is "%s" "-377705023201" (-377705023201) && instant-is "%s" "253402207200" 253402207200
+    then 0 else 32
+
+  date-refusal :: String -> String -> I64
+  date-refusal f s = case date-strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  check-week-dates :: Int
+  check-week-dates =
+    if pd "%G-W%V-%u" "2025-W01-1" (ymd 2024 12 30) && pd "%G-W%V-%u" "2020-W53-7" (ymd 2021 1 3)
+       && pd "%G-W%V-%u" "2026-W46-5" (ymd 2026 11 13) && pd "%G-W%V-%a" "2022-W52-Sun" (ymd 2023 1 1)
+       && pd "%g-W%V-%u" "25-W1-1" (ymd 2024 12 30) && pd "%G %V %w" "2020 53 0" (ymd 2021 1 3)
+       && date-refusal "%G-W%V-%u" "2021-W53-1" == 20000000
+       && pd "%Y %U %w" "2026 45 5" (ymd 2026 11 13) && pd "%Y %W %u" "2024 53 1" (ymd 2024 12 30)
+       && pd "%Y %U %a" "2026 00 Thu" (ymd 2026 1 1) && pd "%Y %U %a" "2023 01 Sun" (ymd 2023 1 1)
+       && pd "%Y %W %a" "2023 00 Sun" (ymd 2023 1 1) && pd "%Y %W %a" "2020 52 Thu" (ymd 2020 12 31)
+       && date-refusal "%Y %U %a" "2026 00 Mon" == 20000000 && date-refusal "%Y %W %a" "2026 53 Mon" == 20000000
+       && date-refusal "%Y %j" "2026 366" == 20000000
+    then 0 else 64
+
+  main :: Int
+  main = check-vectors + check-numbers + check-names + check-times + check-white-space + check-offsets + check-week-dates

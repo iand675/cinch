@@ -1,0 +1,296 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, spans measured from a zoned
+-- anchor (Temporal's Duration round, total and compare with a zoned
+-- relativeTo; Jiff's `Span::checked_add` with a zoned relative).
+-- Balancing (2756 hours from 2020-01-01 in Europe/Amsterdam is 3
+-- months 23 days 21 hours, where the civil anchor gives 20; one day
+-- from the start of New York's 25-hour day is 25 hours), rounding
+-- against the real length of a day, exact totals as reduced
+-- fractions, comparison (one day against 24 hours on a transition
+-- day), anchored sums, and the refusals. Vectors from the Jiff 1.0
+-- announcement and the TC39 Temporal reference polyfill.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  rnd :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  rnd l s i m = with-mode m (with-increment i (with-smallest s (with-largest l span-round-default)))
+
+  -- Smallest unit only (the largest is the span's own, or the
+  -- smallest when that is larger).
+  to-unit :: TimeUnit -> SpanRound
+  to-unit s = with-smallest s span-round-default
+
+  total-is :: Result ZonedError (I128, I128) -> I64 -> I64 -> Bool
+  total-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- 0 LT, 1 EQ, 2 GT, 9 refused.
+  ord :: Result ZonedError Ordering -> I64
+  ord r = case r of
+    Err _ -> 9
+    Ok o -> case o of
+      LT -> 0
+      EQ -> 1
+      GT -> 2
+
+  h :: I64 -> Span Calendar
+  h n = sp 0 0 0 0 n 0 0 0 0 0
+
+  d :: I64 -> Span Calendar
+  d n = sp 0 0 0 n 0 0 0 0 0 0
+
+  -- 1: balancing. The Jiff vector with Amsterdam for Rome (the same
+  -- 2020-03-29 transition): the zoned anchor counts 21 hours where the
+  -- civil one counts 20, because one of the days was 23 hours long;
+  -- and back down to hours it is 2756 again.
+  check-balance :: TimeZone -> TimeZone -> Int
+  check-balance z ams =
+    let a = zc ams 2020 1 1 0 0 0 0 in
+    if ok-fields (span-balance-zoned Year a (h 2756)) 0 3 0 23 21 0 0 0 0 0
+       && ok-fields (span-balance-zoned Month a (h 2756)) 0 3 0 23 21 0 0 0 0 0
+       && ok-fields (span-balance-zoned Week a (h 2756)) 0 0 16 2 21 0 0 0 0 0
+       && ok-fields (span-balance-zoned Day a (h 2756)) 0 0 0 114 21 0 0 0 0 0
+       && ok-fields (span-balance-zoned Hour a (sp 0 3 0 23 21 0 0 0 0 0)) 0 0 0 0 2756 0 0 0 0 0
+       && (case span-balance-relative Year (RelativeDateTime (at 2020 1 1 0 0 0 0)) (h 2756) of
+             Err _ -> False
+             Ok s -> fields s 0 3 0 23 20 0 0 0 0 0)
+       && ok-fields (span-balance-zoned Hour (zc z 2024 11 3 0 0 0 0) (d 1)) 0 0 0 0 25 0 0 0 0 0
+       && ok-fields (span-balance-zoned Hour (zc z 2024 3 10 0 0 0 0) (d 1)) 0 0 0 0 23 0 0 0 0 0
+       && ok-fields (span-balance-zoned Day (zc z 2024 11 3 0 0 0 0) (h 25)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-balance-zoned Day (zc z 2024 11 3 0 0 0 0) (h 24)) 0 0 0 0 24 0 0 0 0 0
+       && ok-fields (span-balance-zoned Day (zc z 2024 3 10 0 0 0 0) (h 24)) 0 0 0 1 1 0 0 0 0 0
+       && ok-fields (span-balance-zoned Minute (zc z 2024 10 3 0 0 0 0) (sp 0 1 0 1 1 0 0 0 0 0)) 0 0 0 0 0 46200 0 0 0 0
+       && ok-fields (span-balance-zoned Day (zc z 2024 11 4 0 0 0 0) (h (-25))) 0 0 0 (-1) 0 0 0 0 0 0
+       && ok-fields (span-balance-zoned Hour (zc z 2024 11 4 0 0 0 0) (d (-1))) 0 0 0 0 (-25) 0 0 0 0 0
+    then 0 else 1
+
+  -- 2: rounding to days against the real day (reference polyfill).
+  -- 12 h 15 m from 17:30 on 2 November is under half of that 25-hour
+  -- day and 12 h 30 m is half. The last six are computed by hand: a
+  -- day after a whole month is measured from the month's landing (5
+  -- hours of it is not half), and from 1730615400, the SECOND 01:30 on
+  -- 2024-11-03, the day window starts at that instant, not at the
+  -- first 01:30 (forward it is 24 hours long, backward 25).
+  check-round-days :: TimeZone -> Int
+  check-round-days z =
+    let n = zc z 2024 11 2 12 0 0 0 in
+    let e = zc z 2024 11 2 17 30 0 0 in
+    if ok-fields (span-round-zoned (to-unit Day) n (sp 0 0 0 1 12 0 0 0 0 0)) 0 0 0 2 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (to-unit Day) n (sp 0 0 0 1 12 29 0 0 0 0)) 0 0 0 2 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) n (h 36)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) n (h 37)) 0 0 0 2 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) e (sp 0 0 0 0 12 15 0 0 0 0)) 0 0 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) e (sp 0 0 0 0 12 30 0 0 0 0)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfTrunc) e (sp 0 0 0 0 12 30 0 0 0 0)) 0 0 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) (zc z 2024 10 3 0 0 0 0) (sp 0 1 0 1 1 0 0 0 0 0)) 0 0 0 32 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Hour 1 HalfExpand) n (sp 0 0 0 0 24 40 0 0 0 0)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Month Day 1 HalfExpand) (zc z 2024 6 1 0 0 0 0) (sp 0 1 0 0 5 0 0 0 0 0)) 0 1 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Month Day 1 HalfExpand) (zc z 2024 6 1 0 0 0 0) (sp 0 1 0 0 12 0 0 0 0 0)) 0 1 0 1 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) (zt z 1730615400) (h 2)) 0 0 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) (zt z 1730615400) (h 13)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 HalfExpand) (zt z 1730615400) (sp 0 0 0 0 0 (-30) 0 0 0 0)) 0 0 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Day Day 1 Expand) (zt z 1730615400) (sp 0 0 0 0 0 (-30) 0 0 0 0)) 0 0 0 (-1) 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 3: rounding with calendar units and clock units (reference
+  -- polyfill).
+  check-round-calendar :: TimeZone -> Int
+  check-round-calendar z =
+    let j = zc z 2024 1 1 0 0 0 0 in
+    if ok-fields (span-round-zoned (to-unit Month) j (sp 1 2 0 20 0 0 0 0 0 0)) 1 3 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Year Hour 1 HalfExpand) j (sp 0 11 0 29 23 30 0 0 0 0)) 0 11 0 30 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Week Week 1 HalfExpand) (zc z 2024 10 1 0 0 0 0) (d 40)) 0 0 6 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (with-mode Ceil (to-unit Month)) (zc z 2024 3 31 0 0 0 0) (sp (-1) (-2) 0 (-20) 0 0 0 0 0 0)) (-1) (-2) 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (with-mode Floor (to-unit Month)) (zc z 2024 3 31 0 0 0 0) (sp (-1) (-2) 0 (-20) 0 0 0 0 0 0)) (-1) (-3) 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Month Month 3 HalfExpand) j (sp 0 7 0 0 0 0 0 0 0 0)) 0 6 0 0 0 0 0 0 0 0
+       && ok-fields (span-round-zoned (to-unit Hour) (zc z 2024 11 3 0 30 0 0) (sp 0 0 0 0 0 90 0 0 0 0)) 0 0 0 0 2 0 0 0 0 0
+       && ok-fields (span-round-zoned (rnd Hour Minute 30 HalfExpand) (zc z 2024 11 3 0 30 0 0) (sp 0 0 0 1 1 0 0 0 0 0)) 0 0 0 0 26 0 0 0 0 0
+       && ok-fields (span-round-zoned span-round-default j (sp 0 0 0 0 0 90 0 0 0 0)) 0 0 0 0 0 90 0 0 0 0
+    then 0 else 4
+
+  -- 4: exact totals (reference polyfill, whose floats are these
+  -- fractions): one hour is 1/25 of 2024-11-03 in New York. The last
+  -- is computed by hand: 1 year 28 days 23 hours from 12:00 on
+  -- 2024-01-31 lands at 11:00 on 2025-03-01, which is 13 months (to
+  -- 12:00 on 2025-02-28, the day constrained) and 23 hours of the 743
+  -- hours to 12:00 on 2025-03-31.
+  check-total :: TimeZone -> Int
+  check-total z =
+    let f = zc z 2024 11 3 0 0 0 0 in
+    if total-is (span-total-zoned Day f (h 1)) 1 25
+       && total-is (span-total-zoned Hour f (d 1)) 25 1
+       && total-is (span-total-zoned Hour (zc z 2024 3 10 0 0 0 0) (d 1)) 23 1
+       && total-is (span-total-zoned Day (zc z 2024 3 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0)) 31 1
+       && total-is (span-total-zoned Hour (zc z 2024 3 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0)) 743 1
+       && total-is (span-total-zoned Day (zc z 2024 11 2 12 0 0 0) (h 36)) 35 24
+       && total-is (span-total-zoned Day (zc z 2024 1 1 0 0 0 0) (sp 1 0 0 0 0 0 0 0 0 0)) 366 1
+       && total-is (span-total-zoned Week (zc z 2024 11 1 0 0 0 0) (d 10)) 10 7
+       && total-is (span-total-zoned Month (zc z 2024 6 1 0 0 0 0) (h 24)) 1 30
+       && total-is (span-total-zoned Month (zc z 2024 1 1 0 0 0 0) (d 45)) 43 29
+       && total-is (span-total-zoned Day (zc z 2024 11 4 12 0 0 0) (h (-36))) (-37) 25
+       && total-is (span-total-zoned Year (zc z 2024 1 1 0 0 0 0) (sp 1 6 0 0 0 0 0 0 0 0)) 13103 8760
+       && total-is (span-total-zoned Minute f (sp 0 0 0 0 0 90 0 0 0 0)) 90 1
+       && total-is (span-total-zoned Day f (sp 0 0 0 1 6 0 0 0 0 0)) 5 4
+       && total-is (span-total-zoned Day f span-zero) 0 1
+       && total-is (span-total-zoned Month (zc z 2024 1 31 12 0 0 0) (sp 1 0 0 28 23 0 0 0 0 0)) 9682 743
+    then 0 else 8
+
+  -- 5: comparison by where the spans land (reference polyfill): from
+  -- the start of the 25-hour day one day is longer than 24 hours and
+  -- equal to 25; a month from 1 November is 721 hours.
+  check-compare :: TimeZone -> Int
+  check-compare z =
+    let f = zc z 2024 11 3 0 0 0 0 in
+    let s = zc z 2024 3 10 0 0 0 0 in
+    if ord (span-compare-zoned f (d 1) (h 24)) == 2
+       && ord (span-compare-zoned f (d 1) (h 25)) == 1
+       && ord (span-compare-zoned s (d 1) (h 24)) == 0
+       && ord (span-compare-zoned s (d 1) (h 23)) == 1
+       && ord (span-compare-zoned (zc z 2024 6 10 0 0 0 0) (d 1) (h 24)) == 1
+       && ord (span-compare-zoned (zc z 2024 6 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0) (d 30)) == 1
+       && ord (span-compare-zoned (zc z 2024 7 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0) (d 30)) == 2
+       && ord (span-compare-zoned (zc z 2024 11 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0) (h 720)) == 2
+       && ord (span-compare-zoned (zc z 2024 11 1 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0) (h 721)) == 1
+       && ord (span-compare-zoned f (span-of-hours 1) (span-of-minutes 60)) == 1
+       && ord (span-compare-zoned (zc z 2024 11 4 0 0 0 0) (d (-1)) (h (-24))) == 0
+       && ord (span-compare-zoned f (d 1) (d 1)) == 1
+    then 0 else 16
+
+  -- 6: anchored sums. The anchor moves by the first span, then the
+  -- second, and the result is the difference from the anchor, so the
+  -- order matters on a transition day: from the start of the 25-hour
+  -- day, one day then 24 hours is two days, and 24 hours then one day
+  -- is one day 23 hours.
+  check-sum :: TimeZone -> Int
+  check-sum z =
+    let f = zc z 2024 11 3 0 0 0 0 in
+    if ok-fields (span-checked-add-zoned f (d 1) (h 24)) 0 0 0 2 0 0 0 0 0 0
+       && ok-fields (span-checked-add-zoned f (h 24) (d 1)) 0 0 0 1 23 0 0 0 0 0
+       && ok-fields (span-checked-add-zoned f (h 24) (h 1)) 0 0 0 0 25 0 0 0 0 0
+       && ok-fields (span-checked-add-zoned f (span-of-hours 1) (span-of-minutes 90)) 0 0 0 0 2 30 0 0 0 0
+       && ok-fields (span-checked-sub-zoned f (d 2) (h 24)) 0 0 0 1 0 0 0 0 0 0
+       && ok-fields (span-checked-sub-zoned f (d 1) (d 1)) 0 0 0 0 0 0 0 0 0 0
+       && ok-fields (span-checked-add-zoned (zc z 2024 1 31 0 0 0 0) (sp 0 1 0 0 0 0 0 0 0 0) (d 1)) 0 1 0 1 0 0 0 0 0 0
+       && ok-fields (span-checked-add-zoned (zc z 2024 1 31 0 0 0 0) (d 1) (sp 0 1 0 0 0 0 0 0 0 0)) 0 1 0 1 0 0 0 0 0 0
+    then 0 else 32
+
+  -- 7: the refusals: the units and the increment as `span-round`
+  -- names them, and the range.
+  check-refusals :: TimeZone -> Int
+  check-refusals z =
+    let j = zc z 2024 1 1 0 0 0 0 in
+    let hi = zoned-from-timestamp z max-timestamp in
+    if code (span-round-zoned (rnd Year Month 3 HalfExpand) j (sp 0 7 0 0 0 0 0 0 0 0)) == 6
+       && code (span-round-zoned (rnd Hour Day 1 HalfExpand) j (d 1)) == 5
+       && code (span-round-zoned (rnd Day Hour 5 HalfExpand) j (d 1)) == 6
+       && code (span-round-zoned (rnd Day Hour 0 HalfExpand) j (d 1)) == 6
+       && code (span-round-zoned (to-unit Day) hi (d 1)) == 1
+       && code (span-balance-zoned Year hi (h 1)) == 1
+       && code (span-total-zoned Day hi (h 1)) == 1
+       && code (span-total-zoned Day hi (h (-1))) == 0
+       && code (span-compare-zoned hi (d 1) (h 24)) == 1
+       && code (span-compare-zoned hi (span-of-hours 1) (span-of-hours 2)) == 0
+       && code (span-checked-add-zoned hi (d 1) (h 24)) == 1
+       && code (span-checked-add-zoned hi (d (-1)) (h 24)) == 0
+    then 0 else 64
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Europe/Amsterdam" of
+        Err _ -> 255
+        Ok ams -> check-balance ny ams + check-round-days ny + check-round-calendar ny
+          + check-total ny + check-compare ny + check-sum ny + check-refusals ny

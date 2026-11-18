@@ -1,0 +1,141 @@
+-- Lane B: Data.Time.Date construction. The leap rule at century edges
+-- and before year 1, the month lengths, every construction refusal,
+-- the range ends, `date-constrain`, the total `date-of`, and the
+-- field accessors.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+
+  no :: Bool -> Bool
+  no b = if b then False else True
+
+  -- The date `o` holds has exactly these fields.
+  is-ymd :: Option Date -> I64 -> I64 -> I64 -> Bool
+  is-ymd o y m d = case o of
+    None -> False
+    Some x -> D.year x == y && D.month x == m && D.day x == d
+
+  refused :: Option Date -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  fields :: Date -> I64 -> I64 -> I64 -> Bool
+  fields x y m d = D.year x == y && D.month x == m && D.day x == d
+
+  -- 1: the leap rule. 1900 and 2100 are not leap, 2000 is; year 0 is
+  -- (divisible by 400), -4 is, -100 is not, -400 is.
+  check-leap :: Int
+  check-leap =
+    if no (D.is-leap-year 1900) && D.is-leap-year 2000 && no (D.is-leap-year 2100)
+       && D.is-leap-year 0 && D.is-leap-year (-4) && no (D.is-leap-year (-100))
+       && D.is-leap-year (-400) && no (D.is-leap-year (-1)) && no (D.is-leap-year 1)
+       && D.is-leap-year 2024 && no (D.is-leap-year 2023) && D.is-leap-year 4
+       && no (D.is-leap-year (-9999)) && no (D.is-leap-year 9999) && D.is-leap-year (-9996)
+       && D.days-in-year 2024 == 366 && D.days-in-year 2023 == 365
+       && D.days-in-year 1900 == 365 && D.days-in-year 0 == 366 && D.days-in-year (-100) == 365
+    then 0 else 1
+
+  -- 2: month lengths, with February following the leap rule.
+  check-month-lengths :: Int
+  check-month-lengths =
+    if D.days-in-month 2023 1 == 31 && D.days-in-month 2023 2 == 28 && D.days-in-month 2023 3 == 31
+       && D.days-in-month 2023 4 == 30 && D.days-in-month 2023 5 == 31 && D.days-in-month 2023 6 == 30
+       && D.days-in-month 2023 7 == 31 && D.days-in-month 2023 8 == 31 && D.days-in-month 2023 9 == 30
+       && D.days-in-month 2023 10 == 31 && D.days-in-month 2023 11 == 30 && D.days-in-month 2023 12 == 31
+       && D.days-in-month 2024 2 == 29 && D.days-in-month 1900 2 == 28 && D.days-in-month 2000 2 == 29
+       && D.days-in-month 2100 2 == 28 && D.days-in-month 0 2 == 29 && D.days-in-month (-4) 2 == 29
+       && D.days-in-month (-100) 2 == 28
+       && D.days-in-month-of (D.date-of 2024 2 1) == 29 && D.days-in-month-of (D.date-of 2023 2 1) == 28
+       && D.days-in-month-of (D.date-of 2023 11 5) == 30
+       && D.days-in-year-of (D.date-of 2024 6 1) == 366 && D.days-in-year-of (D.date-of 2023 6 1) == 365
+       && D.in-leap-year (D.date-of 2000 1 1) && no (D.in-leap-year (D.date-of 1900 1 1))
+    then 0 else 2
+
+  -- 4: the checked constructor accepts every valid shape.
+  check-accepts :: Int
+  check-accepts =
+    if is-ymd (D.date 2024 2 29) 2024 2 29 && is-ymd (D.date 2000 2 29) 2000 2 29
+       && is-ymd (D.date 0 2 29) 0 2 29 && is-ymd (D.date (-4) 2 29) (-4) 2 29
+       && is-ymd (D.date 2023 12 31) 2023 12 31 && is-ymd (D.date 2023 1 1) 2023 1 1
+       && is-ymd (D.date 2023 4 30) 2023 4 30 && is-ymd (D.date 1 1 1) 1 1 1
+       && is-ymd (D.date (-1) 12 31) (-1) 12 31 && is-ymd (D.date 1970 1 1) 1970 1 1
+    then 0 else 4
+
+  -- 8: every refusal: a day past the month, day 0, a negative day, a
+  -- month outside 1..=12, 29 February in a common year, and a year
+  -- outside the range.
+  check-refusals :: Int
+  check-refusals =
+    if refused (D.date 2023 2 29) && refused (D.date 1900 2 29) && refused (D.date 2100 2 29)
+       && refused (D.date (-100) 2 29) && refused (D.date 2024 2 30)
+       && refused (D.date 2023 4 31) && refused (D.date 2023 6 31) && refused (D.date 2023 9 31)
+       && refused (D.date 2023 11 31) && refused (D.date 2023 1 32) && refused (D.date 2023 12 32)
+       && refused (D.date 2023 1 0) && refused (D.date 2023 1 (-1))
+       && refused (D.date 2023 0 1) && refused (D.date 2023 13 1) && refused (D.date 2023 (-1) 1)
+       && refused (D.date 10000 1 1) && refused (D.date (-10000) 12 31)
+       && refused (D.date 9223372036854775807 1 1) && refused (D.date (-9223372036854775808) 1 1)
+       && refused (D.date 2023 9223372036854775807 1) && refused (D.date 2023 1 9223372036854775807)
+       && refused (D.date 2023 1 (-9223372036854775808))
+    then 0 else 8
+
+  -- 16: the range ends exist; one day past each does not.
+  check-range :: Int
+  check-range =
+    if is-ymd (D.date (-9999) 1 1) (-9999) 1 1 && is-ymd (D.date 9999 12 31) 9999 12 31
+       && fields D.min-date (-9999) 1 1 && fields D.max-date 9999 12 31
+       && is-ymd (Some D.min-date) (-9999) 1 1
+       && refused (D.yesterday D.min-date) && refused (D.tomorrow D.max-date)
+       && refused (D.add-days (-1) D.min-date) && refused (D.add-days 1 D.max-date)
+       && is-ymd (D.tomorrow D.min-date) (-9999) 1 2 && is-ymd (D.yesterday D.max-date) 9999 12 30
+       && refused (D.from-epoch-days (wrapping-sub-i64 D.min-epoch-day 1))
+       && refused (D.from-epoch-days (wrapping-add-i64 D.max-epoch-day 1))
+       && is-ymd (D.from-epoch-days D.min-epoch-day) (-9999) 1 1
+       && is-ymd (D.from-epoch-days D.max-epoch-day) 9999 12 31
+       && D.min-date < D.max-date
+    then 0 else 16
+
+  -- 32: `date-constrain` clamps only the day.
+  check-constrain :: Int
+  check-constrain =
+    if fields (D.date-constrain 2023 2 31) 2023 2 28 && fields (D.date-constrain 2024 2 31) 2024 2 29
+       && fields (D.date-constrain 2024 2 29) 2024 2 29 && fields (D.date-constrain 2023 2 29) 2023 2 28
+       && fields (D.date-constrain 2023 4 31) 2023 4 30 && fields (D.date-constrain 2023 1 31) 2023 1 31
+       && fields (D.date-constrain 2023 1 32) 2023 1 31 && fields (D.date-constrain 2023 6 15) 2023 6 15
+       && fields (D.date-constrain 2023 6 0) 2023 6 1 && fields (D.date-constrain 2023 6 (-5)) 2023 6 1
+       && fields (D.date-constrain 2023 12 9223372036854775807) 2023 12 31
+       && fields (D.date-constrain 2023 12 (-9223372036854775808)) 2023 12 1
+       && fields (D.date-constrain (-9999) 1 0) (-9999) 1 1 && fields (D.date-constrain 9999 12 99) 9999 12 31
+       && fields (D.date-constrain 1900 2 29) 1900 2 28 && fields (D.date-constrain 2000 2 30) 2000 2 29
+    then 0 else 32
+
+  -- 64: the total constructor over literal fields, and the accessors
+  -- at both signs of the year (the word is negative for a negative
+  -- year; the fields still come out by shift and mask).
+  check-date-of :: Int
+  check-date-of =
+    if fields (D.date-of 2024 2 15) 2024 2 15 && fields (D.date-of 1970 1 1) 1970 1 1
+       && fields (D.date-of (-9999) 1 1) (-9999) 1 1 && fields (D.date-of 9999 12 28) 9999 12 28
+       && fields (D.date-of 0 1 1) 0 1 1 && fields (D.date-of (-1) 12 28) (-1) 12 28
+       && fields (D.date-of (-4) 2 28) (-4) 2 28 && fields (D.date-of 1 1 1) 1 1 1
+       && fields (D.date-of (-512) 7 16) (-512) 7 16 && fields (D.date-of 511 8 17) 511 8 17
+       && D.date-of 2024 2 15 == D.date-constrain 2024 2 15
+       && is-ymd (D.date 2024 2 15) 2024 2 15
+    then 0 else 64
+
+  -- 128: accessor results carry their ranges, so they feed the refined
+  -- constructors and `days-in-month` with nothing written.
+  check-refined-flow :: Int
+  check-refined-flow =
+    let x = D.date-of 2024 2 15 in
+    let y = D.date-constrain (D.year x) (D.month x) 31 in
+    if fields y 2024 2 29 && D.days-in-month (D.year x) (D.month x) == 29
+       && fields (D.date-constrain (D.year D.max-date) (D.month D.max-date) (D.day D.max-date)) 9999 12 31
+    then 0 else 128
+
+  main :: Int
+  main = check-leap + check-month-lengths + check-accepts + check-refusals + check-range + check-constrain + check-date-of + check-refined-flow

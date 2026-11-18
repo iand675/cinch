@@ -1,0 +1,168 @@
+-- Lane C: Data.Time.Zone.Posix, the parser. Accepted and refused
+-- strings for every production of the POSIX TZ grammar (names plain
+-- and quoted, offsets, the three date forms, the time of change with
+-- the RFC 9636 signed and beyond-24-hour extension), each refusal by
+-- its named error.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Offset
+  import Data.Time.Zone.Posix
+
+  -- 0 accepted, else the refusal: 1 empty, 2 name, 3 offset,
+  -- 4 missing rule, 5 date, 6 time, 7 trailing.
+  code :: String -> I64
+  code s = case parse-posix-tz s of
+    Ok _ -> 0
+    Err e -> case e of
+      PosixEmpty -> 1
+      PosixBadName -> 2
+      PosixBadOffset -> 3
+      PosixMissingRule -> 4
+      PosixBadDate -> 5
+      PosixBadTime -> 6
+      PosixTrailing -> 7
+
+  opt-secs :: Option Offset -> I64
+  opt-secs o = case o of
+    None -> 999999
+    Some x -> offset-to-seconds x
+
+  opt-str :: Option String -> String
+  opt-str o = case o of
+    None -> "(none)"
+    Some s -> s
+
+  -- The rule's standard offset and name, and daylight offset and
+  -- name (999999 and "(none)" without daylight time).
+  reads :: String -> I64 -> String -> I64 -> String -> Bool
+  reads s std std-name dst dst-name = case parse-posix-tz s of
+    Err _ -> False
+    Ok r ->
+      offset-to-seconds (posix-std-offset r) == std && posix-std-abbreviation r == std-name
+      && opt-secs (posix-dst-offset r) == dst && opt-str (posix-dst-abbreviation r) == dst-name
+      && posix-has-dst r == (dst /= 999999)
+
+  -- 1: accepted rules read back; POSIX offsets count west, a
+  -- daylight name without an offset is one hour ahead.
+  check-accept :: Int
+  check-accept =
+    if reads "EST5EDT,M3.2.0,M11.1.0" (-18000) "EST" (-14400) "EDT"
+       && reads "UTC0" 0 "UTC" 999999 "(none)"
+       && reads "IST-5:30" 19800 "IST" 999999 "(none)"
+       && reads "EST+5" (-18000) "EST" 999999 "(none)"
+       && reads "<+0330>-3:30" 12600 "+0330" 999999 "(none)"
+       && reads "<-03>3<-02>,M3.5.0/-2,M10.5.0/-1" (-10800) "-03" (-7200) "-02"
+       && reads "CET-1CEST,M3.5.0,M10.5.0/3" 3600 "CET" 7200 "CEST"
+       && reads "NZST-12NZDT,M9.5.0,M4.1.0/3" 43200 "NZST" 46800 "NZDT"
+       && reads "EST5EDT4,M3.2.0,M11.1.0" (-18000) "EST" (-14400) "EDT"
+       && reads "AAA1:02:03BBB-0:30,0,365" (-3723) "AAA" 1800 "BBB"
+       && reads "ABC-24:59:59" 89999 "ABC" 999999 "(none)"
+       && reads "ABC-24:59:59DEF,J1,J2" 89999 "ABC" 93599 "DEF"
+       && reads "ABC24:59:59" (-89999) "ABC" 999999 "(none)"
+       && reads "LongName00" 0 "LongName" 999999 "(none)"
+       && reads "<A1b>-1" 3600 "A1b" 999999 "(none)"
+      then 0 else 1
+
+  -- 2: names.
+  check-names :: Int
+  check-names =
+    if code "" == 1
+       && code "ES5" == 2
+       && code "5" == 2
+       && code "-5" == 2
+       && code "<+03-3" == 2
+       && code "<+3>-3" == 2
+       && code "<+03 >-3" == 2
+       && code ":America/New_York" == 2
+       && code "E$T5" == 2
+       && code "EST5ED,M3.2.0,M11.1.0" == 2
+       && code "EST5<+1>,M3.2.0,M11.1.0" == 2
+       && code "EST5<EDT,M3.2.0,M11.1.0" == 2
+      then 0 else 2
+
+  -- 4: offsets.
+  check-offsets :: Int
+  check-offsets =
+    if code "EST" == 3
+       && code "EST+" == 3
+       && code "EST25" == 3
+       && code "EST123" == 3
+       && code "EST5:60" == 3
+       && code "EST5:3" == 3
+       && code "EST5:00:60" == 3
+       && code "EST5:00:1" == 3
+       && code "EST5:" == 3
+       && code "ABC-25" == 3
+       && code "EST5EDT25,M3.2.0,M11.1.0" == 3
+       && code "EST5EDT-,M3.2.0,M11.1.0" == 3
+       && code "EST24" == 0
+       && code "EST05:00:00" == 0
+      then 0 else 4
+
+  -- 8: a daylight name needs its rule; nothing may follow a rule.
+  check-rule-shape :: Int
+  check-rule-shape =
+    if code "EST5EDT" == 4
+       && code "EST5EDT4" == 4
+       && code "EST5,M3.2.0,M11.1.0" == 7
+       && code "UTC0 " == 7
+       && code "UTC0\n" == 7
+       && code "EST5EDT,M3.2.0,M11.1.0x" == 7
+       && code "EST5EDT,M3.2.0,M11.1.0,J1" == 7
+       && code "EST5EDT,M3.2.0,M11.1.0/2 " == 7
+       && code "EST5EDT4x,M3.2.0,M11.1.0" == 7
+       && code "EST5EDT,M3.2.0" == 5
+       && code "EST5EDT,M3.2.0," == 5
+       && code "EST5EDT," == 5
+      then 0 else 8
+
+  -- 16: dates.
+  check-dates :: Int
+  check-dates =
+    if code "EST5EDT,J1,J365" == 0
+       && code "EST5EDT,0,365" == 0
+       && code "EST5EDT,M12.5.6,M1.1.0" == 0
+       && code "EST5EDT,J60,300" == 0
+       && code "EST5EDT,M13.2.0,M11.1.0" == 5
+       && code "EST5EDT,M0.2.0,M11.1.0" == 5
+       && code "EST5EDT,M3.6.0,M11.1.0" == 5
+       && code "EST5EDT,M3.0.0,M11.1.0" == 5
+       && code "EST5EDT,M3.2.7,M11.1.0" == 5
+       && code "EST5EDT,M3.2,M11.1.0" == 5
+       && code "EST5EDT,M3,M11.1.0" == 5
+       && code "EST5EDT,M3-2-0,M11.1.0" == 5
+       && code "EST5EDT,M3.2.0,M11.10.0" == 5
+       && code "EST5EDT,J0,J365" == 5
+       && code "EST5EDT,J1,J366" == 5
+       && code "EST5EDT,0,366" == 5
+       && code "EST5EDT,J,J365" == 5
+       && code "EST5EDT,,J365" == 5
+       && code "EST5EDT,1000,J365" == 5
+       && code "EST5EDT,-1,J365" == 5
+      then 0 else 16
+
+  -- 32: the time of change, with RFC 9636's range -167..=167.
+  check-times :: Int
+  check-times =
+    if code "EST5EDT,M3.2.0/2,M11.1.0/2" == 0
+       && code "EST5EDT,M3.2.0/0,M11.1.0/+2" == 0
+       && code "EST5EDT,M3.2.0/2:30:59,M11.1.0/24" == 0
+       && code "EST5EDT,M3.2.0/167,M11.1.0/-167" == 0
+       && code "EST5EDT,M3.2.0/167:59:59,M11.1.0/-167:59:59" == 0
+       && code "EST5EDT,M3.2.0/,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/168,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/-168,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/1000,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/1:60,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/1:5,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0/1:00:60,M11.1.0" == 6
+       && code "EST5EDT,M3.2.0,M11.1.0/" == 6
+       && code "EST5EDT,M3.2.0,M11.1.0/x" == 6
+      then 0 else 32
+
+  main :: Int
+  main = check-accept + check-names + check-offsets + check-rule-shape
+    + check-dates + check-times

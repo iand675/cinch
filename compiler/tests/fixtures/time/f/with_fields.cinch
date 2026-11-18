@@ -1,0 +1,221 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, replacing the civil date, the
+-- time of day or both (Temporal's ZonedDateTime.prototype.with). The
+-- new reading is resolved keeping the offset the value already has
+-- when the reading can have it (Temporal's offset option "prefer"),
+-- and otherwise by the strategy: `Compatible`, or the one the
+-- `-resolving` form names. Vectors from the TC39 Temporal reference
+-- polyfill in America/New_York (tzdata 2026e); Pacific/Apia and
+-- Europe/Amsterdam for an offset that cannot be kept; a fixed zone.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  tod :: I64 -> I64 -> TimeOfDay
+  tod h mi = case T.time-of-day-checked h mi 0 0 of
+    None -> T.midnight
+    Some t -> t
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  -- 1: inside the fold the value's own offset is kept: changing the
+  -- minutes of the second 01:30 stays in the second pass, of the
+  -- first in the first.
+  check-keep :: TimeZone -> Int
+  check-keep z =
+    let first = zt z 1730611800 in
+    let second = zt z 1730615400 in
+    if ok-is (zoned-with-time (tod 1 45) second) 1730616300 (-18000)
+       && ok-is (zoned-with-time (tod 1 45) first) 1730612700 (-14400)
+       && ok-is (zoned-with-time-resolving Reject (tod 1 45) second) 1730616300 (-18000)
+       && ok-is (zoned-with-time-resolving Later (tod 1 45) first) 1730612700 (-14400)
+       && ok-is (zoned-with-time-resolving Earlier (tod 1 45) second) 1730616300 (-18000)
+       && ok-is (zoned-with-datetime (at 2024 11 3 1 0 0 0) second) 1730613600 (-18000)
+    then 0 else 1
+
+  -- 2: into the fold from outside it: the offset is kept when it is
+  -- one of the two (00:30 is -04:00, so 01:30 is the first; 03:30 is
+  -- -05:00, so 01:30 is the second, whatever the strategy says).
+  check-into-fold :: TimeZone -> Int
+  check-into-fold z =
+    let before = zc z 2024 11 3 0 30 0 0 in
+    let after = zc z 2024 11 3 3 30 0 0 in
+    if ok-is (zoned-with-time (tod 1 30) before) 1730611800 (-14400)
+       && ok-is (zoned-with-time (tod 1 30) after) 1730615400 (-18000)
+       && ok-is (zoned-with-time-resolving Later (tod 1 30) after) 1730615400 (-18000)
+       && ok-is (zoned-with-time-resolving Reject (tod 1 30) after) 1730615400 (-18000)
+       && ok-is (zoned-with-time-resolving Earlier (tod 1 30) after) 1730615400 (-18000)
+       && ok-is (zoned-with-time-resolving Later (tod 1 30) before) 1730611800 (-14400)
+    then 0 else 2
+
+  -- 3: the date. From the 4th (-05:00) to the 3rd is the second
+  -- 01:30; from the 2nd (-04:00) the first; from July (-04:00) the
+  -- first even under `Reject` and `Later`; from December (-05:00) the
+  -- second even under `Earlier`.
+  check-date :: TimeZone -> Int
+  check-date z =
+    let third = ymd 2024 11 3 in
+    if ok-is (zoned-with-date third (zc z 2024 11 4 1 30 0 0)) 1730615400 (-18000)
+       && ok-is (zoned-with-date third (zc z 2024 11 2 1 30 0 0)) 1730611800 (-14400)
+       && ok-is (zoned-with-date (ymd 2024 11 4) (zt z 1730615400)) 1730701800 (-18000)
+       && ok-is (zoned-with-date-resolving Reject third (zc z 2024 7 3 1 30 0 0)) 1730611800 (-14400)
+       && ok-is (zoned-with-date-resolving Later third (zc z 2024 7 3 1 30 0 0)) 1730611800 (-14400)
+       && ok-is (zoned-with-date third (zc z 2024 12 3 1 30 0 0)) 1730615400 (-18000)
+       && ok-is (zoned-with-date-resolving Earlier third (zc z 2024 12 3 1 30 0 0)) 1730615400 (-18000)
+    then 0 else 4
+
+  -- 4: a reading that does not exist has no offset to keep, so the
+  -- strategy decides.
+  check-gap :: TimeZone -> Int
+  check-gap z =
+    let x = zc z 2024 3 10 3 30 0 0 in
+    if ok-is (zoned-with-time (tod 2 30) x) 1710055800 (-14400)
+       && ok-is (zoned-with-time-resolving Later (tod 2 30) x) 1710055800 (-14400)
+       && ok-is (zoned-with-time-resolving Earlier (tod 2 30) x) 1710052200 (-18000)
+       && code (zoned-with-time-resolving Reject (tod 2 30) x) == 2
+       && ok-is (zoned-with-time (tod 2 30) (zc z 2024 3 10 1 30 0 0)) 1710055800 (-14400)
+       && ok-is (zoned-with-datetime (at 2024 3 10 2 30 0 0) (zt z 1730615400)) 1710055800 (-14400)
+       && code (zoned-with-datetime-resolving Reject (at 2024 3 10 2 30 0 0) (zt z 1730615400)) == 2
+    then 0 else 8
+
+  -- 5: when the value's offset is neither of the fold's two, the
+  -- strategy decides. Pacific/Apia was at -10:00 in December 2011 and
+  -- its 2012-04-01 fold is between +14:00 and +13:00. In
+  -- Europe/Amsterdam a July value (+02:00) keeps +02:00 in the October
+  -- fold and a December value (+01:00) keeps +01:00.
+  check-strategy :: TimeZone -> TimeZone -> Int
+  check-strategy apia ams =
+    let old = zc apia 2011 12 1 3 30 0 0 in
+    let day = ymd 2012 4 1 in
+    let x = zc ams 2024 7 1 2 30 0 0 in
+    if is old 1322746200 (-36000)
+       && ok-is (zoned-with-date day old) 1333200600 50400
+       && ok-is (zoned-with-date-resolving Earlier day old) 1333200600 50400
+       && ok-is (zoned-with-date-resolving Later day old) 1333204200 46800
+       && code (zoned-with-date-resolving Reject day old) == 3
+       && ok-is (zoned-with-date (ymd 2024 10 27) x) 1729989000 7200
+       && ok-is (zoned-with-date-resolving Later (ymd 2024 10 27) x) 1729989000 7200
+       && ok-is (zoned-with-date (ymd 2024 10 27) (zc ams 2024 12 1 2 30 0 0)) 1729992600 3600
+       && code (zoned-with-date-resolving Reject (ymd 2024 3 31) x) == 2
+       && ok-is (zoned-with-date (ymd 2024 3 31) x) 1711848600 7200
+       && ok-is (zoned-with-date-resolving Earlier (ymd 2024 3 31) x) 1711845000 3600
+    then 0 else 16
+
+  -- 6: ordinary readings, a fixed zone, and the range.
+  check-plain :: TimeZone -> Int
+  check-plain z =
+    let x = zc z 2024 5 31 13 45 0 0 in
+    let f = zoned-from-timestamp (zone-fixed (offset-of-hours (-3))) timestamp-epoch in
+    if ok-is (zoned-with-date (ymd 2024 6 30) x) 1719769500 (-14400)
+       && ok-is (zoned-with-time (tod 13 45) (zc z 2024 6 30 0 0 0 0)) 1719769500 (-14400)
+       && ok-is (zoned-with-datetime (at 2024 12 31 2 30 0 0) x) 1735630200 (-18000)
+       && ok-is (zoned-with-datetime-resolving Reject (at 2024 12 31 2 30 0 0) x) 1735630200 (-18000)
+       && ok-is (zoned-with-time (tod 0 0) f) (-75600) (-10800)
+       && ok-is (zoned-with-date (ymd 1970 1 1) f) 86400 (-10800)
+       && code (zoned-with-datetime DT.max-datetime x) == 1
+       && code (zoned-with-datetime DT.min-datetime x) == 1
+       && code (zoned-with-date D.max-date x) == 1
+    then 0 else 32
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Europe/Amsterdam" of
+        Err _ -> 255
+        Ok ams -> case load "Pacific/Apia" of
+          Err _ -> 255
+          Ok apia -> check-keep ny + check-into-fold ny + check-date ny + check-gap ny
+            + check-strategy apia ams + check-plain ny

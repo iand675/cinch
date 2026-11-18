@@ -1,0 +1,127 @@
+-- Lane A: Effect.Time's millisecond bridge to Effect.Clock (rounding
+-- up, saturation), `sleep-for` (at least the duration; a negative one
+-- sleeps zero), deadlines on the monotonic clock, and `timeout-after`.
+module Main where
+  import Data.Machine
+  import Data.Time.Duration
+  import Data.Time.Monotonic
+  import Effect.Clock (duration-millis, duration-from-millis as clock-millis)
+  import Effect.Time
+
+  ns :: I64 -> Duration
+  ns n = duration-from-nanos n
+
+  -- 1: `to-clock-duration` rounds up to a whole millisecond and
+  -- saturates: zero for a negative duration, `I64` milliseconds at
+  -- most.
+  check-to-clock-duration :: Int
+  check-to-clock-duration =
+    if duration-millis (to-clock-duration (ns 1)) == 1
+      && duration-millis (to-clock-duration (ns 999999)) == 1
+      && duration-millis (to-clock-duration (ns 1000000)) == 1
+      && duration-millis (to-clock-duration (ns 1000001)) == 2
+      && duration-millis (to-clock-duration duration-zero) == 0
+      && duration-millis (to-clock-duration (ns (-1))) == 0
+      && duration-millis (to-clock-duration (duration-from-hours (-5))) == 0
+      && duration-millis (to-clock-duration min-duration) == 0
+      && duration-millis (to-clock-duration (duration-from-seconds 2)) == 2000
+      && duration-millis (to-clock-duration max-duration) == 9223372036854775807
+      && duration-millis (to-clock-duration (duration-from-millis max-bound-i64)) == 9223372036854775807
+      then 0 else 1
+
+  -- 2: `from-clock-duration` is exact within `I64` milliseconds and
+  -- saturates past it; the round trip rounds up to a millisecond.
+  check-from-clock-duration :: Int
+  check-from-clock-duration =
+    if from-clock-duration (clock-millis 1500) == duration-from-millis 1500
+      && duration-is-zero (from-clock-duration (clock-millis 0))
+      && from-clock-duration (clock-millis 9223372036854775807) == duration-from-millis max-bound-i64
+      && from-clock-duration (clock-millis 9223372036854775808) == duration-from-millis max-bound-i64
+      && from-clock-duration (clock-millis 1000000000000000000000000000000) == duration-from-millis max-bound-i64
+      && from-clock-duration (to-clock-duration (ns 1500001)) == duration-from-millis 2
+      && from-clock-duration (to-clock-duration (duration-from-millis 7)) == duration-from-millis 7
+      && duration-is-zero (from-clock-duration (to-clock-duration (ns (-9))))
+      then 0 else 2
+
+  -- 4: `sleep-for` suspends for at least the duration (1.5 ms rounds
+  -- up to 2 ms).
+  check-sleep-at-least :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r} Int
+  check-sleep-at-least u =
+    let m0 = monotonic-now () in
+    case sleep-for (duration-from-micros 1500) of
+      _ -> if elapsed-since m0 >= duration-from-millis 2 then 0 else 4
+
+  -- 8: a zero or negative duration sleeps zero milliseconds: it
+  -- returns, and promptly.
+  check-sleep-negative :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r} Int
+  check-sleep-negative u =
+    let m0 = monotonic-now () in
+    case sleep-for (duration-from-hours (-1)) of
+      _ -> case sleep-for duration-zero of
+        _ -> case sleep-for min-duration of
+          _ -> if elapsed-since m0 < duration-from-seconds 5 then 0 else 8
+
+  -- 16: a deadline in the future is not expired and has positive time
+  -- left, no more than was asked for; after sleeping until it, it is
+  -- expired and nothing is left.
+  check-deadline-future :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r} Int
+  check-deadline-future u =
+    let dl = deadline-after (duration-from-millis 40) in
+    let before = deadline-remaining dl in
+    let early = deadline-expired dl in
+    case sleep-until dl of
+      _ ->
+        let after = deadline-remaining dl in
+        let late = deadline-expired dl in
+        if early then 16
+        else if duration-is-positive before && before <= duration-from-millis 40 then
+          if late && not (duration-is-positive after) then 0 else 16
+        else 16
+
+  -- 32: a deadline made with a negative duration has already passed;
+  -- one made with the longest duration saturates and has not; and
+  -- `deadline-at`/`deadline-instant` are inverse.
+  check-deadline-edges :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  check-deadline-edges u =
+    let past = deadline-after (duration-from-seconds (-1)) in
+    let never = deadline-after max-duration in
+    let m = monotonic-now () in
+    if deadline-expired past && duration-is-negative (deadline-remaining past)
+      && not (deadline-expired never) && duration-is-positive (deadline-remaining never)
+      && deadline-instant never == monotonic-from-raw-nanos max-bound-i64
+      && deadline-instant (deadline-at m) == m
+      && deadline-expired (deadline-at m)
+      then 0 else 32
+
+  quick :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r} Nat
+  quick u = case pollCancel () of
+    True -> 0
+    False -> case sleep-for (duration-from-millis 1) of
+      _ -> 7
+
+  spin :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r} Nat
+  spin u = case pollCancel () of
+    True -> 0
+    False -> case sleep-for (duration-from-millis 5) of
+      _ -> spin ()
+
+  -- 64: `timeout-after` returns a quick computation's value and
+  -- cancels one that outlives the limit.
+  check-timeout :: forall r. using (io :: Io r) => Unit ->{Async r, IO r, Cancel r, Diverge} Int
+  check-timeout u =
+    case timeout-after (duration-from-seconds 5) (\v -> quick v) of
+      TimedOut -> 64
+      Finished x -> case x == 7 of
+        False -> 64
+        True -> case timeout-after (duration-from-millis 50) (\v -> spin v) of
+          Finished y -> 64
+          TimedOut -> 0
+
+  main :: Unit ->{Async r, IO r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in
+    let a = check-sleep-at-least () in
+    let b = check-sleep-negative () in
+    let c = check-deadline-future () in
+    let d = check-deadline-edges () in
+    let e = check-timeout () in
+    check-to-clock-duration + check-from-clock-duration + a + b + c + d + e

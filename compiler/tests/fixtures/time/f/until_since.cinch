@@ -1,0 +1,336 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, differences without rounding
+-- (Temporal's DifferenceZonedDateTime as rendered by Jiff). The
+-- default is exact elapsed hours and works across zones; with a
+-- largest unit of `Day` or more the calendar part is counted on the
+-- civil readings of one zone and the rest is elapsed time, which on a
+-- 25-hour day can be 24 hours and more. Vectors from the Jiff 1.0
+-- announcement and from the TC39 Temporal reference polyfill
+-- (America/New_York around the 2024 transitions), the cross-zone
+-- refusal, the unit refusals, the laws on a sweep over both
+-- transitions, and the ends of the range.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  day :: ZonedDifference
+  day = zoned-difference-largest Day
+
+  until-is :: ZonedDifference -> Zoned -> Zoned -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  until-is o a b y mo w d h mi s ms us ns = ok-fields (zoned-until-with o a b) y mo w d h mi s ms us ns
+
+  -- 1: the default: elapsed hours and smaller, exact.
+  check-default :: TimeZone -> TimeZone -> Int
+  check-default z ams =
+    let a = zc z 2024 11 2 17 25 0 0 in
+    let b = zc z 2024 11 3 17 25 0 0 in
+    if fields (zoned-until a b) 0 0 0 0 25 0 0 0 0 0
+       && fields (zoned-since a b) 0 0 0 0 (-25) 0 0 0 0 0
+       && fields (zoned-until b a) 0 0 0 0 (-25) 0 0 0 0 0
+       && fields (zoned-since b a) 0 0 0 0 25 0 0 0 0 0
+       && fields (zoned-until (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0)) 0 0 0 0 2928 0 0 0 0 0
+       && fields (zoned-until (zc z 2024 11 2 17 30 0 0) (zc z 2024 11 3 4 45 0 0)) 0 0 0 0 12 15 0 0 0 0
+       && fields (zoned-until (zc z 2024 5 15 14 30 54 0) (zc z 2024 5 31 19 13 27 123456789)) 0 0 0 0 388 42 33 123 456 789
+       && span-is-zero (zoned-until a a)
+       && fields (zoned-until (zc z 2024 5 31 0 0 0 0) (zc ams 2024 9 30 0 0 0 0)) 0 0 0 0 2922 0 0 0 0 0
+       && until-is zoned-difference-default a b 0 0 0 0 25 0 0 0 0 0
+    then 0 else 1
+
+  -- 2: a largest unit of `Day` or `Month`. A civil day is one day
+  -- however long it was; the rest of a 25-hour day read from its
+  -- midnight is 24 hours 59 minutes, not a day.
+  check-days :: TimeZone -> Int
+  check-days z =
+    if until-is day (zc z 2024 11 2 17 25 0 0) (zc z 2024 11 3 17 25 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (zoned-difference-largest Month) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0) 0 3 0 30 0 0 0 0 0 0
+       && until-is (zoned-difference-largest Month) (zc z 2024 9 30 0 0 0 0) (zc z 2024 5 31 0 0 0 0) 0 (-3) 0 (-30) 0 0 0 0 0 0
+       && ok-fields (zoned-since-with (zoned-difference-largest Month) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0)) 0 (-3) 0 (-30) 0 0 0 0 0 0
+       && ok-fields (zoned-since-with (zoned-difference-largest Month) (zc z 2024 9 30 0 0 0 0) (zc z 2024 5 31 0 0 0 0)) 0 3 0 30 0 0 0 0 0 0
+       && until-is day (zc z 2024 5 15 14 30 54 0) (zc z 2024 5 31 19 13 27 123456789) 0 0 0 16 4 42 33 123 456 789
+       && until-is day (zc z 2024 11 3 0 0 0 0) (zc z 2024 11 3 23 59 0 0) 0 0 0 0 24 59 0 0 0 0
+       && until-is day (zc z 2024 11 3 0 0 0 0) (zc z 2024 11 4 0 0 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is day (zc z 2024 11 2 17 30 0 0) (zc z 2024 11 3 4 45 0 0) 0 0 0 0 12 15 0 0 0 0
+       && until-is (with-smallest Day day) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0) 0 0 0 122 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 3: readings that do not exist or occur twice (reference polyfill).
+  -- 02:30 on 9 March until 03:30 on the 10th is one day (02:30 on the
+  -- 10th reads as 03:30) and the reverse is 1 day 1 hour. The last
+  -- six start at 1730615400, the SECOND 01:30 on 3 November
+  -- (-05:00): the intermediate reading is that date at 01:30 resolved
+  -- `Compatible`, the first 01:30, so the remainder is measured from
+  -- an hour before the start (24 hours where 23 elapsed). That is
+  -- Temporal's answer and it is ported as it is. The very last has
+  -- both readings on one civil date, where the specification answers
+  -- with the elapsed time (2 hours); the 0.5.1 reference polyfill
+  -- predates that step and says 1 hour. The first five are in
+  -- Pacific/Apia across the civil day it skipped: noon on the 28th
+  -- until 06:00 on the 31st needs the intermediate moved back twice
+  -- (noon on the 30th reads as noon on the 31st, past the end), and
+  -- civil days are counted though 24 hours of them never elapsed.
+  check-ambiguous :: TimeZone -> TimeZone -> Int
+  check-ambiguous z apia =
+    if until-is day (zc apia 2011 12 28 12 0 0 0) (zc apia 2011 12 31 6 0 0 0) 0 0 0 1 18 0 0 0 0 0
+       && fields (zoned-until (zc apia 2011 12 28 12 0 0 0) (zc apia 2011 12 31 6 0 0 0)) 0 0 0 0 42 0 0 0 0 0
+       && until-is day (zc apia 2011 12 31 6 0 0 0) (zc apia 2011 12 28 12 0 0 0) 0 0 0 (-2) (-18) 0 0 0 0 0
+       && until-is day (zc apia 2011 12 28 12 0 0 0) (zc apia 2011 12 31 12 0 0 0) 0 0 0 3 0 0 0 0 0 0
+       && until-is day (zc apia 2011 12 29 12 0 0 0) (zc apia 2011 12 31 12 0 0 0) 0 0 0 2 0 0 0 0 0 0
+       && until-is day (zc z 2024 3 9 2 30 0 0) (zc z 2024 3 10 3 30 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is day (zc z 2024 3 9 2 30 0 0) (zc z 2024 3 10 3 15 0 0) 0 0 0 0 23 45 0 0 0 0
+       && until-is day (zc z 2024 3 10 3 30 0 0) (zc z 2024 3 9 2 30 0 0) 0 0 0 (-1) (-1) 0 0 0 0 0
+       && until-is day (zc z 2024 3 11 2 30 0 0) (zc z 2024 3 10 3 30 0 0) 0 0 0 0 (-23) 0 0 0 0 0
+       && until-is day (zc z 2024 3 11 2 30 0 0) (zc z 2024 3 10 1 30 0 0) 0 0 0 (-1) (-1) 0 0 0 0 0
+       && until-is day (zc z 2024 11 4 1 30 0 0) (zt z 1730615400) 0 0 0 0 (-24) 0 0 0 0 0
+       && until-is day (zc z 2024 11 4 1 30 0 0) (zc z 2024 11 3 1 30 0 0) 0 0 0 (-1) 0 0 0 0 0 0
+       && until-is day (zt z 1730615400) (zc z 2024 11 4 0 30 0 0) 0 0 0 0 24 0 0 0 0 0
+       && fields (zoned-until (zt z 1730615400) (zc z 2024 11 4 0 30 0 0)) 0 0 0 0 23 0 0 0 0 0
+       && until-is day (zt z 1730615400) (zc z 2024 11 4 2 30 0 0) 0 0 0 1 1 0 0 0 0 0
+       && until-is day (zt z 1730615400) (zc z 2024 11 2 2 30 0 0) 0 0 0 0 (-23) 0 0 0 0 0
+       && until-is day (zt z 1730615400) (zc z 2024 11 2 0 30 0 0) 0 0 0 (-1) (-1) 0 0 0 0 0
+       && until-is day (zt z 1730615400) (zc z 2024 11 3 0 30 0 0) 0 0 0 0 (-2) 0 0 0 0 0
+    then 0 else 4
+
+  -- 4: years and weeks (reference polyfill): the remainder is elapsed
+  -- time after the last whole civil day.
+  check-years :: TimeZone -> Int
+  check-years z =
+    let a = zc z 2024 1 31 12 0 0 0 in
+    let b = zc z 2025 3 1 11 0 0 0 in
+    if until-is (zoned-difference-largest Year) a b 1 0 0 28 23 0 0 0 0 0
+       && until-is (zoned-difference-largest Week) a b 0 0 56 2 23 0 0 0 0 0
+       && until-is (zoned-difference-largest Year) b a (-1) (-1) 0 0 (-23) 0 0 0 0 0
+       && until-is (with-largest Year zoned-difference-default) a b 1 0 0 28 23 0 0 0 0 0
+    then 0 else 8
+
+  -- 5: two zones. Hours and smaller are elapsed time and work; days
+  -- and larger are refused by name.
+  check-zones :: TimeZone -> TimeZone -> Int
+  check-zones z ams =
+    let a = zc z 2024 5 31 0 0 0 0 in
+    let b = zc ams 2024 9 30 0 0 0 0 in
+    if code (zoned-until-with day a b) == 4
+       && code (zoned-since-with day a b) == 4
+       && code (zoned-until-with (zoned-difference-largest Year) a b) == 4
+       && until-is zoned-difference-default a b 0 0 0 0 2922 0 0 0 0 0
+       && until-is (with-smallest Second (with-largest Minute zoned-difference-default)) a b 0 0 0 0 0 175320 0 0 0 0
+       && until-is day a (zoned-with-time-zone z b) 0 0 0 121 18 0 0 0 0 0
+       && code (zoned-until-with day a a) == 0
+    then 0 else 16
+
+  -- 6: the unit and increment refusals.
+  check-refusals :: TimeZone -> Int
+  check-refusals z =
+    let a = zc z 2024 5 31 0 0 0 0 in
+    let b = zc z 2024 9 30 0 0 0 0 in
+    if code (zoned-until-with (with-smallest Hour (with-largest Minute zoned-difference-default)) a b) == 5
+       && code (zoned-until-with (with-smallest Day (with-largest Hour zoned-difference-default)) a b) == 5
+       && code (zoned-until-with (with-smallest Month day) a b) == 5
+       && code (zoned-until-with (with-increment 5 (with-smallest Hour zoned-difference-default)) a b) == 6
+       && code (zoned-until-with (with-increment 24 (with-smallest Hour day)) a b) == 6
+       && code (zoned-until-with (with-increment 0 zoned-difference-default) a b) == 6
+       && code (zoned-until-with (with-increment 0 (with-smallest Day day)) a b) == 6
+       && code (zoned-until-with (with-increment 1000000001 (with-smallest Day day)) a b) == 6
+       && code (zoned-since-with (with-increment 7 (with-smallest Minute day)) a b) == 6
+       && code (zoned-until-with (with-increment 6 (with-smallest Hour day)) a b) == 0
+    then 0 else 32
+
+  lands :: Result ZonedError Zoned -> Zoned -> Bool
+  lands r y = case r of
+    Err _ -> False
+    Ok x -> zoned-timestamp x == zoned-timestamp y
+
+  small :: I64 -> Bool
+  small h = h > -25 && h < 25
+
+  -- The laws for one pair of instants.
+  pair-ok :: TimeZone -> I64 -> I64 -> Bool
+  pair-ok z sa sb =
+    let a = zt z sa in
+    let b = zt z sb in
+    let h = zoned-until a b in
+    span-fieldwise-eq h (span-negate (zoned-until b a))
+    && span-fieldwise-eq (zoned-since b a) h
+    && lands (zoned-add-span h a) b
+    && lands (zoned-sub-span (zoned-since a b) a) b
+    && (second-occurrence a || day-laws a b (sgn (minus sb sa)))
+
+  -- Whether the value is the later of two occurrences of its civil
+  -- reading (resolving the reading again gives the earlier one).
+  second-occurrence :: Zoned -> Bool
+  second-occurrence a = case zoned-from-datetime Compatible (zoned-time-zone a) (zoned-datetime a) of
+    Err _ -> True
+    Ok x -> zoned-timestamp x /= zoned-timestamp a
+
+  day-laws :: Zoned -> Zoned -> I64 -> Bool
+  day-laws a b dir = case zoned-until-with day a b of
+    Err _ -> False
+    Ok s -> lands (zoned-add-span s a) b && small (span-hours s)
+      && (span-days s == 0 || sgn (span-days s) == dir)
+      && (case zoned-since-with day a b of
+            Err _ -> False
+            Ok t -> span-fieldwise-eq t (span-negate s) && lands (zoned-sub-span t a) b)
+
+  sgn :: I64 -> I64
+  sgn n = if n > 0 then 1 else if n < 0 then -1 else 0
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- `b` runs over thirteen offsets from `a`, 11 hours 13 minutes
+  -- apart, from about three days before to three days after.
+  inner :: TimeZone -> I64 -> I64 -> Bool
+  inner z sa k =
+    if k > 6 then True
+    else if pair-ok z sa (plus sa (times k 40380)) then inner z sa (plus k 1)
+    else False
+
+  -- `a` runs from `sa` in steps of 37 minutes.
+  outer :: TimeZone -> I64 -> I64 -> Bool
+  outer z sa left =
+    if left == 0 then True
+    else if inner z sa (-6) then outer z (plus sa 2220) (minus left 1)
+    else False
+
+  -- 7: the laws on a sweep across both 2024 transitions: 150 starting
+  -- instants (3.8 days) around each, thirteen ends for each. The
+  -- hour laws hold for every pair. The day laws are checked unless the
+  -- start is the second occurrence of a repeated reading: there
+  -- Temporal's algorithm measures from the first occurrence (check 3
+  -- pins what it answers), so the difference added back is an hour
+  -- off.
+  -- 1709874420 is 2024-03-08T00:07 and 1730434020 is 2024-11-01T00:07,
+  -- both New York time.
+  check-sweep :: TimeZone -> Int
+  check-sweep z =
+    if outer z 1709874420 150 && outer z 1730434020 150 then 0 else 64
+
+  -- 8: the ends of the range. The whole range is inside the limit of
+  -- every unit from seconds up, and the difference added back is the
+  -- other end; in nanoseconds it does not fit a span, which is the
+  -- named unit-limit refusal.
+  check-range :: TimeZone -> Int
+  check-range z =
+    let lo = zoned-from-timestamp z min-timestamp in
+    let hi = zoned-from-timestamp z max-timestamp in
+    if span-hours (zoned-until lo hi) == 175307564
+       && lands (zoned-add-span (zoned-until lo hi) lo) hi
+       && lands (zoned-add-span (zoned-until hi lo) hi) lo
+       && (case zoned-until-with day lo hi of
+             Err _ -> False
+             Ok s -> span-days s == 7304481 && lands (zoned-add-span s lo) hi)
+       && (case zoned-until-with (zoned-difference-largest Year) lo hi of
+             Err _ -> False
+             Ok s -> span-years s == 19998 && span-months s == 11 && lands (zoned-add-span s lo) hi)
+       && (case zoned-until-with (zoned-difference-largest Year) hi lo of
+             Err _ -> False
+             Ok s -> span-years s == -19998 && span-months s == -11)
+       && code (zoned-until-with (zoned-difference-largest Nanosecond) lo hi) == 7
+       && code (zoned-until-with (zoned-difference-largest Second) lo hi) == 0
+    then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Europe/Amsterdam" of
+        Err _ -> 255
+        Ok ams -> case load "Pacific/Apia" of
+          Err _ -> 255
+          Ok apia -> check-default ny ams + check-days ny + check-ambiguous ny apia
+            + check-years ny + check-zones ny ams + check-refusals ny
+            + check-sweep ny + check-range ny

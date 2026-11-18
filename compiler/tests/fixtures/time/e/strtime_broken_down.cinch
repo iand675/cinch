@@ -1,0 +1,351 @@
+-- Lane E: Text.Time.Strtime, the `BrokenDown` value and the compiled
+-- `Format`. The empty value, every setter with its getter, the
+-- conversions in (date, time, date-time, timestamp in UTC and at an
+-- offset), the conversions out built from setters, a compiled format
+-- applied to several values and inputs, and print-then-parse round
+-- trips.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Strtime
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as a number: constructor * 1000000 + position * 1000 +
+  -- conversion byte (0 where the constructor has none).
+  code :: StrtimeError -> I64
+  code e = case e of
+    StrtimeUnknownConversion p c -> wrapping-add-i64 1000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeDanglingPercent p -> wrapping-add-i64 2000000 (wrapping-mul-i64 p 1000)
+    StrtimeWidthTooLarge p -> wrapping-add-i64 3000000 (wrapping-mul-i64 p 1000)
+    StrtimeModifierNotAllowed p -> wrapping-add-i64 4000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingField c -> wrapping-add-i64 5000000 c
+    StrtimeUnexpectedEnd p -> wrapping-add-i64 6000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedDigit p -> wrapping-add-i64 7000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedName p -> wrapping-add-i64 8000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedOffset p -> wrapping-add-i64 9000000 (wrapping-mul-i64 p 1000)
+    StrtimeLiteralMismatch p -> wrapping-add-i64 10000000 (wrapping-mul-i64 p 1000)
+    StrtimeFieldOutOfRange p c -> wrapping-add-i64 11000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeTrailingInput p -> wrapping-add-i64 12000000 (wrapping-mul-i64 p 1000)
+    StrtimeZoneAbbreviationNotParsed p -> wrapping-add-i64 13000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingYear -> 14000000
+    StrtimeMissingMonth -> 15000000
+    StrtimeMissingDay -> 16000000
+    StrtimeMissingHour -> 17000000
+    StrtimeMissingMeridiem -> 18000000
+    StrtimeMissingOffset -> 19000000
+    StrtimeInvalidDate -> 20000000
+    StrtimeDateMismatch -> 21000000
+    StrtimeWeekdayMismatch -> 22000000
+    StrtimeDayOfYearMismatch -> 23000000
+    StrtimeIsoWeekMismatch -> 24000000
+    StrtimeWeekNumberMismatch -> 25000000
+    StrtimeHourMismatch -> 26000000
+    StrtimeTimestampOutOfRange -> 27000000
+
+  -- `strftime f b` is `Ok expected`.
+  fb :: String -> BrokenDown -> String -> Bool
+  fb f b expected = case strftime f b of
+    Err _ -> False
+    Ok s -> s == expected
+
+  fd :: String -> Date -> String -> Bool
+  fd f d expected = fb f (broken-down-from-date d) expected
+
+  ft :: String -> TimeOfDay -> String -> Bool
+  ft f t expected = fb f (broken-down-from-time t) expected
+
+  fx :: String -> DateTime -> String -> Bool
+  fx f x expected = fb f (broken-down-from-datetime x) expected
+
+  -- The refusal of `strftime f b`; -1 for `Ok`.
+  fe :: String -> BrokenDown -> I64
+  fe f b = case strftime f b of
+    Ok _ -> -1
+    Err e -> code e
+
+  -- The refusal of `strptime f s`; -1 for `Ok`.
+  pe :: String -> String -> I64
+  pe f s = case strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  is :: Option I64 -> I64 -> Bool
+  is o v = case o of
+    None -> False
+    Some x -> x == v
+
+  none :: Option I64 -> Bool
+  none o = case o of
+    None -> True
+    Some _ -> False
+
+  pd :: String -> String -> Date -> Bool
+  pd f s d = case date-strptime f s of
+    Err _ -> False
+    Ok x -> x == d
+
+  pt :: String -> String -> TimeOfDay -> Bool
+  pt f s t = case time-strptime f s of
+    Err _ -> False
+    Ok x -> x == t
+
+  px :: String -> String -> DateTime -> Bool
+  px f s x = case datetime-strptime f s of
+    Err _ -> False
+    Ok y -> y == x
+
+  wd-is :: Option Weekday -> Weekday -> Bool
+  wd-is o w = case o of
+    None -> False
+    Some x -> x == w
+
+  no-weekday :: Option Weekday -> Bool
+  no-weekday o = case o of
+    None -> True
+    Some _ -> False
+
+  meridiem-is :: Option Meridiem -> I64 -> Bool
+  meridiem-is o n = case o of
+    None -> n == -1
+    Some m -> case m of
+      Am -> n == 0
+      Pm -> n == 1
+
+  text-is :: Option String -> String -> Bool
+  text-is o s = case o of
+    None -> False
+    Some x -> x == s
+
+  no-text :: Option String -> Bool
+  no-text o = case o of
+    None -> True
+    Some _ -> False
+
+  check-empty :: Int
+  check-empty =
+    let b = broken-down-empty in
+    if none (broken-down-year b) && none (broken-down-month b) && none (broken-down-day b)
+       && none (broken-down-hour b) && none (broken-down-hour12 b) && none (broken-down-minute b)
+       && none (broken-down-second b) && none (broken-down-subsec-nanosecond b) && no-weekday (broken-down-weekday b)
+       && none (broken-down-day-of-year b) && none (broken-down-offset b) && meridiem-is (broken-down-meridiem b) (-1)
+       && none (broken-down-iso-week-year b) && none (broken-down-iso-week b) && none (broken-down-week-sunday b)
+       && none (broken-down-week-monday b) && none (broken-down-unix-seconds b)
+       && no-text (broken-down-zone-abbreviation b) && no-text (broken-down-zone-name b)
+    then 0 else 1
+
+  full :: BrokenDown
+  full =
+    broken-down-with-zone-name "Asia/Kolkata" (broken-down-with-zone-abbreviation "IST"
+      (broken-down-with-unix-seconds 1794571200 (broken-down-with-week-monday 45 (broken-down-with-week-sunday 45
+        (broken-down-with-iso-week 46 (broken-down-with-iso-week-year 2026 (broken-down-with-meridiem Pm
+          (broken-down-with-offset 19800 (broken-down-with-day-of-year 317 (broken-down-with-weekday Friday
+            (broken-down-with-subsec-nanosecond 250000000 (broken-down-with-second 5 (broken-down-with-minute 30
+              (broken-down-with-hour12 5 (broken-down-with-hour 17 (broken-down-with-day 13 (broken-down-with-month 11
+                (broken-down-with-year 2026 broken-down-empty))))))))))))))))))
+
+  check-setters :: Int
+  check-setters =
+    let b = full in
+    if is (broken-down-year b) 2026 && is (broken-down-month b) 11 && is (broken-down-day b) 13
+       && is (broken-down-hour b) 17 && is (broken-down-hour12 b) 5 && is (broken-down-minute b) 30
+       && is (broken-down-second b) 5 && is (broken-down-subsec-nanosecond b) 250000000
+       && wd-is (broken-down-weekday b) Friday && is (broken-down-day-of-year b) 317 && is (broken-down-offset b) 19800
+       && meridiem-is (broken-down-meridiem b) 1 && is (broken-down-iso-week-year b) 2026 && is (broken-down-iso-week b) 46
+       && is (broken-down-week-sunday b) 45 && is (broken-down-week-monday b) 45 && is (broken-down-unix-seconds b) 1794571200
+       && text-is (broken-down-zone-abbreviation b) "IST" && text-is (broken-down-zone-name b) "Asia/Kolkata"
+       && is (broken-down-year (broken-down-with-year (-9999) b)) (-9999) && is (broken-down-month b) 11
+       && is (broken-down-offset (broken-down-with-offset (-93599) b)) (-93599)
+       && meridiem-is (broken-down-meridiem (broken-down-with-meridiem Am b)) 0
+       && wd-is (broken-down-weekday (broken-down-with-weekday Sunday b)) Sunday
+       && wd-is (broken-down-weekday (broken-down-with-weekday Monday b)) Monday
+    then 0 else 2
+
+  date-is :: BrokenDown -> Date -> Bool
+  date-is b d = case broken-down-to-date b of
+    Err _ -> False
+    Ok x -> x == d
+
+  time-is :: BrokenDown -> TimeOfDay -> Bool
+  time-is b t = case broken-down-to-time b of
+    Err _ -> False
+    Ok x -> x == t
+
+  datetime-is :: BrokenDown -> DateTime -> Bool
+  datetime-is b x = case broken-down-to-datetime b of
+    Err _ -> False
+    Ok y -> y == x
+
+  instant-is :: BrokenDown -> I64 -> I64 -> Bool
+  instant-is b secs nanos = case broken-down-to-timestamp b of
+    Err _ -> False
+    Ok ts -> case timestamp-to-unix-seconds-and-nanos ts of
+      (s, n) -> s == secs && n == nanos
+
+  date-refusal :: BrokenDown -> I64
+  date-refusal b = case broken-down-to-date b of
+    Ok _ -> -1
+    Err e -> code e
+
+  check-out :: Int
+  check-out =
+    let b = full in
+    if date-is b (ymd 2026 11 13) && time-is b (hmsn 17 30 5 250000000) && datetime-is b (at 2026 11 13 17 30 5 250000000)
+       && instant-is b 1794571200 250000000
+       && date-refusal (broken-down-with-weekday Thursday b) == 22000000
+       && date-refusal (broken-down-with-day-of-year 318 b) == 23000000
+       && date-refusal (broken-down-with-iso-week 47 b) == 24000000
+       && date-refusal (broken-down-with-week-sunday 46 b) == 25000000
+       && date-refusal (broken-down-with-day 31 b) == 20000000
+       && date-is (broken-down-with-day-of-year 60 (broken-down-with-year 2024 broken-down-empty)) (ymd 2024 2 29)
+       && date-is (broken-down-with-weekday Monday (broken-down-with-iso-week 1 (broken-down-with-iso-week-year 2025 broken-down-empty))) (ymd 2024 12 30)
+       && date-is (broken-down-with-weekday Friday (broken-down-with-week-sunday 45 (broken-down-with-year 2026 broken-down-empty))) (ymd 2026 11 13)
+       && date-is (broken-down-with-weekday Monday (broken-down-with-week-monday 53 (broken-down-with-year 2024 broken-down-empty))) (ymd 2024 12 30)
+       && time-is (broken-down-with-meridiem Am (broken-down-with-hour12 12 broken-down-empty)) T.midnight
+       && time-is (broken-down-with-meridiem Pm (broken-down-with-hour12 12 broken-down-empty)) T.noon
+       && time-is (broken-down-with-hour 9 broken-down-empty) (hmsn 9 0 0 0)
+       && datetime-is (broken-down-from-date (ymd 2026 11 13)) (at 2026 11 13 0 0 0 0)
+       && instant-is (broken-down-with-unix-seconds (-1) broken-down-empty) (-1) 0
+       && instant-is (broken-down-with-subsec-nanosecond 7 (broken-down-with-unix-seconds (-1) broken-down-empty)) (-1) 7
+    then 0 else 4
+
+  ts-of :: I64 -> I64 -> Timestamp
+  ts-of s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  at-offset :: I64 -> Timestamp -> BrokenDown
+  at-offset off ts = case broken-down-from-timestamp-at-offset off ts of
+    None -> broken-down-empty
+    Some b -> b
+
+  refuses-offset :: I64 -> Bool
+  refuses-offset off = case broken-down-from-timestamp-at-offset off timestamp-epoch of
+    None -> True
+    Some _ -> False
+
+  check-in :: Int
+  check-in =
+    let d = broken-down-from-date (ymd 2026 11 13) in
+    let t = broken-down-from-time (hmsn 17 30 5 250000000) in
+    let x = broken-down-from-datetime (at 2026 11 13 17 30 5 250000000) in
+    let u = broken-down-from-timestamp-utc (ts-of 1793423700 500000000) in
+    let k = at-offset 19800 (ts-of 1793423700 500000000) in
+    if is (broken-down-year d) 2026 && is (broken-down-month d) 11 && is (broken-down-day d) 13 && none (broken-down-hour d)
+       && no-weekday (broken-down-weekday d) && none (broken-down-day-of-year d) && date-is d (ymd 2026 11 13)
+       && is (broken-down-hour t) 17 && is (broken-down-minute t) 30 && is (broken-down-second t) 5
+       && is (broken-down-subsec-nanosecond t) 250000000 && none (broken-down-year t) && none (broken-down-hour12 t)
+       && time-is t (hmsn 17 30 5 250000000) && datetime-is x (at 2026 11 13 17 30 5 250000000) && none (broken-down-offset x)
+       && datetime-is u (at 2026 10 31 5 15 0 500000000) && is (broken-down-offset u) 0 && is (broken-down-unix-seconds u) 1793423700
+       && instant-is u 1793423700 500000000
+       && datetime-is k (at 2026 10 31 10 45 0 500000000) && is (broken-down-offset k) 19800 && is (broken-down-unix-seconds k) 1793423700
+       && instant-is k 1793423700 500000000
+       && datetime-is (at-offset 93599 max-timestamp) DT.max-datetime && datetime-is (at-offset (-93599) min-timestamp) DT.min-datetime
+       && refuses-offset 93600 && refuses-offset (-93600)
+       && datetime-is (broken-down-from-timestamp-utc min-timestamp) (at (-9999) 1 2 1 59 59 0)
+    then 0 else 8
+
+  -- One compiled format applied to several values and inputs.
+  compiled :: String -> Option Format
+  compiled f = case strtime-format-compile f of
+    Err _ -> None
+    Ok x -> Some x
+
+  prints :: Format -> BrokenDown -> String -> Bool
+  prints f b s = case strftime-format f b of
+    Err _ -> False
+    Ok x -> x == s
+
+  parses :: Format -> String -> DateTime -> Bool
+  parses f s x = case strptime-format f s of
+    Err _ -> False
+    Ok b -> datetime-is b x
+
+  compile-refusal :: String -> I64
+  compile-refusal f = case strtime-format-compile f of
+    Ok _ -> -1
+    Err e -> code e
+
+  check-compiled :: Int
+  check-compiled = case compiled "%a, %b %d, %Y %H:%M" of
+    None -> 16
+    Some f ->
+      if prints f (broken-down-from-datetime (at 2026 11 13 17 30 0 0)) "Fri, Nov 13, 2026 17:30"
+         && prints f (broken-down-from-datetime (at 2024 2 29 0 0 0 0)) "Thu, Feb 29, 2024 00:00"
+         && prints f (broken-down-from-datetime (at (-44) 3 15 12 5 0 0)) "Thu, Mar 15, -0044 12:05"
+         && parses f "Fri, Nov 13, 2026 17:30" (at 2026 11 13 17 30 0 0)
+         && parses f "thu,feb 29,2024 0:0" (at 2024 2 29 0 0 0 0)
+         && compile-refusal "%q" == 1001113 && compile-refusal "%" == 2000000 && compile-refusal "%300d" == 3000000
+         && compile-refusal "%-F" == 4000000 && compile-refusal "" == -1 && compile-refusal "%F %T%.f %:z" == -1
+      then 0 else 16
+
+  -- Print then parse gives the value back.
+  round :: String -> DateTime -> Bool
+  round f x = case datetime-strftime f x of
+    Err _ -> False
+    Ok s -> px f s x
+
+  walk :: I64 -> I64 -> Bool
+  walk z count =
+    if z > D.max-epoch-day then count == 1420
+    else case D.from-epoch-days z of
+      None -> False
+      Some d ->
+        let x = DT.datetime d (hmsn (scan12 z) 30 (scan12 count) 123456789) in
+        if round "%Y-%m-%dT%H:%M:%S%.f" x && round "%A %-d %B %Y %I:%M:%S.%9f %p" x && round "%G-W%V-%u %T.%f" x
+           && round "%Y %j %H%M%S %f" x && round "%a %Y %U %T%.f" x && round "%a %Y %W %T%.f" x
+        then walk (wrapping-add-i64 z 5147) (wrapping-add-i64 count 1) else False
+
+  -- A small varying field value, 0..=11.
+  scan12 :: I64 -> I64
+  scan12 n = case checked-rem-i64 n 12 of
+    None -> 0
+    Some r -> if r < 0 then wrapping-add-i64 r 12 else r
+
+  check-round-trip :: Int
+  check-round-trip = if walk D.min-epoch-day 0 then 0 else 32
+
+  timestamp-round :: String -> I64 -> Timestamp -> Bool
+  timestamp-round f off ts = case strftime f (at-offset off ts) of
+    Err _ -> False
+    Ok s -> case strptime f s of
+      Err _ -> False
+      Ok b -> case broken-down-to-timestamp b of
+        Err _ -> False
+        Ok x -> x == ts
+
+  check-timestamp-round-trip :: Int
+  check-timestamp-round-trip =
+    let t = ts-of 1793423700 123456789 in
+    if timestamp-round "%FT%T%.f%:z" 19800 t && timestamp-round "%FT%T%.f%z" (-12600) t
+       && timestamp-round "%FT%T.%9f%::z" 1172 t && timestamp-round "%s.%9f" 0 t
+       && timestamp-round "%FT%T%.f%:z" 93599 max-timestamp && timestamp-round "%FT%T%.f%:z" (-93599) min-timestamp
+       && timestamp-round "%FT%T%.f%:z" 0 min-timestamp && timestamp-round "%s%.f" 0 max-timestamp
+       && timestamp-round "%a, %d %b %Y %T %z" 3600 (ts-of 1793423700 0)
+    then 0 else 64
+
+  main :: Int
+  main = check-empty + check-setters + check-out + check-in + check-compiled + check-round-trip + check-timestamp-round-trip

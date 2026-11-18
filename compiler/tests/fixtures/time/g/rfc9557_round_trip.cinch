@@ -1,0 +1,190 @@
+-- Lane G: Text.Time.Rfc9557, the round trip law. For instants swept
+-- across each zone, `zoned-to-string` then `parse-zoned-text` and
+-- `zoned-text-resolve OffsetReject Reject` gives the same instant, the
+-- same text again and the annotation the zone was printed under. The
+-- `Reject` strategy means the printed offset alone must select the
+-- instant, including both occurrences of a folded hour. New York is
+-- swept over all of 2026 and minute by minute around both of its
+-- transitions; the other shipped zones, fixed offsets and offsets with
+-- seconds more coarsely; subsecond digits and the fixed precision too.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+  import Text.Time.Rfc9557
+
+  db :: TzDb
+  db = tzdb-at "tests/fixtures/time/c/tzif"
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  -- The annotation the text carries: the zone's name, or its offset
+  -- when the zone is a fixed offset with no grammatical name.
+  same-annotation :: TimeZone -> ZonedText -> Bool
+  same-annotation z t = case zoned-text-zone t of
+    ZoneAnnotationName n -> n == zone-name z
+    ZoneAnnotationOffset o -> (case zone-fixed-offset z of
+      None -> False
+      Some f -> o == f)
+
+  -- One instant: print, parse (lenient, so `[+HH:MM:SS]` reads back),
+  -- resolve strictly, compare, print again.
+  trips :: TimeZone -> Timestamp -> Bool
+  trips z t =
+    let x = zoned-from-timestamp z t in
+    let text = zoned-to-string x in
+    case parse-zoned-text-lenient text of
+      Err _ -> False
+      Ok parsed -> case zoned-text-resolve OffsetReject Reject z parsed of
+        Err _ -> False
+        Ok y -> zoned-timestamp y == t && y == x && zoned-to-string y == text
+          && same-annotation z parsed
+          && (case zoned-text-numeric-offset parsed of
+                None -> False
+                Some o -> o == zoned-offset x)
+
+  -- `left` instants from Unix second `s`, `step` seconds apart, each
+  -- with `nanos` subsecond nanoseconds.
+  sweep :: TimeZone -> I64 -> I64 -> I64 -> I64 -> Bool
+  sweep z s step nanos left =
+    if left == 0 then True
+    else case timestamp-from-unix-seconds-and-nanos s nanos of
+      None -> False
+      Some t -> if trips z t then sweep z (wrapping-add-i64 s step) step nanos (wrapping-sub-i64 left 1) else False
+
+  -- 1: New York, 2026-01-01 to 2027-01-01 every 5 h 37 min 11 s (so
+  -- every time of day is visited), 1560 instants.
+  check-new-york-year :: TimeZone -> Int
+  check-new-york-year z = if sweep z 1767225600 20231 0 1560 then 0 else 1
+
+  -- 2: New York, every minute from three hours before to three hours
+  -- after the gap (2026-03-08T07:00Z) and the fold (2026-11-01T06:00Z):
+  -- both occurrences of every minute of the folded hour.
+  check-new-york-transitions :: TimeZone -> Int
+  check-new-york-transitions z =
+    if sweep z 1772942400 60 0 361 && sweep z 1793502000 60 0 361
+       && sweep z 1793509199 7 0 1030
+      then 0 else 2
+
+  folded :: TimeZone -> I64 -> I64 -> String -> String -> Bool
+  folded z first second a b = case timestamp-from-unix-seconds first of
+    None -> False
+    Some t1 -> case timestamp-from-unix-seconds second of
+      None -> False
+      Some t2 ->
+        zoned-to-string (zoned-from-timestamp z t1) == a
+        && zoned-to-string (zoned-from-timestamp z t2) == b
+        && trips z t1 && trips z t2
+
+  -- 4: the two occurrences of one folded reading print differently and
+  -- each comes back as itself.
+  check-fold-pairs :: TimeZone -> TimeZone -> Int
+  check-fold-pairs ny syd =
+    if folded ny 1793511000 1793514600 "2026-11-01T01:30:00-04:00[America/New_York]" "2026-11-01T01:30:00-05:00[America/New_York]"
+       && folded ny 1793509200 1793512800 "2026-11-01T01:00:00-04:00[America/New_York]" "2026-11-01T01:00:00-05:00[America/New_York]"
+       && folded ny 1793512799 1793516399 "2026-11-01T01:59:59-04:00[America/New_York]" "2026-11-01T01:59:59-05:00[America/New_York]"
+       && folded syd 1775316600 1775320200 "2026-04-05T02:30:00+11:00[Australia/Sydney]" "2026-04-05T02:30:00+10:00[Australia/Sydney]"
+      then 0 else 4
+
+  -- 8: Sydney and Santiago (southern rules, a fold and a gap at
+  -- midnight) over 2026, and around their transitions by the minute.
+  check-south :: TimeZone -> TimeZone -> Int
+  check-south syd san =
+    if sweep syd 1767225600 20231 0 1560 && sweep san 1767225600 20231 0 1560
+       && sweep syd 1775307600 60 0 361 && sweep syd 1791032400 60 0 361
+       && sweep san 1775347200 60 0 361 && sweep san 1788656400 60 0 361
+      then 0 else 8
+
+  -- 16: Kolkata (round trips at +05:30), Amsterdam, London and Apia
+  -- over 2026; Apia across the day it skipped in 2011.
+  check-world :: TimeZone -> TimeZone -> TimeZone -> TimeZone -> Int
+  check-world kol ams lon apia =
+    if sweep kol 1767225600 20231 0 1560 && sweep ams 1767225600 20231 0 1560
+       && sweep lon 1767225600 20231 0 1560 && sweep apia 1767225600 20231 0 1560
+       && sweep apia 1325228400 60 0 361
+       && sweep kol 1780295400 1 0 600
+      then 0 else 16
+
+  -- 32: offsets with seconds: Amsterdam's local mean time (+00:19:32)
+  -- and the table's first transitions; old Kolkata and Sydney local
+  -- mean times.
+  check-old :: TimeZone -> TimeZone -> TimeZone -> Int
+  check-old ams kol syd =
+    if sweep ams (-2208945600) 2000003 0 600
+       && sweep ams (-5000000000) 9000001 0 400
+       && sweep kol (-5000000000) 9000001 0 500
+       && sweep syd (-5000000000) 9000001 0 500
+      then 0 else 32
+
+  -- 64: UTC and fixed offsets (whole minutes in strict form, seconds in
+  -- the lenient form), and a fixed zone under a grammatical name.
+  check-fixed :: TimeZone -> Int
+  check-fixed utc-file =
+    if sweep zone-utc 1767225600 20231 0 400 && sweep utc-file 1767225600 20231 0 400
+       && sweep (zone-fixed (off 19800)) 1767225600 20231 0 400
+       && sweep (zone-fixed (off (-12600))) 1767225600 20231 0 400
+       && sweep (zone-fixed (off 19815)) 1767225600 20231 0 400
+       && sweep (zone-fixed max-offset) 1767225600 20231 0 400
+       && sweep (zone-fixed min-offset) 1767225600 20231 0 400
+       && sweep (zone-fixed-named "EST" (off (-18000))) 1767225600 20231 0 400
+       && sweep zone-utc (-377705023201) 1577768000 0 400
+       && trips zone-utc min-timestamp && trips zone-utc max-timestamp
+       && trips (zone-fixed max-offset) max-timestamp && trips (zone-fixed min-offset) min-timestamp
+      then 0 else 64
+
+  -- The fixed precision reads back as the instant truncated to it.
+  precise :: TimeZone -> I64 -> I64 -> I64 -> Bool
+  precise z s nanos kept = case timestamp-from-unix-seconds-and-nanos s nanos of
+    None -> False
+    Some t -> case timestamp-from-unix-seconds-and-nanos s kept of
+      None -> False
+      Some cut -> case parse-zoned-text (zoned-to-string-precision 3 (zoned-from-timestamp z t)) of
+        Err _ -> False
+        Ok parsed -> case zoned-text-resolve OffsetReject Reject z parsed of
+          Err _ -> False
+          Ok y -> zoned-timestamp y == cut
+
+  -- 128: subsecond digits survive; a fixed precision truncates.
+  check-fractions :: TimeZone -> Int
+  check-fractions ny =
+    if sweep ny 1767225600 200003 1 300 && sweep ny 1767225600 200003 999999999 300
+       && sweep ny 1767225600 200003 123456789 300 && sweep ny 1767225600 200003 500000000 300
+       && sweep ny 1793509200 61 120000000 120
+       && sweep ny (-86400) 3607 987654321 100
+       && precise ny 1793511000 123456789 123000000
+       && precise ny 1793514600 999999999 999000000
+       && precise ny 1793514600 0 0
+      then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup db "Australia/Sydney" of
+      Err _ -> 255
+      Ok syd -> case tzdb-lookup db "America/New_York" of
+        Err _ -> 255
+        Ok ny -> case tzdb-lookup db "Asia/Kolkata" of
+          Err _ -> 255
+          Ok kol -> case tzdb-lookup db "Europe/Amsterdam" of
+            Err _ -> 255
+            Ok ams -> case tzdb-lookup db "America/Santiago" of
+              Err _ -> 255
+              Ok san -> case tzdb-lookup db "Pacific/Apia" of
+                Err _ -> 255
+                Ok apia -> case tzdb-lookup db "Europe/London" of
+                  Err _ -> 255
+                  Ok lon -> case tzdb-lookup db "UTC" of
+                    Err _ -> 255
+                    Ok utc-file -> check-new-york-year ny + check-new-york-transitions ny + check-fold-pairs ny syd
+                      + check-south syd san + check-world kol ams lon apia + check-old ams kol syd
+                      + check-fixed utc-file + check-fractions ny

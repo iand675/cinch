@@ -1,0 +1,1148 @@
+-- Data.Time.Zoned.Arithmetic: arithmetic, differences and rounding on
+-- an instant in a place (design/datetime.md, layer L3 on L2, lane F).
+--
+-- The semantics are TC39 Temporal's ZonedDateTime (add, subtract,
+-- until, since, round, startOfDay, hoursInDay, with) and its
+-- Duration operations with a zoned relativeTo, as rendered by Jiff's
+-- `Zoned`. Ported, not redesigned (section 6 of the design note).
+--
+-- Design law shape.
+--   - ADD (AddZonedDateTime). A span with no calendar unit (years,
+--     months, weeks and days all zero) is added on the instant, so
+--     `zoned-add-span (span-of-hours 1)` is exactly one elapsed hour
+--     whatever the clocks did (01:30 -05:00 on New York's spring
+--     transition day plus one hour is 03:30 -04:00). Otherwise the
+--     years, months, weeks and days are added to the CIVIL date with
+--     the day constrained to the target month (2024-05-31 + 1 month is
+--     2024-06-30), the time of day is kept, that civil reading is
+--     resolved in the zone by the options' `Disambiguation` (T4;
+--     `Compatible` by default), and the clock units are then added on
+--     the instant. So `+ 1 day` and `+ 24 hours` differ on a
+--     transition day, and `zoned-sub-span s` is `zoned-add-span
+--     (span-negate s)`.
+--   - DIFFERENCE (DifferenceZonedDateTime). With the largest unit
+--     `Hour` or smaller (the default is `Hour`) the difference is the
+--     exact elapsed time between the instants, and the two values may
+--     be in different zones. With `Day` or larger both values must be
+--     in the same zone (by name) and the calendar part is counted on
+--     the civil readings in the first value's zone: the largest whole
+--     count of each unit for which `a` plus that count, read at `a`'s
+--     time of day and resolved `Compatible`, does not pass `b`, and
+--     the remainder is elapsed time. The remainder is spelled in hours
+--     and smaller and is NOT folded into days, so it can reach 24
+--     hours and more on a 25-hour day (Temporal spells a zoned
+--     difference with TemporalDurationFromInternal(.., hour)).
+--     `zoned-since a b` is the negation of `zoned-until a b`, and
+--     with no rounding `zoned-add-span (zoned-until a b) a` is `b`
+--     for the largest units `Hour` and smaller always, and for `Day`
+--     unless `a` is the second occurrence of a repeated civil reading
+--     (next point).
+--   - A WART THAT IS PORTED. The intermediate reading of a calendar
+--     difference is "`a`'s time of day on a date at or next to
+--     `b`'s", resolved `Compatible`. When `a` is the SECOND 01:30 of
+--     a fold and the calendar part is zero days, that intermediate is
+--     the FIRST 01:30, an hour before `a`, so the remainder is an hour
+--     longer than the time that elapsed (the second 01:30 on
+--     2024-11-03 in New York until 00:30 on the 4th is 24 hours with
+--     largest `Day` and 23 by default). This is what Temporal's
+--     algorithm answers and it is kept; the default (hours) form is
+--     always the elapsed time. Two readings on ONE civil date never
+--     go through an intermediate: their difference is the elapsed
+--     time.
+--   - A DAY is the time between two consecutive civil starts of day in
+--     the zone: 23 hours on 2024-03-10 in New York, 25 on 2024-11-03.
+--     Rounding a difference or a span uses the same idea from the
+--     anchor's time of day: the "day" after the calendar part runs
+--     from where that part lands to the same civil time one civil day
+--     on. A unit below a day is rounded and compared against that
+--     length (NudgeToZonedTime), and rounding to days measures
+--     progress through it (NudgeToCalendarUnit): 12 hours 15 minutes
+--     from 17:30 on 2024-11-02 rounds DOWN to 0 days, because 17:30 to
+--     17:30 the next day is 25 hours.
+--   - ROUND a value (ZonedDateTime.prototype.round). To `Day`: within
+--     [start of the civil day, start of the next civil day] by the
+--     real length of that day. To a smaller unit: the civil reading is
+--     rounded (as `datetime-round`) and resolved again preferring the
+--     offset the value already has (below).
+--   - PREFER THE CURRENT OFFSET (InterpretISODateTimeOffset with the
+--     offset option "prefer"). When a civil reading is re-resolved for
+--     a value that already has an offset (rounding, and the
+--     `zoned-with-` family), the value's own offset is kept if the new
+--     reading can have it; otherwise the reading is resolved by the
+--     strategy (`Compatible` unless the `-resolving` form names
+--     another). So 01:30 -05:00 in the autumn fold stays at -05:00
+--     when its minutes are changed.
+--   - SPANS RELATIVE TO A ZONED VALUE (`span-round-zoned` and its
+--     family) are one construction: add the span to the anchor (ADD,
+--     `Compatible`), then take the DIFFERENCE from the anchor to that
+--     instant in the units asked for. 2756 hours from 2020-01-01 in
+--     Europe/Amsterdam is 3 months 23 days 21 hours (one of those days
+--     was 23 hours long; the civil anchor of `Data.Time.Span` gives 20
+--     hours).
+--   - The civil conveniences (`zoned-tomorrow`, `zoned-first-of-month`,
+--     `zoned-nth-weekday`, ..) are lane B's operation on the civil
+--     date, the same time of day, resolved `Compatible`.
+--
+-- Where the engine lives. Lane D's header names a seam (a third
+-- `Relative` constructor inside Data.Time.Span). It is not used: that
+-- would make Data.Time.Span import the zone modules, and lane D's
+-- test harness would have to ship them. The zoned engine is here
+-- instead, built on Data.Time.Span's exports (`span-difference-civil`
+-- for the calendar count between two dates, `span-difference-nanos`
+-- and `span-from-units` for the spelling) and on the rounding kernel
+-- of Data.Time.Unit. The one addition to Data.Time.Span is four
+-- readers of the abstract `SpanRound` (`span-round-largest`,
+-- `-smallest`, `-increment`, `-mode`), so that `span-round-zoned`
+-- takes the same options value as `span-round`.
+--
+-- Overflow. Instants are within +-3.8e20 nanoseconds and a span's
+-- clock units total below 1.3e21 (Data.Time.Span's header), so every
+-- sum and difference of them formed here is below 2^72 and the
+-- `wrapping-` `I128` operations on them are exact. Products with a
+-- rounding increment (at most 1e9) and a unit count (at most about
+-- 1e9) stay below 2^120; each such product says so where it is
+-- formed. `I64` unit counts are span fields (within their limits)
+-- plus or minus one increment, so their `wrapping-` sums are exact.
+--
+-- No operation faults (T2): `Result ZonedError` wherever a refusal is
+-- possible, `Option` where the only refusal is the range.
+--
+-- NAMED REFUSALS:
+--   - a silent disambiguation (T4): every operation that resolves a
+--     civil reading either takes the strategy (`ZonedArithmetic`, the
+--     `-resolving` forms) or says in this header that it is
+--     `Compatible` (the conveniences, and the intermediate readings of
+--     a difference or a rounding, where Temporal fixes it).
+--   - a calendar difference across zones: `ZonedZonesDiffer`. Which
+--     zone's days would be counted is not something to pick silently.
+--     Move one value with `zoned-with-time-zone` first.
+--   - folding the remainder of a calendar difference into days: not
+--     done (see DIFFERENCE); a remainder of 24 hours 59 minutes on a
+--     25-hour day is spelled so.
+--   - `Day` rounding of a value with an increment other than 1, and
+--     week, month or year as a value's rounding unit: refused, as in
+--     Temporal.
+--   - `zoned-hours-in-day` as a number: a day's length is not always a
+--     whole number of hours (Lord Howe's half-hour shift), and there
+--     is no float in this family. `zoned-day-length` is the exact
+--     `Duration`.
+--   - operator instances (T2).
+--   - rounding at the very end of the range: every rounding of a
+--     difference or a span reads the further candidate (the far end of
+--     the unit's window, or the civil day after the calendar part) to
+--     measure against, and answers `ZonedOutOfRange` when that lies
+--     outside the range even if the mode would not have chosen it.
+--   - the 0.5.1 reference polyfill as the last word: three steps of
+--     the current specification text (read 2026-11-17) are later than
+--     it and are followed here, so three kinds of answer differ from
+--     that polyfill: two readings on one civil date differ by elapsed
+--     time (DifferenceZonedDateTime step 4); a calendar rounding
+--     window that does not hold the destination is moved one increment
+--     on (ComputeNudgeWindow's additionalShift); and the window's
+--     start can be the anchor's own instant (next point).
+--   - ONE DELIBERATE DEPARTURE from the specification's letter.
+--     ComputeNudgeWindow says "If r1 = 0, let startEpochNs be
+--     originEpochNs". Here the window starts at the anchor's own
+--     instant only when the whole start candidate is zero (no larger
+--     units before it either). For years the two are the same. For a
+--     smaller unit after non-zero larger ones (1 month 5 hours rounded
+--     to days: r1 is 0 days) the letter would measure the day's
+--     progress from the anchor, a month back, and round 5 hours up to
+--     a day; that cannot be meant, so the candidate "anchor plus one
+--     month" is resolved in the zone as every other candidate is. What
+--     the rule is for is kept: an anchor that is the second occurrence
+--     of a repeated reading is not resolved again to the first.
+module Data.Time.Zoned.Arithmetic where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+
+  export ZonedError, ZonedOutOfRange, ZonedRejectedGap, ZonedRejectedFold
+  export ZonedZonesDiffer, ZonedBadUnits, ZonedBadIncrement, ZonedUnitLimit
+  export ZonedArithmetic, zoned-arithmetic-default, with-disambiguation
+  export zoned-arithmetic-disambiguation
+  export zoned-add-span, zoned-sub-span, zoned-add-span-with, zoned-sub-span-with
+  export zoned-add-duration, zoned-sub-duration
+  export zoned-tomorrow, zoned-yesterday
+  export zoned-start-of-next-day, zoned-day-length
+  export zoned-first-of-month, zoned-last-of-month
+  export zoned-first-of-year, zoned-last-of-year
+  export zoned-nth-weekday, zoned-nth-weekday-of-month
+  export ZonedDifference, zoned-difference-default, zoned-difference-largest
+  export zoned-until, zoned-since, zoned-until-with, zoned-since-with
+  export ZonedRound, zoned-round-default, zoned-round-to
+  export zoned-round, zoned-round-with
+  export zoned-with-date, zoned-with-time, zoned-with-datetime
+  export zoned-with-date-resolving, zoned-with-time-resolving
+  export zoned-with-datetime-resolving
+  export span-round-zoned, span-balance-zoned
+  export span-total-zoned, span-compare-zoned
+  export span-checked-add-zoned, span-checked-sub-zoned
+
+
+  -- The refusals of this module.
+  data ZonedError where
+    -- A date, a civil reading or an instant left the supported range.
+    ZonedOutOfRange :: ZonedError
+    -- `Reject` met a reading that does not exist (offsets before and
+    -- after the jump).
+    ZonedRejectedGap :: Offset -> Offset -> ZonedError
+    -- `Reject` met a reading that occurs twice (the two offsets).
+    ZonedRejectedFold :: Offset -> Offset -> ZonedError
+    -- A difference in days or larger between values in different
+    -- zones.
+    ZonedZonesDiffer :: ZonedError
+    -- `largest` is smaller than `smallest`, or a unit the operation
+    -- does not accept.
+    ZonedBadUnits :: ZonedError
+    -- The rounding increment is not valid for the smallest unit.
+    ZonedBadIncrement :: ZonedError
+    -- A unit of the resulting span passes its limit.
+    ZonedUnitLimit :: ZonedError
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing. The header gives the bounds that keep each
+  -- wrapping use from wrapping.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- Truncated quotient by a divisor of at least 1. The guard excludes
+  -- the divisors for which the checked operation answers `None`.
+  quot :: I64 -> I64 -> I64
+  quot a d =
+    if d < 1 then 0
+    else case checked-div-i64 a d of
+      Some q -> q
+      None -> 0
+
+  sgn :: I64 -> I64
+  sgn n = if n > 0 then 1 else if n < 0 then -1 else 0
+
+  -- A typed two-way choice (a literal `if` in a `let` defaults to
+  -- `Int`).
+  choose :: Bool -> I64 -> I64 -> I64
+  choose c a b = if c then a else b
+
+  wide :: I64 -> I128
+  wide n = i64-to-i128 n
+
+  add128 :: I128 -> I128 -> I128
+  add128 a b = wrapping-add-i128 a b
+
+  sub128 :: I128 -> I128 -> I128
+  sub128 a b = wrapping-sub-i128 a b
+
+  mul128 :: I128 -> I128 -> I128
+  mul128 a b = wrapping-mul-i128 a b
+
+  sgn128 :: I128 -> I64
+  sgn128 n = if gt-i128 n 0 then 1 else if lt-i128 n 0 then -1 else 0
+
+  -- The magnitude of a value bounded far inside `I128`.
+  abs128 :: I128 -> I128
+  abs128 n = if lt-i128 n 0 then wrapping-neg-i128 n else n
+
+  nanos :: Timestamp -> I128
+  nanos t = timestamp-to-unix-nanos t
+
+  of-span-error :: SpanError -> ZonedError
+  of-span-error e = case e of
+    SpanSignConflict -> ZonedUnitLimit
+    SpanUnitLimit -> ZonedUnitLimit
+    SpanNeedsAnchor -> ZonedBadUnits
+    SpanBadUnits -> ZonedBadUnits
+    SpanBadIncrement -> ZonedBadIncrement
+    SpanOutOfRange -> ZonedOutOfRange
+
+  of-ambiguity :: AmbiguityError -> ZonedError
+  of-ambiguity e = case e of
+    RejectedGap b a -> ZonedRejectedGap b a
+    RejectedFold b a -> ZonedRejectedFold b a
+    AmbiguityOutOfRange -> ZonedOutOfRange
+
+  -- The instant of a civil date and time of day in the zone, by the
+  -- strategy.
+  resolve :: Disambiguation -> TimeZone -> Date -> TimeOfDay -> Result ZonedError Timestamp
+  resolve s z d t = case zone-to-timestamp s z (DT.datetime d t) of
+    Err e -> Err (of-ambiguity e)
+    Ok ts -> Ok ts
+
+  -- The same, `Compatible`, as a nanosecond count (Temporal's
+  -- GetEpochNanosecondsFor(.., compatible)).
+  epoch :: TimeZone -> Date -> TimeOfDay -> Result ZonedError I128
+  epoch z d t = case resolve Compatible z d t of
+    Err e -> Err e
+    Ok ts -> Ok (nanos ts)
+
+  -- An instant moved by a nanosecond count (AddInstant).
+  instant-plus :: Timestamp -> I128 -> Result ZonedError Timestamp
+  instant-plus ts n = case timestamp-from-unix-nanos-i128 (add128 (nanos ts) n) of
+    None -> Err ZonedOutOfRange
+    Some r -> Ok r
+
+  same-zone :: Zoned -> Zoned -> Bool
+  same-zone a b = zone-name (zoned-time-zone a) == zone-name (zoned-time-zone b)
+
+  in-zone :: TimeZone -> Result ZonedError Timestamp -> Result ZonedError Zoned
+  in-zone z r = case r of
+    Err e -> Err e
+    Ok ts -> Ok (zoned-from-timestamp z ts)
+
+  -- -----------------------------------------------------------------
+  -- The internal duration (Temporal's Internal Duration Record): the
+  -- four date units, signed, and the clock units as one nanosecond
+  -- count.
+  -- -----------------------------------------------------------------
+
+  data Parts where
+    MkParts :: I64 -> I64 -> I64 -> I64 -> I128 -> Parts
+
+  zero-parts :: Parts
+  zero-parts = MkParts 0 0 0 0 0
+
+  date-only :: I64 -> I64 -> I64 -> I64 -> Parts
+  date-only y mo w d = MkParts y mo w d 0
+
+  parts-of :: forall (c :: SpanClass). Span c -> Parts
+  parts-of s = MkParts (span-years s) (span-months s) (span-weeks s) (span-days s) (span-time-nanos s)
+
+  -- Whether the date part is zero (DateDurationSign = 0).
+  no-date :: Parts -> Bool
+  no-date p = case p of
+    MkParts y mo w d _ -> y == 0 && mo == 0 && w == 0 && d == 0
+
+  -- InternalDurationSign as Temporal's rounding "sign": -1 when
+  -- negative, otherwise 1.
+  direction :: Parts -> I64
+  direction p = case p of
+    MkParts y mo w d t ->
+      if y /= 0 then choose (y < 0) (-1) 1
+      else if mo /= 0 then choose (mo < 0) (-1) 1
+      else if w /= 0 then choose (w < 0) (-1) 1
+      else if d /= 0 then choose (d < 0) (-1) 1
+      else choose (lt-i128 t 0) (-1) 1
+
+  -- CalendarDateAdd with "constrain" (Data.Time.Span's `add-date`):
+  -- years and months as one month count, the day constrained once,
+  -- then weeks and days on the epoch day. Lane B's operations check
+  -- the range.
+  add-date :: I64 -> I64 -> I64 -> I64 -> Date -> Option Date
+  add-date y mo w d x =
+    let months = plus (times y 12) mo in
+    let days = plus (times w 7) d in
+    if months == 0 then (if days == 0 then Some x else D.add-days days x)
+    else case D.add-months-constrain months x of
+      None -> None
+      Some m -> if days == 0 then Some m else D.add-days days m
+
+  add-date-parts :: Parts -> Date -> Result ZonedError Date
+  add-date-parts p x = case p of
+    MkParts y mo w d _ -> case add-date y mo w d x of
+      None -> Err ZonedOutOfRange
+      Some r -> Ok r
+
+  -- TemporalDurationFromInternal(.., hour) for a zoned result: the
+  -- clock nanoseconds are spelled in hours and smaller and are not
+  -- folded into the days (header, DIFFERENCE).
+  spell :: Parts -> Result ZonedError (Span Calendar)
+  spell p = case p of
+    MkParts y mo w d t -> case span-difference-nanos Hour Nanosecond 1 Trunc t of
+      Err e -> Err (of-span-error e)
+      Ok c -> case span-from-units y mo w d (span-hours c) (span-minutes c) (span-seconds c) (span-milliseconds c) (span-microseconds c) (span-nanoseconds c) of
+        Err e -> Err (of-span-error e)
+        Ok s -> Ok s
+
+  -- -----------------------------------------------------------------
+  -- Addition (AddZonedDateTime).
+  -- -----------------------------------------------------------------
+
+  add-core :: Disambiguation -> TimeZone -> Timestamp -> Parts -> Result ZonedError Timestamp
+  add-core s z ts p = case p of
+    MkParts _ _ _ _ t ->
+      if no-date p then instant-plus ts t
+      else
+        let civil = zone-to-datetime z ts in
+        case add-date-parts p (DT.date-part civil) of
+          Err e -> Err e
+          Ok nd -> case resolve s z nd (DT.time-part civil) of
+            Err e -> Err e
+            Ok mid -> instant-plus mid t
+
+  -- The options of zoned addition (T7): how a civil reading that the
+  -- calendar units land on is resolved when it does not exist or
+  -- occurs twice.
+  data ZonedArithmetic where
+    MkZonedArithmetic :: Disambiguation -> ZonedArithmetic
+
+  -- `Compatible`.
+  zoned-arithmetic-default :: ZonedArithmetic
+  zoned-arithmetic-default = MkZonedArithmetic Compatible
+
+  with-disambiguation :: Disambiguation -> ZonedArithmetic -> ZonedArithmetic
+  with-disambiguation s o = MkZonedArithmetic s
+
+  zoned-arithmetic-disambiguation :: ZonedArithmetic -> Disambiguation
+  zoned-arithmetic-disambiguation o = case o of
+    MkZonedArithmetic s -> s
+
+  -- Add a span (the header's ADD law) under the options.
+  --   Err ZonedOutOfRange    the date or the instant leaves the range
+  --   Err ZonedRejectedGap,
+  --       ZonedRejectedFold  the options say `Reject` and the calendar
+  --                          units land on such a reading
+  zoned-add-span-with :: forall (c :: SpanClass). ZonedArithmetic -> Span c -> Zoned -> Result ZonedError Zoned
+  zoned-add-span-with o s x = case o of
+    MkZonedArithmetic dis ->
+      let z = zoned-time-zone x in
+      in-zone z (add-core dis z (zoned-timestamp x) (parts-of s))
+
+  zoned-sub-span-with :: forall (c :: SpanClass). ZonedArithmetic -> Span c -> Zoned -> Result ZonedError Zoned
+  zoned-sub-span-with o s x = zoned-add-span-with o (span-negate s) x
+
+  -- The same, `Compatible`: 2024-05-31T13:45 in New York plus one
+  -- month is 2024-06-30T13:45 there.
+  zoned-add-span :: forall (c :: SpanClass). Span c -> Zoned -> Result ZonedError Zoned
+  zoned-add-span s x = zoned-add-span-with zoned-arithmetic-default s x
+
+  zoned-sub-span :: forall (c :: SpanClass). Span c -> Zoned -> Result ZonedError Zoned
+  zoned-sub-span s x = zoned-add-span-with zoned-arithmetic-default (span-negate s) x
+
+  -- Exact elapsed time, on the instant. `None` when the instant leaves
+  -- the range.
+  zoned-add-duration :: Duration -> Zoned -> Option Zoned
+  zoned-add-duration d x = case timestamp-checked-add (zoned-timestamp x) d of
+    None -> None
+    Some t -> Some (zoned-from-timestamp (zoned-time-zone x) t)
+
+  zoned-sub-duration :: Duration -> Zoned -> Option Zoned
+  zoned-sub-duration d x = case timestamp-checked-sub (zoned-timestamp x) d of
+    None -> None
+    Some t -> Some (zoned-from-timestamp (zoned-time-zone x) t)
+
+  -- -----------------------------------------------------------------
+  -- Days: the start of a civil day, the next day, a day's length, and
+  -- the civil conveniences.
+  -- -----------------------------------------------------------------
+
+  -- The first instant of a civil date in the zone (Temporal's
+  -- GetStartOfDay; the same rule as `zoned-start-of-day`, for a date
+  -- rather than a value): midnight when it exists, its first
+  -- occurrence when it occurs twice, and when it was skipped the
+  -- transition that skipped it, which is the next transition after
+  -- midnight read with the offset that follows the gap.
+  start-of-date :: TimeZone -> Date -> Option Timestamp
+  start-of-date z d =
+    let midnight = DT.from-date d in
+    case zone-to-ambiguous z midnight of
+      Unambiguous o -> offset-datetime-to-timestamp o midnight
+      Fold before _ -> offset-datetime-to-timestamp before midnight
+      Gap before after -> case offset-datetime-to-timestamp after midnight of
+        None -> offset-datetime-to-timestamp before midnight
+        Some early -> case zone-next-transition-unix-seconds z (timestamp-to-unix-seconds early) of
+          None -> offset-datetime-to-timestamp before midnight
+          Some s -> timestamp-from-unix-seconds s
+
+  -- The first instant of the civil day after `x`'s. `None` at the end
+  -- of the range. (When a zone skipped a whole civil day, as
+  -- Pacific/Apia skipped 2011-12-30, this is the start of the day
+  -- after the skipped one, as in Temporal.)
+  zoned-start-of-next-day :: Zoned -> Option Zoned
+  zoned-start-of-next-day x = case D.tomorrow (zoned-date x) of
+    None -> None
+    Some d -> case start-of-date (zoned-time-zone x) d of
+      None -> None
+      Some t -> Some (zoned-from-timestamp (zoned-time-zone x) t)
+
+  -- The length of `x`'s civil day in its zone (Temporal's hoursInDay,
+  -- exact): from the start of the day to the start of the next.
+  -- 23 hours on 2024-03-10 in New York, 25 on 2024-11-03. `None` at
+  -- the two ends of the range.
+  zoned-day-length :: Zoned -> Option Duration
+  zoned-day-length x = case start-of-date (zoned-time-zone x) (zoned-date x) of
+    None -> None
+    Some a -> case zoned-start-of-next-day x of
+      None -> None
+      Some b -> Some (timestamp-until a (zoned-timestamp b))
+
+  -- The same time of day on another civil date, `Compatible`.
+  on-date :: Zoned -> Option Date -> Result ZonedError Zoned
+  on-date x od = case od of
+    None -> Err ZonedOutOfRange
+    Some d ->
+      let z = zoned-time-zone x in
+      in-zone z (resolve Compatible z d (zoned-time-of-day x))
+
+  -- The same civil time on the next civil day, `Compatible`: tomorrow
+  -- of 2024-11-02T17:25 in New York is 2024-11-03T17:25, 25 hours
+  -- later; of 2024-03-09T02:30 it is 2024-03-10T03:30 (02:30 does not
+  -- exist). For another strategy add `span-of-days 1` with options.
+  --   Err ZonedOutOfRange  the end of the range
+  zoned-tomorrow :: Zoned -> Result ZonedError Zoned
+  zoned-tomorrow x = on-date x (D.tomorrow (zoned-date x))
+
+  zoned-yesterday :: Zoned -> Result ZonedError Zoned
+  zoned-yesterday x = on-date x (D.yesterday (zoned-date x))
+
+  -- Lane B's civil operation on the date, the time of day kept,
+  -- resolved `Compatible`.
+  zoned-first-of-month :: Zoned -> Result ZonedError Zoned
+  zoned-first-of-month x = on-date x (Some (D.first-of-month (zoned-date x)))
+
+  zoned-last-of-month :: Zoned -> Result ZonedError Zoned
+  zoned-last-of-month x = on-date x (Some (D.last-of-month (zoned-date x)))
+
+  zoned-first-of-year :: Zoned -> Result ZonedError Zoned
+  zoned-first-of-year x = on-date x (Some (D.first-of-year (zoned-date x)))
+
+  zoned-last-of-year :: Zoned -> Result ZonedError Zoned
+  zoned-last-of-year x = on-date x (Some (D.last-of-year (zoned-date x)))
+
+  -- `Err ZonedOutOfRange` also when the civil operation refuses (`n`
+  -- of zero, a weekday the month does not have that many of).
+  zoned-nth-weekday :: I64 -> Weekday -> Zoned -> Result ZonedError Zoned
+  zoned-nth-weekday n wd x = on-date x (D.nth-weekday n wd (zoned-date x))
+
+  zoned-nth-weekday-of-month :: I64 -> Weekday -> Zoned -> Result ZonedError Zoned
+  zoned-nth-weekday-of-month n wd x = on-date x (D.nth-weekday-of-month n wd (zoned-date x))
+
+  -- -----------------------------------------------------------------
+  -- Difference (DifferenceZonedDateTime), largest unit `Day` or
+  -- larger.
+  -- -----------------------------------------------------------------
+
+  -- From instant `a` to instant `b` in zone `z`. The calendar part is
+  -- counted between `a`'s civil date and an intermediate date at or
+  -- next to `b`'s, chosen so that the intermediate reading (that date
+  -- at `a`'s time of day, `Compatible`) does not pass `b`; the rest is
+  -- elapsed time. Two readings on one civil date differ by elapsed
+  -- time only.
+  --
+  -- `back` is the specification's "sign": 1 when `b` is before `a`,
+  -- otherwise -1. The intermediate starts at `b`'s date, one day
+  -- nearer `a` when the times of day already show it would pass `b`,
+  -- and may move one day more, or two going forward (a reading pushed
+  -- forward out of a gap can pass `b` a second time: noon on
+  -- 2011-12-28 until 06:00 on the 31st in Pacific/Apia).
+  diff-zoned :: TimeZone -> Timestamp -> Timestamp -> TimeUnit -> Result ZonedError Parts
+  diff-zoned z a b largest =
+    let n1 = nanos a in
+    let n2 = nanos b in
+    if eq-i128 n1 n2 then Ok zero-parts
+    else
+      let s = zone-to-datetime z a in
+      let e = zone-to-datetime z b in
+      if DT.date-part s == DT.date-part e then Ok (MkParts 0 0 0 0 (sub128 n2 n1))
+      else
+        let back = choose (lt-i128 n2 n1) 1 (-1) in
+        let limit = choose (back == 1) 1 2 in
+        let lead = sgn (T.diff-nanos (DT.time-part s) (DT.time-part e)) in
+        let first = choose (lead == back) 1 0 in
+        correct z s (DT.date-part e) n2 back first limit largest
+
+  -- The day-correction loop. Running past `limit` cannot happen (the
+  -- specification asserts it); it reads as out of range.
+  correct :: TimeZone -> DateTime -> Date -> I128 -> I64 -> I64 -> I64 -> TimeUnit -> Result ZonedError Parts
+  correct z s edate n2 back c limit largest =
+    if c > limit then Err ZonedOutOfRange
+    else case D.add-days (times c back) edate of
+      None -> Err ZonedOutOfRange
+      Some mid -> case epoch z mid (DT.time-part s) of
+        Err e -> Err e
+        Ok m ->
+          let t = sub128 n2 m in
+          if sgn128 t /= back then between (DT.date-part s) mid t largest
+          else correct z s edate n2 back (plus c 1) limit largest
+
+  -- CalendarDateUntil between the two dates (lane D's engine on two
+  -- midnights, exact), with the elapsed time attached.
+  between :: Date -> Date -> I128 -> TimeUnit -> Result ZonedError Parts
+  between sdate mid t largest =
+    case span-difference-civil (unit-larger-of largest Day) Nanosecond 1 Trunc (DT.from-date sdate) (DT.from-date mid) of
+      Err e -> Err (of-span-error e)
+      Ok sp -> Ok (MkParts (span-years sp) (span-months sp) (span-weeks sp) (span-days sp) t)
+
+  -- -----------------------------------------------------------------
+  -- Rounding relative to a zoned anchor (RoundRelativeDuration with a
+  -- time zone).
+  -- -----------------------------------------------------------------
+
+  -- The two candidates around a duration for a calendar unit: the
+  -- unit's value truncated to the increment (`r1`), the two date
+  -- durations (that and one increment further from zero), and the
+  -- instants they land on from the anchor.
+  data Window where
+    MkWindow :: I64 -> Parts -> Parts -> I128 -> I128 -> Window
+
+  trunc-to :: I64 -> I64 -> I64
+  trunc-to inc v = times (quot v inc) inc
+
+  -- The instant of the anchor's civil reading moved by a date
+  -- duration; the anchor's own instant when the duration is zero
+  -- (header, last refusal).
+  landing :: TimeZone -> I128 -> DateTime -> Parts -> Result ZonedError I128
+  landing z origin-ns origin p =
+    if no-date p then Ok origin-ns
+    else case add-date-parts p (DT.date-part origin) of
+      Err e -> Err e
+      Ok d -> epoch z d (DT.time-part origin)
+
+  window-at :: TimeZone -> I128 -> DateTime -> I64 -> Parts -> Parts -> Result ZonedError Window
+  window-at z origin-ns origin r1 sp ep = case landing z origin-ns origin sp of
+    Err e -> Err e
+    Ok sn -> case landing z origin-ns origin ep of
+      Err e -> Err e
+      Ok en ->
+        if eq-i128 sn en then Err ZonedOutOfRange
+        else Ok (MkWindow r1 sp ep sn en)
+
+  -- ComputeNudgeWindow. `shift` (the specification's additionalShift)
+  -- moves a year or month window one increment further; weeks and days
+  -- ignore it. (For a week: a week is seven days on every date, so the
+  -- whole weeks in the duration's days are the days divided by seven,
+  -- truncated.)
+  window :: TimeZone -> I128 -> DateTime -> I64 -> Parts -> I64 -> TimeUnit -> Bool -> Result ZonedError Window
+  window z origin-ns origin sign p inc unit shift = case p of
+    MkParts y mo w d _ ->
+      let step = times inc sign in
+      let extra = choose shift step 0 in
+      case unit of
+        Year ->
+          let r1 = plus (trunc-to inc y) extra in
+          window-at z origin-ns origin r1 (date-only r1 0 0 0) (date-only (plus r1 step) 0 0 0)
+        Month ->
+          let r1 = plus (trunc-to inc mo) extra in
+          window-at z origin-ns origin r1 (date-only y r1 0 0) (date-only y (plus r1 step) 0 0)
+        Week ->
+          let r1 = trunc-to inc (plus w (quot d 7)) in
+          window-at z origin-ns origin r1 (date-only y mo r1 0) (date-only y mo (plus r1 step) 0)
+        Day ->
+          let r1 = trunc-to inc d in
+          window-at z origin-ns origin r1 (date-only y mo w r1) (date-only y mo w (plus r1 step))
+        Hour -> Err ZonedBadUnits
+        Minute -> Err ZonedBadUnits
+        Second -> Err ZonedBadUnits
+        Millisecond -> Err ZonedBadUnits
+        Microsecond -> Err ZonedBadUnits
+        Nanosecond -> Err ZonedBadUnits
+
+  -- Whether the destination lies in the window (either end included),
+  -- in the direction of travel.
+  inside :: I128 -> Window -> Bool
+  inside dest win = case win of
+    MkWindow _ _ _ sn en ->
+      (le-i128 sn dest && le-i128 dest en) || (le-i128 en dest && le-i128 dest sn)
+
+  -- The window the destination is measured in, and whether it had to
+  -- be shifted (the first steps of NudgeToCalendarUnit). The
+  -- destination can lie beyond the first window: 2024-01-31T12:00
+  -- until 2025-03-01T11:00 is 1 year 28 days 23 hours, yet the month
+  -- window after the year ends at 2025-02-28T12:00 (the day
+  -- constrained), before the destination; the window one month on
+  -- holds it.
+  settled :: TimeZone -> I128 -> I128 -> DateTime -> I64 -> Parts -> I64 -> TimeUnit -> Result ZonedError (Window, Bool)
+  settled z origin-ns dest origin sign p inc unit = case window z origin-ns origin sign p inc unit False of
+    Err e -> Err e
+    Ok win ->
+      if inside dest win then Ok (win, False)
+      else case window z origin-ns origin sign p inc unit True of
+        Err e -> Err e
+        Ok again -> Ok (again, True)
+
+  -- What a nudge produced: the rounded duration, the instant it lands
+  -- on, and whether it moved to the further candidate.
+  data Nudge where
+    MkNudge :: Parts -> I128 -> Bool -> Nudge
+
+  -- Whether a calendar nudge moves to the further candidate
+  -- (Temporal's GetUnsignedRoundingMode and ApplyUnsignedRoundingMode
+  -- on the progress `num / den` through the window, both magnitudes;
+  -- progress of exactly 1 is the further candidate under every mode).
+  expands :: RoundMode -> Bool -> I128 -> I128 -> Bool -> Bool
+  expands mode negative num den even =
+    if eq-i128 num 0 then False
+    else if eq-i128 num den then True
+    else
+      let twice = add128 num num in
+      let over = gt-i128 twice den in
+      let tie = eq-i128 twice den in
+      case mode of
+        Trunc -> False
+        Expand -> True
+        Ceil -> not negative
+        Floor -> negative
+        HalfExpand -> over || tie
+        HalfTrunc -> over
+        HalfCeil -> over || (tie && not negative)
+        HalfFloor -> over || (tie && negative)
+        HalfEven -> over || (tie && not even)
+
+  -- Whether `r1 / inc` is even (`inc` is at least 1 and divides `r1`).
+  even-count :: I64 -> I64 -> Bool
+  even-count r1 inc = case checked-rem-i64 (quot r1 inc) 2 of
+    None -> True
+    Some r -> r == 0
+
+  -- NudgeToCalendarUnit: `den` is the window's length and `num` the
+  -- distance from its start to the destination (both below 7.6e20, so
+  -- doubling `num` is exact). A shifted window counts as an expansion
+  -- whichever candidate is chosen. The time of the duration is
+  -- dropped: the result is a whole number of the unit.
+  nudge-calendar :: TimeZone -> I128 -> I128 -> DateTime -> I64 -> Parts -> I64 -> TimeUnit -> RoundMode -> Result ZonedError Nudge
+  nudge-calendar z origin-ns dest origin sign p inc unit mode = case settled z origin-ns dest origin sign p inc unit of
+    Err e -> Err e
+    Ok pair -> case pair of
+      (win, shifted) -> case win of
+        MkWindow r1 sp ep sn en ->
+          let den = abs128 (sub128 en sn) in
+          let num = abs128 (sub128 dest sn) in
+          if expands mode (sign < 0) num den (even-count r1 inc) then Ok (MkNudge ep en True)
+          else Ok (MkNudge sp sn shifted)
+
+  -- NudgeToZonedTime, for a smallest unit of `Hour` or smaller: the
+  -- time is rounded on its own; when the rounded time reaches the
+  -- length of the day that follows the date part (from the date part's
+  -- landing to one civil day further, both at the anchor's time of
+  -- day), that day joins the date part and the time beyond it is
+  -- rounded again.
+  --
+  -- Overflow: the quantum is at most 3600e9 * 1e9 < 2^72 and the time
+  -- below 2^72, so the kernel cannot refuse; its `None` arm is mapped
+  -- to a refusal anyway.
+  nudge-zoned-time :: TimeZone -> DateTime -> I64 -> Parts -> I64 -> TimeUnit -> RoundMode -> Result ZonedError Nudge
+  nudge-zoned-time z origin sign p inc unit mode = case p of
+    MkParts y mo w d t -> case unit-nanos unit of
+      None -> Err ZonedBadUnits
+      Some len -> case add-date y mo w d (DT.date-part origin) of
+        None -> Err ZonedOutOfRange
+        Some start -> case D.add-days sign start of
+          None -> Err ZonedOutOfRange
+          Some after -> case epoch z start (DT.time-part origin) of
+            Err e -> Err e
+            Ok sn -> case epoch z after (DT.time-part origin) of
+              Err e -> Err e
+              Ok en -> nudge-in-day sign p (mul128 len (wide inc)) mode sn en
+
+  nudge-in-day :: I64 -> Parts -> I128 -> RoundMode -> I128 -> I128 -> Result ZonedError Nudge
+  nudge-in-day sign p quantum mode sn en = case p of
+    MkParts y mo w d t -> case round-i128 mode quantum t of
+      None -> Err ZonedUnitLimit
+      Some rounded ->
+        let beyond = sub128 rounded (sub128 en sn) in
+        if sgn128 beyond /= minus 0 sign then
+          case round-i128 mode quantum beyond of
+            None -> Err ZonedUnitLimit
+            Some again -> Ok (MkNudge (MkParts y mo w (plus d sign) again) (add128 en again) True)
+        else Ok (MkNudge (MkParts y mo w d rounded) (add128 sn rounded) False)
+
+  -- The duration one step further in the next larger unit, everything
+  -- below it cleared (BubbleRelativeDuration's endDuration).
+  bubble-end :: I64 -> Parts -> TimeUnit -> Parts
+  bubble-end sign p u = case p of
+    MkParts y mo w _ _ ->
+      if unit-eq u Year then date-only (plus y sign) 0 0 0
+      else if unit-eq u Month then date-only y (plus mo sign) 0 0
+      else date-only y mo (plus w sign) 0
+
+  -- BubbleRelativeDuration: after a nudge that expanded, carry into
+  -- each larger unit up to `largest` while the nudged instant reaches
+  -- it. Weeks are tried only when `largest` is `Week`. `unit` is the
+  -- unit already settled.
+  bubble :: TimeZone -> I128 -> DateTime -> I64 -> Parts -> I128 -> TimeUnit -> TimeUnit -> Result ZonedError Parts
+  bubble z origin-ns origin sign p nudged largest unit =
+    if unit-rank unit >= unit-rank largest then Ok p
+    else case unit-next-larger unit of
+      None -> Ok p
+      Some u ->
+        if unit-eq u Week && not (unit-eq largest Week) then bubble z origin-ns origin sign p nudged largest u
+        else
+          let ep = bubble-end sign p u in
+          case landing z origin-ns origin ep of
+            Err e -> Err e
+            Ok en ->
+              if sgn128 (sub128 nudged en) /= minus 0 sign then bubble z origin-ns origin sign ep nudged largest u
+              else Ok p
+
+  -- RoundRelativeDuration with a zone: day and larger through the
+  -- calendar nudge (a zoned day has no fixed length), smaller units
+  -- through the zoned-time nudge; an expansion is carried upward,
+  -- except from weeks.
+  round-relative :: TimeZone -> Timestamp -> Timestamp -> Parts -> TimeUnit -> I64 -> TimeUnit -> RoundMode -> Result ZonedError Parts
+  round-relative z a b p largest inc smallest mode =
+    let sign = direction p in
+    let origin = zone-to-datetime z a in
+    let origin-ns = nanos a in
+    let n = if unit-is-calendar smallest then nudge-calendar z origin-ns (nanos b) origin sign p inc smallest mode
+            else nudge-zoned-time z origin sign p inc smallest mode in
+    case n of
+      Err e -> Err e
+      Ok r -> case r of
+        MkNudge q nudged expanded ->
+          if expanded && not (unit-eq smallest Week) then bubble z origin-ns origin sign q nudged largest (unit-larger-of smallest Day)
+          else Ok q
+
+  -- DifferenceZonedDateTimeWithRounding and the spelling. The caller
+  -- has checked the order of the units; the increment is checked
+  -- here.
+  diff-rounded :: TimeZone -> Timestamp -> Timestamp -> TimeUnit -> TimeUnit -> I64 -> RoundMode -> Result ZonedError (Span Calendar)
+  diff-rounded z a b largest smallest inc mode =
+    if not (unit-is-calendar largest) then
+      case span-difference-nanos largest smallest inc mode (sub128 (nanos b) (nanos a)) of
+        Err e -> Err (of-span-error e)
+        Ok s -> Ok (span-to-calendar s)
+    else if unit-rank largest < unit-rank smallest then Err ZonedBadUnits
+    else if not (unit-span-increment-ok smallest inc) then Err ZonedBadIncrement
+    else case diff-zoned z a b largest of
+      Err e -> Err e
+      Ok p ->
+        if unit-eq smallest Nanosecond && inc == 1 then spell p
+        else case round-relative z a b p largest inc smallest mode of
+          Err e -> Err e
+          Ok q -> spell q
+
+  -- -----------------------------------------------------------------
+  -- until and since.
+  -- -----------------------------------------------------------------
+
+  -- The options of a zoned difference (T7): largest unit (unset: the
+  -- larger of `Hour` and the smallest unit), smallest unit (unset:
+  -- `Nanosecond`), increment, mode.
+  data ZonedDifference where
+    MkZonedDifference :: Option TimeUnit -> Option TimeUnit -> I64 -> RoundMode -> ZonedDifference
+
+  -- Both units unset, increment 1, `Trunc`.
+  zoned-difference-default :: ZonedDifference
+  zoned-difference-default = MkZonedDifference None None 1 Trunc
+
+  -- The common case: the default with a largest unit.
+  zoned-difference-largest :: TimeUnit -> ZonedDifference
+  zoned-difference-largest u = MkZonedDifference (Some u) None 1 Trunc
+
+  implicit instance LargestOption_ZonedDifference :: LargestOption ZonedDifference where
+    with-largest u o = case o of
+      MkZonedDifference _ s i m -> MkZonedDifference (Some u) s i m
+
+  implicit instance RoundingOptions_ZonedDifference :: RoundingOptions ZonedDifference where
+    with-smallest u o = case o of
+      MkZonedDifference l _ i m -> MkZonedDifference l (Some u) i m
+    with-increment n o = case o of
+      MkZonedDifference l s _ m -> MkZonedDifference l s n m
+    with-mode md o = case o of
+      MkZonedDifference l s i _ -> MkZonedDifference l s i md
+
+  negated :: Result ZonedError (Span Calendar) -> Result ZonedError (Span Calendar)
+  negated r = case r of
+    Err e -> Err e
+    Ok s -> Ok (span-negate s)
+
+  -- GetDifferenceSettings and DifferenceTemporalZonedDateTime, from
+  -- `a` to `b`. `negate` is set for `since` (the mode is negated here
+  -- and the result by the caller).
+  difference :: Bool -> ZonedDifference -> Zoned -> Zoned -> Result ZonedError (Span Calendar)
+  difference negate o a b = case o of
+    MkZonedDifference l s inc mode ->
+      let smallest = case s of
+                       Some u -> u
+                       None -> Nanosecond in
+      let largest = case l of
+                      Some u -> u
+                      None -> unit-larger-of Hour smallest in
+      if unit-rank largest < unit-rank smallest then Err ZonedBadUnits
+      else if not (unit-span-increment-ok smallest inc) then Err ZonedBadIncrement
+      else if unit-is-calendar largest && not (same-zone a b) then Err ZonedZonesDiffer
+      else diff-rounded (zoned-time-zone a) (zoned-timestamp a) (zoned-timestamp b) largest smallest inc (if negate then round-mode-negate mode else mode)
+
+  -- The elapsed time from `a` to `b` in hours and smaller, exact; the
+  -- zones may differ. 2024-11-02T17:25 until 2024-11-03T17:25 in New
+  -- York is 25 hours. Total: the whole timestamp range is inside the
+  -- hour limit, so the `Err` arm is unreachable.
+  zoned-until :: Zoned -> Zoned -> Span Clock
+  zoned-until a b =
+    case span-difference-nanos Hour Nanosecond 1 Trunc (sub128 (nanos (zoned-timestamp b)) (nanos (zoned-timestamp a))) of
+      Ok s -> s
+      Err _ -> span-zero
+
+  -- The elapsed time since `b`, to `a`: the negation of
+  -- `zoned-until a b`.
+  zoned-since :: Zoned -> Zoned -> Span Clock
+  zoned-since a b = span-negate (zoned-until a b)
+
+  -- The span from `a` to `b` under the options (the header's
+  -- DIFFERENCE law): 2024-05-31T00:00 until 2024-09-30T00:00 in New
+  -- York with largest `Month` is 3 months 30 days.
+  --   Err ZonedBadUnits      largest below smallest
+  --   Err ZonedBadIncrement  the increment is not valid for the
+  --                          smallest unit
+  --   Err ZonedZonesDiffer   largest is `Day` or larger and the zones'
+  --                          names differ
+  --   Err ZonedOutOfRange    an intermediate reading or a rounding
+  --                          candidate leaves the range
+  --   Err ZonedUnitLimit     a unit of the result passes its limit
+  zoned-until-with :: ZonedDifference -> Zoned -> Zoned -> Result ZonedError (Span Calendar)
+  zoned-until-with o a b = difference False o a b
+
+  zoned-since-with :: ZonedDifference -> Zoned -> Zoned -> Result ZonedError (Span Calendar)
+  zoned-since-with o a b = negated (difference True o a b)
+
+  -- -----------------------------------------------------------------
+  -- Re-resolving a civil reading for a value that has an offset.
+  -- -----------------------------------------------------------------
+
+  -- InterpretISODateTimeOffset with "prefer": the offset `o` when the
+  -- reading can have it, otherwise the strategy.
+  prefer :: Disambiguation -> TimeZone -> Offset -> DateTime -> Result ZonedError Timestamp
+  prefer s z o d =
+    let a = zone-to-ambiguous z d in
+    let keep = case a of
+                 Unambiguous _ -> False
+                 Gap _ _ -> False
+                 Fold before after -> o == before || o == after in
+    if keep then (case offset-datetime-to-timestamp o d of
+                    None -> Err ZonedOutOfRange
+                    Some t -> Ok t)
+    else case ambiguous-resolve s d a of
+      Err e -> Err (of-ambiguity e)
+      Ok t -> Ok t
+
+  -- The value with its civil date, time of day or both replaced
+  -- (ZonedDateTime.prototype.with), keeping the value's offset when
+  -- the new reading can have it and otherwise resolving by the
+  -- strategy.
+  --   Err ZonedRejectedGap, ZonedRejectedFold  the strategy is
+  --                        `Reject` and the offset could not be kept
+  --   Err ZonedOutOfRange  the instant leaves the range
+  zoned-with-datetime-resolving :: Disambiguation -> DateTime -> Zoned -> Result ZonedError Zoned
+  zoned-with-datetime-resolving s d x =
+    let z = zoned-time-zone x in
+    in-zone z (prefer s z (zoned-offset x) d)
+
+  zoned-with-date-resolving :: Disambiguation -> Date -> Zoned -> Result ZonedError Zoned
+  zoned-with-date-resolving s d x = zoned-with-datetime-resolving s (DT.datetime d (zoned-time-of-day x)) x
+
+  zoned-with-time-resolving :: Disambiguation -> TimeOfDay -> Zoned -> Result ZonedError Zoned
+  zoned-with-time-resolving s t x = zoned-with-datetime-resolving s (DT.datetime (zoned-date x) t) x
+
+  -- The same, `Compatible`.
+  zoned-with-datetime :: DateTime -> Zoned -> Result ZonedError Zoned
+  zoned-with-datetime d x = zoned-with-datetime-resolving Compatible d x
+
+  zoned-with-date :: Date -> Zoned -> Result ZonedError Zoned
+  zoned-with-date d x = zoned-with-date-resolving Compatible d x
+
+  zoned-with-time :: TimeOfDay -> Zoned -> Result ZonedError Zoned
+  zoned-with-time t x = zoned-with-time-resolving Compatible t x
+
+  -- -----------------------------------------------------------------
+  -- Rounding a value.
+  -- -----------------------------------------------------------------
+
+  -- The options of `zoned-round-with` (T7): smallest unit, increment,
+  -- mode.
+  data ZonedRound where
+    MkZonedRound :: TimeUnit -> I64 -> RoundMode -> ZonedRound
+
+  -- `Nanosecond`, 1, `HalfExpand`: rounds nothing until a unit is set.
+  zoned-round-default :: ZonedRound
+  zoned-round-default = MkZonedRound Nanosecond 1 HalfExpand
+
+  -- The common case: the default with a smallest unit.
+  zoned-round-to :: TimeUnit -> ZonedRound
+  zoned-round-to u = MkZonedRound u 1 HalfExpand
+
+  implicit instance RoundingOptions_ZonedRound :: RoundingOptions ZonedRound where
+    with-smallest u o = case o of
+      MkZonedRound _ i m -> MkZonedRound u i m
+    with-increment n o = case o of
+      MkZonedRound s _ m -> MkZonedRound s n m
+    with-mode md o = case o of
+      MkZonedRound s i _ -> MkZonedRound s i md
+
+  -- Rounding to the day: the elapsed time since the start of the civil
+  -- day is rounded to a multiple of that day's real length, so the
+  -- result is the start of this day or of the next. (The time is
+  -- within one day and the quantum is the day, so the kernel cannot
+  -- refuse.)
+  round-day :: RoundMode -> Zoned -> Result ZonedError Zoned
+  round-day mode x =
+    let z = zoned-time-zone x in
+    case start-of-date z (zoned-date x) of
+      None -> Err ZonedOutOfRange
+      Some a -> case zoned-start-of-next-day x of
+        None -> Err ZonedOutOfRange
+        Some nx ->
+          let sn = nanos a in
+          let len = sub128 (nanos (zoned-timestamp nx)) sn in
+          case round-i128 mode len (sub128 (nanos (zoned-timestamp x)) sn) of
+            None -> Err ZonedOutOfRange
+            Some r -> in-zone z (instant-plus a r)
+
+  -- Round a value (the header's ROUND law): 17:46:20.123456789 on
+  -- 2024-11-02 in New York to 30 minutes is 18:00 -04:00; 11:45:20 on
+  -- 2024-11-03 to `Day` is 2024-11-04T00:00 -05:00, because 11:45 is
+  -- past the middle of a 25-hour day.
+  --   Err ZonedBadUnits      week or larger
+  --   Err ZonedBadIncrement  the increment does not divide the next
+  --                          larger unit, or equals it; for `Day`,
+  --                          anything but 1
+  --   Err ZonedOutOfRange    the result leaves the range
+  zoned-round-with :: ZonedRound -> Zoned -> Result ZonedError Zoned
+  zoned-round-with o x = case o of
+    MkZonedRound unit inc mode ->
+      if unit-rank unit > 6 then Err ZonedBadUnits
+      else if not (unit-round-increment-ok unit inc) then Err ZonedBadIncrement
+      else if unit-eq unit Nanosecond && inc == 1 then Ok x
+      else if unit-eq unit Day then round-day mode x
+      else case datetime-round (with-mode mode (with-increment inc (round-to unit))) (zoned-datetime x) of
+        Err e -> Err (of-span-error e)
+        Ok d -> zoned-with-datetime d x
+
+  -- Round to a unit, increment 1, `HalfExpand`.
+  zoned-round :: TimeUnit -> Zoned -> Result ZonedError Zoned
+  zoned-round u x = zoned-round-with (zoned-round-to u) x
+
+  -- -----------------------------------------------------------------
+  -- Spans relative to a zoned anchor.
+  -- -----------------------------------------------------------------
+
+  -- Where the anchor plus the span lands (`Compatible`).
+  goal :: forall (c :: SpanClass). Zoned -> Span c -> Result ZonedError Timestamp
+  goal x s = add-core Compatible (zoned-time-zone x) (zoned-timestamp x) (parts-of s)
+
+  -- Round any span, measured from the anchor (Temporal's
+  -- Duration.prototype.round with a zoned relativeTo), with the same
+  -- options value as `span-round`.
+  --   Err ZonedBadUnits, ZonedBadIncrement  as `span-round`
+  --   Err ZonedOutOfRange  the anchor plus the span, an intermediate
+  --                        reading or a rounding candidate leaves the
+  --                        range
+  --   Err ZonedUnitLimit   a unit of the result passes its limit
+  span-round-zoned :: forall (c :: SpanClass). SpanRound -> Zoned -> Span c -> Result ZonedError (Span Calendar)
+  span-round-zoned o x s = case span-round-largest o s of
+    Err e -> Err (of-span-error e)
+    Ok largest -> case goal x s of
+      Err e -> Err e
+      Ok g -> diff-rounded (zoned-time-zone x) (zoned-timestamp x) g largest (span-round-smallest o) (span-round-increment o) (span-round-mode o)
+
+  -- Respell any span with units up to `largest`, measured from the
+  -- anchor (T8: not rounding). 2756 hours from 2020-01-01T00:00 in
+  -- Europe/Amsterdam to `Year` is 3 months 23 days 21 hours; 1 day
+  -- from 2024-11-03T00:00 in New York to `Hour` is 25 hours.
+  span-balance-zoned :: forall (c :: SpanClass). TimeUnit -> Zoned -> Span c -> Result ZonedError (Span Calendar)
+  span-balance-zoned largest x s = case goal x s of
+    Err e -> Err e
+    Ok g -> diff-rounded (zoned-time-zone x) (zoned-timestamp x) g largest Nanosecond 1 Trunc
+
+  gcd128 :: I128 -> I128 -> I128
+  gcd128 a b = if eq-i128 b 0 then a else case checked-rem-i128 a b of
+    None -> a
+    Some r -> gcd128 b r
+
+  -- A fraction in lowest terms; `d` is positive.
+  reduce :: I128 -> I128 -> (I128, I128)
+  reduce n d =
+    let g = gcd128 (abs128 n) d in
+    if lt-i128 g 2 then (n, d)
+    else case checked-div-i128 n g of
+      None -> (n, d)
+      Some qn -> case checked-div-i128 d g of
+        None -> (n, d)
+        Some qd -> (qn, qd)
+
+  -- The exact length of any span in `unit`, measured from the anchor,
+  -- as a reduced fraction with a positive denominator (Temporal's
+  -- Duration.prototype.total with a zoned relativeTo). `Hour` and
+  -- smaller: the elapsed time over the unit's length. `Day` and
+  -- larger: the whole units plus the fraction of the next one, the
+  -- next one measured in the zone (1 hour from 2024-11-03T00:00 in
+  -- New York is 1/25 of a day).
+  --   Err ZonedOutOfRange  the anchor plus the span, or the end of
+  --                        the unit being measured, leaves the range
+  span-total-zoned :: forall (c :: SpanClass). TimeUnit -> Zoned -> Span c -> Result ZonedError (I128, I128)
+  span-total-zoned unit x s = case goal x s of
+    Err e -> Err e
+    Ok g ->
+      let z = zoned-time-zone x in
+      let a = zoned-timestamp x in
+      case unit-nanos unit of
+        Some len -> Ok (reduce (sub128 (nanos g) (nanos a)) len)
+        None ->
+          if a == g then Ok (0, 1)
+          else case diff-zoned z a g unit of
+            Err e -> Err e
+            Ok p ->
+              let sign = direction p in
+              case settled z (nanos a) (nanos g) (zoned-datetime x) sign p 1 unit of
+                Err e -> Err e
+                Ok pair -> case pair of
+                  (win, _) -> case win of
+                    MkWindow r1 _ _ sn en ->
+                      let den = abs128 (sub128 en sn) in
+                      let num = abs128 (sub128 (nanos g) sn) in
+                      Ok (reduce (add128 (mul128 (wide r1) den) (mul128 (wide sign) num)) den)
+
+  -- Any two spans by where they land from the anchor (Temporal's
+  -- Duration.compare with a zoned relativeTo): 1 day and 24 hours are
+  -- `EQ` from most instants and differ from 2024-11-03T00:00 in New
+  -- York. Spans with no calendar units compare by elapsed time.
+  --   Err ZonedOutOfRange  the anchor plus a span leaves the range
+  span-compare-zoned :: forall (a :: SpanClass) (b :: SpanClass). Zoned -> Span a -> Span b -> Result ZonedError Ordering
+  span-compare-zoned x a b =
+    if span-fieldwise-eq a b then Ok EQ
+    else if span-is-clock a && span-is-clock b then Ok (cmp128 (span-time-nanos a) (span-time-nanos b))
+    else case goal x a of
+      Err e -> Err e
+      Ok ga -> case goal x b of
+        Err e -> Err e
+        Ok gb -> Ok (timestamp-cmp ga gb)
+
+  cmp128 :: I128 -> I128 -> Ordering
+  cmp128 a b = if lt-i128 a b then LT else if gt-i128 a b then GT else EQ
+
+  -- The sum of any two spans measured from the anchor (Jiff's
+  -- `Span::checked_add` with a zoned relative): the anchor moves by
+  -- `a`, then by `b`, and the result is the difference from the anchor
+  -- to that instant, spelled up to the larger of the two spans'
+  -- largest units.
+  --   Err ZonedOutOfRange  a step leaves the range
+  --   Err ZonedUnitLimit   a unit of the result passes its limit
+  span-checked-add-zoned :: forall (a :: SpanClass) (b :: SpanClass). Zoned -> Span a -> Span b -> Result ZonedError (Span Calendar)
+  span-checked-add-zoned x a b =
+    let z = zoned-time-zone x in
+    let largest = unit-larger-of (span-largest-unit a) (span-largest-unit b) in
+    case goal x a of
+      Err e -> Err e
+      Ok mid -> case add-core Compatible z mid (parts-of b) of
+        Err e -> Err e
+        Ok fin -> diff-rounded z (zoned-timestamp x) fin largest Nanosecond 1 Trunc
+
+  span-checked-sub-zoned :: forall (a :: SpanClass) (b :: SpanClass). Zoned -> Span a -> Span b -> Result ZonedError (Span Calendar)
+  span-checked-sub-zoned x a b = span-checked-add-zoned x a (span-negate b)

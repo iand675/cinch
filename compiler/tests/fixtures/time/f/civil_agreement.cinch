@@ -1,0 +1,234 @@
+-- Lane F against lane D: in a zone with one offset every day is 24
+-- hours and every civil reading is one instant, so a calendar
+-- difference, a span rounding and a span total taken on zoned values
+-- (Data.Time.Zoned.Arithmetic) must be exactly what the civil engine
+-- (Data.Time.Span, Data.Time.Arithmetic) says for the same readings.
+-- The two engines are separate renderings of Temporal's
+-- RoundRelativeDuration, and this fixture is what holds them together,
+-- above all where a rounding window has to be shifted
+-- (ComputeNudgeWindow's additionalShift): 2024-01-31T12:00 until
+-- 2025-03-01T11:00 is 1 year 28 days 23 hours, the month after the
+-- year ends at 2025-02-28T12:00 (the day constrained), before the
+-- destination, and the window one month on is the one measured in
+-- (1 year 1 month rounding down, 1 year 2 months rounding up; the
+-- hand derivations are in fixtures/time/d/window_shift.cinch).
+-- No TZif file is read: the zones are UTC and the fixed offset +05:30.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading moved by whole hours.
+  hours-on :: I64 -> DateTime -> DateTime
+  hours-on h x = case DT.add-seconds-nanos (wrapping-mul-i64 h 3600) 0 x of
+    None -> DT.min-datetime
+    Some d -> d
+
+  -- The reading in the zone (a fixed zone has no gaps or folds).
+  zd :: TimeZone -> DateTime -> Zoned
+  zd z x = case zoned-from-datetime Compatible z x of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok v -> v
+
+  india :: TimeZone
+  india = zone-fixed (offset-of-seconds 19800)
+
+  mode-of :: I64 -> RoundMode
+  mode-of i =
+    if i == 0 then Trunc else if i == 1 then Expand else if i == 2 then Ceil
+    else if i == 3 then Floor else if i == 4 then HalfExpand else if i == 5 then HalfTrunc
+    else if i == 6 then HalfCeil else if i == 7 then HalfFloor else HalfEven
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  zf :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> ZonedDifference
+  zf l s i m = with-mode m (with-increment i (with-smallest s (zoned-difference-largest l)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  -- Both accepted with the same fields, or both refused.
+  agree :: Result SpanError (Span Calendar) -> Result ZonedError (Span Calendar) -> Bool
+  agree c z = case c of
+    Err _ -> case z of
+      Err _ -> True
+      Ok _ -> False
+    Ok x -> case z of
+      Err _ -> False
+      Ok y -> span-fieldwise-eq x y
+
+  agree-total :: Result SpanError (I128, I128) -> Result ZonedError (I128, I128) -> Bool
+  agree-total c z = case c of
+    Err _ -> case z of
+      Err _ -> True
+      Ok _ -> False
+    Ok p -> case z of
+      Err _ -> False
+      Ok q -> case p of
+        (n, d) -> case q of
+          (m, e) -> eq-i128 n m && eq-i128 d e
+
+  ym-is :: Result ZonedError (Span Calendar) -> I64 -> I64 -> Bool
+  ym-is r y mo = case r of
+    Err _ -> False
+    Ok x -> span-years x == y && span-months x == mo && span-weeks x == 0 && span-days x == 0
+            && span-hours x == 0 && span-minutes x == 0 && span-seconds x == 0
+            && span-milliseconds x == 0 && span-microseconds x == 0 && span-nanoseconds x == 0
+
+  -- `until` and `since` in both engines for one pair of readings and
+  -- one choice of units, increment and mode.
+  pair-ok :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> RoundMode -> DateTime -> DateTime -> Bool
+  pair-ok z l s i m a b =
+    agree (datetime-until-with (df l s i m) a b) (zoned-until-with (zf l s i m) (zd z a) (zd z b))
+    && agree (datetime-since-with (df l s i m) a b) (zoned-since-with (zf l s i m) (zd z a) (zd z b))
+
+  -- The unrounded difference as a span, then that span rounded and
+  -- totalled from the same anchor in both engines.
+  span-ok :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> RoundMode -> DateTime -> DateTime -> Bool
+  span-ok z l s i m a b = case datetime-until-with (difference-largest Year) a b of
+    Err _ -> False
+    Ok x ->
+      agree (span-round-relative (sr l s i m) (RelativeDateTime a) x) (span-round-zoned (sr l s i m) (zd z a) x)
+      && agree-total (span-total-relative s (RelativeDateTime a) x) (span-total-zoned s (zd z a) x)
+
+  all-modes :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> DateTime -> DateTime -> I64 -> Bool
+  all-modes z l s i a b k =
+    if k > 8 then True
+    else if pair-ok z l s i (mode-of k) a b then all-modes z l s i a b (wrapping-add-i64 k 1)
+    else False
+
+  all-modes-span :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> DateTime -> DateTime -> I64 -> Bool
+  all-modes-span z l s i a b k =
+    if k > 8 then True
+    else if span-ok z l s i (mode-of k) a b then all-modes-span z l s i a b (wrapping-add-i64 k 1)
+    else False
+
+  -- A sweep: anchors one day apart from `a0` (each at `a0`'s time of
+  -- day), destinations seven hours apart from `b0`, every mode.
+  -- `back` swaps the two, for the negative direction; `spans` takes
+  -- the span operations instead of the differences.
+  dests :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> Bool -> Bool -> DateTime -> DateTime -> I64 -> I64 -> Bool
+  dests z l s i back spans a b0 j n =
+    if j >= n then True
+    else
+      let b = hours-on (wrapping-mul-i64 j 7) b0 in
+      let from = if back then b else a in
+      let unto = if back then a else b in
+      let ok = if spans then all-modes-span z l s i from unto 0 else all-modes z l s i from unto 0 in
+      if ok then dests z l s i back spans a b0 (wrapping-add-i64 j 1) n else False
+
+  sweep :: TimeZone -> TimeUnit -> TimeUnit -> I64 -> Bool -> Bool -> DateTime -> DateTime -> I64 -> I64 -> I64 -> Bool
+  sweep z l s i back spans a0 b0 k days n =
+    if k >= days then True
+    else if dests z l s i back spans (hours-on (wrapping-mul-i64 k 24) a0) b0 0 n
+      then sweep z l s i back spans a0 b0 (wrapping-add-i64 k 1) days n
+    else False
+
+  -- 1: the header's case in UTC, by value and against the civil
+  -- engine under all nine modes, to months with either largest unit.
+  check-header-case :: Int
+  check-header-case =
+    let a = at 2024 1 31 12 0 0 0 in
+    let b = at 2025 3 1 11 0 0 0 in
+    if ym-is (zoned-until-with (zf Year Month 1 Trunc) (zd zone-utc a) (zd zone-utc b)) 1 1
+       && ym-is (zoned-until-with (zf Year Month 1 Ceil) (zd zone-utc a) (zd zone-utc b)) 1 2
+       && ym-is (zoned-until-with (zf Year Month 1 Expand) (zd zone-utc a) (zd zone-utc b)) 1 2
+       && ym-is (zoned-since-with (zf Year Month 1 Floor) (zd zone-utc a) (zd zone-utc b)) (-1) (-2)
+       && all-modes zone-utc Year Month 1 a b 0
+       && all-modes zone-utc Month Month 1 a b 0
+       && all-modes-span zone-utc Year Month 1 a b 0
+    then 0 else 1
+
+  -- 2: years from a leap day (2024-02-29T12:00 until 2027-03-01T11:00
+  -- is 3 years rounding down and 4 rounding up), in UTC and at +05:30.
+  check-leap-day :: Int
+  check-leap-day =
+    let a = at 2024 2 29 12 0 0 0 in
+    let b = at 2027 3 1 11 0 0 0 in
+    if ym-is (zoned-until-with (zf Year Year 1 Trunc) (zd zone-utc a) (zd zone-utc b)) 3 0
+       && ym-is (zoned-until-with (zf Year Year 1 Ceil) (zd india a) (zd india b)) 4 0
+       && all-modes zone-utc Year Year 1 a b 0
+       && all-modes india Year Year 1 a b 0
+       && all-modes-span india Year Year 1 a b 0
+    then 0 else 2
+
+  -- 4: months, forward. Anchors at 12:00 on each day from 2024-01-26
+  -- to 2024-03-03 (the 29th, 30th and 31st of January and the leap
+  -- day among them), destinations every seven hours from
+  -- 2025-02-26T01:00 for a week, across the end of February 2025.
+  check-months-forward :: Int
+  check-months-forward =
+    if sweep zone-utc Year Month 1 False False (at 2024 1 26 12 0 0 0) (at 2025 2 26 1 0 0 0) 0 38 24
+    then 0 else 4
+
+  -- 8: the same pairs backward (from the destination to the anchor).
+  check-months-backward :: Int
+  check-months-backward =
+    if sweep zone-utc Year Month 1 True False (at 2024 1 26 12 0 0 0) (at 2025 2 26 1 0 0 0) 0 38 24
+    then 0 else 8
+
+  -- 16: months as the largest unit too, and an increment of 2, at
+  -- +05:30.
+  check-months-other-units :: Int
+  check-months-other-units =
+    if sweep india Month Month 1 False False (at 2024 1 28 12 0 0 0) (at 2025 2 27 1 0 0 0) 0 6 12
+       && sweep india Year Month 2 False False (at 2024 1 28 12 0 0 0) (at 2025 2 27 1 0 0 0) 0 6 12
+       && sweep india Year Month 2 True False (at 2024 1 28 12 0 0 0) (at 2025 2 27 1 0 0 0) 0 6 12
+    then 0 else 16
+
+  -- 32: years, both ways, from anchors around the leap day to
+  -- destinations around the end of February 2027.
+  check-years :: Int
+  check-years =
+    if sweep zone-utc Year Year 1 False False (at 2024 2 26 12 0 0 0) (at 2027 2 26 1 0 0 0) 0 8 24
+       && sweep zone-utc Year Year 1 True False (at 2024 2 26 12 0 0 0) (at 2027 2 26 1 0 0 0) 0 8 24
+       && sweep zone-utc Year Year 3 False False (at 2024 2 26 12 0 0 0) (at 2027 2 26 1 0 0 0) 0 8 24
+    then 0 else 32
+
+  -- 64: the span operations (round and total) over the month pairs.
+  check-spans-months :: Int
+  check-spans-months =
+    if sweep zone-utc Year Month 1 False True (at 2024 1 28 12 0 0 0) (at 2025 2 26 1 0 0 0) 0 6 24
+       && sweep zone-utc Year Month 1 True True (at 2024 1 28 12 0 0 0) (at 2025 2 26 1 0 0 0) 0 6 24
+    then 0 else 64
+
+  -- 128: the span operations over the year pairs, and weeks (which
+  -- never shift) for good measure.
+  check-spans-years-and-weeks :: Int
+  check-spans-years-and-weeks =
+    if sweep zone-utc Year Year 1 False True (at 2024 2 26 12 0 0 0) (at 2027 2 26 1 0 0 0) 0 8 24
+       && sweep india Year Week 1 False False (at 2024 1 28 12 0 0 0) (at 2025 2 27 1 0 0 0) 0 6 12
+       && sweep india Month Week 2 True True (at 2024 1 28 12 0 0 0) (at 2025 2 27 1 0 0 0) 0 6 12
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-header-case + check-leap-day + check-months-forward + check-months-backward
+    + check-months-other-units + check-years + check-spans-months + check-spans-years-and-weeks

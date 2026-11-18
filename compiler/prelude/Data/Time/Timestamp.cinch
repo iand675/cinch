@@ -1,0 +1,288 @@
+-- Data.Time.Timestamp: an instant on the Unix time line
+-- (design/datetime.md, layer L0 "machine time", lane A).
+--
+-- A `Timestamp` answers "when did that happen?": a count of
+-- nanoseconds since 1970-01-01T00:00:00Z, with no leap seconds (Unix
+-- time, as in Jiff and Temporal). It has no calendar fields and no
+-- zone. Showing one to a person needs a `TimeZone`
+-- (`Data.Time.Offset`, `Data.Time.Zone`), and that conversion is the
+-- only road from machine time to civil time. The representation
+-- constructor is not exported, so an out-of-range instant has no
+-- representation.
+--
+-- REPRESENTATION. One `I128` nanosecond count behind the private
+-- constructor `MkTimestamp` (the same shape and the same one-allocation
+-- wrapper cost as `Data.Time.Duration`; see its header).
+--
+-- RANGE (T3). `-9999-01-02T01:59:59Z ..= 9999-12-30T22:00:00.999999999Z`
+-- (`min-timestamp`, `max-timestamp`), Jiff's bounds. Derivation:
+--   - civil years are -9999..=9999 and offsets are within 25:59:59 of
+--     UTC (93599 seconds), so the range is the civil range pulled in
+--     by one maximal offset at each end; then every timestamp has a
+--     civil reading in every offset.
+--   - -9999-01-01 is epoch day -4371587: 0001-01-01 is day -719162,
+--     and the 10000 years -9999..=0 are 25 Gregorian cycles of 146097
+--     days (3652425 days) before it. In seconds, -377705116800; plus
+--     93599 is -377705023201; in nanoseconds
+--     -377705023201000000000.
+--   - 9999-12-31 is epoch day 2932896, so 9999-12-31T23:59:59 is
+--     253402300799 seconds; less 93599 is 253402207200
+--     (9999-12-30T22:00:00); the last nanosecond of that second is
+--     253402207200999999999.
+-- Both bounds are past `I64` nanoseconds (about +-9.22e18), which is
+-- why the representation is wide and why `timestamp-from-unix-nanos`
+-- on an `I64` is total.
+--
+-- Design law shape. The nanosecond count is the value: equality and
+-- `timestamp-cmp` are the integer order, which is the order of the
+-- instants. The Unix conversions floor: `to-unix-seconds` is the
+-- greatest whole second not after the instant and `subsec-nanos` is
+-- the rest, always `0..=999999999`, so 1 ns before the epoch is second
+-- -1 with 999999999 ns, and `from-unix-seconds-and-nanos` inverts
+-- `to-unix-seconds-and-nanos` exactly. `timestamp-since a b` is
+-- `a - b` and `timestamp-until a b` is `b - a`, so each is the other's
+-- negation; `checked-add t (since u t)` is `u`; `checked-add` and
+-- `checked-sub` of the same duration undo each other whenever both
+-- exist. A `checked-` result is `Some` exactly when the true result is
+-- in the range; the `saturating-` twin clamps to the bounds. The
+-- checks are compiler/tests/lib_time_a.rs.
+--
+-- NAMED REFUSALS (boundaries this module deliberately does not
+-- cross):
+--   - instants outside the range above: construction and arithmetic
+--     answer `None` (or clamp, in the `saturating-` spellings).
+--   - leap seconds: not modelled (Unix time).
+--   - calendar fields, formatting and parsing: `Data.Time.Offset`,
+--     `Data.Time.Zone` and `Text.Time.Iso` own those.
+--   - reading the clock: `Effect.Time.now`.
+--   - operator instances for arithmetic (T2); only `Eq` and `Ord`.
+--   - `Int`/`Nat` (bignums): neither appears.
+--   - an allocation-free wrapper: as `Data.Time.Duration`.
+--   - a refined component in the pair `to-unix-seconds-and-nanos`
+--     returns: a tuple whose component type is refined accepts only a
+--     literal there ("type mismatch: expected I64, got InRange 0
+--     999999999 I64" for any computed value), so the pair is
+--     `(I64, I64)` and the bound is carried by `timestamp-subsec-nanos`.
+--
+-- Naming: every export is prefixed `timestamp-` (the bounds are
+-- `min-timestamp`/`max-timestamp`); see `Data.Time.Duration`'s header.
+module Data.Time.Timestamp where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Duration
+
+  export Timestamp
+  export timestamp-epoch, min-timestamp, max-timestamp
+  export timestamp-from-unix-seconds, timestamp-from-unix-millis
+  export timestamp-from-unix-micros, timestamp-from-unix-nanos
+  export timestamp-from-unix-nanos-i128
+  export timestamp-from-unix-seconds-and-nanos
+  export timestamp-to-unix-seconds, timestamp-to-unix-millis
+  export timestamp-to-unix-micros, timestamp-to-unix-nanos
+  export timestamp-to-unix-nanos-i64
+  export timestamp-subsec-nanos, timestamp-to-unix-seconds-and-nanos
+  export timestamp-checked-add, timestamp-checked-sub
+  export timestamp-saturating-add, timestamp-saturating-sub
+  export timestamp-since, timestamp-until
+  export timestamp-cmp
+
+
+  -- Nanoseconds since the Unix epoch. Not exported (the range
+  -- invariant above); named apart from the type so that
+  -- `export Timestamp` does not export it.
+  data Timestamp where
+    MkTimestamp :: I128 -> Timestamp
+
+  -- -----------------------------------------------------------------
+  -- Private helpers on the raw count.
+  -- -----------------------------------------------------------------
+
+  -- The bounds in nanoseconds (the header's derivation).
+  lo :: I128
+  lo = -377705023201000000000
+
+  hi :: I128
+  hi = 253402207200999999999
+
+  nanos-of :: Timestamp -> I128
+  nanos-of t = case t of
+    MkTimestamp n -> n
+
+  in-range :: I128 -> Option Timestamp
+  in-range n =
+    if lt-i128 n lo then None
+    else if gt-i128 n hi then None
+    else Some (MkTimestamp n)
+
+  clamp :: I128 -> Timestamp
+  clamp n =
+    if lt-i128 n lo then MkTimestamp lo
+    else if gt-i128 n hi then MkTimestamp hi
+    else MkTimestamp n
+
+  -- `n` units of `unit` nanoseconds, range-checked. The wrapping
+  -- product is exact: `|n| <= 2^63` and `unit <= 10^9 < 2^30`.
+  units :: I64 -> I128 -> Option Timestamp
+  units n unit = in-range (wrapping-mul-i128 (i64-to-i128 n) unit)
+
+  -- Floored quotient by a positive constant: the truncated quotient,
+  -- less one when the remainder is negative. `None` from the checked
+  -- division is unreachable (the divisor is a non-zero constant and
+  -- the dividend is far from `I128`'s minimum); the decrement cannot
+  -- wrap for the same reason.
+  floor-div :: I128 -> I128 -> I128
+  floor-div n d = case checked-div-i128 n d of
+    None -> 0
+    Some q -> case checked-rem-i128 n d of
+      None -> q
+      Some r -> if lt-i128 r 0 then wrapping-sub-i128 q 1 else q
+
+  -- The floored quotient as an `I64`. Exact for every divisor used
+  -- here (at least 1000): the count's magnitude is below 3.8e20, so
+  -- the quotient's is below 3.8e17 < 2^63.
+  floor-to-i64 :: Timestamp -> I128 -> I64
+  floor-to-i64 t unit = wrapping-i128-to-i64 (floor-div (nanos-of t) unit)
+
+  -- -----------------------------------------------------------------
+  -- Bounds and construction.
+  -- -----------------------------------------------------------------
+
+  -- 1970-01-01T00:00:00Z.
+  timestamp-epoch :: Timestamp
+  timestamp-epoch = MkTimestamp 0
+
+  -- -9999-01-02T01:59:59Z.
+  min-timestamp :: Timestamp
+  min-timestamp = MkTimestamp lo
+
+  -- 9999-12-30T22:00:00.999999999Z.
+  max-timestamp :: Timestamp
+  max-timestamp = MkTimestamp hi
+
+  -- `None` outside -377705023201..=253402207200.
+  timestamp-from-unix-seconds :: I64 -> Option Timestamp
+  timestamp-from-unix-seconds s = units s 1000000000
+
+  timestamp-from-unix-millis :: I64 -> Option Timestamp
+  timestamp-from-unix-millis ms = units ms 1000000
+
+  timestamp-from-unix-micros :: I64 -> Option Timestamp
+  timestamp-from-unix-micros us = units us 1000
+
+  -- Total: every `I64` nanosecond count (1677-09-21 to 2262-04-11) is
+  -- inside the range, whose bounds are past `I64` on both sides.
+  timestamp-from-unix-nanos :: I64 -> Timestamp
+  timestamp-from-unix-nanos n = MkTimestamp (i64-to-i128 n)
+
+  timestamp-from-unix-nanos-i128 :: I128 -> Option Timestamp
+  timestamp-from-unix-nanos-i128 n = in-range n
+
+  -- `secs` whole seconds plus `nanos` nanoseconds. The two are added,
+  -- so any `I64` nanosecond part is accepted and normalised (the pair
+  -- `(-1, 999999999)` is 1 ns before the epoch, the pair
+  -- `to-unix-seconds-and-nanos` gives for it). The wrapping sum is
+  -- exact: the seconds term is below 2^93 and the other below 2^63.
+  timestamp-from-unix-seconds-and-nanos :: I64 -> I64 -> Option Timestamp
+  timestamp-from-unix-seconds-and-nanos secs nanos =
+    in-range (wrapping-add-i128 (wrapping-mul-i128 (i64-to-i128 secs) 1000000000) (i64-to-i128 nanos))
+
+  -- -----------------------------------------------------------------
+  -- Observation. Every conversion to a coarser unit floors (rounds
+  -- toward the past), before the epoch as after it.
+  -- -----------------------------------------------------------------
+
+  timestamp-to-unix-seconds :: Timestamp -> I64
+  timestamp-to-unix-seconds t = floor-to-i64 t 1000000000
+
+  timestamp-to-unix-millis :: Timestamp -> I64
+  timestamp-to-unix-millis t = floor-to-i64 t 1000000
+
+  timestamp-to-unix-micros :: Timestamp -> I64
+  timestamp-to-unix-micros t = floor-to-i64 t 1000
+
+  -- The whole count, exactly.
+  timestamp-to-unix-nanos :: Timestamp -> I128
+  timestamp-to-unix-nanos t = nanos-of t
+
+  -- `None` outside `I64` nanoseconds (before 1677-09-21T00:12:43.145224192Z
+  -- or after 2262-04-11T23:47:16.854775807Z).
+  timestamp-to-unix-nanos-i64 :: Timestamp -> Option I64
+  timestamp-to-unix-nanos-i64 t = checked-i128-to-i64 (nanos-of t)
+
+  -- The nanoseconds past the floored second: `0..=999999999`. The
+  -- value is `n - floor(n / 10^9) * 10^9`, which is in that interval,
+  -- so both wrapping steps are exact; the guard restates the bound for
+  -- the checker (a wide scalar has no solver sort) and its `else` arm
+  -- is unreachable.
+  timestamp-subsec-nanos :: Timestamp -> InRange 0 999999999 I64
+  timestamp-subsec-nanos t =
+    let n = nanos-of t in
+    let x = wrapping-i128-to-i64 (wrapping-sub-i128 n (wrapping-mul-i128 (floor-div n 1000000000) 1000000000)) in
+    if 0 <= x && x <= 999999999 then x else 0
+
+  -- The floored second and the nanoseconds past it (`0..=999999999`),
+  -- together: what the zone layer splits an instant into. The second
+  -- component is a plain `I64` here (named refusal in the header);
+  -- `timestamp-subsec-nanos` is the same number with its bound in the
+  -- type.
+  timestamp-to-unix-seconds-and-nanos :: Timestamp -> (I64, I64)
+  timestamp-to-unix-seconds-and-nanos t = (timestamp-to-unix-seconds t, unrefine (timestamp-subsec-nanos t))
+
+  -- -----------------------------------------------------------------
+  -- Arithmetic with durations.
+  -- -----------------------------------------------------------------
+
+  -- The instant `d` after `t` (before it for a negative `d`).
+  timestamp-checked-add :: Timestamp -> Duration -> Option Timestamp
+  timestamp-checked-add t d = case checked-add-i128 (nanos-of t) (duration-total-nanos d) of
+    Some n -> in-range n
+    None -> None
+
+  -- The instant `d` before `t`.
+  timestamp-checked-sub :: Timestamp -> Duration -> Option Timestamp
+  timestamp-checked-sub t d = case checked-sub-i128 (nanos-of t) (duration-total-nanos d) of
+    Some n -> in-range n
+    None -> None
+
+  -- The same, clamped to `min-timestamp`/`max-timestamp`.
+  timestamp-saturating-add :: Timestamp -> Duration -> Timestamp
+  timestamp-saturating-add t d = clamp (saturating-add-i128 (nanos-of t) (duration-total-nanos d))
+
+  timestamp-saturating-sub :: Timestamp -> Duration -> Timestamp
+  timestamp-saturating-sub t d = clamp (saturating-sub-i128 (nanos-of t) (duration-total-nanos d))
+
+  -- `timestamp-since a b` is `a - b`: the time from `b` to `a`,
+  -- positive when `a` is the later. Total: two counts in the range
+  -- differ by at most 631107230401999999999 (below 2^70), so the
+  -- wrapping subtraction is exact and far inside a duration's range.
+  timestamp-since :: Timestamp -> Timestamp -> Duration
+  timestamp-since a b = duration-saturating-from-i128-nanos (wrapping-sub-i128 (nanos-of a) (nanos-of b))
+
+  -- `timestamp-until a b` is `b - a`: the time from `a` to `b`.
+  timestamp-until :: Timestamp -> Timestamp -> Duration
+  timestamp-until a b = timestamp-since b a
+
+  -- -----------------------------------------------------------------
+  -- Order.
+  -- -----------------------------------------------------------------
+
+  timestamp-cmp :: Timestamp -> Timestamp -> Ordering
+  timestamp-cmp a b =
+    if lt-i128 (nanos-of a) (nanos-of b) then LT
+    else if gt-i128 (nanos-of a) (nanos-of b) then GT
+    else EQ
+
+  implicit instance Eq_Timestamp :: Eq Timestamp where
+    (==) a b = eq-i128 (nanos-of a) (nanos-of b)
+    (/=) a b = ne-i128 (nanos-of a) (nanos-of b)
+
+  implicit instance Ord_Timestamp :: Ord Timestamp where
+    (<) a b = lt-i128 (nanos-of a) (nanos-of b)
+    (<=) a b = le-i128 (nanos-of a) (nanos-of b)
+    (>) a b = gt-i128 (nanos-of a) (nanos-of b)
+    (>=) a b = ge-i128 (nanos-of a) (nanos-of b)

@@ -1,0 +1,62 @@
+-- Lane A: Effect.Time readers. `now` and `monotonic-now` are each read
+-- twice: the monotonic readings never decrease (also over a chain of
+-- 1000), elapsed time is never negative, and the wall clock is
+-- plausible (after 2020-01-01 and before 2200-01-01).
+module Main where
+  import Data.Machine
+  import Data.Time.Duration
+  import Data.Time.Monotonic
+  import Data.Time.Timestamp
+  import Effect.Time
+
+  -- 2020-01-01T00:00:00Z and 2200-01-01T00:00:00Z.
+  y2020 :: Timestamp
+  y2020 = timestamp-from-unix-nanos 1577836800000000000
+
+  y2200 :: Timestamp
+  y2200 = timestamp-from-unix-nanos 7258118400000000000
+
+  -- A chain of back-to-back readings, each no earlier than the last.
+  ordered :: forall r. using (io :: Io r) => Nat -> Monotonic ->{IO r} Bool
+  ordered n prev = case n == 0 of
+    True -> True
+    False -> let cur = monotonic-now () in
+      case prev <= cur of
+        False -> False
+        True -> ordered (n - 1) cur
+
+  -- 1: two monotonic readings in order.
+  check-monotonic-pair :: Monotonic -> Monotonic -> Int
+  check-monotonic-pair m0 m1 =
+    if m0 <= m1 && not (duration-is-negative (monotonic-elapsed-between m0 m1)) then 0 else 1
+
+  -- 4: the wall clock reads a plausible instant, twice.
+  check-wall-plausible :: Timestamp -> Timestamp -> Int
+  check-wall-plausible t0 t1 =
+    if t0 > y2020 && t0 < y2200 && t1 > y2020 && t1 < y2200
+      && eq-i64 (timestamp-to-unix-seconds y2020) 1577836800
+      && eq-i64 (timestamp-to-unix-seconds y2200) 7258118400
+      then 0 else 4
+
+  -- 8: the two wall readings are close (within an hour either way;
+  -- the wall clock may step, so no order is asserted).
+  check-wall-close :: Timestamp -> Timestamp -> Int
+  check-wall-close t0 t1 =
+    if duration-abs (timestamp-since t1 t0) < duration-from-hours 1 then 0 else 8
+
+  -- 16: elapsed time since a reading is never negative and small.
+  check-elapsed :: Duration -> Int
+  check-elapsed e =
+    if duration-is-negative e then 16
+    else if e < duration-from-minutes 10 then 0 else 16
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let m0 = monotonic-now () in
+    let t0 = now () in
+    let m1 = monotonic-now () in
+    let t1 = now () in
+    let chain = if ordered 1000 m1 then 0 else 2 in
+    let e = elapsed-since m0 in
+    check-monotonic-pair m0 m1 + chain + check-wall-plausible t0 t1
+      + check-wall-close t0 t1 + check-elapsed e

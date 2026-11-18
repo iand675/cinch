@@ -1,0 +1,271 @@
+-- Lane G: Text.Time.Zoned, the pure wrappers. RFC 3339 for a
+-- `Timestamp` at an `Offset` (total printer, typed parser, round trip
+-- at the offset bounds and the range ends); `broken-down-from-zoned`
+-- and `zoned-strftime` (`%z`, `%:z`, `%Z`, `%Q` for named and fixed
+-- zones); `timestamp-strftime-at`; and `strptime` fields to a `Zoned`
+-- in a zone, at their own offset, and the refusals.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+  import Text.Time.Iso
+  import Text.Time.Strtime
+  import Text.Time.Rfc9557
+  import Text.Time.Zoned
+
+  db :: TzDb
+  db = tzdb-at "tests/fixtures/time/c/tzif"
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  tn :: I64 -> I64 -> Timestamp
+  tn s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  has :: Option I64 -> I64 -> Bool
+  has o v = case o of
+    None -> False
+    Some x -> x == v
+
+  has-text :: Option String -> String -> Bool
+  has-text o v = case o of
+    None -> False
+    Some x -> x == v
+
+  no-text :: Option String -> Bool
+  no-text o = case o of
+    None -> True
+    Some _ -> False
+
+  -- 1: the RFC 3339 printer at an offset.
+  check-print-at :: Int
+  check-print-at =
+    if timestamp-to-string-at (off 19800) timestamp-epoch == "1970-01-01T05:30:00+05:30"
+       && timestamp-to-string-at offset-utc timestamp-epoch == "1970-01-01T00:00:00+00:00"
+       && timestamp-to-string-at (off (-14400)) (ts 1720897799) == "2024-07-13T15:09:59-04:00"
+       && timestamp-to-string-at (off 39600) (tn 1793385000 500000000) == "2026-10-31T05:30:00.5+11:00"
+       && timestamp-to-string-at (off 1172) (ts (-2208945600)) == "1900-01-01T12:19:32+00:19:32"
+       && timestamp-to-string-at max-offset max-timestamp == "9999-12-31T23:59:59.999999999+25:59:59"
+       && timestamp-to-string-at min-offset min-timestamp == "-009999-01-01T00:00:00-25:59:59"
+       && timestamp-to-string-at min-offset max-timestamp == "9999-12-29T20:00:01.999999999-25:59:59"
+       && timestamp-to-string-at-precision 0 (off 39600) (tn 1793385000 500000000) == "2026-10-31T05:30:00+11:00"
+       && timestamp-to-string-at-precision 3 (off 39600) (tn 1793385000 123456789) == "2026-10-31T05:30:00.123+11:00"
+       && timestamp-to-string-at-precision 9 (off (-3600)) (ts 0) == "1969-12-31T23:00:00.000000000-01:00"
+      then 0 else 1
+
+  parsed-is :: Result IsoError (Timestamp, Offset) -> I64 -> I64 -> I64 -> Bool
+  parsed-is r secs nanos offset = case r of
+    Err _ -> False
+    Ok p -> case p of
+      (t, o) -> t == tn secs nanos && offset-to-seconds o == offset
+
+  refused :: Result IsoError (Timestamp, Offset) -> Bool
+  refused r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  back :: Offset -> Timestamp -> Bool
+  back o t = case timestamp-and-offset-from-string (timestamp-to-string-at o t) of
+    Err _ -> False
+    Ok p -> case p of
+      (t2, o2) -> t2 == t && o2 == o
+
+  -- 2: the typed parser, and the round trip.
+  check-parse-at :: Int
+  check-parse-at =
+    if parsed-is (timestamp-and-offset-from-string "2024-07-13T15:09:59-04:00") 1720897799 0 (-14400)
+       && parsed-is (timestamp-and-offset-from-string "2024-07-13T19:09:59Z") 1720897799 0 0
+       && parsed-is (timestamp-and-offset-from-string "2024-07-13T19:09:59-00:00") 1720897799 0 0
+       && parsed-is (timestamp-and-offset-from-string "2026-10-31T05:30:00.5+11:00") 1793385000 500000000 39600
+       && parsed-is (timestamp-and-offset-from-string "1900-01-01T12:19:32+00:19:32") (-2208945600) 0 1172
+       && refused (timestamp-and-offset-from-string "2024-07-13T15:09:59")
+       && refused (timestamp-and-offset-from-string "2024-07-13T15:09:59-04")
+       && refused (timestamp-and-offset-from-string "2024-07-13 15:09:59-04:00")
+       && refused (timestamp-and-offset-from-string "2024-07-13T15:09:59-04:00[America/New_York]")
+       && refused (timestamp-and-offset-from-string "2024-07-13T15:09:59+26:00")
+       && parsed-is (timestamp-and-offset-from-string-lenient "2024-07-13 15:09:59-04:00") 1720897799 0 (-14400)
+       && parsed-is (timestamp-and-offset-from-string-lenient "2024-07-13t19:09:59z") 1720897799 0 0
+       && back (off 19800) timestamp-epoch && back offset-utc (ts 1720897799)
+       && back max-offset max-timestamp && back min-offset min-timestamp
+       && back max-offset min-timestamp && back min-offset max-timestamp
+       && back (off (-1)) (tn 1720897799 1) && back (off 59) (tn (-1) 999999999)
+      then 0 else 2
+
+  fmt :: String -> Zoned -> String
+  fmt f x = case zoned-strftime f x of
+    Err _ -> "?"
+    Ok s -> s
+
+  -- 4: `zoned-strftime` in a named zone.
+  check-strftime :: TimeZone -> TimeZone -> Int
+  check-strftime syd ny =
+    let x = zoned-from-timestamp syd (ts 1794551400) in
+    let summer = zoned-from-timestamp ny (ts 1720897799) in
+    let winter = zoned-from-timestamp ny (ts 1794459600) in
+    if fmt "%a, %b %d, %Y %H:%M %Z" x == "Fri, Nov 13, 2026 17:30 AEDT"
+       && fmt "%Q" x == "Australia/Sydney"
+       && fmt "%z" x == "+1100" && fmt "%:z" x == "+11:00" && fmt "%::z" x == "+11:00:00"
+       && fmt "%Y-%m-%dT%H:%M:%S%:z[%Q]" x == zoned-to-string x
+       && fmt "%s" x == "1794551400"
+       && fmt "%A %B %-d %I:%M %p %Z" summer == "Saturday July 13 03:09 PM EDT"
+       && fmt "%z %Z %Q" summer == "-0400 EDT America/New_York"
+       && fmt "%z %Z %Q" winter == "-0500 EST America/New_York"
+       && fmt "%#Z" winter == "est"
+       && fmt "%j %u %V %G" x == "317 5 46 2026"
+       && fmt "%F %T%.f" (zoned-from-timestamp syd (tn 1794551400 250000000)) == "2026-11-13 17:30:00.25"
+       && (case zoned-strftime "%Y %" x of
+             Ok _ -> False
+             Err _ -> True)
+       && (case strtime-format-compile "%H:%M %Z" of
+             Err _ -> False
+             Ok f -> (case zoned-strftime-format f x of
+               Err _ -> False
+               Ok s -> s == "17:30 AEDT"))
+      then 0 else 4
+
+  -- 8: fixed zones and `broken-down-from-zoned`'s fields.
+  check-broken-down :: TimeZone -> Int
+  check-broken-down syd =
+    let x = zoned-from-timestamp syd (tn 1794551400 5) in
+    let b = broken-down-from-zoned x in
+    let fixed = zoned-from-timestamp (zone-fixed (off 19800)) (ts 0) in
+    let est = zoned-from-timestamp (zone-fixed-named "EST" (off (-18000))) (ts 0) in
+    if has (broken-down-year b) 2026 && has (broken-down-month b) 11 && has (broken-down-day b) 13
+       && has (broken-down-hour b) 17 && has (broken-down-minute b) 30 && has (broken-down-second b) 0
+       && has (broken-down-subsec-nanosecond b) 5
+       && has (broken-down-offset b) 39600
+       && has (broken-down-unix-seconds b) 1794551400
+       && has-text (broken-down-zone-abbreviation b) "AEDT"
+       && has-text (broken-down-zone-name b) "Australia/Sydney"
+       && no-text (broken-down-zone-name (broken-down-from-zoned fixed))
+       && has-text (broken-down-zone-abbreviation (broken-down-from-zoned fixed)) "+05:30"
+       && fmt "%Q|%Z|%z" fixed == "+05:30|+05:30|+0530"
+       && fmt "%Q|%Z|%:z" est == "EST|EST|-05:00"
+       && fmt "%Q|%Z|%z" (zoned-from-timestamp zone-utc (ts 0)) == "UTC|UTC|+0000"
+       && fmt "%F %T" fixed == "1970-01-01 05:30:00"
+      then 0 else 8
+
+  at-fmt :: Offset -> String -> Timestamp -> String
+  at-fmt o f t = case timestamp-strftime-at o f t of
+    Err _ -> "?"
+    Ok s -> s
+
+  -- 16: `timestamp-strftime-at`, and `broken-down-from-timestamp-at`.
+  check-strftime-at :: Int
+  check-strftime-at =
+    let b = broken-down-from-timestamp-at (off (-14400)) (ts 1720897799) in
+    if at-fmt (off (-14400)) "%a, %d %b %Y %H:%M:%S %z" (ts 1720897799) == "Sat, 13 Jul 2024 15:09:59 -0400"
+       && at-fmt offset-utc "%FT%T%:z" (ts 1720897799) == "2024-07-13T19:09:59+00:00"
+       && at-fmt (off 19800) "%Q" (ts 0) == "+05:30"
+       && at-fmt (off 1172) "%T %::z" (ts (-2208945600)) == "12:19:32 +00:19:32"
+       && at-fmt max-offset "%F %T %::z" max-timestamp == "9999-12-31 23:59:59 +25:59:59"
+       && at-fmt (off 19800) "%Z" (ts 0) == "?"
+       && has (broken-down-offset b) (-14400) && has (broken-down-hour b) 15
+       && has (broken-down-unix-seconds b) 1720897799
+       && no-text (broken-down-zone-name b) && no-text (broken-down-zone-abbreviation b)
+      then 0 else 16
+
+  fields :: String -> String -> BrokenDown
+  fields f s = case strptime f s of
+    Err _ -> broken-down-empty
+    Ok b -> b
+
+  lands :: Result ZonedTextError Zoned -> I64 -> String -> Bool
+  lands r secs shown = case r of
+    Err _ -> False
+    Ok x -> timestamp-to-unix-seconds (zoned-timestamp x) == secs && zoned-to-string x == shown
+
+  -- 0 a value; 1 offset mismatch; 2 rejected gap; 3 rejected fold;
+  -- 4 out of range; 5 another RFC 9557 refusal; 6 missing offset;
+  -- 7 another strtime refusal; 8 lookup; 9 missing zone.
+  outcome :: Result ZonedTextError Zoned -> I64
+  outcome r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedTextRfc9557 why -> (case why of
+        Rfc9557OffsetMismatch _ _ -> 1
+        Rfc9557Ambiguous a -> (case a of
+          RejectedGap _ _ -> 2
+          RejectedFold _ _ -> 3
+          AmbiguityOutOfRange -> 4)
+        Rfc9557OutOfRange -> 4
+        _ -> 5)
+      ZonedTextStrtime why -> (case why of
+        StrtimeMissingOffset -> 6
+        _ -> 7)
+      ZonedTextLookup _ -> 8
+      ZonedTextMissingZone -> 9
+
+  -- 32: `strptime` fields read in a zone the caller has.
+  check-to-zoned-in :: TimeZone -> TimeZone -> Int
+  check-to-zoned-in syd ny =
+    let plain = fields "%Y-%m-%d %H:%M" "2026-04-05 02:30" in
+    let first = fields "%Y-%m-%d %H:%M %z" "2026-04-05 02:30 +1100" in
+    let second = fields "%Y-%m-%d %H:%M %z" "2026-04-05 02:30 +1000" in
+    let wrong = fields "%Y-%m-%d %H:%M %z" "2026-04-05 02:30 +0900" in
+    let gap = fields "%Y-%m-%d %H:%M" "2026-03-08 02:30" in
+    let a = "2026-04-05T02:30:00+11:00[Australia/Sydney]" in
+    let b = "2026-04-05T02:30:00+10:00[Australia/Sydney]" in
+    if lands (broken-down-to-zoned-in OffsetReject Compatible syd plain) 1775316600 a
+       && lands (broken-down-to-zoned-in OffsetReject Later syd plain) 1775320200 b
+       && outcome (broken-down-to-zoned-in OffsetReject Reject syd plain) == 3
+       && lands (broken-down-to-zoned-in OffsetReject Reject syd first) 1775316600 a
+       && lands (broken-down-to-zoned-in OffsetReject Reject syd second) 1775320200 b
+       && outcome (broken-down-to-zoned-in OffsetReject Compatible syd wrong) == 1
+       && lands (broken-down-to-zoned-in OffsetUse Compatible syd wrong) 1775323800 "2026-04-05T03:30:00+10:00[Australia/Sydney]"
+       && lands (broken-down-to-zoned-in OffsetIgnore Compatible syd wrong) 1775316600 a
+       && lands (broken-down-to-zoned-in OffsetPrefer Later syd wrong) 1775320200 b
+       && lands (broken-down-to-zoned-in OffsetReject Compatible ny gap) 1772955000 "2026-03-08T03:30:00-04:00[America/New_York]"
+       && outcome (broken-down-to-zoned-in OffsetReject Reject ny gap) == 2
+       && lands (broken-down-to-zoned-in OffsetReject Reject ny (fields "%s" "1720897799")) 1720897799 "2024-07-13T15:09:59-04:00[America/New_York]"
+       && lands (broken-down-to-zoned-in OffsetReject Compatible ny (fields "%Y-%m-%d" "2026-11-12")) 1794459600 "2026-11-12T00:00:00-05:00[America/New_York]"
+       && outcome (broken-down-to-zoned-in OffsetReject Compatible ny (fields "%H:%M" "02:30")) == 7
+       && outcome (broken-down-to-zoned-in OffsetReject Compatible zone-utc (fields "%Y-%m-%d %H:%M" "9999-12-31 23:00")) == 4
+       && lands (broken-down-to-zoned (Some syd) second) 1775320200 b
+       && lands (broken-down-to-zoned (Some syd) plain) 1775316600 a
+       && outcome (broken-down-to-zoned (Some syd) wrong) == 1
+      then 0 else 32
+
+  -- 64: fields at their own offset, and the refusals when the fields
+  -- name neither a zone nor an offset.
+  check-to-zoned-at-offset :: Int
+  check-to-zoned-at-offset =
+    let second = fields "%Y-%m-%d %H:%M %z" "2026-04-05 02:30 +1000" in
+    let plain = fields "%Y-%m-%d %H:%M" "2026-04-05 02:30" in
+    if lands (broken-down-to-zoned-at-offset second) 1775320200 "2026-04-05T02:30:00+10:00[+10:00]"
+       && lands (broken-down-to-zoned None second) 1775320200 "2026-04-05T02:30:00+10:00[+10:00]"
+       && lands (broken-down-to-zoned-at-offset (fields "%Y-%m-%d %H:%M:%S %z" "2024-07-13 19:09:59 +0000")) 1720897799 "2024-07-13T19:09:59+00:00[UTC]"
+       && lands (broken-down-to-zoned-at-offset (fields "%Y-%m-%d %H:%M %:z" "2026-04-05 02:30 -03:30")) 1775368800 "2026-04-05T02:30:00-03:30[-03:30]"
+       && outcome (broken-down-to-zoned-at-offset plain) == 6
+       && outcome (broken-down-to-zoned None plain) == 9
+       && outcome (broken-down-to-zoned None broken-down-empty) == 9
+       && outcome (broken-down-to-zoned-at-offset (fields "%H:%M %z" "02:30 +1000")) == 7
+       && outcome (broken-down-to-zoned-at-offset (fields "%Y-%m-%d %H:%M %z" "9999-12-31 23:00 -0500")) == 7
+       && outcome (broken-down-to-zoned None (fields "%Y-%m-%d %H:%M %Q" "2026-04-05 02:30 Australia/Sydney")) == 9
+      then 0 else 64
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup db "Australia/Sydney" of
+      Err _ -> 128
+      Ok syd -> case tzdb-lookup db "America/New_York" of
+        Err _ -> 128
+        Ok ny -> check-print-at + check-parse-at + check-strftime syd ny + check-broken-down syd
+          + check-strftime-at + check-to-zoned-in syd ny + check-to-zoned-at-offset

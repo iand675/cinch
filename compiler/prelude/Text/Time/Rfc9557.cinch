@@ -1,0 +1,825 @@
+-- Text.Time.Rfc9557: RFC 9557 ("IXDTF") text for `Zoned`: an RFC 3339
+-- date-time followed by a bracketed time zone annotation, as Temporal's
+-- ZonedDateTime and Jiff's Zoned write it
+-- (design/datetime.md, layer L4; T4, T5, T9, T10).
+--
+--     2026-11-12T15:36:00-05:00[America/New_York]
+--
+-- Grammar (strict; nothing before or after it):
+--
+--     zoned       = date "T" time [offset] 1*annotation
+--     offset      = "Z" | ("+" | "-") hour [":" minute [":" second]]
+--     annotation  = "[" ["!"] (zone | key "=" value) "]"
+--     zone        = zone-name | ("+" | "-") hour ":" minute
+--     zone-name   = part *("/" part)      ; at most 255 bytes in all
+--     part        = (ALPHA | "." | "_") *(ALPHA | DIGIT | "." | "_" | "-" | "+")
+--                                         ; and not "." or ".."
+--     key         = (a-z | "_") *(a-z | DIGIT | "-" | "_")
+--     value       = 1*alphanum *("-" 1*alphanum)
+--
+-- `date` and `time` are Text.Time.Iso's (the same machines, continued
+-- from their cursor). The offset is this module's own machine because
+-- RFC 9557 strings in the wild carry the hour-only form
+-- (`2024-09-10T23:37:20-04[America/New_York]`, which Temporal and Jiff
+-- both read) and Text.Time.Iso refuses it for a plain RFC 3339
+-- timestamp. Exactly one annotation is a time zone and it comes first;
+-- `key=value` annotations may follow it.
+--
+-- The lenient parser (`-lenient`) accepts in addition: everything
+-- Text.Time.Iso's lenient date-time accepts (a `t` or one space as the
+-- separator, the basic date, second 60 read as 59), a lower case `z`,
+-- the basic offsets `+HHMM` and `+HHMMSS`, an offset with seconds in the
+-- zone annotation (`[+05:30:15]`, which is what the printer writes for
+-- a zone it can only name by a sub-minute offset), and a date with no
+-- time (`2026-11-12[America/New_York]`), which resolves to the first
+-- instant of that day in the zone.
+--
+-- Parsing is two pure steps so that zone lookup stays an effect (T5):
+--   1. `parse-zoned-text :: String -> Result Rfc9557Error ZonedText`
+--      reads the text and nothing else. A `ZonedText` holds the civil
+--      date and time, the offset as written, the zone annotation (a
+--      name or an offset) and the other annotations.
+--   2. `zoned-text-resolve conflict strategy zone text` turns it into a
+--      `Zoned`, given the zone the caller looked up for
+--      `zoned-text-zone-name` (an offset annotation needs no lookup:
+--      `zoned-text-fixed-zone`). The lookup-and-resolve convenience
+--      under the `Io r` capability is `Text.Time.Zoned.zoned-from-string`.
+--      `zoned-resolve-datetime` applies the same rules to a civil
+--      reading and an offset that did not come from this parser.
+--
+-- Resolution is Temporal's InterpretISODateTimeOffset:
+--   - no offset written: the civil reading is resolved in the zone with
+--     the given `Disambiguation`.
+--   - `Z` (or `-00:00`, RFC 3339's "offset unknown", which RFC 9557 and
+--     Jiff read as `Z`): the civil reading is UTC, so the instant is
+--     exact; it is then shown in the zone. No conflict is possible.
+--   - a numeric offset, by the `OffsetConflict`:
+--       OffsetReject  the offset must be one the zone has for that civil
+--                     reading (in a fold either one, and it selects the
+--                     occurrence; in a gap none is); otherwise
+--                     `Rfc9557OffsetMismatch`.
+--       OffsetUse     the instant is the civil reading less the offset,
+--                     then shown in the zone (whose offset then may
+--                     differ from the one written).
+--       OffsetPrefer  as OffsetReject when the offset is valid,
+--                     otherwise the offset is dropped and the civil
+--                     reading is resolved with the `Disambiguation`.
+--       OffsetIgnore  the offset is dropped; the civil reading is
+--                     resolved with the `Disambiguation`.
+--     An offset written in whole minutes also matches a zone offset
+--     that rounds (half away from zero) to it, Temporal's rule for the
+--     sub-minute local mean times of old data (`+00:20` matches
+--     Amsterdam's +00:19:32); the instant then uses the zone's offset.
+--   - a date with no time (lenient only): the first instant of that
+--     civil day (`zoned-start-of-day`'s law: midnight, or the instant
+--     the clocks jumped when midnight was skipped).
+--
+-- Design law shape.
+--   - Round trip: for every `Zoned` `x` whose zone name is a
+--     `zone-name` of the grammar (every IANA name), or whose zone is a
+--     fixed offset in whole minutes, parsing `zoned-to-string x` and
+--     resolving with `OffsetReject` and ANY strategy in a zone of the
+--     same rules gives the same instant: the printed offset is the one
+--     in force, so it selects the occurrence in a fold.
+--   - `zoned-to-string` writes the civil reading with the shortest
+--     exact fraction, the offset in force as `+HH:MM` (`+HH:MM:SS` only
+--     when it has seconds; never `Z`), and the zone in brackets: the
+--     zone's name when it is a `zone-name` of the grammar (`UTC`, an
+--     IANA name), and otherwise the offset in force (`[+05:30]` for
+--     `zone-fixed`). `zoned-to-string-precision k` writes exactly `k`
+--     fraction digits, truncating.
+--   - `zoned-to-rfc3339` is the same text without the annotation: the
+--     instant as an RFC 3339 timestamp at the offset in force.
+--   - The parser is a state machine over the input's bytes (`st-*`),
+--     never going back; it allocates the zone name, the annotations
+--     (none in the common case) and the result. The printer computes
+--     the exact length, allocates one buffer and fills it.
+--   - No operation faults; every refusal is an `Rfc9557Error`
+--     constructor, with the byte position where one exists.
+--
+-- NAMED REFUSALS:
+--   - a date-time with no zone annotation (`2024-07-13T19:09:59Z`):
+--     `Rfc9557MissingZoneAnnotation`. It is a `Timestamp` (or a civil
+--     `DateTime`), not a `Zoned`; Text.Time.Iso reads it.
+--   - a date with no time in strict mode: `Rfc9557MissingTime`.
+--   - a sub-minute offset in the zone annotation (`[+05:30:15]`): the
+--     RFC's `time-numoffset` has hours and minutes only, so strict mode
+--     answers `Rfc9557SubMinuteZoneOffset`. The printer still writes the
+--     seconds for a zone it must name by such an offset rather than
+--     round it (an exact text over a valid one); the lenient parser
+--     reads it back.
+--   - a zone that has neither a grammatical name nor a fixed offset (a
+--     POSIX rule, a hand-built table named `my zone`): the printer
+--     writes the offset in force in the brackets, as Jiff does. The
+--     text then keeps the instant and loses the zone's rules.
+--   - calendars: `[u-ca=iso8601]` and `[u-ca=gregory]` are accepted and
+--     ignored; any other calendar is `Rfc9557UnsupportedCalendar` (only
+--     the proleptic Gregorian calendar exists here).
+--   - unknown `key=value` annotations are kept in the `ZonedText` and
+--     otherwise ignored, unless flagged critical (`[!u-foo=bar]`):
+--     `Rfc9557CriticalUnknownAnnotation`.
+--   - the critical flag on the zone annotation (`[!Europe/Paris]`) is
+--     accepted and reported (`zoned-text-zone-is-critical`) and does not
+--     change resolution: the `OffsetConflict` decides, as in Temporal.
+--     A caller that wants the RFC's reading passes `OffsetReject` (the
+--     default) for a critical zone.
+--   - whether the zone handed to `zoned-text-resolve` is the one the
+--     annotation names is not checked: the caller did the lookup, and
+--     may have mapped an alias.
+--   - fractional offsets, offsets beyond +-25:59:59, leap seconds: as
+--     Text.Time.Iso.
+--   - zone lookup: `Effect.Time.Zone` (T5); `Text.Time.Zoned` joins the
+--     two.
+module Text.Time.Rfc9557 where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.List
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Text.Time.Iso
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+
+  export Rfc9557Error, Rfc9557DateTime, Rfc9557MissingTime, Rfc9557MissingZoneAnnotation
+  export Rfc9557TrailingInput, Rfc9557UnclosedAnnotation, Rfc9557EmptyAnnotation
+  export Rfc9557InvalidAnnotation, Rfc9557InvalidZoneName, Rfc9557InvalidZoneOffset
+  export Rfc9557SubMinuteZoneOffset, Rfc9557ZoneOffsetOutOfRange
+  export Rfc9557DuplicateZoneAnnotation, Rfc9557ZoneAnnotationNotFirst
+  export Rfc9557CriticalUnknownAnnotation, Rfc9557UnsupportedCalendar
+  export Rfc9557OffsetMismatch, Rfc9557Ambiguous, Rfc9557OutOfRange
+  export rfc9557-error-position
+  export OffsetConflict, OffsetReject, OffsetUse, OffsetPrefer, OffsetIgnore
+  export ZonedTextOffset, ZonedTextNoOffset, ZonedTextZulu, ZonedTextNumeric
+  export ZoneAnnotation, ZoneAnnotationName, ZoneAnnotationOffset
+  export Rfc9557Annotation, rfc9557-annotation-key, rfc9557-annotation-value
+  export rfc9557-annotation-is-critical
+  export ZonedText, parse-zoned-text, parse-zoned-text-lenient
+  export zoned-text-date, zoned-text-time, zoned-text-datetime, zoned-text-is-date-only
+  export zoned-text-offset, zoned-text-numeric-offset, zoned-text-is-zulu
+  export zoned-text-zone, zoned-text-zone-name, zoned-text-zone-offset
+  export zoned-text-fixed-zone, zoned-text-zone-is-critical, zoned-text-annotations
+  export zoned-text-resolve, zoned-text-resolve-default, zoned-resolve-datetime
+  export zoned-to-string, zoned-to-string-precision
+  export zoned-to-rfc3339, zoned-to-rfc3339-precision
+  export rfc9557-zoned-bytes, rfc9557-valid-zone-name
+
+
+  -- One constructor per refusal. A position is a byte index into the
+  -- input.
+  data Rfc9557Error where
+    -- The date, the time or the offset is not what Text.Time.Iso's
+    -- grammar (with this module's offset forms) allows.
+    Rfc9557DateTime :: IsoError -> Rfc9557Error
+    -- Strict mode: a date with an annotation and no time. The position
+    -- is the `[`.
+    Rfc9557MissingTime :: I64 -> Rfc9557Error
+    -- The text ends with no time zone annotation: it is a timestamp or
+    -- a civil date-time, not a zoned date-time. The position is the end.
+    Rfc9557MissingZoneAnnotation :: I64 -> Rfc9557Error
+    -- A byte after the date-time that does not start an annotation.
+    Rfc9557TrailingInput :: I64 -> Rfc9557Error
+    -- A `[` with no `]` after it. The position is the `[`.
+    Rfc9557UnclosedAnnotation :: I64 -> Rfc9557Error
+    -- `[]` or `[!]`. The position is the `[`.
+    Rfc9557EmptyAnnotation :: I64 -> Rfc9557Error
+    -- A `key=value` annotation whose key or value is not of the
+    -- grammar. The position is the first byte of the key.
+    Rfc9557InvalidAnnotation :: I64 -> Rfc9557Error
+    -- A zone annotation that is not a `zone-name`. The position is its
+    -- first byte.
+    Rfc9557InvalidZoneName :: I64 -> Rfc9557Error
+    -- A zone annotation starting with a sign that is not `+HH:MM`. The
+    -- position is the sign.
+    Rfc9557InvalidZoneOffset :: I64 -> Rfc9557Error
+    -- Strict mode: `[+HH:MM:SS]`. The position is the sign.
+    Rfc9557SubMinuteZoneOffset :: I64 -> Rfc9557Error
+    -- A zone annotation offset beyond +-25:59, or with a minute (or
+    -- second) above 59. The position is the sign.
+    Rfc9557ZoneOffsetOutOfRange :: I64 -> Rfc9557Error
+    -- A second time zone annotation. The position is its `[`.
+    Rfc9557DuplicateZoneAnnotation :: I64 -> Rfc9557Error
+    -- The time zone annotation comes after a `key=value` annotation.
+    -- The position is its `[`.
+    Rfc9557ZoneAnnotationNotFirst :: I64 -> Rfc9557Error
+    -- `[!key=value]` for a key this module does not know (every key but
+    -- `u-ca`). The position is the `[`.
+    Rfc9557CriticalUnknownAnnotation :: I64 -> Rfc9557Error
+    -- `[u-ca=...]` naming a calendar other than `iso8601` or `gregory`.
+    -- The position is the `[`.
+    Rfc9557UnsupportedCalendar :: I64 -> Rfc9557Error
+    -- Resolution, `OffsetReject`: the offset written is not one the zone
+    -- has for the civil reading. The offset written, and what the zone
+    -- has.
+    Rfc9557OffsetMismatch :: Offset -> Ambiguous -> Rfc9557Error
+    -- Resolution with the `Reject` strategy met a gap or a fold
+    -- (`RejectedGap` or `RejectedFold`, with the two offsets).
+    Rfc9557Ambiguous :: AmbiguityError -> Rfc9557Error
+    -- Resolution: the instant is outside the `Timestamp` range.
+    Rfc9557OutOfRange :: Rfc9557Error
+
+  -- The byte position of a parse refusal (for `Rfc9557DateTime`, the
+  -- inner error's); `None` for the three resolution refusals.
+  rfc9557-error-position :: Rfc9557Error -> Option I64
+  rfc9557-error-position e = case e of
+    Rfc9557DateTime inner -> Some (iso-error-position inner)
+    Rfc9557MissingTime p -> Some p
+    Rfc9557MissingZoneAnnotation p -> Some p
+    Rfc9557TrailingInput p -> Some p
+    Rfc9557UnclosedAnnotation p -> Some p
+    Rfc9557EmptyAnnotation p -> Some p
+    Rfc9557InvalidAnnotation p -> Some p
+    Rfc9557InvalidZoneName p -> Some p
+    Rfc9557InvalidZoneOffset p -> Some p
+    Rfc9557SubMinuteZoneOffset p -> Some p
+    Rfc9557ZoneOffsetOutOfRange p -> Some p
+    Rfc9557DuplicateZoneAnnotation p -> Some p
+    Rfc9557ZoneAnnotationNotFirst p -> Some p
+    Rfc9557CriticalUnknownAnnotation p -> Some p
+    Rfc9557UnsupportedCalendar p -> Some p
+    Rfc9557OffsetMismatch _ _ -> None
+    Rfc9557Ambiguous _ -> None
+    Rfc9557OutOfRange -> None
+
+  -- What to do when a numeric offset and the zone disagree (the
+  -- header's table; Temporal's `offset` option).
+  data OffsetConflict where
+    OffsetReject :: OffsetConflict
+    OffsetUse :: OffsetConflict
+    OffsetPrefer :: OffsetConflict
+    OffsetIgnore :: OffsetConflict
+
+  -- The offset as written between the time and the annotation.
+  data ZonedTextOffset where
+    -- None: the text is a civil reading in the zone.
+    ZonedTextNoOffset :: ZonedTextOffset
+    -- `Z` (or `-00:00`): the civil reading is UTC.
+    ZonedTextZulu :: ZonedTextOffset
+    ZonedTextNumeric :: Offset -> ZonedTextOffset
+
+  -- The time zone annotation: a name to look up, or a fixed offset.
+  data ZoneAnnotation where
+    ZoneAnnotationName :: String -> ZoneAnnotation
+    ZoneAnnotationOffset :: Offset -> ZoneAnnotation
+
+  -- A `key=value` annotation: key, value and the critical flag.
+  -- Abstract.
+  data Rfc9557Annotation where
+    MkAnnotation :: String -> String -> Bool -> Rfc9557Annotation
+
+  rfc9557-annotation-key :: Rfc9557Annotation -> String
+  rfc9557-annotation-key a = case a of
+    MkAnnotation k _ _ -> k
+
+  rfc9557-annotation-value :: Rfc9557Annotation -> String
+  rfc9557-annotation-value a = case a of
+    MkAnnotation _ v _ -> v
+
+  rfc9557-annotation-is-critical :: Rfc9557Annotation -> Bool
+  rfc9557-annotation-is-critical a = case a of
+    MkAnnotation _ _ c -> c
+
+  -- What the text says, before any zone is consulted: the date, the
+  -- time (absent for a lenient date-only text), the offset as written,
+  -- the zone annotation and its critical flag, and the `key=value`
+  -- annotations in the order written. Abstract: only the parsers make
+  -- one.
+  data ZonedText where
+    MkZonedText :: Date -> Option TimeOfDay -> ZonedTextOffset -> ZoneAnnotation -> Bool -> List Rfc9557Annotation -> ZonedText
+
+  zoned-text-date :: ZonedText -> Date
+  zoned-text-date x = case x of
+    MkZonedText d _ _ _ _ _ -> d
+
+  -- `None` for a date-only text.
+  zoned-text-time :: ZonedText -> Option TimeOfDay
+  zoned-text-time x = case x of
+    MkZonedText _ t _ _ _ _ -> t
+
+  zoned-text-is-date-only :: ZonedText -> Bool
+  zoned-text-is-date-only x = case zoned-text-time x of
+    None -> True
+    Some _ -> False
+
+  -- The civil reading as written (midnight for a date-only text, which
+  -- is NOT how such a text resolves: see the header).
+  zoned-text-datetime :: ZonedText -> DateTime
+  zoned-text-datetime x = case x of
+    MkZonedText d ot _ _ _ _ -> case ot of
+      None -> DT.from-date d
+      Some t -> DT.datetime d t
+
+  zoned-text-offset :: ZonedText -> ZonedTextOffset
+  zoned-text-offset x = case x of
+    MkZonedText _ _ o _ _ _ -> o
+
+  -- The numeric offset, when one was written (`None` for `Z` and for
+  -- no offset).
+  zoned-text-numeric-offset :: ZonedText -> Option Offset
+  zoned-text-numeric-offset x = case zoned-text-offset x of
+    ZonedTextNoOffset -> None
+    ZonedTextZulu -> None
+    ZonedTextNumeric o -> Some o
+
+  zoned-text-is-zulu :: ZonedText -> Bool
+  zoned-text-is-zulu x = case zoned-text-offset x of
+    ZonedTextNoOffset -> False
+    ZonedTextZulu -> True
+    ZonedTextNumeric _ -> False
+
+  zoned-text-zone :: ZonedText -> ZoneAnnotation
+  zoned-text-zone x = case x of
+    MkZonedText _ _ _ z _ _ -> z
+
+  -- The name to look up; `None` when the annotation is an offset.
+  zoned-text-zone-name :: ZonedText -> Option String
+  zoned-text-zone-name x = case zoned-text-zone x of
+    ZoneAnnotationName n -> Some n
+    ZoneAnnotationOffset _ -> None
+
+  zoned-text-zone-offset :: ZonedText -> Option Offset
+  zoned-text-zone-offset x = case zoned-text-zone x of
+    ZoneAnnotationName _ -> None
+    ZoneAnnotationOffset o -> Some o
+
+  -- The zone itself when the annotation is an offset (`zone-fixed`; no
+  -- lookup is needed); `None` when it is a name.
+  zoned-text-fixed-zone :: ZonedText -> Option TimeZone
+  zoned-text-fixed-zone x = case zoned-text-zone x of
+    ZoneAnnotationName _ -> None
+    ZoneAnnotationOffset o -> Some (zone-fixed o)
+
+  zoned-text-zone-is-critical :: ZonedText -> Bool
+  zoned-text-zone-is-critical x = case x of
+    MkZonedText _ _ _ _ c _ -> c
+
+  zoned-text-annotations :: ZonedText -> List Rfc9557Annotation
+  zoned-text-annotations x = case x of
+    MkZonedText _ _ _ _ _ a -> a
+
+  -- -----------------------------------------------------------------
+  -- Parsing. States, in order:
+  --   (Iso date) -> st-after-date -> (Iso time) -> st-offset
+  --   -> [st-offset-hour -> [st-offset-minute -> [st-offset-second]]]
+  --   -> st-annotations -> (st-zone | st-key)* -> done.
+  -- -----------------------------------------------------------------
+
+  parse-zoned-text :: String -> Result Rfc9557Error ZonedText
+  parse-zoned-text s = parse-bytes IsoStrict (scan-bytes-of-string s)
+
+  -- The lenient forms of the header, including a date with no time.
+  parse-zoned-text-lenient :: String -> Result Rfc9557Error ZonedText
+  parse-zoned-text-lenient s = parse-bytes IsoLenient (scan-bytes-of-string s)
+
+  parse-bytes :: IsoMode -> Bytes -> Result Rfc9557Error ZonedText
+  parse-bytes mode b = case iso-parse-date-at mode b 0 of
+    Err e -> Err (Rfc9557DateTime e)
+    Ok p -> case p of
+      (d, j) -> st-after-date mode b j d
+
+  is-time-separator :: IsoMode -> I64 -> Bool
+  is-time-separator mode c = case mode of
+    IsoStrict -> c == 84
+    IsoLenient -> c == 84 || c == 116 || c == 32
+
+  st-after-date :: IsoMode -> Bytes -> I64 -> Date -> Result Rfc9557Error ZonedText
+  st-after-date mode b j d =
+    let c = scan-byte-at b j in
+    if is-time-separator mode c then
+      (case iso-parse-time-at mode b (plus j 1) of
+        Err e -> Err (Rfc9557DateTime e)
+        Ok p -> case p of
+          (t, k) -> case st-offset mode b k of
+            Err e -> Err e
+            Ok o -> case o of
+              MkOff written next -> finish d (Some t) written (st-annotations mode b next None False 0 Nil))
+    else if c == 91 then
+      (case mode of
+        IsoStrict -> Err (Rfc9557MissingTime j)
+        IsoLenient -> finish d None ZonedTextNoOffset (st-annotations mode b j None False 0 Nil))
+    else if c < 0 then Err (Rfc9557DateTime (IsoMissingTime j))
+    else Err (Rfc9557DateTime (IsoExpectedTimeSeparator j))
+
+  finish :: Date -> Option TimeOfDay -> ZonedTextOffset -> Result Rfc9557Error Tail -> Result Rfc9557Error ZonedText
+  finish d t written r = case r of
+    Err e -> Err e
+    Ok tail -> case tail of
+      MkTail z critical others -> Ok (MkZonedText d t written z critical others)
+
+  -- The offset as written and the position after it.
+  data Off where
+    MkOff :: ZonedTextOffset -> I64 -> Off
+
+  -- An offset is optional: a byte that cannot start one leaves the
+  -- cursor where it is for the annotations.
+  st-offset :: IsoMode -> Bytes -> I64 -> Result Rfc9557Error Off
+  st-offset mode b i =
+    let c = scan-byte-at b i in
+    if c == 90 then Ok (MkOff ZonedTextZulu (plus i 1))
+    else if c == 43 then st-offset-hour mode b i False
+    else if c == 45 then st-offset-hour mode b i True
+    else if c == 122 then
+      (case mode of
+        IsoStrict -> Err (Rfc9557DateTime (IsoExpectedOffset i))
+        IsoLenient -> Ok (MkOff ZonedTextZulu (plus i 1)))
+    else Ok (MkOff ZonedTextNoOffset i)
+
+  -- `i` is at the sign. After the hour: `:` and a minute, or (lenient)
+  -- a minute at once, or nothing more.
+  st-offset-hour :: IsoMode -> Bytes -> I64 -> Bool -> Result Rfc9557Error Off
+  st-offset-hour mode b i negative =
+    let h = scan-digits b (plus i 1) 2 in
+    if h < 0 then Err (digit-error b (plus i 1) 2)
+    else if h > 25 then Err (Rfc9557DateTime (IsoOffsetOutOfRange i))
+    else
+      let c = scan-byte-at b (plus i 3) in
+      if c == 58 then st-offset-minute b i negative h (plus i 4) True
+      else if c >= 48 && c <= 57 then
+        (case mode of
+          IsoStrict -> Err (Rfc9557DateTime (IsoExpectedColon (plus i 3)))
+          IsoLenient -> st-offset-minute b i negative h (plus i 3) False)
+      else offset-done i (plus i 3) negative h 0 0
+
+  -- The minute digits are at `at`; `ext` is the extended (colon) form.
+  st-offset-minute :: Bytes -> I64 -> Bool -> I64 -> I64 -> Bool -> Result Rfc9557Error Off
+  st-offset-minute b i negative h at ext =
+    let m = scan-digits b at 2 in
+    let next = plus at 2 in
+    if m < 0 then Err (digit-error b at 2)
+    else if m > 59 then Err (Rfc9557DateTime (IsoOffsetOutOfRange i))
+    else if ext then
+      (if scan-byte-at b next == 58 then st-offset-second b i negative h m (plus next 1)
+       else offset-done i next negative h m 0)
+    else if scan-digit-at b next >= 0 then st-offset-second b i negative h m next
+    else offset-done i next negative h m 0
+
+  st-offset-second :: Bytes -> I64 -> Bool -> I64 -> I64 -> I64 -> Result Rfc9557Error Off
+  st-offset-second b i negative h m at =
+    let s = scan-digits b at 2 in
+    if s < 0 then Err (digit-error b at 2)
+    else if s > 59 then Err (Rfc9557DateTime (IsoOffsetOutOfRange i))
+    else offset-done i (plus at 2) negative h m s
+
+  -- The fields were range-checked by their states, so `offset-from-hms`
+  -- answers `Some`; its `None` arm is unreachable and reports the
+  -- range. `-00`, `-00:00` and `-00:00:00` read as `Z` (header).
+  offset-done :: I64 -> I64 -> Bool -> I64 -> I64 -> I64 -> Result Rfc9557Error Off
+  offset-done i next negative h m s =
+    if negative && h == 0 && m == 0 && s == 0 then Ok (MkOff ZonedTextZulu next)
+    else case offset-from-hms negative h m s of
+      None -> Err (Rfc9557DateTime (IsoOffsetOutOfRange i))
+      Some o -> Ok (MkOff (ZonedTextNumeric o) next)
+
+  -- Which refusal a failed run of `n` digits at `i` is: the first
+  -- non-digit position, as the end of input or as a wrong byte.
+  digit-error :: Bytes -> I64 -> I64 -> Rfc9557Error
+  digit-error b i n =
+    let at = plus i (scan-count-digits b i n) in
+    if scan-byte-at b at < 0 then Rfc9557DateTime (IsoUnexpectedEnd at)
+    else Rfc9557DateTime (IsoExpectedDigit at)
+
+  -- What the annotations say: the zone, its critical flag, the rest.
+  data Tail where
+    MkTail :: ZoneAnnotation -> Bool -> List Rfc9557Annotation -> Tail
+
+  -- At `p`: the end of the input, or a `[`. `zone` is the zone
+  -- annotation read so far and `critical` its flag; `keys` counts the
+  -- `key=value` annotations read and `acc` holds them, newest first.
+  st-annotations :: IsoMode -> Bytes -> I64 -> Option ZoneAnnotation -> Bool -> I64 -> List Rfc9557Annotation -> Result Rfc9557Error Tail
+  st-annotations mode b p zone critical keys acc =
+    let c = scan-byte-at b p in
+    if c < 0 then
+      (case zone of
+        None -> Err (Rfc9557MissingZoneAnnotation p)
+        Some z -> Ok (MkTail z critical (reverse-onto acc Nil)))
+    else if c == 91 then
+      let flagged = scan-byte-at b (plus p 1) == 33 in
+      let q = if flagged then plus p 2 else plus p 1 in
+      let e = find-byte b q 93 (scan-length b) in
+      if e < 0 then Err (Rfc9557UnclosedAnnotation p)
+      else if e == q then Err (Rfc9557EmptyAnnotation p)
+      else
+        let eq = find-byte b q 61 e in
+        if eq < 0 then st-zone mode b p q e flagged zone critical keys acc
+        else st-key mode b p q eq e flagged zone critical keys acc
+    else Err (Rfc9557TrailingInput p)
+
+  -- A zone annotation `[q .. e)` whose `[` is at `p`.
+  st-zone :: IsoMode -> Bytes -> I64 -> I64 -> I64 -> Bool -> Option ZoneAnnotation -> Bool -> I64 -> List Rfc9557Annotation -> Result Rfc9557Error Tail
+  st-zone mode b p q e flagged zone critical keys acc = case zone of
+    Some _ -> Err (Rfc9557DuplicateZoneAnnotation p)
+    None ->
+      if keys > 0 then Err (Rfc9557ZoneAnnotationNotFirst p)
+      else case zone-annotation mode b q e of
+        Err err -> Err err
+        Ok z -> st-annotations mode b (plus e 1) (Some z) flagged keys acc
+
+  zone-annotation :: IsoMode -> Bytes -> I64 -> I64 -> Result Rfc9557Error ZoneAnnotation
+  zone-annotation mode b q e =
+    let c = scan-byte-at b q in
+    if c == 43 then zone-offset mode b q e False
+    else if c == 45 then zone-offset mode b q e True
+    else if zone-name-ok b q e then Ok (ZoneAnnotationName (scan-string-of-bytes (scan-slice b q e)))
+    else Err (Rfc9557InvalidZoneName q)
+
+  -- `+HH:MM`, and `+HH:MM:SS` in lenient mode. The sign is at `q`.
+  zone-offset :: IsoMode -> Bytes -> I64 -> I64 -> Bool -> Result Rfc9557Error ZoneAnnotation
+  zone-offset mode b q e negative =
+    let h = scan-digits b (plus q 1) 2 in
+    let m = scan-digits b (plus q 4) 2 in
+    if h < 0 || m < 0 || scan-byte-at b (plus q 3) /= 58 then Err (Rfc9557InvalidZoneOffset q)
+    else if e == plus q 6 then zone-offset-done q negative h m 0
+    else
+      let s = scan-digits b (plus q 7) 2 in
+      if e == plus q 9 && scan-byte-at b (plus q 6) == 58 && s >= 0 then
+        (case mode of
+          IsoStrict -> Err (Rfc9557SubMinuteZoneOffset q)
+          IsoLenient -> zone-offset-done q negative h m s)
+      else Err (Rfc9557InvalidZoneOffset q)
+
+  zone-offset-done :: I64 -> Bool -> I64 -> I64 -> I64 -> Result Rfc9557Error ZoneAnnotation
+  zone-offset-done q negative h m s = case offset-from-hms negative h m s of
+    None -> Err (Rfc9557ZoneOffsetOutOfRange q)
+    Some o -> Ok (ZoneAnnotationOffset o)
+
+  -- A `key=value` annotation: key `[q .. eq)`, value `(eq .. e)`.
+  st-key :: IsoMode -> Bytes -> I64 -> I64 -> I64 -> I64 -> Bool -> Option ZoneAnnotation -> Bool -> I64 -> List Rfc9557Annotation -> Result Rfc9557Error Tail
+  st-key mode b p q eq e flagged zone critical keys acc =
+    let v = plus eq 1 in
+    if not (key-ok b q eq) || not (value-ok b v e) then Err (Rfc9557InvalidAnnotation q)
+    else if is-calendar-key b q eq then
+      (if range-is-lower b v e (scan-bytes-of-string "iso8601") || range-is-lower b v e (scan-bytes-of-string "gregory")
+         then st-key-keep mode b q eq e flagged zone critical keys acc
+         else Err (Rfc9557UnsupportedCalendar p))
+    else if flagged then Err (Rfc9557CriticalUnknownAnnotation p)
+    else st-key-keep mode b q eq e flagged zone critical keys acc
+
+  st-key-keep :: IsoMode -> Bytes -> I64 -> I64 -> I64 -> Bool -> Option ZoneAnnotation -> Bool -> I64 -> List Rfc9557Annotation -> Result Rfc9557Error Tail
+  st-key-keep mode b q eq e flagged zone critical keys acc =
+    let a = MkAnnotation (scan-string-of-bytes (scan-slice b q eq)) (scan-string-of-bytes (scan-slice b (plus eq 1) e)) flagged in
+    st-annotations mode b (plus e 1) zone critical (plus keys 1) (Cons a acc)
+
+  reverse-onto :: List Rfc9557Annotation -> List Rfc9557Annotation -> List Rfc9557Annotation
+  reverse-onto xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> reverse-onto rest (Cons x acc)
+
+  -- The first position in `[i .. limit)` holding `v`, or -1.
+  find-byte :: Bytes -> I64 -> I64 -> I64 -> I64
+  find-byte b i v limit =
+    if i >= limit then -1
+    else if scan-byte-at b i == v then i
+    else find-byte b (plus i 1) v limit
+
+  is-alpha :: I64 -> Bool
+  is-alpha c = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+
+  is-digit :: I64 -> Bool
+  is-digit c = c >= 48 && c <= 57
+
+  -- The header's `zone-name`, over `[q .. e)`.
+  zone-name-ok :: Bytes -> I64 -> I64 -> Bool
+  zone-name-ok b q e =
+    if e <= q || minus e q > 255 then False else zone-part-start b q e
+
+  -- At the first byte of a part.
+  zone-part-start :: Bytes -> I64 -> I64 -> Bool
+  zone-part-start b i e =
+    let c = scan-byte-at b i in
+    if i >= e then False
+    else if is-alpha c || c == 95 then zone-part-rest b (plus i 1) e
+    else if c == 46 then
+      -- "." and ".." are not parts.
+      let d = scan-byte-at b (plus i 1) in
+      if plus i 1 >= e || d == 47 then False
+      else if d == 46 && (plus i 2 >= e || scan-byte-at b (plus i 2) == 47) then False
+      else zone-part-rest b (plus i 1) e
+    else False
+
+  zone-part-rest :: Bytes -> I64 -> I64 -> Bool
+  zone-part-rest b i e =
+    let c = scan-byte-at b i in
+    if i >= e then True
+    else if c == 47 then zone-part-start b (plus i 1) e
+    else if is-alpha c || is-digit c || c == 46 || c == 95 || c == 45 || c == 43 then zone-part-rest b (plus i 1) e
+    else False
+
+  -- Whether a string is a `zone-name` of the grammar (what the printer
+  -- writes in the brackets as a name). Every name `tzdb-valid-name`
+  -- accepts whose parts start with a letter, `.` or `_` is one.
+  rfc9557-valid-zone-name :: String -> Bool
+  rfc9557-valid-zone-name s =
+    let b = scan-bytes-of-string s in
+    zone-name-ok b 0 (scan-length b)
+
+  key-ok :: Bytes -> I64 -> I64 -> Bool
+  key-ok b q e =
+    let c = scan-byte-at b q in
+    if e <= q then False
+    else if (c >= 97 && c <= 122) || c == 95 then key-rest b (plus q 1) e
+    else False
+
+  key-rest :: Bytes -> I64 -> I64 -> Bool
+  key-rest b i e =
+    let c = scan-byte-at b i in
+    if i >= e then True
+    else if (c >= 97 && c <= 122) || is-digit c || c == 45 || c == 95 then key-rest b (plus i 1) e
+    else False
+
+  -- At the first byte of a value component: one alphanumeric at least.
+  value-ok :: Bytes -> I64 -> I64 -> Bool
+  value-ok b i e =
+    let c = scan-byte-at b i in
+    if i >= e then False
+    else if is-alpha c || is-digit c then value-rest b (plus i 1) e
+    else False
+
+  value-rest :: Bytes -> I64 -> I64 -> Bool
+  value-rest b i e =
+    let c = scan-byte-at b i in
+    if i >= e then True
+    else if c == 45 then value-ok b (plus i 1) e
+    else if is-alpha c || is-digit c then value-rest b (plus i 1) e
+    else False
+
+  -- `u-ca`.
+  is-calendar-key :: Bytes -> I64 -> I64 -> Bool
+  is-calendar-key b q e =
+    minus e q == 4 && scan-byte-at b q == 117 && scan-byte-at b (plus q 1) == 45
+    && scan-byte-at b (plus q 2) == 99 && scan-byte-at b (plus q 3) == 97
+
+  -- `b[i .. e)`, upper case folded to lower, is the lower case `w`.
+  range-is-lower :: Bytes -> I64 -> I64 -> Bytes -> Bool
+  range-is-lower b i e w =
+    if minus e i /= scan-length w then False else same-lower b i w 0 (scan-length w)
+
+  same-lower :: Bytes -> I64 -> Bytes -> I64 -> I64 -> Bool
+  same-lower b i w k n =
+    if k >= n then True
+    else if scan-lower-at b (plus i k) == scan-byte-at w k then same-lower b i w (plus k 1) n
+    else False
+
+  -- -----------------------------------------------------------------
+  -- Resolution (the header's rules).
+  -- -----------------------------------------------------------------
+
+  -- `zone` is the zone the caller looked up for the annotation.
+  zoned-text-resolve :: OffsetConflict -> Disambiguation -> TimeZone -> ZonedText -> Result Rfc9557Error Zoned
+  zoned-text-resolve conflict strategy z x = case x of
+    MkZonedText d ot written _ _ _ -> case ot of
+      None -> start-of-day z d
+      Some t -> zoned-resolve-datetime conflict strategy z (DT.datetime d t) written
+
+  -- The same rules for a civil reading and an offset that came from
+  -- somewhere else (`strptime`'s `%z`, a database column): the header's
+  -- table, with `ZonedTextNoOffset` for a reading with no offset.
+  zoned-resolve-datetime :: OffsetConflict -> Disambiguation -> TimeZone -> DateTime -> ZonedTextOffset -> Result Rfc9557Error Zoned
+  zoned-resolve-datetime conflict strategy z dt written = case written of
+    ZonedTextNoOffset -> by-reading strategy z dt
+    ZonedTextZulu -> at-instant z offset-utc dt
+    ZonedTextNumeric o -> case conflict of
+      OffsetUse -> at-instant z o dt
+      OffsetIgnore -> by-reading strategy z dt
+      OffsetReject -> case matching (zone-to-ambiguous z dt) o of
+        Some m -> at-instant z m dt
+        None -> Err (Rfc9557OffsetMismatch o (zone-to-ambiguous z dt))
+      OffsetPrefer -> case matching (zone-to-ambiguous z dt) o of
+        Some m -> at-instant z m dt
+        None -> by-reading strategy z dt
+
+  -- `OffsetReject` and the compatible strategy: Temporal's and Jiff's
+  -- defaults.
+  zoned-text-resolve-default :: TimeZone -> ZonedText -> Result Rfc9557Error Zoned
+  zoned-text-resolve-default z x = zoned-text-resolve OffsetReject Compatible z x
+
+  -- The instant whose civil reading at `o` is `dt`, shown in `z`.
+  at-instant :: TimeZone -> Offset -> DateTime -> Result Rfc9557Error Zoned
+  at-instant z o dt = case offset-datetime-to-timestamp o dt of
+    None -> Err Rfc9557OutOfRange
+    Some t -> Ok (zoned-from-timestamp z t)
+
+  by-reading :: Disambiguation -> TimeZone -> DateTime -> Result Rfc9557Error Zoned
+  by-reading strategy z dt = case zoned-from-datetime strategy z dt of
+    Ok v -> Ok v
+    Err e -> case e of
+      AmbiguityOutOfRange -> Err Rfc9557OutOfRange
+      RejectedGap _ _ -> Err (Rfc9557Ambiguous e)
+      RejectedFold _ _ -> Err (Rfc9557Ambiguous e)
+
+  -- The first instant of the civil day `d` in `z`. Midnight is read
+  -- with the compatible strategy only to get SOME instant of the day
+  -- (when midnight was skipped it is the shifted reading, which is on
+  -- the same day, or on the next existing day when the whole day was
+  -- skipped as in Pacific/Apia on 2011-12-30); `zoned-start-of-day`
+  -- then answers the day's first instant.
+  start-of-day :: TimeZone -> Date -> Result Rfc9557Error Zoned
+  start-of-day z d = case zoned-from-datetime Compatible z (DT.from-date d) of
+    Err _ -> Err Rfc9557OutOfRange
+    Ok x -> case zoned-start-of-day x of
+      None -> Err Rfc9557OutOfRange
+      Some y -> Ok y
+
+  -- The zone's offset that the written offset `o` selects, if any: a
+  -- gap has none. Candidates are tried in order (the earlier
+  -- occurrence first), each exactly and then rounded to the minute.
+  matching :: Ambiguous -> Offset -> Option Offset
+  matching a o = case a of
+    Unambiguous c -> matches o c
+    Gap _ _ -> None
+    Fold first second -> case matches o first of
+      Some m -> Some m
+      None -> matches o second
+
+  matches :: Offset -> Offset -> Option Offset
+  matches o candidate =
+    if o == candidate then Some candidate
+    else if rounded-to-minute (offset-to-seconds candidate) == offset-to-seconds o then Some candidate
+    else None
+
+  -- Half away from zero, to a whole minute. The magnitude is at most
+  -- 93599, so the sums do not wrap. (A written offset with seconds is
+  -- never equal to a whole minute, so it only matches exactly.)
+  rounded-to-minute :: I64 -> I64
+  rounded-to-minute s =
+    let a = if s < 0 then minus 0 s else s in
+    let r = wrapping-mul-i64 (scan-quot (plus a 30) 60) 60 in
+    if s < 0 then minus 0 r else r
+
+  -- -----------------------------------------------------------------
+  -- Printing.
+  -- -----------------------------------------------------------------
+
+  -- The civil reading, the offset in force and the zone annotation
+  -- (header), with the shortest exact fraction.
+  zoned-to-string :: Zoned -> String
+  zoned-to-string x = scan-string-of-bytes (zoned-bytes (iso-fraction-digits (zoned-time-of-day x)) x True)
+
+  -- Exactly `digits` fraction digits, truncating.
+  zoned-to-string-precision :: (digits :: InRange 0 9 I64) -> Zoned -> String
+  zoned-to-string-precision digits x = scan-string-of-bytes (zoned-bytes digits x True)
+
+  -- The instant as an RFC 3339 timestamp at the zone's offset in force:
+  -- `zoned-to-string` without the annotation
+  -- (`2026-10-31T05:30:00+11:00`). The offset is numeric, never `Z`.
+  -- When the offset in force has seconds (local mean time in old data)
+  -- they are written, which RFC 3339 does not allow; rounding them
+  -- would name a different instant.
+  zoned-to-rfc3339 :: Zoned -> String
+  zoned-to-rfc3339 x = scan-string-of-bytes (zoned-bytes (iso-fraction-digits (zoned-time-of-day x)) x False)
+
+  zoned-to-rfc3339-precision :: (digits :: InRange 0 9 I64) -> Zoned -> String
+  zoned-to-rfc3339-precision digits x = scan-string-of-bytes (zoned-bytes digits x False)
+
+  -- `zoned-to-string`'s text as one exactly-sized fresh buffer (what
+  -- `Text.Builder.builder-add-bytes` appends without copying).
+  rfc9557-zoned-bytes :: Zoned -> Bytes
+  rfc9557-zoned-bytes x = zoned-bytes (iso-fraction-digits (zoned-time-of-day x)) x True
+
+  zoned-bytes :: (digits :: InRange 0 9 I64) -> Zoned -> Bool -> Bytes
+  zoned-bytes digits x annotate =
+    let dt = zoned-datetime x in
+    let d = DT.date-part dt in
+    let off = offset-to-seconds (zoned-offset x) in
+    let head = plus (plus (plus (iso-date-length d) 1) (iso-time-length digits)) (iso-offset-length off) in
+    if annotate then
+      let name = scan-bytes-of-string (zone-name (zoned-time-zone x)) in
+      let n = scan-length name in
+      let named = zone-name-ok name 0 n in
+      let b = scan-new (plus (plus head 2) (if named then n else iso-offset-length off)) in
+      let j = scan-put-byte b (write-head b digits dt off) 91 in
+      let k = if named then scan-put-bytes b j name 0 n else iso-write-offset b j off in
+      let u = scan-put-byte b k 93 in
+      b
+    else
+      let b = scan-new head in
+      let u = write-head b digits dt off in
+      b
+
+  -- Date, `T`, time and offset from position 0; answers the position
+  -- after them.
+  write-head :: Bytes -> (digits :: InRange 0 9 I64) -> DateTime -> I64 -> I64
+  write-head b digits dt off =
+    let j = scan-put-byte b (iso-write-date b 0 (DT.date-part dt)) 84 in
+    iso-write-offset b (iso-write-time b j digits (DT.time-part dt)) off
+
+  -- -----------------------------------------------------------------
+  -- Private arithmetic. Every use is on a byte position (below 2^62) or
+  -- an offset, so the wrapping operations never wrap.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b

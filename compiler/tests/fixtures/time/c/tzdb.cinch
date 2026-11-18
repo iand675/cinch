@@ -1,0 +1,164 @@
+-- Lane C: Effect.Time.Zone. Zone name validation (a name can never
+-- leave the database directory), `tzdb-lookup`'s refusals by stage
+-- (the name, the file system, the file's contents), all eight shipped
+-- zones found under their names, a database directory that does not
+-- exist, and the system zone and `zoned-now`, which must answer
+-- something coherent on any machine.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zone.Tzif
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+
+  db :: TzDb
+  db = tzdb-at "tests/fixtures/time/c/tzif"
+
+  -- 0 found, 1 invalid name, 2 not found, 3 unreadable, 4 malformed.
+  code :: Result TzLookupError TimeZone -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      TzInvalidName -> 1
+      TzNotFound -> 2
+      TzUnreadable _ -> 3
+      TzMalformed _ -> 4
+
+  -- 1: the name grammar.
+  check-names :: Int
+  check-names =
+    if tzdb-valid-name "America/New_York" && tzdb-valid-name "UTC"
+       && tzdb-valid-name "Etc/GMT+5" && tzdb-valid-name "Etc/GMT-14"
+       && tzdb-valid-name "America/Argentina/Buenos_Aires"
+       && tzdb-valid-name "America/Port-au-Prince"
+       && tzdb-valid-name "a.b/c" && tzdb-valid-name "..." && tzdb-valid-name "x/..y"
+       && tzdb-valid-name (string-repeat 255 "a")
+       && not (tzdb-valid-name "")
+       && not (tzdb-valid-name "../etc/passwd")
+       && not (tzdb-valid-name "/etc/localtime")
+       && not (tzdb-valid-name "America/../../etc/passwd")
+       && not (tzdb-valid-name "America/..")
+       && not (tzdb-valid-name "America/")
+       && not (tzdb-valid-name "/")
+       && not (tzdb-valid-name "America//New_York")
+       && not (tzdb-valid-name ".")
+       && not (tzdb-valid-name "..")
+       && not (tzdb-valid-name "America/.")
+       && not (tzdb-valid-name "./UTC")
+       && not (tzdb-valid-name "America/New York")
+       && not (tzdb-valid-name "UTC\n")
+       && not (tzdb-valid-name "America\\New_York")
+       && not (tzdb-valid-name "Europe/Z\u{fc}rich")
+       && not (tzdb-valid-name ":UTC")
+       && not (tzdb-valid-name "~/UTC")
+       && not (tzdb-valid-name (string-repeat 256 "a"))
+      then 0 else 1
+
+  malformed-magic :: Result TzLookupError TimeZone -> Bool
+  malformed-magic r = case r of
+    Ok _ -> False
+    Err e -> case e of
+      TzInvalidName -> False
+      TzNotFound -> False
+      TzUnreadable _ -> False
+      TzMalformed why -> case why of
+        TzifBadMagic -> True
+        _ -> False
+
+  -- 2: lookups refused: names that would leave the directory are
+  -- refused unread; a zone the database lacks; a directory; a file
+  -- that is not TZif (the README beside the test data).
+  check-refusals :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  check-refusals u =
+    if code (tzdb-lookup db "../etc/passwd") == 1
+       && code (tzdb-lookup db "/etc/localtime") == 1
+       && code (tzdb-lookup db "") == 1
+       && code (tzdb-lookup db "America/../UTC") == 1
+       && code (tzdb-lookup db "../tzif/UTC") == 1
+       && code (tzdb-lookup db "Mars/Olympus_Mons") == 2
+       && code (tzdb-lookup db "America/Gotham") == 2
+       && code (tzdb-lookup db "UTC/Nested") == 2
+       && code (tzdb-lookup db "America") /= 0
+       && code (tzdb-lookup db "America") /= 1
+       && code (tzdb-lookup db "README") == 4
+       && malformed-magic (tzdb-lookup db "README")
+      then 0 else 2
+
+  found :: Result TzLookupError TimeZone -> String -> I64 -> Bool
+  found r name secs = case r of
+    Err _ -> False
+    Ok z -> zone-name z == name
+      && offset-to-seconds (offset-info-offset (zone-info-at-unix-seconds z 1793572200)) == secs
+
+  -- 4: every shipped zone, under the name it was asked for, with its
+  -- offset at 2026-11-01T22:30Z.
+  check-found :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  check-found u =
+    if found (tzdb-lookup db "America/New_York") "America/New_York" (-18000)
+       && found (tzdb-lookup db "Europe/Amsterdam") "Europe/Amsterdam" 3600
+       && found (tzdb-lookup db "Europe/London") "Europe/London" 0
+       && found (tzdb-lookup db "Australia/Sydney") "Australia/Sydney" 39600
+       && found (tzdb-lookup db "Asia/Kolkata") "Asia/Kolkata" 19800
+       && found (tzdb-lookup db "Pacific/Apia") "Pacific/Apia" 46800
+       && found (tzdb-lookup db "America/Santiago") "America/Santiago" (-10800)
+       && found (tzdb-lookup db "UTC") "UTC" 0
+      then 0 else 4
+
+  -- 8: databases as values.
+  check-databases :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  check-databases u =
+    if tzdb-directory db == "tests/fixtures/time/c/tzif"
+       && tzdb-directory tzdb-system == "/usr/share/zoneinfo"
+       && code (tzdb-lookup (tzdb-at "tests/fixtures/time/c/no-such-directory") "UTC") == 2
+       && code (tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif/America") "New_York") == 0
+       && code (tzdb-lookup tzdb-system "../etc/passwd") == 1
+       && code (tzdb-lookup tzdb-system "No/Such_Zone_Anywhere") /= 0
+      then 0 else 8
+
+  in-range :: Offset -> Bool
+  in-range o = min-offset <= o && o <= max-offset
+
+  source-fits :: SystemZone -> Bool
+  source-fits s = case system-zone-source s of
+    SystemFromEtcTimezone -> tzdb-valid-name (zone-name (system-zone-time-zone s))
+    SystemFromEtcLocaltime -> zone-name (system-zone-time-zone s) == "Etc/Unknown"
+    SystemFallbackUtc -> zone-name (system-zone-time-zone s) == "UTC"
+
+  -- 2020-01-01T00:00:00Z.
+  y2020 :: Timestamp
+  y2020 = timestamp-from-unix-nanos 1577836800000000000
+
+  sane :: Zoned -> Bool
+  sane x =
+    zoned-timestamp x > y2020 && in-range (zoned-offset x)
+    && zoned-offset x == zone-offset-at (zoned-time-zone x) (zoned-timestamp x)
+    && zoned-datetime x == zone-to-datetime (zoned-time-zone x) (zoned-timestamp x)
+    && zoned-year x >= 2020
+
+  -- 16: the system zone is whatever this machine has, but it is
+  -- coherent with where it was found; `zoned-now` reads the clock.
+  check-system :: forall r. using (io :: Io r) => TimeZone ->{IO r} Int
+  check-system ny =
+    let s = system-time-zone-source () in
+    let z = system-time-zone () in
+    let here = zoned-now-system () in
+    let there = zoned-now ny in
+    if source-fits s && zone-name z == zone-name (system-zone-time-zone s)
+       && sane here && sane there
+       && zone-name (zoned-time-zone there) == "America/New_York"
+       && zone-name (zoned-time-zone here) == zone-name z
+      then 0 else 16
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup db "America/New_York" of
+      Err _ -> 128
+      Ok ny -> check-names + check-refusals () + check-found ()
+        + check-databases () + check-system ny

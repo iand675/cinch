@@ -1,0 +1,143 @@
+-- Lane A: Data.Time.Duration at its bounds: the range, the overflow
+-- refusals, the saturating twins, and total negation.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Time.Duration
+
+  one :: Duration
+  one = duration-from-nanos 1
+
+  none-d :: Option Duration -> Bool
+  none-d o = case o of
+    None -> True
+    Some _ -> False
+
+  some-d :: Option Duration -> Duration -> Bool
+  some-d o want = case o of
+    Some d -> d == want
+    None -> False
+
+  none-i :: Option I64 -> Bool
+  none-i o = case o of
+    None -> True
+    Some _ -> False
+
+  some-i :: Option I64 -> I64 -> Bool
+  some-i o want = case o of
+    Some x -> eq-i64 x want
+    None -> False
+
+  -- 1: the range is +-(2^127 - 1) ns; only `I128`'s minimum is
+  -- refused, and the saturating constructor clamps it.
+  check-range :: Int
+  check-range =
+    if eq-i128 (duration-total-nanos max-duration) 170141183460469231731687303715884105727
+      && eq-i128 (duration-total-nanos min-duration) (-170141183460469231731687303715884105727)
+      && eq-i128 (duration-total-nanos max-duration) max-bound-i128
+      && none-d (duration-from-i128-nanos min-bound-i128)
+      && some-d (duration-from-i128-nanos (-170141183460469231731687303715884105727)) min-duration
+      && some-d (duration-from-i128-nanos max-bound-i128) max-duration
+      && some-d (duration-from-i128-nanos (-5)) (duration-from-nanos (-5))
+      && duration-saturating-from-i128-nanos min-bound-i128 == min-duration
+      && duration-saturating-from-i128-nanos 12 == duration-from-nanos 12
+      then 0 else 1
+
+  -- 2: checked addition and subtraction refuse exactly past a bound.
+  check-checked-add-sub-refusals :: Int
+  check-checked-add-sub-refusals =
+    if none-d (duration-checked-add max-duration one)
+      && none-d (duration-checked-add one max-duration)
+      && none-d (duration-checked-sub min-duration one)
+      && none-d (duration-checked-add min-duration (duration-from-nanos (-1)))
+      && none-d (duration-checked-sub max-duration (duration-from-nanos (-1)))
+      && none-d (duration-checked-add max-duration max-duration)
+      && none-d (duration-checked-add min-duration min-duration)
+      && some-d (duration-checked-add max-duration duration-zero) max-duration
+      && some-d (duration-checked-sub min-duration duration-zero) min-duration
+      && some-d (duration-checked-add max-duration min-duration) duration-zero
+      && some-d (duration-checked-sub max-duration max-duration) duration-zero
+      && some-d (duration-checked-add max-duration (duration-from-nanos (-1))) (duration-saturating-sub max-duration one)
+      then 0 else 2
+
+  -- 4: the saturating twins clamp to the bounds and are exact inside.
+  check-saturating-add-sub :: Int
+  check-saturating-add-sub =
+    if duration-saturating-add max-duration one == max-duration
+      && duration-saturating-add max-duration max-duration == max-duration
+      && duration-saturating-sub min-duration one == min-duration
+      && duration-saturating-add min-duration min-duration == min-duration
+      && duration-saturating-sub min-duration max-duration == min-duration
+      && duration-saturating-sub max-duration min-duration == max-duration
+      && duration-saturating-add max-duration min-duration == duration-zero
+      && duration-saturating-add (duration-from-seconds 2) (duration-from-millis (-500)) == duration-from-millis 1500
+      && duration-saturating-sub (duration-from-seconds 2) (duration-from-millis 2500) == duration-from-millis (-500)
+      then 0 else 4
+
+  -- 8: negation and absolute value are total, including at the bounds.
+  check-neg-abs-total :: Int
+  check-neg-abs-total =
+    if duration-neg max-duration == min-duration
+      && duration-neg min-duration == max-duration
+      && duration-abs min-duration == max-duration
+      && duration-abs max-duration == max-duration
+      && duration-neg (duration-neg (duration-from-millis (-7))) == duration-from-millis (-7)
+      && duration-neg duration-zero == duration-zero
+      && duration-abs (duration-from-millis (-7)) == duration-from-millis 7
+      && duration-abs (duration-from-millis 7) == duration-from-millis 7
+      && duration-is-zero (duration-abs duration-zero)
+      then 0 else 8
+
+  -- 16: the checked `I64` conversions refuse a count that does not
+  -- fit, and accept the `I64` bounds themselves.
+  check-checked-conversion-refusals :: Int
+  check-checked-conversion-refusals =
+    if none-i (duration-to-nanos (duration-from-seconds 9223372037))
+      && none-i (duration-to-nanos (duration-from-seconds (-9223372037)))
+      && some-i (duration-to-nanos (duration-from-nanos max-bound-i64)) max-bound-i64
+      && some-i (duration-to-nanos (duration-from-nanos min-bound-i64)) min-bound-i64
+      && none-i (duration-to-nanos (duration-saturating-add (duration-from-nanos max-bound-i64) one))
+      && none-i (duration-to-nanos (duration-saturating-sub (duration-from-nanos min-bound-i64) one))
+      && none-i (duration-to-micros (duration-from-hours max-bound-i64))
+      && none-i (duration-to-millis (duration-from-hours min-bound-i64))
+      && none-i (duration-to-seconds max-duration)
+      && none-i (duration-to-minutes min-duration)
+      && none-i (duration-to-hours max-duration)
+      && some-i (duration-to-hours (duration-from-hours max-bound-i64)) max-bound-i64
+      && some-i (duration-to-seconds (duration-from-seconds min-bound-i64)) min-bound-i64
+      then 0 else 16
+
+  -- 32: the saturating conversions clamp to the `I64` bounds.
+  check-saturating-conversions :: Int
+  check-saturating-conversions =
+    if eq-i64 (duration-saturating-to-nanos (duration-from-seconds 9223372037)) max-bound-i64
+      && eq-i64 (duration-saturating-to-nanos (duration-from-seconds (-9223372037))) min-bound-i64
+      && eq-i64 (duration-saturating-to-micros (duration-from-hours max-bound-i64)) max-bound-i64
+      && eq-i64 (duration-saturating-to-millis (duration-from-hours min-bound-i64)) min-bound-i64
+      && eq-i64 (duration-saturating-to-seconds max-duration) max-bound-i64
+      && eq-i64 (duration-saturating-to-minutes min-duration) min-bound-i64
+      && eq-i64 (duration-saturating-to-hours max-duration) max-bound-i64
+      && eq-i64 (duration-saturating-to-hours min-duration) min-bound-i64
+      then 0 else 32
+
+  -- 64: multiplication refuses past the range and saturates to it.
+  check-mul-bounds :: Int
+  check-mul-bounds =
+    if none-d (duration-checked-mul max-duration 2)
+      && none-d (duration-checked-mul min-duration 2)
+      && none-d (duration-checked-mul (duration-from-hours max-bound-i64) max-bound-i64)
+      && some-d (duration-checked-mul max-duration 1) max-duration
+      && some-d (duration-checked-mul max-duration (-1)) min-duration
+      && some-d (duration-checked-mul min-duration (-1)) max-duration
+      && some-d (duration-checked-mul max-duration 0) duration-zero
+      && duration-saturating-mul max-duration 2 == max-duration
+      && duration-saturating-mul max-duration (-2) == min-duration
+      && duration-saturating-mul min-duration 2 == min-duration
+      && duration-saturating-mul min-duration (-2) == max-duration
+      && duration-saturating-mul (duration-from-millis 3) (-4) == duration-from-millis (-12)
+      then 0 else 64
+
+  main :: Int
+  main = check-range + check-checked-add-sub-refusals + check-saturating-add-sub
+    + check-neg-abs-total + check-checked-conversion-refusals
+    + check-saturating-conversions + check-mul-bounds

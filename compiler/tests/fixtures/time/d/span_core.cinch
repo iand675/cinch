@@ -1,0 +1,385 @@
+-- Lane D: Data.Time.Span, the value itself. The zero span and the
+-- total one-unit constructors, the checked setters, the shared-sign
+-- rule and its refusals, every unit's limit on both sides, negation
+-- and magnitude, fieldwise equality against comparison by length, the
+-- largest unit, the class index and its conversions, and the
+-- conversions to and from Data.Time.Duration.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  dur-is :: Option Duration -> I64 -> I64 -> Bool
+  dur-is o secs nanos = case o of
+    None -> False
+    Some d -> d == duration-from-seconds-and-nanos secs nanos
+
+  no-dur :: Option Duration -> Bool
+  no-dur o = case o of
+    None -> True
+    Some _ -> False
+
+  unit-is :: TimeUnit -> TimeUnit -> Bool
+  unit-is a b = unit-eq a b
+
+  -- 1: the zero span and the total one-unit constructors over refined
+  -- literals (the unit limits are the literals' bounds).
+  check-construct :: Int
+  check-construct =
+    if span-is-zero span-zero && span-sign span-zero == 0 && clock span-zero 0 0 0 0 0 0
+       && clock (span-of-hours 2) 2 0 0 0 0 0 && clock (span-of-minutes (-90)) 0 (-90) 0 0 0 0
+       && clock (span-of-seconds 5) 0 0 5 0 0 0 && clock (span-of-milliseconds 7) 0 0 0 7 0 0
+       && clock (span-of-microseconds (-8)) 0 0 0 0 (-8) 0 && clock (span-of-nanoseconds 9) 0 0 0 0 0 9
+       && fields (span-of-years 3) 3 0 0 0 0 0 0 0 0 0 && fields (span-of-months (-4)) 0 (-4) 0 0 0 0 0 0 0 0
+       && fields (span-of-weeks 5) 0 0 5 0 0 0 0 0 0 0 && fields (span-of-days (-6)) 0 0 0 (-6) 0 0 0 0 0 0
+       && span-is-zero (span-of-hours 0) && span-sign (span-of-days 0) == 0
+       && span-years (span-of-years 19998) == 19998 && span-years (span-of-years (-19998)) == -19998
+       && span-months (span-of-months 239976) == 239976 && span-weeks (span-of-weeks (-1043497)) == -1043497
+       && span-days (span-of-days 7304484) == 7304484 && span-hours (span-of-hours (-175307616)) == -175307616
+       && span-minutes (span-of-minutes 10518456960) == 10518456960
+       && span-seconds (span-of-seconds (-631107417600)) == -631107417600
+       && span-milliseconds (span-of-milliseconds 631107417600000) == 631107417600000
+       && span-microseconds (span-of-microseconds 631107417600000000) == 631107417600000000
+       && span-nanoseconds (span-of-nanoseconds 9223372036854775807) == 9223372036854775807
+       && span-nanoseconds (span-of-nanoseconds (-9223372036854775807)) == -9223372036854775807
+    then 0 else 1
+
+  -- 2: the checked setters keep the other units, replace their own,
+  -- accept zero, and `span-with-<unit> (span-<unit> s) s` is `s`.
+  check-setters :: Int
+  check-setters =
+    let full = sp 1 2 3 4 5 6 7 8 9 10 in
+    let neg = sp (-1) (-2) (-3) (-4) (-5) (-6) (-7) (-8) (-9) (-10) in
+    if some-is (span-with-minutes 30 (span-of-hours 2)) 0 0 0 0 2 30 0 0 0 0
+       && some-is (span-with-days 1 (span-of-hours 2)) 0 0 0 1 2 0 0 0 0 0
+       && some-is (span-with-years 11 full) 11 2 3 4 5 6 7 8 9 10
+       && some-is (span-with-months 12 full) 1 12 3 4 5 6 7 8 9 10
+       && some-is (span-with-weeks 13 full) 1 2 13 4 5 6 7 8 9 10
+       && some-is (span-with-days 14 full) 1 2 3 14 5 6 7 8 9 10
+       && some-is (span-with-hours 15 full) 1 2 3 4 15 6 7 8 9 10
+       && some-is (span-with-minutes 16 full) 1 2 3 4 5 16 7 8 9 10
+       && some-is (span-with-seconds 17 full) 1 2 3 4 5 6 17 8 9 10
+       && some-is (span-with-milliseconds 18 full) 1 2 3 4 5 6 7 18 9 10
+       && some-is (span-with-microseconds 19 full) 1 2 3 4 5 6 7 8 19 10
+       && some-is (span-with-nanoseconds 20 full) 1 2 3 4 5 6 7 8 9 20
+       && some-is (span-with-seconds 0 full) 1 2 3 4 5 6 0 8 9 10
+       && some-is (span-with-years 0 neg) 0 (-2) (-3) (-4) (-5) (-6) (-7) (-8) (-9) (-10)
+       && some-is (span-with-hours (span-hours neg) neg) (-1) (-2) (-3) (-4) (-5) (-6) (-7) (-8) (-9) (-10)
+       && some-is (span-with-days (span-days full) full) 1 2 3 4 5 6 7 8 9 10
+       && some-is (span-with-hours 0 (span-of-hours 5)) 0 0 0 0 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 4: all non-zero units share one sign. A conflicting setter is
+  -- refused; the only non-zero unit may change sign; zero conflicts
+  -- with nothing.
+  check-sign-conflict :: Int
+  check-sign-conflict =
+    if no-span (span-with-minutes (-30) (span-of-hours 2))
+       && no-span (span-with-days 1 (span-of-hours (-2)))
+       && no-span (span-with-years (-1) (sp 0 0 0 0 0 0 0 0 0 1))
+       && no-span (span-with-nanoseconds 1 (sp (-1) 0 0 0 0 0 0 0 0 0))
+       && some-is (span-with-hours (-3) (span-of-hours 2)) 0 0 0 0 (-3) 0 0 0 0 0
+       && some-is (span-with-minutes (-30) (span-of-hours (-2))) 0 0 0 0 (-2) (-30) 0 0 0 0
+       && some-is (span-with-minutes 0 (span-of-hours (-2))) 0 0 0 0 (-2) 0 0 0 0 0
+       && some-is (span-with-minutes (-30) (span-of-hours 0)) 0 0 0 0 0 (-30) 0 0 0 0
+       && err-is (span-from-units 1 0 0 0 0 0 0 0 0 (-1)) 1
+       && err-is (span-from-units 0 (-1) 0 1 0 0 0 0 0 0) 1
+       && err-is (span-clock-from-units 1 (-1) 0 0 0 0) 1
+       && sp-is (span-from-units (-1) 0 0 (-1) 0 0 0 0 0 (-1)) (-1) 0 0 (-1) 0 0 0 0 0 (-1)
+       && ck-is (span-clock-from-units 0 0 0 0 0 0) 0 0 0 0 0 0
+    then 0 else 4
+
+  -- 8: every unit's limit, on both sides, through the setters and the
+  -- all-units constructors.
+  check-limits :: Int
+  check-limits =
+    let z = span-zero in
+    if some-is (span-with-years 19998 z) 19998 0 0 0 0 0 0 0 0 0 && no-span (span-with-years 19999 z)
+       && some-is (span-with-years (-19998) z) (-19998) 0 0 0 0 0 0 0 0 0 && no-span (span-with-years (-19999) z)
+       && some-is (span-with-months 239976 z) 0 239976 0 0 0 0 0 0 0 0 && no-span (span-with-months 239977 z)
+       && no-span (span-with-months (-239977) z)
+       && some-is (span-with-weeks 1043497 z) 0 0 1043497 0 0 0 0 0 0 0 && no-span (span-with-weeks 1043498 z)
+       && some-is (span-with-days (-7304484) z) 0 0 0 (-7304484) 0 0 0 0 0 0 && no-span (span-with-days 7304485 z)
+       && some-is (span-with-hours 175307616 z) 0 0 0 0 175307616 0 0 0 0 0 && no-span (span-with-hours 175307617 z)
+       && some-is (span-with-minutes 10518456960 z) 0 0 0 0 0 10518456960 0 0 0 0
+       && no-span (span-with-minutes (-10518456961) z)
+       && some-is (span-with-seconds 631107417600 z) 0 0 0 0 0 0 631107417600 0 0 0
+       && no-span (span-with-seconds 631107417601 z)
+       && some-is (span-with-milliseconds 631107417600000 z) 0 0 0 0 0 0 0 631107417600000 0 0
+       && no-span (span-with-milliseconds 631107417600001 z)
+       && some-is (span-with-microseconds 631107417600000000 z) 0 0 0 0 0 0 0 0 631107417600000000 0
+       && no-span (span-with-microseconds 631107417600000001 z)
+       && some-is (span-with-nanoseconds 9223372036854775807 z) 0 0 0 0 0 0 0 0 0 9223372036854775807
+       && some-is (span-with-nanoseconds (-9223372036854775807) z) 0 0 0 0 0 0 0 0 0 (-9223372036854775807)
+       && no-span (span-with-nanoseconds (-9223372036854775808) z)
+       && no-span (span-with-years 9223372036854775807 z) && no-span (span-with-days (-9223372036854775808) z)
+       && err-is (span-from-units 19999 0 0 0 0 0 0 0 0 0) 2
+       && err-is (span-from-units 0 0 0 0 0 0 0 0 0 (-9223372036854775808)) 2
+       && err-is (span-clock-from-units 175307617 0 0 0 0 0) 2
+       && sp-is (span-from-units 19998 239976 1043497 7304484 175307616 10518456960 631107417600 631107417600000 631107417600000000 9223372036854775807) 19998 239976 1043497 7304484 175307616 10518456960 631107417600 631107417600000 631107417600000000 9223372036854775807
+    then 0 else 8
+
+  -- 16: sign, negation and magnitude.
+  check-sign :: Int
+  check-sign =
+    let a = sp 1 0 0 2 3 0 0 0 0 4 in
+    let b = span-negate a in
+    if span-sign a == 1 && span-sign b == -1 && span-is-positive a && span-is-negative b
+       && span-is-negative a == False && span-is-positive b == False
+       && span-is-zero a == False && span-is-zero b == False
+       && fields b (-1) 0 0 (-2) (-3) 0 0 0 0 (-4)
+       && span-fieldwise-eq (span-negate b) a
+       && span-fieldwise-eq (span-abs b) a && span-fieldwise-eq (span-abs a) a
+       && span-is-zero (span-negate span-zero) && span-is-zero (span-abs span-zero)
+       && span-is-negative span-zero == False && span-is-positive span-zero == False
+       && span-sign (span-negate (span-of-nanoseconds 9223372036854775807)) == -1
+       && span-nanoseconds (span-negate (span-of-nanoseconds 9223372036854775807)) == -9223372036854775807
+    then 0 else 16
+
+  -- 32: fieldwise equality (the only equality: 2 hours is not 120
+  -- minutes) against comparison by length, and the largest unit.
+  check-fieldwise :: Int
+  check-fieldwise =
+    if span-fieldwise-eq (span-of-hours 2) (span-of-minutes 120) == False
+       && order-is (span-compare (span-of-hours 2) (span-of-minutes 120)) 0
+       && span-fieldwise-eq (span-of-hours 2) (span-of-hours 2)
+       && span-fieldwise-eq (span-of-hours 2) (span-of-hours (-2)) == False
+       && span-fieldwise-eq (sp 0 0 0 0 2 0 0 0 0 0) (span-of-hours 2)
+       && span-fieldwise-eq (sp 0 1 0 0 0 0 0 0 0 0) (sp 0 0 0 30 0 0 0 0 0 0) == False
+       && span-fieldwise-eq (sp 0 0 1 0 0 0 0 0 0 0) (sp 0 0 0 7 0 0 0 0 0 0) == False
+       && span-fieldwise-eq span-zero (span-of-days 0)
+       && unit-is (span-largest-unit (sp 1 2 3 4 5 6 7 8 9 10)) Year
+       && unit-is (span-largest-unit (sp 0 2 3 4 5 6 7 8 9 10)) Month
+       && unit-is (span-largest-unit (sp 0 0 3 4 5 6 7 8 9 10)) Week
+       && unit-is (span-largest-unit (sp 0 0 0 (-4) (-5) 0 0 0 0 0)) Day
+       && unit-is (span-largest-unit (span-of-hours 5)) Hour
+       && unit-is (span-largest-unit (span-of-minutes 6)) Minute
+       && unit-is (span-largest-unit (span-of-seconds 7)) Second
+       && unit-is (span-largest-unit (span-of-milliseconds 8)) Millisecond
+       && unit-is (span-largest-unit (span-of-microseconds 9)) Microsecond
+       && unit-is (span-largest-unit (span-of-nanoseconds 10)) Nanosecond
+       && unit-is (span-largest-unit span-zero) Nanosecond
+    then 0 else 32
+
+  -- 64: the class index and its two conversions.
+  check-class :: Int
+  check-class =
+    if span-is-clock (span-of-hours 2) && span-is-clock span-zero
+       && span-is-clock (span-of-days 1) == False && span-is-clock (sp 1 0 0 0 0 0 0 0 0 0) == False
+       && span-is-clock (sp 0 0 1 0 0 0 0 0 0 0) == False && span-is-clock (sp 0 (-1) 0 0 0 0 0 0 0 0) == False
+       && span-is-clock (sp 0 0 0 0 1 2 3 4 5 6)
+       && some-is (span-to-clock (sp 0 0 0 0 1 2 3 4 5 6)) 0 0 0 0 1 2 3 4 5 6
+       && no-span (span-to-clock (sp 0 0 0 1 1 2 3 4 5 6))
+       && no-span (span-to-clock (span-of-years 1))
+       && some-is (span-to-clock (span-of-days 0)) 0 0 0 0 0 0 0 0 0 0
+       && fields (span-to-calendar (span-of-hours 2)) 0 0 0 0 2 0 0 0 0 0
+       && eq-i128 (span-time-nanos (sp 5 4 3 2 1 1 1 1 1 1)) (i64-to-i128 3661001001001)
+       && eq-i128 (span-time-nanos (span-of-days 9)) (i64-to-i128 0)
+       && eq-i128 (span-time-nanos (span-of-minutes (-2))) (i64-to-i128 (-120000000000))
+    then 0 else 64
+
+  -- 128: durations. A clock span has an exact length; days need the
+  -- named 24-hour convention; months and years have none.
+  check-durations :: Int
+  check-durations =
+    let big = duration-from-hours 3000000 in
+    if span-to-duration (ck 2 30 0 0 0 0) == duration-from-seconds 9000
+       && span-to-duration (ck (-1) 0 0 0 0 (-1)) == duration-from-seconds-and-nanos (-3600) (-1)
+       && span-to-duration span-zero == duration-zero
+       && dur-is (span-to-duration-checked (sp 0 0 0 0 0 1 30 0 0 5)) 90 5
+       && no-dur (span-to-duration-checked (span-of-days 1))
+       && no-dur (span-to-duration-checked (span-of-months 1))
+       && dur-is (span-to-duration-checked (span-of-days 0)) 0 0
+       && dur-is (span-to-duration-civil-days (span-of-days 1)) 86400 0
+       && dur-is (span-to-duration-civil-days (span-of-weeks 1)) 604800 0
+       && dur-is (span-to-duration-civil-days (sp 0 0 (-1) (-1) (-1) 0 0 0 0 0)) (-694800) 0
+       && no-dur (span-to-duration-civil-days (span-of-months 1))
+       && no-dur (span-to-duration-civil-days (span-of-years (-1)))
+       && some-is (span-from-duration Hour (duration-from-seconds 5400)) 0 0 0 0 1 30 0 0 0 0
+       && some-is (span-from-duration Minute (duration-from-seconds 5400)) 0 0 0 0 0 90 0 0 0 0
+       && some-is (span-from-duration Second (duration-from-seconds-and-nanos (-5400) (-1500))) 0 0 0 0 0 0 (-5400) 0 (-1) (-500)
+       && some-is (span-from-duration Nanosecond (duration-from-millis 3)) 0 0 0 0 0 0 0 0 0 3000000
+       && some-is (span-from-duration Hour duration-zero) 0 0 0 0 0 0 0 0 0 0
+       && no-span (span-from-duration Day (duration-from-seconds 5400))
+       && no-span (span-from-duration Year (duration-from-seconds 5400))
+       && some-is (span-from-duration Hour big) 0 0 0 0 3000000 0 0 0 0 0
+       && no-span (span-from-duration Nanosecond big)
+       && no-span (span-from-duration Hour max-duration) && no-span (span-from-duration Hour min-duration)
+       && no-span (span-from-duration Hour (duration-from-hours 175307617))
+       && some-is (span-from-duration Hour (duration-from-hours 175307616)) 0 0 0 0 175307616 0 0 0 0 0
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-construct + check-setters + check-sign-conflict + check-limits
+    + check-sign + check-fieldwise + check-class + check-durations

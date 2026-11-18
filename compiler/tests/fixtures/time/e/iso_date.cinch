@@ -1,0 +1,150 @@
+-- Lane E: Text.Time.Iso, dates. The printed forms (four-digit years
+-- and the signed six-digit expanded year), round trips at ordinary
+-- values, both range ends, year 0 and negative years, a walk over the
+-- whole range, every strict refusal with its named error and byte
+-- position, the expanded-year rules, and the lenient basic format.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  -- A refusal as `constructor number * 1000 + position`; -1 for `Ok`.
+  code :: IsoError -> I64
+  code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 1000 p
+    IsoExpectedDigit p -> wrapping-add-i64 2000 p
+    IsoExpectedDash p -> wrapping-add-i64 3000 p
+    IsoExpectedColon p -> wrapping-add-i64 4000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 5000 p
+    IsoMissingTime p -> wrapping-add-i64 6000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 7000 p
+    IsoTrailingInput p -> wrapping-add-i64 8000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 9000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 10000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 11000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 12000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 13000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 14000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 15000 p
+    IsoLeapSecond p -> wrapping-add-i64 16000 p
+    IsoEmptyFraction p -> wrapping-add-i64 17000 p
+    IsoFractionTooLong p -> wrapping-add-i64 18000 p
+    IsoMissingOffset p -> wrapping-add-i64 19000 p
+    IsoExpectedOffset p -> wrapping-add-i64 20000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 21000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 22000 p
+
+  refusal :: Result IsoError Date -> I64
+  refusal r = case r of
+    Ok _ -> -1
+    Err e -> code e
+
+  reads :: String -> Date -> Bool
+  reads s d = case date-from-string s of
+    Err _ -> False
+    Ok x -> x == d
+
+  reads-lenient :: String -> Date -> Bool
+  reads-lenient s d = case date-from-string-lenient s of
+    Err _ -> False
+    Ok x -> x == d
+
+  -- Prints as `s` and `s` reads back as the same date.
+  round :: Date -> String -> Bool
+  round d s = date-to-string d == s && reads s d
+
+  check-print :: Int
+  check-print =
+    if round (ymd 2024 2 29) "2024-02-29" && round (ymd 2026 11 13) "2026-11-13"
+       && round (ymd 1970 1 1) "1970-01-01" && round (ymd 1 1 1) "0001-01-01"
+       && round (ymd 999 12 31) "0999-12-31" && round (ymd 9999 12 31) "9999-12-31"
+    then 0 else 1
+
+  check-expanded :: Int
+  check-expanded =
+    if round (ymd 0 1 1) "0000-01-01" && round (ymd 0 2 29) "0000-02-29"
+       && round (ymd (-44) 3 15) "-000044-03-15" && round (ymd (-1) 12 31) "-000001-12-31"
+       && round D.min-date "-009999-01-01" && round D.max-date "9999-12-31"
+       && round (ymd (-9999) 12 31) "-009999-12-31"
+    then 0 else 2
+
+  -- The signed form is accepted for every in-range year, either sign.
+  check-signed-input :: Int
+  check-signed-input =
+    if reads "+002024-02-29" (ymd 2024 2 29) && reads "-002024-02-28" (ymd (-2024) 2 28)
+       && reads "+000000-01-01" (ymd 0 1 1) && reads "+009999-12-31" D.max-date
+       && refusal (date-from-string "-000000-01-01") == 9000
+       && refusal (date-from-string "+010000-01-01") == 10000
+       && refusal (date-from-string "-010000-01-01") == 10000
+       && refusal (date-from-string "+02024-01-01") == 2006
+       && refusal (date-from-string "-2024-01-01") == 2005
+    then 0 else 4
+
+  check-refusals :: Int
+  check-refusals =
+    if refusal (date-from-string "2024-2-9") == 2006
+       && refusal (date-from-string "2024-02-30") == 12008
+       && refusal (date-from-string "2023-02-29") == 12008
+       && refusal (date-from-string "2024-13-01") == 11005
+       && refusal (date-from-string "2024-00-10") == 11005
+       && refusal (date-from-string "2024-01-00") == 12008
+       && refusal (date-from-string "2024-04-31") == 12008
+       && refusal (date-from-string "junk") == 2000
+       && refusal (date-from-string "") == 1000
+    then 0 else 8
+
+  check-refusals-shape :: Int
+  check-refusals-shape =
+    if refusal (date-from-string "2024-02-29x") == 8010
+       && refusal (date-from-string "2024-02-29 ") == 7010
+       && refusal (date-from-string " 2024-02-29") == 2000
+       && refusal (date-from-string "2024-02-29T10:00:00") == 7010
+       && refusal (date-from-string "2024-02-29t10:00") == 7010
+       && refusal (date-from-string "2024-02") == 1007
+       && refusal (date-from-string "2024-02-") == 1008
+       && refusal (date-from-string "2024-02-2") == 1009
+       && refusal (date-from-string "2024") == 1004
+       && refusal (date-from-string "2024/02/29") == 3004
+       && refusal (date-from-string "2024-02/29") == 3007
+       && refusal (date-from-string "20240229") == 3004
+       && refusal (date-from-string "24-02-29") == 2002
+       && refusal (date-from-string "2024-W07-4") == 2005
+       && refusal (date-from-string "2024-046") == 3007
+    then 0 else 16
+
+  check-lenient :: Int
+  check-lenient =
+    if reads-lenient "20240229" (ymd 2024 2 29) && reads-lenient "2024-02-29" (ymd 2024 2 29)
+       && reads-lenient "-0000440315" (ymd (-44) 3 15)
+       && refusal (date-from-string-lenient "20230229") == 12006
+       && refusal (date-from-string-lenient "20241301") == 11004
+       && refusal (date-from-string-lenient "2024022") == 1007
+       && refusal (date-from-string-lenient "202402-29") == 2006
+       && refusal (date-from-string-lenient "2024-0229") == 3007
+       && refusal (date-from-string-lenient "202402291") == 8008
+    then 0 else 32
+
+  -- Every 1009th day of the whole range prints and reads back.
+  walk :: I64 -> I64 -> Bool
+  walk z count =
+    if z > D.max-epoch-day then count == 7240
+    else case D.from-epoch-days z of
+      None -> False
+      Some d -> if reads (date-to-string d) d then walk (wrapping-add-i64 z 1009) (wrapping-add-i64 count 1) else False
+
+  check-walk :: Int
+  check-walk = if walk D.min-epoch-day 0 then 0 else 64
+
+  main :: Int
+  main = check-print + check-expanded + check-signed-input + check-refusals + check-refusals-shape + check-lenient + check-walk

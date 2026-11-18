@@ -1,0 +1,261 @@
+-- Lane G: Text.Time.Rfc9557, the pure parser. What a `ZonedText`
+-- holds: the civil date and time, the offset as written (none, `Z`,
+-- numeric; hour-only, with seconds, `-00:00` read as `Z`, the lenient
+-- basic forms), the zone annotation (a name, a fixed offset, the
+-- critical flag), the other annotations in order, the lenient forms
+-- (separators, the basic date, a date with no time), and the error
+-- position accessor.
+module Main where
+  import Data.List
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Text.Time.Iso
+  import Text.Time.Rfc9557
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- The civil reading of a strict parse; `min-datetime` on refusal.
+  reading :: String -> DateTime
+  reading s = case parse-zoned-text s of
+    Err _ -> DT.min-datetime
+    Ok x -> zoned-text-datetime x
+
+  reading-lenient :: String -> DateTime
+  reading-lenient s = case parse-zoned-text-lenient s of
+    Err _ -> DT.min-datetime
+    Ok x -> zoned-text-datetime x
+
+  -- The offset as written: -1 none, -2 `Z`, otherwise 1000000 + seconds
+  -- east; -9 on refusal.
+  offset-code :: Result Rfc9557Error ZonedText -> I64
+  offset-code r = case r of
+    Err _ -> -9
+    Ok x -> case zoned-text-offset x of
+      ZonedTextNoOffset -> -1
+      ZonedTextZulu -> -2
+      ZonedTextNumeric o -> wrapping-add-i64 1000000 (offset-to-seconds o)
+
+  written :: String -> I64
+  written s = offset-code (parse-zoned-text s)
+
+  written-lenient :: String -> I64
+  written-lenient s = offset-code (parse-zoned-text-lenient s)
+
+  -- The zone annotation's name; "" for an offset, "?" on refusal.
+  name-of :: Result Rfc9557Error ZonedText -> String
+  name-of r = case r of
+    Err _ -> "?"
+    Ok x -> case zoned-text-zone-name x of
+      None -> ""
+      Some n -> n
+
+  -- The zone annotation's offset in seconds; 999999 for a name or a
+  -- refusal.
+  zone-seconds :: Result Rfc9557Error ZonedText -> I64
+  zone-seconds r = case r of
+    Err _ -> 999999
+    Ok x -> case zoned-text-zone-offset x of
+      None -> 999999
+      Some o -> offset-to-seconds o
+
+  fixed-name :: Result Rfc9557Error ZonedText -> String
+  fixed-name r = case r of
+    Err _ -> "?"
+    Ok x -> case zoned-text-fixed-zone x of
+      None -> "none"
+      Some z -> zone-name z
+
+  critical :: Result Rfc9557Error ZonedText -> Bool
+  critical r = case r of
+    Err _ -> False
+    Ok x -> zoned-text-zone-is-critical x
+
+  -- 1: the parts of one text.
+  check-parts :: Int
+  check-parts = case parse-zoned-text "2026-11-12T15:36:00-05:00[America/New_York]" of
+    Err _ -> 1
+    Ok x ->
+      if zoned-text-datetime x == at 2026 11 12 15 36 0 0
+         && D.year (zoned-text-date x) == 2026 && D.month (zoned-text-date x) == 11
+         && D.day (zoned-text-date x) == 12
+         && not (zoned-text-is-date-only x)
+         && not (zoned-text-is-zulu x)
+         && not (zoned-text-zone-is-critical x)
+         && zone-seconds (Ok x) == 999999
+         && name-of (Ok x) == "America/New_York"
+         && fixed-name (Ok x) == "none"
+         && offset-code (Ok x) == 982000
+         && (case zoned-text-numeric-offset x of
+               None -> False
+               Some o -> offset-to-seconds o == -18000)
+         && (case zoned-text-time x of
+               None -> False
+               Some t -> T.hour t == 15 && T.minute t == 36 && T.second t == 0)
+         && (case zoned-text-annotations x of
+               Nil -> True
+               Cons _ _ -> False)
+        then 0 else 1
+
+  -- 2: the offset as written.
+  check-offsets :: Int
+  check-offsets =
+    if written "2026-10-31T05:30[Australia/Sydney]" == -1
+       && written "2024-07-13T19:09:59Z[America/New_York]" == -2
+       && written "2024-07-13T19:09:59-00:00[America/New_York]" == -2
+       && written "2024-07-13T19:09:59-00[America/New_York]" == -2
+       && written "2024-07-13T19:09:59+00:00[America/New_York]" == 1000000
+       && written "2024-09-10T23:37:20-04[America/New_York]" == 985600
+       && written "2024-09-10T23:37:20-04:00[America/New_York]" == 985600
+       && written "2024-09-10T23:37:20+05:30[Asia/Kolkata]" == 1019800
+       && written "1900-01-01T12:19:32+00:19:32[Europe/Amsterdam]" == 1001172
+       && written "2024-09-10T23:37:20.5-25:59:59[UTC]" == 906401
+       && written "2024-09-10T23:37:20,25+25:59:59[UTC]" == 1093599
+       && written "2024-09-10T23:37+01[UTC]" == 1003600
+       && written-lenient "2024-09-10T23:37:20z[UTC]" == -2
+       && written-lenient "2024-09-10T23:37:20+0530[UTC]" == 1019800
+       && written-lenient "2024-09-10T23:37:20-053015[UTC]" == 980185
+       && written-lenient "2024-09-10T23:37:20-0000[UTC]" == -2
+       && written-lenient "2024-09-10T23:37:20-04[UTC]" == 985600
+       && written-lenient "2024-09-10 23:37:20-04:00[UTC]" == 985600
+       && (case parse-zoned-text "2024-07-13T19:09:59Z[UTC]" of
+             Err _ -> False
+             Ok x -> zoned-text-is-zulu x && (case zoned-text-numeric-offset x of
+               None -> True
+               Some _ -> False))
+      then 0 else 2
+
+  -- 4: the zone annotation.
+  check-zones :: Int
+  check-zones =
+    if name-of (parse-zoned-text "2026-01-01T00:00[UTC]") == "UTC"
+       && name-of (parse-zoned-text "2026-01-01T00:00[Etc/GMT+5]") == "Etc/GMT+5"
+       && name-of (parse-zoned-text "2026-01-01T00:00[America/Argentina/Buenos_Aires]") == "America/Argentina/Buenos_Aires"
+       && name-of (parse-zoned-text "2026-01-01T00:00[America/Port-au-Prince]") == "America/Port-au-Prince"
+       && name-of (parse-zoned-text "2026-01-01T00:00[!America/New_York]") == "America/New_York"
+       && critical (parse-zoned-text "2026-01-01T00:00[!America/New_York]")
+       && not (critical (parse-zoned-text "2026-01-01T00:00[America/New_York]"))
+       && name-of (parse-zoned-text "2026-01-01T00:00[+05:30]") == ""
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[+05:30]") == 19800
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[-03:30]") == -12600
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[!-03:30]") == -12600
+       && critical (parse-zoned-text "2026-01-01T00:00[!-03:30]")
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[+00:00]") == 0
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[-00:00]") == 0
+       && zone-seconds (parse-zoned-text "2026-01-01T00:00[+25:59]") == 93540
+       && zone-seconds (parse-zoned-text-lenient "2026-01-01T00:00[+05:30:15]") == 19815
+       && zone-seconds (parse-zoned-text-lenient "2026-01-01T00:00[-25:59:59]") == -93599
+       && fixed-name (parse-zoned-text "2026-01-01T00:00[+05:30]") == "+05:30"
+       && fixed-name (parse-zoned-text "2026-01-01T00:00[-00:00]") == "UTC"
+       && fixed-name (parse-zoned-text "2026-01-01T00:00[UTC]") == "none"
+      then 0 else 4
+
+  -- The annotations as `key=value` joined by `;`, critical ones with a
+  -- leading `!`.
+  show-annotations :: List Rfc9557Annotation -> String
+  show-annotations xs = case xs of
+    Nil -> ""
+    Cons a rest ->
+      string-concat (if rfc9557-annotation-is-critical a then "!" else "")
+        (string-concat (rfc9557-annotation-key a)
+          (string-concat "=" (string-concat (rfc9557-annotation-value a) (string-concat ";" (show-annotations rest)))))
+
+  annotations-of :: String -> String
+  annotations-of s = case parse-zoned-text s of
+    Err _ -> "?"
+    Ok x -> show-annotations (zoned-text-annotations x)
+
+  -- 8: `key=value` annotations: kept in order, calendars checked.
+  check-annotations :: Int
+  check-annotations =
+    if annotations-of "2026-01-01T00:00[UTC]" == ""
+       && annotations-of "2026-01-01T00:00[UTC][u-ca=gregory]" == "u-ca=gregory;"
+       && annotations-of "2026-01-01T00:00[UTC][u-ca=iso8601]" == "u-ca=iso8601;"
+       && annotations-of "2026-01-01T00:00[UTC][!u-ca=iso8601]" == "!u-ca=iso8601;"
+       && annotations-of "2026-01-01T00:00[UTC][u-ca=GREGORY]" == "u-ca=GREGORY;"
+       && annotations-of "2026-01-01T00:00[UTC][u-foo=bar]" == "u-foo=bar;"
+       && annotations-of "2026-01-01T00:00[America/New_York][u-ca=gregory][u-foo=bar][_k=v1-v2][!u-ca=iso8601]"
+            == "u-ca=gregory;u-foo=bar;_k=v1-v2;!u-ca=iso8601;"
+       && annotations-of "2026-01-01T00:00+05:30[+05:30][x-1=A-b-9]" == "x-1=A-b-9;"
+       && name-of (parse-zoned-text "2026-01-01T00:00[America/New_York][u-foo=bar]") == "America/New_York"
+      then 0 else 8
+
+  date-only :: String -> Bool
+  date-only s = case parse-zoned-text-lenient s of
+    Err _ -> False
+    Ok x -> zoned-text-is-date-only x && (case zoned-text-time x of
+      None -> True
+      Some _ -> False) && offset-code (Ok x) == -1
+
+  -- 16: the lenient forms, and the civil readings.
+  check-lenient :: Int
+  check-lenient =
+    if reading "2026-10-31T05:30[Australia/Sydney]" == at 2026 10 31 5 30 0 0
+       && reading "2026-10-31T05:30:07.123456789+11:00[Australia/Sydney]" == at 2026 10 31 5 30 7 123456789
+       && reading "2026-10-31T05:30:07,5[Australia/Sydney]" == at 2026 10 31 5 30 7 500000000
+       && reading "+002026-10-31T05:30[UTC]" == at 2026 10 31 5 30 0 0
+       && reading "-000044-03-15T12:00[UTC]" == at (-44) 3 15 12 0 0 0
+       && reading "2026-10-31t05:30[UTC]" == DT.min-datetime
+       && reading-lenient "2026-10-31t05:30[UTC]" == at 2026 10 31 5 30 0 0
+       && reading-lenient "2026-10-31 05:30[UTC]" == at 2026 10 31 5 30 0 0
+       && reading-lenient "20261031T05:30[UTC]" == at 2026 10 31 5 30 0 0
+       && reading-lenient "2026-10-31T23:59:60[UTC]" == at 2026 10 31 23 59 59 0
+       && reading-lenient "2026-10-31T05:30[Australia/Sydney]" == at 2026 10 31 5 30 0 0
+       && date-only "2026-11-12[America/New_York]"
+       && date-only "20261112[+05:30]"
+       && date-only "2026-11-12[UTC][u-ca=gregory]"
+       && not (date-only "2026-11-12T00:00[America/New_York]")
+       && reading-lenient "2026-11-12[America/New_York]" == at 2026 11 12 0 0 0 0
+       && name-of (parse-zoned-text-lenient "2026-11-12[America/New_York]") == "America/New_York"
+      then 0 else 16
+
+  position :: Result Rfc9557Error ZonedText -> I64
+  position r = case r of
+    Ok _ -> -1
+    Err e -> case rfc9557-error-position e of
+      None -> -2
+      Some p -> p
+
+  -- 32: `rfc9557-error-position`.
+  check-positions :: Int
+  check-positions =
+    if position (parse-zoned-text "2026-01-01T00:00[UTC]") == -1
+       && position (parse-zoned-text "2026-13-01T00:00[UTC]") == 5
+       && position (parse-zoned-text "2026-11-12[UTC]") == 10
+       && position (parse-zoned-text "2024-07-13T19:09:59Z") == 20
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC]x") == 25
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC") == 20
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[]") == 20
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC][a=]") == 26
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[a b]") == 21
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[+5]") == 21
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[+05:30:15]") == 21
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[+26:00]") == 21
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC][UTC]") == 25
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[a=b][UTC]") == 25
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC][!a=b]") == 25
+       && position (parse-zoned-text "2024-07-13T19:09:59Z[UTC][u-ca=hebrew]") == 25
+       && position (Err (Rfc9557OffsetMismatch offset-utc (Unambiguous offset-utc))) == -2
+       && position (Err (Rfc9557Ambiguous AmbiguityOutOfRange)) == -2
+       && position (Err Rfc9557OutOfRange) == -2
+      then 0 else 32
+
+  main :: Int
+  main = check-parts + check-offsets + check-zones + check-annotations
+    + check-lenient + check-positions

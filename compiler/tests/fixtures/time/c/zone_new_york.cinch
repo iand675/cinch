@@ -1,0 +1,254 @@
+-- Lane C: a TZif-backed zone, America/New_York (tzdata 2026e), on the
+-- Jiff 1.0 announcement's examples: a plain evening, the autumn fold
+-- and the spring gap under all four strategies, a 25-hour civil day,
+-- instants past the table's end (the footer's POSIX rule, years 2038,
+-- 2100 and 2500), instants before the first transition (local mean
+-- time), and a three-year half-hourly sweep in which the table and
+-- the footer rule agree and every instant's civil reading maps back
+-- to it.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zone.Posix
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s 0 of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  opt-secs :: Option I64 -> I64
+  opt-secs o = case o of
+    None -> -1
+    Some t -> t
+
+  opt-ts :: Option Timestamp -> I64
+  opt-ts o = case o of
+    None -> -1
+    Some t -> timestamp-to-unix-seconds t
+
+  one :: Ambiguous -> I64 -> Bool
+  one a o = case a of
+    Unambiguous x -> offset-to-seconds x == o
+    Gap _ _ -> False
+    Fold _ _ -> False
+
+  gap :: Ambiguous -> I64 -> I64 -> Bool
+  gap a before after = case a of
+    Unambiguous _ -> False
+    Gap x y -> offset-to-seconds x == before && offset-to-seconds y == after
+    Fold _ _ -> False
+
+  fold :: Ambiguous -> I64 -> I64 -> Bool
+  fold a before after = case a of
+    Unambiguous _ -> False
+    Gap _ _ -> False
+    Fold x y -> offset-to-seconds x == before && offset-to-seconds y == after
+
+  -- A resolution: the instant's Unix second, or -1 for a rejected
+  -- gap, -2 for a rejected fold, -3 for out of range.
+  res :: Result AmbiguityError Timestamp -> I64
+  res r = case r of
+    Ok t -> timestamp-to-unix-seconds t
+    Err e -> case e of
+      RejectedGap _ _ -> -1
+      RejectedFold _ _ -> -2
+      AmbiguityOutOfRange -> -3
+
+  says :: TimeZone -> I64 -> I64 -> Bool -> String -> Bool
+  says z t secs dst abbr =
+    let i = zone-info-at-unix-seconds z t in
+    offset-to-seconds (offset-info-offset i) == secs
+    && offset-info-is-dst i == dst && offset-info-abbreviation i == abbr
+
+  -- The resolved instant and the offset in force at it.
+  lands :: TimeZone -> Disambiguation -> DateTime -> I64 -> I64 -> DateTime -> Bool
+  lands z s x secs offset reading = case zone-to-timestamp s z x of
+    Err _ -> False
+    Ok t ->
+      timestamp-to-unix-seconds t == secs
+      && offset-to-seconds (zone-offset-at z t) == offset
+      && zone-to-datetime z t == reading
+
+  -- 1: 2026-11-01T17:30 in New York is Unix second 1793572200 at
+  -- -05:00, and the instant reads back as that civil time.
+  check-evening :: TimeZone -> Int
+  check-evening z =
+    let x = at 2026 11 1 17 30 0 in
+    if zone-name z == "America/New_York"
+       && one (zone-to-ambiguous z x) (-18000)
+       && res (zone-to-timestamp Reject z x) == 1793572200
+       && res (zone-to-timestamp Compatible z x) == 1793572200
+       && res (zone-to-timestamp Earlier z x) == 1793572200
+       && res (zone-to-timestamp Later z x) == 1793572200
+       && zone-to-datetime z (ts 1793572200) == x
+       && offset-to-seconds (zone-offset-at z (ts 1793572200)) == -18000
+       && says z 1793572200 (-18000) False "EST"
+       && says z 1783572200 (-14400) True "EDT"
+      then 0 else 1
+
+  -- 2: the fold on 2026-11-01: 00:30 is -04:00, 02:30 is -05:00, and
+  -- 01:30 happens twice: compatible and earlier take -04:00, later
+  -- takes -05:00, reject refuses.
+  check-fold :: TimeZone -> Int
+  check-fold z =
+    let x = at 2026 11 1 1 30 0 in
+    if one (zone-to-ambiguous z (at 2026 11 1 0 30 0)) (-14400)
+       && one (zone-to-ambiguous z (at 2026 11 1 2 30 0)) (-18000)
+       && res (zone-to-timestamp-reject z (at 2026 11 1 0 30 0)) == 1793507400
+       && res (zone-to-timestamp-reject z (at 2026 11 1 2 30 0)) == 1793518200
+       && fold (zone-to-ambiguous z x) (-14400) (-18000)
+       && lands z Compatible x 1793511000 (-14400) x
+       && lands z Earlier x 1793511000 (-14400) x
+       && lands z Later x 1793514600 (-18000) x
+       && res (zone-to-timestamp Reject z x) == -2
+       && res (zone-to-timestamp-compatible z x) == 1793511000
+       && res (zone-to-timestamp-earlier z x) == 1793511000
+       && res (zone-to-timestamp-later z x) == 1793514600
+       && res (zone-to-timestamp-reject z x) == -2
+       && fold (zone-to-ambiguous z (at 2026 11 1 1 0 0)) (-14400) (-18000)
+       && fold (zone-to-ambiguous z (at 2026 11 1 1 59 59)) (-14400) (-18000)
+       && one (zone-to-ambiguous z (at 2026 11 1 0 59 59)) (-14400)
+       && one (zone-to-ambiguous z (at 2026 11 1 2 0 0)) (-18000)
+      then 0 else 2
+
+  -- 4: the gap on 2026-03-08: 02:30 does not exist. Compatible and
+  -- later give 03:30 -04:00; earlier gives 01:30 -05:00; reject
+  -- refuses.
+  check-gap :: TimeZone -> Int
+  check-gap z =
+    let x = at 2026 3 8 2 30 0 in
+    if gap (zone-to-ambiguous z x) (-18000) (-14400)
+       && lands z Compatible x 1772955000 (-14400) (at 2026 3 8 3 30 0)
+       && lands z Later x 1772955000 (-14400) (at 2026 3 8 3 30 0)
+       && lands z Earlier x 1772951400 (-18000) (at 2026 3 8 1 30 0)
+       && res (zone-to-timestamp Reject z x) == -1
+       && res (zone-to-timestamp-reject z x) == -1
+       && gap (zone-to-ambiguous z (at 2026 3 8 2 0 0)) (-18000) (-14400)
+       && gap (zone-to-ambiguous z (at 2026 3 8 2 59 59)) (-18000) (-14400)
+       && one (zone-to-ambiguous z (at 2026 3 8 1 59 59)) (-18000)
+       && one (zone-to-ambiguous z (at 2026 3 8 3 0 0)) (-14400)
+       && res (zone-to-timestamp-reject z (at 2026 3 8 3 30 0)) == 1772955000
+       && res (zone-to-timestamp-reject z (at 2026 3 8 1 30 0)) == 1772951400
+      then 0 else 4
+
+  -- 8: 2024-11-02T17:25 plus one civil day is 2024-11-03T17:25, and
+  -- the two instants are 25 hours apart.
+  check-long-day :: TimeZone -> Int
+  check-long-day z =
+    let x = at 2024 11 2 17 25 0 in
+    case DT.add-days 1 x of
+      None -> 8
+      Some y ->
+        let t0 = res (zone-to-timestamp-reject z x) in
+        let t1 = res (zone-to-timestamp-reject z y) in
+        if y == at 2024 11 3 17 25 0 && t0 == 1730582700 && t1 == 1730672700
+           && wrapping-sub-i64 t1 t0 == 90000
+          then 0 else 8
+
+  -- 16: past the table's last transition (2037-11-01T06:00Z) the
+  -- footer rule answers: 2038, 2100, 2500.
+  check-future :: TimeZone -> Int
+  check-future z =
+    if says z 2140667999 (-14400) True "EDT"
+       && says z 2140668000 (-18000) False "EST"
+       && says z 2152162799 (-18000) False "EST"
+       && says z 2152162800 (-14400) True "EDT"
+       && says z 4103697600 (-18000) False "EST"
+       && says z 4119336000 (-14400) True "EDT"
+       && says z 4108690799 (-18000) False "EST"
+       && says z 4108690800 (-14400) True "EDT"
+       && says z 4129250399 (-14400) True "EDT"
+       && says z 4129250400 (-18000) False "EST"
+       && says z 16726478400 (-18000) False "EST"
+       && says z 16742116800 (-14400) True "EDT"
+       && opt-secs (zone-next-transition-unix-seconds z 2140667999) == 2140668000
+       && opt-secs (zone-next-transition-unix-seconds z 2140668000) == 2152162800
+       && opt-secs (zone-previous-transition-unix-seconds z 2152162800) == 2140668000
+       && opt-secs (zone-previous-transition-unix-seconds z 2172722400) == 2152162800
+       && opt-ts (zone-next-transition z (ts 4103697600)) == 4108690800
+       && opt-ts (zone-previous-transition z (ts 4129250400)) == 4108690800
+       && gap (zone-to-ambiguous z (at 2100 3 14 2 30 0)) (-18000) (-14400)
+       && fold (zone-to-ambiguous z (at 2100 11 7 1 30 0)) (-14400) (-18000)
+       && gap (zone-to-ambiguous z (at 2038 3 14 2 30 0)) (-18000) (-14400)
+       && fold (zone-to-ambiguous z (at 2037 11 1 1 30 0)) (-14400) (-18000)
+       && res (zone-to-timestamp-reject z (at 2500 7 15 8 0 0)) == 16742116800
+      then 0 else 16
+
+  -- 32: before the first transition (1883-11-18T17:00Z) the first
+  -- local time type applies: local mean time, -4:56:02. The switch to
+  -- standard time set the clocks back 3 minutes 58 seconds: a fold.
+  check-past :: TimeZone -> Int
+  check-past z =
+    if says z (-5000000000) (-17762) False "LMT"
+       && says z (-2717650801) (-17762) False "LMT"
+       && says z (-2717650800) (-18000) False "EST"
+       && says z (-377705023201) (-17762) False "LMT"
+       && opt-secs (zone-previous-transition-unix-seconds z (-2717650800)) == -1
+       && opt-secs (zone-previous-transition-unix-seconds z (-2717650799)) == -2717650800
+       && opt-secs (zone-next-transition-unix-seconds z (-5000000000)) == -2717650800
+       && opt-ts (zone-previous-transition z min-timestamp) == -1
+       && opt-ts (zone-next-transition z min-timestamp) == -2717650800
+       && zone-to-datetime z (ts (-2717650801)) == at 1883 11 18 12 3 57
+       && zone-to-datetime z (ts (-2717650800)) == at 1883 11 18 12 0 0
+       && fold (zone-to-ambiguous z (at 1883 11 18 12 0 0)) (-17762) (-18000)
+       && fold (zone-to-ambiguous z (at 1883 11 18 12 3 57)) (-17762) (-18000)
+       && one (zone-to-ambiguous z (at 1883 11 18 12 3 58)) (-18000)
+       && one (zone-to-ambiguous z (at 1883 11 18 11 59 59)) (-17762)
+       && one (zone-to-ambiguous z (at 1700 1 1 0 0 0)) (-17762)
+       && zone-transition-count z == 236
+      then 0 else 32
+
+  -- The offset is one of the reading's (the only one, or either side
+  -- of a fold); an instant's own reading is never in a gap.
+  maps-back :: Ambiguous -> Offset -> Bool
+  maps-back a o = case a of
+    Unambiguous x -> x == o
+    Gap _ _ -> False
+    Fold x y -> x == o || y == o
+
+  -- Every half hour from `t` for `left` steps: the table's offset is
+  -- the footer rule's, and the instant's civil reading maps back.
+  sweep :: TimeZone -> PosixRule -> I64 -> I64 -> Bool
+  sweep z r t left =
+    if left == 0 then True
+    else
+      let i = zone-info-at-unix-seconds z t in
+      let o = offset-info-offset i in
+      let p = posix-info-at-unix-seconds r t in
+      if o == offset-info-offset p && offset-info-is-dst i == offset-info-is-dst p
+         && offset-info-abbreviation i == offset-info-abbreviation p
+         && maps-back (zone-to-ambiguous z (offset-timestamp-to-datetime o (ts t))) o
+        then sweep z r (wrapping-add-i64 t 1800) (wrapping-sub-i64 left 1)
+        else False
+
+  -- 64: 2025-01-01 to 2028-01-01, 52560 half hours.
+  check-sweep :: TimeZone -> Int
+  check-sweep z = case parse-posix-tz "EST5EDT,M3.2.0,M11.1.0" of
+    Err _ -> 64
+    Ok r -> if sweep z r 1735689600 52560 then 0 else 64
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") "America/New_York" of
+      Err _ -> 128
+      Ok z -> check-evening z + check-fold z + check-gap z + check-long-day z
+        + check-future z + check-past z + check-sweep z

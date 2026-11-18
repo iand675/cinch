@@ -1,0 +1,165 @@
+-- Lane C: Data.Time.Offset. Construction and every refusal, the
+-- refined constructors on literals, components and sign, negation,
+-- the order, and the two conversions between an instant and a civil
+-- reading at an offset, including both ends of the timestamp range
+-- (where the civil reading is the first and last representable
+-- date-time) and the refusals just outside it.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+
+  fields :: DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo d h mi s ns =
+    DT.year x == y && DT.month x == mo && DT.day x == d
+    && DT.hour x == h && DT.minute x == mi && DT.second x == s && DT.subsec-nanosecond x == ns
+
+  secs-of :: Option Offset -> I64
+  secs-of o = case o of
+    None -> 999999
+    Some x -> offset-to-seconds x
+
+  ts :: I64 -> I64 -> Timestamp
+  ts s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  is-ts :: Option Timestamp -> Timestamp -> Bool
+  is-ts o t = case o of
+    None -> False
+    Some x -> x == t
+
+  refused :: Option Timestamp -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  ord-code :: Ordering -> I64
+  ord-code o = case o of
+    LT -> -1
+    EQ -> 0
+    GT -> 1
+
+  -- 1: construction and its refusals.
+  check-construct :: Int
+  check-construct =
+    if secs-of (offset-from-seconds 0) == 0
+       && secs-of (offset-from-seconds 93599) == 93599
+       && secs-of (offset-from-seconds (-93599)) == -93599
+       && secs-of (offset-from-seconds 93600) == 999999
+       && secs-of (offset-from-seconds (-93600)) == 999999
+       && secs-of (offset-from-seconds 9223372036854775807) == 999999
+       && offset-to-seconds (offset-of-hours (-5)) == -18000
+       && offset-to-seconds (offset-of-hours 25) == 90000
+       && offset-to-seconds (offset-of-seconds 19800) == 19800
+       && offset-to-seconds offset-utc == 0
+       && offset-to-seconds min-offset == -93599
+       && offset-to-seconds max-offset == 93599
+       && secs-of (offset-from-hms False 5 30 0) == 19800
+       && secs-of (offset-from-hms True 3 30 15) == -12615
+       && secs-of (offset-from-hms False 25 59 59) == 93599
+       && secs-of (offset-from-hms False 26 0 0) == 999999
+       && secs-of (offset-from-hms False 5 60 0) == 999999
+       && secs-of (offset-from-hms False 5 0 60) == 999999
+       && secs-of (offset-from-hms True (-1) 0 0) == 999999
+      then 0 else 1
+
+  -- 2: components and sign.
+  check-components :: Int
+  check-components =
+    let a = offset-of-seconds (-19800) in
+    let b = offset-of-seconds 93599 in
+    let c = offset-of-seconds (-3661) in
+    if offset-is-negative a && offset-hours a == 5 && offset-minutes a == 30 && offset-seconds a == 0
+       && not (offset-is-negative b) && offset-hours b == 25 && offset-minutes b == 59 && offset-seconds b == 59
+       && offset-is-negative c && offset-hours c == 1 && offset-minutes c == 1 && offset-seconds c == 1
+       && offset-is-utc offset-utc && not (offset-is-utc a) && not (offset-is-negative offset-utc)
+       && offset-hours offset-utc == 0
+      then 0 else 2
+
+  -- 4: negation, equality and the order.
+  check-order :: Int
+  check-order =
+    let w = offset-of-hours (-5) in
+    let e = offset-of-hours 2 in
+    if offset-negate w == offset-of-hours 5
+       && offset-negate (offset-negate w) == w
+       && offset-negate min-offset == max-offset
+       && offset-negate offset-utc == offset-utc
+       && w < e && e > w && w <= w && w >= w && w /= e
+       && min-offset < offset-utc && offset-utc < max-offset
+       && ord-code (offset-cmp w e) == -1 && ord-code (offset-cmp e w) == 1 && ord-code (offset-cmp e e) == 0
+      then 0 else 4
+
+  -- 8: an instant's civil reading at an offset.
+  check-to-datetime :: Int
+  check-to-datetime =
+    if fields (offset-timestamp-to-datetime (offset-of-seconds 19800) timestamp-epoch) 1970 1 1 5 30 0 0
+       && fields (offset-timestamp-to-datetime (offset-of-hours (-5)) timestamp-epoch) 1969 12 31 19 0 0 0
+       && fields (offset-timestamp-to-datetime offset-utc (ts (-1) 999999999)) 1969 12 31 23 59 59 999999999
+       && fields (offset-timestamp-to-datetime (offset-of-hours (-5)) (ts 1793572200 0)) 2026 11 1 17 30 0 0
+       && fields (offset-timestamp-to-datetime (offset-of-hours 1) (ts 951782399 500)) 2000 2 29 0 59 59 500
+      then 0 else 8
+
+  -- 16: both ends of the timestamp range read at the extreme offsets
+  -- are the ends of the civil range (T3), and at UTC are Jiff's
+  -- documented bounds.
+  check-range-ends :: Int
+  check-range-ends =
+    if offset-timestamp-to-datetime min-offset min-timestamp == DT.min-datetime
+       && offset-timestamp-to-datetime max-offset max-timestamp == DT.max-datetime
+       && fields (offset-timestamp-to-datetime offset-utc min-timestamp) (-9999) 1 2 1 59 59 0
+       && fields (offset-timestamp-to-datetime offset-utc max-timestamp) 9999 12 30 22 0 0 999999999
+       && fields (offset-timestamp-to-datetime max-offset min-timestamp) (-9999) 1 3 3 59 58 0
+       && fields (offset-timestamp-to-datetime min-offset max-timestamp) 9999 12 29 20 0 1 999999999
+      then 0 else 16
+
+  -- 32: a civil reading's instant at an offset, and its refusals.
+  check-to-timestamp :: Int
+  check-to-timestamp =
+    let d = DT.datetime (D.date-of 2026 11 1) (T.time-of-day 17 30 0 0) in
+    if is-ts (offset-datetime-to-timestamp (offset-of-hours (-5)) d) (ts 1793572200 0)
+       && is-ts (offset-datetime-to-timestamp (offset-of-hours (-4)) d) (ts 1793568600 0)
+       && is-ts (offset-datetime-to-timestamp offset-utc d) (ts 1793554200 0)
+       && is-ts (offset-datetime-to-timestamp min-offset DT.min-datetime) min-timestamp
+       && is-ts (offset-datetime-to-timestamp max-offset DT.max-datetime) max-timestamp
+       && refused (offset-datetime-to-timestamp offset-utc DT.min-datetime)
+       && refused (offset-datetime-to-timestamp offset-utc DT.max-datetime)
+       && refused (offset-datetime-to-timestamp max-offset DT.min-datetime)
+       && refused (offset-datetime-to-timestamp min-offset DT.max-datetime)
+       && refused (offset-datetime-to-timestamp (offset-of-seconds (-93598)) DT.min-datetime)
+      then 0 else 32
+
+  -- The round trip at every offset from `s` up in steps of 3601
+  -- seconds (52 offsets across the range, hitting odd seconds).
+  round-trips :: I64 -> Timestamp -> Bool
+  round-trips s t = case offset-from-seconds s of
+    None -> True
+    Some o ->
+      if is-ts (offset-datetime-to-timestamp o (offset-timestamp-to-datetime o t)) t
+        then round-trips (wrapping-add-i64 s 3601) t
+        else False
+
+  -- 64: to-datetime then to-timestamp is the identity, at every
+  -- sampled offset, for instants in the middle and at both ends.
+  check-round-trip :: Int
+  check-round-trip =
+    if round-trips (-93599) (ts 1793572200 123456789)
+       && round-trips (-93599) (ts (-1) 999999999)
+       && round-trips (-93599) min-timestamp
+       && round-trips (-93599) max-timestamp
+      then 0 else 64
+
+  main :: Int
+  main = check-construct + check-components + check-order + check-to-datetime
+    + check-range-ends + check-to-timestamp + check-round-trip

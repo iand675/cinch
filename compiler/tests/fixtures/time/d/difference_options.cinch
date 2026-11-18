@@ -1,0 +1,379 @@
+-- Lane D: Data.Time.Arithmetic, differences with a `Difference`
+-- options value (Temporal's largestUnit, smallestUnit,
+-- roundingIncrement and roundingMode). Expected values are from the
+-- Jiff 1.0 announcement and the TC39 Temporal reference polyfill:
+-- larger units for dates (2024-05-31 until 2024-09-30 is 3 months 30
+-- days), rounding to calendar units relative to the start date with
+-- the carry into a larger unit, date-times (16 d 4 h 42 m 33.123456789
+-- s rounds to 16 d 4 h 30 m at 30 minutes), `since` with the directed
+-- modes, times of day and timestamps, the defaults an unset unit
+-- resolves to, and every refusal.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  lg :: TimeUnit -> Difference
+  lg u = difference-largest u
+
+  -- 1: dates with a larger largest unit (DifferenceISODate).
+  check-date-largest :: Int
+  check-date-largest =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    if sp-is (date-until-with (lg Month) (ymd 2024 5 31) (ymd 2024 9 30)) 0 3 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) (ymd 2024 5 31) (ymd 2024 9 30)) 0 3 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Day) (ymd 2024 5 31) (ymd 2024 9 30)) 0 0 0 122 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) a b) 5 1 0 15 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Month) a b) 0 61 0 15 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Week) a b) 0 0 267 1 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) b a) (-5) (-1) 0 (-15) 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) (ymd 2020 2 29) (ymd 2024 2 28)) 3 11 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) (ymd 2020 2 29) (ymd 2024 2 29)) 4 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) (ymd 2024 2 29) (ymd 2020 2 29)) (-4) 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) (ymd 2024 2 29) (ymd 2021 3 1)) (-2) (-11) 0 (-28) 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) a a) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (lg Year) b a) 5 1 0 15 0 0 0 0 0 0
+       && sp-is (date-until-with difference-default a b) 0 0 0 1870 0 0 0 0 0 0
+    then 0 else 1
+
+  -- 2: dates rounded to calendar units, relative to the start date
+  -- (NudgeToCalendarUnit and the carry upward).
+  check-date-rounding :: Int
+  check-date-rounding =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    if sp-is (date-until-with (df Year Year 1 HalfExpand) a b) 5 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Year 1 HalfExpand) a (ymd 2024 9 15)) 6 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 1 Ceil) a b) 0 62 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Week 1 HalfEven) a b) 5 1 2 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Day Day 10 HalfExpand) a (ymd 2019 3 15)) 0 0 0 40 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Month 5 Trunc) a b) 5 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Week 1 Expand) a b) 0 61 3 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Month 1 HalfExpand) b a) (-5) (-1) 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Day 7 HalfExpand) a b) 5 1 0 14 0 0 0 0 0 0
+       && sp-is (date-until-with (df Week Week 2 Ceil) a (ymd 2019 3 15)) 0 0 8 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 1 HalfExpand) (ymd 2024 1 31) (ymd 2024 3 1)) 0 1 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 1 HalfExpand) (ymd 2024 1 31) (ymd 2024 3 17)) 0 2 0 0 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 4: date-times.
+  check-datetime :: Int
+  check-datetime =
+    let a = at 2024 5 15 14 30 54 0 in
+    let b = at 2024 5 31 19 13 27 123456789 in
+    let jan = at 2024 1 1 0 0 0 0 in
+    let dec = at 2024 12 31 12 0 0 0 in
+    if sp-is (datetime-until-with (with-increment 30 (with-smallest Minute (with-mode HalfExpand difference-default))) a b) 0 0 0 16 4 30 0 0 0 0
+       && sp-is (datetime-until-with (lg Day) a b) 0 0 0 16 4 42 33 123 456 789
+       && sp-is (datetime-until-with (lg Hour) a b) 0 0 0 0 388 42 33 123 456 789
+       && sp-is (datetime-until-with (df Year Day 1 Ceil) a b) 0 0 0 17 0 0 0 0 0 0
+       && sp-is (datetime-until-with (lg Nanosecond) a b) 0 0 0 0 0 0 0 0 0 1399353123456789
+       && sp-is (datetime-until-with (df Second Millisecond 1 HalfExpand) a b) 0 0 0 0 0 0 1399353 123 0 0
+       && sp-is (datetime-until-with (df Year Month 1 HalfExpand) a (at 2025 8 31 19 13 27 0)) 1 4 0 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Year Month 1 HalfExpand) jan dec) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Year Day 1 HalfExpand) jan dec) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Month Day 1 HalfExpand) jan dec) 0 12 0 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Week Day 1 HalfExpand) jan dec) 0 0 52 2 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Month Week 1 HalfExpand) jan (at 2024 1 28 12 0 0 0)) 0 0 4 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Month Hour 1 Expand) (at 2024 3 1 0 0 0 0) (at 2024 1 1 23 59 59 0)) 0 (-1) 0 (-30) (-1) 0 0 0 0 0
+       && sp-is (datetime-until-with (df Year Hour 12 Ceil) (at 2023 12 31 0 0 0 0) (at 2024 12 30 12 0 0 0)) 0 11 0 30 12 0 0 0 0 0
+       && sp-is (datetime-until-with (df Year Hour 1 HalfExpand) jan (at 2024 12 31 23 30 0 0)) 1 0 0 0 0 0 0 0 0 0
+    then 0 else 4
+
+  -- 8: `since` negates the rounding mode on the way in and the result
+  -- on the way out, so a directed mode still names a direction of the
+  -- span that is returned.
+  check-since :: Int
+  check-since =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    let x = at 2024 5 15 14 30 54 0 in
+    let y = at 2024 5 31 19 13 27 123456789 in
+    let p = tod 9 0 0 0 in
+    let q = tod 17 44 15 500000000 in
+    let i = ts 1704067200 0 in
+    let j = ts 1704157323 500000000 in
+    if sp-is (date-until-with (with-mode Ceil (with-smallest Month difference-default)) a b) 0 62 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (with-mode Ceil (with-smallest Month difference-default)) a b) 0 (-61) 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (with-mode Floor (with-smallest Month difference-default)) a b) 0 (-62) 0 0 0 0 0 0 0 0
+       && sp-is (datetime-since-with (with-mode Ceil (with-smallest Hour difference-default)) x y) 0 0 0 (-16) (-4) 0 0 0 0 0
+       && sp-is (datetime-since-with (with-mode Floor (with-smallest Hour difference-default)) x y) 0 0 0 (-16) (-5) 0 0 0 0 0
+       && sp-is (datetime-since-with (with-mode Expand (with-smallest Hour difference-default)) x y) 0 0 0 (-16) (-5) 0 0 0 0 0
+       && sp-is (datetime-since-with (df Month Day 1 HalfExpand) y x) 0 0 0 16 0 0 0 0 0 0
+       && ck-is (time-since-with (df Hour Minute 15 Ceil) p q) (-8) (-30) 0 0 0 0
+       && ck-is (time-since-with (df Hour Minute 15 Floor) p q) (-8) (-45) 0 0 0 0
+       && ck-is (timestamp-since-span-with (with-mode HalfExpand (with-smallest Second difference-default)) i j) 0 0 (-90124) 0 0 0
+       && ck-is (timestamp-since-span-with (with-mode Ceil (with-smallest Second difference-default)) i j) 0 0 (-90123) 0 0 0
+       && sp-is (date-since-with (lg Month) (ymd 2024 3 31) (ymd 2024 2 29)) 0 1 0 0 0 0 0 0 0 0
+    then 0 else 8
+
+  -- 16: times of day and timestamps.
+  check-clock :: Int
+  check-clock =
+    let p = tod 9 0 0 0 in
+    let q = tod 17 30 15 500000000 in
+    let r = tod 17 44 15 500000000 in
+    let i = ts 1704067200 0 in
+    let j = ts 1704157323 500000000 in
+    if ck-is (time-until-with (lg Minute) p q) 0 510 15 500 0 0
+       && ck-is (time-until-with (with-mode HalfExpand (with-smallest Hour difference-default)) p r) 9 0 0 0 0 0
+       && ck-is (time-until-with (with-smallest Minute difference-default) p r) 8 44 0 0 0 0
+       && ck-is (time-until-with (df Second Second 1 HalfExpand) p r) 0 0 31456 0 0 0
+       && ck-is (time-until-with difference-default p q) 8 30 15 500 0 0
+       && ck-is (time-until-with (lg Nanosecond) q p) 0 0 0 0 0 (-30615500000000)
+       && ck-is (timestamp-until-span-with (lg Hour) i j) 25 2 3 500 0 0
+       && ck-is (timestamp-until-span-with (df Hour Minute 1 Ceil) i j) 25 3 0 0 0 0
+       && ck-is (timestamp-until-span-with (df Minute Second 30 HalfEven) i j) 0 1502 0 0 0 0
+       && ck-is (timestamp-until-span-with (lg Millisecond) i j) 0 0 0 90123500 0 0
+       && ck-is (timestamp-until-span-with difference-default i j) 0 0 90123 500 0 0
+       && ck-is (timestamp-until-span-with (lg Microsecond) j i) 0 0 0 0 (-90123500000) 0
+    then 0 else 16
+
+  -- 32: the refusals.
+  check-refusals :: Int
+  check-refusals =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    let x = at 2024 5 15 14 30 54 0 in
+    let y = at 2024 5 31 19 13 27 123456789 in
+    let p = tod 9 0 0 0 in
+    let q = tod 17 44 15 500000000 in
+    if err-is (date-until-with (with-smallest Hour difference-default) a b) 4
+       && err-is (date-until-with (lg Hour) a b) 4
+       && err-is (date-since-with (lg Nanosecond) a b) 4
+       && err-is (date-until-with (df Day Month 1 Trunc) a b) 4
+       && err-is (date-until-with (with-increment 0 difference-default) a b) 5
+       && err-is (date-until-with (with-increment 1000000001 difference-default) a b) 5
+       && err-is (date-until-with (df Year Year 1 HalfExpand) (ymd 9999 1 1) (ymd 9999 6 1)) 6
+       && err-is (date-until-with (lg Month) D.min-date D.max-date) 2
+       && err-is (datetime-until-with (df Hour Minute 7 Trunc) x y) 5
+       && err-is (datetime-until-with (df Hour Minute 60 Trunc) x y) 5
+       && err-is (datetime-until-with (df Hour Hour 24 Trunc) x y) 5
+       && err-is (datetime-until-with (df Minute Hour 1 Trunc) x y) 4
+       && err-is (datetime-since-with (df Day Week 1 Trunc) x y) 4
+       && err-is (datetime-until-with (lg Nanosecond) DT.min-datetime DT.max-datetime) 2
+       && err-is (time-until-with (lg Day) p q) 4
+       && err-is (time-until-with (with-smallest Day difference-default) p q) 4
+       && err-is (time-until-with (df Minute Hour 1 Trunc) p q) 4
+       && err-is (time-since-with (df Hour Second 45 Trunc) p q) 5
+       && err-is (timestamp-until-span-with (lg Day) (ts 0 0) (ts 5 0)) 4
+       && err-is (timestamp-until-span-with (with-smallest Week difference-default) (ts 0 0) (ts 5 0)) 4
+       && err-is (timestamp-since-span-with (df Second Millisecond 1000 Trunc) (ts 0 0) (ts 5 0)) 5
+       && err-is (timestamp-until-span-with (lg Nanosecond) min-timestamp max-timestamp) 2
+    then 0 else 32
+
+  -- 64: what an unset unit resolves to. The largest unit defaults to
+  -- the larger of the type's default (Day, Day, Hour, Second) and the
+  -- smallest unit; the smallest to Nanosecond (Day for dates).
+  check-defaults :: Int
+  check-defaults =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    if sp-is (date-until-with (with-smallest Month difference-default) a b) 0 61 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (with-smallest Year difference-default) a b) 5 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (with-smallest Day difference-default) a b) 0 0 0 1870 0 0 0 0 0 0
+       && sp-is (datetime-until-with (with-smallest Week difference-default) (at 2024 1 1 0 0 0 0) (at 2024 1 28 12 0 0 0)) 0 0 3 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (with-smallest Hour difference-default) (at 2024 1 1 0 0 0 0) (at 2024 1 28 12 59 0 0)) 0 0 0 27 12 0 0 0 0 0
+       && ck-is (timestamp-until-span-with (with-smallest Hour difference-default) (ts 1704067200 0) (ts 1704157323 500000000)) 25 0 0 0 0 0
+       && ck-is (timestamp-until-span-with (with-smallest Minute difference-default) (ts 1704067200 0) (ts 1704157323 500000000)) 0 1502 0 0 0 0
+       && ck-is (timestamp-until-span-with (with-smallest Millisecond difference-default) (ts 1704067200 0) (ts 1704157323 500999999)) 0 0 90123 500 0 0
+       && ck-is (time-until-with (with-smallest Minute difference-default) (tod 9 0 0 0) (tod 17 44 15 500000000)) 8 44 0 0 0 0
+       && ck-is (time-until-with (with-smallest Hour difference-default) (tod 9 0 0 0) (tod 17 44 15 500000000)) 8 0 0 0 0 0
+    then 0 else 64
+
+  -- 128: the options forms at their defaults are the default forms,
+  -- and the whole range in years (no rounding is asked for, so nothing
+  -- beyond the range is probed).
+  check-agreement :: Int
+  check-agreement =
+    let a = ymd 2019 1 31 in
+    let b = ymd 2024 3 15 in
+    let x = at 2024 5 15 14 30 54 0 in
+    let y = at 2024 5 31 19 13 27 123456789 in
+    if sp-is (date-until-with difference-default a b) 0 0 0 (span-days (date-until a b)) 0 0 0 0 0 0
+       && sp-is (date-since-with difference-default a b) 0 0 0 (span-days (date-since a b)) 0 0 0 0 0 0
+       && sp-is (datetime-until-with difference-default x y) 0 0 0 16 4 42 33 123 456 789
+       && sp-is (datetime-since-with difference-default x y) 0 0 0 (-16) (-4) (-42) (-33) (-123) (-456) (-789)
+       && sp-is (date-until-with (lg Year) D.min-date D.max-date) 19998 11 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) D.max-date D.min-date) (-19998) (-11) 0 (-30) 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Week) D.min-date D.max-date) 0 0 1043497 4 0 0 0 0 0 0
+       && sp-is (datetime-until-with (lg Year) DT.min-datetime DT.max-datetime) 19998 11 0 30 23 59 59 999 999 999
+       && sp-is (date-until-with (df Year Day 1 HalfExpand) D.min-date D.max-date) 19998 11 0 30 0 0 0 0 0 0
+       && sp-is (date-until-with (lg Year) D.min-date (ymd 9999 1 1)) 19998 0 0 0 0 0 0 0 0 0
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-date-largest + check-date-rounding + check-datetime + check-since
+    + check-clock + check-refusals + check-defaults + check-agreement

@@ -1,0 +1,293 @@
+-- Lane C: Data.Time.Zone.Posix, the rules, with no TZif file. A
+-- northern rule (New York's) and a southern one (Sydney's, daylight
+-- time spanning the new year): the offset on each side of every
+-- transition, far-future years, the ambiguity of civil readings in
+-- and around the gap and the fold, next and previous transitions, the
+-- Jn and n date forms in leap and common years, a 24:00 time of
+-- change (Santiago), a negative one (Nuuk), the "always daylight"
+-- spelling, and a year-long sweep of civil readings counting the gaps
+-- and folds. The expected instants were computed from the IANA
+-- database (tzdata 2026e) with an independent implementation.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone.Types
+  import Data.Time.Zone.Posix
+
+  north :: String
+  north = "EST5EDT,M3.2.0,M11.1.0"
+
+  south :: String
+  south = "AEST-10AEDT,M10.1.0,M4.1.0/3"
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s 0 of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- The rule's offset, daylight flag and abbreviation at a second.
+  says :: String -> I64 -> I64 -> Bool -> String -> Bool
+  says rule t secs dst abbr = case parse-posix-tz rule of
+    Err _ -> False
+    Ok r ->
+      let i = posix-info-at-unix-seconds r t in
+      offset-to-seconds (offset-info-offset i) == secs
+      && offset-info-is-dst i == dst && offset-info-abbreviation i == abbr
+
+  off :: String -> I64 -> I64
+  off rule t = case parse-posix-tz rule of
+    Err _ -> 999999
+    Ok r -> offset-to-seconds (offset-info-offset (posix-info-at-unix-seconds r t))
+
+  amb :: String -> DateTime -> Ambiguous
+  amb rule x = case parse-posix-tz rule of
+    Err _ -> Gap offset-utc offset-utc
+    Ok r -> posix-to-ambiguous r x
+
+  one :: Ambiguous -> I64 -> Bool
+  one a o = case a of
+    Unambiguous x -> offset-to-seconds x == o
+    Gap _ _ -> False
+    Fold _ _ -> False
+
+  gap :: Ambiguous -> I64 -> I64 -> Bool
+  gap a before after = case a of
+    Unambiguous _ -> False
+    Gap x y -> offset-to-seconds x == before && offset-to-seconds y == after
+    Fold _ _ -> False
+
+  fold :: Ambiguous -> I64 -> I64 -> Bool
+  fold a before after = case a of
+    Unambiguous _ -> False
+    Gap _ _ -> False
+    Fold x y -> offset-to-seconds x == before && offset-to-seconds y == after
+
+  -- Next and previous transition by Unix second (-1 for none).
+  next :: String -> I64 -> I64
+  next rule t = case parse-posix-tz rule of
+    Err _ -> -2
+    Ok r -> case posix-next-transition-unix-seconds r t of
+      None -> -1
+      Some n -> n
+
+  prev :: String -> I64 -> I64
+  prev rule t = case parse-posix-tz rule of
+    Err _ -> -2
+    Ok r -> case posix-previous-transition-unix-seconds r t of
+      None -> -1
+      Some n -> n
+
+  -- 1: the northern rule on each side of its 2026 transitions
+  -- (2026-03-08T07:00Z and 2026-11-01T06:00Z), and in 2100 and 2500.
+  check-north-offsets :: Int
+  check-north-offsets =
+    if says north 1772953199 (-18000) False "EST"
+       && says north 1772953200 (-14400) True "EDT"
+       && says north 1793512799 (-14400) True "EDT"
+       && says north 1793512800 (-18000) False "EST"
+       && says north 1793572200 (-18000) False "EST"
+       && says north 4103697600 (-18000) False "EST"
+       && says north 4119336000 (-14400) True "EDT"
+       && says north 4108690799 (-18000) False "EST"
+       && says north 4108690800 (-14400) True "EDT"
+       && says north 4129250400 (-18000) False "EST"
+       && says north 16726478400 (-18000) False "EST"
+       && says north 16742116800 (-14400) True "EDT"
+       && says north 0 (-18000) False "EST"
+      then 0 else 1
+
+  -- 2: the southern rule: daylight time at both ends of the year
+  -- (2026-04-04T16:00Z back to standard, 2026-10-03T16:00Z forward).
+  check-south-offsets :: Int
+  check-south-offsets =
+    if says south 1767225600 39600 True "AEDT"
+       && says south 1775318399 39600 True "AEDT"
+       && says south 1775318400 36000 False "AEST"
+       && says south 1791043199 36000 False "AEST"
+       && says south 1791043200 39600 True "AEDT"
+       && says south 1798761599 39600 True "AEDT"
+       && says south 4103697600 39600 True "AEDT"
+       && says south 4119336000 36000 False "AEST"
+       && says south 16717507199 36000 False "AEST"
+       && says south 16717507200 39600 True "AEDT"
+       && says south 16733231999 39600 True "AEDT"
+       && says south 16733232000 36000 False "AEST"
+      then 0 else 2
+
+  -- 4: northern civil readings around the gap (02:00 to 03:00 on
+  -- 2026-03-08) and the fold (01:00 to 02:00 on 2026-11-01).
+  check-north-ambiguity :: Int
+  check-north-ambiguity =
+    if one (amb north (at 2026 3 8 1 59 59)) (-18000)
+       && gap (amb north (at 2026 3 8 2 0 0)) (-18000) (-14400)
+       && gap (amb north (at 2026 3 8 2 30 0)) (-18000) (-14400)
+       && gap (amb north (at 2026 3 8 2 59 59)) (-18000) (-14400)
+       && one (amb north (at 2026 3 8 3 0 0)) (-14400)
+       && one (amb north (at 2026 11 1 0 59 59)) (-14400)
+       && fold (amb north (at 2026 11 1 1 0 0)) (-14400) (-18000)
+       && fold (amb north (at 2026 11 1 1 30 0)) (-14400) (-18000)
+       && fold (amb north (at 2026 11 1 1 59 59)) (-14400) (-18000)
+       && one (amb north (at 2026 11 1 2 0 0)) (-18000)
+       && one (amb north (at 2026 7 4 12 0 0)) (-14400)
+       && one (amb north (at 2026 1 1 0 0 0)) (-18000)
+       && one (amb north (at 2026 12 31 23 59 59)) (-18000)
+      then 0 else 4
+
+  -- 8: southern civil readings: the fold on 2026-04-05 (03:00 back
+  -- to 02:00), the gap on 2026-10-04, and the new year inside
+  -- daylight time.
+  check-south-ambiguity :: Int
+  check-south-ambiguity =
+    if fold (amb south (at 2026 4 5 2 30 0)) 39600 36000
+       && fold (amb south (at 2026 4 5 2 0 0)) 39600 36000
+       && one (amb south (at 2026 4 5 1 59 59)) 39600
+       && one (amb south (at 2026 4 5 3 0 0)) 36000
+       && gap (amb south (at 2026 10 4 2 30 0)) 36000 39600
+       && one (amb south (at 2026 10 4 1 59 59)) 36000
+       && one (amb south (at 2026 10 4 3 0 0)) 39600
+       && one (amb south (at 2026 1 1 0 0 0)) 39600
+       && one (amb south (at 2026 12 31 23 59 59)) 39600
+       && one (amb south (at 2026 7 1 12 0 0)) 36000
+      then 0 else 8
+
+  ts :: I64 -> I64 -> Timestamp
+  ts s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  opt-secs :: Option Timestamp -> I64
+  opt-secs o = case o of
+    None -> -1
+    Some t -> timestamp-to-unix-seconds t
+
+  prev-ts :: String -> Timestamp -> I64
+  prev-ts rule t = case parse-posix-tz rule of
+    Err _ -> -2
+    Ok r -> opt-secs (posix-previous-transition r t)
+
+  next-ts :: String -> Timestamp -> I64
+  next-ts rule t = case parse-posix-tz rule of
+    Err _ -> -2
+    Ok r -> opt-secs (posix-next-transition r t)
+
+  -- 16: next and previous transitions, strict on both sides, across
+  -- year boundaries, and absent for a rule without daylight time.
+  check-transitions :: Int
+  check-transitions =
+    if next north 1772953199 == 1772953200
+       && next north 1772953200 == 1793512800
+       && next north 1793512800 == 1805007600
+       && prev north 1793512800 == 1772953200
+       && prev north 1793512801 == 1793512800
+       && prev north 1772953200 == 1762063200
+       && next north 1767225600 == 1772953200
+       && prev north 1767225600 == 1762063200
+       && next south 1767225600 == 1775318400
+       && prev south 1775318400 == 1759593600
+       && next south 1791043200 == 1806768000
+       && next "UTC0" 0 == -1
+       && prev "IST-5:30" 1793512800 == -1
+       && next-ts north (ts 1772953199 999999999) == 1772953200
+       && next-ts north (ts 1772953200 0) == 1793512800
+       && prev-ts north (ts 1772953200 0) == 1762063200
+       && prev-ts north (ts 1772953200 1) == 1772953200
+      then 0 else 16
+
+  -- 32: the two day-of-year forms. `J60` is March 1 in every year;
+  -- `59` (zero-based, counting February 29) is February 29 in 2024
+  -- and March 1 in 2025; day 300 likewise moves and `J300` does not.
+  -- The change is at 02:00 local time: standard time here is UTC and
+  -- daylight time one hour ahead.
+  check-day-forms :: Int
+  check-day-forms =
+    if next "XXX0YYY,J60,J300" 1704067200 == 1709258400
+       && next "XXX0YYY,J60,J300" 1709258400 == 1729990800
+       && next "XXX0YYY,J60,J300" 1735689600 == 1740794400
+       && next "XXX0YYY,J60,J300" 1740794400 == 1761526800
+       && next "XXX0YYY,59,300" 1704067200 == 1709172000
+       && next "XXX0YYY,59,300" 1709172000 == 1729990800
+       && next "XXX0YYY,59,300" 1735689600 == 1740794400
+       && next "XXX0YYY,59,300" 1740794400 == 1761613200
+       && off "XXX0YYY,J60,J300" 1709258399 == 0
+       && off "XXX0YYY,J60,J300" 1709258400 == 3600
+       && off "XXX0YYY,0,J365" 1704067200 == 0
+       && off "XXX0YYY,0,J365" 1704074400 == 3600
+      then 0 else 32
+
+  santiago :: String
+  santiago = "<-04>4<-03>,M9.1.6/24,M4.1.6/24"
+
+  nuuk :: String
+  nuuk = "<-02>2<-01>,M3.5.0/-1,M10.5.0/0"
+
+  -- 64: a 24:00 time of change (Santiago: the gap and the fold are
+  -- at civil midnight), a negative one (Nuuk: Saturday 23:00), and
+  -- the "always daylight" spelling, whose yearly end and start fall
+  -- on the same instant.
+  check-odd-times :: Int
+  check-odd-times =
+    if says santiago 1775357999 (-10800) True "-03"
+       && says santiago 1775358000 (-14400) False "-04"
+       && says santiago 1788667199 (-14400) False "-04"
+       && says santiago 1788667200 (-10800) True "-03"
+       && gap (amb santiago (at 2026 9 6 0 0 0)) (-14400) (-10800)
+       && gap (amb santiago (at 2026 9 6 0 30 0)) (-14400) (-10800)
+       && one (amb santiago (at 2026 9 6 1 0 0)) (-10800)
+       && one (amb santiago (at 2026 9 5 23 59 59)) (-14400)
+       && fold (amb santiago (at 2026 4 4 23 30 0)) (-10800) (-14400)
+       && one (amb santiago (at 2026 4 5 0 0 0)) (-14400)
+       && says nuuk 4109878799 (-7200) False "-02"
+       && says nuuk 4109878800 (-3600) True "-01"
+       && says nuuk 4128627599 (-3600) True "-01"
+       && says nuuk 4128627600 (-7200) False "-02"
+       && gap (amb nuuk (at 2100 3 27 23 30 0)) (-7200) (-3600)
+       && fold (amb nuuk (at 2100 10 30 23 30 0)) (-3600) (-7200)
+       && off "EST5EDT,0/0,J365/25" 1767243599 == -14400
+       && off "EST5EDT,0/0,J365/25" 1767243600 == -14400
+       && off "EST5EDT,0/0,J365/25" 1783572200 == -14400
+       && one (amb "EST5EDT,0/0,J365/25" (at 2026 1 1 0 30 0)) (-14400)
+       && one (amb "EST5EDT,0/0,J365/25" (at 2025 12 31 23 30 0)) (-14400)
+      then 0 else 64
+
+  -- Every half hour of civil 2026 under a rule: `gaps * 1000 + folds`.
+  sweep :: PosixRule -> DateTime -> I64 -> I64 -> I64
+  sweep r x left acc =
+    if left == 0 then acc
+    else
+      let a = posix-to-ambiguous r x in
+      let acc2 = if ambiguous-is-gap a then wrapping-add-i64 acc 1000
+                 else if ambiguous-is-fold a then wrapping-add-i64 acc 1
+                 else acc in
+      case DT.add-seconds-nanos 1800 0 x of
+        None -> -1
+        Some y -> sweep r y (wrapping-sub-i64 left 1) acc2
+
+  sweep-year :: String -> I64
+  sweep-year rule = case parse-posix-tz rule of
+    Err _ -> -2
+    Ok r -> sweep r (at 2026 1 1 0 0 0) 17520 0
+
+  -- 128: over a whole year of half-hour readings, exactly two are in
+  -- the gap and two in the fold, north and south; none without
+  -- daylight time.
+  check-sweep :: Int
+  check-sweep =
+    if sweep-year north == 2002 && sweep-year south == 2002 && sweep-year "IST-5:30" == 0
+      then 0 else 128
+
+  main :: Int
+  main = check-north-offsets + check-south-offsets + check-north-ambiguity
+    + check-south-ambiguity + check-transitions + check-day-forms
+    + check-odd-times + check-sweep
