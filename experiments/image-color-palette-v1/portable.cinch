@@ -1,0 +1,33 @@
+-- | Retain complete public fixed-palette construction and nearest-color paths on every target.
+module Main where
+  import Image.Color
+  import Image.Color.Palette
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Keep query channels runtime-opaque while preserving an actual supplied foreign object.
+  foreign import ccall "fixed_palette_probe_seed" raw-seed :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Observe the original selected RGBA8 representation and all canonical channels.
+  selected-match :: Option Color -> U8 -> U32 -> Bool
+  selected-match result expected canonical = case result of
+    None -> False
+    Some value -> case color-rgba8-components value of
+      None -> False
+      Some (r, g, b, a) -> case color-rgba value of
+        (cr, cg, cb, ca) -> eq-u8 r expected && eq-u8 g expected && eq-u8 b expected && eq-u8 a 255 && eq-u32 cr canonical && eq-u32 cg canonical && eq-u32 cb canonical && eq-u32 ca 65535
+
+  -- | Exercise both factories, all nearest paths and retained original lists with independent expectations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let seed = raw-seed 0 in
+    let channel = wrapping-i64-to-u16 (wrapping-mul-i64 seed 257) in
+    let query = color-rgba16 channel channel channel 65535 in
+    let plan9 = color-palette-plan9 () in
+    let web = color-palette-web-safe () in
+    let first = color-palette-index plan9 query == 136 && selected-match (color-palette-convert plan9 query) 136 34952 && selected-match (color-convert (color-palette-model plan9) query) 136 34952 in
+    let second = color-palette-index web query == 129 && selected-match (color-palette-convert web query) 153 39321 && selected-match (color-convert (color-palette-model web) query) 153 39321 in
+    if eq-i64 seed 129 && first && second && list-length (color-palette-colors plan9) == 256 && list-length (color-palette-colors web) == 216 then 0 else 1

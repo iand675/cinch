@@ -1,0 +1,46 @@
+{
+  "scope": "Frozen330 canonical source doc extraction; no code execution or Native admission.",
+  "checks": [
+    {
+      "module": "Effect.Multipart",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": [],
+      "orphans": []
+    },
+    {
+      "module": "Text.Multipart",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": [],
+      "orphans": []
+    },
+    {
+      "module": "Text.QuotedPrintable",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": [],
+      "orphans": []
+    }
+  ],
+  "all_declarations_canonical": [
+    {
+      "module": "Effect.Multipart",
+      "declarations": 235,
+      "source_sha256": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+    },
+    {
+      "module": "Text.QuotedPrintable",
+      "declarations": 76,
+      "source_sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00"
+    },
+    {
+      "module": "Text.Multipart",
+      "declarations": 96,
+      "source_sha256": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d"
+    }
+  ]
+}

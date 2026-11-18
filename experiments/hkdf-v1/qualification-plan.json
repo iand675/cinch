@@ -1,0 +1,37 @@
+{
+  "scope": "Prepared independent qualification requirements; no results claimed",
+  "standard_reference": [
+    "8 fixed RFC5869/empty-salt cases through all3 operations",
+    "SHA256/SHA512/SHA1/MD5 exact output, hashWidth\u00b11 and255*hashWidth\u00b11",
+    "Empty and long IKM/salt/PRK, nil versus supplied empty salt, binary/invalidUTF8 context",
+    "Negative SDK length panic corpus kept distinct from the nonnegative Cinch domain",
+    "Explicit FIPS-only child observations with original errors and key-policy/length precedence"
+  ],
+  "generic_reference": [
+    "Test-only segmentation-independent hash shapes (block,output): (0,0),(0,3),(1,0),(1,1),(7,17),(16,65)",
+    "None/Some-empty/explicit-zero salt difference for output wider than block",
+    "All3 public operations and exact255-block boundary for custom shapes"
+  ],
+  "callback_cinch": [
+    "Real IO and Mut callbacks under explicit common row, plus intended pure-effect erasure refusals",
+    "Retain and later mutate every callback input; retain/reuse/alias digest and MAC result buffers",
+    "Mutate captured original secret/salt/PRK/info in later callbacks; entry snapshots remain stable",
+    "Independent generic hash and direct HMAC routes agree with nativeSHA256 and actual reference",
+    "Wrong advertised width and exact caller hash/policy error propagation with no partial result",
+    "Policy gets original IKM for combined Key exactly once, PRK for Expand, with policy before length error",
+    "Return aliases to digest input and reuse the same output buffer across blocks; previous block/final outputs remain isolated",
+    "Returned keys and extracted PRKs survive owner-factory exit and independent serial mutations"
+  ],
+  "kernel": [
+    "Exhaustive byte input/pad XOR classification at every alignment and scalar/word fringe",
+    "Actual checked LLVM body versus independent scalar eight-byte XOR for disjoint and near-end windows",
+    "Canary guards and owner holds inspected in optimized IR/ASM",
+    "Real host/ARM/wasm/big-endian objects; no foreign execution claimed without actual execution"
+  ],
+  "profiles": [
+    "Both frozen frontends only after explicit matched identities and source capability admission",
+    "O0/O2, normal32MiB/8MiB and separate256MiB poison/8MiB, zero leaks",
+    "Source absent/defining metadata, row and descriptor refusals without rewritten headers",
+    "Maintained SDK-free current Rust runtime regression through normal initialization and exact archive"
+  ]
+}

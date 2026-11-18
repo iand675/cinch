@@ -1,0 +1,38 @@
+-- | Check real IO and mutation operations inside cryptographic callbacks without executing them.
+module Main where
+  import Crypto.Hkdf
+  import Data.Bytes
+  import Data.Machine
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Clock
+  import Text.Digest
+
+  -- | Read the actual clock and advance a caller-owned cell before hashing the complete message.
+  live-digest :: forall (r :: Region) (s :: Region). using (io :: Io r) => Var s I64 -> Bytes ->{IO r, Mut s} Result Unit Bytes
+  live-digest counter input =
+    let sampled = clock-monotonic-ns () in
+    let old = var-read counter in
+    let advanced = var-write counter (wrapping-add-i64 old 1) in
+    Ok (digest-bytes DigestSha256 input)
+
+  -- | Read the actual clock and advance the same captured cell in a direct HMAC callback.
+  live-mac :: forall (r :: Region) (s :: Region). using (io :: Io r) => Var s I64 -> Bytes -> Bytes ->{IO r, Mut s} Result Unit Bytes
+  live-mac counter key input =
+    let sampled = clock-monotonic-ns () in
+    let old = var-read counter in
+    let advanced = var-write counter (wrapping-add-i64 old 1) in
+    Ok (hmac-sha256 key input)
+
+  -- | Preserve both actual callback effects through generic hashing and direct HMAC derivation.
+  live-route :: forall (r :: Region) (s :: Region). using (io :: Io r) => Var s I64 -> Bytes ->{IO r, Mut s} Result (HkdfError Unit) Bytes
+  live-route counter secret =
+    case hkdf-key-with (hkdf-digest-hash DigestSha256) (live-digest counter) secret None (bytes-new 0) 42 of
+      Err error -> Err error
+      Ok first -> hkdf-key-hmac (hkdf-digest-size DigestSha256) (live-mac counter) first None (bytes-new 0) 42
+
+  -- | Keep the source check complete without evaluating any callback or mutable operation.
+  main :: Int
+  main = 0

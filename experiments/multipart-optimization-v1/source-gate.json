@@ -1,0 +1,63 @@
+{
+  "scope": "Prepare and qualify one live both-effect fixture without changing production.\n\nSource checks precede any separately requested runtime stage. Every stage uses\nexplicit compiler identities and freezes the selected declaration headers.\n",
+  "production_adopted": false,
+  "runtime_claim": false,
+  "compiler_host_stack_bytes": 67108864,
+  "consumer_stack": "8M",
+  "source_sha256": "eaedd759bb87955422b0dbbe55d9172b668b5d13201aeed3e6ceb162eaa93a81",
+  "source_selection": {
+    "Text.Multipart": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Text.Multipart.cinch",
+      "sha256": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d"
+    },
+    "Effect.Multipart": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Effect.Multipart.cinch",
+      "sha256": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+    },
+    "Text.QuotedPrintable": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Text.QuotedPrintable.cinch",
+      "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00"
+    }
+  },
+  "bundle_sha256": "8407dcd8a9d69ef106f9ea669a0c76cb72aceba24200588df06d6789a860c92a",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+    "Text.Multipart": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d",
+    "Text.QuotedPrintable": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+    "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+  },
+  "independent_sink_oracle": {
+    "trace": 4549259990752696552,
+    "output": 8855595116188151881,
+    "size": 56,
+    "calls": 4
+  },
+  "checks": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-live-source-v1/Main.cinch"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": ""
+    }
+  ],
+  "source_cap_bytes": 5242880,
+  "future_rust_runtime": {
+    "path": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+    "sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "artifact_bytes": 2314129
+}

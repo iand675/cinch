@@ -36,3 +36,18 @@ This receipt supersedes the initial pending corpus status in the frozen
 aa8c import manifest; it does not change those historical import bytes.
 Historical855 and Native65 gates remain distinct. O0 scope, performance,
 current Native qualification and production selection are still pending.
+
+The separate O0 qualification is now complete too: all1,128 observations in
+23 consumers/46 normal+poison runs, zero leaks, using exact accepted330 LLVM
+restored through verified archives and linked atclangO0. Original source,
+compiler, runtime and actual foreign objects are checked; no compiler
+re-emission is claimed. Every passed O0 ELF has a verified durable archive,
+with peak plain scratch16,868,565bytes below30MiB. `corpus-o0-gate.json` and
+`corpus-status.json` preserve this separate backend optimization epoch.
+
+The current-candidate public performance path is concrete in
+`performance-plan.json` and `performance-preflights.json`: both current-source
+variants, pinned SDK, complete public-pipeline checksums, zero-leak profiles and
+actual optimized code boundaries pass. Timing awaits the Root-coordinated
+exclusive slot; historical performance/current Native/production scope is not
+relabelled.

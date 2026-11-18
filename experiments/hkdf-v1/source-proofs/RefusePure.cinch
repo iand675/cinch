@@ -1,0 +1,14 @@
+-- | Require a checker refusal when a real callback row is hidden by a pure result signature.
+module Main where
+  import Crypto.Hkdf
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | This intentionally invalid declaration attempts to discard both callback effects.
+  discard-effects :: forall e (r :: Region) (s :: Region). HkdfHash -> (Bytes ->{IO r, Mut s} Result e Bytes) -> Bytes -> Result (HkdfError e) Bytes
+  discard-effects shape hash secret = hkdf-extract-with shape hash secret None
+
+  -- | Keep the refusal fixture a complete source project without executing it.
+  main :: Int
+  main = 0

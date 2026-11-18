@@ -1,0 +1,24 @@
+-- | Refuse mutation erasure through an unchanged IO-only factory.
+module Main where
+  import Effect.Multipart
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | Rich backend callbacks cannot enter the old IO-only factory.
+  io-only-storage-refusal :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r, Mut r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r, Mut r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r, Mut r} (Result e Unit, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  io-only-storage-refusal initial create write read readAt seek close open remove = multipart-storage initial create write read readAt seek close open remove
+
+  -- | Check an intended refusal without executing or fabricating a handle.
+  main :: Int
+  main = 0

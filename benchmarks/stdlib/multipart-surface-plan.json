@@ -1,0 +1,300 @@
+{
+  "package": "mime/multipart",
+  "status": "implemented-runtime-checkpoint; full qualification pending",
+  "base_commit": "4c15582a",
+  "record_count": 37,
+  "mapping_policy": "Explicit shared Mut/IO owner sessions and borrowed part/file handles; arbitrary byte strings; typed prefix-plus-status I/O; explicit policies and real scratch storage. Every record is implemented. Remaining O0, portable/performance, source-absent and live-buffered gates are recorded separately; this checkpoint does not claim package completion.",
+  "records": [
+    {
+      "record": "func FileContentDisposition(string, string) string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-disposition"
+      ]
+    },
+    {
+      "record": "func NewReader(io.Reader, string) *Reader",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-reader"
+      ]
+    },
+    {
+      "record": "func NewWriter(io.Writer) *Writer",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-writer-random",
+        "multipart-writer-boundary"
+      ]
+    },
+    {
+      "record": "method (*FileHeader) Open() (File, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-open"
+      ]
+    },
+    {
+      "record": "method (*Form) RemoveAll() error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-form-remove-all"
+      ]
+    },
+    {
+      "record": "method (*Part) Close() error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-part-close"
+      ]
+    },
+    {
+      "record": "method (*Part) FileName() string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-part-filename"
+      ]
+    },
+    {
+      "record": "method (*Part) FormName() string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-part-form-name"
+      ]
+    },
+    {
+      "record": "method (*Part) Read([]uint8) (int, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-part-read"
+      ]
+    },
+    {
+      "record": "method (*Reader) NextPart() (*Part, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-next-part"
+      ]
+    },
+    {
+      "record": "method (*Reader) NextRawPart() (*Part, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-next-raw-part"
+      ]
+    },
+    {
+      "record": "method (*Reader) ReadForm(int64) (*Form, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-read-form",
+        "multipart-form-read-form",
+        "multipart-form-read-error",
+        "multipart-form-read-cleanup"
+      ]
+    },
+    {
+      "record": "method (*Writer) Boundary() string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-writer-get-boundary"
+      ]
+    },
+    {
+      "record": "method (*Writer) Close() error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-writer-finish"
+      ]
+    },
+    {
+      "record": "method (*Writer) CreateFormField(string) (io.Writer, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-create-field"
+      ]
+    },
+    {
+      "record": "method (*Writer) CreateFormFile(string, string) (io.Writer, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-create-file"
+      ]
+    },
+    {
+      "record": "method (*Writer) CreatePart(textproto.MIMEHeader) (io.Writer, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-create-part"
+      ]
+    },
+    {
+      "record": "method (*Writer) FormDataContentType() string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-form-content-type"
+      ]
+    },
+    {
+      "record": "method (*Writer) SetBoundary(string) error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-writer-set-boundary"
+      ]
+    },
+    {
+      "record": "method (*Writer) WriteField(string, string) error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-write-field"
+      ]
+    },
+    {
+      "record": "type File interface { Close, Read, ReadAt, Seek }",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartFile",
+        "MultipartStorage"
+      ]
+    },
+    {
+      "record": "type File interface, Close() error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-close"
+      ]
+    },
+    {
+      "record": "type File interface, Read([]uint8) (int, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-read"
+      ]
+    },
+    {
+      "record": "type File interface, ReadAt([]uint8, int64) (int, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-read-at"
+      ]
+    },
+    {
+      "record": "type File interface, Seek(int64, int) (int64, error)",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-seek"
+      ]
+    },
+    {
+      "record": "type FileHeader struct",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartFileHeader",
+        "MultipartFileHeader"
+      ]
+    },
+    {
+      "record": "type FileHeader struct, Filename string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-filename",
+        "multipart-file-set-filename"
+      ]
+    },
+    {
+      "record": "type FileHeader struct, Header textproto.MIMEHeader",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-headers",
+        "multipart-file-set-headers"
+      ]
+    },
+    {
+      "record": "type FileHeader struct, Size int64",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-file-size",
+        "multipart-file-set-size"
+      ]
+    },
+    {
+      "record": "type Form struct",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartForm"
+      ]
+    },
+    {
+      "record": "type Form struct, File map[string][]*FileHeader",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-form-files",
+        "multipart-form-set-files",
+        "multipart-form-append-file",
+        "multipart-form-drop-files"
+      ]
+    },
+    {
+      "record": "type Form struct, Value map[string][]string",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-form-values",
+        "multipart-form-set-values",
+        "multipart-form-append-value",
+        "multipart-form-drop-values"
+      ]
+    },
+    {
+      "record": "type Part struct",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartPart"
+      ]
+    },
+    {
+      "record": "type Part struct, Header textproto.MIMEHeader",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "multipart-part-headers",
+        "multipart-part-set-headers",
+        "multipart-header-set",
+        "multipart-header-append",
+        "multipart-header-drop"
+      ]
+    },
+    {
+      "record": "type Reader struct",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartReader"
+      ]
+    },
+    {
+      "record": "type Writer struct",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartWriter",
+        "MultipartOutputPart"
+      ]
+    },
+    {
+      "record": "var ErrMessageTooLarge error",
+      "status": "implemented; runtime checkpoint",
+      "implemented_operations": [
+        "MultipartMessageTooLarge"
+      ]
+    }
+  ],
+  "sdk_files": {
+    "src/mime/multipart/multipart.go": "edda61c98001eecf78e48f87c709f0a2c9a3972951a04b48d15724d9ee8df9e7",
+    "src/mime/multipart/writer.go": "efff79ea10e83051650936eb649416aeacb97baa94d62322f264e4cfcbe47c39",
+    "src/mime/multipart/formdata.go": "cf2fc05db29dc4556ae12719c4db59b2f90b681eef5e74c5229a3c00e3a5bd92",
+    "src/net/textproto/reader.go": "98a3ebb83bb6d2df4fb1f303ead592efbdb125f00f9a2b961c1496c66e49ae0e",
+    "src/mime/quotedprintable/reader.go": "8caa6835cbdea786381063601d021dc775751bf39c5b8d41a965f6370648227b",
+    "src/bytes/buffer.go": "11cf45edaaf49b6dd6ece3d1a7c7779bb6623b705283e691c66c137336aa62de",
+    "src/io/io.go": "3945d328a9072e4f5970b7d4bc0eb834eec29fd22889a1ed9f3fb76ad41c3274",
+    "src/fmt/print.go": "10d7cd625d83a15f70b6e61641d3cebd4e4d49d7e0f2a24d5d2b59988074d2f7",
+    "src/bytes/reader.go": "5b42a3100971836c10b1e0d3699b46cffd41c8be23d09e1642ee42ff795dc6ab"
+  },
+  "sdk_version": "go1.27.4"
+}

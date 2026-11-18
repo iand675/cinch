@@ -1,0 +1,57 @@
+{
+  "package": "crypto/hkdf",
+  "declarations": [
+    "func Expand[$0 hash.Hash](func() $0, []uint8, string, int) ([]uint8, error)",
+    "func Extract[$0 hash.Hash](func() $0, []uint8, []uint8) ([]uint8, error)",
+    "func Key[$0 hash.Hash](func() $0, []uint8, []uint8, string, int) ([]uint8, error)"
+  ],
+  "declaration_count": 3,
+  "phase": "Static cumulative SDK/source audit only; no compiler/runtime/SDK invocation",
+  "inputs": {
+    "sdk-executable": {
+      "path": "/tmp/cinch-go-current/go/bin/go",
+      "bytes": 17256487,
+      "sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050"
+    },
+    "sdk-public-source": {
+      "path": "/tmp/cinch-go-current/go/src/crypto/hkdf/hkdf.go",
+      "bytes": 2998,
+      "sha256": "7d9bc6828e075daecfaaabe5015e910fadc0a4264064b8b54962d07df778cb9d"
+    },
+    "sdk-internal-hkdf": {
+      "path": "/tmp/cinch-go-current/go/src/crypto/internal/fips140/hkdf/hkdf.go",
+      "bytes": 1297,
+      "sha256": "8213f9240a6ca8080daa26ae3ee564156f497645760c0f5bc210d6031b99a757"
+    },
+    "sdk-internal-hmac": {
+      "path": "/tmp/cinch-go-current/go/src/crypto/internal/fips140/hmac/hmac.go",
+      "bytes": 5563,
+      "sha256": "0c689421b4052e57e97efef78cbbd7d9dba9af1251d1273cca786d79fb6ff475"
+    },
+    "sdk-hkdf-tests": {
+      "path": "/tmp/cinch-go-current/go/src/crypto/hkdf/hkdf_test.go",
+      "bytes": 12456,
+      "sha256": "0a75813b5416de712402028bc41cec85ce1a5d31a6992f74f0223c5629c58dfc"
+    },
+    "own-Text.Digest": {
+      "path": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+      "bytes": 7351,
+      "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+    },
+    "root-Text.Digest": {
+      "path": "/workspace/dasl-stdlib-io/compiler/prelude/Text/Digest.cinch",
+      "bytes": 7351,
+      "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+    },
+    "root-runtime-digest": {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/src/text.rs",
+      "bytes": 26124,
+      "sha256": "d15576b5ea28533f9f39af9f5a849c0aebe33917b4e13c79b53530038abe7c01"
+    },
+    "root-runtime-bytes": {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/src/bytes.rs",
+      "bytes": 8081,
+      "sha256": "65f3930d3a0cd82ba7febe1b17a25510ad3e44cad55ac56055e6bd714de91068"
+    }
+  }
+}

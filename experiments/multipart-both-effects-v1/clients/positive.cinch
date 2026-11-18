@@ -1,0 +1,95 @@
+-- | Preserve real native part/file/output handles through raw multipart capabilities.
+module Main where
+  import Effect.Multipart
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | Borrow a live part without buffering, closing or discarding its mutation effect.
+  live-part-source :: forall (r :: Region) e. MultipartPart r e -> MultipartSource r (MultipartError e)
+  live-part-source part = multipart-source-with-mutation (\wanted ->
+    let result = multipart-part-read part wanted in (result, live-part-source part))
+
+  -- | Borrow a live file while preserving its explicit generic backing and cursor.
+  live-file-source :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state -> MultipartSource r (MultipartError e)
+  live-file-source file = multipart-source-with-mutation (\wanted ->
+    let result = multipart-file-read file wanted in (result, live-file-source file))
+
+  -- | Forward a native output-part offer exactly once with its confirmed progress/error.
+  live-part-sink :: forall (r :: Region) e. MultipartOutputPart r e -> MultipartSink r (MultipartError e)
+  live-part-sink part = multipart-sink-with-mutation (\input ->
+    let result = multipart-output-write part input in (result, live-part-sink part))
+
+  -- | Widen an actual IO-only callback through an explicit effect-preserving wrapper.
+  widen-call :: forall (r :: Region) a. (Unit ->{IO r} a) -> Unit ->{IO r, Mut r} a
+  widen-call action unit = action unit
+
+  -- | The original IO-only source factory remains callable without mutation.
+  original-source :: forall (r :: Region) e. (Nat ->{IO r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+  original-source step = multipart-source step
+
+  -- | The original IO-only sink factory remains callable without mutation.
+  original-sink :: forall (r :: Region) e. (Bytes ->{IO r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+  original-sink step = multipart-sink step
+
+  -- | Adapt an IO-only source callback to the new both-effect constructor explicitly.
+  widened-source :: forall (r :: Region) e. (Nat ->{IO r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+  widened-source step = multipart-source-with-mutation (\wanted -> widen-call (\unit -> step wanted) ())
+
+  -- | Adapt an IO-only sink callback without suppressing a richer operation's effect.
+  widened-sink :: forall (r :: Region) e. (Bytes ->{IO r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+  widened-sink step = multipart-sink-with-mutation (\input -> widen-call (\unit -> step input) ())
+
+  -- | Preserve the entire original IO-only storage dictionary API.
+  original-storage :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r} (Result e Unit, state)) ->
+    (state -> key ->{IO r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  original-storage initial create write read readAt seek close open remove = multipart-storage initial create write read readAt seek close open remove
+
+  -- | Widen every IO-only backend callback while retaining exact advanced state.
+  widened-storage :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r} (Result e Unit, state)) ->
+    (state -> key ->{IO r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  widened-storage initial create write read readAt seek close open remove = multipart-storage-with-mutation initial
+    (\state -> widen-call (\unit -> create state) ())
+    (\state file input -> widen-call (\unit -> write state file input) ())
+    (\state file count -> widen-call (\unit -> read state file count) ())
+    (\state file count offset -> widen-call (\unit -> readAt state file count offset) ())
+    (\state file offset whence -> widen-call (\unit -> seek state file offset whence) ())
+    (\state file -> widen-call (\unit -> close state file) ())
+    (\state key -> widen-call (\unit -> open state key) ())
+    (\state key -> widen-call (\unit -> remove state key) ())
+
+  -- | Preserve all eight richer backend callbacks without changing their error or state types.
+  live-storage :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r, Mut r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r, Mut r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r, Mut r} (Result e Unit, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  live-storage initial create write read readAt seek close open remove = multipart-storage-with-mutation initial create write read readAt seek close open remove
+
+  -- | Check complete contracts without fabricating a handle or calling a callback.
+  main :: Int
+  main = 0

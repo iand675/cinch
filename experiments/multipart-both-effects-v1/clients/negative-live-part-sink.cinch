@@ -1,0 +1,14 @@
+-- | Refuse mutation erasure through an unchanged IO-only factory.
+module Main where
+  import Effect.Multipart
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | Forward a native output-part offer exactly once with its confirmed progress/error.
+  live-part-sink :: forall (r :: Region) e. MultipartOutputPart r e -> MultipartSink r (MultipartError e)
+  live-part-sink part = multipart-sink (\input ->
+    let result = multipart-output-write part input in (result, live-part-sink part))
+  -- | Check an intended refusal without executing or fabricating a handle.
+  main :: Int
+  main = 0

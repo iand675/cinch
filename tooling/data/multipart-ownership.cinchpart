@@ -1,0 +1,193 @@
+
+  -- | Preserve independent value ownership across input edits, snapshot edits and empty maps.
+  form-value-ownership-is :: forall (r :: Region). Unit ->{IO r, Mut r} Bool
+  form-value-ownership-is unit =
+    let form = fixture-form () in
+    let key = string-to-bytes "field" in
+    let value = string-to-bytes "payload" in
+    let inserted = multipart-form-set-values form key (Cons value Nil) in
+    let old = multipart-form-values-at form (string-to-bytes "field") in
+    let inputChanged = if bytes-len key > 0 && bytes-len value > 0 then let first = bytes-set key 0 88 in bytes-set value 0 89 else () in
+    let snapshotChanged = case old of Cons first rest -> if bytes-len first > 0 then bytes-set first 0 90 else (); Nil -> () in
+    let retained = multipart-form-values-at form (string-to-bytes "field") in
+    let replaced = multipart-form-set-values form (string-to-bytes "field") Nil in
+    let empty = multipart-form-values form in
+    let dropped = multipart-form-drop-values form (string-to-bytes "field") in
+    let absent = multipart-form-values form in
+    same-values retained (Cons (string-to-bytes "payload") Nil) &&
+      same-headers empty (Cons (string-to-bytes "field", Nil) Nil) && same-headers absent Nil
+
+  -- | Exercise independently opened memory cursors and privately owned returned byte buffers.
+  memory-cursors-is :: forall (r :: Region). MultipartFile r FixtureError I64 I64 I64 -> MultipartFile r FixtureError I64 I64 I64 ->{IO r, Mut r} Bool
+  memory-cursors-is first second =
+    let initial = multipart-file-read first 2 in
+    let changed = case initial of (output, status) -> if bytes-len output > 0 then bytes-set output 0 88 else () in
+    let positioned = file-read-is first (ExpectedPositioned 0 (ExpectedRead 2 (string-to-bytes "ab") "")) in
+    let sequential = file-read-is first (ExpectedSequential (ExpectedRead 2 (string-to-bytes "cd") "")) in
+    let independent = file-read-is second (ExpectedSequential (ExpectedRead 99 (string-to-bytes "abcdef") "")) in
+    let closed = multipart-file-close first in
+    let again = multipart-file-close first in
+    let afterClose = file-read-is first (ExpectedSequential (ExpectedRead 3 (string-to-bytes "ef") "")) in
+    let sought = multipart-file-seek first 0 2 in
+    let zeroEnd = file-read-is first (ExpectedSequential (ExpectedRead 0 (bytes-new 0) "EOF")) in
+    let zeroAt = file-read-is first (ExpectedPositioned 0 (ExpectedRead 0 (bytes-new 0) "")) in
+    let negative = file-read-is first (ExpectedPositioned (-1) (ExpectedRead 0 (bytes-new 0) "EOF")) in
+    let otherClosed = multipart-file-close second in
+    positioned && sequential && independent && result-message closed == "" && result-message again == "" &&
+      afterClose && result-message sought == "" && zeroEnd && zeroAt && negative && result-message otherClosed == ""
+
+  -- | Open both aliases and close every successfully acquired handle on all branches.
+  memory-header-cursors-is :: forall (r :: Region). MultipartFileHeader r FixtureError I64 I64 I64 ->{IO r, Mut r} Bool
+  memory-header-cursors-is header = case multipart-file-open header of
+    Err error -> False
+    Ok first -> case multipart-file-open header of
+      Err error -> let closed = multipart-file-close first in False
+      Ok second -> memory-cursors-is first second
+
+  -- | Keep backing content independent of mutable metadata, caller input and observed snapshots.
+  file-memory-ownership-is :: forall (r :: Region). Unit ->{IO r, Mut r} Bool
+  file-memory-ownership-is unit =
+    let content = string-to-bytes "abcdef" in
+    let name = string-to-bytes "original" in
+    let header = multipart-file-memory name (multipart-headers Nil) content in
+    let oldName = multipart-file-filename header in
+    let inputChanged = if bytes-len content > 0 && bytes-len name > 0 then let first = bytes-set content 0 88 in bytes-set name 0 89 else () in
+    let replacement = string-to-bytes "changed" in
+    let renamed = multipart-file-set-filename header replacement in
+    let replacementChanged = if bytes-len replacement > 0 then bytes-set replacement 0 90 else () in
+    let sized = multipart-file-set-size header (-1) in
+    let liveName = multipart-file-filename header in
+    let liveSize = multipart-file-size header in
+    let cursors = memory-header-cursors-is header in
+    same oldName (string-to-bytes "original") && same liveName (string-to-bytes "changed") && eq-i64 liveSize (-1) && cursors
+
+  -- | Run mutable map and complete memory-file ownership independently of scratch I/O.
+  ownership-is :: forall (r :: Region). Unit ->{IO r, Mut r} Bool
+  ownership-is unit =
+    let values = form-value-ownership-is () in
+    let files = file-memory-ownership-is () in values && files
+
+  -- | Choose a smaller count before the independently guarded source range copy.
+  fixture-smaller :: Nat -> Nat -> Nat
+  fixture-smaller first second = if first < second then first else second
+
+  -- | Copy one exact source span into fresh mutable output storage.
+  fixture-range :: Bytes -> Nat -> Nat -> Bytes
+  fixture-range input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in
+    let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Observe exact capacity, confirmed bytes and status through an independent foreign event.
+  foreign import ccall "multipart_fixture_observe_read" raw-observe-read :: forall (r :: Region). I64 -> I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Represent all exercised I/O capacities exactly and saturate only larger diagnostic requests.
+  observer-capacity :: Nat -> I64
+  observer-capacity wanted = if wanted <= 9223372036854775807 then wrapping-add-i64 (nat-to-i64 wanted) 0 else 9223372036854775807
+
+  -- | Record callback progress at representable I/O capacities before exposing the owned output.
+  retained-event :: forall (r :: Region). Nat -> Bytes -> MultipartReadStatus FixtureError -> MultipartSource r FixtureError ->{IO r} ((Bytes, MultipartReadStatus FixtureError), MultipartSource r FixtureError)
+  retained-event wanted output status next =
+    let code = case status of MultipartMore -> 0; MultipartEnd -> 1; MultipartReadFailure error -> 2 in
+    let observed = raw-observe-read (observer-capacity wanted) (bytes-data output) (nat-to-i64 (bytes-len output)) code in
+    ((output, status), next)
+
+  -- | Mutate an older callback-owned buffer and perform an independently observed I/O event.
+  retaining-step :: forall (r :: Region). Bytes -> Nat -> Bytes -> Bool -> Nat -> Nat ->{IO r} ((Bytes, MultipartReadStatus FixtureError), MultipartSource r FixtureError)
+  retaining-step input at previous failure empty wanted =
+    let changed = if bytes-len previous > 0 then bytes-set previous 0 255 else () in
+    if empty > 0 then retained-event wanted (bytes-new 0) MultipartMore (retaining-source-mode input at previous failure (empty - 1))
+    else if at <= bytes-len input then
+      let count = fixture-smaller wanted (fixture-smaller 7 (bytes-len input - at)) in
+      let output = fixture-range input at count in
+      let next = at + count in
+      retained-event wanted output (if next == bytes-len input then (if failure then MultipartReadFailure (fixture-error 6) else MultipartEnd) else MultipartMore) (retaining-source-mode input next output failure 0)
+    else retained-event wanted (bytes-new 0) MultipartEnd (retaining-source-mode input at (bytes-new 0) failure 0)
+
+  -- | Preserve error policy and explicit zero-progress state in each advanced callback.
+  retaining-source-mode :: forall (r :: Region). Bytes -> Nat -> Bytes -> Bool -> Nat -> MultipartSource r FixtureError
+  retaining-source-mode input at previous failure empty = multipart-source (\wanted -> retaining-step input at previous failure empty wanted)
+
+  -- | Retain callback outputs in a pure continuation with the complete original region.
+  retaining-source :: forall (r :: Region). Bytes -> Nat -> Bytes -> MultipartSource r FixtureError
+  retaining-source input at previous = retaining-source-mode input at previous False 0
+
+  -- | Check source continuation ownership against the exact independent public reader observations.
+  retained-reader-is :: forall (r :: Region). using (io :: Io r) => Bytes -> Bytes -> List ExpectedPart -> String -> U64 -> I64 ->{IO r, Mut r} Bool
+  retained-reader-is input boundary expected message trace calls =
+    let original = fixture-part input (bytes-len input) in
+    let initialized = raw-source-init (bytes-data input) (nat-to-i64 (bytes-len input)) 7 1 in
+    let reader = multipart-reader (retaining-source input 0 (bytes-new 0)) boundary in
+    let matched = parts-is reader False expected message in
+    let actualTrace = raw-source-trace 0 in
+    let actualCalls = raw-source-calls 0 in
+    let finished = raw-source-finish 0 in
+    matched && same input original && eq-i64 initialized 0 && eq-i64 finished 0 && eq-u64 actualTrace trace && eq-i64 actualCalls calls
+
+  -- | Keep a successful random boundary independent of subsequently reused entropy buffers.
+  entropy-boundary-is :: forall (r :: Region). MultipartWriter r FixtureError -> MultipartSource r FixtureError -> Bytes -> Bool ->{IO r, Mut r} Bool
+  entropy-boundary-is writer next expected failure =
+    let before = multipart-writer-get-boundary writer in
+    case multipart-source-read next 1 of
+      ((output, status), advanced) ->
+        let after = multipart-writer-get-boundary writer in
+        let message = case status of MultipartMore -> ""; MultipartEnd -> "EOF"; MultipartReadFailure error -> error-message (MultipartCallerFailure error) in
+        same before expected && same after expected && bytes-len output == 0 && message == (if failure then "fixture source failure" else "EOF")
+
+  -- | Keep boundary/source observations separate from the exact constructor callback trace.
+  entropy-result-is :: forall (r :: Region). (Result (MultipartError FixtureError) (MultipartWriter r FixtureError), MultipartSource r FixtureError) -> Bytes -> String -> Bool ->{IO r, Mut r} Bool
+  entropy-result-is result expected message failure = case result of
+    (Err error, next) -> error-message error == message && bytes-len expected == 0
+    (Ok writer, next) -> let checked = entropy-boundary-is writer next expected failure in message == "" && checked
+
+  -- | Exercise exact-fill entropy, retained advanced callbacks and typed premature EOF.
+  entropy-is :: forall (r :: Region). using (io :: Io r) => Bytes -> Bool -> Nat -> Bytes -> String -> U64 -> I64 ->{IO r, Mut r} Bool
+  entropy-is input failure empty expected message trace calls =
+    let original = fixture-part input (bytes-len input) in
+    let initialized = raw-reset 0 in
+    let sourceInitialized = raw-source-init (bytes-data input) (nat-to-i64 (bytes-len input)) 7 1 in
+    let result = multipart-writer-random (retaining-source-mode input 0 (bytes-new 0) failure empty) (fixture-sink ()) in
+    let actualTrace = raw-source-trace 0 in
+    let actualCalls = raw-source-calls 0 in
+    let matched = entropy-result-is result expected message failure in
+    let finished = raw-source-finish 0 in
+    matched && eq-i64 initialized 0 && eq-i64 sourceInitialized 0 && eq-i64 finished 0 && eq-u64 actualTrace trace && eq-i64 actualCalls calls && same input original
+
+  -- | Keep a managed callback payload available for explicit final sink observation.
+  data SinkObservation where
+    -- | Independently copied, ordered accepted offers.
+    SinkObservation :: List Bytes -> SinkObservation
+
+  -- | Mutate an older borrowed offer before accepting the next fresh writer span.
+  retaining-write :: forall (r :: Region). Bytes -> List Bytes -> Bytes ->{IO r} ((Nat, Option SinkObservation), MultipartSink r SinkObservation)
+  retaining-write previous pieces input =
+    let changed = if bytes-len previous > 0 then bytes-set previous 0 255 else () in
+    if bytes-len input == 0 then
+      ((0, Some (SinkObservation (reverse pieces))), retaining-sink input pieces)
+    else
+      let copied = fixture-part input (bytes-len input) in
+      ((bytes-len input, None), retaining-sink input (Cons copied pieces))
+
+  -- | Retain prior offers in an ordinary fully checked callback continuation.
+  retaining-sink :: forall (r :: Region). Bytes -> List Bytes -> MultipartSink r SinkObservation
+  retaining-sink previous pieces = multipart-sink (\input -> retaining-write previous pieces input)
+
+  -- | Check every internally generated header/footer remains independent of old offered storage.
+  writer-retention-is :: forall (r :: Region). List Bytes ->{IO r, Mut r} Bool
+  writer-retention-is expected = case multipart-writer-boundary (string-to-bytes "b") (retaining-sink (bytes-new 0) Nil) of
+    Err error -> False
+    Ok writer ->
+      let first = multipart-write-field writer (string-to-bytes "x") (string-to-bytes "one") in
+      let second = multipart-write-field writer (string-to-bytes "y") (string-to-bytes "two") in
+      let finished = multipart-writer-finish writer in
+      let repeated = multipart-writer-finish writer in
+      let finalSink = multipart-writer-sink writer in
+      case multipart-sink-write finalSink (bytes-new 0) of
+        ((count, captured), next) -> case captured of
+          None -> False
+          Some observation -> case observation of
+            SinkObservation actual ->
+              (case first of Ok unit -> True; Err error -> False) &&
+              (case second of Ok unit -> True; Err error -> False) &&
+              (case finished of Ok unit -> True; Err error -> False) &&
+              (case repeated of Ok unit -> True; Err error -> False) && count == 0 && same-values actual expected

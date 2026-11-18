@@ -1,0 +1,16 @@
+{
+  "scope": "Independent scalar verification of the committed expanded pinned SDK observations; historical reports retain their original vector hashes.",
+  "vectors_sha256": "70c8a493ce74b6eb43c5d0a67ce0631aca8aef9682994dfb71f3150c379905dc",
+  "verifier_sha256": "73cd54b21188bfd1afca6d0ef41b3a06417c728e613b15ccbd9366f2fd1975ab",
+  "counts": {
+    "boundary": 264,
+    "disposition": 292,
+    "writer_scenarios": 40,
+    "reader_observations": 476,
+    "form_observations": 27,
+    "cache_controls": 1,
+    "entropy_controls": 24,
+    "retained_writer_offers": 6,
+    "independent_scalar_scope": "all boundaries/dispositions/writer callback traces, reader prefix accounting, lazy-cache/final-close form outcomes, exact entropy traces and retained writer offers"
+  }
+}

@@ -1,0 +1,260 @@
+{
+  "status": "Source/type/proof review gates only: two full positive contracts accepted and eight intended IO-only refusals. Production unchanged; no runtime/emission/link claim.",
+  "signature_manifest_sha256": "136fef31221397c96e54151d67ce0763a15d7a34e0aa1508e03d6f43aa07fbad",
+  "raw_reports": [
+    {
+      "path": "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/report-before-native-cli-fix.json",
+      "sha256": "73e3d4106b90dfe28ca8725c32fb1cd1280740edc11cf34de5687748ff44d78e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/report-native-positive.json",
+      "sha256": "9fa8892c0741a65b1b6da523ea2960c16200efa05c38f75c65705918332a7a24"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/report-before-storage-expectation-fix.json",
+      "sha256": "aee7b3a12685cda567e4b3f345b3e7dac1a9a18590e937cc9d34bebf09c25e35"
+    }
+  ],
+  "source_hashes": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+    "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+    "Text.QuotedPrintable": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+    "Effect.Multipart": "b9e813899b592e69016e92d4292d2e19e96b4eec077b2f7511633d6e78d45af8"
+  },
+  "native_pair": {
+    "cinch": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+    "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+    "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+    "libcinchruntime.a": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+  },
+  "gates": [
+    {
+      "selector": "rust:positive",
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/positive.cinch",
+      "client_sha256": "9df1d7c24161881ec30cd3c18db7048541597159e91184137ea6dcecda3b158e",
+      "prefix_sha256": null,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "",
+      "seconds": 10.528502974979347,
+      "expected": "accepted full contract",
+      "matched": true
+    },
+    {
+      "selector": "native:positive",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/positive.cinch",
+      "client_sha256": "9df1d7c24161881ec30cd3c18db7048541597159e91184137ea6dcecda3b158e",
+      "prefix_sha256": "ca5023dd27d8a14e21d1af54cf41cbb7c3a0b60bb6440296a3e0365604a74769",
+      "command": [
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/bundle.source",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/check.output"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "",
+      "seconds": 44.94731755700195,
+      "expected": "accepted full contract",
+      "matched": true
+    },
+    {
+      "selector": "rust:negative-live-file-source",
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-file-source.cinch",
+      "client_sha256": "e9f23fef0d1262fc6c23df69a138a66f337eb089fb08838486e61562bd814346",
+      "prefix_sha256": null,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 10:45: effect rows do not match: {IO r#1921} vs {IO r#1921, Mut r#1921 | ?r2172} (in /workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch)\n",
+      "diagnostics": "",
+      "seconds": 7.483726211008616,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "rust:negative-live-part-sink",
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-part-sink.cinch",
+      "client_sha256": "927c24a8698eb8a41365e9fd0aa41c7f731c8582c31d7da53b0713e5b51f844e",
+      "prefix_sha256": null,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 10:41: effect rows do not match: {IO r#1918} vs {IO r#1918, Mut r#1918 | ?r2172} (in /workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch)\n",
+      "diagnostics": "",
+      "seconds": 6.467706540017389,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "rust:negative-live-part-source",
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-part-source.cinch",
+      "client_sha256": "a560b63f2341468a6b82f5d5d469a1854392481bea5d08616013c644eed11556",
+      "prefix_sha256": null,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 10:45: effect rows do not match: {IO r#1918} vs {IO r#1918, Mut r#1918 | ?r2172} (in /workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch)\n",
+      "diagnostics": "",
+      "seconds": 6.598567788023502,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "rust:negative-storage",
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-storage.cinch",
+      "client_sha256": "0db1be15e18966c4f9102ad5250c1c8cbb3b9ed5972a32d0502469233e9cbcf7",
+      "prefix_sha256": null,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 20:111: effect rows do not match: {IO r#1921, Mut r#1921} vs {IO r#1922} (in /workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/Main.cinch)\n",
+      "diagnostics": "",
+      "seconds": 7.172805119975237,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "native:negative-live-file-source",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-file-source.cinch",
+      "client_sha256": "e9f23fef0d1262fc6c23df69a138a66f337eb089fb08838486e61562bd814346",
+      "prefix_sha256": "ca5023dd27d8a14e21d1af54cf41cbb7c3a0b60bb6440296a3e0365604a74769",
+      "command": [
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/bundle.source",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/check.output"
+      ],
+      "returncode": 4,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "bootstrap.check:28227:5: effect rows do not match: performed effects exceed the declared row (performed {(IO r), (Mut r)}, declared {(IO r)})\n",
+      "seconds": 30.7919845530123,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "native:negative-live-part-sink",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-part-sink.cinch",
+      "client_sha256": "927c24a8698eb8a41365e9fd0aa41c7f731c8582c31d7da53b0713e5b51f844e",
+      "prefix_sha256": "ca5023dd27d8a14e21d1af54cf41cbb7c3a0b60bb6440296a3e0365604a74769",
+      "command": [
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/bundle.source",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/check.output"
+      ],
+      "returncode": 4,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "bootstrap.check:28227:5: effect rows do not match: performed effects exceed the declared row (performed {(IO r), (Mut r)}, declared {(IO r)})\n",
+      "seconds": 31.348904471000424,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "native:negative-live-part-source",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-live-part-source.cinch",
+      "client_sha256": "a560b63f2341468a6b82f5d5d469a1854392481bea5d08616013c644eed11556",
+      "prefix_sha256": "ca5023dd27d8a14e21d1af54cf41cbb7c3a0b60bb6440296a3e0365604a74769",
+      "command": [
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/bundle.source",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/check.output"
+      ],
+      "returncode": 4,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "bootstrap.check:28227:5: effect rows do not match: performed effects exceed the declared row (performed {(IO r), (Mut r)}, declared {(IO r)})\n",
+      "seconds": 33.5766444200126,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": true
+    },
+    {
+      "selector": "native:negative-storage",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "client_path": "/workspace/dasl-stdlib-multipart/experiments/multipart-both-effects-v1/clients/negative-storage.cinch",
+      "client_sha256": "0db1be15e18966c4f9102ad5250c1c8cbb3b9ed5972a32d0502469233e9cbcf7",
+      "prefix_sha256": "ca5023dd27d8a14e21d1af54cf41cbb7c3a0b60bb6440296a3e0365604a74769",
+      "command": [
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/bundle.source",
+        "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/check.output"
+      ],
+      "returncode": 4,
+      "stdout": "",
+      "stderr": "",
+      "diagnostics": "bootstrap.check:28236:111: type mismatch: expected {(IO r)}, found {(IO r), (Mut r)}\n",
+      "seconds": 38.44032789499033,
+      "expected": "refused IO-only factory without effect erasure",
+      "matched": false,
+      "matched_under_exact_named_expectation": true,
+      "raw_matched_before_harness_fix": false
+    }
+  ],
+  "harness_boundaries": [
+    "Original Native --check incorrectly included --objects and exited1 before checking; original command/report preserved. Removing only that unsupported flag admitted identical source.",
+    "Native regenerates a closed check-cache. Verified cold archives preserve full member SHA/size/mode and compressed/decoded hashes before unlink. Identical negative-cache members reuse verified recovery. Initial transient5.40MiB exceeded5MiB guard and stopped; current logical increment below5MiB.",
+    "Native negative-storage uses the exact expected IO-versus-IO+Mut type-row diagnostic; the first harness expected only effect-row wording. Raw failed classification is preserved, and only that named exact expectation is added. No source or compiler workaround, no negative rerun."
+  ],
+  "artifact_bytes_after_archives": 3152553,
+  "canonical_documentation": {
+    "declarations": 235,
+    "diagnostics": 0,
+    "orphans": 0,
+    "legacy": 0
+  },
+  "historical_signature_manifest_sha256": "17e755622c85ae2d22bfa14919fa3e4d8ec0adc87652caf5c100942352db3b8e",
+  "metadata_only_status_update": "The before/after signatures and all source hashes are unchanged; only creation-time pending gate status now points to this completed source gate."
+}

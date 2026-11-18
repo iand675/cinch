@@ -1,0 +1,25 @@
+-- | Complete public multipart scanning, prefix and escaped-disposition paths.
+module Main where
+  import Text.Multipart
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  -- | Populate complete vector windows and a scalar fringe without literal-list reduction.
+  fill :: Bytes -> Nat -> Unit
+  fill output at = if at < bytes-len output then
+    let stored = bytes-set output at (if at == 17 then 10 else 65) in fill output (at + 1)
+    else ()
+
+  -- | Keep public byte scanning, packed prefix checks and escaping reachable from the entry.
+  main :: Unit -> Int
+  main unit =
+    let input = bytes-new 67 in
+    let initialized = fill input 0 in
+    let offset = multipart-find-byte input 0 10 in
+    let prefix = bytes-new 16 in
+    let copied = bytes-copy-range prefix input 0 0 16 in
+    let matched = multipart-prefix input prefix in
+    let disposition = multipart-file-disposition input input in
+    if offset == 17 && matched && bytes-len disposition > bytes-len input then 0 else 1

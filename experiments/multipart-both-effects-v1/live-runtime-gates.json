@@ -1,0 +1,149 @@
+{
+  "status": "Actual live three-factory fixture passed on this exact reviewed, unannotated candidate and Rust66 tuple; production unchanged.",
+  "source_gate_path": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/report.json",
+  "source_gate_sha256": "316dc805296fe2dd6d967eb9aa116c10202787d2a6286355cab8efddb5b994be",
+  "runtime_report_path": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/runtime-rust.json",
+  "runtime_report_sha256": "ff021cf6101f3c587bb9ebc63b8184302bd0a94d53aebd12073c3f1740a39d6d",
+  "runtime_report": {
+    "scope": "Execute the already source-checked live both-effect fixture on one exact Rust tuple.\n\nNo source or runtime is substituted. Start/pause guards bound one serial\nconsumer; accepted outputs are archived only after both memory profiles pass.\n",
+    "source_gate_sha256": "316dc805296fe2dd6d967eb9aa116c10202787d2a6286355cab8efddb5b994be",
+    "source_gate_path": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/report.json",
+    "compiler_sha256": "bfacd9af23b3a6770da9ecfb55c12547bf38bcd530399fad82ab00022257e1a9",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "runtime": "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/libcinchruntime.a",
+    "compiler_host_stack_bytes": 67108864,
+    "consumer_optimization": 2,
+    "compiled_rc_debug": false,
+    "production_adopted": false,
+    "cpu_affinity": [
+      4
+    ],
+    "runs": [
+      {
+        "frontend": "rust",
+        "case": "live-effects",
+        "source_sha256": "eaedd759bb87955422b0dbbe55d9172b668b5d13201aeed3e6ceb162eaa93a81",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.ll"
+        ],
+        "stdout": "",
+        "stderr": "",
+        "target": "x86_64-unknown-linux-gnu",
+        "ir_sha256": "3230dfd8ede53a3cb6e3794840d4517d5f159507d64d2e5ed15a69a1687d14af",
+        "profiles": [
+          {
+            "poison": "0",
+            "heap": "32M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          },
+          {
+            "poison": "1",
+            "heap": "256M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          }
+        ],
+        "link_command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "--target=x86_64-unknown-linux-gnu",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.ll",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/fixture.o",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/kernels.o",
+          "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/libcinchruntime.a",
+          "-ldl",
+          "-lpthread",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects"
+        ],
+        "link_stdout": "",
+        "link_stderr": "/usr/bin/ld: /tmp/rust-live-effects-8e7271.o: warning: relocation against `Main.live-file-source.lam110.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+        "executable_sha256": "5a1ee6b3c3c2056fdf0e536a88cbdb99f7dc0bce8598ff8ced5dedc0e9747fed"
+      }
+    ],
+    "phases": [
+      {
+        "phase": "start-or-resume",
+        "free_bytes": 442404864,
+        "minimum_bytes": 367001600,
+        "new_artifact_bytes": 0
+      },
+      {
+        "phase": "emit",
+        "free_bytes": 442351616,
+        "minimum_bytes": 262144000,
+        "new_artifact_bytes": 39524
+      },
+      {
+        "phase": "link",
+        "free_bytes": 432197632,
+        "minimum_bytes": 262144000,
+        "new_artifact_bytes": 10012061
+      },
+      {
+        "phase": "profile-0",
+        "free_bytes": 425267200,
+        "minimum_bytes": 262144000,
+        "new_artifact_bytes": 16940597
+      },
+      {
+        "phase": "profile-1",
+        "free_bytes": 425267200,
+        "minimum_bytes": 262144000,
+        "new_artifact_bytes": 16940929
+      }
+    ],
+    "initial_artifact_bytes": 2312072,
+    "new_output_cap_bytes": 20971520,
+    "kernel_ir_sha256": "1eff2f91b049efee708ac3d9173391c8194eb8c89c7ae611af54ce5b941ee848",
+    "kernel_object_sha256": "87108d3d1288cb53597928a3610300a0367f8d611f98a72bd6b08fa90e466331",
+    "fixture_source_sha256": "d7f4d61d7b052ff6d469fa65e290c474125738203e922afa7b29bbca044b40ef",
+    "fixture_object_sha256": "81d3c7fabf0189f1fb14776329fa0ceb985b20c6f56b705aaa58bbe850370543",
+    "scalar_oracle_vectorization": false,
+    "kernel_cases_per_invocation": 1048576,
+    "runtime_claim": "This exact candidate/fixture and compiler/archive passed both profiles; production remains unchanged."
+  },
+  "verified_archives": [
+    {
+      "original": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.ll",
+      "original_bytes": 7259672,
+      "original_mode": 384,
+      "original_sha256": "3230dfd8ede53a3cb6e3794840d4517d5f159507d64d2e5ed15a69a1687d14af",
+      "archive": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.ll.gz",
+      "archive_bytes": 1180468,
+      "archive_sha256": "8d21d8ad0552d8c73546641a6dbbd318969e961966ffe2daab8264ac809d9725",
+      "verified_decoded_sha256": "3230dfd8ede53a3cb6e3794840d4517d5f159507d64d2e5ed15a69a1687d14af",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.archive-report.json",
+      "source_report_sha256": "1a407b718bf83a6d55f2cd89f80a05048b915ae005b47322fb1400ff46e1b6d0"
+    },
+    {
+      "original": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects",
+      "original_bytes": 6927336,
+      "original_mode": 448,
+      "original_sha256": "5a1ee6b3c3c2056fdf0e536a88cbdb99f7dc0bce8598ff8ced5dedc0e9747fed",
+      "archive": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.gz",
+      "archive_bytes": 2258542,
+      "archive_sha256": "9c78de1ff6d0df43749014aa4b74a8d7f2af53b26341a8eba37c8f926884a9a8",
+      "verified_decoded_sha256": "5a1ee6b3c3c2056fdf0e536a88cbdb99f7dc0bce8598ff8ced5dedc0e9747fed",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/rust-live-effects.archive-report.json",
+      "source_report_sha256": "1a407b718bf83a6d55f2cd89f80a05048b915ae005b47322fb1400ff46e1b6d0"
+    }
+  ],
+  "maximum_recorded_new_bytes": 16940929,
+  "conservative_archive_phase_new_bytes_bound": 18158464,
+  "output_cap_bytes": 20971520,
+  "preserved_boundaries": [
+    "No static carrier Region proposal was checked or compiled.",
+    "Historical855/Native source and full-corpus epochs remain distinct.",
+    "No Native runtime or new compiler-family claim is made by this Rust-only runtime gate.",
+    "This one fixture does not substitute for full selected-production regression or source-absent kind admission."
+  ]
+}

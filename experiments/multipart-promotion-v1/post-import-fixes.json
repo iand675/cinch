@@ -6,5 +6,11 @@
   "corrected_sha256": "b94386aeb11b4a3ce44133d35e7c89eef409a27bb32c45786d9a254b7fc20639",
   "integration_manifest_commit": "aa8c4674",
   "successful_source_or_runtime_behavior_changed": false,
-  "revalidation": "Python compilation and branch inspection; no successful source/runtime corpus repeated for this failure-retention-only correction."
+  "revalidation": "Python compilation and branch inspection; no successful source/runtime corpus repeated for this failure-retention-only correction.",
+  "root_test_failure_retention": {
+    "root_commit": "c2441661",
+    "path": "compiler/tests/lib_multipart_promotion.rs",
+    "sha256": "e10921a2638bd0eef8e8673c4fdd09ca0d7946c90761c0b5e168d889b666f738",
+    "scope": "Mirrored Root RAII guard: keep entire generated qualification directory plain when a test assertion panics. Root current-Rust f9/d91 target2/2 passed; no own Cargo was run."
+  }
 }

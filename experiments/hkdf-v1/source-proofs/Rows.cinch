@@ -1,0 +1,23 @@
+-- | Check effect-preserving public HKDF composition without executing callbacks.
+module Main where
+  import Crypto.Hkdf
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Keep distinct IO and mutation regions in the generic hash and policy callbacks.
+  hash-route :: forall e (r :: Region) (s :: Region). HkdfHash -> (Bytes ->{IO r, Mut s} Result e Bytes) -> (HkdfOperation -> Bytes ->{IO r, Mut s} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{IO r, Mut s} Result (HkdfError e) Bytes
+  hash-route shape hash policy secret salt info count = hkdf-key-with-policy shape hash policy secret salt info count
+
+  -- | Preserve the same two regions in direct-HMAC extraction and expansion.
+  hmac-route :: forall e (r :: Region) (s :: Region). HkdfSize -> (Bytes -> Bytes ->{IO r, Mut s} Result e Bytes) -> (HkdfOperation -> Bytes ->{IO r, Mut s} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{IO r, Mut s} Result (HkdfError e) Bytes
+  hmac-route size mac policy secret salt info count = hkdf-key-hmac-with-policy size mac policy secret salt info count
+
+  -- | Keep an arbitrary callback row through a reusable latent derivation closure.
+  latent-route :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes -> Bytes -> (Nat ->{|fx} Result (HkdfError e) Bytes)
+  latent-route shape hash secret salt info = \count -> hkdf-key-with shape hash secret salt info count
+
+  -- | Supply a source-only entrypoint; no callbacks or cryptographic operations execute in this gate.
+  main :: Int
+  main = 0

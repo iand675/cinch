@@ -1,0 +1,1864 @@
+{
+  "format": 1,
+  "scope": "prepared families only; full package qualification pending",
+  "initial_plain_bytes": 2635846,
+  "runner_sha256": "01b3ca081d5ec9db52a3e7b694e11075b9b4136871acf74000f2d088c4a2ac70",
+  "vectors_sha256": "70c8a493ce74b6eb43c5d0a67ce0631aca8aef9682994dfb71f3150c379905dc",
+  "compiler_host_stack_bytes": 67108864,
+  "consumer_optimization": 2,
+  "compiler_environment": {
+    "RUST_MIN_STACK": "67108864",
+    "CINCH_STACK_SIZE": "64M"
+  },
+  "source_selection": {
+    "Effect.Multipart": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Effect.Multipart.cinch",
+      "sha256": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+    },
+    "Text.Multipart": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Text.Multipart.cinch",
+      "sha256": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d"
+    },
+    "Text.QuotedPrintable": {
+      "path": "/workspace/dasl-stdlib-multipart/experiments/multipart-optimization-v1/sources/Text.QuotedPrintable.cinch",
+      "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00"
+    }
+  },
+  "sources": {
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+    "Text.Multipart": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d",
+    "Text.QuotedPrintable": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00"
+  },
+  "consumers": {
+    "boundaries-0000": "5093be26d2d39ca622563d2c717f7a4b22b49960013e79e3791151aee0333f1e",
+    "boundaries-0064": "2c2a9d08cda35c7d54cf7913c061dc5374bc3516bc093287fb3be8ff15156074",
+    "boundaries-0128": "b9d516368e4e0585289c176b54b90a6549f12a83fa912bd2d740a24d2214b3ba",
+    "boundaries-0192": "9277fb8c7f9b0369a08009be0b68adf877d5938186b771dbcfcf771c99489024",
+    "boundaries-0256": "5cee396074e30cd76e1288ada258ab9cfdc249fd289a723440b9622b9a25f363",
+    "dispositions-0000": "87ecc3bfe0e1acb107b5d063cc92bd9dbc6d43a0ec4893a5183d9fd99b7aca99",
+    "dispositions-0064": "83702228311a98b69bde2f1fca9aa4120d40ad548354f0212d36d21a674f1900",
+    "dispositions-0128": "3b14cc1c0b81de2b08df1e2e1b52c5119441414c934216734565821824f7ab85",
+    "dispositions-0192": "d78e62d3a8d526ec0868380324d77f68d1ce475a793b3fb33964a0d459ddc0ad",
+    "dispositions-0256": "ca29b0322feb51fbc362f01c616a16c8dcf1d1abd64d2c701b891b993ae8de03",
+    "writers-0000": "2b7e54ace3498bf800a291c0bedd40669c328bc86e75fac09f334ea77bed5f22",
+    "readers-0000": "4fb03c6e20c347b0adeef035b857ac7767059189964e08031e2afce57be98405",
+    "readers-0064": "48940b2a9c2ec3d02a4b15ca86ac24412c44b1d17e802c19b1c6a29d0cd5bd76",
+    "readers-0128": "09a9645bc4d14ae34f225cbd198f210f52936fe9b5bb56617bb1f690ae7acf15",
+    "readers-0192": "09ada02af9dc2a686395a772fc964d023f657bfed4167b14a9dff42bd1b017ef",
+    "readers-0256": "142a381f0254bf24a3bad3a5eb387afe40d86738dfac04dffc61baafb0e6fb5c",
+    "readers-0320": "a0adfb89beb4850a0e4510289925c28103ef9186cbd68a7167208eb0a84254ea",
+    "readers-0384": "ae30b26c5211a095fd1c500fc9476f0923b247895e580fbc4b5ad67f07552e36",
+    "readers-0448": "134f2623f35e8bceb30c0eb5805d416966ef5991f7239a7819dc790c9d17a617",
+    "forms-0000": "656b456c211d7fd6f4cb111292fa05104d8fbf8c0711e10370a86d13bb867bcc",
+    "cache-0000": "e153b08d42739513710d8987cea55226c4167c6f7f901102356aa8b6f09701e7",
+    "late-headers-0000": "27d8507704bb1849e94d001b5de1f58eccd1b4b1b93a163025ea716785052ffc",
+    "entropy-0000": "9e22f18b04f872305fe3469c385207fd51e5c1e907b7e9852ac286c70336168f",
+    "ownership-0000": "86b73d4cd5c32c5186536042c622a982d92817c813b8688fb348f6d871c331cd",
+    "form-map": "af99f7d4cf5c7b5a54b9f94d2de9f7d5e9a2c7764c29e20e8b2f89fc7c366553",
+    "form-reader": "97917099c8dbed90915e7438e89b1f2569aee5b0a930251dce8ad6899b3795d5"
+  },
+  "counts": {
+    "boundaries-0000": 64,
+    "boundaries-0064": 64,
+    "boundaries-0128": 64,
+    "boundaries-0192": 64,
+    "boundaries-0256": 8,
+    "dispositions-0000": 64,
+    "dispositions-0064": 64,
+    "dispositions-0128": 64,
+    "dispositions-0192": 64,
+    "dispositions-0256": 36,
+    "writers-0000": 40,
+    "readers-0000": 64,
+    "readers-0064": 64,
+    "readers-0128": 64,
+    "readers-0192": 64,
+    "readers-0256": 64,
+    "readers-0320": 64,
+    "readers-0384": 64,
+    "readers-0448": 28,
+    "forms-0000": 27,
+    "cache-0000": 1,
+    "late-headers-0000": 4,
+    "entropy-0000": 24,
+    "ownership-0000": 4,
+    "form-map": 1,
+    "form-reader": 1
+  },
+  "case_modules": {
+    "boundaries-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "boundaries-0064": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "boundaries-0128": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "boundaries-0192": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "boundaries-0256": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "dispositions-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "dispositions-0064": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "dispositions-0128": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "dispositions-0192": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "dispositions-0256": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart"
+    ],
+    "writers-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0064": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0128": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0192": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0256": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0320": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0384": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "readers-0448": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "forms-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "cache-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "late-headers-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "entropy-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "ownership-0000": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "form-map": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ],
+    "form-reader": [
+      "Data.Bytes.Word",
+      "Data.Bytes.Utf8",
+      "Data.Unicode.Tables",
+      "Data.Unicode.Kernel",
+      "Text.Base64.Encoding",
+      "Text.Mime",
+      "Text.Multipart",
+      "Text.QuotedPrintable",
+      "Effect.Stream",
+      "Data.Mutable.Var",
+      "Effect.Multipart"
+    ]
+  },
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "runtime": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "compile_rc_debug": false
+    }
+  },
+  "runs": [
+    {
+      "frontend": "rust",
+      "case": "dispositions-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-dispositions-0000.ll"
+      ],
+      "compile_seconds": 7.502007010014495,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "87ecc3bfe0e1acb107b5d063cc92bd9dbc6d43a0ec4893a5183d9fd99b7aca99",
+      "ir_sha256": "f4192fc0caab0e16aba41b30483422dd2e6b3daea070d43f27f63dcd34bc1604",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "a94bb87040759d4a2fa7f7841fd943d2bc1eba9599f5a4ef40cd30da478236e2"
+    },
+    {
+      "frontend": "rust",
+      "case": "dispositions-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-dispositions-0064.ll"
+      ],
+      "compile_seconds": 7.093591452983674,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "83702228311a98b69bde2f1fca9aa4120d40ad548354f0212d36d21a674f1900",
+      "ir_sha256": "f73a90c0e28d32631ea4ccec3b68caa64d2f27cc86652fc012a8046f191c5d0f",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7001d12009c743860d551d118227a670c60ef45350f79165b4c1d2d5e047e109"
+    },
+    {
+      "frontend": "rust",
+      "case": "dispositions-0128",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-dispositions-0128.ll"
+      ],
+      "compile_seconds": 13.613319170981413,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "3b14cc1c0b81de2b08df1e2e1b52c5119441414c934216734565821824f7ab85",
+      "ir_sha256": "0ff70543e0bf05d63dbee09239a68b505ca3261cf4907d426b70b86e05a16093",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0031c0cf5bea348ca7e659de613e0ee84d1180a1359553760910acbf6991e415"
+    },
+    {
+      "frontend": "rust",
+      "case": "dispositions-0192",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-dispositions-0192.ll"
+      ],
+      "compile_seconds": 14.105529338994529,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "d78e62d3a8d526ec0868380324d77f68d1ce475a793b3fb33964a0d459ddc0ad",
+      "ir_sha256": "af52f6a3effca044ee3f6d754a7cda0f46a2b621f79dd0fb6e6b6e5b28078605",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "cf23d33d77d93ca8b0521ba6be917ee2b048ef9292d8245624653009986d499a"
+    },
+    {
+      "frontend": "rust",
+      "case": "dispositions-0256",
+      "count": 36,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-dispositions-0256.ll"
+      ],
+      "compile_seconds": 7.116357047983911,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "ca29b0322feb51fbc362f01c616a16c8dcf1d1abd64d2c701b891b993ae8de03",
+      "ir_sha256": "93990799529e50f6ae6aa93314482c6dd0288c872a3d8a3e3e771d746ab6335c",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3bf654916fc9569c15b651da5175ed0e726317a3e36d74381b911b29359e0ea1"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0000.ll"
+      ],
+      "compile_seconds": 14.008445136976661,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "4fb03c6e20c347b0adeef035b857ac7767059189964e08031e2afce57be98405",
+      "ir_sha256": "ab0865410e2b8a1e703d6d67c49d786cd5e13f7d85311b8502e7174fcb8b5954",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "45396f1a1bbf2f29930cdc8d205fcbd7e25216e8822b2f4395ac85db851b27ed"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0064.ll"
+      ],
+      "compile_seconds": 11.844763828004943,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "48940b2a9c2ec3d02a4b15ca86ac24412c44b1d17e802c19b1c6a29d0cd5bd76",
+      "ir_sha256": "c9d88112e3be39beadb3157048eca5649345f62cf63231955e8be0805148e2a8",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4e12db264ab16193caf6977b7b345d37c2f1107e6f32538bd1316a7ad850dff5"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0128",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0128.ll"
+      ],
+      "compile_seconds": 12.957532407017425,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "09a9645bc4d14ae34f225cbd198f210f52936fe9b5bb56617bb1f690ae7acf15",
+      "ir_sha256": "58bd83261d8e780320e18cf43eee643a8759aa31d3f1fe7548c53c40c52d5515",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "367261d3501ac0a57d3ff06c92df4a04a4fb5a24176f9c0f8c3b0131e0820e97"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0192",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0192.ll"
+      ],
+      "compile_seconds": 12.49338860399439,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "09ada02af9dc2a686395a772fc964d023f657bfed4167b14a9dff42bd1b017ef",
+      "ir_sha256": "da9e809361a05960ac736c0093b58e1458db42f583f838dd7972a08055362e9f",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "ddbca5e2531644e86717393684cca1043f98b3708a935e007a6abd7c5f4b1553"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0256",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0256.ll"
+      ],
+      "compile_seconds": 13.498754978005309,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "142a381f0254bf24a3bad3a5eb387afe40d86738dfac04dffc61baafb0e6fb5c",
+      "ir_sha256": "b9ddfbd8b91f6647c0cd56ff659c7c2343fec0b8a7b8a1564a224821c915917a",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b54a7b8920d736c9259285b56df01dd69d28c07f242292854768e6de85b6ff6e"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0320",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0320.ll"
+      ],
+      "compile_seconds": 18.237864077993436,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "a0adfb89beb4850a0e4510289925c28103ef9186cbd68a7167208eb0a84254ea",
+      "ir_sha256": "43cdf3b4837e246d669ac7a3dd6c22a62525e478cd4eba4727d070060d0b27ac",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "d40a360646b15016e945bf37aa566605a54f2f7762a846f9ac50fa81607cc246"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0384",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0384.ll"
+      ],
+      "compile_seconds": 17.88504458699026,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "ae30b26c5211a095fd1c500fc9476f0923b247895e580fbc4b5ad67f07552e36",
+      "ir_sha256": "74af469baceceae342bf8b92344f40cd33be6da598396742733742bbe5b14ebb",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3fd44b2a36667a59b86f3ace6d20903ce0e73e316de0b94351b1aefbf2886477"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0448",
+      "count": 28,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-readers-0448.ll"
+      ],
+      "compile_seconds": 13.516711297008442,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "134f2623f35e8bceb30c0eb5805d416966ef5991f7239a7819dc790c9d17a617",
+      "ir_sha256": "96025e7c175f4b82baddab5279dacf34b30f9112d8fb97bce2b7b6f0785f9fea",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "f6804309a33ad1bf76a6089e2b60c1ade040ab5835f03e395e2d9c3527db8260"
+    },
+    {
+      "frontend": "rust",
+      "case": "boundaries-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-boundaries-0000.ll"
+      ],
+      "compile_seconds": 9.33894664500258,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "5093be26d2d39ca622563d2c717f7a4b22b49960013e79e3791151aee0333f1e",
+      "ir_sha256": "5f386ae582725e5d2f0ef4f1b77f991ac5ddc0e5edd8642dd4567a7e8828ff6e",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "d6ccadf8e2662fcd543856acbc1273350b9e820cc30f87de1c56c92df9935348"
+    },
+    {
+      "frontend": "rust",
+      "case": "boundaries-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-boundaries-0064.ll"
+      ],
+      "compile_seconds": 8.63067506600055,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "2c2a9d08cda35c7d54cf7913c061dc5374bc3516bc093287fb3be8ff15156074",
+      "ir_sha256": "46202765d42e2f24ea64d26e59e9d75c12eef1ff5b52230f22e038d376c9534f",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0b33bd76667fd70ee7bdbd5325f96c261d7ddbb8de469f77a09e9d729295f99a"
+    },
+    {
+      "frontend": "rust",
+      "case": "boundaries-0128",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-boundaries-0128.ll"
+      ],
+      "compile_seconds": 8.233305322995875,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "b9d516368e4e0585289c176b54b90a6549f12a83fa912bd2d740a24d2214b3ba",
+      "ir_sha256": "a9a846b346499eb6bffd8615ad73b0ea8cafca7cbedc7e6c9da019812fcf9643",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4e6d1e877eeec7a0d1b8b436724fc15412558482ccfcca493f329ddeb5c1a841"
+    },
+    {
+      "frontend": "rust",
+      "case": "boundaries-0192",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-boundaries-0192.ll"
+      ],
+      "compile_seconds": 8.518642177979928,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "9277fb8c7f9b0369a08009be0b68adf877d5938186b771dbcfcf771c99489024",
+      "ir_sha256": "8584df22e9779029658508abd73c88b4896611ebab55bf1b7b35450f5ec43db1",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "eb40a471a98ac1f5e3dbc98935973fdb6a6c1903cb0ee98be0413e8aeb18cee2"
+    },
+    {
+      "frontend": "rust",
+      "case": "boundaries-0256",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-boundaries-0256.ll"
+      ],
+      "compile_seconds": 7.299801332002971,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "5cee396074e30cd76e1288ada258ab9cfdc249fd289a723440b9622b9a25f363",
+      "ir_sha256": "a69c245a9f92a73de6c43c117122fa5a7dc21e8e2f944248ae87720744cfa428",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4ca17630074b7b4940cbccbec33936a4e53d8aab461962bcd95f2430bcbddb38"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0000",
+      "count": 40,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-writers-0000.ll"
+      ],
+      "compile_seconds": 10.087213244987652,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "2b7e54ace3498bf800a291c0bedd40669c328bc86e75fac09f334ea77bed5f22",
+      "ir_sha256": "80cc354ed204303a702c01812d6761fba2c6cdc1f243cdb9df000ae0bb9daff0",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "61697b812c7cca6dd1ddef2525b4b995ad3507b39a9f313d3371026572a5c508"
+    },
+    {
+      "frontend": "rust",
+      "case": "forms-0000",
+      "count": 27,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-forms-0000.ll"
+      ],
+      "compile_seconds": 13.176674397021998,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "656b456c211d7fd6f4cb111292fa05104d8fbf8c0711e10370a86d13bb867bcc",
+      "ir_sha256": "1c397d412eeb1c652522f373ff8e189e4fa17befe921ccb914112cf8d5b4ad1e",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "4b0922eedb29f0930114817f8530764fcfdaeafb3e7e5f87edc343665d9f5e87"
+    },
+    {
+      "frontend": "rust",
+      "case": "cache-0000",
+      "count": 1,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-cache-0000.ll"
+      ],
+      "compile_seconds": 10.920687514997553,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "e153b08d42739513710d8987cea55226c4167c6f7f901102356aa8b6f09701e7",
+      "ir_sha256": "1aa3a09cfe02e078980a394293bd210b9bf9f51dac44cdeca7a8a4d256271664",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "1e98002f1fbf39e5bd6988fd38dd1cad18247fb20064fdb7031b52d44374ad4c"
+    },
+    {
+      "frontend": "rust",
+      "case": "entropy-0000",
+      "count": 24,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-entropy-0000.ll"
+      ],
+      "compile_seconds": 9.785576000023866,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "9e22f18b04f872305fe3469c385207fd51e5c1e907b7e9852ac286c70336168f",
+      "ir_sha256": "47f036855d6f58f479ff8645e0e553de209932b317e99fc4b37de16442012520",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "faf5a1bf094314a13ec0e9c08284976eddfcdf5a0fab3c2ab55dc9f119e7d248"
+    },
+    {
+      "frontend": "rust",
+      "case": "ownership-0000",
+      "count": 4,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-corpus-o2-v1/rust-ownership-0000.ll"
+      ],
+      "compile_seconds": 11.897628128004726,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "86b73d4cd5c32c5186536042c622a982d92817c813b8688fb348f6d871c331cd",
+      "ir_sha256": "62edce4b343a5f4508962a935839f5d4d147a03eebfe81323510158430762172",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "9368b6acd4fb812ddf8f65c490d40314e499006e64f56c132f2a21a7458ebeea"
+    }
+  ],
+  "kernel_ir_sha256": "1eff2f91b049efee708ac3d9173391c8194eb8c89c7ae611af54ce5b941ee848",
+  "kernel_object_sha256": "87108d3d1288cb53597928a3610300a0367f8d611f98a72bd6b08fa90e466331",
+  "fixture_source_sha256": "d7f4d61d7b052ff6d469fa65e290c474125738203e922afa7b29bbca044b40ef",
+  "fixture_object_sha256": "81d3c7fabf0189f1fb14776329fa0ceb985b20c6f56b705aaa58bbe850370543",
+  "scalar_oracle_vectorization": false,
+  "kernel_cases_per_invocation": 1048576,
+  "resource_boundaries": [
+    {
+      "phase": "emit-rust-dispositions-0000",
+      "free_bytes": 850931712,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 811148,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-dispositions-0000",
+      "free_bytes": 848187392,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3384915,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0000-0",
+      "free_bytes": 842203136,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9368431,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0000-1",
+      "free_bytes": 842203136,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9368720,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-dispositions-0064",
+      "free_bytes": 846569472,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3074757,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-dispositions-0064",
+      "free_bytes": 834080768,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3401120,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0064-0",
+      "free_bytes": 842371072,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9384634,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0064-1",
+      "free_bytes": 842371072,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9384923,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-dispositions-0128",
+      "free_bytes": 846688256,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3146691,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-dispositions-0128",
+      "free_bytes": 844886016,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4689802,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0128-0",
+      "free_bytes": 838414336,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11046341,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0128-1",
+      "free_bytes": 838414336,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11046631,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-dispositions-0192",
+      "free_bytes": 844185600,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3194829,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-dispositions-0192",
+      "free_bytes": 841986048,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4711261,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0192-0",
+      "free_bytes": 835805184,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11067800,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0192-1",
+      "free_bytes": 835805184,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11068090,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-dispositions-0256",
+      "free_bytes": 841469952,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3325798,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-dispositions-0256",
+      "free_bytes": 841031680,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3628484,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0256-0",
+      "free_bytes": 834994176,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9664302,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-dispositions-0256-1",
+      "free_bytes": 834994176,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9664591,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0000",
+      "free_bytes": 825118720,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3413366,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0000",
+      "free_bytes": 817500160,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 10932829,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0000-0",
+      "free_bytes": 810147840,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17739538,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0000-1",
+      "free_bytes": 810147840,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17739823,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0064",
+      "free_bytes": 820850688,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3821484,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0064",
+      "free_bytes": 813678592,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 10498475,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0064-0",
+      "free_bytes": 804159488,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17234624,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0064-1",
+      "free_bytes": 804159488,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17234909,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0128",
+      "free_bytes": 814387200,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3890155,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0128",
+      "free_bytes": 806432768,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11595903,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0128-0",
+      "free_bytes": 810622976,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 18509404,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0128-1",
+      "free_bytes": 810618880,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 18509689,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0192",
+      "free_bytes": 821817344,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3947200,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0192",
+      "free_bytes": 813805568,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11955068,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0192-0",
+      "free_bytes": 806817792,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 18941040,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0192-1",
+      "free_bytes": 806817792,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 18941325,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0256",
+      "free_bytes": 849379328,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3992564,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0256",
+      "free_bytes": 851562496,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12150249,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0256-0",
+      "free_bytes": 844517376,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 19192934,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0256-1",
+      "free_bytes": 844513280,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 19193219,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0320",
+      "free_bytes": 856121344,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4065101,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0320",
+      "free_bytes": 847609856,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12574145,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0320-0",
+      "free_bytes": 840413184,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 19768102,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0320-1",
+      "free_bytes": 840413184,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 19768387,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0384",
+      "free_bytes": 852119552,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4441260,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0384",
+      "free_bytes": 843771904,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12785885,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0384-0",
+      "free_bytes": 836493312,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 20064417,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0384-1",
+      "free_bytes": 836493312,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 20064702,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0448",
+      "free_bytes": 848760832,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4238271,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0448",
+      "free_bytes": 842649600,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 10350271,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0448-0",
+      "free_bytes": 835866624,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17133636,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0448-1",
+      "free_bytes": 835866624,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17133921,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-boundaries-0000",
+      "free_bytes": 747454464,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3790971,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-boundaries-0000",
+      "free_bytes": 726523904,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 6875798,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0000-0",
+      "free_bytes": 738578432,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12957657,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0000-1",
+      "free_bytes": 738578432,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12957945,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-boundaries-0064",
+      "free_bytes": 745558016,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3689244,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-boundaries-0064",
+      "free_bytes": 742359040,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 6918874,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0064-0",
+      "free_bytes": 733560832,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13000733,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0064-1",
+      "free_bytes": 733560832,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13001021,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-boundaries-0128",
+      "free_bytes": 740532224,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3738435,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-boundaries-0128",
+      "free_bytes": 739930112,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 7026872,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0128-0",
+      "free_bytes": 725041152,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13133236,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0128-1",
+      "free_bytes": 725041152,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13133524,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-boundaries-0192",
+      "free_bytes": 732102656,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3788056,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-boundaries-0192",
+      "free_bytes": 734859264,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 7074274,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0192-0",
+      "free_bytes": 731500544,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13180638,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0192-1",
+      "free_bytes": 731500544,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13180926,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-boundaries-0256",
+      "free_bytes": 738594816,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3803769,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-boundaries-0256",
+      "free_bytes": 735526912,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 6847333,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0256-0",
+      "free_bytes": 729473024,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12901288,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-boundaries-0256-1",
+      "free_bytes": 729473024,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 12901576,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-writers-0000",
+      "free_bytes": 736010240,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4097247,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-writers-0000",
+      "free_bytes": 694525952,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9198069,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-writers-0000-0",
+      "free_bytes": 702914560,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 15719977,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-writers-0000-1",
+      "free_bytes": 702914560,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 15720262,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-forms-0000",
+      "free_bytes": 711536640,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4401380,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-forms-0000",
+      "free_bytes": 683925504,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13483024,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-forms-0000-0",
+      "free_bytes": 695111680,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 20712591,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-forms-0000-1",
+      "free_bytes": 695111680,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 20712874,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-cache-0000",
+      "free_bytes": 707649536,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4423932,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-cache-0000",
+      "free_bytes": 686948352,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 9796882,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-cache-0000-0",
+      "free_bytes": 664440832,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 16389343,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-cache-0000-1",
+      "free_bytes": 664440832,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 16389626,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-entropy-0000",
+      "free_bytes": 673349632,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4450522,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-entropy-0000",
+      "free_bytes": 670855168,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 7876975,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-entropy-0000-0",
+      "free_bytes": 664887296,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13991682,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-entropy-0000-1",
+      "free_bytes": 664887296,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 13991967,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-ownership-0000",
+      "free_bytes": 672047104,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 4500575,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-ownership-0000",
+      "free_bytes": 665350144,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 11186146,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-ownership-0000-0",
+      "free_bytes": 658546688,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17982340,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-ownership-0000-1",
+      "free_bytes": 658546688,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17982627,
+      "unarchived_cap_mib": 30
+    }
+  ]
+}

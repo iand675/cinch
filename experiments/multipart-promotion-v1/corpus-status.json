@@ -45,9 +45,10 @@
     "root_reserved_headroom_mib": 60
   },
   "reports": [
-    "corpus-o2-gate.json"
+    "corpus-o2-gate.json",
+    "corpus-o0-gate.json"
   ],
-  "remaining": "O0 scope, performance, current Native family, production selection and package-complete promotion remain separate pending gates. Three extra duplicate regression consumers have not been rerun in this epoch.",
+  "remaining": "Current Native family and production selection remain pending. Three duplicate regression consumers are outside the1128distinct newepoch corpus; no package-complete claim.",
   "parent_ci": {
     "commit": "c2441661",
     "epoch": "current Rust f9/d91, separately recorded on Root",
@@ -74,5 +75,24 @@
     "command": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
     "version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
     "scope": "Current environment observation, additional to per-invocation compiler/runtime/foreign object/source/output hashes."
+  },
+  "optimization_qualifications": {
+    "O2": {
+      "observations": 1128,
+      "consumers": 23,
+      "normal_poison_runs": 46,
+      "method": "Original public Rust330 emit-ir plus clangO2, unchanged oracle/candidate."
+    },
+    "O0": {
+      "observations": 1128,
+      "consumers": 23,
+      "normal_poison_runs": 46,
+      "method": "Exact original accepted Rust330 LLVM restored through verified archive, linked clangO0; source/compiler/runtime/foreign objects and oracle checked. No compiler re-emission claimed.",
+      "peak_plain_scratch_bytes": 16868565
+    }
+  },
+  "performance": {
+    "status": "Fresh330/d91 candidate pair224functional preflights+16conditions/288 warmup/sample processes passed, exact current source/code and pinned reference; all raw samples/regressions retained.",
+    "receipt": "performance-results.json"
   }
 }

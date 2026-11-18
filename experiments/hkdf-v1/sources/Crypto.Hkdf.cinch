@@ -1,0 +1,375 @@
+-- | HMAC-based extraction and expansion with explicit hash capabilities and owned byte results.
+-- Raw context bytes are preserved. Optional salt distinguishes an absent salt
+-- from a supplied empty key. Callback effects remain visible in every operation.
+module Crypto.Hkdf where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Digest
+
+  export HkdfSize, HkdfHash, HkdfDescriptorError, HkdfBlockWidthOutOfRange, HkdfDigestWidthOutOfRange
+  export HkdfError, HkdfLengthTooLarge, HkdfBufferTooLarge, HkdfDigestLengthMismatch, HkdfHashFailure, HkdfPolicyFailure, HkdfCounterLimit
+  export HkdfOperation, HkdfExtract, HkdfExpand, HkdfKey
+  export hkdf-size, hkdf-size-value, hkdf-hash, hkdf-hash-block-size, hkdf-hash-output-size, hkdf-digest-hash, hkdf-digest-size
+  export hkdf-extract, hkdf-expand, hkdf-key
+  export hkdf-extract-with, hkdf-expand-with, hkdf-key-with
+  export hkdf-extract-with-policy, hkdf-expand-with-policy, hkdf-key-with-policy
+  export hkdf-extract-hmac, hkdf-expand-hmac, hkdf-key-hmac
+  export hkdf-extract-hmac-with-policy, hkdf-expand-hmac-with-policy, hkdf-key-hmac-with-policy
+  export hkdf-expand-text, hkdf-key-text
+
+  -- | A fixed output width representable by the owned byte-buffer interface, including zero.
+  data HkdfSize where
+    -- | Retain the checked output width without exposing an unchecked constructor.
+    OutputSize :: InRange 0 9223372036854775807 Nat -> HkdfSize
+
+  -- | Hash metadata; the actual digest callback is passed separately with its full effect row.
+  data HkdfHash where
+    -- | Retain the checked block width and exact digest width, without an algorithm whitelist.
+    HashShape :: InRange 0 9223372036854775807 Nat -> HkdfSize -> HkdfHash
+
+  -- | Refuse only metadata that the byte-buffer interface cannot represent.
+  data HkdfDescriptorError where
+    -- | The requested hash block width exceeds the byte-buffer length domain.
+    HkdfBlockWidthOutOfRange :: Nat -> HkdfDescriptorError
+    -- | The requested digest width exceeds the byte-buffer length domain.
+    HkdfDigestWidthOutOfRange :: Nat -> HkdfDescriptorError
+
+  -- | Identify which original key material a caller policy is validating.
+  data HkdfOperation where
+    -- | Validate the original extraction secret.
+    HkdfExtract :: HkdfOperation
+    -- | Validate the original expansion pseudorandom key.
+    HkdfExpand :: HkdfOperation
+    -- | Validate the original combined-operation secret once.
+    HkdfKey :: HkdfOperation
+
+  -- | Return explicit protocol, callback or representability failures without a partial output key.
+  data HkdfError e where
+    -- | Requested length and exact255-block protocol limit, respectively.
+    HkdfLengthTooLarge :: Nat -> Nat -> HkdfError e
+    -- | A required owned buffer exceeds the byte-buffer length domain.
+    HkdfBufferTooLarge :: Nat -> HkdfError e
+    -- | A callback returned a different width from its advertised digest size.
+    HkdfDigestLengthMismatch :: Nat -> Nat -> HkdfError e
+    -- | Preserve the original digest or HMAC provider failure.
+    HkdfHashFailure :: e -> HkdfError e
+    -- | Preserve the original caller policy failure before protocol length validation.
+    HkdfPolicyFailure :: e -> HkdfError e
+    -- | Refuse a private expansion cursor outside the one-based byte counter domain.
+    HkdfCounterLimit :: HkdfError e
+
+  -- | Validate an exact output width without rejecting an algorithm by name or imposing a positive width.
+  hkdf-size :: Nat -> Result HkdfDescriptorError HkdfSize
+  hkdf-size size = if size <= 9223372036854775807 then Ok (OutputSize size) else Err (HkdfDigestWidthOutOfRange size)
+
+  -- | Observe an exact checked output width.
+  hkdf-size-value :: HkdfSize -> Nat
+  hkdf-size-value size = case size of OutputSize value -> value
+
+  -- | Validate hash widths; zero widths and digest widths larger than block widths remain expressible.
+  hkdf-hash :: Nat -> Nat -> Result HkdfDescriptorError HkdfHash
+  hkdf-hash block output =
+    if block <= 9223372036854775807 then
+      case hkdf-size output of
+        Err error -> Err error
+        Ok size -> Ok (HashShape block size)
+    else Err (HkdfBlockWidthOutOfRange block)
+
+  -- | Observe the block width used for key normalization and both HMAC pads.
+  hkdf-hash-block-size :: HkdfHash -> Nat
+  hkdf-hash-block-size shape = case shape of HashShape block size -> block
+
+  -- | Obtain the exact output-width capability required by direct HMAC providers.
+  hkdf-hash-output-size :: HkdfHash -> HkdfSize
+  hkdf-hash-output-size shape = case shape of HashShape block size -> size
+
+  -- | Adapt every existing digest selector with its actual block and output widths.
+  hkdf-digest-hash :: Digest -> HkdfHash
+  hkdf-digest-hash digest = case digest of
+    DigestSha256 -> HashShape 64 (OutputSize 32)
+    DigestSha512 -> HashShape 128 (OutputSize 64)
+    DigestSha1 -> HashShape 64 (OutputSize 20)
+    DigestMd5 -> HashShape 64 (OutputSize 16)
+
+  -- | Observe the exact output width of an existing digest selector.
+  hkdf-digest-size :: Digest -> HkdfSize
+  hkdf-digest-size digest = hkdf-hash-output-size (hkdf-digest-hash digest)
+
+  -- | Copy complete input contents into a fresh owner before any caller callback can retain them.
+  snapshot :: Bytes -> Bytes
+  snapshot input = let out = bytes-new (bytes-len input) in
+    let copied = bytes-copy-range out input 0 0 (bytes-len input) in out
+
+  -- | Materialize an absent salt as output-width zero bytes; preserve a supplied empty salt distinctly.
+  snapshot-salt :: HkdfSize -> Option Bytes -> Bytes
+  snapshot-salt size salt = case salt of
+    None -> bytes-new (hkdf-size-value size)
+    Some input -> snapshot input
+
+  -- | Copy only the source prefix fitting the destination, including zero-width pads.
+  copy-prefix :: Bytes -> Bytes -> Unit
+  copy-prefix out input = if bytes-len input <= bytes-len out then bytes-copy-range out input 0 0 (bytes-len input)
+    else bytes-copy-range out input 0 0 (bytes-len out)
+
+  -- | Form both HMAC pads with checked eight-byte word accesses and bytewise scalar fringes.
+  fill-pads :: Bytes -> Bytes -> Bytes -> Nat -> Unit
+  fill-pads key inner outer position =
+    if position < bytes-len key && position < bytes-len inner && position < bytes-len outer then
+      if position + 8 <= bytes-len key && position + 8 <= bytes-len inner && position + 8 <= bytes-len outer then
+        let word = bytes-read-le64 key position in
+        let first = bytes-write-le64 inner position (pad-inner-word word) in
+        let second = bytes-write-le64 outer position (pad-outer-word word) in
+        fill-pads key inner outer (position + 8)
+      else
+        let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get key position)) in
+        let first = bytes-set inner position (u8-to-nat (bit-xor-u8 byte 54)) in
+        let second = bytes-set outer position (u8-to-nat (bit-xor-u8 byte 92)) in
+        fill-pads key inner outer (position + 1)
+    else ()
+
+  -- | XOR each packed byte with the inner HMAC pad constant without accessing memory.
+  prim pad-inner-word :: U64 -> U64 where
+    llvm {
+      %result = xor i64 %0, 3906369333256140342
+      ret i64 %result
+    }
+
+  -- | XOR each packed byte with the outer HMAC pad constant without accessing memory.
+  prim pad-outer-word :: U64 -> U64 where
+    llvm {
+      %result = xor i64 %0, 6655295901103053916
+      ret i64 %result
+    }
+
+  -- | Join two complete byte strings with one fresh buffer and checked bulk copies.
+  join :: forall e. Bytes -> Bytes -> Result (HkdfError e) Bytes
+  join first second = let size = bytes-len first + bytes-len second in
+    if size <= 9223372036854775807 then
+      let out = bytes-new size in
+      let left = bytes-copy-range out first 0 0 (bytes-len first) in
+      let right = bytes-copy-range out second (bytes-len first) 0 (bytes-len second) in Ok out
+    else Err (HkdfBufferTooLarge size)
+
+  -- | Validate a provider result before snapshotting it away from retained or reused aliases.
+  checked-result :: forall e. HkdfSize -> Bytes -> Result (HkdfError e) Bytes
+  checked-result size value = if bytes-len value == hkdf-size-value size then Ok (snapshot value)
+    else Err (HkdfDigestLengthMismatch (hkdf-size-value size) (bytes-len value))
+
+  -- | Preserve digest effects and provider errors while isolating the exact returned digest bytes.
+  checked-digest :: forall e (fx :: Row). HkdfSize -> (Bytes ->{|fx} Result e Bytes) -> Bytes ->{|fx} Result (HkdfError e) Bytes
+  checked-digest size digest input = case digest input of
+    Err error -> Err (HkdfHashFailure error)
+    Ok value -> checked-result size value
+
+  -- | Hash one complete HMAC message with stable private pads and one fresh buffer per digest input.
+  hash-mac :: forall e (fx :: Row). HkdfSize -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Bytes ->{|fx} Result (HkdfError e) Bytes
+  hash-mac size digest inner outer message = case join inner message of
+    Err error -> Err error
+    Ok first -> case checked-digest size digest first of
+      Err error -> Err error
+      Ok middle -> case join outer middle of
+        Err error -> Err error
+        Ok second -> checked-digest size digest second
+
+  -- | Build pads once, truncating a normalized oversized digest exactly to the block width.
+  use-key :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes
+  use-key shape digest key use =
+    let block = hkdf-hash-block-size shape in
+    let normalized = bytes-new block in
+    let copied = copy-prefix normalized key in
+    let inner = bytes-new block in
+    let outer = bytes-new block in
+    let padded = fill-pads normalized inner outer 0 in
+    use (\message -> hash-mac (hkdf-hash-output-size shape) digest inner outer message)
+
+  -- | Normalize long HMAC keys before exposing the prepared computation to its scoped continuation.
+  prepare-hash :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes
+  prepare-hash shape digest key use = if bytes-len key > hkdf-hash-block-size shape then
+    case checked-digest (hkdf-hash-output-size shape) digest (snapshot key) of
+      Err error -> Err error
+      Ok normalized -> use-key shape digest normalized use
+    else use-key shape digest key use
+
+  -- | Isolate each direct HMAC invocation from retained key/message/result aliases.
+  direct-mac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes ->{|fx} Result (HkdfError e) Bytes
+  direct-mac size mac key message = case mac (snapshot key) (snapshot message) of
+    Err error -> Err (HkdfHashFailure error)
+    Ok value -> checked-result size value
+
+  -- | Capture a stable direct-HMAC key without introducing a nominal carrier that hides callback effects.
+  prepare-direct :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes
+  prepare-direct size mac key use = let owned = snapshot key in use (\message -> direct-mac size mac owned message)
+
+  -- | Provide an explicit effect-preserving no-policy callback for the normal operation families.
+  allow :: forall e (fx :: Row). HkdfOperation -> Bytes ->{|fx} Result e Unit
+  allow operation input = Ok ()
+
+  -- | Run caller policy before protocol length validation, preserving its full effects and error value.
+  policy-check :: forall e (fx :: Row). (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> HkdfOperation -> Bytes ->{|fx} Result (HkdfError e) Unit
+  policy-check policy operation input = case policy operation (snapshot input) of
+    Err error -> Err (HkdfPolicyFailure error)
+    Ok unit -> Ok ()
+
+  -- | Enforce the exact255-block limit before allocating an output or invoking a MAC provider.
+  length-check :: forall e. HkdfSize -> Nat -> Result (HkdfError e) Unit
+  length-check size requested = let limit = hkdf-size-value size * 255 in
+    if requested > limit then Err (HkdfLengthTooLarge requested limit)
+    else if requested > 9223372036854775807 then Err (HkdfBufferTooLarge requested) else Ok ()
+
+  -- | Construct one expansion message with exactly previous-block, context and counter bytes.
+  block-message :: forall e. Bytes -> Bytes -> InRange 0 255 Nat -> Result (HkdfError e) Bytes
+  block-message previous info counter = let prefix = bytes-len previous + bytes-len info in
+    let size = prefix + 1 in
+    if size <= 9223372036854775807 then
+      let out = bytes-new size in
+      let copied = bytes-copy-range out previous 0 0 (bytes-len previous) in
+      let context = bytes-copy-range out info (bytes-len previous) 0 (bytes-len info) in
+      let last = bytes-set out prefix counter in Ok out
+    else Err (HkdfBufferTooLarge size)
+
+  -- | Copy one full or partial derived block into an independently owned bounded output prefix.
+  write-block :: using (position <= bytes-len out) => (out :: Bytes) -> (position :: Nat) -> Bytes -> Nat
+  write-block out position block = let remaining = bytes-len out - position in
+    if bytes-len block <= remaining then
+      let copied = bytes-copy-range out block position 0 (bytes-len block) in position + bytes-len block
+    else
+      let copied = bytes-copy-range out block position 0 remaining in bytes-len out
+
+  -- | Expand with a one-based counter and immutable previous digest; only the final result buffer is mutated.
+  fill-output :: forall e (fx :: Row). (Bytes ->{|fx} Result (HkdfError e) Bytes) -> Bytes -> Bytes -> Bytes -> Nat -> Nat ->{|fx} Result (HkdfError e) Bytes
+  fill-output mac info previous out position counter =
+    if position < bytes-len out then
+      if counter >= 1 && counter <= 255 then
+        case block-message previous info counter of
+          Err error -> Err error
+          Ok message -> case mac message of
+            Err error -> Err error
+            Ok block -> let next = write-block out position block in fill-output mac info block out next (counter + 1)
+      else Err HkdfCounterLimit
+    else Ok out
+
+  -- | Allocate one final output buffer after validation, preserving zero-length output as a successful empty value.
+  expand-output :: forall e (fx :: Row). Bytes -> Nat -> (Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes
+  expand-output info requested mac = fill-output mac info (bytes-new 0) (bytes-new requested) 0 1
+
+  -- | Extract from complete snapshots with caller policy checked before any hash invocation.
+  extract-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes
+  extract-core size prepare policy secret salt =
+    let input = snapshot secret in
+    let key = snapshot-salt size salt in
+    case policy-check policy HkdfExtract input of
+      Err error -> Err error
+      Ok unit -> prepare key (\mac -> mac input)
+
+  -- | Expand from complete key/context snapshots and validate policy before the exact output-length bound.
+  expand-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  expand-core size prepare policy pseudorandom info requested =
+    let key = snapshot pseudorandom in
+    let context = snapshot info in
+    case policy-check policy HkdfExpand key of
+      Err error -> Err error
+      Ok unit -> case length-check size requested of
+        Err error -> Err error
+        Ok unit -> prepare key (expand-output context requested)
+
+  -- | Combine extraction and expansion under one original-secret policy check and one exact length validation.
+  key-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  key-core size prepare policy secret salt info requested =
+    let input = snapshot secret in
+    let key = snapshot-salt size salt in
+    let context = snapshot info in
+    case policy-check policy HkdfKey input of
+      Err error -> Err error
+      Ok unit -> case length-check size requested of
+        Err error -> Err error
+        Ok unit -> case prepare key (\mac -> mac input) of
+          Err error -> Err error
+          Ok pseudorandom -> prepare pseudorandom (expand-output context requested)
+
+  -- | Extract with an arbitrary one-shot hash callback, retaining every declared callback effect.
+  hkdf-extract-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes
+  hkdf-extract-with shape digest secret salt = hkdf-extract-with-policy shape digest allow secret salt
+
+  -- | Expand with an arbitrary one-shot hash callback and raw context bytes.
+  hkdf-expand-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-expand-with shape digest key info requested = hkdf-expand-with-policy shape digest allow key info requested
+
+  -- | Derive a key with an arbitrary one-shot hash callback and optional independent salt.
+  hkdf-key-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-key-with shape digest secret salt info requested = hkdf-key-with-policy shape digest allow secret salt info requested
+
+  -- | Extract after an explicit caller policy while preserving the shared callback effect row.
+  hkdf-extract-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes
+  hkdf-extract-with-policy shape digest policy secret salt = extract-core (hkdf-hash-output-size shape) (prepare-hash shape digest) policy secret salt
+
+  -- | Expand after policy validation without an ambient registry or algorithm-name restriction.
+  hkdf-expand-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-expand-with-policy shape digest policy key info requested = expand-core (hkdf-hash-output-size shape) (prepare-hash shape digest) policy key info requested
+
+  -- | Derive after one original-secret policy check, preserving callback errors and effects.
+  hkdf-key-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-key-with-policy shape digest policy secret salt info requested = key-core (hkdf-hash-output-size shape) (prepare-hash shape digest) policy secret salt info requested
+
+  -- | Extract through a caller-supplied HMAC capability of an exact checked output width.
+  hkdf-extract-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes
+  hkdf-extract-hmac size mac secret salt = hkdf-extract-hmac-with-policy size mac allow secret salt
+
+  -- | Expand through a caller-supplied HMAC capability without reconstructing an object API.
+  hkdf-expand-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-expand-hmac size mac key info requested = hkdf-expand-hmac-with-policy size mac allow key info requested
+
+  -- | Derive through a caller-supplied HMAC capability with exact raw salt/context handling.
+  hkdf-key-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-key-hmac size mac secret salt info requested = hkdf-key-hmac-with-policy size mac allow secret salt info requested
+
+  -- | Extract through an effect-preserving direct HMAC provider after original-secret policy validation.
+  hkdf-extract-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes
+  hkdf-extract-hmac-with-policy size mac policy secret salt = extract-core size (prepare-direct size mac) policy secret salt
+
+  -- | Expand through a direct HMAC provider after original-key policy validation.
+  hkdf-expand-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-expand-hmac-with-policy size mac policy key info requested = expand-core size (prepare-direct size mac) policy key info requested
+
+  -- | Derive through a direct HMAC provider with one policy check and no partial result on failure.
+  hkdf-key-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes
+  hkdf-key-hmac-with-policy size mac policy secret salt info requested = key-core size (prepare-direct size mac) policy secret salt info requested
+
+  -- | Adapt an existing pure digest without changing its bytes or introducing new runtime primitives.
+  native-digest :: forall e. Digest -> Bytes -> Result e Bytes
+  native-digest digest input = Ok (digest-bytes digest input)
+
+  -- | Adapt the existing dedicated HMAC-SHA256 runtime primitive with its exact fresh output.
+  native-hmac256 :: forall e. Bytes -> Bytes -> Result e Bytes
+  native-hmac256 key message = Ok (hmac-sha256 key message)
+
+  -- | Extract with any existing digest selector; SHA256 uses the existing dedicated HMAC primitive.
+  hkdf-extract :: forall e. Digest -> Bytes -> Option Bytes -> Result (HkdfError e) Bytes
+  hkdf-extract digest secret salt = case digest of
+    DigestSha256 -> hkdf-extract-hmac (OutputSize 32) native-hmac256 secret salt
+    _ -> hkdf-extract-with (hkdf-digest-hash digest) (native-digest digest) secret salt
+
+  -- | Expand with an existing digest selector and exact raw context octets.
+  hkdf-expand :: forall e. Digest -> Bytes -> Bytes -> Nat -> Result (HkdfError e) Bytes
+  hkdf-expand digest key info requested = case digest of
+    DigestSha256 -> hkdf-expand-hmac (OutputSize 32) native-hmac256 key info requested
+    _ -> hkdf-expand-with (hkdf-digest-hash digest) (native-digest digest) key info requested
+
+  -- | Derive with an existing digest selector, preserving an absent versus explicitly empty salt.
+  hkdf-key :: forall e. Digest -> Bytes -> Option Bytes -> Bytes -> Nat -> Result (HkdfError e) Bytes
+  hkdf-key digest secret salt info requested = case digest of
+    DigestSha256 -> hkdf-key-hmac (OutputSize 32) native-hmac256 secret salt info requested
+    _ -> hkdf-key-with (hkdf-digest-hash digest) (native-digest digest) secret salt info requested
+
+  -- | Encode textual context as UTF8 explicitly; raw context operations accept every byte string.
+  hkdf-expand-text :: forall e. Digest -> Bytes -> String -> Nat -> Result (HkdfError e) Bytes
+  hkdf-expand-text digest key info requested = hkdf-expand digest key (string-to-bytes info) requested
+
+  -- | Derive with explicitly UTF8-encoded textual context and an independent optional salt.
+  hkdf-key-text :: forall e. Digest -> Bytes -> Option Bytes -> String -> Nat -> Result (HkdfError e) Bytes
+  hkdf-key-text digest secret salt info requested = hkdf-key digest secret salt (string-to-bytes info) requested
