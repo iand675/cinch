@@ -297,6 +297,17 @@ pub fn check_library_fixture_native(dir: &Path, entry: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// Runtime for host programs emitted by a compiler fixture in this test.
+pub fn host_runtime_archive() -> PathBuf {
+    if external_frontend::configured().expect("valid compiler selector").is_some() {
+        let archive = std::env::var_os("CINCH_TEST_RUNTIME_ARCHIVE")
+            .filter(|path| !path.is_empty())
+            .expect("selected compiler fixture requires CINCH_TEST_RUNTIME_ARCHIVE");
+        return PathBuf::from(archive);
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a")
+}
+
 /// Build `entry` into an executable named `out` inside the project.
 pub fn build(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
     let exe = dir.join(out);

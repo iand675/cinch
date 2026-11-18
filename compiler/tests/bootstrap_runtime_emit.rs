@@ -31,7 +31,7 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
         assert!(common::read_output(&dir, "output.ll").contains("@cinch_int_add"));
         assert!(common::read_output(&dir, "output.ll.diagnostics").is_empty());
     }
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
+    let runtime = common::host_runtime_archive();
     let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
         .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("artifact")).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

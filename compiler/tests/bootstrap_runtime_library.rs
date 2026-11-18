@@ -139,7 +139,7 @@ int main(void) {
             .current_dir(&dir).output().unwrap();
         assert!(output.status.success(), "assemble library: {}", String::from_utf8_lossy(&output.stderr));
     }
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
+    let runtime = common::host_runtime_archive();
     let exe = dir.join("caller");
     let output = Command::new(&clang).args(["caller.c", "library-0.o", "library-1.o"]).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&exe)
         .current_dir(&dir).output().unwrap();

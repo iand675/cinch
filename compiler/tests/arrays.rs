@@ -312,8 +312,8 @@ fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
     array_test_interfaces(&dir, include_str!("../prelude/Data/Core.cinch"))
         .expect("produce genuine defining Core contracts");
     let compiler = common::build(&dir, "Main.cinch", "array-emitter").expect("build actual Cinch array emitter");
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
-    assert!(runtime.is_file(), "matching runtime archive must be built by the Native driver");
+    let runtime = common::host_runtime_archive();
+    assert!(runtime.is_file(), "matching host runtime archive must exist");
     let mut declarations = String::from("module Main where\n  import Data.Core\n  missing :: forall a. Option a -> Bool\n  missing option = case option of None -> True; Some _ -> False\n  int-result :: Option Int -> Int\n  int-result option = case option of None -> -1; Some n -> n\n");
     for module in [include_str!("../prelude/Data/Array.cinch"), include_str!("../prelude/Data/Tensor.cinch"), include_str!("../prelude/Data/Columnar.cinch"), include_str!("../prelude/Data/Array/Packed.cinch")] {
         for line in module.lines().filter(|line| line.trim_start().starts_with("foreign import ccall")) {

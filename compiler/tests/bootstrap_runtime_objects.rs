@@ -139,7 +139,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len()]).unwrap();
     let emitted = Command::new(&compiler).current_dir(&dir).env("CINCH_HEAP_LIMIT", "2G").output().unwrap();
     assert!(emitted.status.success(), "project {}\n{}\n{}", dir.display(), common::read_output(&dir,"admission.diagnostics"), String::from_utf8_lossy(&emitted.stderr));
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
+    let runtime = common::host_runtime_archive();
     let mut machine_cost_baseline = None;
     for (i, (name, _, code)) in cases.iter().enumerate() {
         assert_eq!(common::read_output(&dir, &format!("output-{i}.status")), "0", "{name}: {}", common::read_output(&dir, &format!("output-{i}.diagnostics")));

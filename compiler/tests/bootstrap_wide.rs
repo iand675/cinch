@@ -118,7 +118,7 @@ fn stage_lowers_wide_scalars_at_i128_and_refuses_word_positions() {
     ]);
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     let emitter = common::build(&dir, "Main.cinch", "runtime-ir").expect("build the Cinch runtime emitter");
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
+    let runtime = common::host_runtime_archive();
     assert!(runtime.is_file(), "the Native-built emitter must have built its shared runtime");
     let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
 
