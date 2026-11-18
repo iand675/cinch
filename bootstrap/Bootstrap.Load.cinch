@@ -500,6 +500,21 @@ module Bootstrap.Load where
     JArrEnd -> True
     other -> False
 
+  -- Parsed interface rows usually share their key order. Compare that
+  -- representation directly. Reordered objects and mixed numeric forms
+  -- retain the canonical writer's equality, including signed floating zero.
+  same-contract :: Json -> Json -> Bool
+  same-contract a b = case (a, b) of
+    (JNull, JNull) -> True
+    (JBool x, JBool y) -> x == y
+    (JNum x, JNum y) -> x == y
+    (JStr x, JStr y) -> same x y
+    (JArrEnd, JArrEnd) -> True
+    (JObjEnd, JObjEnd) -> True
+    (JArr x xs, JArr y ys) -> same-contract x y && same-contract xs ys
+    (JObj k x xs, JObj l y ys) | same k l -> same-contract x y && same-contract xs ys
+    other -> bytes-compare (canonical-bytes a) (canonical-bytes b) == 0
+
   -- | Match an optional private-field proof to the actual public owner, roles and exposed constructors.
   ownership-header-valid :: Json -> Bool
   ownership-header-valid row = if not (has-field "ownership" row) then True else
@@ -507,8 +522,8 @@ module Bootstrap.Load where
     member (text (field "kind" row)) ["data", "record"] && nominal-entry-valid definition
       && same (text (field "kind" definition)) "data" && has-field "usage" definition
       && same (text (field "identity" row)) (text (field "identity" definition))
-      && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
-      && bytes-compare (canonical-bytes (field "params" row)) (canonical-bytes (field "params" definition)) == 0
+      && same-contract (field "parameters" row) (field "parameters" definition)
+      && same-contract (field "params" row) (field "params" definition)
       && ownership-public-constructors (field "ctors" row) (field "constructors" definition)
 
   -- | Require every public constructor to belong to the complete checked family without exposing private names.
@@ -1039,8 +1054,6 @@ module Bootstrap.Load where
       else nominal-owner-reversed rest True
   nominal-owner :: String -> String
   nominal-owner identity = nominal-owner-reversed (reverse (unpack identity)) False
-  prior-nominal :: String -> List (String, Bytes) -> Option Bytes
-  prior-nominal name seen = case seen of Nil -> None; Cons (n, bytes) rest -> if same name n then Some bytes else prior-nominal name rest
   method-contracts :: Json -> Json
   method-contracts rows = case rows of
     JArr row rest -> JArr (JObj "name" (field "name" row)
@@ -1095,7 +1108,7 @@ module Bootstrap.Load where
         None -> Err (string-concat "missing defining signature interface: " identity)
         Some owner -> case loaded-entry owner "signature" identity of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
-          Some definition -> if same owner-name home || bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
+          Some definition -> if same owner-name home || same-contract (signature-contract row) (signature-contract definition)
             then (case field "laws" definition of
               JArr first more ->
                 if class-law-references-owned (JArr first more) (reachable-modules [owner-name] ix Nil) ix
@@ -1105,33 +1118,31 @@ module Bootstrap.Load where
             else Err (string-concat "conflicting defining signature contract: " identity)
     JArrEnd -> Ok ()
     other -> Err "invalid signature contract table"
-  signature-owner-valid :: String -> Json -> InterfaceIndex -> Bool
-  signature-owner-valid home row ix =
+  signature-owner-valid :: String -> String -> Json -> InterfaceIndex -> Bool
+  signature-owner-valid home owner-name row ix =
     let identity = text (field "identity" row) in
-    case interface-by-name ix (nominal-owner identity) of
+    case interface-by-name ix owner-name of
       None -> False
       Some owner -> case loaded-entry owner "signature" identity of
         None -> not (same (text (field "kind" row)) "signature")
         Some definition -> same (text (field "kind" row)) "signature"
-          && (same (nominal-owner identity) home
-            || bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0)
-  -- A nominal row is a mention, so the same identity recurs across the set:
-  -- canonicalising each row once up front, where the scan reaches it, is the
-  -- cheap order. Deferring the encoding to the first repeat was measured and
-  -- costs more, because the repeat is the common case.
-  verify-nominal-rows :: String -> List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+          && (same owner-name home
+            || same-contract (field "parameters" row) (field "parameters" definition))
+  -- Keep the parsed defining contract by identity so repeated mentions
+  -- can be compared without allocating an encoded copy of each row.
+  verify-nominal-rows :: String -> List Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-nominal-rows home rows reachable ix seen = case rows of
     Nil -> Ok seen
     Cons row rest ->
       let identity = text (field "identity" row) in
-      let bytes = canonical-bytes row in
-      if not (name-in (nominal-owner identity) reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
-      else if not (signature-owner-valid home row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
-      else case prior-nominal identity seen of
-        None -> verify-nominal-rows home rest reachable ix (Cons (identity, bytes) seen)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-nominal-rows home rest reachable ix seen
+      let owner-name = nominal-owner identity in
+      if not (name-in owner-name reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
+      else if not (signature-owner-valid home owner-name row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
+      else case hash-map-lookup identity seen of
+        None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity row seen)
+        Some prior -> if same-contract prior row then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
-  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> List (String, Bytes) -> Result String Unit
+  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String Json -> Result String Unit
   verify-nominal-set remaining ix seen = case remaining of
     Nil -> Ok ()
     Cons i rest -> let home = loaded-module i in
@@ -1183,39 +1194,38 @@ module Bootstrap.Load where
         if size > width && body-owner-prefix prefix identity 0 then
           body-node-owner-bytes identity rest name size
         else body-node-owner-bytes identity rest best width
-  verify-body-nodes :: Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-nodes :: Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-body-nodes rows reachable ix seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
       let owner = body-node-owner (prefixes-of ix) identity "" in
       let key = string-concat "#total-definition:" identity in
-      let bytes = canonical-bytes row in
       if string-length owner == 0 || not (name-in owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
-      else (case prior-nominal key seen of
-        None -> verify-body-nodes rest reachable ix (Cons (key, bytes) seen)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-body-nodes rest reachable ix seen
+      else (case hash-map-lookup key seen of
+        None -> verify-body-nodes rest reachable ix (hash-map-insert key row seen)
+        Some prior -> if same-contract prior row then verify-body-nodes rest reachable ix seen
           else Err (string-concat "conflicting actual total body dependency: " identity))
     JArrEnd -> Ok seen
     other -> Err "invalid total body definition table"
-  verify-body-declarations :: List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-declarations :: List Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-body-declarations declarations reachable ix seen = case declarations of
     Nil -> Ok seen
     Cons row rest -> let identity = text (field "identity" row) in
-      let bytes = canonical-bytes (body-declaration identity row) in
+      let declared = body-declaration identity row in
       let owner-name = body-node-owner (prefixes-of ix) identity "" in
       if not (name-in owner-name reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
       else (case interface-by-name ix owner-name of
         None -> Err (string-concat "missing defining total body interface: " identity)
         Some owner -> (case loaded-entry owner "value" identity of
-          Some definition -> if bytes-compare bytes (canonical-bytes (body-declaration identity definition)) == 0 then verify-body-consistency row rest reachable ix seen bytes
+          Some definition -> if same-contract declared (body-declaration identity definition) then verify-body-consistency row rest reachable ix seen declared
             else Err (string-concat "total body disagrees with its declaring module: " identity)
-          None -> verify-body-consistency row rest reachable ix seen bytes))
-  verify-body-consistency :: Json -> List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Bytes -> Result String (List (String, Bytes))
-  verify-body-consistency row rest reachable ix seen bytes = let identity = text (field "identity" row) in
+          None -> verify-body-consistency row rest reachable ix seen declared))
+  verify-body-consistency :: Json -> List Json -> List String -> InterfaceIndex -> HashMap String Json -> Json -> Result String (HashMap String Json)
+  verify-body-consistency row rest reachable ix seen declared = let identity = text (field "identity" row) in
     case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix seen of
       Err message -> Err message
-      Ok checked -> (case prior-nominal identity checked of
-        None -> verify-body-declarations rest reachable ix (Cons (identity, bytes) checked)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-body-declarations rest reachable ix checked
+      Ok checked -> (case hash-map-lookup identity checked of
+        None -> verify-body-declarations rest reachable ix (hash-map-insert identity declared checked)
+        Some prior -> if same-contract prior declared then verify-body-declarations rest reachable ix checked
           else Err (string-concat "conflicting defining total body declarations: " identity))
   method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   method-body-owners-valid rows owner ix = case rows of
@@ -1240,8 +1250,8 @@ module Bootstrap.Load where
     (case (interface-by-name ix owner, interface-by-name ix "Relation.Ord", read-keyed-ordering identity (field "keyed_ordering" row)) of
       (Some provider, Some classes, Some body) -> (case (loaded-entry provider "value" identity, loaded-entry classes "signature" "Relation.Ord.Ord", keyed-ordering-slots body) of
         (Some defining, Some declaration, Some (less, greater)) ->
-          bytes-compare (canonical-bytes (field "keyed_ordering" defining)) (canonical-bytes (field "keyed_ordering" row)) == 0
-          && bytes-compare (canonical-bytes (field "resolved" defining)) (canonical-bytes (field "resolved" row)) == 0
+          same-contract (field "keyed_ordering" defining) (field "keyed_ordering" row)
+          && same-contract (field "resolved" defining) (field "resolved" row)
           && ordering-slot-present less (field "methods" declaration) && ordering-slot-present greater (field "methods" declaration)
         other -> False)
       other -> False)
@@ -1250,7 +1260,7 @@ module Bootstrap.Load where
     JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable ix)
       && ordering-owners-valid rest reachable ix
     other -> True
-  verify-body-set :: List LoadedInterface -> InterfaceIndex -> List (String, Bytes) -> Result String Unit
+  verify-body-set :: List LoadedInterface -> InterfaceIndex -> HashMap String Json -> Result String Unit
   verify-body-set remaining ix seen = case remaining of
     Nil -> Ok ()
     Cons i rest ->
@@ -1271,7 +1281,7 @@ module Bootstrap.Load where
         Ok unit -> Err message
       Ok ordered -> case verify-set loaded ix of
         Err message -> Err message
-        Ok unit -> case verify-nominal-set loaded ix Nil of Err message -> Err message; Ok checked -> (case verify-body-set loaded ix Nil of Err message -> Err message; Ok unit -> Ok ordered)
+        Ok unit -> case verify-nominal-set loaded ix hash-map-empty of Err message -> Err message; Ok checked -> (case verify-body-set loaded ix hash-map-empty of Err message -> Err message; Ok unit -> Ok ordered)
 
   duplicate-module :: List LoadedInterface -> List String -> Bool
   duplicate-module loaded seen = case loaded of
