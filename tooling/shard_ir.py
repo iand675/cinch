@@ -651,7 +651,7 @@ def clang_main(argv: list[str]) -> int:
     ir_inputs = [Path(word) for word in inputs if word.endswith(".ll")]
     compile_only = "-c" in argv or "-S" in argv or "-E" in argv
     if (compile_only or jobs <= 1 or len(ir_inputs) != 1
-            or any("-target" in word for word in argv)
+            or any(word.partition("=")[0] in ("-target", "--target", "-arch") for word in argv)
             or ir_inputs[0].stat().st_size < threshold
             or output is None):
         return subprocess.run([real, *argv, *append]).returncode
