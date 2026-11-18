@@ -211,3 +211,71 @@ printf 'LLVM for the selected object' > "$7"
     assert!(error.contains("without LLVM output"), "{error}");
     common::cleanup(&dir);
 }
+
+mod profile_tests {
+    use super::common::external_frontend::profile_request;
+    use cinch::check::StageMode;
+    use cinch::core::TargetProfile;
+    use cinch::driver::{DriverOptions, Mode};
+
+    /// A `native()` request is the host under its own label. The derived
+    /// profile names itself by triple and `native()` names itself `native64`,
+    /// so comparing the name would refuse the host its own target; the
+    /// triple already fixes which profile this is.
+    #[test]
+    fn a_native_request_is_accepted_for_the_hosts_own_triple() {
+        let request = TargetProfile { reclaim: true, ..TargetProfile::native() };
+        assert_eq!(request.name, "native64");
+        assert_ne!(request.triple, request.name, "the labels must differ for this test to mean anything");
+        let accepted = profile_request(Mode::Build, StageMode::Refresh, &request);
+        assert!(accepted.is_ok(), "native request refused: {}", accepted.unwrap_err());
+    }
+
+    /// A foreign triple still has to match its own derived profile exactly,
+    /// including the name, so the exemption above cannot hide a real
+    /// disagreement about which target was asked for. Built from the real
+    /// derived profile with only `name` perturbed, so the only field that can
+    /// be reported is the one under test.
+    #[test]
+    fn a_foreign_triple_must_match_its_own_profile_including_the_name() {
+        let triple = "aarch64-unknown-linux-gnu";
+        let derived = cinch::driver::target_profile(&DriverOptions {
+            target: Some(triple.to_string()),
+            ..DriverOptions::default()
+        })
+        .expect("the foreign triple is one the compiler supports");
+        let request = TargetProfile { reclaim: true, ..derived.clone() };
+        assert_eq!(request.name, triple, "a derived profile is named by its triple");
+        assert!(profile_request(Mode::Build, StageMode::Refresh, &request).is_ok(),
+            "the derived profile itself must be accepted");
+
+        let renamed = TargetProfile { name: "native64".to_string(), ..request };
+        let refused = profile_request(Mode::Build, StageMode::Refresh, &renamed);
+        assert!(refused.is_err(), "a foreign triple was accepted under the host's name");
+        let message = refused.unwrap_err();
+        assert!(message.contains("name"), "the refusal must name the field: {message}");
+        assert!(!message.contains("os, libc") && !message.contains("triple"),
+            "only the name should disagree: {message}");
+    }
+
+    /// A profile that reclaims asks for no word, because counting is what
+    /// the selected compiler does unless told otherwise; a profile that does
+    /// not reclaim is the one that must say so. Both arms are checked, so a
+    /// selector that always (or never) emits the flag fails here.
+    #[test]
+    fn a_profile_that_does_not_reclaim_asks_for_the_word() {
+        let counting = TargetProfile { reclaim: true, ..TargetProfile::native() };
+        let asked = profile_request(Mode::Build, StageMode::Refresh, &counting)
+            .expect("the host's own counting profile is one the selected compiler implements");
+        assert!(!asked.flags.iter().any(|f| f == "--no-reclaim"),
+            "a counting profile must not ask for the leak baseline: {:?}", asked.flags);
+
+        let leaky = TargetProfile { reclaim: false, ..TargetProfile::native() };
+        let asked = profile_request(Mode::Build, StageMode::Refresh, &leaky)
+            .expect("the leak baseline differs from the implemented profile only in reclaim");
+        assert!(asked.flags.iter().any(|f| f == "--no-reclaim"),
+            "a profile that does not reclaim must ask for --no-reclaim: {:?}", asked.flags);
+        assert_eq!(asked.flags.last().map(String::as_str), Some("--no-reclaim"),
+            "the profile words stay in one order: {:?}", asked.flags);
+    }
+}
