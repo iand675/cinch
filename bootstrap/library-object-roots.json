@@ -203,6 +203,30 @@
     {
       "classes": "TO",
       "symbol": "Algebra.Semigroup.Semigroup_Function"
+    },
+    {
+      "classes": "",
+      "symbol": "Effect.Sequencing.SeqDirect"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.SeqOption"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Result.SeqResult"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Result.SeqResult"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Result.SeqResult"
+    },
+    {
+      "classes": "",
+      "symbol": "Effect.Stm.SeqStm"
     }
   ],
   "methods": [
@@ -375,6 +399,246 @@
       "class": "Category.Traversable.Traversable",
       "own": "OOO",
       "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "R",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "RR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "RO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "RT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "OR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "OT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "TR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "TO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.DirectSequencing",
+      "own": "TT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "R",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "R",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "R",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "RR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "RO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "RT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "OR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "OT",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "TR",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "TO",
+      "slot": 1
+    },
+    {
+      "class": "Effect.Stm.StmSequencing",
+      "own": "TT",
+      "slot": 1
     }
   ],
   "schema": 1,

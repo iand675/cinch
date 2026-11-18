@@ -20,7 +20,7 @@ module Bootstrap.Infer where
   import Bootstrap.Unpack (check-unpacked-records)
   import Bootstrap.Instance
   import Bootstrap.Global
-  import Bootstrap.Contracts (declaration-references, expr-references)
+  import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
   import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes)
@@ -166,13 +166,14 @@ module Bootstrap.Infer where
     MkIntrinsicBinding :: String -> Scheme -> String -> CheckedBinding
     MkProofBinding :: Span -> Option Span -> Proposition -> CheckedBinding
     MkErasedBinding :: String -> UType -> Nat -> Span -> Option Span -> CheckedBinding
+    MkOverloadBinding :: String -> List String -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context names cache -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names cache -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context names cache -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names cache -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context names cache -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names cache -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -332,7 +333,7 @@ module Bootstrap.Infer where
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
       DInstance s flag name params head-type members -> True
-      DExternal s name category None metadata -> (same category "builtin-constructor" || same category "builtin-syntax") || (same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False))
+      DExternal s name category None metadata -> same category "overload" || (same category "builtin-constructor" || same category "builtin-syntax") || (same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False))
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
@@ -2789,6 +2790,7 @@ module Bootstrap.Infer where
         else if same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
           (case register-imported-codata s name classes kinds metadata env st of
             (more, checked) -> register all rows classes kinds rest more checked)
+        else if same category "overload" then register all rows classes kinds rest (Cons (MkOverloadBinding name (overload-candidates metadata)) env) st
         else if same category "type" || same category "signature" || same category "instance" then register all rows classes kinds rest env st
         else register all rows classes kinds rest env (add-error s (unsupported-import category name) st)
       DSource s name metadata -> register all rows classes kinds rest env st
@@ -3410,8 +3412,47 @@ module Bootstrap.Infer where
   term-error sp message st = (CError sp, add-error sp message st)
   actual-types :: List (Nat, UType) -> List UType
   actual-types pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons ty (actual-types rest)
+  -- A provider is selected by its lexical dictionary. The use itself goes
+  -- through the ordinary checked method projection and dictionary search.
+  provider-owners :: List CoreGiven -> List String
+  provider-owners givens = case givens of
+    Nil -> Nil
+    Cons given rest -> let more = provider-owners rest in
+      (case root-name (given-type given) of
+        Some owner -> (case export-global owner of
+          Ok public -> if has public sequencing-providers then Cons public more else more
+          Err error -> more)
+        None -> more)
+  select-provider :: List CoreGiven -> Result String String
+  select-provider givens = case provider-owners givens of
+    Nil -> Ok "Effect.Sequencing.DirectSequencing"
+    [owner] -> Ok owner
+    other -> Err "two active sequencing providers in one selection scope are ambiguous; bind one explicitly"
+  constrained-pure :: List CoreGiven -> List String -> Option String
+  constrained-pure givens candidates = case givens of
+    Nil -> None
+    Cons given rest -> case root-name (given-type given) of
+      Some owner -> (case export-global owner of
+        Ok public -> let method = string-concat public ".pure" in
+          if not (has public sequencing-providers) && has method candidates then Some method else constrained-pure rest candidates
+        Err error -> constrained-pure rest candidates)
+      None -> constrained-pure rest candidates
+  lookup-overload :: Span -> String -> List String -> List CheckedBinding -> Store -> (CoreTerm, Store)
+  lookup-overload sp name candidates env st =
+    let givens = env-givens env in
+    if has "Effect.Sequencing.DirectSequencing.pure" candidates then
+      (case constrained-pure givens candidates of
+        Some selected -> lookup-value sp (interface-global selected) env st
+        None -> case select-provider givens of
+          Err msg -> term-error sp msg st
+          Ok owner -> let selected = string-concat owner ".pure" in
+            if has selected candidates then lookup-value sp (interface-global selected) env st
+            else term-error sp "the selected sequencing provider has no visible pure method" st)
+    else term-error sp (string-concat "ambiguous imported value or method: " name) st
+
   lookup-value :: Span -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
   lookup-value sp name env st = case lookup-binding name env of
+    Some (MkOverloadBinding symbol candidates) -> lookup-overload sp symbol candidates env st
     None -> term-error sp (string-concat "unbound variable or constructor: " name) st
     Some b -> case open-qualified False (checked-scheme b) st of
       (ty, requirements, pairs, ss) ->
@@ -5894,18 +5935,33 @@ module Bootstrap.Infer where
     "a ", op, " callback's effects must be the empty row or {Diverge}, but its row is ", type-text row,
     ", whose tail is a rigid row variable: a row-polymorphic caller cannot supply a parallel callback in this slice (design/parallel-evaluation.md section 2.2)"]
   check-do :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check-do classes kinds families env locals sp statements expected st = case statements of
+  check-do classes kinds families env locals sp statements expected st = case select-provider (env-givens env) of
+    Err message -> term-error sp message st
+    Ok owner -> let direct = same owner "Effect.Sequencing.DirectSequencing" && list-length (provider-owners (env-givens env)) == 0 in
+      check-do-statements direct owner classes kinds families env locals sp statements expected st
+  check-do-statements :: Bool -> String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-do-statements direct owner classes kinds families env locals sp statements expected st = case statements of
     EArg at first (EArgsEnd end) -> (case first of
       EBind at name rhs -> term-error at "a do block must end in an expression" st
       ELet at bindings (EUnit end) -> term-error at "a do block must end in an expression" st
       other -> check classes kinds families env locals other expected st)
+    EArg at (EBind location name rhs) rest | not direct ->
+      check-provider-bind owner classes kinds families env locals location name rhs rest expected st
     EArg at (EBind location name rhs) rest -> (case infer classes kinds families env locals rhs st of
       (value, checked) -> bind-do-value classes kinds families env locals sp location name value rest expected checked)
     EArg at (ELet location bindings (EUnit end)) rest -> check-do-lets classes kinds families env locals sp bindings rest expected st
+    EArg at first rest | not direct ->
+      check-provider-bind owner classes kinds families env locals at "_" first rest expected st
     EArg at first rest -> (case infer classes kinds families env locals first st of
       (value, checked) -> bind-do-value classes kinds families env locals sp at "_" value rest expected checked)
     EArgsEnd at -> term-error at "a do block must contain a final expression" st
     other -> term-error sp "malformed do statement spine" st
+  check-provider-bind :: String -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-provider-bind owner classes kinds families env locals sp name value rest expected st =
+    let binder = if same name "_" then PWild sp else PVar sp name in
+    let continuation = ELam sp [binder] (EDo sp rest) in
+    let method = EVar sp (interface-global (string-concat owner ".bind")) in
+    check classes kinds families env locals (EApp sp (EApp sp method value) continuation) expected st
   bind-do-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> CoreTerm -> Expr -> UType -> Store -> (CoreTerm, Store)
   bind-do-value classes kinds families env locals sp at name value rest expected st = case value of
     CLet location ty id display scheme rhs inner -> if let-result-escapes value then
@@ -6390,6 +6446,7 @@ module Bootstrap.Infer where
     MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
     MkProofBinding origin invalidated fact -> MkProofBinding origin invalidated fact
     MkErasedBinding name predicate id origin invalidated -> MkErasedBinding name (normalize st predicate) id origin invalidated
+    MkOverloadBinding name candidates -> b
     MkSyntaxBinding name -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context names cache) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)

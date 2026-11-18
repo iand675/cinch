@@ -16,7 +16,7 @@ module Bootstrap.Contracts where
   import Algebra.Semigroup
 
   export interface-headers, interface-declarations, public-global
-  export materialize-externals, reference-index, referenced, declaration-references, expr-references, imported-class-references, kernel-references
+  export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, referenced, declaration-references, expr-references, imported-class-references, kernel-references
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -71,6 +71,29 @@ module Bootstrap.Contracts where
         Cons first (Cons second more) -> Cons (DExternal zero (public-global i name) "overload" None
           (candidate-json (loaded-identities i name))) Nil
         other -> Nil) <> overloads i rest (Cons name seen)
+
+  sequencing-providers :: List String
+  sequencing-providers = ["Effect.Sequencing.DirectSequencing", "Effect.Sequencing.ResultSequencing", "Effect.Sequencing.OptionSequencing", "Effect.Stm.StmSequencing"]
+
+  overload-candidates :: Json -> List String
+  overload-candidates candidates = case candidates of
+    JArr (JStr identity) rest -> Cons identity (overload-candidates rest)
+    other -> Nil
+  overload-references :: HashMap String Bool -> List Decl -> List String
+  overload-references used declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal sp name category scheme entries) rest ->
+      let more = overload-references used rest in
+      if same category "overload" && referenced name used then candidate-references (overload-candidates entries) more else more
+    Cons other rest -> overload-references used rest
+  candidate-references :: List String -> List String -> List String
+  candidate-references identities more = case identities of
+    Nil -> more
+    Cons identity rest -> Cons (interface-global identity) (Cons (interface-global (nominal-owner identity)) (candidate-references rest more))
+  sequencing-references :: List String -> List String
+  sequencing-references providers = case providers of
+    Nil -> [interface-global "Effect.Sequencing.SeqDirect"]
+    Cons owner rest -> Cons (interface-global owner) (Cons (interface-global (string-concat owner ".bind")) (sequencing-references rest))
 
   candidate-json :: List String -> Json
   candidate-json candidates = case candidates of Nil -> JArrEnd; Cons id rest -> JArr (JStr id) (candidate-json rest)
@@ -272,7 +295,7 @@ module Bootstrap.Contracts where
     EGuarded s guard body -> expr-references guard <> expr-references body
     EAnn s body ty -> expr-references body <> type-references ty
     EWith s bs body -> expr-references bs <> expr-references body
-    EDo s statements -> expr-references statements
+    EDo s statements -> sequencing-references sequencing-providers <> expr-references statements
     EBind s name rhs -> expr-references rhs
     EHandle s body handled-by -> expr-references body <> expr-references handled-by
     EHandler s label clauses -> type-references label <> expr-references clauses
