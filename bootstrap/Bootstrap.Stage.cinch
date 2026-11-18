@@ -397,6 +397,7 @@ module Bootstrap.Stage where
       Some key -> Ok (EApp site (EVar site key) (EUnit site), fuel)
       None -> expand-code checked home scope site (EVar at name) fuel)
     ESplice site expression -> expand-code checked home scope site expression fuel
+    EMacroCall site path tokens -> expand-call (scope-site scope) site path tokens fuel
     other -> walk-children (template-holes checked home scope names) term fuel
 
   code-operand :: String -> List (String, String) -> Option String
@@ -800,7 +801,7 @@ module Bootstrap.Stage where
   prepare-stage-code :: String -> (String -> Bool) -> List Decl -> Decl -> Decl
   prepare-stage-code home available declarations declaration = case declaration of
     DStage site (DFun at name [(Nil, body)]) -> (case stage-code-carrier name declarations of
-      Some carrier -> (case closed-code-template home available carrier body of
+      Some carrier -> (case closed-code-template home available (\spelling -> case stage-code-carrier spelling declarations of Some actual -> True; None -> False) body of
         Some template -> DStage site (DFun at name [(Nil, EQuote at template)])
         None -> declaration)
       None -> declaration)

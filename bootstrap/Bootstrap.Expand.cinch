@@ -239,32 +239,29 @@ module Bootstrap.Expand where
     other -> None
 
   code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
-  code-template home available names inputs = scoped-template home available names inputs Nil Nil
+  code-template home available names inputs = scoped-template home available (\name -> False) names inputs Nil Nil
 
-  -- Stage values have no token-tree parameters. Build their code using the
-  -- same operations, hygiene and splice checks as a macro invocation.
-  closed-code-template :: String -> (String -> Bool) -> TypeExpr -> Expr -> Option Expr
-  closed-code-template home available carrier term = case term of
+  -- Closed code is checked against its declared carrier when it is spliced.
+  -- Keep references to other stage values until their defining scope is known.
+  closed-code-template :: String -> (String -> Bool) -> (String -> Bool) -> Expr -> Option Expr
+  closed-code-template home available stage-value term = case term of
     EQuote at body -> None
-    EMacroCall at path tokens -> None
-    other -> (case code-template home available Nil Nil term of
-      None -> None
-      Some body -> case hygienic-term body 0 of
-        (renamed, after) -> case fill-splices renamed Nil Nil of
-          Err errors -> None
-          Ok filled -> Some (ETemplateScope (expr-span term) home (EAnn (expr-span term) filled carrier)))
+    other -> scoped-template home available stage-value Nil Nil Nil Nil term
 
-  scoped-template :: String -> (String -> Bool) -> List String -> List String -> List (String, SyntaxHandle) -> List String -> Expr -> Option Expr
-  scoped-template home available names inputs handles introduced rhs =
-    let code = scoped-template home available names inputs handles introduced in
+  scoped-template :: String -> (String -> Bool) -> (String -> Bool) -> List String -> List String -> List (String, SyntaxHandle) -> List String -> Expr -> Option Expr
+  scoped-template home available stage-value names inputs handles introduced rhs =
+    let code = scoped-template home available stage-value names inputs handles introduced in
     let handle-of = syntax-handle available names handles in case rhs of
       ELetScope at body -> code body
       ELet at (EBinding site local value (EBindingsEnd end)) body -> (case handle-of value of
-        Some binding-value -> scoped-template home available (without-spelling local names) (without-spelling local inputs) (Cons (local, binding-value) handles) introduced body
+        Some binding-value -> scoped-template home available stage-value (without-spelling local names) (without-spelling local inputs) (Cons (local, binding-value) handles) introduced body
         None -> None)
       EQuote at (ESplice site (EVar occurrence name)) | (case find-handle name handles of Some binding-value -> True; None -> False) ->
         Some (EUnmodeled site "SyntaxBinding cannot be spliced as Code")
-      EQuote at body -> Some body
+      EQuote at body -> (case fill-splices-with (quotation-hole code handles) body Nil Nil of
+        Ok filled -> Some filled
+        Err errors -> None)
+      EVar at name | stage-value name -> Some (ESplice at rhs)
       EMacroCall at path tokens -> Some rhs
       EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
         Some (ESplice at (EDefinitionName sp home param))
@@ -276,9 +273,15 @@ module Bootstrap.Expand where
       EApp at (EApp inner (EVar sp op) binding-value) (EVar arg param) | same op "Syntax.captureUnder" && available op && syntax-input param inputs -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> Some (ESyntaxCaptureUnder at key name (EVar arg param))
         None -> None)
+      EApp at (EApp inner (EVar sp op) binding-value) body | same op "Syntax.lambda" && available op -> (case handle-of binding-value of
+        Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
+          (case scoped-template home available stage-value names inputs handles (Cons key introduced) body of
+            Some result -> Some (ELam at [PVar at key] result)
+            None -> None)
+        None -> None)
       EApp at (EApp inner (EApp head (EVar sp op) binding-value) value) body | same op "Syntax.letIn" && available op -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
-          (case (code value, scoped-template home available names inputs handles (Cons key introduced) body) of
+          (case (code value, scoped-template home available stage-value names inputs handles (Cons key introduced) body) of
             (Some bound, Some result) -> Some (ELet at (EBinding at key bound (EBindingsEnd at)) result)
             other -> None)
         None -> None)
@@ -287,6 +290,14 @@ module Bootstrap.Expand where
           (Some head, Some value) -> Some (EApp at head value)
           other -> None)
       other -> None
+
+  quotation-hole :: (Expr -> Option Expr) -> List (String, SyntaxHandle) -> Span -> Expr -> Result (List Diagnostic) (Option Expr)
+  quotation-hole code handles site term = case term of
+    EVar at name | (case find-handle name handles of Some binding -> True; None -> False) ->
+      Ok (Some (EUnmodeled site "SyntaxBinding cannot be spliced as Code"))
+    other -> (case code term of
+      Some value -> Ok (Some value)
+      None -> Ok (Some (ESplice site term)))
 
   -- ------------------------------------------------------------- hygiene
 
