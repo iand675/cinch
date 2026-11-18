@@ -5,10 +5,12 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Unpack (unpacked-abi)
   import Bootstrap.Core (CoreEffect, core-effect-name, CoreData, DataLayout, UniformData, UnboxedData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
+  import Bootstrap.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, MkCoreClause, core-clauses)
+  import Bootstrap.Guarded (check-guarded-binding)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
@@ -16,7 +18,7 @@ module Bootstrap.Export where
   import Bootstrap.ExportType
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions)
   import Bootstrap.ExportNominal
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
+  import Bootstrap.Load (contract-intrinsic, LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
@@ -664,9 +666,105 @@ module Bootstrap.Export where
           (other, Err error, more, forms) -> Err error
           (other, more, Err error, forms) -> Err error
           (other, more, resolved, Err error) -> Err error
+  guarded-argument :: Nat -> Nat -> List CorePattern -> Option Json
+  guarded-argument id slot patterns = case patterns of
+    Cons (CPVar sp ty binder name) rest -> if id == binder then
+      Some (JObj "node" (JStr "argument") (JObj "slot" (JNum (nat-to-int slot)) JObjEnd))
+      else guarded-argument id (slot + 1) rest
+    Cons (CPWild sp ty) rest -> guarded-argument id (slot + 1) rest
+    other -> None
+  -- Resolve the checked callee's defining foreign record, including its
+  -- module. A source function with the same spelling supplies no equation.
+  imported-nat-subtract :: String -> List LoadedInterface -> Bool
+  imported-nat-subtract identity interfaces = case interfaces of
+    Nil -> False
+    Cons iface rest -> (case contract-intrinsic identity (loaded-module iface) (loaded-contract iface) of
+      Some symbol -> same symbol "cinch.runtime.natSub"
+      None -> imported-nat-subtract identity rest)
+  guarded-expression :: List LoadedInterface -> List CorePattern -> Nat -> CoreTerm -> Option Json
+  guarded-expression interfaces patterns depth term = if depth > 64 then None else case term of
+    CLocal sp ty id name Nil -> guarded-argument id 0 patterns
+    CRequire sp ty body -> guarded-expression interfaces patterns depth body
+    CDischarge sp ty evidence body -> guarded-expression interfaces patterns depth body
+    CApply sp ty inner second -> guarded-application interfaces patterns depth inner second
+    CApplyEff sp ty row inner second -> guarded-application interfaces patterns depth inner second
+    other -> None
+  guarded-application :: List LoadedInterface -> List CorePattern -> Nat -> CoreTerm -> CoreTerm -> Option Json
+  guarded-application interfaces patterns depth inner second = case inner of
+    CApply sp ty callee first -> guarded-subtraction interfaces patterns depth callee first second
+    CApplyEff sp ty row callee first -> guarded-subtraction interfaces patterns depth callee first second
+    other -> None
+  guarded-subtraction :: List LoadedInterface -> List CorePattern -> Nat -> CoreTerm -> CoreTerm -> CoreTerm -> Option Json
+  guarded-subtraction interfaces patterns depth callee first second = case callee of
+    CUse sp ty name role Nil -> if (same role "intrinsic" && same name "cinch.runtime.natSub") ||
+      (same role "external" && (case export-global name of Ok identity -> imported-nat-subtract identity interfaces; Err error -> False)) then
+        (case (guarded-expression interfaces patterns (depth + 1) first, guarded-expression interfaces patterns (depth + 1) second) of
+          (Some left, Some right) -> Some (JObj "node" (JStr "nat-subtract") (JObj "left" left (JObj "right" right JObjEnd)))
+          other -> None)
+      else None
+    other -> None
+  guarded-parameters :: List CorePattern -> Option Nat
+  guarded-parameters patterns = case patterns of
+    Nil -> Some 0
+    Cons pattern rest -> (case pattern of
+      CPVar sp ty id name -> guarded-remaining ty rest
+      CPWild sp ty -> guarded-remaining ty rest
+      other -> None)
+  guarded-remaining :: UType -> List CorePattern -> Option Nat
+  guarded-remaining ty rest = case ty of
+    UCon name KType | same name "Nat" -> (case guarded-parameters rest of Some n -> Some (n + 1); None -> None)
+    other -> None
+  with-guarded-body :: List LoadedInterface -> String -> CoreDefinition -> Json -> Json
+  with-guarded-body interfaces identity definition implementation = case core-clauses definition of
+    Cons (MkCoreClause sp patterns body) Nil -> (case (guarded-parameters patterns, guarded-expression interfaces patterns 0 body) of
+      (Some count, Some root) -> let doc = JObj "schema" (JNum 1) (JObj "parameters" (JNum (nat-to-int count)) (JObj "root" root JObjEnd)) in
+        (case check-guarded-binding (core-name definition) identity (core-scheme definition) doc of
+          Some verified -> set-field "body" doc implementation
+          None -> implementation)
+      other -> implementation)
+    other -> implementation
+  source-method-contracts :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> String -> List CoreClassMethod -> Result String (Json, Json)
+  source-method-contracts typed interfaces references head identity methods = case methods of
+    Nil -> Ok (JArrEnd, JArrEnd)
+    Cons member rest -> let name = class-method-name member in let symbol = source-method-symbol identity name in
+      let native = string-concat-all [identity, ".", name] in
+      (case (default-definition symbol (elaboration-core typed), source-method-contracts typed interfaces references head identity rest) of
+        (Some definition, Ok (names, contracts)) -> let actual = core-scheme definition in
+          if plain-method (scheme-body actual) then Ok (JArr (JStr native) names, contracts)
+          else (case (resolved-value-scheme typed interfaces references symbol actual, export-display-scheme actual) of
+            (Ok resolved, Ok spelling) -> let implementation = with-guarded-body interfaces native definition (JObj "identity" (JStr native) (JObj "resolved" resolved JObjEnd)) in
+              let checked = JObj "schema" (JNum 1) (JObj "head" (JObj "resolved" head JObjEnd) (JObj "implementation" implementation JObjEnd)) in
+              Ok (JArr (JStr native) names, JArr (JObj "name" (JStr name) (JObj "slot" (JNum (nat-to-int (class-method-slot member)))
+                (JObj "scheme" (JStr spelling) (JObj "checked" checked JObjEnd)))) contracts)
+            (Err error, other) -> Err error
+            (other, Err error) -> Err error)
+        (None, other) -> Err "conditional implementation has no checked definition"
+        (other, Err error) -> Err error)
+  conditional-instance-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> Bool -> UType -> Result String Json
+  conditional-instance-row typed interfaces references symbol identity flag head = case class-head head of
+    None -> Err "conditional instance has no defining class"
+    Some owner -> (case (find-class owner (elaboration-classes typed), export-global owner, resolved-source-scheme typed interfaces references symbol (mono head), export-instance-scheme (mono head)) of
+      (Some description, Ok declaring, Ok resolved, Ok (display, context, spelling)) ->
+        (case source-method-contracts typed interfaces references (set-field "scheme" (JStr spelling) resolved) identity (class-methods description) of
+          Ok (names, contracts) -> Ok (JObj "id" (JStr identity) (JObj "class" (JStr declaring) (JObj "target" (JStr display) (JObj "resolved" JNull
+            (JObj "ctx" JArrEnd (JObj "methods" names (JObj "method_contracts" contracts (JObj "implicit" (JBool flag) JObjEnd))))))))
+          Err error -> Err error)
+      other -> Err "conditional instance has no checked export head")
+  source-conditional-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List Decl -> Json -> Result String Json
+  source-conditional-rows typed interfaces references context ds rows = case ds of
+    Nil -> Ok rows
+    Cons (DInstance sp flag symbol params head members) rest | guarded-members (decls-of members) && has-symbol symbol (field "declarations" context) ->
+      (case export-global symbol of
+        Ok identity -> (case source-conditional-head identity (elaboration-bindings typed) of
+          Some actual -> (case conditional-instance-row typed interfaces references symbol identity flag actual of
+            Ok row -> source-conditional-rows typed interfaces references context rest (insert-row "id" row rows)
+            Err error -> Err error)
+          None -> Err "conditional instance has no checked methods")
+        Err error -> Err error)
+    Cons other rest -> source-conditional-rows typed interfaces references context rest rows
   instance-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List CoreInstance -> Result String Json
   instance-rows typed interfaces references context declarations = case declarations of
-    Nil -> Ok JArrEnd
+    Nil -> source-conditional-rows typed interfaces references context (elaboration-declarations typed) JArrEnd
     Cons declaration rest -> if has-symbol (instance-name declaration) (field "declarations" context) then
       (case (instance-row typed interfaces references declaration, instance-rows typed interfaces references context rest) of
         (Ok row, Ok more) -> Ok (insert-row "id" row more)
@@ -721,7 +819,7 @@ module Bootstrap.Export where
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
                   else case indexed-binding symbol index of
-                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) then Ok (values, types)
+                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || (case export-global symbol of Ok identity -> (case source-conditional-head identity (elaboration-bindings typed) of Some head -> True; None -> False); Err error -> False) then Ok (values, types)
                       else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in

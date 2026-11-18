@@ -32,7 +32,7 @@ module Bootstrap.Load where
   export load-interface, load-interface-set, validate-interface-set
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-interface-from-document, load-interface-set-from-documents
-  export loaded-entry, loaded-private-methods
+  export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents
   export check-interface-set, interface-set-members
@@ -248,6 +248,17 @@ module Bootstrap.Load where
       else if same kind "method" then entry-in method-entries identity entries
       else if same kind "instance" then entry-in instance-entries identity entries
       else None
+
+  -- Foreign records carry module-local symbols. Match the complete defining
+  -- identity before interpreting a compiler-known intrinsic.
+  contract-intrinsic :: String -> String -> Json -> Option String
+  contract-intrinsic identity owner doc = intrinsic-row identity owner (field "foreign" (field "exports" doc))
+  intrinsic-row :: String -> String -> Json -> Option String
+  intrinsic-row identity owner rows = case rows of
+    JArr row rest -> (case (field "kind" row, field "symbol" row, field "external" row) of
+      (JStr kind, JStr local, JStr symbol) | same kind "intrinsic" && same identity (string-concat-all [owner, ".", local]) -> Some symbol
+      other -> intrinsic-row identity owner rest)
+    other -> None
 
   name-entries :: ExportEntries -> HashMap String (List (String, String, String))
   name-entries entries = case entries of

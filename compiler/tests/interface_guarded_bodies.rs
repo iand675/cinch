@@ -1,7 +1,7 @@
 //! Guarded body transport follows checked code, not a method spelling.
 mod common;
 
-use common::source_frontend::check_source_interfaces;
+use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::{GuardedNatExpr, Iface};
 
 fn provider(body: &str) -> Iface {
@@ -22,6 +22,8 @@ fn guarded_bodies_retain_actual_code_and_formal_scope() {
     let first = contract(&original); let second = contract(&changed);
     assert_eq!(first.implementation, second.implementation);
     assert_eq!(first.resolved, second.resolved);
+    assert_eq!(first.body.as_ref().unwrap().root,
+        GuardedNatExpr::Subtract(Box::new(GuardedNatExpr::Argument(0)), Box::new(GuardedNatExpr::Argument(1))));
     assert_ne!(first.body, second.body, "same class/slot/scheme cannot supply a body equation");
     assert_eq!(second.body.unwrap().root, GuardedNatExpr::Argument(0));
     assert_ne!(original.iface_hash(), changed.iface_hash(), "actual guarded body changes invalidate dependent interfaces");
@@ -33,4 +35,15 @@ fn guarded_bodies_retain_actual_code_and_formal_scope() {
     let root = &mut too_deep.exports.instances.iter_mut().find(|instance| instance.id == "A.Operation_Nat").unwrap().method_contracts[0].checked.body.as_mut().unwrap().root;
     for _ in 0..65 { *root = GuardedNatExpr::Subtract(Box::new(GuardedNatExpr::Argument(0)), Box::new(root.clone())); }
     assert!(Iface::from_json(&too_deep.to_json()).is_err(), "body transport has the same bounded depth as its checked producer");
+}
+
+#[test]
+fn source_conditional_methods_require_evidence_at_each_call() {
+    let declarations = "module Main where\n  signature Operation a where\n    apply-op :: a -> a -> a\n  implicit instance Operation_Nat :: Operation Nat where\n    apply-op :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat\n    apply-op x y = nat-sub x y\n";
+    let good = format!("{declarations}  f :: Nat -> Nat -> Nat\n  f x y = if x >= y then apply-op x y else 0\n  main :: Int\n  main = if f 5 2 == 3 && f 2 5 == 0 then 0 else 1\n");
+    assert_eq!(run_source(&good).expect("call under the branch fact"), 0);
+    let missing = format!("{declarations}  f :: Nat -> Nat -> Nat\n  f x y = apply-op x y\n  main :: Int\n  main = 0\n");
+    assert!(check_sources(&missing, "unguarded-call.cinch").is_err());
+    let generic = format!("{declarations}  f :: forall a. using (d :: Operation a) => a -> a -> a\n  f x y = apply-op x y\n  main :: Int\n  main = if f (5 :: Nat) 2 == 3 then 0 else 1\n");
+    assert!(check_sources(&generic, "unguarded-dictionary.cinch").is_err());
 }
