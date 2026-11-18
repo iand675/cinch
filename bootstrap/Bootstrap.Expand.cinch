@@ -14,7 +14,7 @@ module Bootstrap.Expand where
   import Bootstrap.Ast
   import Bootstrap.Parse (Ps, POk, PBad, Fix, parse-tree-term)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
-  import Text.Lex (Span, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord)
+  import Text.Lex (Span, span-start, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord)
   import Text.Show (nat-to-string)
   import Data.String (empty-string, string-to-bytes)
   import Algebra.Semigroup
@@ -43,6 +43,7 @@ module Bootstrap.Expand where
   term-has-macro-call :: Expr -> Bool
   term-has-macro-call e = case e of
     EMacroCall s path tokens -> True
+    ESyntaxCaptureUnder s key name body -> term-has-macro-call body
     ECon s name args -> term-has-macro-call args
     ERecord s name fields -> term-has-macro-call fields
     ERecordField s name value rest -> term-has-macro-call value || term-has-macro-call rest
@@ -186,19 +187,58 @@ module Bootstrap.Expand where
 
   -- These stage operations construct scoped code directly. Their result is
   -- an ordinary term which the resolver and type checker visit at insertion.
-  code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
-  code-template home available names inputs rhs = case rhs of
-    EQuote at body -> Some body
-    EMacroCall at path tokens -> Some rhs
-    EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
-      Some (ESplice at (EDefinitionName sp home param))
-    EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
-      Some (ESplice at (EVar arg param))
-    EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
-      (case (code-template home available names inputs function, code-template home available names inputs argument) of
-        (Some head, Some value) -> Some (EApp at head value)
-        other -> None)
+  -- The key belongs to the allocating syntax node. The normal hygiene pass
+  -- gives it a distinct lexical identity each time the template is used.
+  data SyntaxHandle where
+    SyntaxHandle :: String -> String -> SyntaxHandle
+  find-handle :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
+  find-handle name bindings = case bindings of
+    Nil -> None
+    Cons (local, binding-value) rest -> if same local name then Some binding-value else find-handle name rest
+
+  syntax-handle :: (String -> Bool) -> List String -> List (String, SyntaxHandle) -> Expr -> Option SyntaxHandle
+  syntax-handle available names handles value = case value of
+    EVar at local -> find-handle local handles
+    EApp at (EVar site op) (EVar arg param) | same op "Syntax.newBinding" && available op && syntax-input param names ->
+      Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) param)
     other -> None
+
+  code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
+  code-template home available names inputs = scoped-template home available names inputs Nil Nil
+
+  scoped-template :: String -> (String -> Bool) -> List String -> List String -> List (String, SyntaxHandle) -> List String -> Expr -> Option Expr
+  scoped-template home available names inputs handles introduced rhs =
+    let code = scoped-template home available names inputs handles introduced in
+    let handle-of = syntax-handle available names handles in case rhs of
+      ELetScope at body -> code body
+      ELet at (EBinding site local value (EBindingsEnd end)) body -> (case handle-of value of
+        Some binding-value -> scoped-template home available (without-spelling local names) (without-spelling local inputs) (Cons (local, binding-value) handles) introduced body
+        None -> None)
+      EQuote at (ESplice site (EVar occurrence name)) | (case find-handle name handles of Some binding-value -> True; None -> False) ->
+        Some (EUnmodeled site "SyntaxBinding cannot be spliced as Code")
+      EQuote at body -> Some body
+      EMacroCall at path tokens -> Some rhs
+      EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
+        Some (ESplice at (EDefinitionName sp home param))
+      EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
+        Some (ESplice at (EVar arg param))
+      EApp at (EVar site op) arg | same op "Syntax.reference" && available op -> (case handle-of arg of
+        Some (SyntaxHandle key name) -> Some (ESyntaxReference at key name)
+        None -> None)
+      EApp at (EApp inner (EVar sp op) binding-value) (EVar arg param) | same op "Syntax.captureUnder" && available op && syntax-input param inputs -> (case handle-of binding-value of
+        Some (SyntaxHandle key name) -> Some (ESyntaxCaptureUnder at key name (EVar arg param))
+        None -> None)
+      EApp at (EApp inner (EApp head (EVar sp op) binding-value) value) body | same op "Syntax.letIn" && available op -> (case handle-of binding-value of
+        Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
+          (case (code value, scoped-template home available names inputs handles (Cons key introduced) body) of
+            (Some bound, Some result) -> Some (ELet at (EBinding at key bound (EBindingsEnd at)) result)
+            other -> None)
+        None -> None)
+      EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
+        (case (code function, code argument) of
+          (Some head, Some value) -> Some (EApp at head value)
+          other -> None)
+      other -> None
 
   -- ------------------------------------------------------------- hygiene
 
@@ -253,10 +293,15 @@ module Bootstrap.Expand where
         (renamed-rest, final, done) -> (PArg s renamed-first renamed-rest, final, done)
     other -> (p, renames, serial)
 
+  handle-identity :: String -> List (String, String) -> String
+  handle-identity key renames = case lookup-rename key renames of Some internal -> internal; None -> key
+
   -- The rename walk. A splice body is skipped: it is the caller's syntax,
   -- not the template's, and it is filled after this walk.
   hygiene :: Expr -> List (String, String) -> Nat -> (Expr, Nat)
   hygiene e renames serial = case e of
+    ESyntaxReference s key name -> (ESyntaxReference s (handle-identity key renames) name, serial)
+    ESyntaxCaptureUnder s key name operand -> (ESyntaxCaptureUnder s (handle-identity key renames) name operand, serial)
     EVar s name -> case lookup-rename name renames of
       Some internal -> (EVar s internal, serial)
       None -> (e, serial)
@@ -433,8 +478,23 @@ module Bootstrap.Expand where
     Err errors -> Err errors
     Ok (filled, leftover) -> Ok filled
 
+  binding-spelling :: Span -> String -> List (String, List LToken) -> Result (List Diagnostic) String
+  binding-spelling site param groups = case take-group param groups of
+    Some [token] -> (case lt-token token of TVar name -> Ok name; other -> expand-error site "Syntax.newBinding requires a variable name")
+    other -> expand-error site "Syntax.newBinding requires one Name argument"
+
   fill-walk :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
   fill-walk e groups fix = case e of
+    ESyntaxReference s key param -> (case binding-spelling s param groups of
+      Ok name -> Ok (ESyntaxReference s key name, groups)
+      Err errors -> Err errors)
+    ESyntaxCaptureUnder s key param (EVar site operand) -> (case binding-spelling s param groups of
+      Err errors -> Err errors
+      Ok name -> case take-group operand groups of
+        None -> expand-error site "Syntax.captureUnder requires a syntax argument"
+        Some tokens -> case parse-group-term tokens fix of
+          Ok term -> Ok (ESyntaxCaptureUnder s key name term, groups)
+          Err errors -> Err errors)
     ESplice s expression -> case expression of
       EDefinitionName at home parameter -> (case take-group parameter groups of
         Some [token] -> (case lt-token token of

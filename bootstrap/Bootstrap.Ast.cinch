@@ -47,6 +47,12 @@ module Bootstrap.Ast where
   span-here :: Span -> Span
   span-here s = Span (span-start s) (span-start s) (span-line s) (span-col s)
 
+  -- Shadow one source spelling while retaining every other local name.
+  without-spelling :: String -> List String -> List String
+  without-spelling name names = case names of
+    Nil -> Nil
+    Cons first rest -> if string-compare first name == 0 then without-spelling name rest else Cons first (without-spelling name rest)
+
   -- Whether a declaration name is an operator (surface syntax and grammar,
   -- `operator`): the parser keeps the operator text as the name and the first
   -- character decides.
@@ -324,6 +330,8 @@ module Bootstrap.Ast where
     -- cannot construct either boundary from a user's term.
     ETemplateScope :: Span -> String -> Expr -> Expr
     EDefinitionName :: Span -> String -> String -> Expr
+    ESyntaxReference :: Span -> String -> String -> Expr
+    ESyntaxCaptureUnder :: Span -> String -> String -> Expr -> Expr
     EArgumentScope :: Span -> Expr -> Expr
     EMacroCall :: Span -> String -> List LToken -> Expr
     EUnmodeled :: Span -> String -> Expr
@@ -415,6 +423,8 @@ module Bootstrap.Ast where
     ESplice s expression -> s
     EDefinitionName s owner name -> s
     ETemplateScope s owner body -> s
+    ESyntaxReference s key name -> s
+    ESyntaxCaptureUnder s key name body -> s
     EArgumentScope s body -> s
     EMacroCall s path tokens -> s
     EUnmodeled s text -> s
@@ -819,6 +829,8 @@ module Bootstrap.Ast where
     -- a model of.
     EDefinitionName s owner name -> 0
     ETemplateScope s owner body -> expr-unmodeled-count body
+    ESyntaxReference s key name -> 0
+    ESyntaxCaptureUnder s key name body -> expr-unmodeled-count body
     EArgumentScope s body -> expr-unmodeled-count body
     EMacroCall s path tokens -> 0
 
@@ -1054,6 +1066,8 @@ module Bootstrap.Ast where
     -- what the default-clause and interface identity comparisons need.
     EDefinitionName sp owner name -> JArr (JStr "EDefinitionName") (JArr (JStr owner) (JArr (JStr name) JArrEnd))
     ETemplateScope sp owner body -> JArr (JStr "ETemplateScope") (JArr (JStr owner) (JArr (source-identity-expr body) JArrEnd))
+    ESyntaxReference sp key name -> JArr (JStr "ESyntaxReference") (JArr (JStr key) (JArr (JStr name) JArrEnd))
+    ESyntaxCaptureUnder sp key name body -> JArr (JStr "ESyntaxCaptureUnder") (JArr (JStr key) (JArr (JStr name) (JArr (source-identity-expr body) JArrEnd)))
     EArgumentScope sp body -> JArr (JStr "EArgumentScope") (JArr (source-identity-expr body) JArrEnd)
     EMacroCall part0 part1 part2 -> JArr (JStr "EMacroCall") (JArr (JStr part1) (JArr (source-identity-tokens part2) JArrEnd))
     ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)

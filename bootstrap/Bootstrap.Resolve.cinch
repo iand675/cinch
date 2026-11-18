@@ -59,7 +59,7 @@ module Bootstrap.Resolve where
   -- keeps the front-most binding of a repeated spelling, which is the one
   -- the scan would find.
   data LexicalScope where
-    MkLexicalScope :: List Binding -> HashMap String Binding -> LexicalScope
+    MkLexicalScope :: List Binding -> HashMap String Binding -> List (String, String) -> LexicalScope
   data CallerScopes where
     NoCaller :: CallerScopes
     CallerScope :: LexicalScope -> List String -> CallerScopes -> CallerScopes
@@ -73,10 +73,10 @@ module Bootstrap.Resolve where
 
   visible-lookup :: String -> Visible -> Option Binding
   visible-lookup name entries = case entries of
-    MkVisible (MkLexicalScope order index) homes caller -> hash-map-lookup name index
+    MkVisible (MkLexicalScope order index bindings) homes caller -> hash-map-lookup name index
 
   visible-order :: Visible -> List Binding
-  visible-order entries = case entries of MkVisible (MkLexicalScope order index) homes caller -> order
+  visible-order entries = case entries of MkVisible (MkLexicalScope order index bindings) homes caller -> order
 
   binding-name :: Binding -> String
   binding-name b = case b of
@@ -404,7 +404,7 @@ module Bootstrap.Resolve where
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
-    let lexical = MkLexicalScope visible (binding-index visible) in
+    let lexical = MkLexicalScope visible (binding-index visible) Nil in
     let has-macro = declares-macros (module-decls m) in
     let homes = if has-macro then Cons (home, lexical) earlier else earlier in
     let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
@@ -652,9 +652,20 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons binding rest -> same qualifier (name-qualifier (binding-name binding)) || visible-qualifier qualifier rest
 
+  captured-name :: String -> List (String, String) -> Option String
+  captured-name name aliases = case aliases of
+    Nil -> None
+    Cons (spelling, key) rest -> if same name spelling then Some key else captured-name name rest
+
   resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
-    else case visible-lookup name visible of
+    else case visible of
+      MkVisible (MkLexicalScope order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
+        (False, Some key) -> (key, Nil)
+        other -> resolve-global-use sp constructor visible name)
+
+  resolve-global-use :: Span -> Bool -> Visible -> String -> (String, List Diagnostic)
+  resolve-global-use sp constructor visible name = case visible-lookup name visible of
       Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
       Some b -> (binding-symbol b, Nil)
       None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.captureType"] ->
@@ -943,6 +954,13 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (EQuote s renamed, errors)
     -- A Name describes a spelling. Only the enclosing template's lexical
     -- table can turn it into a definition, including privately owned names.
+    ESyntaxReference s key name -> if has-name key locals then (EVar s key, Nil)
+      else (e, fail s (cat ["captured local `", name, "` is not in scope"]))
+    ESyntaxCaptureUnder s key name body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
+      MkVisible lexical homes (CallerScope (MkLexicalScope order index aliases) names remaining) ->
+        let extended = MkLexicalScope order index (Cons (name, key) aliases) in
+        rename-expr (MkVisible extended homes remaining) (without-spelling name names) body
+      other -> (e, fail s "Syntax.captureUnder outside its expansion"))
     EDefinitionName s home spelling -> (case visible of
       MkVisible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
         Some binding | not (macro-binding binding) -> (EVar s (binding-symbol binding), Nil)

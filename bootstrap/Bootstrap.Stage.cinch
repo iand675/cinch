@@ -524,6 +524,9 @@ module Bootstrap.Stage where
   -- anywhere a term can.
   expand-term :: MacroSite -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-term site-context e fuel = case e of
+    ESyntaxCaptureUnder at key name argument -> (case site-context of
+      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> expand-one (ESyntaxCaptureUnder at key name) argument (MkMacroSite owner caller-fix modules names parent) fuel
+      other -> stage-error at "Syntax.captureUnder outside its expansion")
     EArgumentScope at argument -> (case site-context of
       MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> expand-one (EArgumentScope at) argument (MkMacroSite owner caller-fix modules names parent) fuel
       other -> stage-error at "macro argument outside its expansion")

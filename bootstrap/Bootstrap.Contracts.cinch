@@ -306,6 +306,8 @@ module Bootstrap.Contracts where
     -- The macro's name is a compile-time reference, not a value one: the
     -- expansion is what names runtime values.
     EDefinitionName s home name -> Nil
+    ESyntaxReference s key name -> Nil
+    ESyntaxCaptureUnder s key name body -> expr-references body
     ETemplateScope s home body -> expr-references body
     EArgumentScope s body -> expr-references body
     EMacroCall s path tokens -> Nil

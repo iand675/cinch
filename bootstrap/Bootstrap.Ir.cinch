@@ -774,6 +774,8 @@ module Bootstrap.Ir where
     EQuote s body -> "quotation"
     ESplice s expression -> "quotation splice"
     EDefinitionName s home name -> "unresolved macro definition reference"
+    ESyntaxReference s key name -> "unresolved macro binding reference"
+    ESyntaxCaptureUnder s key name body -> "unresolved macro scope"
     ETemplateScope s home body -> "unresolved macro scope"
     EArgumentScope s body -> "unresolved macro scope"
     EMacroCall s path tokens -> "macro invocation"
