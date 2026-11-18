@@ -1,0 +1,266 @@
+-- | Exact modular arithmetic over immutable mathematical integers.
+-- Every primary modulus is nonzero; checked entry points return named refusals.
+-- Algorithms use input-dependent branches and make no constant-time guarantee.
+module Data.Nat.Modular where
+  import Data.Bool
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export ModularError, ZeroModulus, NotCoprime
+  export NatBezout, nat-extended-gcd, bezout-gcd, bezout-first, bezout-second
+  export nat-gcd, nat-mul-mod, nat-power-mod, nat-inverse-mod
+  export int-inverse-mod, int-power-mod
+  export checked-nat-mul-mod, checked-nat-power-mod, checked-nat-inverse-mod
+  export checked-int-inverse-mod, checked-int-power-mod
+
+  -- | A refused modulus or a greatest common divisor that prevents inversion.
+  data ModularError where
+    -- | A checked entry point received modulus zero.
+    ZeroModulus :: ModularError
+    -- | Preserve the exact greatest common divisor of the input and modulus.
+    NotCoprime :: Nat -> ModularError
+
+  -- | Exact coefficients satisfying first * x + second * y = gcd.
+  data NatBezout where
+    -- | Keep the nonnegative divisor and two signed mathematical coefficients.
+    Bezout :: Nat -> Int -> Int -> NatBezout
+
+  -- | Join two checked unsigned halves without crossing a signed 64-bit limit.
+  prim join-word :: U32 -> U32 -> U64 where
+    llvm {
+      %low = zext i32 %0 to i64
+      %high = zext i32 %1 to i64
+      %upper = shl i64 %high, 32
+      %value = or i64 %low, %upper
+      ret i64 %value
+    }
+
+  -- | Copy the low half of a scalar word without borrowing any integer storage.
+  prim low-word :: U64 -> U32 where
+    llvm {
+      %value = trunc i64 %0 to i32
+      ret i32 %value
+    }
+
+  -- | Copy the high half of a scalar word without sign extension.
+  prim high-word :: U64 -> U32 where
+    llvm {
+      %upper = lshr i64 %0, 32
+      %value = trunc i64 %upper to i32
+      ret i32 %value
+    }
+
+  -- | Multiply full unsigned words exactly before reducing by a proved nonzero modulus.
+  -- The wide remainder may require a target support routine; object qualification is separate.
+  prim product-mod-word :: U64 -> U64 -> NonZero U64 -> U64 where
+    llvm {
+      %left = zext i64 %0 to i128
+      %right = zext i64 %1 to i128
+      %divisor = zext i64 %2 to i128
+      %product = mul i128 %left, %right
+      %remainder = urem i128 %product, %divisor
+      %value = trunc i128 %remainder to i64
+      ret i64 %value
+    }
+
+  -- | Observe one parity bit with no boxed arithmetic on the machine path.
+  prim odd-word :: U64 -> Bool where
+    llvm {
+      %low = and i64 %0, 1
+      %value = icmp ne i64 %low, 0
+      ret i1 %value
+    }
+
+  -- | Halve an unsigned exponent; the fixed shift is strictly below the word width.
+  prim half-word :: U64 -> U64 where
+    llvm {
+      %value = lshr i64 %0, 1
+      ret i64 %value
+    }
+
+  -- | Convert only representable naturals, including the entire upper unsigned half.
+  try-word :: Nat -> Option U64
+  try-word value = case checked-nat-to-i64 value of
+    Some signed -> Some (wrapping-i64-to-u64 signed)
+    None -> if value <= 18446744073709551615 then
+      let low = nat-rem value 4294967296 in
+      let high = nat-div value 4294967296 in
+      if high <= 4294967295 then
+        case checked-nat-to-i64 low of
+          None -> None
+          Some lower -> case checked-nat-to-i64 high of
+            None -> None
+            Some upper ->
+              let lo = wrapping-i64-to-u32 lower in
+              let hi = wrapping-i64-to-u32 upper in Some (join-word lo hi)
+      else None
+      else None
+
+  -- | Convert an unsigned word exactly, using a nonnegative direct value or two scalar halves.
+  word-nat :: U64 -> Nat
+  word-nat value = let signed = wrapping-u64-to-i64 value in
+    if signed >= 0 then nat-from-i64 signed else
+      let low = low-word value in let high = high-word value in
+      let lower = u32-to-nat low in let upper = u32-to-nat high in
+      lower + upper * 4294967296
+
+  -- | Reduce a sum of residues with one checked subtraction and at most one extra significant bit.
+  add-residues :: NonZero Nat -> Nat -> Nat -> Nat
+  add-residues modulus first second = let sum = first + second in let divisor = unrefine modulus in
+    if divisor <= sum then sum - divisor else sum
+
+  -- | Multiply residues by tail-iterative binary accumulation, never constructing their full product.
+  multiply-binary :: NonZero Nat -> Nat -> Nat -> Nat -> Nat
+  multiply-binary modulus base remaining accumulated = if remaining == 0 then accumulated else
+    let bit = nat-rem remaining 2 in
+    let next = if bit == 0 then accumulated else add-residues modulus accumulated base in
+    let half = nat-div remaining 2 in
+    if half == 0 then next else
+      let doubled = add-residues modulus base base in
+      multiply-binary modulus doubled half next
+
+  -- | Multiply exact naturals modulo a nonzero natural, returning the canonical nonnegative residue.
+  nat-mul-mod :: Nat -> Nat -> NonZero Nat -> Nat
+  nat-mul-mod first second modulus =
+    let left = nat-rem first modulus in let right = nat-rem second modulus in
+    case try-word (unrefine modulus) of
+      None -> multiply-binary modulus left right 0
+      Some word -> case decide (NonZero word) of
+        No proof -> multiply-binary modulus left right 0
+        Yes proof -> case try-word left of
+          None -> multiply-binary modulus left right 0
+          Some a -> case try-word right of
+            None -> multiply-binary modulus left right 0
+            Some b -> let result = product-mod-word a b (NonZero word proof) in word-nat result
+
+  -- | Exponentiate unboxed residues with an unsigned machine exponent and a single modulus decision.
+  power-word :: NonZero U64 -> U64 -> U64 -> U64 -> U64
+  power-word modulus base exponent accumulated = if eq-u64 exponent 0 then accumulated else
+    let next = if odd-word exponent then product-mod-word accumulated base modulus else accumulated in
+    let half = half-word exponent in
+    if eq-u64 half 0 then next else
+      let squared = product-mod-word base base modulus in
+      power-word modulus squared half next
+
+  -- | Consume arbitrary exponent bits while keeping all modulus-sized residues unboxed.
+  power-word-big-exponent :: NonZero U64 -> U64 -> Nat -> U64 -> U64
+  power-word-big-exponent modulus base exponent accumulated = case try-word exponent of
+    Some word -> power-word modulus base word accumulated
+    None ->
+      let bit = nat-rem exponent 2 in
+      let next = if bit == 0 then accumulated else product-mod-word accumulated base modulus in
+      let half = nat-div exponent 2 in let squared = product-mod-word base base modulus in
+      power-word-big-exponent modulus squared half next
+
+  -- | Exponentiate arbitrary-size residues by binary squaring with bounded-stack multiplication.
+  power-binary :: NonZero Nat -> Nat -> Nat -> Nat -> Nat
+  power-binary modulus base exponent accumulated = if exponent == 0 then accumulated else
+    let bit = nat-rem exponent 2 in
+    let next = if bit == 0 then accumulated else multiply-binary modulus accumulated base 0 in
+    let half = nat-div exponent 2 in
+    if half == 0 then next else
+      let squared = multiply-binary modulus base base 0 in
+      power-binary modulus squared half next
+
+  -- | Compute a nonnegative modular power, including zero exponent and the zero residue for modulus one.
+  nat-power-mod :: Nat -> Nat -> NonZero Nat -> Nat
+  nat-power-mod base exponent modulus =
+    let reduced = nat-rem base modulus in let identity = nat-rem 1 modulus in
+    if unrefine modulus == 1 then 0 else
+      case try-word (unrefine modulus) of
+        None -> power-binary modulus reduced exponent identity
+        Some word -> case decide (NonZero word) of
+          No proof -> power-binary modulus reduced exponent identity
+          Yes proof -> case try-word reduced of
+            None -> power-binary modulus reduced exponent identity
+            Some first ->
+              let result = power-word-big-exponent (NonZero word proof) first exponent 1 in
+              word-nat result
+
+  -- | Compute the greatest common divisor, with gcd zero zero equal to zero.
+  nat-gcd :: Nat -> Nat -> Nat
+  nat-gcd first second = case decide (NonZero second) of
+    No proof -> first
+    Yes proof -> let remainder = nat-rem first (NonZero second proof) in nat-gcd second remainder
+
+  -- | Tail-iterate exact Euclidean remainders and signed coefficient recurrences.
+  euclid :: Nat -> Nat -> Int -> Int -> Int -> Int -> NatBezout
+  euclid first second x0 x1 y0 y1 = case decide (NonZero second) of
+    No proof -> Bezout first x0 y0
+    Yes proof ->
+      let divisor = NonZero second proof in
+      let quotient = nat-div first divisor in let remainder = nat-rem first divisor in
+      let signed = nat-to-int quotient in
+      let scaled-x = int-mul signed x1 in let next-x = int-sub x0 scaled-x in
+      let scaled-y = int-mul signed y1 in let next-y = int-sub y0 scaled-y in
+      euclid second remainder x1 next-x y1 next-y
+
+  -- | Return a divisor and valid exact Bezout coefficients; both coefficients are zero for two zero inputs.
+  nat-extended-gcd :: Nat -> Nat -> NatBezout
+  nat-extended-gcd first second = if first == 0 then
+    Bezout second 0 (if second == 0 then 0 else 1)
+    else if second == 0 then Bezout first 1 0 else euclid first second 1 0 0 1
+
+  -- | Observe the nonnegative greatest common divisor of a coefficient result.
+  bezout-gcd :: NatBezout -> Nat
+  bezout-gcd value = case value of Bezout divisor first second -> divisor
+
+  -- | Observe the signed coefficient multiplying the first input.
+  bezout-first :: NatBezout -> Int
+  bezout-first value = case value of Bezout divisor first second -> first
+
+  -- | Observe the signed coefficient multiplying the second input.
+  bezout-second :: NatBezout -> Int
+  bezout-second value = case value of Bezout divisor first second -> second
+
+  -- | Invert a natural modulo a nonzero modulus or return its exact obstructing gcd.
+  nat-inverse-mod :: Nat -> NonZero Nat -> Result ModularError Nat
+  nat-inverse-mod value modulus = case nat-extended-gcd value (unrefine modulus) of
+    Bezout divisor first second -> if divisor == 1 then Ok (int-mod-nat first modulus)
+      else Err (NotCoprime divisor)
+
+  -- | Invert any signed integer after exact normalization into the nonnegative residue class.
+  int-inverse-mod :: Int -> NonZero Nat -> Result ModularError Nat
+  int-inverse-mod value modulus = let residue = int-mod-nat value modulus in nat-inverse-mod residue modulus
+
+  -- | Compute a signed modular power; a negative exponent first requires a multiplicative inverse.
+  int-power-mod :: Int -> Int -> NonZero Nat -> Result ModularError Nat
+  int-power-mod base exponent modulus = if exponent < 0 then
+    case int-inverse-mod base modulus of
+      Err failure -> Err failure
+      Ok inverse -> let magnitude = nat-from-int (0 - exponent) in Ok (nat-power-mod inverse magnitude modulus)
+    else let residue = int-mod-nat base modulus in
+      let magnitude = nat-from-int exponent in Ok (nat-power-mod residue magnitude modulus)
+
+  -- | Refuse modulus zero before performing an otherwise exact modular product.
+  checked-nat-mul-mod :: Nat -> Nat -> Nat -> Result ModularError Nat
+  checked-nat-mul-mod first second modulus = case decide (NonZero modulus) of
+    No proof -> Err ZeroModulus
+    Yes proof -> Ok (nat-mul-mod first second (NonZero modulus proof))
+
+  -- | Refuse modulus zero, preserving the reduced identity for exponent zero.
+  checked-nat-power-mod :: Nat -> Nat -> Nat -> Result ModularError Nat
+  checked-nat-power-mod base exponent modulus = case decide (NonZero modulus) of
+    No proof -> Err ZeroModulus
+    Yes proof -> Ok (nat-power-mod base exponent (NonZero modulus proof))
+
+  -- | Distinguish zero modulus from a non-coprime natural input.
+  checked-nat-inverse-mod :: Nat -> Nat -> Result ModularError Nat
+  checked-nat-inverse-mod value modulus = case decide (NonZero modulus) of
+    No proof -> Err ZeroModulus
+    Yes proof -> nat-inverse-mod value (NonZero modulus proof)
+
+  -- | Distinguish zero modulus from a non-coprime signed input.
+  checked-int-inverse-mod :: Int -> Nat -> Result ModularError Nat
+  checked-int-inverse-mod value modulus = case decide (NonZero modulus) of
+    No proof -> Err ZeroModulus
+    Yes proof -> int-inverse-mod value (NonZero modulus proof)
+
+  -- | Apply signed-base and signed-exponent policies with an explicit zero-modulus refusal.
+  checked-int-power-mod :: Int -> Int -> Nat -> Result ModularError Nat
+  checked-int-power-mod base exponent modulus = case decide (NonZero modulus) of
+    No proof -> Err ZeroModulus
+    Yes proof -> int-power-mod base exponent (NonZero modulus proof)

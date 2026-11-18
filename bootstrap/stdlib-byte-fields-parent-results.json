@@ -1,0 +1,26 @@
+{
+  "scope": "Parent current-release checked-RC API and complete target-object gate; separate from child historical compiler/runtime epochs",
+  "integration_commit": "94da53b4d57e0752825d03b01c7af1a4f1eb83b4",
+  "parent_release_tests": 10,
+  "failed": 0,
+  "seconds": 54.03,
+  "log": "/tmp/cinch-stdlib-fields-parent-release-gate.log",
+  "log_sha256": "3d99f6c7bec09c6908758037f811340df1d5fa72ef1a229ca59fdd7c5e32ef9c",
+  "cli": "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+  "cli_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "embedded_modules": 66,
+  "source_modules": 191,
+  "public_reference_exports": 4945,
+  "published_parent_checkpoint": "01467cab",
+  "checked_rc_compilation": true,
+  "targets": [
+    "wasm32-unknown-unknown",
+    "aarch64-unknown-linux-gnu",
+    "powerpc64-unknown-linux-gnu"
+  ],
+  "foreign_execution_claim": false,
+  "production_source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+  "no_new_native_family_adoption": true,
+  "performance_pending": true
+}

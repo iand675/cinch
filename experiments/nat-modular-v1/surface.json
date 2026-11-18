@@ -1,0 +1,1043 @@
+{
+  "scope": "Static isolated modular foundation audit only; no execution or completeness claim",
+  "candidate_source_sha256": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364",
+  "status": "source-prepared-untyped-unexecuted",
+  "canonical_documented_declarations": 34,
+  "reference_package": "math/big",
+  "actual_cumulative_declarations": 190,
+  "reference_pins": {
+    "binary_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "sdk_executed": false,
+    "sources": {
+      "src/math/big/int.go": "aab3eb4b80162ccbd87d156057cd651210caddb6ed919d9fa958e126c2cc40e0",
+      "src/math/big/prime.go": "783e8e94c38db53b28b67ffacecbdb6efb7b04f5ee50e77666a530ac10956609",
+      "src/math/big/nat.go": "f93c5992bd3a12fd439218b462f928467fe8cdf4bbec295362551f03ee88b373"
+    }
+  },
+  "capabilities": [
+    {
+      "reference_declaration": "const Above = 1",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Above Accuracy",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const AwayFromZero = 3",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const AwayFromZero RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Below = -1",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Below Accuracy",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Ceil = 5",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Ceil RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Exact = 0",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Exact Accuracy",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Floor = 4",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Floor RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxBase = 36",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxBase = 62",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxBase ideal-char",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxExp = 2147483647",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxExp ideal-int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxPrec = 4294967295",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MaxPrec ideal-int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MinExp = -2147483648",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const MinExp ideal-int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Round = 0",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Round RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNearestAway = 1",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNearestAway RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNearestEven = 0",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNearestEven RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNegativeInf = 4",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToNegativeInf RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToPositiveInf = 5",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToPositiveInf RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToZero = 2",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const ToZero RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Trunc = 2",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "const Trunc RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "func Jacobi(*Int, *Int) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "func NewFloat(float64) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "func NewInt(int64) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "func NewRat(int64, int64) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "func ParseFloat(string, int, uint, RoundingMode) (*Float, int, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Abs(*Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Acc() Accuracy",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Add(*Float, *Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Append([]uint8, uint8, int) []uint8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) AppendText([]uint8) ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Cmp(*Float) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Copy(*Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Float32() (float32, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Float64() (float64, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Format(fmt.State, int32)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) GobDecode([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) GobEncode() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Int(*Int) (*Int, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Int64() (int64, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) IsInf() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) IsInt() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) MantExp(*Float) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) MarshalText() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) MinPrec() uint",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Mode() RoundingMode",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Mul(*Float, *Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Neg(*Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Parse(string, int) (*Float, int, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Prec() uint",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Quo(*Float, *Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Rat(*Rat) (*Rat, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Scan(fmt.ScanState, int32) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Set(*Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetFloat64(float64) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetInf(bool) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetInt(*Int) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetInt64(int64) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetMantExp(*Float, int) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetMode(RoundingMode) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetPrec(uint) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetRat(*Rat) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetString(string) (*Float, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) SetUint64(uint64) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Sign() int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Signbit() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Sqrt(*Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) String() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Sub(*Float, *Float) *Float",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Text(uint8, int) string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) Uint64() (uint64, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Float) UnmarshalText([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Abs(*Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Add(*Int, *Int) *Int",
+      "status": "existing-value-operation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-add"
+      ],
+      "adaptation": "Immutable exact Int result, not a mutable receiver/aliasing API; no package-completeness claim"
+    },
+    {
+      "reference_declaration": "method (*Int) And(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) AndNot(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Append([]uint8, int) []uint8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) AppendText([]uint8) ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Binomial(int64, int64) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Bit(int) uint",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) BitLen() int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Bits() []Word",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Bytes() []uint8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Cmp(*Int) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) CmpAbs(*Int) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Div(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) DivMod(*Int, *Int, *Int) (*Int, *Int)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Divide(*Int, *Int, *Int, RoundingMode) (*Int, *Int)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Exp(*Int, *Int, *Int) *Int",
+      "status": "isolated-static-candidate-unqualified",
+      "concrete_operations": [
+        "Data.Nat.Modular.nat-power-mod",
+        "Data.Nat.Modular.int-power-mod"
+      ],
+      "adaptation": "Positive nonzero modulus only; signed exponent/base adapter concrete; zero/nil modulus unmodulated powers absent; explicit checked errors"
+    },
+    {
+      "reference_declaration": "method (*Int) FillBytes([]uint8) []uint8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Float64() (float64, Accuracy)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Format(fmt.State, int32)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) GCD(*Int, *Int, *Int, *Int) *Int",
+      "status": "isolated-static-candidate-unqualified",
+      "concrete_operations": [
+        "Data.Nat.Modular.nat-gcd",
+        "Data.Nat.Modular.nat-extended-gcd"
+      ],
+      "adaptation": "Nat inputs only; exact gcd and valid signed coefficients, zero-zero coefficients defined; arbitrary signed GCD inputs remain open"
+    },
+    {
+      "reference_declaration": "method (*Int) GobDecode([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) GobEncode() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Int64() int64",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) IsInt64() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) IsUint64() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Lsh(*Int, uint) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) MarshalJSON() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) MarshalText() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Mod(*Int, *Int) *Int",
+      "status": "existing-positive-modulus-adaptation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-mod-nat"
+      ],
+      "adaptation": "Signed input with positive NonZero Nat modulus, returning Nat; arbitrary signed modulus/receiver API remains open"
+    },
+    {
+      "reference_declaration": "method (*Int) ModInverse(*Int, *Int) *Int",
+      "status": "isolated-static-candidate-unqualified",
+      "concrete_operations": [
+        "Data.Nat.Modular.nat-inverse-mod",
+        "Data.Nat.Modular.int-inverse-mod"
+      ],
+      "adaptation": "Signed base and positive NonZero Nat modulus; NotCoprime carries gcd; zero is checked refusal rather than panic; signed modulus/receiver API remains open"
+    },
+    {
+      "reference_declaration": "method (*Int) ModSqrt(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Mul(*Int, *Int) *Int",
+      "status": "existing-value-operation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-mul"
+      ],
+      "adaptation": "Immutable exact Int result, not a mutable receiver/aliasing API; no package-completeness claim"
+    },
+    {
+      "reference_declaration": "method (*Int) MulRange(int64, int64) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Neg(*Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Not(*Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Or(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) ProbablyPrime(int) bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Quo(*Int, *Int) *Int",
+      "status": "existing-value-operation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-div"
+      ],
+      "adaptation": "Immutable exact Int result, not a mutable receiver/aliasing API; no package-completeness claim"
+    },
+    {
+      "reference_declaration": "method (*Int) QuoRem(*Int, *Int, *Int) (*Int, *Int)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Rand(*rand.Rand, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Rem(*Int, *Int) *Int",
+      "status": "existing-value-operation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-rem"
+      ],
+      "adaptation": "Immutable exact Int result, not a mutable receiver/aliasing API; no package-completeness claim"
+    },
+    {
+      "reference_declaration": "method (*Int) Rsh(*Int, uint) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Scan(fmt.ScanState, int32) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Set(*Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetBit(*Int, int, uint) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetBits([]Word) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetBytes([]uint8) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetInt64(int64) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetString(string, int) (*Int, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) SetUint64(uint64) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Sign() int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Sqrt(*Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) String() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Sub(*Int, *Int) *Int",
+      "status": "existing-value-operation-source-audited-only",
+      "concrete_operations": [
+        "Data.Int.int-sub"
+      ],
+      "adaptation": "Immutable exact Int result, not a mutable receiver/aliasing API; no package-completeness claim"
+    },
+    {
+      "reference_declaration": "method (*Int) Text(int) string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) TrailingZeroBits() uint",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Uint64() uint64",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) UnmarshalJSON([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) UnmarshalText([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Int) Xor(*Int, *Int) *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Abs(*Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Add(*Rat, *Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) AppendText([]uint8) ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Cmp(*Rat) int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Denom() *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Float32() (float32, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Float64() (float64, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) FloatPrec() (int, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) FloatString(int) string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) GobDecode([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) GobEncode() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Inv(*Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) IsInt() bool",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) MarshalText() ([]uint8, error)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Mul(*Rat, *Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Neg(*Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Num() *Int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Quo(*Rat, *Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) RatString() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Scan(fmt.ScanState, int32) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Set(*Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetFloat64(float64) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetFrac(*Int, *Int) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetFrac64(int64, int64) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetInt(*Int) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetInt64(int64) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetString(string) (*Rat, bool)",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) SetUint64(uint64) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Sign() int",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) String() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) Sub(*Rat, *Rat) *Rat",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (*Rat) UnmarshalText([]uint8) error",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (Accuracy) String() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (ErrNaN) Error() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "method (RoundingMode) String() string",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Accuracy int8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type ErrNaN struct",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Float struct",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Int struct",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Rat struct",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type RoundingMode uint8",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Word uint",
+      "status": "open",
+      "concrete_operations": []
+    },
+    {
+      "reference_declaration": "type Word uintptr",
+      "status": "open",
+      "concrete_operations": []
+    }
+  ],
+  "audited_own_lane_source_hashes": {
+    "compiler/prelude/Data/Nat.cinch": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+    "compiler/prelude/Data/Int.cinch": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+    "compiler/prelude/Data/Rational.cinch": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
+    "compiler/prelude/Data/Machine.cinch": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+    "compiler/runtime/src/abi.rs": "9fdb24e58efcb94207edf1e317ac5a51c4982001d370612dc9475dc07c4addee",
+    "compiler/runtime/src/nat.rs": "e4e6be9acade04c385e9a925748b329bfa7a96e7a16c43f1cbeb34df0b5bd4a6",
+    "compiler/runtime/src/int.rs": "64cfce6801bf232e142da19ea3cf6218eb7fb48cfe796f85317bae22f7165d4d",
+    "compiler/runtime/src/limbs.rs": "87777a31bccd9685a5ec869382f47f89d0b3258fa809cbb15141c7536d709888"
+  },
+  "audit_runtime_source_identity_note": "Own-lane source audit only; no claim these bodies establish a newly qualified frozen family",
+  "consumer_source_sha256": "01ccec915d6f2d0974e0abff159a28fb45d928f176568281711afe9807cd53f6",
+  "source_distributed_dependency_closure": {
+    "Data.Nat.Modular": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364"
+  },
+  "embedded_dependencies": [
+    "Data.Bool",
+    "Data.Int",
+    "Data.Machine",
+    "Data.Nat",
+    "Data.Option",
+    "Data.Result"
+  ],
+  "new_runtime_ABI": false,
+  "public_limb_or_backing_access": false,
+  "static_models_executed": false,
+  "SDK_generator_executed": false,
+  "compiler_executed": false,
+  "portable_helper_ABI_qualified": false,
+  "Prime_or_primality_implemented": false,
+  "registered_prelude_module": false,
+  "prepared_sources": {
+    "generate.py": "f6ab5ae964f89c12b09b5e8f0d6d2dd162e5992813fa7dc122040c48f03f85d7",
+    "README.md": "599b7c7bd1debccdbb9cc4ec471f84d50d9a1adb94f3a7263315517911a530f3",
+    "models.py": "6fc72dfcac511815ee7a828de59920ccac126a83fcdec8cee1eb83780a9b7af3",
+    "consumer-small.cinch": "01ccec915d6f2d0974e0abff159a28fb45d928f176568281711afe9807cd53f6",
+    "oracle.go": "2a1c94139cf856e61ff7c4ebbea95325ef765040f77912b86d3390a78b46a979",
+    "src/Data.Nat.Modular.cinch": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364"
+  },
+  "previous_static_source": {
+    "commit": "77141b13",
+    "sha256": "774eb3d1a01be88f6fdfcf2c273b7424bd280b839e2228be6013721f5a64494c",
+    "qualified": false
+  }
+}

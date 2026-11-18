@@ -1,0 +1,145 @@
+-- | Measure complete retained-field pipelines with changed inputs and post-clock owner observations.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+  import Data.Result
+  import Data.String
+  import Data.Unicode.Kernel
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+
+  -- | Accumulate independently supplied decimal digits outside the measured loop.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from values total = case values of
+    Nil -> total
+    Cons value rest -> case digit-value value of
+      None -> 0
+      Some digit -> let next = total * 10 + digit in decimal-from rest next
+
+  -- | Resolve runtime sizes before constructing buffers or reading either clock.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Produce long runs, dense boundaries, vector fringes and multibyte/malformed raw inputs.
+  input-byte :: String -> Nat -> InRange 0 255 Nat
+  input-byte name at = if name == "space" then 32 else if name == "text" then 122 else
+    if name == "dense" then (if nat-rem at 2 == 0 then 122 else 32) else
+    if name == "fringe" then (if nat-rem at 33 == 32 then 32 else 122) else
+    let index = nat-rem at 12 in
+    if index == 0 then 97 else if index == 1 then 194 else if index == 2 then 160 else
+    if index == 3 then 98 else if index == 4 then 227 else if index == 5 then 128 else
+    if index == 6 then 128 else if index == 7 then 99 else if index == 8 then 32 else
+    if index == 9 then 255 else if index == 10 then 128 else 122
+
+  -- | Prepare a fixed owner with both neighboring sentinels excluded from the logical input.
+  fill :: String -> Bytes -> Nat -> Unit
+  fill name raw at = if at < bytes-len raw then
+    let value = ((if at + 1 == bytes-len raw then 255 else if at > 0 then input-byte name (at - 1) else 255) :: InRange 0 255 Nat) in
+    let written = bytes-set raw at value in let next = at + 1 in fill name raw next
+    else ()
+
+  -- | Make every ordered field extent and both raw endpoints observable with wrapping arithmetic.
+  prim hash-field :: U64 -> I64 -> U8 -> U8 -> U64 where
+    llvm {
+      %a = mul i64 %0, 65599
+      %b = mul i64 %1, 257
+      %first = zext i8 %2 to i64
+      %last = zext i8 %3 to i64
+      %c = mul i64 %first, 17
+      %d = mul i64 %last, 5
+      %e = add i64 %a, %b
+      %f = add i64 %c, %d
+      %g = add i64 %e, %f
+      %result = add i64 %g, 1
+      ret i64 %result
+    }
+
+  -- | Include the complete number of genuine predicate effects in that pipeline's checksum.
+  prim include-count :: U64 -> I64 -> U64 where
+    llvm {
+      %count = mul i64 %1, 104729
+      %result = add i64 %0, %count
+      ret i64 %result
+    }
+
+  -- | Read one checked raw endpoint without exposing the view's retained backing.
+  endpoint :: ByteView -> Nat -> U8
+  endpoint input at = case byte-view-get input at of None -> 0; Some value -> value
+
+  -- | Consume a nonempty public field after sequencing every endpoint and machine conversion.
+  field-hash :: U64 -> ByteView -> U64
+  field-hash total part = let size = byte-view-length part in
+    if size > 0 && size <= 9223372036854775807 then
+      let last-at = size - 1 in let first = endpoint part 0 in let last = endpoint part last-at in
+      let width = nat-to-i64 size in hash-field total width first last
+      else 0
+
+  -- | Consume the complete eager result before returning its checksum.
+  fold-fields :: List ByteView -> U64 -> U64
+  fold-fields values total = case values of
+    Nil -> total
+    Cons part rest -> let next = field-hash total part in fold-fields rest next
+
+  -- | Accumulate every callback result through a real mutation capability.
+  output :: forall (s :: Region). Var s U64 -> ByteView ->{Mut s} Bool
+  output total part = let previous = var-read total in let next = field-hash previous part in
+    let saved = var-write total next in True
+
+  -- | Observe one state effect for every decoded scalar before classifying Unicode whitespace.
+  predicate :: forall (s :: Region). Var s Nat -> Char ->{Mut s} Bool
+  predicate count value = let previous = var-read count in let next = previous + 1 in
+    let saved = var-write count next in unicode-is-space value
+
+  -- | Compare complete eager, persistent, callback and general-predicate public pipelines.
+  operation :: forall (s :: Region). String -> ByteView ->{Mut s} U64
+  operation kind view = if kind == "eager" then fold-fields (byte-view-fields view) 0 else
+    if kind == "producer" then prod-fold (0 :: U64) field-hash (byte-view-fields-producer view) else
+    if kind == "visit" then (let total = var-new (0 :: U64) in
+      let visited = byte-view-fields-each view (output total) in var-read total) else
+    if kind == "predicate" then fold-fields (byte-view-fields-func unicode-is-space view) 0 else
+    let count = var-new 0 in let values = byte-view-fields-func (predicate count) view in
+    let total = fold-fields values 0 in let calls = var-read count in
+    if calls <= 9223372036854775807 then let width = nat-to-i64 calls in include-count total width else 0
+
+  -- | Change the first raw byte before every operation while keeping owner and view identities stable.
+  work :: forall (s :: Region). String -> Bytes -> ByteView -> Nat -> Nat -> U64 ->{Mut s} U64
+  work kind raw view remaining index total = if remaining == 0 then total else
+    let value = ((if nat-rem index 2 == 0 then 97 else 98) :: InRange 0 255 Nat) in
+    let changed = (if 1 < bytes-len raw then bytes-set raw 1 value else ()) in
+    let result = operation kind view in let next-total = wrapping-add-u64 total result in
+    let left = remaining - 1 in let next-index = index + 1 in
+    work kind raw view left next-index next-total
+
+  -- | Render both halves of the complete machine checksum after measurement.
+  word-nat :: U64 -> Nat
+  word-nat word = let low = wrapping-u64-to-u32 word in let upper = wrapping-shr-u64 word 32 in
+    let high = wrapping-u64-to-u32 upper in u32-to-nat low + 4294967296 * u32-to-nat high
+
+  -- | Keep preparation and complete retained-owner hashing outside the measured operation loop.
+  measure :: forall (r :: Region) (s :: Region). using (io :: Io r) => String -> String -> Nat -> Nat ->{IO r, Mut s} Int
+  measure kind name size iterations = let raw = bytes-new (size + 2) in let initialized = fill name raw 0 in
+    case bytes-view-range raw 1 (size + 1) of
+      Err error -> 2
+      Ok view -> let held = var-new view in let original = hex-encode (sha256-bytes raw) in
+        let begin = clock-monotonic-ns () in let checksum = work kind raw view iterations 0 0 in
+        let finish = clock-monotonic-ns () in let kept-view = var-read held in
+        let kept-size = byte-view-length kept-view in let retained = hex-encode (sha256-bytes raw) in
+        let elapsed = saturating-sub finish begin in let complete = word-nat checksum in
+        let output = string-concat-all [nat-to-string elapsed," ",nat-to-string complete," ",original," ",retained," ",nat-to-string kept-size,"\n"] in
+        let printed = ioWrite (string-to-bytes output) in 0
+
+  -- | Parse caller-selected public pipeline and sizes before entering either timing boundary.
+  main :: Unit ->{IO r, Mut s} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons kind (Cons name (Cons size (Cons iterations Nil)))) -> measure kind name (decimal size) (decimal iterations)
+    other -> 2

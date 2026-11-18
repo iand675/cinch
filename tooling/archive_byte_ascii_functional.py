@@ -103,7 +103,7 @@ def main() -> None:
         return
     for report in args.report:
         report = report.resolve()
-        assert report.parent == ROOT/'build' and report.name.startswith('byte-ascii-run-')
+        assert report.parent == ROOT/'build' and (report.name.startswith('byte-ascii-run-') or (report.name.startswith('byte-fields-') and ('-runtime-' in report.name or report.name == 'byte-fields-first-native-v4-owners-o0.json')))
         result = json.loads(report.read_text())
         assert result['status'] == 'passed' and result['profiles'] and all(value['zero_leaks'] for value in result['profiles'])
         directory = report.with_suffix('')

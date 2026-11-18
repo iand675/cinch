@@ -1,0 +1,411 @@
+{
+  "scope": "Separate source-only UTF8 owner-touch reassociation; production unchanged",
+  "status": "semantic-and-owner-gates-passed-performance-pending",
+  "production_source_sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+  "candidate_source": "benchmarks/stdlib/byte-fields-utf8-reassociated.cinch",
+  "candidate_source_sha256": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+  "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "compiled_rc_debug": false,
+  "dynamic_profiles": {
+    "normal_heap": "32M",
+    "poison_heap": "256M",
+    "stack": "8M",
+    "leak_check": true
+  },
+  "total_profiles": 730,
+  "receipts": [
+    {
+      "report": "build/byte-fields-cpr-utf8-owners-runtime-baseline.json",
+      "report_sha256": "ca09fcfde0a9b3312fa13af7bc69ae74ab37edad08d440be1bce35174165fb4e",
+      "profiles": 2,
+      "normal_profiles": 1,
+      "poison_profiles": 1,
+      "metadata": {
+        "scope": "Existing independently qualified UTF8 owner/span control, matchedcurrentRust706/d91",
+        "variant": "baseline",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-owners-runtime-baseline/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-owners-runtime-baseline/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "8f57954ad81528144fa920d1a6b81d65bf49638dcbc8a4dc5edae778740887ce",
+        "executable_sha256": "6e1279da39ff30574b250e454ea1822b25a8f39eb48d1e4ec9d5c7172f3a41d2",
+        "seconds": 2.0302583529846743,
+        "before_free_bytes": 797405184,
+        "after_free_bytes": 788717568,
+        "own_output_bytes": 8505519
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-utf8-owners-runtime-candidate.json",
+      "report_sha256": "b095779bcc4e74fd70150adaa53bd9d95720493556eea1b7170f693f5a06120f",
+      "profiles": 2,
+      "normal_profiles": 1,
+      "poison_profiles": 1,
+      "metadata": {
+        "scope": "Existing independently qualified UTF8 owner/span control, matchedcurrentRust706/d91",
+        "variant": "candidate",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-owners-runtime-candidate/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-owners-runtime-candidate/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "8f57954ad81528144fa920d1a6b81d65bf49638dcbc8a4dc5edae778740887ce",
+        "executable_sha256": "6e1279da39ff30574b250e454ea1822b25a8f39eb48d1e4ec9d5c7172f3a41d2",
+        "seconds": 2.0977185610099696,
+        "before_free_bytes": 793374720,
+        "after_free_bytes": 784687104,
+        "own_output_bytes": 8505518
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-utf8-span-controls-runtime-baseline.json",
+      "report_sha256": "f7409c8342767b1d2068ae05b6361dedf382a4ab452b8de874f140b3d3814222",
+      "profiles": 2,
+      "normal_profiles": 1,
+      "poison_profiles": 1,
+      "metadata": {
+        "scope": "Existing independently qualified UTF8 owner/span control, matchedcurrentRust706/d91",
+        "variant": "baseline",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "e736ecbefa7a57ef7055d0a8e89bab6519cf775ecfd8b7aa49396999a846852f",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-span-controls-runtime-baseline/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-span-controls-runtime-baseline/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "6fbca28db0443c5698815247eed9a3590fd3317d145169633df63444fcc7b614",
+        "executable_sha256": "42813a78d917155a6259b60423596e285ba5104e980f02b4b4f043b6857dfb35",
+        "seconds": 1.0817714569857344,
+        "before_free_bytes": 791097344,
+        "after_free_bytes": 782671872,
+        "own_output_bytes": 8248340
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-utf8-span-controls-runtime-candidate.json",
+      "report_sha256": "1d2a432f129c1437838eb6d779598092d511e7041a5fbd725da26694e1ef220d",
+      "profiles": 2,
+      "normal_profiles": 1,
+      "poison_profiles": 1,
+      "metadata": {
+        "scope": "Existing independently qualified UTF8 owner/span control, matchedcurrentRust706/d91",
+        "variant": "candidate",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "e736ecbefa7a57ef7055d0a8e89bab6519cf775ecfd8b7aa49396999a846852f",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-span-controls-runtime-candidate/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-utf8-span-controls-runtime-candidate/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "94124303f0e1182820b1986b6b9b28e38f620139b2cf3a1549d79547f1c08c72",
+        "executable_sha256": "b018e69890babef4bd27d138f444748de47165ba9c9f1d7b8adc4920b3e7f375",
+        "seconds": 1.3907357930147555,
+        "before_free_bytes": 787120128,
+        "after_free_bytes": 778715136,
+        "own_output_bytes": 8225371
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-spans-runtime-baseline.json",
+      "report_sha256": "f4a180b8e89d031759314201d1e62bf1754c643a2c1c74f633c90636cdcff9e9",
+      "profiles": 190,
+      "normal_profiles": 1,
+      "poison_profiles": 189,
+      "metadata": {
+        "scope": "Complete existing independent bounded UTF8 span corpus, matchedRust706/d91",
+        "variant": "baseline",
+        "owner_buffers": 1505,
+        "spans": 147105,
+        "decode_observations": 1028230,
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "e8b7a6df3dd9907d857b19d95b4878713a7e059d20d02e14ddcc6c08cfe83b42",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-spans-runtime-baseline/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-spans-runtime-baseline/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "7d8732e2b90b08c401f255fffe7163c76e5175ae75bd3abfc422835155bfdeca",
+        "executable_sha256": "1167a5239eb1f4a4a246d53560c005758016d142c3c20fcdfa9cad0d308c8aba",
+        "seconds": 2.5520262170175556,
+        "before_free_bytes": 512667648,
+        "after_free_bytes": 503418880,
+        "own_output_bytes": 9057798
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-spans-runtime-candidate.json",
+      "report_sha256": "5e02e8b74c82c3f7e2f9b9bc3e8aad2b31141ff4e8525706e2a297ca1a3c548f",
+      "profiles": 190,
+      "normal_profiles": 1,
+      "poison_profiles": 189,
+      "metadata": {
+        "scope": "Complete existing independent bounded UTF8 span corpus, matchedRust706/d91",
+        "variant": "candidate",
+        "owner_buffers": 1505,
+        "spans": 147105,
+        "decode_observations": 1028230,
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "e8b7a6df3dd9907d857b19d95b4878713a7e059d20d02e14ddcc6c08cfe83b42",
+        "dependencies": {
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "compiled_rc_debug": false,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-spans-runtime-candidate/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-spans-runtime-candidate/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "llvm_sha256": "2bbba6629a26bba1b65dac7223b398f525d8c4607538f11e366fdb15356a5002",
+        "executable_sha256": "f1bd05c35a9d9c1af28b979807bf0ab6ed85f945c94e28e0eb2966561b330a01",
+        "seconds": 2.4148771229956765,
+        "before_free_bytes": 508465152,
+        "after_free_bytes": 499216384,
+        "own_output_bytes": 9058635
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-controls-runtime-candidate-o2.json",
+      "report_sha256": "976e864cc10934ff203fe107a42e3b940e682114261f97461acc3c0f69df85da",
+      "profiles": 22,
+      "normal_profiles": 11,
+      "poison_profiles": 11,
+      "metadata": {
+        "group": "controls",
+        "cases": 10,
+        "fixture_sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "entry_sha256": "909efe17730f5edb6ab45aefd5cde315e3386c995d08bcfc7c782e70b44f299d",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "compiled_rc_debug": false,
+        "compiler_stack_bytes": 67108864,
+        "program_stack_bytes": 8388608,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-controls-runtime-candidate-o2/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-controls-runtime-candidate-o2/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "opt_level": "2",
+        "runtime_size": 65536,
+        "expected_stdout": "",
+        "selection": {
+          "first": 0,
+          "limit": null,
+          "batch_size": 1
+        },
+        "generator_sha256": "c871b489be22a663f40f293652f1240ed9304bb224b994fd6fd4c62659e6bc76",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "llvm_sha256": "630cbd7c2c43005d2a07b37cf7798351773f9918ca1ab1fc76dd11b64f32696a",
+        "executable_sha256": "4a4bd5f186840c582d758ee7cf7c6d74badd2e3626f12ed1bf4fca0103545bff"
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-mixed-runtime-candidate-o2.json",
+      "report_sha256": "2dc438482ac2230819a3cdef4fef649c32ab4441aecb86c2056b99da746f5ce7",
+      "profiles": 2,
+      "normal_profiles": 1,
+      "poison_profiles": 1,
+      "metadata": {
+        "group": "mixed",
+        "cases": 1,
+        "fixture_sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "entry_sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+        },
+        "compiled_rc_debug": false,
+        "compiler_stack_bytes": 67108864,
+        "program_stack_bytes": 8388608,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-mixed-runtime-candidate-o2/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-mixed-runtime-candidate-o2/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "opt_level": "2",
+        "runtime_size": null,
+        "expected_stdout": "a b a b ",
+        "selection": {
+          "first": 0,
+          "limit": null,
+          "batch_size": 1
+        },
+        "generator_sha256": "c871b489be22a663f40f293652f1240ed9304bb224b994fd6fd4c62659e6bc76",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "llvm_sha256": "32bc9a2d7c4935218d8346e8a0a20ff365c9d1d5d1ec5df9fa7c45dfd04f8363",
+        "executable_sha256": "f5133a7dffa247777e6a9770ae8de617180c51c77a05690a52ba82a22731a8d4"
+      }
+    },
+    {
+      "report": "build/byte-fields-cpr-rows-runtime-candidate-o2.json",
+      "report_sha256": "9f1f005ddc32f072d5bdcf34ad4507d809b5f4d536c4614eac51dbb4575ed505",
+      "profiles": 318,
+      "normal_profiles": 159,
+      "poison_profiles": 159,
+      "metadata": {
+        "group": "rows",
+        "cases": 1266,
+        "fixture_sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+        "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+        "entry_sha256": "10fb3a78900726574030d0ae7eb8f6b7df44db657e32815c70b74a3ab68263c0",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "compiled_rc_debug": false,
+        "compiler_stack_bytes": 67108864,
+        "program_stack_bytes": 8388608,
+        "status": "passed",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+          "build",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-rows-runtime-candidate-o2/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-byte-split/build/byte-fields-cpr-rows-runtime-candidate-o2/consumer",
+          "--opt-level",
+          "2",
+          "--runtime-archive",
+          "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a"
+        ],
+        "opt_level": "2",
+        "runtime_size": null,
+        "expected_stdout": "",
+        "selection": {
+          "first": 0,
+          "limit": null,
+          "batch_size": 8
+        },
+        "generator_sha256": "c871b489be22a663f40f293652f1240ed9304bb224b994fd6fd4c62659e6bc76",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "llvm_sha256": "c185a8fa2b97691926c4772023c43ed67ada7be9e514792a1a653c7a0c6a4afe",
+        "executable_sha256": "9bad85c1606f590b6fd96b87542e5b81b29fb2515596a21ff3732e9128d4ed4c"
+      }
+    }
+  ],
+  "fixtures": {
+    "compiler/tests/fixtures/byte-fields-cpr-utf8-owners.cinch": "d2f4c0ba458c56d0992814665a88d58bc2b926c0e27756081d6904ff1c321471",
+    "compiler/tests/fixtures/byte-fields-cpr-utf8-span-controls.cinch": "e736ecbefa7a57ef7055d0a8e89bab6519cf775ecfd8b7aa49396999a846852f",
+    "compiler/tests/fixtures/byte-fields-cpr-utf8-spans.cinch": "e8b7a6df3dd9907d857b19d95b4878713a7e059d20d02e14ddcc6c08cfe83b42"
+  },
+  "limitations": [
+    "Full independent span corpus is matched baseline/candidate; full Fields rows and callback controls run on candidate and compare with already qualified immutable Fields1fe6 fixtures.",
+    "CLI compiled RC instrumentation is false; poisoned runtime mode is independently enabled. Parent checked-RC API gate for this candidate remains pending.",
+    "Entry lowered Core covers Main only; actual dependency aggregate and owner-load proof uses emitted linked LLVM.",
+    "No new Native candidate qualification or production adoption.",
+    "Fresh paired public-pipeline preflight/timing remains pending."
+  ]
+}
