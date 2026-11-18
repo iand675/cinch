@@ -1028,8 +1028,8 @@ module Bootstrap.Parse where
     else if string-compare w "prim" == 0 then parse-prim False toks src fix
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
-    else if string-compare w "stage" == 0 then parse-marked-decl DStage toks src fix
-    else if string-compare w "macro" == 0 then parse-macro-declaration toks src fix
+    else if string-compare w "stage" == 0 then parse-compile-time-declaration True toks src fix
+    else if string-compare w "macro" == 0 then parse-compile-time-declaration False toks src fix
     else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
     else if string-compare w "corec" == 0 then parse-marked-decl DCorec toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
@@ -1087,8 +1087,8 @@ module Bootstrap.Parse where
         else PBad
       other -> PBad
 
-  parse-macro-declaration :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
-  parse-macro-declaration toks src fix = case toks of
+  parse-compile-time-declaration :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-compile-time-declaration staged toks src fix = case toks of
     Cons keyword inputs -> (case parse-value-name inputs of
       POk name args -> (case parse-pats args src of
         POk patterns (Cons equals (Cons quote tail)) | is-punct-t (lt-token equals) "=" && stage-word-t (lt-token quote) "quoteDecls" ->
@@ -1096,10 +1096,11 @@ module Bootstrap.Parse where
             POk site block -> (case parse-block block src fix of
               POk declarations rest -> let end = case rest of Cons next more -> span-start (sp-of next); Nil -> bytes-len src in
                 let range = Span (span-start site) end (span-line site) (span-col site) in
-                POk (DDeclarationMacro (sp-of keyword) name patterns (decl-spine range declarations)) rest
+                let body = DDeclarationMacro (sp-of keyword) name patterns (decl-spine range declarations) in
+                POk (if staged then DStage (sp-of keyword) body else body) rest
               PBad -> PBad)
             PBad -> PBad)
-        other -> parse-marked-decl DMacro toks src fix)
+        other -> parse-marked-decl (if staged then DStage else DMacro) toks src fix)
       PBad -> PBad)
     Nil -> PBad
 
@@ -1261,12 +1262,14 @@ module Bootstrap.Parse where
             PBad -> PBad
           PBad -> PBad
         PBad -> PBad)
-      else (case parse-expr (Cons quote rest) src fix of
-        POk (EMacroCall site path tokens) remaining -> (case expect-punct-t remaining ")" of
-          POk close tail -> POk (DEmitMacro (span-join sp close) path tokens) tail
-          PBad -> PBad)
-        other -> PBad)
-    other -> PBad
+      else parse-emitted-value sp toks src fix
+    other -> parse-emitted-value sp toks src fix
+
+  parse-emitted-value :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-emitted-value sp toks src fix = case parse-expr toks src fix of
+    POk (EMacroCall at path tokens) rest -> POk (DEmitMacro (span-join sp at) path tokens) rest
+    POk value rest -> POk (DStageEmitValue (span-join sp (expr-span value)) value) rest
+    PBad -> PBad
 
   parse-stage-branch :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-stage-branch sp toks src fix = case parse-expr toks src fix of

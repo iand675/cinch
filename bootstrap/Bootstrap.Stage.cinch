@@ -176,6 +176,7 @@ module Bootstrap.Stage where
 
   action-probes :: Decl -> Result (List Diagnostic) (List Decl)
   action-probes action = case action of
+    DStageEmitValue site value -> Ok Nil
     DEmitMacro site path tokens -> Ok Nil
     DStageEmit site template -> template-probes (decls-of template)
     DStageBranch site condition yes no -> case (action-probes yes, action-probes no) of
@@ -219,6 +220,7 @@ module Bootstrap.Stage where
   -- as a runtime global it mentions, and it is not stage code to begin with.
   quotation-bodied :: Decl -> Bool
   quotation-bodied declaration = case declaration of
+    DDeclarationMacro site name params template -> True
     DFun site name clauses -> case clauses of
       Cons (patterns, EQuote at body) Nil -> True
       other -> False
@@ -240,6 +242,7 @@ module Bootstrap.Stage where
   -- same bare name before resolution.
   definition-name :: Decl -> String
   definition-name declaration = case declaration of
+    DDeclarationMacro site name params template -> name
     DStage site (DFun at name clauses) -> name
     DStage site (DSig at name ty) -> name
     DFun site name clauses -> name
@@ -263,6 +266,9 @@ module Bootstrap.Stage where
         DMacro site (DFun at name clauses) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site (DSig at name scheme) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site body -> stage-error site "a macro requires a signature or equation"
+        DStage site (DDeclarationMacro at name params template) -> if owner then (case template-probes (decls-of template) of
+          Ok probes -> Ok (Cons (DMacroBinding site name) (probes <> tail))
+          Err errors -> Err errors) else Ok (Cons (DMacroBinding site name) tail)
         DStage site body -> if quotation-bodied body then Ok (Cons (DMacroBinding site (definition-name body)) tail)
           else if not owner then Ok tail
           else if quotation-signature-of (definition-name body) all then Ok tail
@@ -329,6 +335,9 @@ module Bootstrap.Stage where
 
   code-carrier :: TypeExpr -> Option TypeExpr
   code-carrier ty = case ty of
+    TForall site parameters body -> (case code-carrier body of
+      Some carrier -> Some (TForall site parameters carrier)
+      None -> None)
     TApp site (TName at name) (TArg arg carrier (TArgsEnd end)) | same name "Code" -> Some carrier
     other -> None
 
@@ -443,8 +452,31 @@ module Bootstrap.Stage where
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons value more, done)
 
+  stored-declarations :: String -> List Decl -> Option Decl
+  stored-declarations name declarations = case declarations of
+    Cons (DStage at (DDeclarationMacro site declared Nil template)) rest | same declared name -> Some template
+    Cons other rest -> stored-declarations name rest
+    Nil -> None
+
+  emit-stage-value :: CheckedProgram -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  emit-stage-value checked scope site value fuel = case (scope-site scope, value) of
+    (MkMacroSite owner fix modules names parent, EVar at spelling) -> (case lookup-macro names owner spelling of
+      Some (home, name) -> (case macro-module home modules of
+        Some definition -> let declarations = module-decls definition in (case (stored-declarations name declarations, stage-signature name declarations) of
+          (Some template, Some (TName at carrier)) | same carrier "Declarations" ->
+            let destination = defining-scope home scope in (case expand-template checked home (scope-with-template (decls-of template) destination) fuel of
+              Err errors -> Err errors
+              Ok (expanded, remaining) -> (case fill-declarations (scope-site destination) fix (MacroOperands Nil Nil) expanded remaining of
+                Err errors -> Err errors
+                Ok (filled, done) -> Ok ([DGeneratedGroup site home name (decl-spine (decl-span template) filled)], done)))
+          other -> stage-error site "emit requires a stage value of type Declarations")
+        None -> stage-error site "stage declaration module is unavailable")
+      None -> stage-error site "stage declaration value is not in scope")
+    other -> stage-error site "emit requires a stage value of type Declarations"
+
   expand-action :: MacroSite -> CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-action context checked owner scope action fuel = case action of
+    DStageEmitValue site value -> emit-stage-value checked scope site value fuel
     DEmitMacro site path tokens -> expand-declaration-call context site path tokens fuel
     DStageEmit site template -> expand-template checked owner (scope-with-template (decls-of template) scope) fuel
     DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of

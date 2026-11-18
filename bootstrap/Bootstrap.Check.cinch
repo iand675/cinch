@@ -989,6 +989,7 @@ module Bootstrap.Check where
     DEmitMacro s name tokens -> fail s "emit requires a generate block"
     DGeneratedGroup s owner macro-name template -> fail s "generated declarations require lexical resolution"
     DStageEmit s template -> fail s "emit requires a generate block"
+    DStageEmitValue s value -> fail s "emit requires a generate block"
     DStageBranch s condition yes no -> fail s "a staged branch requires a generate block"
     -- A temporal contract is verified by the elaboration that owns the
     -- definition's checked Core and its per-step write log, so this

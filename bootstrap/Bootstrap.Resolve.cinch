@@ -467,6 +467,7 @@ module Bootstrap.Resolve where
   macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
   macro-declaration :: Decl -> Decl
   macro-declaration declaration = case declaration of
+    DStage s (DDeclarationMacro at name patterns body) -> DMacroBinding s name
     DStage s (DFun at name clauses) -> DMacroBinding s name
     DDeclarationMacro s name patterns template -> DMacroBinding s name
     DMacro s (DFun at name clauses) -> DMacroBinding s name

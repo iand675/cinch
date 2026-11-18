@@ -8635,7 +8635,7 @@ module Bootstrap.Infer where
         (value, checked) -> predicate-index-value sp carrier value checked))
     TName sp name -> case lookup-local name locals of
       Some value -> predicate-index-value sp carrier value st
-      None -> bad sp "source index has no checked local binding" st
+      None -> bad sp (string-concat-all ["source index has no checked local binding: `", name, "` does not resolve to ", if math-carrier carrier then "a numeric index" else "an index", " in this scope"]) st
     TInfix sp op first second -> if not (predicate-arithmetic-input kinds locals syntax) then bad sp "machine arithmetic cannot enter mathematical index conversion" st
       else if has op ["+", "-", "*"] then
         (case convert-predicate-index external kinds locals carrier first st of
@@ -8751,7 +8751,7 @@ module Bootstrap.Infer where
          if math-carrier carrier then (case convert-predicate-index external kinds locals carrier a st of
            (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of
              (right, sb) -> let out = UCompare op left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb))
-         else bad s "proof predicate needs checked mathematical carriers" st)
+         else bad s (string-concat-all ["proof predicate needs checked mathematical carriers: numeric index comparison received `", display-type-text carrier, "`"]) st)
       else bad s "unsupported proof predicate operator" st
     other -> bad (type-expr-span syntax) "proof predicate needs checked arithmetic" st
   convert-proof-bounds :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
