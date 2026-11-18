@@ -4,7 +4,7 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, fill-splices as macro-fill-splices, macro-parameters, syntax-template-of, expand-error)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
@@ -674,9 +674,31 @@ module Bootstrap.Stage where
   expand-stages :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) Program
   expand-stages resolve program = expand-stages-with resolve (\unit -> Nil) program
 
+  stage-code-carrier :: String -> List Decl -> Option TypeExpr
+  stage-code-carrier name declarations = case declarations of
+    Cons (DStage site (DSig at declared (TApp app (TName head constructor) (TArg slot carrier (TArgsEnd end))))) rest | same declared name && same constructor "Code" -> Some carrier
+    Cons other rest -> stage-code-carrier name rest
+    Nil -> None
+
+  prepare-stage-code :: String -> (String -> Bool) -> List Decl -> Decl -> Decl
+  prepare-stage-code home available declarations declaration = case declaration of
+    DStage site (DFun at name [(Nil, body)]) -> (case stage-code-carrier name declarations of
+      Some carrier -> (case closed-code-template home available carrier body of
+        Some template -> DStage site (DFun at name [(Nil, EQuote at template)])
+        None -> declaration)
+      None -> declaration)
+    other -> declaration
+
+  prepare-stage-module :: MacroNamespaces -> Module -> Module
+  prepare-stage-module names m = let declarations = module-decls m in
+    if not (needs-stage-check declarations) then m else let home = module-name m in
+      let site = module-span m in MkModule site home (decl-spine site (map (prepare-stage-code home (stage-operation-available names home) declarations) declarations))
+
   expand-stages-with :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) Program
   expand-stages-with resolve import-headers program = let modules = program-modules program in
     if not (modules-have-stage-work modules) then Ok program else
-      let imports = import-headers () in case expand-modules resolve program (modules <> imports) (macro-namespaces modules imports) modules macro-budget of
+      let imports = import-headers () in let names = macro-namespaces modules imports in
+      let prepared = map (prepare-stage-module names) modules in
+      case expand-modules resolve (MkProgram (program-span program) prepared) (prepared <> imports) names prepared macro-budget of
         Err errors -> Err errors
         Ok (expanded, fuel) -> Ok (MkProgram (program-span program) expanded)

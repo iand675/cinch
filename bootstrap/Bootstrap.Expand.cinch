@@ -20,7 +20,7 @@ module Bootstrap.Expand where
   import Algebra.Semigroup
 
   export term-has-macro-call, decl-has-macro-call, clauses-have-macro-call
-  export hygienic-term
+  export hygienic-term, closed-code-template
   export fill-splices
   export macro-parameters, template-of, syntax-template-of
   export expand-error
@@ -190,7 +190,7 @@ module Bootstrap.Expand where
   -- The key belongs to the allocating syntax node. The normal hygiene pass
   -- gives it a distinct lexical identity each time the template is used.
   data SyntaxHandle where
-    SyntaxHandle :: String -> String -> SyntaxHandle
+    SyntaxHandle :: String -> BindingSpelling -> SyntaxHandle
   find-handle :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
   find-handle name bindings = case bindings of
     Nil -> None
@@ -200,11 +200,26 @@ module Bootstrap.Expand where
   syntax-handle available names handles value = case value of
     EVar at local -> find-handle local handles
     EApp at (EVar site op) (EVar arg param) | same op "Syntax.newBinding" && available op && syntax-input param names ->
-      Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) param)
+      Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) (ParameterSpelling param))
+    EApp at (EVar site op) (EApp arg (EVar ref-site convert) (ELitSym lit name)) | same op "Syntax.newBinding" && available op && same convert "sym-to-name" && available convert ->
+      Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) (LiteralSpelling name))
     other -> None
 
   code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
   code-template home available names inputs = scoped-template home available names inputs Nil Nil
+
+  -- Stage values have no token-tree parameters. Build their code using the
+  -- same operations, hygiene and splice checks as a macro invocation.
+  closed-code-template :: String -> (String -> Bool) -> TypeExpr -> Expr -> Option Expr
+  closed-code-template home available carrier term = case term of
+    EQuote at body -> None
+    EMacroCall at path tokens -> None
+    other -> (case code-template home available Nil Nil term of
+      None -> None
+      Some body -> case hygienic-term body 0 of
+        (renamed, after) -> case fill-splices renamed Nil Nil of
+          Err errors -> None
+          Ok filled -> Some (ETemplateScope (expr-span term) home (EAnn (expr-span term) filled carrier)))
 
   scoped-template :: String -> (String -> Bool) -> List String -> List String -> List (String, SyntaxHandle) -> List String -> Expr -> Option Expr
   scoped-template home available names inputs handles introduced rhs =
@@ -478,10 +493,12 @@ module Bootstrap.Expand where
     Err errors -> Err errors
     Ok (filled, leftover) -> Ok filled
 
-  binding-spelling :: Span -> String -> List (String, List LToken) -> Result (List Diagnostic) String
-  binding-spelling site param groups = case take-group param groups of
-    Some [token] -> (case lt-token token of TVar name -> Ok name; other -> expand-error site "Syntax.newBinding requires a variable name")
-    other -> expand-error site "Syntax.newBinding requires one Name argument"
+  binding-spelling :: Span -> BindingSpelling -> List (String, List LToken) -> Result (List Diagnostic) BindingSpelling
+  binding-spelling site origin groups = case origin of
+    LiteralSpelling name -> Ok origin
+    ParameterSpelling param -> (case take-group param groups of
+      Some [token] -> (case lt-token token of TVar name -> Ok (LiteralSpelling name); other -> expand-error site "Syntax.newBinding requires a variable name")
+      other -> expand-error site "Syntax.newBinding requires one Name argument")
 
   fill-walk :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
   fill-walk e groups fix = case e of

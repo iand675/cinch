@@ -406,9 +406,9 @@ module Bootstrap.Resolve where
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
     let lexical = MkLexicalScope visible (binding-index visible) Nil in
     let has-macro = declares-macros (module-decls m) in
-    let homes = if has-macro then Cons (home, lexical) earlier else earlier in
+    let homes = Cons (home, lexical) earlier in
     let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
-    (MkScoped home surface body, homes, visibility-errors <> export-errors <> body-errors)
+    (MkScoped home surface body, if has-macro then homes else earlier, visibility-errors <> export-errors <> body-errors)
 
   find-home :: String -> List (String, LexicalScope) -> Option LexicalScope
   find-home name homes = case homes of
@@ -954,9 +954,9 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (EQuote s renamed, errors)
     -- A Name describes a spelling. Only the enclosing template's lexical
     -- table can turn it into a definition, including privately owned names.
-    ESyntaxReference s key name -> if has-name key locals then (EVar s key, Nil)
+    ESyntaxReference s key (LiteralSpelling name) -> if has-name key locals then (EVar s key, Nil)
       else (e, fail s (cat ["captured local `", name, "` is not in scope"]))
-    ESyntaxCaptureUnder s key name body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
+    ESyntaxCaptureUnder s key (LiteralSpelling name) body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
       MkVisible lexical homes (CallerScope (MkLexicalScope order index aliases) names remaining) ->
         let extended = MkLexicalScope order index (Cons (name, key) aliases) in
         rename-expr (MkVisible extended homes remaining) (without-spelling name names) body

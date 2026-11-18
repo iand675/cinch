@@ -266,6 +266,15 @@ module Bootstrap.Ast where
 
   -- ------------------------------------------------------------------- terms
 
+  data BindingSpelling where
+    ParameterSpelling :: String -> BindingSpelling
+    LiteralSpelling :: String -> BindingSpelling
+
+  binding-name-identity :: BindingSpelling -> Json
+  binding-name-identity origin = case origin of
+    ParameterSpelling param -> JArr (JStr "parameter") (JArr (JStr param) JArrEnd)
+    LiteralSpelling name -> JArr (JStr "literal") (JArr (JStr name) JArrEnd)
+
   data Expr where
     EVar :: Span -> String -> Expr
     ECon :: Span -> String -> Expr -> Expr
@@ -330,8 +339,8 @@ module Bootstrap.Ast where
     -- cannot construct either boundary from a user's term.
     ETemplateScope :: Span -> String -> Expr -> Expr
     EDefinitionName :: Span -> String -> String -> Expr
-    ESyntaxReference :: Span -> String -> String -> Expr
-    ESyntaxCaptureUnder :: Span -> String -> String -> Expr -> Expr
+    ESyntaxReference :: Span -> String -> BindingSpelling -> Expr
+    ESyntaxCaptureUnder :: Span -> String -> BindingSpelling -> Expr -> Expr
     EArgumentScope :: Span -> Expr -> Expr
     EMacroCall :: Span -> String -> List LToken -> Expr
     EUnmodeled :: Span -> String -> Expr
@@ -1066,8 +1075,8 @@ module Bootstrap.Ast where
     -- what the default-clause and interface identity comparisons need.
     EDefinitionName sp owner name -> JArr (JStr "EDefinitionName") (JArr (JStr owner) (JArr (JStr name) JArrEnd))
     ETemplateScope sp owner body -> JArr (JStr "ETemplateScope") (JArr (JStr owner) (JArr (source-identity-expr body) JArrEnd))
-    ESyntaxReference sp key name -> JArr (JStr "ESyntaxReference") (JArr (JStr key) (JArr (JStr name) JArrEnd))
-    ESyntaxCaptureUnder sp key name body -> JArr (JStr "ESyntaxCaptureUnder") (JArr (JStr key) (JArr (JStr name) (JArr (source-identity-expr body) JArrEnd)))
+    ESyntaxReference sp key name -> JArr (JStr "ESyntaxReference") (JArr (JStr key) (JArr (binding-name-identity name) JArrEnd))
+    ESyntaxCaptureUnder sp key name body -> JArr (JStr "ESyntaxCaptureUnder") (JArr (JStr key) (JArr (binding-name-identity name) (JArr (source-identity-expr body) JArrEnd)))
     EArgumentScope sp body -> JArr (JStr "EArgumentScope") (JArr (source-identity-expr body) JArrEnd)
     EMacroCall part0 part1 part2 -> JArr (JStr "EMacroCall") (JArr (JStr part1) (JArr (source-identity-tokens part2) JArrEnd))
     ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
