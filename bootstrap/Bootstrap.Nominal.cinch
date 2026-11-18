@@ -309,6 +309,12 @@ module Bootstrap.Nominal where
   measure-reference name rows = case rows of
     JArr row rest -> (same name (text (field "identity" row)) && same "measure" (text (field "kind" row))) || measure-reference name rest
     other -> False
+  singleton-reference :: String -> Json -> Bool
+  singleton-reference name rows = case rows of
+    JArr row rest -> (case field "constructors" row of
+      JArr (JStr symbol) JArrEnd -> same symbol name
+      other -> False) || singleton-reference name rest
+    other -> False
   resolved-text :: Json -> Option String
   resolved-text metadata = case field "scheme" (field "resolved" metadata) of JStr scheme -> Some scheme; other -> None
   contains-identity :: String -> Json -> Bool
@@ -463,7 +469,7 @@ module Bootstrap.Nominal where
         (value, errors) -> (TApp sp (TName at "#kernel.bytes-length") (TArg arg value (TArgsEnd end)), errors))
       else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
-      else if measure-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
+      else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
         (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))
       else fail sp "resolved predicate needs checked mathematical operands"
     TApp sp (TName at name) arguments -> if measure-reference name refs then (case qualify-predicate-args refs locals arguments of

@@ -21,7 +21,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
-  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals)
+  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -941,21 +941,54 @@ module Bootstrap.Infer where
       (value, checked) -> (case convert-total-arguments external kinds locals rest more checked of
         (values, done) -> (UArg value values, done)))
     other -> bad (type-expr-span arguments) "defining total call arity mismatch" st
-  source-constructor-arrow :: TypeContext -> String -> List Decl -> Option UType
-  source-constructor-arrow kinds name declarations = case declarations of
+  singleton-arrow :: TypeContext -> String -> TypeExpr -> Option UType
+  singleton-arrow kinds owner syntax = case syntax of
+    TFun site (TName arg field) (TName end result) | same owner result -> case (context-kind owner kinds, context-kind field kinds) of
+      (Some KType, Some KType) -> Some (UFun (literal-type kinds field) (UCon owner KType))
+      other -> None
+    other -> None
+
+  -- Only the defining module's complete, public constructor table supplies
+  -- the arrow. Nominal references inside a client's predicate carry no such authority.
+  imported-singleton-arrow :: TypeContext -> String -> Json -> Option UType
+  imported-singleton-arrow kinds identity types = case types of
+    JArr row more -> case (field "identity" row, field "ctors" row) of
+      (JStr owner, JArr ctor JArrEnd) | (case field "symbol" ctor of JStr symbol -> same identity symbol; other -> False) ->
+        if not (runtime-constructors-complete (interface-global owner) (field "ctors" row)) then None
+        else (case resolved-text ctor of
+          Some text -> (case parse-scheme "constructor index" (string-to-bytes text) of
+            Parsed ty Nil -> (case qualify-resolved ctor ty of
+              (qualified, Nil) -> singleton-arrow kinds (interface-global owner) qualified
+              other -> None)
+            other -> None)
+          None -> None)
+      other -> imported-singleton-arrow kinds identity more
+    other -> None
+
+  imported-constructor-arrow :: TypeContext -> String -> String -> List Decl -> Option UType
+  imported-constructor-arrow kinds home identity declarations = case declarations of
+    Cons (DInterface sp owner hash metadata) rest | same owner home ->
+      imported-singleton-arrow kinds identity (field "types" (field "exports" metadata))
+    Cons other rest -> imported-constructor-arrow kinds home identity rest
     Nil -> None
-    Cons (DData sp owner Nil [(symbol, TFun site (TName arg field) (TName end result))]) rest | same name symbol && same owner result ->
-      (case context-kind owner kinds of
-        Some KType -> (case context-kind field kinds of
-          Some KType -> Some (UFun (literal-type kinds field) (UCon owner KType))
-          other -> None)
-        other -> None)
-    Cons other rest -> source-constructor-arrow kinds name rest
+
+  local-constructor-arrow :: TypeContext -> String -> List Decl -> Option UType
+  local-constructor-arrow kinds name declarations = case declarations of
+    Cons (DData sp owner Nil [(symbol, syntax)]) rest | same name symbol -> singleton-arrow kinds owner syntax
+    Cons other rest -> local-constructor-arrow kinds name rest
+    Nil -> None
+
+  source-constructor-arrow :: TypeContext -> String -> Option UType
+  source-constructor-arrow kinds name = case unpack name of
+    Cons head (Cons dot rest) | char-code head == 105 && char-code dot == 46 -> (case export-global name of
+      Ok identity -> imported-constructor-arrow kinds (nominal-owner identity) identity (context-aliases kinds)
+      Err message -> None)
+    other -> local-constructor-arrow kinds name (context-aliases kinds)
 
   constructor-operand-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> Option UType
   constructor-operand-carrier kinds locals syntax = case syntax of
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (case lookup-local name locals of
-      None -> (case source-constructor-arrow kinds name (context-aliases kinds) of
+      None -> (case source-constructor-arrow kinds name of
         Some (UFun field result) -> Some result
         other -> predicate-carrier locals syntax)
       other -> predicate-carrier locals syntax)
@@ -964,7 +997,7 @@ module Bootstrap.Infer where
   convert-total-call external kinds locals sp name arguments st = case context-total-observation name kinds of
     Some binding -> (case convert-total-arguments external kinds locals (total-parameters (binding-function binding)) arguments st of
       (values, checked) -> checked-typed-source-index sp (UIndexCall (binding-function binding) values) checked)
-    None -> (case (lookup-local name locals, source-constructor-arrow kinds name (context-aliases kinds), arguments) of
+    None -> (case (lookup-local name locals, source-constructor-arrow kinds name, arguments) of
       (None, Some (UFun domain result), TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals domain input st of
         (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
       other -> bad sp "index application has no actual defining total body declaration" st)
