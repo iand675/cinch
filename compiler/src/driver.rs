@@ -3682,6 +3682,31 @@ fn runtime_lock(shared: bool) -> Option<std::fs::File> {
     Some(file)
 }
 
+fn runtime_archive_fresh(runtime: &Path, archive: &Path) -> bool {
+    let Ok(built) = std::fs::metadata(archive).and_then(|m| m.modified()) else {
+        return false;
+    };
+    let mut pending = vec![runtime.join("src"), runtime.join("Cargo.toml")];
+    while let Some(path) = pending.pop() {
+        if path.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(path) {
+                pending.extend(entries.flatten().map(|entry| entry.path()));
+            }
+        } else if std::fs::metadata(path).and_then(|m| m.modified()).is_ok_and(|m| m > built) {
+            return false;
+        }
+    }
+    true
+}
+
+// Active links hold a shared lock. A fresh archive can be used by all of
+// them concurrently. Recheck after acquiring a writer lock because another
+// process may have finished the rebuild while this process was waiting.
+fn runtime_fresh_for_readers(runtime: &Path, archive: &Path) -> bool {
+    let _reader = runtime_lock(true);
+    runtime_archive_fresh(runtime, archive)
+}
+
 #[cfg(feature = "jit")]
 pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
     let archive = ensure_runtime()?;
@@ -3723,31 +3748,11 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
     let release = runtime.join("target/release/libcinchruntime.a");
-    // The rebuild holds the lock; a concurrent link waits rather than
-    // reading a half-written archive.
-    let _guard = runtime_lock(false);
-    // Rebuild when any runtime source is newer than the staticlib (a
-    // stale library silently drops the newer `cinch_*` entry points).
-    let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
-    let mut stack = vec![runtime.join("src"), runtime.join("Cargo.toml")];
-    while let Some(p) = stack.pop() {
-        if p.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&p) {
-                for e in entries.flatten() {
-                    stack.push(e.path());
-                }
-            }
-        } else if let Ok(m) = std::fs::metadata(&p).and_then(|m| m.modified()) {
-            newest_src = newest_src.max(m);
-        }
+    if runtime_fresh_for_readers(&runtime, &release) {
+        return Ok(release);
     }
-    let fresh = |p: &std::path::Path| -> bool {
-        std::fs::metadata(p)
-            .and_then(|m| m.modified())
-            .map(|m| m >= newest_src)
-            .unwrap_or(false)
-    };
-    if fresh(&release) {
+    let _writer = runtime_lock(false);
+    if runtime_archive_fresh(&runtime, &release) {
         return Ok(release);
     }
     let status = std::process::Command::new("cargo")
@@ -4266,27 +4271,11 @@ fn ensure_freestanding_runtime(triple: &str) -> Result<PathBuf> {
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
     let target_dir = runtime.join("target");
     let archive = target_dir.join(triple).join("release/libcinchruntime.a");
-    let _guard = runtime_lock(false);
-    // The same freshness rule the host archive uses: a stale archive
-    // silently drops the newer `cinch_*` entry points.
-    let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
-    let mut stack = vec![runtime.join("src"), runtime.join("Cargo.toml")];
-    while let Some(p) = stack.pop() {
-        if p.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&p) {
-                for e in entries.flatten() {
-                    stack.push(e.path());
-                }
-            }
-        } else if let Ok(m) = std::fs::metadata(&p).and_then(|m| m.modified()) {
-            newest_src = newest_src.max(m);
-        }
+    if runtime_fresh_for_readers(&runtime, &archive) {
+        return Ok(archive);
     }
-    let fresh = std::fs::metadata(&archive)
-        .and_then(|m| m.modified())
-        .map(|m| m >= newest_src)
-        .unwrap_or(false);
-    if fresh {
+    let _writer = runtime_lock(false);
+    if runtime_archive_fresh(&runtime, &archive) {
         return Ok(archive);
     }
     let status = std::process::Command::new("cargo")
