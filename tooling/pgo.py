@@ -60,7 +60,11 @@ def digest(data: bytes) -> str:
 
 
 def file_digest(path: Path) -> str:
-    return digest(path.read_bytes())
+    result = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            result.update(chunk)
+    return result.hexdigest()
 
 
 def workload_source(root: Path) -> bytes:

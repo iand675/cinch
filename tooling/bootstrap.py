@@ -60,7 +60,17 @@ def digest(data: bytes) -> str:
 
 
 def file_hash(path: Path) -> str:
-    return digest(path.read_bytes())
+    return pgo.file_digest(path)
+
+
+def same_file_bytes(left: Path, right: Path) -> bool:
+    with left.open("rb") as first, right.open("rb") as second:
+        while True:
+            chunk = first.read(1024 * 1024)
+            if chunk != second.read(1024 * 1024):
+                return False
+            if not chunk:
+                return True
 
 
 def source_hash(files: dict[str, bytes]) -> str:
@@ -891,7 +901,7 @@ def check_fixed_point() -> None:
     second, third = BUILD / "stage2", BUILD / "stage3"
     if file_hash(second / "cinch") != file_hash(third / "cinch"):
         raise BootstrapError("stage-2 and stage-3 compiler executables differ")
-    if (second / "compiler.ll").read_bytes() != (third / "compiler.ll").read_bytes():
+    if not same_file_bytes(second / "compiler.ll", third / "compiler.ll"):
         raise BootstrapError("stage-2 and stage-3 LLVM IR differ")
     interfaces = {str(p.relative_to(second)): file_hash(p) for p in compiler_interface_paths(second)}
     rebuilt = {str(p.relative_to(third)): file_hash(p) for p in compiler_interface_paths(third)}
