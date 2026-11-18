@@ -1,5 +1,7 @@
 //! Real Cinch CLI object production, authenticated reload and a linked client.
 mod common;
+#[path = "common/compiler_sources.rs"]
+mod compiler_sources;
 use cinch::lsp::{parse_json, Json};
 use std::path::Path;
 use std::process::Command;
@@ -289,21 +291,15 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     }).unwrap().join().unwrap();
     // Match the staged driver's complete compiler input set, including
     // modules the CLI does not call, so this one build checks every module.
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut compiler_sources = std::collections::BTreeMap::new();
-    for file in std::fs::read_dir(root.join("../bootstrap")).unwrap() {
-        let file = file.unwrap().path();
-        if file.extension().is_some_and(|e| e == "cinch") {
-            compiler_sources.insert(file.file_name().unwrap().to_str().unwrap().to_string(), std::fs::read_to_string(file).unwrap());
-        }
-    }
-    compiler_sources.insert("Bootstrap.RuntimeAbi.cinch".into(), format!("-- One exact ABI per compiler build. The pinned stage builder renders this\n-- module from the target library lock before hashing the complete sources.\nmodule Bootstrap.RuntimeAbi where\n  export runtime-abi, runtime-abi-int\n  runtime-abi :: Nat\n  runtime-abi = {}\n  runtime-abi-int :: Int\n  runtime-abi-int = {}\n", cinch::interface::RUNTIME_ABI_VERSION, cinch::interface::RUNTIME_ABI_VERSION));
-    for (name, text) in common::TOOLKIT { compiler_sources.insert((*name).into(), (*text).into()); }
-    let imports = compiler_sources.keys().enumerate().map(|(i, name)| format!("  import {} as CompilerSource{i}\n", name.strip_suffix(".cinch").unwrap())).collect::<String>();
-    compiler_sources.insert("Main.cinch".into(), include_str!("../../bootstrap/programs/Run.Pipeline.cinch").replacen("module Main where\n", &format!("module Main where\n{imports}"), 1));
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let compiler_sources = compiler_sources::compiler_sources(root);
     let files = compiler_sources.iter().map(|(name, text)| (name.as_str(), text.as_str())).collect::<Vec<_>>();
     let dir = common::project("library_object_cli", &files);
-    assert_eq!(fixture_sources(&dir), compiler_sources.iter().map(|(name, text)| (std::ffi::OsString::from(name), text.as_bytes().to_vec())).collect());
+    let actual = fixture_sources(&dir);
+    assert_eq!(actual.len(), compiler_sources.len(), "compiler fixture source count");
+    for (name, source) in &compiler_sources {
+        assert!(actual.get(std::ffi::OsStr::new(name)).map(Vec::as_slice) == Some(source.as_bytes()), "compiler fixture source differs: {name}");
+    }
     let compiler = if let Some(path) = std::env::var_os("CINCH_TEST_LIBRARY_OBJECT_COMPILER") {
         assert!(common::external_frontend::configured().unwrap().is_none(), "a cached Native fixture cannot replace the selected Cinch frontend");
         let compiler = std::path::PathBuf::from(path).canonicalize().unwrap();
@@ -315,7 +311,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
             assert!(cached[&file] == contents, "cached compiler module changed: {}", file.to_string_lossy());
         }
         compiler
-    } else { common::build(&dir, "Main.cinch", "object-compiler").expect("build actual Cinch CLI") };
+    } else { common::build_executable(&dir, "Main.cinch", "object-compiler").expect("build actual Cinch CLI") };
     let retained = std::env::var_os("CINCH_TEST_LIBRARY_OBJECT_ARTIFACTS");
     if let Some(path) = &retained {
         std::fs::write(path, Json::obj(vec![("compiler", Json::Str(compiler.display().to_string())), ("compiler_sha256", Json::Str(sha256(&compiler))), ("project", Json::Str(dir.display().to_string())), ("provider", Json::Str(provider.display().to_string()))]).to_text()).unwrap();

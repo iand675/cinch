@@ -171,39 +171,12 @@ fn a_foreign_body_replaces_the_same_call_a_local_body_does() {
 //
 // and read the two line counts it prints.
 
+#[path = "common/compiler_sources.rs"]
+mod compiler_sources;
+
 fn bundle_source(root: &std::path::Path) -> String {
     use std::collections::{BTreeMap, BTreeSet};
-    let mut files: BTreeMap<String, String> = BTreeMap::new();
-    for entry in std::fs::read_dir(root.join("bootstrap")).expect("bootstrap") {
-        let path = entry.expect("entry").path();
-        if path.extension().and_then(|e| e.to_str()) == Some("cinch") {
-            let name = path.file_name().unwrap().to_string_lossy().to_string();
-            files.insert(name, std::fs::read_to_string(&path).expect("source"));
-        }
-    }
-    for module in ["Lex", "Scan", "Parse", "Json", "Builder"] {
-        files.insert(
-            format!("Text.{module}.cinch"),
-            std::fs::read_to_string(root.join(format!("compiler/prelude/Text/{module}.cinch")))
-                .expect("toolkit"),
-        );
-    }
-    let mut main = std::fs::read_to_string(root.join("bootstrap/programs/Run.Pipeline.cinch"))
-        .expect("entry");
-    let header = "module Main where\n";
-    let mut modules: Vec<String> = files
-        .keys()
-        .filter(|n| n.ends_with(".cinch") && *n != "Main.cinch")
-        .map(|n| n.trim_end_matches(".cinch").to_string())
-        .collect();
-    modules.sort();
-    let imports: String = modules
-        .iter()
-        .enumerate()
-        .map(|(i, m)| format!("  import {m} as CompilerSource{i}\n"))
-        .collect();
-    main = main.replacen(header, &format!("{header}{imports}"), 1);
-    files.insert("Main.cinch".into(), main);
+    let files = compiler_sources::compiler_sources(root);
 
     // Dependencies before dependants: the checker elaborates modules in the
     // order it is given, and an import is resolved against a module already
@@ -267,6 +240,7 @@ fn cross_object_census_and_unfolding() {
         .filter(|i| {
             i.module == "Main"
                 || i.module.starts_with("Bootstrap")
+                || i.module == "Data.Array"
                 || i.module.starts_with("Text.")
         })
         .map(|i| i.module.clone())
