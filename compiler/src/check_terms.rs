@@ -1794,7 +1794,7 @@ impl Checker {
                 let info = self.lookup_known_type(&rec_name).map_err(|e| {
                     Error::at(*span, e.message)
                 })?;
-                let fields = info.fields.ok_or_else(|| {
+                let fields = info.fields.as_ref().ok_or_else(|| {
                     Error::at(
                         *span,
                         crate::diagnostic!(
@@ -1837,6 +1837,15 @@ impl Checker {
                 };
                 if erased {
                     return Ok((ECore::Unit, field_ty));
+                }
+                if let Some(plan) = self.unpacked_record(&info).cloned() {
+                    let local = self.fresh_local();
+                    self.note_local_ty(local, &ty);
+                    let field = plan.project(runtime_idx, local);
+                    return Ok((ECore::Let(local, Box::new(core), Box::new(field)), field_ty));
+                }
+                if self.unboxed_payload(&info).is_some() {
+                    return Ok((core, field_ty));
                 }
                 if self
                     .codata_types
@@ -9289,7 +9298,16 @@ impl Checker {
                     alt_branch.push(branch_lists.len());
                     branch_lists.push(branch);
                     alt_maps.push(m);
-                    alt_pats.push(CPat::con(tag, slots));
+                    let (slots, core) = if let Some(plan) = self.unpacked_record(&info).cloned() {
+                        plan.pattern(slots, core, self)
+                    } else {
+                        (slots, core)
+                    };
+                    if self.unboxed_payload(&info).is_some() {
+                        alt_pats.push(CPat::Var(slots[0], Class::Raw));
+                    } else {
+                        alt_pats.push(CPat::con(tag, slots));
+                    }
                     alts.push(core);
                 }
                 if let Some((core, m, branch_index)) = default_alt {

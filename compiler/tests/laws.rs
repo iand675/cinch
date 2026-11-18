@@ -295,3 +295,81 @@ fn rewrite_equations_retain_generic_instantiations_and_explicit_annotations() {
         expect_err(name, &wrong, "justification does not prove");
     }
 }
+
+const UNBOXED_FLIP: &str = r#"module Main where
+  #[repr(unboxed)]
+  data Flag where
+    Flagged :: Bool -> Flag
+
+  signature Flip a where
+    flipValue :: a -> a
+    law involution :: (x :: a) -> Eq (flipValue (flipValue x)) x
+
+  implicit instance FlipBool :: Flip Bool where
+    flipValue x = x
+
+  implicit instance FlipFlag :: Flip Flag where
+    flipValue (Flagged x) = Flagged (not x)
+
+  applyFlip :: forall a. using (d :: Flip a) => a -> a
+  applyFlip x = flipValue x
+
+  main :: Int
+  main = case applyFlip (Flagged False) of
+    Flagged x -> if x && not (applyFlip False) then 0 else 1
+"#;
+
+#[test]
+fn unboxed_wrapper_selects_its_own_dictionary_and_checks_its_law() {
+    assert_eq!(common::source_frontend::run_source(UNBOXED_FLIP).unwrap(), 0);
+    let interfaces = check_source_interfaces(UNBOXED_FLIP, "unboxed-law.cinch").unwrap();
+    let main = interfaces.iter().find(|i| i.module == "Main").unwrap();
+    for instance in ["Main.FlipBool", "Main.FlipFlag"] {
+        assert!(main.laws.iter().any(|l| l.instance == instance && l.law == "involution"
+            && l.status == "checked (2 samples)"), "{:?}", main.laws);
+    }
+    expect_err("broken-wrapper-law.cinch", &UNBOXED_FLIP.replace("Flagged (not x)", "Flagged True"),
+        "instance `Main.FlipFlag` breaks class law");
+}
+
+#[test]
+fn unboxed_wrapper_requires_its_own_instance_and_proof_evidence() {
+    let missing = UNBOXED_FLIP
+        .replace("implicit instance FlipFlag", "instance FlipFlag")
+        .replace("main = case", "main = with (chosen = FlipBool) in case");
+    expect_err("missing-wrapper-instance.cinch", &missing, "no instance for Flip Flag");
+
+    let proofs = r#"
+  acceptFlag :: (f :: Flag) -> Eq f f -> Int
+  acceptFlag _ _ = 1
+
+  forward :: (b :: Bool) -> Eq (Flagged b) (Flagged b) -> Int
+  forward b h = acceptFlag (Flagged b) h
+"#;
+    let good = format!("{UNBOXED_FLIP}{proofs}");
+    check_sources(&good, "wrapper-proof.cinch").unwrap();
+    let wrong = good.replace("-> Eq (Flagged b) (Flagged b) ->", "-> Eq b b ->");
+    expect_err("payload-proof.cinch", &wrong, "index mismatch");
+}
+
+#[test]
+fn unpacked_record_laws_use_the_record_instance() {
+    let source = r#"module Main where
+  data Pair where
+    BitsOf :: Bool -> Bool -> Pair
+
+  record Switch where
+    #[unpack] bits :: Pair
+
+  signature Toggle a where
+    toggle :: a -> a
+    law involution :: (x :: a) -> Eq (toggle (toggle x)) x
+
+  implicit instance ToggleSwitch :: Toggle Switch where
+    toggle (Switch (BitsOf a b)) = Switch (BitsOf (not a) b)
+"#;
+    let ifaces = check_source_interfaces(source, "unpacked-law.cinch").unwrap();
+    let main = ifaces.iter().find(|i| i.module == "Main").unwrap();
+    assert!(main.laws.iter().any(|l| l.instance == "Main.ToggleSwitch"
+        && l.law == "involution" && l.status == "checked (3 samples)"), "{:?}", main.laws);
+}

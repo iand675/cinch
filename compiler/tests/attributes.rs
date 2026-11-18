@@ -1019,3 +1019,103 @@ module Main where
         0,
     );
 }
+
+#[test]
+fn repr_unboxed_round_trip() {
+    let source = r#"
+module Main where
+  #[repr(unboxed)]
+  data Number where
+    Wrap :: Int -> Number
+
+  #[repr(unboxed)]
+  record Flag where
+    value :: Bool
+
+  #[repr(unboxed)]
+  data Label where
+    Named :: Number -> Label
+
+  record Entry where
+    number :: Label
+    flag :: Flag
+
+  unwrap :: Number -> Int
+  unwrap (Wrap x) = x
+
+  apply :: (Int -> Number) -> Int -> Number
+  apply f x = f x
+
+  #[noinline]
+  inspect :: Entry -> Int
+  inspect e = case e.number of
+    Named n -> if e.flag.value then unwrap n else 0
+
+  main :: Int
+  main = inspect (Entry { number = Named (apply Wrap 37), flag = Flag { value = True } })
+"#;
+    let (program, _, _) = check_with_diags(source).unwrap();
+    for name in ["Main.Wrap", "Main.Flag"] {
+        let unit = program.fns.iter().find(|unit| unit.id.0 == name).unwrap();
+        assert!(unit.ctor.is_none());
+        assert!(matches!(unit.body, cinch::core::Core::Var(_)));
+    }
+    expect_ok("unboxed data and record", source, 37);
+}
+
+#[test]
+fn repr_unboxed_requires_one_runtime_field() {
+    expect_err("sum", "module Main where\n  #[repr(unboxed)]\n  data T where\n    A :: Int -> T\n    B :: T\n", "exactly one represented field");
+    expect_err("product", "module Main where\n  #[repr(unboxed)]\n  data T where\n    Pair :: Int -> Int -> T\n", "exactly one represented field");
+}
+
+#[test]
+fn unpack_record_fields_preserve_construction_projection_and_patterns() {
+    let src = r#"
+module Main where
+  data Pair a where
+    MkPair :: a -> a -> Pair a
+
+  record Entry where
+    key :: Int
+    #[unpack] pair :: Pair Int
+    #[nounpack] other :: Pair Int
+
+  #[noinline]
+  project :: Entry -> Pair Int
+  project e = e.pair
+
+  #[noinline]
+  sumEntry :: Entry -> Int
+  sumEntry (Entry k (MkPair a b) (MkPair c d)) = k + a + b + c + d
+
+  sumPair :: Pair Int -> Int
+  sumPair (MkPair a b) = a + b
+
+  main :: Int
+  main = let e = Entry { key = 1, pair = MkPair 2 4, other = MkPair 8 16 }
+         in sumEntry e + sumPair (project e)
+"#;
+    let layout = iface_of("unpack", src).layouts.into_iter().find(|l| l.name == "Entry").unwrap();
+    assert_eq!(layout.repr, "unpack(pair)");
+    assert_eq!(layout.size, 32);
+    assert_eq!(layout.fields[2].offset, 24);
+    expect_ok("unpacked record", src, 37);
+}
+
+#[test]
+fn unpack_rejects_sum_and_recursive_layouts() {
+    expect_err("sum field", r#"
+module Main where
+  data Choice where
+    One :: Int -> Choice
+    Two :: Bool -> Choice
+  record Row where
+    #[unpack] choice :: Choice
+"#, "single-constructor native product");
+    expect_err("recursive field", r#"
+module Main where
+  record Row where
+    #[unpack] next :: Row
+"#, "single-constructor native product");
+}

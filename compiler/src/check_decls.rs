@@ -3816,7 +3816,10 @@ impl Checker {
                     self.pending_prims.push((module.clone(), p.clone(), s));
                 }
                 ast::Decl::OpaqueType(o) => {
-                    let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    if set.repr.as_ref().is_some_and(|r| r.unboxed) {
+                        return Err(Error::at(o.name.span, "repr(unboxed) requires a data or record declaration"));
+                    }
                     // The kind is `Type` in this slice (foreign function
                     // interface specification section 2 declares opaque
                     // resources kinded `Type`).
@@ -4194,7 +4197,10 @@ impl Checker {
                     // `type R params = refine (x :: T) with p` (refinement
                     // types design): the runtime representation IS the
                     // container; the witness is `Prop`-erased (D31).
-                    let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    if set.repr.as_ref().is_some_and(|r| r.unboxed) {
+                        return Err(Error::at(r.name.span, "repr(unboxed) requires a data or record declaration"));
+                    }
                     if Scalar::parse(&r.name.text).is_some()
                         || matches!(
                             r.name.text.as_str(),
@@ -4452,6 +4458,16 @@ impl Checker {
                         // of attribute annotations specification section
                         // 4, on fields of `repr(C)` records.
                         let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
+                        if fset.unpack.is_some() && set.repr.is_some() {
+                            return Err(Error::at(f.span, "field unpacking requires a native record layout"));
+                        }
+                        if fset.unpack == Some(true) {
+                            if !params.is_empty() {
+                                return Err(Error::at(f.span, "unpack requires a monomorphic record with native layout"));
+                            }
+                            self.unpack_requests.entry(fn_id(&module, &rec.name.text))
+                                .or_default().insert(f.name.text.clone(), f.span);
+                        }
                         if let Some(fr) = fset.repr {
                             if !fr.field_only() {
                                 return Err(Error::at(
@@ -4691,6 +4707,9 @@ impl Checker {
                     let mut obs_names: Vec<String> = Vec::new();
                     for f in &rec.fields {
                         let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
+                        if fset.unpack.is_some() {
+                            return Err(Error::at(f.span, "unpack and nounpack apply to record fields, not codata observations"));
+                        }
                         if let Some(fr) = &fset.repr {
                             return Err(Error::at(
                                 f.span,
@@ -5482,6 +5501,14 @@ impl Checker {
                     }
                     out.unroll = Some(hint);
                 }
+                "unpack" | "nounpack" => {
+                    if site != AttrSite::Field || a.args.is_some() {
+                        return Err(Error::at(a.span, format!("#[{name}] takes no arguments and applies to a record field")));
+                    }
+                    if out.unpack.replace(name == "unpack").is_some() {
+                        return Err(Error::at(a.span, "unpack and nounpack conflict"));
+                    }
+                }
                 "repr" => {
                     if !matches!(site, AttrSite::TypeDecl | AttrSite::Field) {
                         return Err(Error::at(a.span, site.placement_error("repr")));
@@ -5798,6 +5825,29 @@ impl Checker {
                     }
                     _ => unreachable!(),
                 };
+                if let Some(plan) = self.unpacked_record(&t) {
+                    let (builder, storage) = plan.units(fn_id(module, cname), fields.0, self);
+                    self.fns.extend([builder, storage]);
+                    continue;
+                }
+                if self.unboxed_payload(&t).is_some() {
+                    self.fns.push(FnDef {
+                        id: fn_id(module, cname),
+                        params: vec!["payload".into()],
+                        body: Core::Var(LocalId(0)),
+                        prim: None,
+                        ctor: None,
+                        hints: Default::default(),
+                        meta: Default::default(),
+                        repr: crate::core::UnitRepr {
+                            result: Some(fields.0[0]),
+                            params: fields.0,
+                            tparams: fields.1,
+                            ..Default::default()
+                        },
+                    });
+                    continue;
+                }
                 self.fns.push(FnDef {
                     id: fn_id(module, cname),
                     params: (0..runtime_arity).map(|i| format!("f{i}")).collect(),
@@ -9900,6 +9950,11 @@ impl Checker {
                 let Some(tk) = self.known_type(name) else {
                     return Vec::new();
                 };
+                // Instance selection used the nominal carrier. Its checked
+                // methods consume samples in that carrier's runtime layout.
+                if let Some(payload) = self.unboxed_payload(tk) {
+                    return self.law_samples(payload, depth);
+                }
                 if let Some(r) = &tk.refine {
                     // A refinement's samples are the container's samples
                     // its predicate decides true (refinement types
@@ -9920,13 +9975,7 @@ impl Checker {
                 }
                 let mut out: Vec<Value> = Vec::new();
                 for (cname, tag) in &tk.ctors {
-                    let Some(vs) = self.values.get(cname) else {
-                        continue;
-                    };
-                    let Some(v) = vs
-                        .iter()
-                        .find(|v| matches!(v.kind, ValueKind::Ctor { .. }))
-                    else {
+                    let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
                         continue;
                     };
                     let ValueKind::Ctor {
@@ -9946,11 +9995,14 @@ impl Checker {
                     }
                     let mut field_sets: Vec<Vec<Value>> = Vec::new();
                     let mut ok = true;
-                    for (ft, er) in field_tys.iter().zip(field_erased.iter()) {
-                        if *er {
-                            continue;
-                        }
-                        let ft = Self::subst_ty(ft, &map);
+                    let ctor = fn_id(&tk.module, cname);
+                    let (storage, slots): (_, Vec<Ty>) = if let Some(plan) = self.unpacked_records.get(&ctor) {
+                        (UnpackedRecord::storage_unit(&ctor), plan.fields.iter().flat_map(|f| f.slots.iter().cloned()).collect())
+                    } else {
+                        (ctor, field_tys.iter().zip(field_erased).filter(|(_, erased)| !**erased)
+                            .map(|(ft, _)| Self::subst_ty(ft, &map)).collect())
+                    };
+                    for ft in slots {
                         let samples = self.law_samples(&ft, depth - 1);
                         if samples.is_empty() {
                             ok = false;
@@ -9978,7 +10030,7 @@ impl Checker {
                     }
                     for fields in combos {
                         out.push(Value::Adt {
-                            ctor: fn_id(&tk.module, cname).0,
+                            ctor: storage.0.clone(),
                             tag: *tag,
                             fields,
                         });
@@ -11830,7 +11882,7 @@ impl Checker {
                         ty
                     )));
                 };
-                if layout.repr == "uniform-word" || layout.discriminant.is_some() {
+                if layout.repr == "unboxed" || layout.repr == "uniform-word" || layout.discriminant.is_some() {
                     return Err(Error::plain(crate::diagnostic!(
                         "the recorded layout of {} is `{}`, which has no C representation at the boundary (foreign function interface specification section 2: a source-language type name is not an ABI specification; this slice rejects fixed-discriminant data and boxed aggregates instead of guessing)",
                         ty, layout.repr
@@ -11974,7 +12026,7 @@ impl Checker {
             else {
                 continue;
             };
-            if layout.repr == "uniform-word" || layout.fields.is_empty() {
+            if layout.repr == "unboxed" || layout.repr == "uniform-word" || layout.fields.is_empty() {
                 continue;
             }
             for (cname, tag) in &t.ctors {
@@ -12173,6 +12225,7 @@ pub(crate) struct AttrSet {
     /// section 5.
     pub fn_cold: bool,
     pub repr: Option<ReprSpec>,
+    pub unpack: Option<bool>,
     /// The P20 safety assertions (attribute annotations specification
     /// section 10), verified at the definition.
     pub safety: SafetySet,
@@ -12233,6 +12286,8 @@ pub(crate) struct ReprSpec {
     /// `repr(C)`: the platform C layout algorithm over source-order
     /// fields.
     pub c_layout: bool,
+    /// The constructor has the runtime representation of its payload.
+    pub unboxed: bool,
     /// `repr(transparent)`: exactly the single field's representation.
     pub transparent: bool,
     /// `repr(align(N))`: the type's alignment floor (section 4.2: the
@@ -12251,13 +12306,13 @@ pub(crate) struct ReprSpec {
 impl ReprSpec {
     /// Does this representation lay out fields?
     fn has_fields(&self) -> bool {
-        self.c_layout || self.transparent || self.align.is_some() || self.packed.is_some()
+        self.unboxed || self.c_layout || self.transparent || self.align.is_some() || self.packed.is_some()
     }
 
     /// The field-level forms: `align(N)` and `packed(N)` (the section 9
     /// open decision admits them on fields of `repr(C)` records).
     fn field_only(&self) -> bool {
-        !self.c_layout && !self.transparent && self.discriminant.is_none()
+        !self.unboxed && !self.c_layout && !self.transparent && self.discriminant.is_none()
     }
 }
 
@@ -12343,6 +12398,12 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
             }
         };
         match (ident, number) {
+            ("unboxed", None) => {
+                if raw.trim() != "unboxed" {
+                    return Err(Error::at(a.span, "repr(unboxed) must appear on its own"));
+                }
+                spec.unboxed = true;
+            }
             ("C", None) => {
                 once(spec.c_layout)?;
                 spec.c_layout = true;
@@ -12424,7 +12485,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
 
 fn repr_item_error(t: &str) -> String {
     format!(
-        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
+        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
     )
 }
 
@@ -16335,7 +16396,15 @@ impl Checker {
     fn compute_layouts(&mut self) -> Result<()> {
         let keys: Vec<(String, String)> = self.layout_recipes.keys().cloned().collect();
         for (m, n) in keys {
-            self.layout_of(&m, &n, &mut Vec::new())?;
+            let layout = self.layout_of(&m, &n, &mut Vec::new())?;
+            if layout.repr == "unboxed" {
+                let recipe = &self.layout_recipes[&(m.clone(), n.clone())];
+                let payload = recipe.fields.iter().find(|(_, _, erased, _)| !erased)
+                    .expect("validated unboxed payload");
+                let kind = self.types[&n].iter().find(|t| t.module == m)
+                    .expect("registered unboxed type");
+                self.unboxed_ctors.insert(fn_id(&m, &kind.ctors[0].0), payload.1.clone());
+            }
         }
         Ok(())
     }
@@ -16431,7 +16500,25 @@ impl Checker {
             }
             fields.push((n, t, fr));
         }
-        if repr.transparent {
+        if repr.unboxed {
+            if recipe.ctor_count != 1 || fields.len() != 1 {
+                return Err(err("repr(unboxed) requires one constructor with exactly one represented field".into()));
+            }
+            let (_, ty, _) = fields[0];
+            let fixed_word = match ty {
+                Ty::Bool | Ty::Unit | Ty::Int | Ty::Nat | Ty::Bytes | Ty::Sym => true,
+                Ty::Prim(s) => !s.is_wide(),
+                Ty::Adt(name, _) => {
+                    let kind = self.lookup_known_type(name)?;
+                    self.layout_recipes.get(&(kind.module, kind.name)).is_some_and(|r| r.repr.unboxed)
+                }
+                _ => false,
+            };
+            if !fixed_word {
+                return Err(err("repr(unboxed) requires a fixed single-word payload".into()));
+            }
+        }
+        if repr.transparent || repr.unboxed {
             if fields.len() != 1 {
                 return Err(err(format!(
                     "`repr(transparent)` needs exactly one represented field, found {} (attribute annotations specification section 4.1)",
@@ -16447,7 +16534,7 @@ impl Checker {
             let (size, align) = self.field_size_align(t, span, stack)?;
             return Ok(AbiLayout {
                 name: recipe.name.clone(),
-                repr: "transparent".to_string(),
+                repr: repr.spelled.clone(),
                 size,
                 align,
                 fields: vec![AbiField {
@@ -17669,6 +17756,9 @@ impl Checker {
                         fields: Vec::new(),
                         discriminant: None,
                     });
+                if let Some(plan) = self.unpacked_records.get(&fn_id(&d.module, &d.name)) {
+                    layout = plan.layout(self);
+                }
                 layout.name = local.clone();
                 iface.layouts.push(layout);
             }
@@ -18569,6 +18659,7 @@ fn check_program_multi_full_prepared_impl(
     // annotations specification section 4.3); the packed-borrow rule of
     // section 4.2 reads them during checking.
     c.compute_layouts()?;
+    c.compute_unpack_plans()?;
     // Foreign binding contracts classify their parameters against the
     // recorded layouts (foreign function interface specification
     // section 2).
@@ -18603,6 +18694,7 @@ fn check_program_multi_full_prepared_impl(
     c.convert_instance_heads()?;
     // Generated declarations may declare types with representations.
     c.compute_layouts()?;
+    c.compute_unpack_plans()?;
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
     for m in modules {
@@ -21424,6 +21516,9 @@ impl Checker {
                 for v in vs {
                     if v.module == m {
                         if let ValueKind::Ctor { tag, runtime_arity, .. } = &v.kind {
+                            if self.has_constructor_body(&fn_id(m, n)) {
+                                break;
+                            }
                             return Ok(Value::CtorFn {
                                 unit: id.to_string(),
                                 tag: *tag,

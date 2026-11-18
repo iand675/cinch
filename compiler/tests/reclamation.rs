@@ -1006,3 +1006,35 @@ module Main where
 fn evaluated_quotations_with_heap_holes_are_freed() {
     expect_leaked("quotes", QUOTES, 0, 0);
 }
+
+#[test]
+fn unpacked_counted_fields_survive_projection_and_drop() {
+    expect_leaked("unpacked", r#"
+module Main where
+  import Data.List
+
+  #[repr(unboxed)]
+  data Count where
+    CountOf :: Int -> Count
+
+  data Items where
+    Both :: Count -> List Int -> Items
+
+  record Entry where
+    #[unpack] items :: Items
+
+  #[noinline]
+  make :: Int -> Entry
+  make x = Entry { items = Both (CountOf x) (Cons x (Cons x Nil)) }
+
+  #[noinline]
+  itemsOf :: Entry -> Items
+  itemsOf e = e.items
+
+  readItems :: Items -> Int
+  readItems (Both (CountOf n) xs) = if length xs == 2 then n else 0
+
+  main :: Int
+  main = readItems (itemsOf (make 37))
+"#, 37, 0);
+}

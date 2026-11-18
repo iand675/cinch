@@ -1413,7 +1413,10 @@ impl<'a> LowerCx<'a> {
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
-            ECore::App(f, _) if matches!(**f, ECore::Ctor(..)) => Some(Class::Obj),
+            ECore::App(f, _) => match &**f {
+                ECore::Ctor(id, _) => Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t))),
+                _ => None,
+            },
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
             _ => None,
@@ -1427,6 +1430,9 @@ impl crate::repr::TypeReprs for Checker {
             Some(k) => k,
             _ => return crate::repr::AdtRepr::Obj,
         };
+        if let Some(t) = self.unboxed_payload(kind) {
+            return crate::repr::AdtRepr::Base(t.clone());
+        }
         if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
             for (p, a) in r.params.iter().zip(args) {
@@ -1513,6 +1519,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             };
             C::Global(g.clone(), v)
         }
+        ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
         ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
         ECore::Foreign(n) => C::Foreign(n.clone()),
@@ -3479,6 +3486,10 @@ struct Checker {
     fn_hints: HashMap<String, crate::core::FnHints>,
     /// Layout computation pending per type (attribute annotations
     /// specification section 4.3).
+    unpack_requests: HashMap<GlobalId, HashMap<String, ast::Span>>,
+    unpacked_records: HashMap<GlobalId, UnpackedRecord>,
+    /// Identity constructors and their validated runtime payload types.
+    unboxed_ctors: HashMap<GlobalId, Ty>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
@@ -4047,6 +4058,9 @@ impl Checker {
             macro_attr_names: std::collections::HashMap::new(),
             diags: Vec::new(),
             fn_hints: HashMap::new(),
+            unpack_requests: HashMap::new(),
+            unpacked_records: HashMap::new(),
+            unboxed_ctors: HashMap::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
             safety_attrs: HashMap::new(),
@@ -6485,7 +6499,9 @@ impl Checker {
                 }
             }
             Ty::Adt(n, _) => {
-                if let Some(nested) = self.inline_layout(n) {
+                if let Some(t) = self.known_type(n).and_then(|k| self.unboxed_payload(k)) {
+                    self.field_shape(t, size)
+                } else if let Some(nested) = self.inline_layout(n) {
                     nested
                 } else {
                     FieldShape::Word { align: 0 }
@@ -6549,6 +6565,11 @@ impl Checker {
     /// and every boxed or pointer word one integer leaf.
     pub(crate) fn c_leaves(&self, ty: &Ty, offset: u64, size: u64, out: &mut Vec<crate::core::CLeaf>) {
         use crate::core::CLeaf;
+        if let Ty::Adt(n, _) = ty {
+            if let Some(t) = self.known_type(n).and_then(|k| self.unboxed_payload(k)) {
+                return self.c_leaves(t, offset, size, out);
+            }
+        }
         match ty {
             Ty::Unit if size == 0 => {}
             Ty::Unit | Ty::Bool => out.push(CLeaf { offset, size, float: false }),
@@ -6557,6 +6578,7 @@ impl Checker {
                 size: s.size(),
                 float: matches!(s, Scalar::F32 | Scalar::F64),
             }),
+
             Ty::Adt(n, _) if self.inline_layout(n).is_some() => {
                 let nested = self.lookup_known_type(n).ok().and_then(|info| {
                     let layout = self.type_layouts.get(&(info.module.clone(), info.name.clone()))?;
@@ -6703,6 +6725,17 @@ impl Checker {
     /// surface-gated `lookup_type`), so raw captured names gain no access.
     fn lookup_known_type(&self, name: &str) -> Result<TypeKind> {
         self.known_type(name).cloned().ok_or_else(|| Error::plain(format!("checked type {name} has no unambiguous definition")))
+    }
+
+    /// Both lowering and compile-time evaluation must call the checked builder.
+    fn has_constructor_body(&self, id: &GlobalId) -> bool {
+        self.unboxed_ctors.contains_key(id) || self.unpacked_records.contains_key(id)
+    }
+
+    fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {
+        if self.unboxed_ctors.is_empty() { return None; }
+        let (ctor, _) = kind.ctors.first()?;
+        self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
     }
 
     fn known_type(&self, identity: &str) -> Option<&TypeKind> {
@@ -12143,6 +12176,7 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
 // The rest of the checker (term elaboration, pattern-match compilation)
 // lives in `check_terms.rs`; declaration collection and program assembly in
 // `check_decls.rs`. Both are included at module scope.
+include!("check_unpack.rs");
 include!("check_terms.rs");
 include!("check_code.rs");
 include!("check_dictionary.rs");

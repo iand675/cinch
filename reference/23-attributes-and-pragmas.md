@@ -1,6 +1,6 @@
 # Attributes and pragmas: the complete reference
 
-Cinch writes a source attribute as `#[...]`. The Rust compiler recognises exactly 22 compiler-owned names and rejects every other name that no macro declares. This page indexes them: exact spelling, admitted positions, argument validation, the effect on checking and code generation, and the current status. [Type layout](24-type-layout.md) works through the representation choices, and [safety assertions](22-safety-assertions-and-llvm.md) works through the definition checks in full.
+Cinch writes a source attribute as `#[...]`. The Rust compiler recognises the compiler-owned names below and rejects every other name that no macro declares. This page indexes them: exact spelling, admitted positions, argument validation, the effect on checking and code generation, and the current status. [Type layout](24-type-layout.md) works through the representation choices, and [safety assertions](22-safety-assertions-and-llvm.md) works through the definition checks in full.
 
 An attribute is not an ordinary name and cannot be shadowed. An attribute never grants permission: a hint leaves the type, effect, ownership, coverage, and proof rules untouched, and a semantic assertion must pass its check. Every name in the index below is implemented, so each carries `Current`; [planned spellings](#planned-and-provisional-attribute-spellings) are listed separately and are not accepted today.
 
@@ -18,6 +18,8 @@ One row per name the compiler recognises. Variant spellings such as `inline(alwa
 | `#[inline]` | Function declaration | Desirable-inlining hint | Current |
 | `#[noinline]` | Function declaration | Never-inline hint | Current |
 | `#[repr(...)]` | `data` and `record` declarations, and fields of a `repr(C)` record | Layout contract, recorded in the interface | Current |
+| `#[unpack]` | Native record field | Stores the product’s represented fields inline | Current |
+| `#[nounpack]` | Native record field | Keeps the ordinary field representation | Current |
 | `#[recursion("...")]` | Function declaration | Checks a recursion claim (`"none"`, `"tail"`, `"bounded(b)"`) | Current |
 | `#[stack("...")]` | Function declaration | Checks a stack claim (`"constant"`, `"bounded(b)"`) | Current |
 | `#[no-alloc]` | Function declaration | Checks that the body runs no allocation site | Current |
@@ -69,7 +71,7 @@ Each name validates its own argument text, so the same syntax produces different
 | Module header | before `module` | `meta`, `profile`, `deny-warnings` |
 | Declaration | before the declaration, including across a line break | `meta` on any declaration; `repr` on `data`/`record`; `inline`, `noinline`, `cold`, and the safety assertions on function definitions; `byval`, `sret` on foreign declarations |
 | Constructor | before a `data` constructor | `meta` |
-| Record field | before the field, or before its type | `meta`; `repr(align(N))`, `repr(packed)`, `repr(packed(N))` on a `repr(C)` record |
+| Record field | before the field, or before its type | `meta`, `unpack`, `nounpack`; `repr(align(N))`, `repr(packed)`, `repr(packed(N))` on a `repr(C)` record |
 | Function clause | between the function name and its patterns | `meta`, `weight`, `likely`, `unlikely`, `cold` |
 | `case` alternative | before the alternative's pattern | `meta`, `weight`, `likely`, `unlikely`, `cold` |
 | Guard | after `\|` | `meta`, `weight`, `likely`, `unlikely`, `cold` |
@@ -312,6 +314,7 @@ module Main where
 
 | Variant | Arguments and constraints | Effect |
 | --- | --- | --- |
+| `unboxed` | One constructor with one supported runtime field | Construction and matching use the payload directly |
 | `C` | No argument | Source-order represented fields, C-style alignment and padding, for an admitted single-constructor layout |
 | `transparent` | Exactly one represented non-erased field; combines with no other choice and with no field modifier | Same recorded size, alignment, and layout as that field |
 | `align(N)` | Nonzero power-of-two `u64`; may not lower natural alignment | Raises the aggregate's alignment, or an admitted field's alignment |
@@ -323,7 +326,9 @@ module Main where
 
 Current behaviour for a fixed discriminant is a recorded fact: the payload layout stays the native uniform word, and the `repr` spelling plus the discriminant width are what the interface records. Page [type layout](24-type-layout.md) shows the recorded facts, byte offsets, natural versus effective alignment, packed-borrow rules, and FFI admission.
 
-Field modifiers are `repr(align(N))`, `repr(packed)`, and `repr(packed(N))`, admitted on fields of a `repr(C)` record only. A modifier may prefix the field declaration or the field's type; both positions merge into one attribute list, so writing the same modifier in both places is a duplicate name. `C`, `transparent`, and the discriminant choices are not field modifiers, and an erased field has no runtime slot to modify.
+On native records, `#[unpack]` stores the fields of a monomorphic single-constructor product inline. The `#[nounpack]` spelling requests the ordinary field representation. [Type layout](24-type-layout.md#unpacking-a-record-field)
+
+Boundary-layout field modifiers are `repr(align(N))`, `repr(packed)`, and `repr(packed(N))`, admitted on fields of a `repr(C)` record only. A modifier may prefix the field declaration or the field's type; both positions merge into one attribute list, so writing the same modifier in both places is a duplicate name. `C`, `transparent`, and the discriminant choices are not field modifiers, and an erased field has no runtime slot to modify.
 
 This program declares one aggregate per admitted shape and runs:
 
@@ -363,7 +368,7 @@ Rejections, with the exact message text:
 | --- | --- |
 | `#[repr]` or `#[repr()]` | `` `#[repr(...)]` takes at least one representation (attribute annotations specification section 4.1) `` |
 | `#[repr=C]` | `` `#[repr(...)]` takes its representations in parentheses (attribute annotations specification section 1) `` |
-| `#[repr(Rust)]` | `` `Rust` is not a representation (attribute annotations specification section 4.1 expects `C`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`) `` |
+| `#[repr(Rust)]` | `` `Rust` is not a representation (attribute annotations specification section 4.1 expects `C`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`) `` |
 | `#[repr(align(0))]`, `#[repr(align(3))]` | `` `repr(align(N))` takes a non-zero power of two (attribute annotations specification section 4.1) `` |
 | `#[repr(C, align(4))]` on a record of two `I64` fields | `` `repr(align(4))` only raises: Pair's natural alignment is 8 (attribute annotations specification section 4.2) `` |
 | `#[repr(C, packed, align(8))]` | `` `repr(packed)` removes padding and `repr(align(N))` raises alignment; they conflict (attribute annotations specification section 4.1) `` |
@@ -630,8 +635,6 @@ cinch: 2:3: unknown attribute `ignore`: outside the `meta` namespace, an attribu
 
 | Design spelling | Intended behaviour | Owning design |
 | --- | --- | --- |
-| `#[repr(unboxed)]` | Store an admitted value type inline wherever it is used | [Layouts and specialization](../design/layouts-and-specialization.md) |
-| `#[unpack]`, `#[nounpack]` | Request or override inlining of a fixed field's representation into its parent | [Layouts and specialization](../design/layouts-and-specialization.md) |
 | `#[global-allocator]`-style declaration | Select a user-supplied program allocator; `global_allocator` in design prose is a Rust analogy, not a Cinch alias | [Allocators](../design/allocators.md) |
 | `#[fip]` | Check the planned fully-in-place update and reuse discipline | [Allocators](../design/allocators.md) |
 | `#[alloc("bounded(n)")]` | Extend allocation checking to proved bounds; current `alloc` accepts only `"once"` | [Allocators](../design/allocators.md) |

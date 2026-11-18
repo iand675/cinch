@@ -591,11 +591,43 @@ Generated code reads that header through a negative index, and reads a construct
 
 Runtime header formats and specialization symbols are versioned implementation facts. User code should not inspect them by integer or pointer casts or persist them as a file format. Their source authority is `compiler/runtime/src/block_kinds.rs` and `block.rs`, with the corresponding code generation, not a source `repr` promise.
 
+# Unboxed wrappers
+
+In the Rust compiler, `#[repr(unboxed)]` gives a single-constructor `data` or `record` the runtime representation of its one non-erased field. The constructor allocates no wrapper. A constructor pattern binds the payload directly, as does a projection of the represented record field.
+
+```cinch
+#[repr(unboxed)]
+data Count where
+  CountOf :: U32 -> Count
+
+countValue :: Count -> U32
+countValue (CountOf n) = n
+```
+
+`Count` remains a distinct type during instance resolution and proof checking. A constraint such as `Show Count` requires an instance for `Count`, and an equality proof about `CountOf n` retains the constructor in its proposition.
+
+Supported payloads are machine scalars up to 64 bits, `Bool`, `Unit`, `Int`, `Nat`, `Bytes`, `Sym`, and other admitted unboxed wrappers. A field holding a `Count` stores the scalar directly. An unboxed wrapper around `Bytes` holds the existing counted buffer reference.
+
+## Unpacking a record field
+
+On a monomorphic native record, `#[unpack]` stores a product’s represented fields in the enclosing record, in declaration order. Use it on a monomorphic `data` or `record` field with one ordinary constructor and at least one runtime field. The constructor’s arguments, record projections, and patterns retain their source types. Projecting the entire product can allocate a new box. The interface records the enclosing record’s payload size and field offsets. Other uses of the product keep their existing layout.
+
+```cinch
+data Point where
+  XY :: I64 -> I64 -> Point
+
+record Sample where
+  #[unpack] position :: Point
+  reading :: I64
+```
+
+Here `Sample` stores three words. Marking `position` with `#[nounpack]` instead keeps the ordinary boxed field. Explicit boundary layouts and products that themselves contain unpacked fields are outside the supported field layouts.
+
 # Diagnostics for unsupported combinations
 
 | Written | Refusal |
 | --- | --- |
-| `#[repr(unboxed)]` | `` `unboxed` is not a representation `` |
+| `repr(unboxed)` on a sum or multi-field product | `requires one constructor with exactly one represented field` |
 | `#[repr()]` | `` `#[repr(...)]` takes at least one representation `` |
 | `#[repr=C]` | `` `#[repr(...)]` takes its representations in parentheses `` |
 | `#[repr = C]` | `` unterminated attribute `` (the space ends the attribute name) |
@@ -618,8 +650,7 @@ Runtime header formats and specialization symbols are versioned implementation f
 
 | Planned facility | Intended guarantee or behaviour | Current boundary |
 | --- | --- | --- |
-| Inline value types, proposed `#[repr(unboxed)]` | An admitted fixed layout is stored inline wherever used. | `unboxed` is not an accepted repr variant. |
-| Field unpacking, `#[unpack]` / `#[nounpack]` | Request or override inlining a fixed field's representation into its parent. | Neither is an accepted compiler-owned attribute. |
+| Multi-field inline value types | An admitted product is stored inline wherever used. | The Rust compiler supports single-field unboxed wrappers. |
 | Compiler-chosen default multiword layouts | Versioned deterministic field-layout choices recorded for consumers. | The current default remains the native uniform-word and object model described above. |
 | Expanding-edge boxing | Bound demand-driven full-layout specialization by boxing layout-growing recursive edges. | Current finite Raw/Obj/TObj class specialization does not establish that future full-layout algorithm. |
 | Representation instances, `Represent t carrier` | Builders and views relate an alternative carrier to canonical constructors, with optional fast paths. | No general shipped representation-instance API. |

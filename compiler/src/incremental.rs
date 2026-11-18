@@ -323,6 +323,13 @@ fn surface_rows(iface: &Iface, id: &str) -> String {
         for c in &t.ctors {
             if local == c.name {
                 out.push_str(&format!("ctor|{}|{}|{:?}|{:?}", c.name, c.tag, c.fields, c.erased));
+                // Matching an unboxed constructor binds its payload directly.
+                // A constructor-only dependency must see that ABI change.
+                if c.name != t.name {
+                    if let Some(layout) = iface.layouts.iter().find(|l| l.name == t.name && l.repr == "unboxed") {
+                        out.push_str(&format!("|layout={layout:?}"));
+                    }
+                }
             }
         }
     }
