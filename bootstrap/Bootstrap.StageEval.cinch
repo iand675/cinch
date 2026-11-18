@@ -4,12 +4,14 @@ module Bootstrap.StageEval where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
   import Bootstrap.Core
   import Bootstrap.Nominal (stage-quotation-module)
-  import Bootstrap.Ast (Expr)
+  import Bootstrap.Ast (Expr, Decl, DInterface)
+  import Bootstrap.Builtin (scalar-intrinsic, scalar-operation-code, scalar-operation-arguments, scalar-operation-result, scalar-shape-name)
+  import Bootstrap.Load (contract-intrinsic)
   import Bootstrap.ExportType (export-global)
-  import Bootstrap.Infer (elaboration-core)
+  import Bootstrap.Infer (elaboration-core, elaboration-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Total (total-decimal-value)
-  import Bootstrap.Type (UType, UCon, KType, mono, scheme-runtime-arity)
+  import Bootstrap.Type (UType, UCon, KType, integer-literal-valid)
   import Data.Int (int-add, int-sub, int-mul, int-neg)
   import Text.Lex (Span)
 
@@ -38,6 +40,8 @@ module Bootstrap.StageEval where
 
   data StageValue where
     StageInteger :: Int -> StageValue
+    StageMachine :: String -> Int -> StageValue
+    StageConversion :: String -> String -> StageValue
     StageBoolean :: Bool -> StageValue
     StageString :: String -> StageValue
     StageUnit :: StageValue
@@ -50,6 +54,11 @@ module Bootstrap.StageEval where
     -- re-checks it where the code lands, exactly as the seed retains its
     -- template beside the reified body.
     StageCode :: StageTemplate -> StageValue
+
+  data StageEnvironment where
+    StageEnvironment :: List CoreDefinition -> List Decl -> StageEnvironment
+  stage-definitions :: StageEnvironment -> List CoreDefinition
+  stage-definitions environment = case environment of StageEnvironment definitions declarations -> definitions
 
   data StageMatch where
     Match :: List (Nat, StageValue) -> StageMatch
@@ -75,9 +84,10 @@ module Bootstrap.StageEval where
       Err message -> exported-definition name rest
 
   evaluate-stage :: CheckedProgram -> Span -> String -> Nat -> Result (List Diagnostic) (StageValue, Nat)
-  evaluate-stage checked site name fuel = let definitions = elaboration-core (checked-elaboration checked) in
+  evaluate-stage checked site name fuel = let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed in
     case exported-definition name definitions of
-      Some definition -> evaluate-definition definitions site definition Nil fuel
+      Some definition -> evaluate-definition (StageEnvironment definitions (elaboration-declarations typed)) site definition Nil fuel
       None -> stage-error site (string-concat "missing checked compile-time definition: " name)
 
   match-stage-pattern :: CorePattern -> StageValue -> List (Nat, StageValue) -> StageMatch
@@ -112,12 +122,12 @@ module Bootstrap.StageEval where
     Nil -> None
     Cons (key, value) rest -> if id == key then Some value else stage-local id rest
 
-  evaluate-definition :: List CoreDefinition -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-definition :: StageEnvironment -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-definition definitions site definition values fuel = case core-givens definition of
     Nil -> evaluate-clauses definitions site (core-clauses definition) values fuel
     other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
 
-  evaluate-clauses :: List CoreDefinition -> Span -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-clauses :: StageEnvironment -> Span -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-clauses definitions site clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case clauses of
       Nil -> stage-error site "no checked compile-time clause matches this call"
@@ -128,7 +138,7 @@ module Bootstrap.StageEval where
 
   -- Calls evaluate operands before invoking the checked target. A refused
   -- inner intrinsic is reported even when the outer call is also unavailable.
-  evaluate-terms :: List CoreDefinition -> List (Nat, StageValue) -> Span -> List CoreTerm -> Nat -> Result (List Diagnostic) (List StageValue, Nat)
+  evaluate-terms :: StageEnvironment -> List (Nat, StageValue) -> Span -> List CoreTerm -> Nat -> Result (List Diagnostic) (List StageValue, Nat)
   evaluate-terms definitions locals site arguments fuel = case arguments of
     Nil -> Ok (Nil, fuel)
     Cons first rest -> case evaluate-term definitions locals site first fuel of
@@ -137,16 +147,47 @@ module Bootstrap.StageEval where
         Err errors -> Err errors
         Ok (values, done) -> Ok (Cons value values, done)
 
-  evaluate-use :: List CoreDefinition -> Span -> UType -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-use :: StageEnvironment -> Span -> UType -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-use definitions site ty name role values fuel =
     if same role "intrinsic" || same role "foreign" then
-      if list-length values == scheme-runtime-arity (mono ty) then
-        stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"])
-      else stage-error site "partial primitive application is unavailable in compile-time evaluation"
+      (case (if same role "intrinsic" then conversion-shape name else None) of
+        Some (source, result) -> apply-conversion site source result values fuel
+        None -> stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"]))
     else if same role "constructor" then evaluate-constructor site ty name values fuel
-    else case definition-for name definitions of
+    else case definition-for name (stage-definitions definitions) of
       Some definition -> evaluate-definition definitions site definition values fuel
-      None -> stage-error site (string-concat "definition is not available at compile time: " name)
+      None -> case (definitions, export-global name) of
+        (StageEnvironment core declarations, Ok identity) | same role "external" ->
+          (case imported-conversion identity declarations of
+            Some (source, result) -> apply-conversion site source result values fuel
+            None -> stage-error site (string-concat "definition is not available at compile time: " name))
+        other -> stage-error site (string-concat "definition is not available at compile time: " name)
+
+  -- Widening preserves the mathematical value at both carrier boundaries.
+  -- An imported binding is identified by its defining intrinsic declaration.
+  conversion-shape :: String -> Option (String, String)
+  conversion-shape symbol = case scalar-intrinsic symbol of
+    Some operation -> (case scalar-operation-arguments operation of
+      [source] | same (scalar-operation-code operation) "widen" ->
+        Some (scalar-shape-name source, scalar-shape-name (scalar-operation-result operation))
+      other -> None)
+    None -> if same symbol "cinch.runtime.intFromI64" then Some ("I64", "Int")
+      else if same symbol "cinch.runtime.natFromI64" then Some ("I64", "Nat") else None
+
+  apply-conversion :: Span -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  apply-conversion site source result values fuel = case values of
+    Nil -> Ok (StageConversion source result, fuel)
+    [StageMachine carrier value] | same source carrier && integer-literal-valid (UCon result KType) value ->
+      Ok (if same result "Nat" || same result "Int" then StageInteger value else StageMachine result value, fuel)
+    other -> stage-error site "invalid compile-time integer conversion"
+
+  imported-conversion :: String -> List Decl -> Option (String, String)
+  imported-conversion identity declarations = case declarations of
+    Nil -> None
+    Cons (DInterface sp owner hash metadata) rest -> (case contract-intrinsic identity owner metadata of
+      Some symbol -> conversion-shape symbol
+      None -> imported-conversion identity rest)
+    Cons other rest -> imported-conversion identity rest
 
   evaluate-constructor :: Span -> UType -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-constructor site ty name values fuel = case (ty, values) of
@@ -158,14 +199,19 @@ module Bootstrap.StageEval where
       Err message -> stage-error site "constructor is unavailable in compile-time evaluation"
     other -> stage-error site "constructor is unavailable in compile-time evaluation"
 
-  evaluate-application :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-application :: StageEnvironment -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-application definitions locals site term arguments fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case term of
       CApply at ty f x -> evaluate-application definitions locals at f (Cons x arguments) (fuel - 1)
       CUse at ty name role actuals -> case evaluate-terms definitions locals site arguments (fuel - 1) of
         Err errors -> Err errors
         Ok (values, remaining) -> evaluate-use definitions at ty name role values remaining
-      other -> stage-error site "indirect application is unavailable in compile-time evaluation"
+      other -> case evaluate-term definitions locals site term (fuel - 1) of
+        Ok (StageConversion source result, next) -> (case evaluate-terms definitions locals site arguments next of
+          Ok (values, remaining) -> apply-conversion site source result values remaining
+          Err errors -> Err errors)
+        Ok other-value -> stage-error site "indirect application is unavailable in compile-time evaluation"
+        Err errors -> Err errors
 
   primitive-arguments :: CoreTerm -> List CoreTerm
   primitive-arguments term = case term of
@@ -194,13 +240,13 @@ module Bootstrap.StageEval where
     Cons (StageInteger left) (Cons (StageInteger right) Nil) -> evaluate-numeric-primitive site operation left right fuel
     other -> stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
 
-  evaluate-term :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-term :: StageEnvironment -> List (Nat, StageValue) -> Span -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-term definitions locals site term fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     let remaining = fuel - 1 in case term of
-      CInt at (UCon carrier KType) text -> if same carrier "Nat" || same carrier "Int" then (case total-decimal-value text of
-        Some value -> Ok (StageInteger value, remaining)
-        None -> stage-error at "invalid checked compile-time integer")
-        else stage-error at "machine arithmetic is unavailable in compile-time evaluation"
+      CInt at (UCon carrier KType) text -> (case total-decimal-value text of
+        Some value | integer-literal-valid (UCon carrier KType) value ->
+          Ok (if same carrier "Nat" || same carrier "Int" then StageInteger value else StageMachine carrier value, remaining)
+        other -> stage-error at "invalid checked compile-time integer")
       CString at ty text -> Ok (StageString text, remaining)
       CUnit at ty -> Ok (StageUnit, remaining)
       CLocal at ty id name actuals -> case stage-local id locals of
