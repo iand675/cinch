@@ -362,12 +362,12 @@ fn obligations_the_condition_does_not_imply_are_refused() {
         &["is evidence of `a < b`, not of `b < a`"],
     );
     // A rebinding of the name inside the branch is another value.
-    // The staged checker prints the obligation after substituting that value.
+    // Stage 3 substitutes the new literal and can show the obligation is false.
     let shadowed_obligation = if common::external_frontend::configured()
         .expect("valid test frontend configuration")
         .is_some()
     {
-        "the obligation `9 < 5` needs"
+        "the obligation `9 < 5` of this call is false"
     } else {
         "the obligation `x < 5` needs"
     };
