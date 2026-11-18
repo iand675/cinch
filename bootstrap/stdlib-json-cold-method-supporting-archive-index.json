@@ -1,0 +1,2129 @@
+{
+  "description": "Closed supporting directional/addressability output-only ELF/LLVM and their completed local check caches; all source/log/reference/docs/frozen compiler/provider/runtime and current protocol/metadata/trace snapshots remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-method-supporting-stages-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Arithmetic.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Arithmetic.cinchif",
+      "size": 7034,
+      "mode": 384,
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Bits.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Bits.cinchif",
+      "size": 9863,
+      "mode": 384,
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Group.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Group.cinchif",
+      "size": 2464,
+      "mode": 384,
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Monoid.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Monoid.cinchif",
+      "size": 27165,
+      "mode": 384,
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Semigroup.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Semigroup.cinchif",
+      "size": 5861,
+      "mode": 384,
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Algebra.Semiring.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Algebra.Semiring.cinchif",
+      "size": 2642,
+      "mode": 384,
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Alternative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Alternative.cinchif",
+      "size": 2109,
+      "mode": 384,
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Applicative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Applicative.cinchif",
+      "size": 8919,
+      "mode": 384,
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Foldable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Foldable.cinchif",
+      "size": 28589,
+      "mode": 384,
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Functor.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Functor.cinchif",
+      "size": 3955,
+      "mode": 384,
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Monad.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Monad.cinchif",
+      "size": 3926,
+      "mode": 384,
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Category.Traversable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Category.Traversable.cinchif",
+      "size": 10234,
+      "mode": 384,
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Array.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Array.cinchif",
+      "size": 8797,
+      "mode": 384,
+      "sha256": "fa0ddd259b7a505b0b5e5c49c33bc78151fbb007db65a3d466095137203a2c11",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Ascii.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Ascii.cinchif",
+      "size": 1575,
+      "mode": 384,
+      "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Bool.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Bool.cinchif",
+      "size": 19612,
+      "mode": 384,
+      "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Bytes.Utf8.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Bytes.Utf8.cinchif",
+      "size": 14759,
+      "mode": 384,
+      "sha256": "cc10d46a692795b57d00e18fabe5c9a140c83c602840c9798517d051952bfe1e",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Bytes.Word.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Bytes.Word.cinchif",
+      "size": 2654,
+      "mode": 384,
+      "sha256": "c398bb83c01f3aa9051ae1a6c1b03d80875a99cd86ee4cf6de404bc9492985f1",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Bytes.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Bytes.cinchif",
+      "size": 13369,
+      "mode": 384,
+      "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Char.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Char.cinchif",
+      "size": 14397,
+      "mode": 384,
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Compose.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Compose.cinchif",
+      "size": 2098,
+      "mode": 384,
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Const.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Const.cinchif",
+      "size": 12479,
+      "mode": 384,
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Core.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Core.cinchif",
+      "size": 3904,
+      "mode": 384,
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Enum.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Enum.cinchif",
+      "size": 4694,
+      "mode": 384,
+      "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.FromList.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.FromList.cinchif",
+      "size": 1800,
+      "mode": 384,
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.FromMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.FromMap.cinchif",
+      "size": 2022,
+      "mode": 384,
+      "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Hash.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Hash.cinchif",
+      "size": 1284,
+      "mode": 384,
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.HashMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.HashMap.cinchif",
+      "size": 19114,
+      "mode": 384,
+      "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Identity.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Identity.cinchif",
+      "size": 13328,
+      "mode": 384,
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Int.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Int.cinchif",
+      "size": 29636,
+      "mode": 384,
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Json.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Json.cinchif",
+      "size": 5424,
+      "mode": 384,
+      "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.List.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.List.cinchif",
+      "size": 53382,
+      "mode": 384,
+      "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+      "nlink": 1,
+      "allocated_bytes": 57344
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Machine.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Machine.cinchif",
+      "size": 581879,
+      "mode": 384,
+      "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+      "nlink": 1,
+      "allocated_bytes": 585728
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Map.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Map.cinchif",
+      "size": 15135,
+      "mode": 384,
+      "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Nat.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Nat.cinchif",
+      "size": 29417,
+      "mode": 384,
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.NonEmpty.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.NonEmpty.cinchif",
+      "size": 13284,
+      "mode": 384,
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.NonZero.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.NonZero.cinchif",
+      "size": 8528,
+      "mode": 384,
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Option.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Option.cinchif",
+      "size": 28860,
+      "mode": 384,
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Ordering.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Ordering.cinchif",
+      "size": 7027,
+      "mode": 384,
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Path.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Path.cinchif",
+      "size": 6270,
+      "mode": 384,
+      "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Producer.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Producer.cinchif",
+      "size": 8542,
+      "mode": 384,
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Result.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Result.cinchif",
+      "size": 17758,
+      "mode": 384,
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Set.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Set.cinchif",
+      "size": 15631,
+      "mode": 384,
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Sorted.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Sorted.cinchif",
+      "size": 2250,
+      "mode": 384,
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.String.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.String.cinchif",
+      "size": 31951,
+      "mode": 384,
+      "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Sym.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Sym.cinchif",
+      "size": 8613,
+      "mode": 384,
+      "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Target.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Target.cinchif",
+      "size": 7264,
+      "mode": 384,
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Unicode.Kernel.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Unicode.Kernel.cinchif",
+      "size": 34682,
+      "mode": 384,
+      "sha256": "fc04696a8be5df03b6176c325c956ad2e5eaf86486bfedba354c102b56c7eefe",
+      "nlink": 1,
+      "allocated_bytes": 36864
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Unicode.Tables.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Unicode.Tables.cinchif",
+      "size": 5072,
+      "mode": 384,
+      "sha256": "590929bed104b20bc4bdf18b5d23781d4eb76e336d86138ebca8764536628941",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Data.Wide.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Data.Wide.cinchif",
+      "size": 177190,
+      "mode": 384,
+      "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+      "nlink": 1,
+      "allocated_bytes": 180224
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Clock.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Clock.cinchif",
+      "size": 5643,
+      "mode": 384,
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Concurrent.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Concurrent.cinchif",
+      "size": 2795,
+      "mode": 384,
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Fs.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Fs.cinchif",
+      "size": 19329,
+      "mode": 384,
+      "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Io.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Io.cinchif",
+      "size": 4334,
+      "mode": 384,
+      "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Process.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Process.cinchif",
+      "size": 28556,
+      "mode": 384,
+      "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Sequencing.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Sequencing.cinchif",
+      "size": 4868,
+      "mode": 384,
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Stm.TBQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Stm.TBQueue.cinchif",
+      "size": 7822,
+      "mode": 384,
+      "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Stm.TMVar.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Stm.TMVar.cinchif",
+      "size": 8818,
+      "mode": 384,
+      "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Stm.TQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Stm.TQueue.cinchif",
+      "size": 7322,
+      "mode": 384,
+      "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Stm.TSem.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Stm.TSem.cinchif",
+      "size": 4558,
+      "mode": 384,
+      "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Effect.Stm.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Effect.Stm.cinchif",
+      "size": 26973,
+      "mode": 384,
+      "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Function.Combinators.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Function.Combinators.cinchif",
+      "size": 4656,
+      "mode": 384,
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Main.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Main.cinchif",
+      "size": 20394,
+      "mode": 384,
+      "sha256": "a09399b25c5d1f1c9872449843fce482a18962b2cf1e9081a769fad4bf3748d5",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Main.manifest.json",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Main.manifest.json",
+      "size": 319196,
+      "mode": 384,
+      "sha256": "618c9158cb46f5e8f6fbfdd49675f706bba9fee11a8f2fa65749ad98f9f43e58",
+      "nlink": 1,
+      "allocated_bytes": 319488
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Main.stage.snap",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Main.stage.snap",
+      "size": 0,
+      "mode": 384,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nlink": 1,
+      "allocated_bytes": 0
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Prelude.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Prelude.cinchif",
+      "size": 419421,
+      "mode": 384,
+      "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+      "nlink": 1,
+      "allocated_bytes": 421888
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Prim.Sys.Darwin.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Prim.Sys.Darwin.cinchif",
+      "size": 27114,
+      "mode": 384,
+      "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Prim.Sys.Linux.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Prim.Sys.Linux.cinchif",
+      "size": 21362,
+      "mode": 384,
+      "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+      "nlink": 1,
+      "allocated_bytes": 24576
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Prim.Sys.Portable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Prim.Sys.Portable.cinchif",
+      "size": 13232,
+      "mode": 384,
+      "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Prim.Sys.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Prim.Sys.cinchif",
+      "size": 19276,
+      "mode": 384,
+      "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Relation.Eq.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Relation.Eq.cinchif",
+      "size": 1774,
+      "mode": 384,
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Relation.Ord.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Relation.Ord.cinchif",
+      "size": 6745,
+      "mode": 384,
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Base64.Encoding.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Base64.Encoding.cinchif",
+      "size": 32464,
+      "mode": 384,
+      "sha256": "3668fcb7a27822a76f05442b6a6fc5490ec4368ae80171fdcc3c8433a9103543",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Codec.cinchif",
+      "size": 6572,
+      "mode": 384,
+      "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Json.Binary32.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Json.Binary32.cinchif",
+      "size": 1737,
+      "mode": 384,
+      "sha256": "30895befecfc231a331000146246a46c829debc7c3cc4b02166835c79bbeff39",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Json.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Json.Codec.cinchif",
+      "size": 112577,
+      "mode": 384,
+      "sha256": "2b0ca3ff2199e0240a8ee02aa5fa62fd1afb6d97ad902d41b4eca439000780b7",
+      "nlink": 1,
+      "allocated_bytes": 114688
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Json.Dynamic.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Json.Dynamic.cinchif",
+      "size": 24104,
+      "mode": 384,
+      "sha256": "f09159d201a784fa1aa1d26c96697d23814b22a5d1a1c3b7338e0c6ad46d8559",
+      "nlink": 1,
+      "allocated_bytes": 24576
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Json.Value.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Json.Value.cinchif",
+      "size": 95562,
+      "mode": 384,
+      "sha256": "b34d01a3f59c7ad25964f06a4b8799e5e02714497f34cf1aa15682846d565990",
+      "nlink": 1,
+      "allocated_bytes": 98304
+    },
+    {
+      "path": "build/json-addressability-probe-v2/build/Text.Show.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/build/Text.Show.cinchif",
+      "size": 6568,
+      "mode": 384,
+      "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-addressability-probe-v2/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/consumer",
+      "size": 7404688,
+      "mode": 448,
+      "sha256": "fbfcf7d01e5b61d62f1c7a4848597924015645231cfe60d2f054d1288ef97a45",
+      "nlink": 1,
+      "allocated_bytes": 7405568
+    },
+    {
+      "path": "build/json-addressability-probe-v2/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-addressability-probe-v2/consumer.ll",
+      "size": 8714677,
+      "mode": 384,
+      "sha256": "e4c814a9554cbbfe5ec7c89fe17ed98e7afcc453395b16649e3963889571311d",
+      "nlink": 1,
+      "allocated_bytes": 8716288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Arithmetic.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Arithmetic.cinchif",
+      "size": 7034,
+      "mode": 384,
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Bits.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Bits.cinchif",
+      "size": 9863,
+      "mode": 384,
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Group.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Group.cinchif",
+      "size": 2464,
+      "mode": 384,
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Monoid.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Monoid.cinchif",
+      "size": 27165,
+      "mode": 384,
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Semigroup.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Semigroup.cinchif",
+      "size": 5861,
+      "mode": 384,
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Algebra.Semiring.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Algebra.Semiring.cinchif",
+      "size": 2642,
+      "mode": 384,
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Alternative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Alternative.cinchif",
+      "size": 2109,
+      "mode": 384,
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Applicative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Applicative.cinchif",
+      "size": 8919,
+      "mode": 384,
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Foldable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Foldable.cinchif",
+      "size": 28589,
+      "mode": 384,
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Functor.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Functor.cinchif",
+      "size": 3955,
+      "mode": 384,
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Monad.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Monad.cinchif",
+      "size": 3926,
+      "mode": 384,
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Category.Traversable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Category.Traversable.cinchif",
+      "size": 10234,
+      "mode": 384,
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Array.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Array.cinchif",
+      "size": 8797,
+      "mode": 384,
+      "sha256": "7a984d363392346a38e192f33277d09baaed7e49dee96bcf0548d1212c045b66",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Ascii.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Ascii.cinchif",
+      "size": 1575,
+      "mode": 384,
+      "sha256": "777c48a569132e74e9f2bb2e185529fbffdbd8d10deac9bf5c72f8b475211c04",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Bool.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Bool.cinchif",
+      "size": 19612,
+      "mode": 384,
+      "sha256": "c1364331134f7128dfbf803dd907d93a9abc39712edf070125b6bbb8a7323333",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Bytes.Word.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Bytes.Word.cinchif",
+      "size": 2653,
+      "mode": 384,
+      "sha256": "97663340b995771fcd074a2f28a108f9f9cdef8c2473ddd08470cc3895d8d393",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Bytes.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Bytes.cinchif",
+      "size": 13369,
+      "mode": 384,
+      "sha256": "e74011f0fe5b6651aa47344a00acf6d9bbd5dcb6b709cab7bc5dab92141e2e06",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Char.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Char.cinchif",
+      "size": 14397,
+      "mode": 384,
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Compose.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Compose.cinchif",
+      "size": 2098,
+      "mode": 384,
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Const.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Const.cinchif",
+      "size": 12479,
+      "mode": 384,
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Core.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Core.cinchif",
+      "size": 3904,
+      "mode": 384,
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Enum.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Enum.cinchif",
+      "size": 4694,
+      "mode": 384,
+      "sha256": "c40ac1e4971dfb56a380e4d510e4f7239a40efb0851e718aa4d5b2aabdf6190a",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.FromList.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.FromList.cinchif",
+      "size": 1800,
+      "mode": 384,
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.FromMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.FromMap.cinchif",
+      "size": 2022,
+      "mode": 384,
+      "sha256": "3e4412cff41c266166ff52f8fdc864e25370b197a580dc349bb8fab8ad398d52",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Hash.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Hash.cinchif",
+      "size": 1284,
+      "mode": 384,
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.HashMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.HashMap.cinchif",
+      "size": 19115,
+      "mode": 384,
+      "sha256": "66bfd9ee1773b6f52d3a2b95eb8851723f73515fe852c1089dc67aa0ad759bf7",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Identity.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Identity.cinchif",
+      "size": 13328,
+      "mode": 384,
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Int.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Int.cinchif",
+      "size": 29636,
+      "mode": 384,
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Json.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Json.cinchif",
+      "size": 5424,
+      "mode": 384,
+      "sha256": "37286382b50fa3cc0c395a7f77e1a0cdfc1a27cc54d72380b7bffe9724f1a861",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.List.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.List.cinchif",
+      "size": 53829,
+      "mode": 384,
+      "sha256": "756fbc3527e59a49577aa629a10a46d0893dd414635e2314c1c95ffa5513d8f2",
+      "nlink": 1,
+      "allocated_bytes": 57344
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Machine.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Machine.cinchif",
+      "size": 581879,
+      "mode": 384,
+      "sha256": "98e93f15ef132ff7779e69ad854a94f4040bb51de1ce439b752c6da453ae8d7e",
+      "nlink": 1,
+      "allocated_bytes": 585728
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Map.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Map.cinchif",
+      "size": 15135,
+      "mode": 384,
+      "sha256": "15a57a62c12016dd15a06c3708d5b4fa70984c8fddda16513b4810865186f456",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Nat.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Nat.cinchif",
+      "size": 29417,
+      "mode": 384,
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.NonEmpty.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.NonEmpty.cinchif",
+      "size": 13284,
+      "mode": 384,
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.NonZero.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.NonZero.cinchif",
+      "size": 8528,
+      "mode": 384,
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Option.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Option.cinchif",
+      "size": 28860,
+      "mode": 384,
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Ordering.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Ordering.cinchif",
+      "size": 7027,
+      "mode": 384,
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Path.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Path.cinchif",
+      "size": 6270,
+      "mode": 384,
+      "sha256": "e254d9550628d4e9d126ef0296b44c6bc76ea40cca8a03235d8026c8445f0e9a",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Producer.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Producer.cinchif",
+      "size": 8542,
+      "mode": 384,
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Result.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Result.cinchif",
+      "size": 17758,
+      "mode": 384,
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Set.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Set.cinchif",
+      "size": 15631,
+      "mode": 384,
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Sorted.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Sorted.cinchif",
+      "size": 2250,
+      "mode": 384,
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.String.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.String.cinchif",
+      "size": 31951,
+      "mode": 384,
+      "sha256": "2463644e43f10fc8670101a47a7ebf46346758e69e7f567103fc7d0a986aa3f1",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Sym.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Sym.cinchif",
+      "size": 8613,
+      "mode": 384,
+      "sha256": "8d779c0ad94732455c08825ede313877bc52b26ec0349e62353b6ba5c9c2fb2b",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Target.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Target.cinchif",
+      "size": 7264,
+      "mode": 384,
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Unicode.Kernel.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Unicode.Kernel.cinchif",
+      "size": 34681,
+      "mode": 384,
+      "sha256": "cf961ac49a4b29818a39c47b83183a090df6797fb2af0c6433da22de8e019143",
+      "nlink": 1,
+      "allocated_bytes": 36864
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Unicode.Tables.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Unicode.Tables.cinchif",
+      "size": 5071,
+      "mode": 384,
+      "sha256": "7e2cf4e3b598b5dc9ff77a73dad1f1f3be0f868fa17dd3827ff3d21453989a73",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Data.Wide.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Data.Wide.cinchif",
+      "size": 177190,
+      "mode": 384,
+      "sha256": "0d22e4ab87fe18da132ffe85f9aca13690c50fe47335f5fe6e3656467eeef349",
+      "nlink": 1,
+      "allocated_bytes": 180224
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Clock.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Clock.cinchif",
+      "size": 5643,
+      "mode": 384,
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Concurrent.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Concurrent.cinchif",
+      "size": 2795,
+      "mode": 384,
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Fs.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Fs.cinchif",
+      "size": 19328,
+      "mode": 384,
+      "sha256": "eca892fcccf8c424ce295a84067fae27c0a540a0b5b5516fc9d5ca6e368572ad",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Io.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Io.cinchif",
+      "size": 4335,
+      "mode": 384,
+      "sha256": "1d9acff30d51a87855dbb8c7425b5c2dbdeaa20059925ddc627a3e7eb46ae2c1",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Process.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Process.cinchif",
+      "size": 28555,
+      "mode": 384,
+      "sha256": "468c3c78bab469dc1c8572a0031d8974ee974a80e792756a3c164bb8e6f0856d",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Sequencing.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Sequencing.cinchif",
+      "size": 4868,
+      "mode": 384,
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TBQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TBQueue.cinchif",
+      "size": 7821,
+      "mode": 384,
+      "sha256": "0f0cfcfd1f0836233b819a1f9daea945384450b174e0c79e2a12f32fe0ccb949",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TMVar.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TMVar.cinchif",
+      "size": 8817,
+      "mode": 384,
+      "sha256": "bd0964984a75ecad797f53402c9333553e657a82d4b6f5865203c93cba6fa9e2",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TQueue.cinchif",
+      "size": 7321,
+      "mode": 384,
+      "sha256": "f864c13aa20ad98c4c04a95f2fe237bd61f5cc61c6c1e47d6baf6b97c3200c18",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TSem.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.TSem.cinchif",
+      "size": 4557,
+      "mode": 384,
+      "sha256": "dd2409b8ef178d0383b35d6ff9681e1fe56da18b39a84f058d8344230a7da0ef",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Effect.Stm.cinchif",
+      "size": 26972,
+      "mode": 384,
+      "sha256": "a10cb1c06042369ac0a6222a6ec21fcd9d7c8e91c5594050b966490e11046070",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Function.Combinators.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Function.Combinators.cinchif",
+      "size": 4656,
+      "mode": 384,
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Main.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Main.cinchif",
+      "size": 4623,
+      "mode": 384,
+      "sha256": "16a2ce96ea96c3d8e768f95b0e758fece5cee1c8db2008b4d2fdbfc2ee838b7f",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Main.manifest.json",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Main.manifest.json",
+      "size": 228526,
+      "mode": 384,
+      "sha256": "c4413165117af30ee47f187ef47ad376a101d432803dbe781049564e6aa56efc",
+      "nlink": 1,
+      "allocated_bytes": 229376
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Main.stage.snap",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Main.stage.snap",
+      "size": 0,
+      "mode": 384,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nlink": 1,
+      "allocated_bytes": 0
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Prelude.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Prelude.cinchif",
+      "size": 419420,
+      "mode": 384,
+      "sha256": "ae784c0fcdc37a6425351a16d922998e0e646f7bb843c036445237f3842f475c",
+      "nlink": 1,
+      "allocated_bytes": 421888
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Darwin.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Darwin.cinchif",
+      "size": 27113,
+      "mode": 384,
+      "sha256": "e0ef8ee35d8c84cfb198d40c448ecd1849197adb5fa008c2ed69148d17033190",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Linux.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Linux.cinchif",
+      "size": 21361,
+      "mode": 384,
+      "sha256": "7e30f8595c0186a2f58cf45e5a41237c195548bf7faeb8ba5ba6b2f17daf8192",
+      "nlink": 1,
+      "allocated_bytes": 24576
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Portable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.Portable.cinchif",
+      "size": 13231,
+      "mode": 384,
+      "sha256": "96636d76081082a23f90dfb7db40355f2c33e4d39b3d2814b78e2a755b19ee57",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Prim.Sys.cinchif",
+      "size": 19276,
+      "mode": 384,
+      "sha256": "f9b66eb3b09f526c141b93caafc51e770091a20f9b3e2d32f1e59dbe37bb3421",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Relation.Eq.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Relation.Eq.cinchif",
+      "size": 1774,
+      "mode": 384,
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Relation.Ord.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Relation.Ord.cinchif",
+      "size": 6745,
+      "mode": 384,
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Base64.Encoding.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Base64.Encoding.cinchif",
+      "size": 32463,
+      "mode": 384,
+      "sha256": "115e137da076cfdcaea9b934a5dec82a91a2c115a905b19977e34a248769b4da",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Codec.cinchif",
+      "size": 6572,
+      "mode": 384,
+      "sha256": "5acb1fced39eed6b09db8c37a2ae0cbd4205e30e4c3b22a71f89a49c4793cff5",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Json.Binary32.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Json.Binary32.cinchif",
+      "size": 1736,
+      "mode": 384,
+      "sha256": "a019a3b4fcc1fde911549d10c4ff4f653b7fdb6bb9813b187b7dd0b6c7ec7dec",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Json.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Json.Codec.cinchif",
+      "size": 106714,
+      "mode": 384,
+      "sha256": "800a5edae751cfd6106e0ba1b7f7911d08d3d9a958d44d2225636f32730c18b8",
+      "nlink": 1,
+      "allocated_bytes": 110592
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Json.Value.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Json.Value.cinchif",
+      "size": 95560,
+      "mode": 384,
+      "sha256": "47f3b896de891c8295767d8dcfe3af767a5585df536fc9debfafd27629747e5d",
+      "nlink": 1,
+      "allocated_bytes": 98304
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/build/Text.Show.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/build/Text.Show.cinchif",
+      "size": 6568,
+      "mode": 384,
+      "sha256": "edca9b6bd6c1c0aed264d38083a51b2ccb39f738c7462c79af3f04fb84d1f717",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/consumer",
+      "size": 6705896,
+      "mode": 448,
+      "sha256": "43570be36e54d325518e98a625965847da74fa74fa5a7ae1552e197606b49937",
+      "nlink": 1,
+      "allocated_bytes": 6709248
+    },
+    {
+      "path": "build/json-method-categories-rust-v1/method-categories/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-method-categories-rust-v1/method-categories/consumer.ll",
+      "size": 5870472,
+      "mode": 384,
+      "sha256": "4e3f38fb4663c13ba5a72708635990ddd4079e83617049ea475d0ce0daf6eedb",
+      "nlink": 1,
+      "allocated_bytes": 5873664
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Arithmetic.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Arithmetic.cinchif",
+      "size": 7034,
+      "mode": 384,
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Bits.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Bits.cinchif",
+      "size": 9863,
+      "mode": 384,
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Group.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Group.cinchif",
+      "size": 2464,
+      "mode": 384,
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Monoid.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Monoid.cinchif",
+      "size": 27165,
+      "mode": 384,
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Semigroup.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Semigroup.cinchif",
+      "size": 5861,
+      "mode": 384,
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Algebra.Semiring.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Algebra.Semiring.cinchif",
+      "size": 2642,
+      "mode": 384,
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Alternative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Alternative.cinchif",
+      "size": 2109,
+      "mode": 384,
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Applicative.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Applicative.cinchif",
+      "size": 8919,
+      "mode": 384,
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Foldable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Foldable.cinchif",
+      "size": 28589,
+      "mode": 384,
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Functor.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Functor.cinchif",
+      "size": 3955,
+      "mode": 384,
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Monad.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Monad.cinchif",
+      "size": 3926,
+      "mode": 384,
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Category.Traversable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Category.Traversable.cinchif",
+      "size": 10234,
+      "mode": 384,
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Array.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Array.cinchif",
+      "size": 8797,
+      "mode": 384,
+      "sha256": "7a984d363392346a38e192f33277d09baaed7e49dee96bcf0548d1212c045b66",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Ascii.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Ascii.cinchif",
+      "size": 1575,
+      "mode": 384,
+      "sha256": "777c48a569132e74e9f2bb2e185529fbffdbd8d10deac9bf5c72f8b475211c04",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Bool.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Bool.cinchif",
+      "size": 19612,
+      "mode": 384,
+      "sha256": "c1364331134f7128dfbf803dd907d93a9abc39712edf070125b6bbb8a7323333",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Bytes.Word.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Bytes.Word.cinchif",
+      "size": 2653,
+      "mode": 384,
+      "sha256": "97663340b995771fcd074a2f28a108f9f9cdef8c2473ddd08470cc3895d8d393",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Bytes.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Bytes.cinchif",
+      "size": 13369,
+      "mode": 384,
+      "sha256": "e74011f0fe5b6651aa47344a00acf6d9bbd5dcb6b709cab7bc5dab92141e2e06",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Char.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Char.cinchif",
+      "size": 14397,
+      "mode": 384,
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Compose.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Compose.cinchif",
+      "size": 2098,
+      "mode": 384,
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Const.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Const.cinchif",
+      "size": 12479,
+      "mode": 384,
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Core.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Core.cinchif",
+      "size": 3904,
+      "mode": 384,
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Enum.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Enum.cinchif",
+      "size": 4694,
+      "mode": 384,
+      "sha256": "c40ac1e4971dfb56a380e4d510e4f7239a40efb0851e718aa4d5b2aabdf6190a",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.FromList.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.FromList.cinchif",
+      "size": 1800,
+      "mode": 384,
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.FromMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.FromMap.cinchif",
+      "size": 2022,
+      "mode": 384,
+      "sha256": "3e4412cff41c266166ff52f8fdc864e25370b197a580dc349bb8fab8ad398d52",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Hash.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Hash.cinchif",
+      "size": 1284,
+      "mode": 384,
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.HashMap.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.HashMap.cinchif",
+      "size": 19115,
+      "mode": 384,
+      "sha256": "66bfd9ee1773b6f52d3a2b95eb8851723f73515fe852c1089dc67aa0ad759bf7",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Identity.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Identity.cinchif",
+      "size": 13328,
+      "mode": 384,
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Int.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Int.cinchif",
+      "size": 29636,
+      "mode": 384,
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Json.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Json.cinchif",
+      "size": 5424,
+      "mode": 384,
+      "sha256": "37286382b50fa3cc0c395a7f77e1a0cdfc1a27cc54d72380b7bffe9724f1a861",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.List.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.List.cinchif",
+      "size": 53829,
+      "mode": 384,
+      "sha256": "756fbc3527e59a49577aa629a10a46d0893dd414635e2314c1c95ffa5513d8f2",
+      "nlink": 1,
+      "allocated_bytes": 57344
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Machine.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Machine.cinchif",
+      "size": 581879,
+      "mode": 384,
+      "sha256": "98e93f15ef132ff7779e69ad854a94f4040bb51de1ce439b752c6da453ae8d7e",
+      "nlink": 1,
+      "allocated_bytes": 585728
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Map.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Map.cinchif",
+      "size": 15135,
+      "mode": 384,
+      "sha256": "15a57a62c12016dd15a06c3708d5b4fa70984c8fddda16513b4810865186f456",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Nat.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Nat.cinchif",
+      "size": 29417,
+      "mode": 384,
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.NonEmpty.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.NonEmpty.cinchif",
+      "size": 13284,
+      "mode": 384,
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.NonZero.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.NonZero.cinchif",
+      "size": 8528,
+      "mode": 384,
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Option.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Option.cinchif",
+      "size": 28860,
+      "mode": 384,
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Ordering.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Ordering.cinchif",
+      "size": 7027,
+      "mode": 384,
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Path.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Path.cinchif",
+      "size": 6270,
+      "mode": 384,
+      "sha256": "e254d9550628d4e9d126ef0296b44c6bc76ea40cca8a03235d8026c8445f0e9a",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Producer.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Producer.cinchif",
+      "size": 8542,
+      "mode": 384,
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Result.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Result.cinchif",
+      "size": 17758,
+      "mode": 384,
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Set.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Set.cinchif",
+      "size": 15631,
+      "mode": 384,
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Sorted.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Sorted.cinchif",
+      "size": 2250,
+      "mode": 384,
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.String.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.String.cinchif",
+      "size": 31951,
+      "mode": 384,
+      "sha256": "2463644e43f10fc8670101a47a7ebf46346758e69e7f567103fc7d0a986aa3f1",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Sym.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Sym.cinchif",
+      "size": 8613,
+      "mode": 384,
+      "sha256": "8d779c0ad94732455c08825ede313877bc52b26ec0349e62353b6ba5c9c2fb2b",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Target.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Target.cinchif",
+      "size": 7264,
+      "mode": 384,
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Unicode.Kernel.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Unicode.Kernel.cinchif",
+      "size": 34681,
+      "mode": 384,
+      "sha256": "cf961ac49a4b29818a39c47b83183a090df6797fb2af0c6433da22de8e019143",
+      "nlink": 1,
+      "allocated_bytes": 36864
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Unicode.Tables.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Unicode.Tables.cinchif",
+      "size": 5071,
+      "mode": 384,
+      "sha256": "7e2cf4e3b598b5dc9ff77a73dad1f1f3be0f868fa17dd3827ff3d21453989a73",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Data.Wide.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Data.Wide.cinchif",
+      "size": 177190,
+      "mode": 384,
+      "sha256": "0d22e4ab87fe18da132ffe85f9aca13690c50fe47335f5fe6e3656467eeef349",
+      "nlink": 1,
+      "allocated_bytes": 180224
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Clock.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Clock.cinchif",
+      "size": 5643,
+      "mode": 384,
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Concurrent.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Concurrent.cinchif",
+      "size": 2795,
+      "mode": 384,
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Fs.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Fs.cinchif",
+      "size": 19328,
+      "mode": 384,
+      "sha256": "eca892fcccf8c424ce295a84067fae27c0a540a0b5b5516fc9d5ca6e368572ad",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Io.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Io.cinchif",
+      "size": 4335,
+      "mode": 384,
+      "sha256": "1d9acff30d51a87855dbb8c7425b5c2dbdeaa20059925ddc627a3e7eb46ae2c1",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Process.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Process.cinchif",
+      "size": 28555,
+      "mode": 384,
+      "sha256": "468c3c78bab469dc1c8572a0031d8974ee974a80e792756a3c164bb8e6f0856d",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Sequencing.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Sequencing.cinchif",
+      "size": 4868,
+      "mode": 384,
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Stm.TBQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Stm.TBQueue.cinchif",
+      "size": 7821,
+      "mode": 384,
+      "sha256": "0f0cfcfd1f0836233b819a1f9daea945384450b174e0c79e2a12f32fe0ccb949",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Stm.TMVar.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Stm.TMVar.cinchif",
+      "size": 8817,
+      "mode": 384,
+      "sha256": "bd0964984a75ecad797f53402c9333553e657a82d4b6f5865203c93cba6fa9e2",
+      "nlink": 1,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Stm.TQueue.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Stm.TQueue.cinchif",
+      "size": 7321,
+      "mode": 384,
+      "sha256": "f864c13aa20ad98c4c04a95f2fe237bd61f5cc61c6c1e47d6baf6b97c3200c18",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Stm.TSem.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Stm.TSem.cinchif",
+      "size": 4557,
+      "mode": 384,
+      "sha256": "dd2409b8ef178d0383b35d6ff9681e1fe56da18b39a84f058d8344230a7da0ef",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Effect.Stm.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Effect.Stm.cinchif",
+      "size": 26972,
+      "mode": 384,
+      "sha256": "a10cb1c06042369ac0a6222a6ec21fcd9d7c8e91c5594050b966490e11046070",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Function.Combinators.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Function.Combinators.cinchif",
+      "size": 4656,
+      "mode": 384,
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Main.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Main.cinchif",
+      "size": 4623,
+      "mode": 384,
+      "sha256": "16a2ce96ea96c3d8e768f95b0e758fece5cee1c8db2008b4d2fdbfc2ee838b7f",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Main.manifest.json",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Main.manifest.json",
+      "size": 633567,
+      "mode": 384,
+      "sha256": "28ff0aa8f562725ab01e8fc09b7d2ce81addb3717bb8e0d5935f538ade12abdf",
+      "nlink": 1,
+      "allocated_bytes": 634880
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Main.stage.snap",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Main.stage.snap",
+      "size": 0,
+      "mode": 384,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nlink": 1,
+      "allocated_bytes": 0
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Prelude.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Prelude.cinchif",
+      "size": 419420,
+      "mode": 384,
+      "sha256": "ae784c0fcdc37a6425351a16d922998e0e646f7bb843c036445237f3842f475c",
+      "nlink": 1,
+      "allocated_bytes": 421888
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Prim.Sys.Darwin.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Prim.Sys.Darwin.cinchif",
+      "size": 27113,
+      "mode": 384,
+      "sha256": "e0ef8ee35d8c84cfb198d40c448ecd1849197adb5fa008c2ed69148d17033190",
+      "nlink": 1,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Prim.Sys.Linux.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Prim.Sys.Linux.cinchif",
+      "size": 21361,
+      "mode": 384,
+      "sha256": "7e30f8595c0186a2f58cf45e5a41237c195548bf7faeb8ba5ba6b2f17daf8192",
+      "nlink": 1,
+      "allocated_bytes": 24576
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Prim.Sys.Portable.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Prim.Sys.Portable.cinchif",
+      "size": 13231,
+      "mode": 384,
+      "sha256": "96636d76081082a23f90dfb7db40355f2c33e4d39b3d2814b78e2a755b19ee57",
+      "nlink": 1,
+      "allocated_bytes": 16384
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Prim.Sys.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Prim.Sys.cinchif",
+      "size": 19276,
+      "mode": 384,
+      "sha256": "f9b66eb3b09f526c141b93caafc51e770091a20f9b3e2d32f1e59dbe37bb3421",
+      "nlink": 1,
+      "allocated_bytes": 20480
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Relation.Eq.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Relation.Eq.cinchif",
+      "size": 1774,
+      "mode": 384,
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Relation.Ord.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Relation.Ord.cinchif",
+      "size": 6745,
+      "mode": 384,
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Base64.Encoding.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Base64.Encoding.cinchif",
+      "size": 32463,
+      "mode": 384,
+      "sha256": "115e137da076cfdcaea9b934a5dec82a91a2c115a905b19977e34a248769b4da",
+      "nlink": 1,
+      "allocated_bytes": 32768
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Codec.cinchif",
+      "size": 6572,
+      "mode": 384,
+      "sha256": "5acb1fced39eed6b09db8c37a2ae0cbd4205e30e4c3b22a71f89a49c4793cff5",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Json.Binary32.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Json.Binary32.cinchif",
+      "size": 1736,
+      "mode": 384,
+      "sha256": "a019a3b4fcc1fde911549d10c4ff4f653b7fdb6bb9813b187b7dd0b6c7ec7dec",
+      "nlink": 1,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Json.Codec.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Json.Codec.cinchif",
+      "size": 106714,
+      "mode": 384,
+      "sha256": "800a5edae751cfd6106e0ba1b7f7911d08d3d9a958d44d2225636f32730c18b8",
+      "nlink": 1,
+      "allocated_bytes": 110592
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Json.Value.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Json.Value.cinchif",
+      "size": 95560,
+      "mode": 384,
+      "sha256": "47f3b896de891c8295767d8dcfe3af767a5585df536fc9debfafd27629747e5d",
+      "nlink": 1,
+      "allocated_bytes": 98304
+    },
+    {
+      "path": "build/json-methods-probe-v1/build/Text.Show.cinchif",
+      "source": "/workspace/dasl-stdlib-json/build/json-methods-probe-v1/build/Text.Show.cinchif",
+      "size": 6568,
+      "mode": 384,
+      "sha256": "edca9b6bd6c1c0aed264d38083a51b2ccb39f738c7462c79af3f04fb84d1f717",
+      "nlink": 1,
+      "allocated_bytes": 8192
+    }
+  ],
+  "original_file_bytes": 36569944,
+  "verified": true,
+  "originals_removed": true,
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-method-categories-rust-v1-results.json",
+    "bootstrap/stdlib-json-addressability-rust-v1-results.json"
+  ],
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-method-supporting-stages-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "2e3855abec6a413aa96a35c54e929b5e05e60517186c4b5aefee9dcf9a70d4fa",
+  "archive_bytes": 7553348,
+  "decompressed_tar_sha256": "0fd71305df12f5f3f58989b361e35bbf23cedef64783492c13618367a5a93cf4",
+  "decompressed_tar_bytes": 36997120,
+  "elapsed_seconds": 0.6179280380019918,
+  "free_bytes_before": 112328704,
+  "free_bytes_after": 141656064,
+  "global_free_change_bytes": 29327360,
+  "own_reclaimed_blocks_before_indexes_bytes": 29515776
+}

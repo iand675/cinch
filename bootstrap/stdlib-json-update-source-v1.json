@@ -1,0 +1,20 @@
+{
+  "status": "prepared-source-first",
+  "sources": {
+    "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+    "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+  },
+  "qualified_method_sources_unchanged_in_snapshot": "build/json-error-methods-probe-v5",
+  "fixture_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+  "reference_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "changes": [
+    "Explicit optional type/record/field metadata; old constructors retained",
+    "Independent root read name survives descriptor composers; no type-name parsing",
+    "Ordinary stopped refusals receive source-local semantic context before containing paths",
+    "JSON read semantic context composes with original token offset; text user context stays protected",
+    "Legacy semantic refusals adapt to a directly observable typed error retaining nil identity and original cause",
+    "Default unnamed descriptors keep existing legacy type alternatives unless metadata enrichment is requested"
+  ],
+  "new_llvm_runtime": false,
+  "reference_render_panic_observations_retained": 12
+}

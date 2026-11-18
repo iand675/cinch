@@ -1,0 +1,11 @@
+{
+  "status": "runner-resource-guard-corrected-before-output-creation",
+  "source_positive_seconds": 9.969,
+  "old_redundant_runtime_guard_bytes": 367001600,
+  "scoped_authorized_guard_bytes": 335544320,
+  "refusal_free_bytes": 357597184,
+  "directory_created": false,
+  "receipt_created": false,
+  "emission_started": false,
+  "compiler_contracts_changed": false
+}

@@ -1,0 +1,15 @@
+{
+  "status": "prepared-not-qualified",
+  "fixture_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+  "oracle_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "rows": 54,
+  "public_entries": [
+    "json-update-with",
+    "json-unmarshal-with"
+  ],
+  "comparison": "Actual partial scalar/later state; JSON/text callback count and exact input bytes; original public type/semantic families; optional type, offset, root record/field, semantic pointer/kind/reported bytes and original refusal. Every original reference rendering panic explicitly retains nil type; no deliberately crashing renderer or expected normalization.",
+  "reference_render_panics_retained": 12,
+  "all_original_oracle_rows_retained": 1494,
+  "source_changed": true,
+  "status_encoding": "zero success, otherwise zero-based row*40+property, printed completely before exit1"
+}

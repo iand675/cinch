@@ -1,0 +1,45 @@
+-- | Exact lexical failure checkpoints coexist with the established diagnostics and chunk-local cursors.
+module Main where
+  import Text.Json.Value
+
+  -- | Observe a native checkpoint without changing the original diagnostic offset.
+  positioned :: String -> Nat -> Nat -> Nat -> Bool
+  positioned text native legacy consumed =
+    let input = string-to-bytes text in
+    let precise = json-lex-read-positioned json-lex-start input 0 0 True in
+    let established = json-lex-read json-lex-start input 0 0 True in
+    (case precise of JsonLexFailure error next -> next == consumed && json-error-offset error == native && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == legacy); other -> False)
+      && (case established of JsonLexFailure error next -> next == consumed && json-error-offset error == legacy; other -> False)
+
+  -- | Preserve successful number boundaries through the additional position-aware entry point.
+  token :: Unit -> Bool
+  token unit = case json-lex-read-positioned json-lex-start (string-to-bytes "123,") 0 0 True of
+    JsonLexToken lexeme next -> next == 3 && json-lexeme-start lexeme == 0 && json-lexeme-end lexeme == 3 && (case json-lexeme-tag lexeme of JsonLexNumber -> True; other -> False)
+    other -> False
+
+  -- | Retain absolute end-of-input across a separately owned empty final chunk.
+  continued :: Unit -> Bool
+  continued unit = case json-lex-read-positioned json-lex-start (string-to-bytes "\"ab") 0 0 False of
+    JsonLexNeedInput state next -> next == 3 && (case json-lex-read-positioned state (bytes-new 0) 0 3 True of JsonLexFailure error consumed -> json-error-offset error == 3 && consumed == 0 && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == 3); other -> False)
+    other -> False
+
+  -- | Retain precise syntax context independently from the original structured diagnostic and its ownership wrappers.
+  metadata :: Unit -> Bool
+  metadata unit =
+    let error = JsonSyntacticError (json-syntactic-info 1 "/a") (JsonSyntaxError 2 "original") in
+    let retained = json-preserve-error-context error in
+    json-error-offset retained == 1 && json-error-path retained == "/a"
+      && (case json-error-syntactic retained of None -> False; Some info -> json-syntactic-offset info == 1 && json-syntactic-pointer info == "/a")
+      && (case json-error-type retained of None -> True; Some label -> False)
+      && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == 2 && json-error-message cause == "original")
+
+  -- | Retain every original error expectation while comparing exact checkpoints from the independent source outcomes.
+  main :: Int
+  main = if not (positioned "1e" 0 1 2) then 1
+    else if not (positioned "\"abc" 4 4 4) then 2
+    else if not (positioned "\"\\x\"" 1 3 3) then 3
+    else if not (positioned "\"\\u12\"" 1 6 6) then 4
+    else if not (positioned "@" 0 1 1) then 5
+    else if not (positioned "tru" 3 3 3) then 6
+    else if not (token ()) then 7
+    else if not (continued ()) then 8 else if not (metadata ()) then 9 else 0

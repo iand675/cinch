@@ -1,0 +1,305 @@
+{
+  "status": "qualified-rust-current902-plus29-and1494-plus-retained1-owner4-not-production-promotion",
+  "scope": "Current candidate412ce5d1 passes original902 syntax rows+29focused and affected1494+retained1/owner4; exact855/c4 standalone epoch, fresh Root parent producer qualification still required; full92 open.",
+  "containing_commit": "Use the Git commit containing this manifest; no circular self-hash",
+  "sources_to_import": [
+    {
+      "module": "Text.Json.Value",
+      "path": "compiler/prelude/Text/Json/Value.cinch",
+      "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0"
+    },
+    {
+      "module": "Text.Json.Codec",
+      "path": "compiler/prelude/Text/Json/Codec.cinch",
+      "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022"
+    },
+    {
+      "module": "Text.Json.Dynamic",
+      "path": "compiler/prelude/Text/Json/Dynamic.cinch",
+      "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591"
+    }
+  ],
+  "all_three_required": true,
+  "dynamic_required_reason": "Dynamic typed payload write addressability line from selected81d remains required; new partial dynamic conversion and structural-error completion are also required. Do not import only Value/Codec.",
+  "qualified_compiler": {
+    "sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "source_checkpoint": "2ab93c5b",
+    "path": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "identity_only_no_compiler_or_runtime_replacement_requested": true
+  },
+  "qualification_dependencies_only_do_not_overwrite_root": [
+    {
+      "module": "Data.Array",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Data.Bytes.Word",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Data.Unicode.Tables",
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Data.Unicode.Kernel",
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Text.Json.Binary32",
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Text.Base64.Encoding",
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    },
+    {
+      "module": "Data.Bytes.Utf8",
+      "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "root_action": "Preserve Root-owned dependencies; perform parent qualification on its actual current sources/compiler as a fresh epoch."
+    }
+  ],
+  "maintained_test_file": {
+    "path": "compiler/tests/lib_json_codec.rs",
+    "sha256": "730b8e34ad2909312f44850de07940b6a5362bb2265dfa96da5dac4343467987",
+    "new_targets": 11,
+    "local_cargo_executed": false,
+    "body_evidence": "Exact standalone fixture bodies already source/runtime qualified on855/c4; parent Cargo remains separate."
+  },
+  "qualified_sdk_free_fixtures": [
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-int-observations-v2.cinch",
+      "sha256": "dfa1a63bc3930f9d8561a578cd68f2c6ce91ef044b75e4c7ed0536a61fdd5021"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-record-observations-v2.cinch",
+      "sha256": "85ee691eb58b910ccf66678753254cd2f3be618592ec53ac15ddb50c77286aac"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-pointer-record-observations-v2.cinch",
+      "sha256": "74a84110b862a39ab2a400af1f3f2ff1eae69c8a9a8864d808157dd0025daa4f"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-slice-observations-v2.cinch",
+      "sha256": "a32de7ba07b7fafadc0a04af9fe20c61240a98ac6af2d74188f61ee4c1f3e742"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-array-observations-v2.cinch",
+      "sha256": "e8c5e4c9089ac976f3b9ffd0dda1896b9089e5991f2df1453851e973a1e20650"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-map-observations-v2.cinch",
+      "sha256": "977cddd3781515eef3b76dcff156db6fa024d13167222257d340dda4fd5fa09f"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-any-observations-v2.cinch",
+      "sha256": "90a231f788c6eeb103c5df6146d0eb1bbd3d7af0d82b923c29b276caaedf5953"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-raw-observations-v2.cinch",
+      "sha256": "61e47e9daf5ff6db21fc08f5c6c02ca0c10685d6d28f5f602474659ea6733742"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-json-hook-observations-v2.cinch",
+      "sha256": "a05db3ec73518002ef6d49d2eb76c25f11156c604f39039f8babdfb11fcfd63d"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-text-hook-observations-v2.cinch",
+      "sha256": "b632e40bdff6f50edbb88fcde76993b2676d8851d267e77164bb12a927aae7a9"
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-grounded-controls-v1.cinch",
+      "sha256": "530152a5f6862be8c40b4c879729e0a8c59ba592d884a12f34e691fff5293467"
+    }
+  ],
+  "oracle": {
+    "path": "compiler/tests/fixtures/json-codec-syntax-partial-vectors.json",
+    "sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+    "rows": 902,
+    "regenerated_or_normalized_during_qualification": false,
+    "rendering_panics": 0,
+    "old1494_renderer_panics": 12,
+    "old1494_panic_outcomes_preserved_separately": true
+  },
+  "current_qualified_rows": 902,
+  "focused_controls": 29,
+  "bounded_memory_processes": 22,
+  "stage_receipt": {
+    "path": "bootstrap/stdlib-json-syntax-partial-stage-checkpoint.json",
+    "sha256": "0604ce4d675daf8c9e22c26f001e0e149b3e4d1141aeb5ad9fd46417b58d2556"
+  },
+  "docs_receipt": {
+    "path": "bootstrap/stdlib-json-syntax-feature-docs-v1.json",
+    "sha256": "f7f599a6a4ee7f0d8fdf45589097ca2ba02f34de6dea7fba1669e6f0545bbd0c",
+    "canonical_changed_module_declarations": 866,
+    "unchanged_binary32_legacy_declarations": 46,
+    "source_hashes_frozen_before_after": true
+  },
+  "executed_drivers": {
+    "bootstrap/repros/json-syntax-qualified-current-drivers/archive_grounded_controls_v1.py": "218c36b8eaf40dfcac63946263037ca373dbd640cb2d9cf826361851d6826206",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/archive_observations_v4.py": "8d5c8de09a1e4985d08580a926cdc8700d282f3ae9e563225b03eb14aab0455a",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/archive_observations_v5.py": "fd2931b376bb702175046b07e841dfa7d210037aba38f6f9beff3fc921f08916",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/extract_feature_docs_v1.py": "24600d98f36cafdf70e219c24564b114551970b35372d9457d7d2796c3127762",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/run_grounded_controls_v1.py": "3e8b93b0a1d66838fb7b55ff1631d23a94ffdd89e1ac16057bcfcd9443e2d143",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/run_observations_v4.py": "5774c85b0ab102caed22e3112dbf55f78c75b16eda6856c71b445306758a67f3",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/run_observations_v5.py": "9bbac3994c79d3e875ec9ecd412b5666bcb5397989c4f914b3985aecdec81e58",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/affected1494-run-unit-v1.py": "76d482b92ae9d78594b4bfd7ca38bb8fde9b40cfbe57e1ad65157a651165f216",
+    "bootstrap/repros/json-syntax-qualified-current-drivers/affected1494-archive-unit-v1.py": "e5684d0e92f416d47297d7192420324710e4ed0d24291f951f8dc7169e1c583d"
+  },
+  "first_failure_projects_preserved": [
+    "bootstrap/repros/json-syntax-lexer-source-v1",
+    "bootstrap/repros/json-syntax-int-first-mismatch-v1",
+    "bootstrap/repros/json-syntax-record-first-mismatch-v2",
+    "bootstrap/repros/json-syntax-slice-null-model-v3"
+  ],
+  "selected_immutable_baseline": {
+    "Value": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+    "Dynamic": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93"
+  },
+  "original92_plan": {
+    "path": "bootstrap/stdlib-json-capability-plan.json",
+    "sha256": "bc58fa5060a8431d9f934a0418bf9728643d133ae47ad38d077387d9b662d490",
+    "all_existing_records_retained": true
+  },
+  "remaining_before_full_completion": [
+    "Fresh Root parent maintained45-test target and generated reference on actual Root producer/dependencies; never relabel frozen855/c4 receipts.",
+    "Additional partial Unicode/array delimiter/returned-method/interface/key corner observations beyond902",
+    "Effect.Json actual public streaming/pipeline behavior, original IO causes and advanced handles",
+    "Native actual-front-end qualification, public pipeline benchmarks, final92 reconciliation"
+  ],
+  "no_native_family_performance_or_package_completion_claim": true,
+  "maintained_test_fragment": {
+    "path": "bootstrap/repros/json-syntax-qualified-current-drivers/maintained-tests.rs.part",
+    "sha256": "bd023abf43f63a8b7e38d3fe7983b65e12a3bb77c0100df2994339c9ddcd6b75",
+    "root_action": "Append these eleven new targets to Root-owned lib_json_codec.rs without replacing existing targets, source closure or panic-retention guards."
+  },
+  "affected1494_plan": {
+    "path": "bootstrap/stdlib-json-syntax-partial-affected1494-plan.json",
+    "sha256": "607800b4243897ed4b7cf63ef024e7a2a583eeb886aae649aac62838879a884d",
+    "status": "fulfilled-by-seven-source-first-units-on-exact-current-sources"
+  },
+  "root_import_files": [
+    {
+      "module": "Text.Json.Value",
+      "path": "compiler/prelude/Text/Json/Value.cinch",
+      "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+      "root_action": "Replace only this changed JSON module with these exact candidate bytes; parent qualification remains required."
+    },
+    {
+      "module": "Text.Json.Codec",
+      "path": "compiler/prelude/Text/Json/Codec.cinch",
+      "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+      "root_action": "Replace only this changed JSON module with these exact candidate bytes; parent qualification remains required."
+    },
+    {
+      "module": "Text.Json.Dynamic",
+      "path": "compiler/prelude/Text/Json/Dynamic.cinch",
+      "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+      "root_action": "Replace only this changed JSON module with these exact candidate bytes; parent qualification remains required."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-int-observations-v2.cinch",
+      "sha256": "dfa1a63bc3930f9d8561a578cd68f2c6ce91ef044b75e4c7ed0536a61fdd5021",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-record-observations-v2.cinch",
+      "sha256": "85ee691eb58b910ccf66678753254cd2f3be618592ec53ac15ddb50c77286aac",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-pointer-record-observations-v2.cinch",
+      "sha256": "74a84110b862a39ab2a400af1f3f2ff1eae69c8a9a8864d808157dd0025daa4f",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-slice-observations-v2.cinch",
+      "sha256": "a32de7ba07b7fafadc0a04af9fe20c61240a98ac6af2d74188f61ee4c1f3e742",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-array-observations-v2.cinch",
+      "sha256": "e8c5e4c9089ac976f3b9ffd0dda1896b9089e5991f2df1453851e973a1e20650",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-map-observations-v2.cinch",
+      "sha256": "977cddd3781515eef3b76dcff156db6fa024d13167222257d340dda4fd5fa09f",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-any-observations-v2.cinch",
+      "sha256": "90a231f788c6eeb103c5df6146d0eb1bbd3d7af0d82b923c29b276caaedf5953",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-raw-observations-v2.cinch",
+      "sha256": "61e47e9daf5ff6db21fc08f5c6c02ca0c10685d6d28f5f602474659ea6733742",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-json-hook-observations-v2.cinch",
+      "sha256": "a05db3ec73518002ef6d49d2eb76c25f11156c604f39039f8babdfb11fcfd63d",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-partial-text-hook-observations-v2.cinch",
+      "sha256": "b632e40bdff6f50edbb88fcde76993b2676d8851d267e77164bb12a927aae7a9",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "compiler/tests/fixtures/json-syntax-grounded-controls-v1.cinch",
+      "sha256": "530152a5f6862be8c40b4c879729e0a8c59ba592d884a12f34e691fff5293467",
+      "root_action": "Add exact SDK-free fixture bytes."
+    },
+    {
+      "path": "bootstrap/repros/json-syntax-qualified-current-drivers/maintained-tests.rs.part",
+      "sha256": "bd023abf43f63a8b7e38d3fe7983b65e12a3bb77c0100df2994339c9ddcd6b75",
+      "root_action": "Append these eleven new targets to Root-owned lib_json_codec.rs without replacing existing targets, source closure or panic-retention guards."
+    }
+  ],
+  "prior_candidate_manifest": {
+    "path": "bootstrap/stdlib-json-syntax-partial-integration-manifest.json",
+    "sha256": "3cdcf42160bd4b4f3ab874c849bf132484476bbf40e9dce8d2e2d0330dbf9031",
+    "historical_pending1494_statement_superseded_by_this_receipt": true
+  },
+  "qualified_affected1494": {
+    "path": "bootstrap/stdlib-json-syntax-affected1494-stage-checkpoint.json",
+    "sha256": "6816bd52af5732771ced467a9213b7e0bfc3304ba728815a4234b5f986a7d726",
+    "original_rows": 1494,
+    "retained_rows": 1,
+    "owner_groups": 4,
+    "memory_processes": 14,
+    "minimum_observed_free_bytes": 493731840,
+    "maximum_fresh_unit_bytes": 22023821,
+    "original_sdk_rendering_panics_retained": 12
+  },
+  "all_current_bounded_memory_processes": 36,
+  "Root_maintained_test_integration": {
+    "mode": "Append eleven functions from the provided fragment to existing compiler/tests/lib_json_codec.rs; no new target, no replacement of existing tests/harness/closure.",
+    "existing_tests": 31,
+    "added_tests": 11,
+    "expected_total_tests": 42,
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "compiler/Cargo.toml",
+      "--release",
+      "--test",
+      "lib_json_codec",
+      "--",
+      "--test-threads=1"
+    ],
+    "environment": "Use Root existing qualified producer/cache/environment and actual matched runtime. Child performs no Root edits or Cargo.",
+    "doc_command": "Use Root existing full generated-reference validation workflow after importing all three modules; child docs866 remains separate855 epoch.",
+    "count_correction": "Actual source inventory in both lanes is31+11=42; previous34/45 was metadata-only assumption, never an executed count. The parent driver must discover compiled tests."
+  }
+}

@@ -20,6 +20,7 @@ module Text.Json.Value where
   import Text.Show
   import Data.Unicode.Kernel
 
+  export JsonSyntacticInfo, JsonSyntacticError, json-syntactic-info, json-syntactic-offset, json-syntactic-pointer, json-error-syntactic
   export JsonError, JsonSyntaxError, JsonTypeError, JsonValueError, JsonTargetError
   export JsonInvalidValueError, json-error-invalid-value
   export JsonNumericErrorKind, JsonNumericSyntax, JsonNumericRange, JsonNumericError, json-numeric-error-function, json-numeric-error-input, json-numeric-error-bytes, json-numeric-error-kind, json-numeric-error-message, json-numeric-is-range
@@ -38,6 +39,7 @@ module Text.Json.Value where
   export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
   export JsonRawMessage, json-raw-null, json-raw-from-bytes, json-raw-bytes, json-raw-replace
   export JsonKind, JsonNullKind, JsonBooleanKind, JsonNumberKind, JsonStringKind, JsonArrayKind, JsonObjectKind, JsonInvalidKind
+  export JsonScanResult, json-scan-document, json-scan-value, json-scan-error, json-value-complete, json-value-refusal, json-value-container-refusal, json-value-structural-refusal
   export JsonDocument, JsonValue, json-document, json-document-value, json-document-input
   export json-value-kind, json-value-start, json-value-end, json-value-source
   export json-value-bool, json-value-number, json-value-string
@@ -51,7 +53,7 @@ module Text.Json.Value where
   export JsonLexeme, json-lexeme-start, json-lexeme-end, json-lexeme-tag
   export JsonLexTag, JsonLexNull, JsonLexTrue, JsonLexFalse, JsonLexNumber, JsonLexString
   export JsonLexArrayStart, JsonLexArrayEnd, JsonLexObjectStart, JsonLexObjectEnd, JsonLexColon, JsonLexComma
-  export json-lex-read
+  export json-lex-read, json-lex-read-positioned
 
   -- | The independent syntax or representability reason for a numeric conversion refusal.
   data JsonNumericErrorKind where
@@ -69,6 +71,28 @@ module Text.Json.Value where
   data JsonNumericResult a where
     -- | Private completed numeric value and original conversion error.
     NumericResult :: a -> Option JsonNumericError -> JsonNumericResult a
+
+  -- | A private uncommitted token checkpoint retains its exact container and separately owned diagnostic.
+  data TokenCheckpoint where
+    -- | Container start, token checkpoint, original diagnostic cursor and immutable diagnostic text.
+    TokenCheckpoint :: Nat -> Nat -> Nat -> String -> TokenCheckpoint
+
+  -- | Exact zero-based syntax checkpoint and escaped pointer retained independently from diagnostic prose.
+  data JsonSyntacticInfo where
+    -- | Private checkpoint and immutable pointer to the grammar location that refused input.
+    SyntacticInfo :: Nat -> String -> Option TokenCheckpoint -> JsonSyntacticInfo
+
+  -- | Construct precise syntax context without replacing its original structured refusal.
+  json-syntactic-info :: Nat -> String -> JsonSyntacticInfo
+  json-syntactic-info offset pointer = SyntacticInfo offset pointer None
+
+  -- | Inspect the exact byte checkpoint before the offending token or at incomplete input.
+  json-syntactic-offset :: JsonSyntacticInfo -> Nat
+  json-syntactic-offset info = case info of SyntacticInfo offset pointer checkpoint -> offset
+
+  -- | Inspect the original escaped grammar pointer of a syntax refusal.
+  json-syntactic-pointer :: JsonSyntacticInfo -> String
+  json-syntactic-pointer info = case info of SyntacticInfo offset pointer checkpoint -> pointer
 
   -- | Immutable optional application identity, actual value, source position and record context for a type refusal.
   data JsonTypeInfo where
@@ -213,6 +237,8 @@ module Text.Json.Value where
   data JsonError where
     -- | Original byte offset and a syntax diagnostic; end-of-input offsets may be zero.
     JsonSyntaxError :: Nat -> String -> JsonError
+    -- | Exact grammar context and its original lexical or structural diagnostic.
+    JsonSyntacticError :: JsonSyntacticInfo -> JsonError -> JsonError
     -- | Expected type, actual value description, original offset and application field path.
     JsonTypeError :: String -> String -> Nat -> String -> JsonError
     -- | Conversion mismatch metadata and its retained numeric/text conversion cause.
@@ -249,6 +275,7 @@ module Text.Json.Value where
   -- | Render a diagnostic using JSON and application type names.
   json-error-message :: JsonError -> String
   json-error-message error = case error of
+    JsonSyntacticError info cause -> json-error-message cause
     JsonTypeInfoError info cause -> string-concat-all ["cannot unmarshal ", json-type-error-value info, " into ", (case json-type-error-type info of None -> "unspecified application type"; Some label -> label)]
     JsonReturnedError cause -> json-error-message cause
     PreservedContext cause -> json-error-message cause
@@ -270,6 +297,7 @@ module Text.Json.Value where
   -- | Original byte offset when one exists, otherwise zero.
   json-error-offset :: JsonError -> Nat
   json-error-offset error = case error of
+    JsonSyntacticError info cause -> json-syntactic-offset info
     JsonTypeInfoError info cause -> json-type-error-offset info
     JsonReturnedError cause -> json-error-offset cause
     PreservedContext cause -> json-error-offset cause
@@ -291,6 +319,7 @@ module Text.Json.Value where
   -- | Application member/index path carried by a diagnostic.
   json-error-path :: JsonError -> String
   json-error-path error = case error of
+    JsonSyntacticError info cause -> json-syntactic-pointer info
     JsonTypeInfoError info cause -> json-type-error-field info
     JsonReturnedError cause -> json-error-path cause
     PreservedContext cause -> json-error-path cause
@@ -306,6 +335,7 @@ module Text.Json.Value where
   -- | Application type label associated with a conversion failure.
   json-error-type :: JsonError -> Option String
   json-error-type error = case error of
+    JsonSyntacticError info cause -> None
     JsonTypeInfoError info cause -> json-type-error-type info
     JsonReturnedError cause -> json-error-type cause
     PreservedContext cause -> json-error-type cause
@@ -322,6 +352,7 @@ module Text.Json.Value where
   -- | Actual value description associated with a conversion failure.
   json-error-value :: JsonError -> Option String
   json-error-value error = case error of
+    JsonSyntacticError info cause -> None
     JsonTypeInfoError info cause -> Some (json-type-error-value info)
     JsonReturnedError cause -> json-error-value cause
     PreservedContext cause -> json-error-value cause
@@ -338,6 +369,7 @@ module Text.Json.Value where
   -- | Inspect a wrapped custom conversion or path diagnostic without flattening it.
   json-error-cause :: JsonError -> Option JsonError
   json-error-cause error = case error of
+    JsonSyntacticError info cause -> Some cause
     JsonTypeInfoError info cause -> Some cause
     JsonTypeCause expected actual offset path cause -> Some cause
     JsonCustomError label cause -> Some cause
@@ -367,6 +399,7 @@ module Text.Json.Value where
   -- | Recover an original method-returned error through containing conversion wrappers.
   json-error-returned :: JsonError -> Option JsonError
   json-error-returned error = case error of
+    JsonSyntacticError info cause -> json-error-returned cause
     JsonTypeInfoError info cause -> json-error-returned cause
     JsonReturnedError cause -> Some cause
     PreservedContext cause -> Some cause
@@ -390,6 +423,20 @@ module Text.Json.Value where
     JsonPathError path cause -> case json-error-type-info cause of None -> None; Some info -> Some (json-type-info-with-record-field info (json-type-error-record info) path)
     other -> None
 
+  -- | Recover precise grammar context through transparent ownership and conversion adapters.
+  json-error-syntactic :: JsonError -> Option JsonSyntacticInfo
+  json-error-syntactic error = case error of
+    JsonSyntacticError info cause -> Some info
+    JsonReturnedError cause -> json-error-syntactic cause
+    PreservedContext cause -> json-error-syntactic cause
+    JsonWrittenError info cause -> json-error-syntactic cause
+    JsonCustomError label cause -> json-error-syntactic cause
+    JsonPathError path cause -> json-error-syntactic cause
+    JsonTypeInfoError info cause -> json-error-syntactic cause
+    JsonTypeCause label actual offset path cause -> json-error-syntactic cause
+    JsonSemanticError info cause -> json-error-syntactic cause
+    other -> None
+
   -- | Inspect the root record name independently from the escaped field path.
   json-error-record :: JsonError -> String
   json-error-record error = case json-error-type-info error of None -> ""; Some info -> json-type-error-record info
@@ -397,6 +444,7 @@ module Text.Json.Value where
   -- | Whether a value failure lacks a valid application value, after custom/path context is removed.
   json-error-invalid-value :: JsonError -> Bool
   json-error-invalid-value error = case error of
+    JsonSyntacticError info cause -> False
     JsonTypeInfoError info cause -> json-error-invalid-value cause
     JsonReturnedError cause -> json-error-invalid-value cause
     PreservedContext cause -> json-error-invalid-value cause
@@ -410,6 +458,7 @@ module Text.Json.Value where
   -- | Recover numeric metadata through custom, path and typed-cause wrappers.
   json-error-numeric :: JsonError -> Option JsonNumericError
   json-error-numeric error = case error of
+    JsonSyntacticError info cause -> json-error-numeric cause
     JsonTypeInfoError info cause -> json-error-numeric cause
     JsonReturnedError cause -> json-error-numeric cause
     PreservedContext cause -> json-error-numeric cause
@@ -424,6 +473,7 @@ module Text.Json.Value where
   -- | Recover semantic source context through containing custom, path and typed-cause adapters.
   json-error-semantic :: JsonError -> Option JsonSemanticInfo
   json-error-semantic error = case error of
+    JsonSyntacticError info cause -> None
     JsonTypeInfoError info cause -> json-error-semantic cause
     JsonReturnedError cause -> json-error-semantic cause
     PreservedContext cause -> json-error-semantic cause
@@ -574,6 +624,27 @@ module Text.Json.Value where
     -- | Closing object marker.
     NObjectEnd :: NodeKind
 
+    -- | An incomplete null token.
+    NPartialNull :: NodeKind
+    -- | An incomplete true token.
+    NPartialTrue :: NodeKind
+    -- | An incomplete false token.
+    NPartialFalse :: NodeKind
+    -- | An incomplete number token.
+    NPartialNumber :: NodeKind
+    -- | An incomplete string token.
+    NPartialString :: NodeKind
+    -- | An array whose closing grammar was refused.
+    NPartialArray :: NodeKind
+    -- | An object whose closing grammar was refused.
+    NPartialObject :: NodeKind
+    -- | Structural tape closure for an incomplete array, without synthesizing source bytes.
+    NPartialArrayEnd :: NodeKind
+    -- | Structural tape closure for an incomplete object, without synthesizing source bytes.
+    NPartialObjectEnd :: NodeKind
+    -- | A value slot entered before a valid token was available.
+    NInvalid :: NodeKind
+
   -- | Private direct-child indexes avoid repeatedly traversing nested subtrees.
   data ChildIndexes where
     -- | A scalar or closing marker has no child-index allocation.
@@ -588,13 +659,66 @@ module Text.Json.Value where
 
   -- | An immutable document retaining one owned source snapshot and its navigation tape.
   data JsonDocument where
-    -- | Private owned source, immutable tape and already-validated root node.
+    -- | Private owned source, immutable navigation tape and selected root node.
     Document :: Bytes -> Array JsonNode -> JsonNode -> JsonDocument
 
   -- | An immutable value view retaining its document and selected node without copying the input.
   data JsonValue where
-    -- | Private document owner and validated selected node.
-    Value :: JsonDocument -> JsonNode -> JsonValue
+    -- | Private document owner, selected node and original optional scan refusal.
+    Value :: JsonDocument -> JsonNode -> Option JsonError -> JsonValue
+
+  -- | An explicit partial scan retains a source-backed root and its optional first grammar refusal.
+  data JsonScanResult where
+    -- | Private root view and original refusal; complete scans carry no refusal.
+    Scanned :: JsonValue -> Option JsonError -> JsonScanResult
+
+  -- | Inspect a scan's retained root without implying that its source was a complete document.
+  json-scan-value :: JsonScanResult -> JsonValue
+  json-scan-value scan = case scan of Scanned value error -> value
+
+  -- | Inspect the first grammar refusal independently from completed child views.
+  json-scan-error :: JsonScanResult -> Option JsonError
+  json-scan-error scan = case scan of Scanned value error -> error
+
+  -- | Whether one selected value was completely recognized before its containing scan stopped.
+  json-value-complete :: JsonValue -> Bool
+  json-value-complete value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NPartialNull -> False
+        NPartialTrue -> False
+        NPartialFalse -> False
+        NPartialNumber -> False
+        NPartialString -> False
+        NPartialArray -> False
+        NPartialObject -> False
+        NInvalid -> False
+        other -> True
+
+  -- | Recover a scan refusal only for an incomplete value, preserving completed sibling independence.
+  json-value-refusal :: JsonValue -> Option JsonError
+  json-value-refusal value = if json-value-complete value then None else case value of Value document node refusal -> refusal
+
+  -- | Select a token-level refusal only for a container whose tokens were actually traversed.
+  token-refusal :: Bool -> JsonValue -> Option JsonError
+  token-refusal descend value = case json-value-refusal value of
+    None -> None
+    Some error -> case error of
+      JsonSyntacticError info cause -> case info of
+        SyntacticInfo offset pointer checkpoint -> case checkpoint of
+          None -> Some error
+          Some saved -> case saved of
+            TokenCheckpoint opening position diagnostic message ->
+              if descend || json-value-start value == opening then Some (JsonSyntacticError (json-syntactic-info position pointer) (JsonSyntaxError diagnostic message)) else Some error
+      other -> Some error
+
+  -- | Recover the refusal after traversing the selected incomplete container without reinterpreting skipped child values.
+  json-value-container-refusal :: JsonValue -> Option JsonError
+  json-value-container-refusal value = token-refusal False value
+
+  -- | Recover the refusal after traversing every retained container in a structural value tree.
+  json-value-structural-refusal :: JsonValue -> Option JsonError
+  json-value-structural-refusal value = token-refusal True value
 
   -- | An object member retains its decoded name and source-backed value view.
   data JsonMember where
@@ -611,7 +735,7 @@ module Text.Json.Value where
 
   -- | Obtain the validated root view without copying document storage.
   json-document-value :: JsonDocument -> JsonValue
-  json-document-value document = case document of Document input tape root -> Value document root
+  json-document-value document = case document of Document input tape root -> Value document root None
 
   -- | Copy the complete original document bytes before exposing mutable storage.
   json-document-input :: JsonDocument -> Bytes
@@ -621,37 +745,44 @@ module Text.Json.Value where
   node-start :: JsonNode -> Nat
   node-start node = case node of Node kind index start end next children -> start
 
-  -- | Observe a node's source end, including closing quotation/container delimiters.
+  -- | Observe a node's source end, including recognized closing delimiters or its retained refusal boundary.
   node-end :: JsonNode -> Nat
   node-end node = case node of Node kind index start end next children -> end
 
   -- | Observe the selected value's zero-based original source start.
   json-value-start :: JsonValue -> Nat
-  json-value-start value = case value of Value document node -> node-start node
+  json-value-start value = case value of Value document node refusal -> node-start node
 
   -- | Observe the selected value's original exclusive source end.
   json-value-end :: JsonValue -> Nat
-  json-value-end value = case value of Value document node -> node-end node
+  json-value-end value = case value of Value document node refusal -> node-end node
 
   -- | Observe a value category without traversing or decoding its subtree.
   json-value-kind :: JsonValue -> JsonKind
   json-value-kind value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
         NNull -> JsonNullKind
+        NPartialNull -> JsonNullKind
         NTrue -> JsonBooleanKind
+        NPartialTrue -> JsonBooleanKind
         NFalse -> JsonBooleanKind
+        NPartialFalse -> JsonBooleanKind
         NNumber -> JsonNumberKind
+        NPartialNumber -> JsonNumberKind
         NString -> JsonStringKind
+        NPartialString -> JsonStringKind
         NKey -> JsonStringKind
         NArray -> JsonArrayKind
+        NPartialArray -> JsonArrayKind
         NObject -> JsonObjectKind
+        NPartialObject -> JsonObjectKind
         other -> JsonInvalidKind
 
-  -- | Copy exactly the selected value's original bytes, preserving duplicate members and number spellings.
+  -- | Copy the selected value's retained source interval, preserving exact bytes without implying completeness.
   json-value-source :: JsonValue -> Bytes
   json-value-source value = case value of
-    Value document node -> case document of
+    Value document node refusal -> case document of
       Document input tape root ->
         let start = node-start node in let end = node-end node in
         if start <= end then snapshot input start (end - start) else bytes-new 0
@@ -659,7 +790,7 @@ module Text.Json.Value where
   -- | Read a boolean literal without treating other categories as false.
   json-value-bool :: JsonValue -> Option Bool
   json-value-bool value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of NTrue -> Some True; NFalse -> Some False; other -> None
 
   -- | Copy one checked source interval, keeping byte aliases private.
@@ -955,7 +1086,11 @@ module Text.Json.Value where
 
   -- | Finish an incomplete token only when the caller has declared true end of input.
   lex-incomplete :: JsonLexState -> Nat -> Nat -> Bool -> JsonLexStep
-  lex-incomplete state at base final = if final then JsonLexFailure (JsonSyntaxError (base + at) "unexpected end of JSON input") at else JsonLexNeedInput state at
+  lex-incomplete state at base final =
+    if final then
+      let position = case state of LexNumber start checkpoint phase -> start; other -> base + at in
+      lex-failure-at (JsonSyntaxError (base + at) "unexpected end of JSON input") position at
+    else JsonLexNeedInput state at
 
   -- | True only for number stages that already form a complete numeric spelling.
   number-complete :: NumberStage -> Bool
@@ -964,6 +1099,10 @@ module Text.Json.Value where
   -- | Return the length of a fixed literal without allocating a comparison buffer.
   literal-size :: JsonLexTag -> Nat
   literal-size tag = case tag of JsonLexTrue -> 4; JsonLexFalse -> 5; other -> 4
+
+  -- | Keep exact lexical position as owned error context while retaining the original diagnostic as its cause.
+  lex-failure-at :: JsonError -> Nat -> Nat -> JsonLexStep
+  lex-failure-at error position next = JsonLexFailure (JsonSyntacticError (json-syntactic-info position "") error) next
 
   -- | Read one fixed literal byte by grammar position.
   literal-byte :: JsonLexTag -> Nat -> Nat
@@ -979,7 +1118,13 @@ module Text.Json.Value where
   -- | Scan at most one token from a checked owned buffer interval, resuming a partial prior token.
   -- Base is the absolute position of buffer byte zero; returned cursors are local to this buffer.
   json-lex-read :: JsonLexState -> Bytes -> Nat -> Nat -> Bool -> JsonLexStep
-  json-lex-read state input at base final =
+  json-lex-read state input at base final = case json-lex-read-positioned state input at base final of
+    JsonLexFailure error next -> case error of JsonSyntacticError info cause -> JsonLexFailure cause next; other -> JsonLexFailure error next
+    other -> other
+
+  -- | Retain an exact lexical refusal checkpoint without changing successful token or continuation ownership.
+  json-lex-read-positioned :: JsonLexState -> Bytes -> Nat -> Nat -> Bool -> JsonLexStep
+  json-lex-read-positioned state input at base final =
     if at > bytes-len input then JsonLexFailure (JsonTargetError "lexer cursor exceeds its source chunk") at
     else case state of
       LexIdle -> lex-idle input at base final
@@ -1024,7 +1169,7 @@ module Text.Json.Value where
 
   -- | Finish a scalar diagnostic using only the bounded retained prefix.
   unexpected-finish :: Nat -> Nat -> List (InRange 0 255 Nat) -> String -> JsonLexStep
-  unexpected-finish at start prefix context = JsonLexFailure (syntax-source (bytes-from-list (reverse prefix)) 0 start context) at
+  unexpected-finish at start prefix context = lex-failure-at (syntax-source (bytes-from-list (reverse prefix)) 0 start context) start at
 
   -- | Retain only an unexpected scalar's bounded prefix while waiting for the next source chunk.
   lex-unexpected :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> String -> JsonLexStep
@@ -1051,7 +1196,7 @@ module Text.Json.Value where
       let byte = bytes-get input at in
       if byte == 34 then JsonLexToken (Lexeme JsonLexString start (base + at + 1)) (at + 1)
       else if byte == 92 then lex-escape input (at + 1) base final start (base + at)
-      else if byte < 32 then JsonLexFailure (syntax-source input at base "in string") (at + 1)
+      else if byte < 32 then lex-failure-at (syntax-source input at base "in string") (base + at) (at + 1)
       else lex-string input (run-end input at 2) base final start
     else lex-string-end input at base final start
 
@@ -1079,7 +1224,7 @@ module Text.Json.Value where
     let tail = if bytes-len input > 0 then string-tail-state input base start (bytes-len input - 1) 3 else None in
     case tail of
       None -> lex-incomplete (LexString start) at base final
-      Some state -> if final then (case state of LexStringTail saved checkpoint needed matched first -> JsonLexFailure (JsonSyntaxError checkpoint "unexpected end of JSON input") at; other -> lex-incomplete state at base final)
+      Some state -> if final then (case state of LexStringTail saved checkpoint needed matched first -> lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") saved at; other -> lex-incomplete state at base final)
         else JsonLexNeedInput state at
 
   -- | Resume a string's bounded UTF-8 prefix, permitting malformed bytes while preserving true EOF checkpoints.
@@ -1089,7 +1234,7 @@ module Text.Json.Value where
     else if at < bytes-len input then
       if unexpected-continuation first matched (bytes-get input at) then lex-string-tail input (at + 1) base final start checkpoint needed (matched + 1) first
       else lex-string input at base final start
-    else if final then JsonLexFailure (JsonSyntaxError checkpoint "unexpected end of JSON input") at
+    else if final then lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") start at
     else JsonLexNeedInput (LexStringTail start checkpoint needed matched first) at
 
   -- | Report a bounded malformed escape using its entire available spelling.
@@ -1099,15 +1244,17 @@ module Text.Json.Value where
     JsonLexFailure (JsonSyntaxError offset (string-concat-all ["invalid escape sequence ", diagnostic-escape bytes, " in string"])) 0
 
   -- | Retain the local cursor separately from the absolute diagnostic checkpoint.
-  escape-failure :: Nat -> Nat -> List (InRange 0 255 Nat) -> JsonLexStep
-  escape-failure at offset prefix = case escape-refusal offset prefix of
-    JsonLexFailure error ignored -> JsonLexFailure error at
+  escape-failure :: Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> JsonLexStep
+  escape-failure at offset position prefix = case escape-refusal offset prefix of
+    JsonLexFailure error ignored -> lex-failure-at error position at
     other -> other
 
   -- | Finish a partial escape at its opening backslash rather than after its prefix.
   escape-incomplete :: JsonLexState -> Nat -> Nat -> Bool -> JsonLexStep
   escape-incomplete state at checkpoint final =
-    if final then JsonLexFailure (JsonSyntaxError checkpoint "unexpected end of JSON input") at
+    if final then
+      let position = case state of LexNumber start saved phase -> start; other -> checkpoint in
+      lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") position at
     else JsonLexNeedInput state at
 
   -- | Validate one escape selector without prematurely decoding surrogate pairs.
@@ -1117,18 +1264,18 @@ module Text.Json.Value where
       let byte = bytes-get input at in
       if byte == 117 then lex-hex input (at + 1) base final start checkpoint 4 (Cons 117 (Cons 92 Nil)) True
       else if byte == 34 || byte == 47 || byte == 92 || byte == 98 || byte == 102 || byte == 110 || byte == 114 || byte == 116 then lex-string input (at + 1) base final start
-      else escape-failure (at + 1) (base + at + 1) (Cons byte (Cons 92 Nil))
+      else escape-failure (at + 1) (base + at + 1) checkpoint (Cons byte (Cons 92 Nil))
     else escape-incomplete (LexEscape start checkpoint) at checkpoint final
 
   -- | Retain at most six escape bytes across chunks so diagnostics include the complete spelling.
   lex-hex :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> Bool -> JsonLexStep
   lex-hex input at base final start checkpoint remaining prefix valid =
     if remaining == 0 then
-      if valid then lex-string input at base final start else escape-failure at (base + at) prefix
+      if valid then lex-string input at base final start else escape-failure at (base + at) checkpoint prefix
     else if at < bytes-len input then
       let byte = bytes-get input at in
       lex-hex input (at + 1) base final start checkpoint (remaining - 1) (Cons byte prefix) (valid && hex-byte byte)
-    else if final && not valid then escape-failure at (base + at) prefix
+    else if final && not valid then escape-failure at (base + at) checkpoint prefix
     else escape-incomplete (LexHex start checkpoint remaining prefix valid) at checkpoint final
 
   -- | Resume a fixed literal without retaining or rescanning previous input chunks.
@@ -1182,7 +1329,7 @@ module Text.Json.Value where
     -- | An object may begin with a member name or close immediately.
     ObjectFirst :: ParsePhase
     -- | A comma requires another object member name.
-    ObjectNext :: ParsePhase
+    ObjectNext :: Nat -> ParsePhase
     -- | A member name requires its colon.
     ObjectColon :: ParsePhase
     -- | A colon requires its member value.
@@ -1195,7 +1342,7 @@ module Text.Json.Value where
     -- | Private grammar phase, opening tape index and direct-child indexes.
     Frame :: ParsePhase -> Nat -> List Nat -> ParseFrame
 
-  -- | An intermediate token event is paired with its container end only after validation succeeds.
+  -- | An intermediate token event is paired with complete or explicitly partial container-end metadata.
   data TapeEvent where
     -- | Private node kind/index/source interval and closing-container direct children.
     Event :: NodeKind -> Nat -> Nat -> Nat -> ChildIndexes -> TapeEvent
@@ -1211,6 +1358,8 @@ module Text.Json.Value where
     SyntaxValid :: Nat -> ParseResult
     -- | Successful immutable document construction.
     DocumentValid :: JsonDocument -> ParseResult
+    -- | Retained incomplete navigation state and its original grammar refusal.
+    DocumentPartial :: JsonDocument -> JsonError -> ParseResult
     -- | Original syntax or internal representation failure.
     ParseRefused :: JsonError -> ParseResult
 
@@ -1230,9 +1379,9 @@ module Text.Json.Value where
   child-indexes :: Bool -> List Nat -> ChildIndexes
   child-indexes build children = if build then (case children of Nil -> NoChildren; Cons first rest -> Children (array-from-list (reverse children))) else NoChildren
 
-  -- | Run the shared grammar from the beginning with optional navigation-tape construction.
+  -- | Run strict grammar with optional tape construction and no partial result exposure.
   parse-run :: Bytes -> Bool -> ParseResult
-  parse-run input build = parse-loop input 0 Nil False 0 0 build Nil
+  parse-run input build = parse-loop input 0 Nil False 0 0 build False Nil
 
   -- | Validate and snapshot one complete JSON document, preserving all original source spellings.
   json-document :: Bytes -> Result JsonError JsonDocument
@@ -1240,66 +1389,93 @@ module Text.Json.Value where
     let owned = snapshot input 0 (bytes-len input) in
     case parse-run owned True of
       DocumentValid document -> Ok document
+      DocumentPartial document error -> Err error
       ParseRefused error -> Err error
       SyntaxValid end -> Err (JsonValueError "document" "navigation tape was not constructed")
 
+  -- | Scan once while retaining explicit partial value state and the first original grammar refusal.
+  json-scan-document :: Bytes -> JsonScanResult
+  json-scan-document input =
+    let owned = snapshot input 0 (bytes-len input) in
+    case parse-loop owned 0 Nil False 0 0 True True Nil of
+      DocumentValid document -> Scanned (json-document-value document) None
+      DocumentPartial document error -> case document of Document bytes tape root -> Scanned (Value document root (Some error)) (Some error)
+      ParseRefused error -> failed-scan owned error
+      SyntaxValid end -> failed-scan owned (JsonValueError "document" "navigation tape was not constructed")
+
+  -- | Retain a source owner even when a scan could not construct any valid token.
+  failed-scan :: Bytes -> JsonError -> JsonScanResult
+  failed-scan input error =
+    let root = Node NInvalid 0 0 0 1 NoChildren in
+    let document = Document input (array-from-list [root]) root in
+    Scanned (Value document root (Some error)) (Some error)
+
   -- | Validate JSON byte grammar without constructing a document or decoding scalar strings.
   json-valid :: Bytes -> Bool
-  json-valid input = case parse-run input False of ParseRefused error -> False; other -> True
+  json-valid input = case parse-run input False of ParseRefused error -> False; DocumentPartial document error -> False; other -> True
 
   -- | Retain the original validation failure before formatting any output bytes.
   validate-input :: Bytes -> Result JsonError Nat
-  validate-input input = case parse-run input False of ParseRefused error -> Err error; SyntaxValid end -> Ok end; DocumentValid document -> Ok (json-value-end (json-document-value document))
+  validate-input input = case parse-run input False of ParseRefused error -> Err error; DocumentPartial document error -> Err error; SyntaxValid end -> Ok end; DocumentValid document -> Ok (json-value-end (json-document-value document))
 
-  -- | Construct an exact syntax diagnostic from a token's original first byte.
-  token-refusal :: Bytes -> JsonLexeme -> String -> ParseResult
-  token-refusal input token context =
-    let at = json-lexeme-start token in
-    if at < bytes-len input then ParseRefused (syntax-source input at 0 context)
-    else ParseRefused (JsonSyntaxError at "unexpected end of JSON input")
+  -- | Explain a token that cannot occur where a JSON value was required.
+  token-error :: Bytes -> JsonLexeme -> String -> JsonError
+  token-error input token context = let at = json-lexeme-start token in if at < bytes-len input then syntax-source input at 0 context else JsonSyntaxError at "unexpected end of JSON input"
 
-  -- | Scan grammar using an explicit frame stack, rejecting trailing source before any value is exposed.
-  parse-loop :: Bytes -> Nat -> List ParseFrame -> Bool -> Nat -> Nat -> Bool -> List TapeEvent -> ParseResult
-  parse-loop input at frames started depth index build events =
+  -- | Classify whether a refusal was within a value, a member name or container grammar.
+  data StopPhase where
+    -- | The current scalar/value slot was entered.
+    StopValue :: StopPhase
+    -- | A member name was not completed.
+    StopKey :: StopPhase
+    -- | A delimiter or end-of-input was required between values.
+    StopGrammar :: StopPhase
+
+  -- | Retain lexical checkpoints only when the caller requested partial state.
+  parse-lex :: Bool -> Bytes -> Nat -> JsonLexStep
+  parse-lex retain input at = if retain then json-lex-read-positioned LexIdle input at 0 True else json-lex-read LexIdle input at 0 True
+
+  -- | Share the exact grammar while deciding only whether failure retains navigation state.
+  parse-loop :: Bytes -> Nat -> List ParseFrame -> Bool -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-loop input at frames started depth index build retain events =
     let next = if at < bytes-len input && white-byte (bytes-get input at) then run-end input at 0 else at in
     if next >= bytes-len input then case frames of
       Nil -> if started then if build then finish-tape input events else SyntaxValid at
-        else ParseRefused (JsonSyntaxError next "unexpected end of JSON input")
-      Cons first rest -> ParseRefused (JsonSyntaxError next "unexpected end of JSON input")
+        else parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
+      Cons first rest -> parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
     else let byte = bytes-get input next in case frames of
-      Nil -> if started then ParseRefused (syntax-source input next 0 "after top-level value")
-        else parse-value input next Nil depth index build events
+      Nil -> if started then parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after top-level value")
+        else parse-value input next Nil depth index build retain events
       Cons first rest -> case first of
         Frame phase opening children -> case phase of
-          ArrayFirst -> if byte == 93 then close-array input next rest depth index build events children
-            else parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build events
-          ArrayNext -> parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build events
-          ArrayAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ArrayNext opening children) rest) True depth index build events
-            else if byte == 93 then close-array input next rest depth index build events children
-            else ParseRefused (syntax-source input next 0 (if build then "after array element" else "after array value"))
-          ObjectFirst -> if byte == 125 then close-object input next rest depth index build events children
-            else if byte == 34 then parse-key input next rest opening children depth index build events
-            else ParseRefused (syntax-source input next 0 "looking for beginning of object key string")
-          ObjectNext -> if byte == 34 then parse-key input next rest opening children depth index build events
-            else ParseRefused (syntax-source input next 0 "looking for beginning of object key string")
-          ObjectColon -> if byte == 58 then parse-loop input (next + 1) (Cons (Frame ObjectValue opening children) rest) True depth index build events
-            else ParseRefused (syntax-source input next 0 "after object key")
-          ObjectValue -> parse-value input next (Cons (Frame ObjectAfter opening children) rest) depth index build events
-          ObjectAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ObjectNext opening children) rest) True depth index build events
-            else if byte == 125 then close-object input next rest depth index build events children
-            else ParseRefused (syntax-source input next 0 "after object key:value pair")
+          ArrayFirst -> if byte == 93 then close-array input next rest depth index build retain events children
+            else parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
+          ArrayNext -> parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
+          ArrayAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ArrayNext opening children) rest) True depth index build retain events
+            else if byte == 93 then close-array input next rest depth index build retain events children
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 (if build then "after array element" else "after array value"))
+          ObjectFirst -> if byte == 125 then close-object input next rest depth index build retain events children
+            else if byte == 34 then parse-key input next rest opening children depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+          ObjectNext separator -> if byte == 34 then parse-key input next rest opening children depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+          ObjectColon -> if byte == 58 then parse-loop input (next + 1) (Cons (Frame ObjectValue opening children) rest) True depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key")
+          ObjectValue -> parse-value input next (Cons (Frame ObjectAfter opening children) rest) depth index build retain events
+          ObjectAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame (ObjectNext next) opening children) rest) True depth index build retain events
+            else if byte == 125 then close-object input next rest depth index build retain events children
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key:value pair")
 
-  -- | Parse a quoted member name and retain its index separately from its following value.
-  parse-key :: Bytes -> Nat -> List ParseFrame -> Nat -> List Nat -> Nat -> Nat -> Bool -> List TapeEvent -> ParseResult
-  parse-key input at rest opening children depth index build events =
-    case json-lex-read LexIdle input at 0 True of
-      JsonLexToken token next ->
-        let saved = save-event build NKey index (json-lexeme-start token) (json-lexeme-end token) NoChildren events in
-        parse-loop input next (Cons (Frame ObjectColon opening (save-child build index children)) rest) True depth (advance-index build index) build saved
-      JsonLexFailure error next -> ParseRefused error
-      other -> ParseRefused (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+  -- | Retain only completed member names before their following value slot is entered.
+  parse-key :: Bytes -> Nat -> List ParseFrame -> Nat -> List Nat -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-key input at rest opening children depth index build retain events = case parse-lex retain input at of
+    JsonLexToken token next ->
+      let saved = save-event build NKey index (json-lexeme-start token) (json-lexeme-end token) NoChildren events in
+      parse-loop input next (Cons (Frame ObjectColon opening (save-child build index children)) rest) True depth (advance-index build index) build retain saved
+    JsonLexFailure error next -> parse-stop input at next (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey error
+    other -> parse-stop input at (bytes-len input) (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
 
-  -- | Adapt an incomplete numeric spelling to a document reader's token-start checkpoint.
+  -- | Preserve the existing strict document reader's incomplete-number checkpoint adaptation.
   document-lex-error :: Bytes -> Nat -> Nat -> Bool -> JsonError -> JsonError
   document-lex-error input start next build error =
     if build && next == bytes-len input && start < bytes-len input then
@@ -1310,38 +1486,149 @@ module Text.Json.Value where
       else error
     else error
 
-  -- | Consume a scalar or opening container at a position that requires a JSON value.
-  parse-value :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> List TapeEvent -> ParseResult
-  parse-value input at frames depth index build events =
-    case json-lex-read LexIdle input at 0 True of
-      JsonLexFailure error next -> ParseRefused (document-lex-error input at next build error)
-      JsonLexToken token next -> case token of
-        Lexeme tag start end -> case tag of
-          JsonLexNull -> parse-loop input next frames True depth (advance-index build index) build (save-event build NNull index start end NoChildren events)
-          JsonLexTrue -> parse-loop input next frames True depth (advance-index build index) build (save-event build NTrue index start end NoChildren events)
-          JsonLexFalse -> parse-loop input next frames True depth (advance-index build index) build (save-event build NFalse index start end NoChildren events)
-          JsonLexNumber -> parse-loop input next frames True depth (advance-index build index) build (save-event build NNumber index start end NoChildren events)
-          JsonLexString -> parse-loop input next frames True depth (advance-index build index) build (save-event build NString index start end NoChildren events)
-          JsonLexArrayStart -> if depth >= 10000 then token-refusal input token "exceeded max depth"
-            else parse-loop input next (Cons (Frame ArrayFirst index Nil) frames) True (depth + 1) (advance-index build index) build (save-event build NArray index start end NoChildren events)
-          JsonLexObjectStart -> if depth >= 10000 then token-refusal input token "exceeded max depth"
-            else parse-loop input next (Cons (Frame ObjectFirst index Nil) frames) True (depth + 1) (advance-index build index) build (save-event build NObject index start end NoChildren events)
-          other -> token-refusal input token "looking for beginning of value"
-      other -> ParseRefused (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+  -- | Consume one scalar or opening container, sharing token validation and bounded scans.
+  parse-value :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-value input at frames depth index build retain events = case parse-lex retain input at of
+    JsonLexFailure error next -> parse-stop input at next frames index build retain events StopValue (if retain then error else document-lex-error input at next build error)
+    JsonLexToken token next -> case token of
+      Lexeme tag start end -> case tag of
+        JsonLexNull -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNull index start end NoChildren events)
+        JsonLexTrue -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NTrue index start end NoChildren events)
+        JsonLexFalse -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NFalse index start end NoChildren events)
+        JsonLexNumber -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNumber index start end NoChildren events)
+        JsonLexString -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NString index start end NoChildren events)
+        JsonLexArrayStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+          else parse-loop input next (Cons (Frame ArrayFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NArray index start end NoChildren events)
+        JsonLexObjectStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+          else parse-loop input next (Cons (Frame ObjectFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NObject index start end NoChildren events)
+        other -> parse-stop input start next frames index build retain events StopValue (token-error input token "looking for beginning of value")
+    other -> parse-stop input at (bytes-len input) frames index build retain events StopValue (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
 
-  -- | Close an array and retain direct element indexes only when requested.
-  close-array :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> List TapeEvent -> List Nat -> ParseResult
-  close-array input at rest depth index build events children =
+  -- | Close one completely recognized array without retaining any partial marker.
+  close-array :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
+  close-array input at rest depth index build retain events children =
     let saved = save-event build NArrayEnd index at (at + 1) (child-indexes build children) events in
-    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build saved
-    else ParseRefused (JsonValueError "array" "closing frame has no opening container")
+    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "array" "closing frame has no opening container")
 
-  -- | Close an object and retain direct member-name indexes only when requested.
-  close-object :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> List TapeEvent -> List Nat -> ParseResult
-  close-object input at rest depth index build events children =
+  -- | Close one completely recognized object without retaining any partial marker.
+  close-object :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
+  close-object input at rest depth index build retain events children =
     let saved = save-event build NObjectEnd index at (at + 1) (child-indexes build children) events in
-    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build saved
-    else ParseRefused (JsonValueError "object" "closing frame has no opening container")
+    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "object" "closing frame has no opening container")
+
+  -- | Prepared partial frames, next tape index and immutable reversed events.
+  data PartialBuild where
+    -- | Private partial construction state before structural closure.
+    PartialState :: List ParseFrame -> Nat -> List TapeEvent -> PartialBuild
+
+  -- | Retain the lexical category of an incomplete scalar without constructing a validated scalar token.
+  partial-kind :: Bytes -> Nat -> NodeKind
+  partial-kind input at =
+    if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 110 then NPartialNull else if byte == 116 then NPartialTrue else if byte == 102 then NPartialFalse
+      else if byte == 34 then NPartialString else if byte == 45 || digit-byte byte then NPartialNumber
+      else if byte == 91 then NPartialArray else if byte == 123 then NPartialObject else NInvalid
+    else NInvalid
+
+  -- | Add an entered value slot only where the grammar and typed decoder had selected one.
+  prepare-stop :: Bytes -> Nat -> Nat -> List ParseFrame -> Nat -> List TapeEvent -> StopPhase -> PartialBuild
+  prepare-stop input at next frames index events phase = case phase of
+    StopValue -> PartialState frames (index + 1) (Cons (Event (partial-kind input at) index at next NoChildren) events)
+    StopKey -> PartialState frames index events
+    StopGrammar -> case frames of
+      Nil -> case events of Nil -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events); other -> PartialState frames index events
+      Cons first rest -> case first of
+        Frame expected opening children -> case expected of
+          ArrayFirst -> partial-array-slot at next opening children rest index events
+          ArrayNext -> partial-array-slot at next opening children rest index events
+          ArrayAfter -> partial-array-slot at next opening children rest index events
+          ObjectColon -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+          ObjectValue -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+          other -> PartialState frames index events
+
+  -- | Represent the array slot initialized before a missing delimiter or element is discovered.
+  partial-array-slot :: Nat -> Nat -> Nat -> List Nat -> List ParseFrame -> Nat -> List TapeEvent -> PartialBuild
+  partial-array-slot at next opening children rest index events = PartialState (Cons (Frame ArrayAfter opening (Cons index children)) rest) (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+
+  -- | Close incomplete container metadata in linear time without adding bytes to the original input.
+  close-partial-frames :: List ParseFrame -> Nat -> Nat -> List TapeEvent -> List TapeEvent
+  close-partial-frames frames next index events = case frames of
+    Nil -> events
+    Cons first rest -> case first of
+      Frame phase opening children ->
+        let kind = case phase of ArrayFirst -> NPartialArrayEnd; ArrayNext -> NPartialArrayEnd; ArrayAfter -> NPartialArrayEnd; other -> NPartialObjectEnd in
+        close-partial-frames rest next (index + 1) (Cons (Event kind index next next (child-indexes True children)) events)
+
+  -- | Count the selected array slot without traversing any nested subtree.
+  partial-index-count :: List Nat -> Nat -> Nat
+  partial-index-count indexes count = case indexes of Nil -> count; Cons first rest -> partial-index-count rest (count + 1)
+
+  -- | Decode a completed member name by its already retained constant-time tape index.
+  partial-key-name :: JsonDocument -> List Nat -> Option String
+  partial-key-name document children = case children of
+    Nil -> None
+    Cons index rest -> case document of
+      Document input tape root -> case array-get tape index of None -> None; Some node -> case decode-node-string input node of Err error -> None; Ok name -> Some name
+
+  -- | Select one active grammar component independently from its eventual diagnostic formatting.
+  partial-frame-name :: JsonDocument -> ParseFrame -> Bool -> Option String
+  partial-frame-name document frame skip = case frame of
+    Frame phase opening children ->
+      if skip then case phase of ObjectColon -> partial-key-name document children; ObjectValue -> partial-key-name document children; other -> None
+      else case phase of
+        ObjectColon -> partial-key-name document children
+        ObjectValue -> partial-key-name document children
+        ObjectAfter -> partial-key-name document children
+        ArrayAfter -> let count = partial-index-count children 0 in if count > 0 then Some (nat-to-string (count - 1)) else None
+        other -> None
+
+  -- | Escape a pointer component once, retaining literal conventional names in their separate metadata.
+  partial-pointer-component :: List Char -> List String -> String
+  partial-pointer-component chars reversed = case chars of
+    Nil -> string-concat-all (reverse reversed)
+    Cons first rest -> partial-pointer-component rest (Cons (if char-code first == 126 then "~0" else if char-code first == 47 then "~1" else pack [first]) reversed)
+
+  -- | Render the original active path only on refusal, with one indexed key lookup per frame.
+  partial-pointer :: JsonDocument -> List ParseFrame -> Bool -> List String -> String
+  partial-pointer document frames skip pieces = case frames of
+    Nil -> string-concat-all pieces
+    Cons first rest -> case partial-frame-name document first skip of
+      None -> partial-pointer document rest False pieces
+      Some name -> partial-pointer document rest False (Cons (string-concat "/" (partial-pointer-component (unpack name) Nil)) pieces)
+
+  -- | Retain a distinct uncommitted token refusal when a trailing comma precedes an object end.
+  token-checkpoint :: JsonDocument -> List ParseFrame -> StopPhase -> Nat -> Option TokenCheckpoint
+  token-checkpoint document frames phase at = case phase of
+    StopGrammar -> case frames of
+      Nil -> None
+      Cons first rest -> case first of
+        Frame expected opening children -> case expected of
+          ObjectNext separator -> case document of
+            Document input tape root ->
+              if at < bytes-len input && bytes-get input at == 125 then case array-get tape opening of
+                None -> None
+                Some node -> case syntax-source input separator 0 "looking for beginning of value" of
+                  JsonSyntaxError diagnostic message -> Some (TokenCheckpoint (node-start node) separator diagnostic message)
+                  other -> None
+              else None
+          other -> None
+    other -> None
+
+  -- | Retain partial navigation and exact source context only in explicitly requested partial scans.
+  parse-stop :: Bytes -> Nat -> Nat -> List ParseFrame -> Nat -> Bool -> Bool -> List TapeEvent -> StopPhase -> JsonError -> ParseResult
+  parse-stop input at next frames index build retain events phase error =
+    if not retain then ParseRefused error
+    else case prepare-stop input at next frames index events phase of
+      PartialState selected end saved -> case finish-tape input (close-partial-frames selected next end saved) of
+        DocumentValid document ->
+          let skip = case phase of StopValue -> False; other -> True in
+          let pointer = partial-pointer document frames skip Nil in
+          let position = case json-error-syntactic error of None -> at; Some info -> json-syntactic-offset info in
+          let cause = case error of JsonSyntacticError info original -> original; other -> error in
+          DocumentPartial document (JsonSyntacticError (SyntacticInfo position pointer (token-checkpoint document frames phase at)) cause)
+        ParseRefused internal -> ParseRefused internal
+        other -> ParseRefused (JsonValueError "document" "partial navigation tape was not constructed")
 
   -- | Pair container ends in one reverse traversal before constructing the immutable tape.
   finish-tape :: Bytes -> List TapeEvent -> ParseResult
@@ -1358,17 +1645,21 @@ module Text.Json.Value where
     Cons first rest -> case first of
       Event kind index start end children -> case kind of
         NArrayEnd -> pair-events input rest (Cons (Close NArray index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NPartialArrayEnd -> pair-events input rest (Cons (Close NPartialArray index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NPartialObjectEnd -> pair-events input rest (Cons (Close NPartialObject index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
         NObjectEnd -> pair-events input rest (Cons (Close NObject index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
         NArray -> case closes of
           Cons closing more -> case closing of
             Close close-kind close-index close-end close-children -> case close-kind of
               NArray -> pair-events input rest more (Cons (Node kind index start close-end (close-index + 1) close-children) nodes)
+              NPartialArray -> pair-events input rest more (Cons (Node NPartialArray index start close-end (close-index + 1) close-children) nodes)
               other -> ParseRefused (JsonValueError "array" "mismatched tape closing marker")
           Nil -> ParseRefused (JsonValueError "array" "missing tape closing marker")
         NObject -> case closes of
           Cons closing more -> case closing of
             Close close-kind close-index close-end close-children -> case close-kind of
               NObject -> pair-events input rest more (Cons (Node kind index start close-end (close-index + 1) close-children) nodes)
+              NPartialObject -> pair-events input rest more (Cons (Node NPartialObject index start close-end (close-index + 1) close-children) nodes)
               other -> ParseRefused (JsonValueError "object" "mismatched tape closing marker")
           Nil -> ParseRefused (JsonValueError "object" "missing tape closing marker")
         other -> pair-events input rest closes (Cons (Node kind index start end (index + 1) NoChildren) nodes)
@@ -1385,7 +1676,7 @@ module Text.Json.Value where
   -- | Read a validated exact number from a source-backed scalar view.
   json-value-number :: JsonValue -> Option JsonNumber
   json-value-number value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
         NNumber -> case string-from-bytes (json-value-source value) of Some text -> Some (Number text); None -> None
         other -> None
@@ -1687,21 +1978,27 @@ module Text.Json.Value where
   -- | Read the element count without traversing nested values or copying the source.
   json-array-length :: JsonValue -> Option Nat
   json-array-length value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
         NArray -> case children of NoChildren -> Some 0; Children indexes -> Some (array-length indexes)
+        NPartialArray -> case children of NoChildren -> Some 0; Children indexes -> Some (array-length indexes)
         other -> None
 
   -- | Read one direct array element by zero-based index, retaining its original document owner.
   json-array-get :: JsonValue -> Nat -> Option JsonValue
   json-array-get value wanted = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
         NArray -> case children of
           NoChildren -> None
           Children indexes -> case array-get indexes wanted of
             None -> None
-            Some selected -> case document of Document input tape root -> case array-get tape selected of Some child -> Some (Value document child); None -> None
+            Some selected -> case document of Document input tape root -> case array-get tape selected of Some child -> Some (Value document child refusal); None -> None
+        NPartialArray -> case children of
+          NoChildren -> None
+          Children indexes -> case array-get indexes wanted of
+            None -> None
+            Some selected -> case document of Document input tape root -> case array-get tape selected of Some child -> Some (Value document child refusal); None -> None
         other -> None
 
   -- | Collect array element views in source order without copying their payload bytes.
@@ -1719,14 +2016,15 @@ module Text.Json.Value where
   -- | Read object members in original order, preserving repeated decoded names.
   json-object-members :: JsonValue -> Option (List JsonMember)
   json-object-members value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
-        NObject -> case children of NoChildren -> Some Nil; Children indexes -> Some (object-members-from document indexes 0 Nil)
+        NObject -> case children of NoChildren -> Some Nil; Children indexes -> Some (object-members-from document refusal indexes 0 Nil)
+        NPartialObject -> case children of NoChildren -> Some Nil; Children indexes -> Some (object-members-from document refusal indexes 0 Nil)
         other -> None
 
   -- | Decode member names once per returned member, retaining each member value's document.
-  object-members-from :: JsonDocument -> Array Nat -> Nat -> List JsonMember -> List JsonMember
-  object-members-from document indexes at reversed =
+  object-members-from :: JsonDocument -> Option JsonError -> Array Nat -> Nat -> List JsonMember -> List JsonMember
+  object-members-from document refusal indexes at reversed =
     if at < array-length indexes then case array-get indexes at of
       None -> reverse reversed
       Some key-index -> case document of
@@ -1736,7 +2034,7 @@ module Text.Json.Value where
             None -> reverse reversed
             Some value-node -> case decode-node-string input key-node of
               Err error -> reverse reversed
-              Ok name -> object-members-from document indexes (at + 1) (Cons (Member name (Value document value-node)) reversed)
+              Ok name -> object-members-from document refusal indexes (at + 1) (Cons (Member name (Value document value-node refusal)) reversed)
     else reverse reversed
 
   -- | Find the final exact decoded member name; later duplicates replace earlier matches.
@@ -1752,7 +2050,7 @@ module Text.Json.Value where
   -- | Decode a string value without exposing mutable source storage.
   json-value-string :: JsonValue -> Option String
   json-value-string value = case value of
-    Value document node -> case node of
+    Value document node refusal -> case node of
       Node kind index start end next children -> case kind of
         NString -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
         NKey -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
@@ -2148,18 +2446,18 @@ module Text.Json.Value where
   json-indent-bytes input prefix step = json-append-indent-bytes (bytes-new 0) input prefix step
 
   -- | Select a private member-name tape node while retaining its original source owner.
-  member-key-at :: JsonDocument -> Nat -> Option JsonValue
-  member-key-at document at = case document of
+  member-key-at :: JsonDocument -> Option JsonError -> Nat -> Option JsonValue
+  member-key-at document refusal at = case document of
     Document input tape root -> case array-get tape at of
       None -> None
       Some node -> case node of
-        Node kind index start end next children -> case kind of NKey -> Some (Value document node); other -> None
+        Node kind index start end next children -> case kind of NKey -> Some (Value document node refusal); other -> None
 
   -- | Find the immediately preceding validated key node without copying the complete input document.
   member-key-before :: JsonValue -> Option JsonValue
   member-key-before value = case value of
-    Value document node -> case node of
-      Node kind index start end next children -> if index > 0 then member-key-at document (index - 1) else None
+    Value document node refusal -> case node of
+      Node kind index start end next children -> if index > 0 then member-key-at document refusal (index - 1) else None
 
   -- | Retain the exact original quoted member-name token as an immutable source-backed string view.
   json-member-key :: JsonMember -> Option JsonValue

@@ -1,0 +1,5 @@
+{
+  "description": "Reference-only option validation: jsontext.WithIndentPrefix refuses non-whitespace P>; no Cinch execution or library verdict",
+  "source_sha256": "1ade488e8194ac21a8333a5aebf8ed7042cff9df21e7d5610ec66053100789c1",
+  "status": "reference panic preserved"
+}

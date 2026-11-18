@@ -1,0 +1,31 @@
+{
+  "status": "first-source-refusal-preserved",
+  "reason": "Adding JsonLexFailureAt broadened the existing step sum and broke exhaustive legacy consumers. Replace error-only metadata transport; keep original4 constructors. No runtime executed.",
+  "files": {
+    "Main.cinch": {
+      "source": "build/json-error-syntax-lexer-v1/source/Main.cinch",
+      "sha256": "e4eb0a6a2dab8ede6f4906285592830eb60b96e998a4f1f97aacf6538bb9fbfe",
+      "bytes": 2916
+    },
+    "Value.cinch": {
+      "source": "build/json-error-syntax-lexer-v1/source/Text.Json.Value.cinch",
+      "sha256": "19def9f32e2574b13d3df8debfbfe3b39af196f718d7d9d697590e6c3efaf996",
+      "bytes": 138075
+    },
+    "Codec.cinch": {
+      "source": "build/json-error-syntax-lexer-v1/source/Text.Json.Codec.cinch",
+      "sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+      "bytes": 157116
+    },
+    "check.log": {
+      "source": "build/json-error-syntax-lexer-v1/runtime/check.log",
+      "sha256": "441e5c62b0f73e615ad1a05cfb1f02c0c2924bb675852b6e4ec1a06ac9a99d45",
+      "bytes": 179
+    },
+    "result.json": {
+      "source": "bootstrap/stdlib-json-syntax-lexer-rust-v1-results.json",
+      "sha256": "98f76715faeaf44be0cefe48bb237e2946d55ded820b82e6ecaa880de9d22e96",
+      "bytes": 2144
+    }
+  }
+}

@@ -1,0 +1,589 @@
+-- | Independent method refusal metadata and partial output exercise every public encoding boundary.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Machine
+
+  -- | Keep application values opaque to frontend evaluation.
+  prim runtime-bool :: Bool -> Bool where
+    llvm {
+      %result = or i8 %0, 0
+      ret i8 %result
+    }
+
+  -- | Compare every output byte with the independent observed prefix.
+  same :: Bytes -> String -> Bool
+  same actual expected = eq-i64 (bytes-compare actual (string-to-bytes expected)) 0
+
+  -- | Count application callbacks through a private checked test buffer.
+  called :: Bytes -> Unit
+  called counter =
+    if bytes-len counter > 0 then
+      let count = bytes-get counter 0 in
+      if count < 255 then bytes-set counter 0 (count + 1) else ()
+    else ()
+
+  -- | Observe callback count without narrowing an already bounded natural byte.
+  count-matches :: Bytes -> Nat -> Bool
+  count-matches counter expected = if bytes-len counter > 0 then bytes-get counter 0 == expected else False
+
+  -- | Preserve a distinctive original structured application refusal.
+  refusal :: JsonError
+  refusal = JsonEncodingError 0 "method-refusal"
+
+  -- | Construct a user-owned semantic carrier with explicitly unspecified application type metadata.
+  returned :: Bool -> JsonError
+  returned semantic = if semantic then JsonSemanticError (json-semantic-info-with-value "" 2 "/inner~0" (string-to-bytes "12") "" 48 (string-to-bytes "12")) refusal else refusal
+
+  -- | Invoke exactly one pure application method and retain its original structured cause.
+  refuse :: Bytes -> Bool -> JsonWriteOptions -> Bool -> Result JsonError Bytes
+  refuse counter semantic options value = let observed = called counter in Err (returned semantic)
+
+  -- | Attach explicit application metadata without inventing an implicit runtime type inspection.
+  base :: String -> JsonType Bool
+  base label = json-structural-type label JsonBooleanKind (\unit -> False) not (json-type-is-empty json-bool-type) (json-marshal-value json-bool-type) (json-update-value json-bool-type)
+
+  -- | Name the exact address receiver declared by each application method family independently of its value type.
+  receiver-type :: String -> String
+  receiver-type flavor =
+    if flavor == "main.jsonRefusal" then "*main.jsonRefusal"
+    else if flavor == "main.textRefusal" then "*main.textRefusal"
+    else if flavor == "main.jsonSemantic" then "*main.jsonSemantic"
+    else "*main.textSemantic"
+
+  -- | Choose the independent JSON or text capability declared by the original method family.
+  descriptor :: String -> Bytes -> JsonType Bool
+  descriptor flavor counter =
+    let semantic = flavor == "main.jsonSemantic" || flavor == "main.textSemantic" in
+    let callback = refuse counter semantic in
+    let receiver = receiver-type flavor in
+    if flavor == "main.jsonRefusal" || flavor == "main.jsonSemantic" then json-type-with-methods (base flavor) (json-methods-with-receiver-types receiver "UnselectedTextReceiver" (json-methods (Some (False, callback)) None None None))
+    else json-type-with-methods (base flavor) (json-methods-with-receiver-types "UnselectedJsonReceiver" receiver (json-methods None (Some (False, callback)) None None))
+
+  -- | Preserve completed surrounding fields and an escaped member component around a method call.
+  fields :: JsonType Bool -> JsonType Bool
+  fields value-type = json-record-type "MethodRecord" (\unit -> False) not [json-field "before" json-string-type (\value -> "α<&") (\next prior -> prior), json-field "a/b~" value-type (\value -> value) (\next prior -> next), json-field "after" json-int64-type (\value -> 9) (\next prior -> prior)]
+
+  -- | Seal one containing application object without changing the child value.
+  nested :: JsonType Bool -> JsonType Bool
+  nested value-type = json-record-type "OuterRecord" (\unit -> False) not [json-field "outer" (fields value-type) (\value -> value) (\next prior -> next)]
+
+  -- | Encode one context through the explicit partial-output capability.
+  attempt :: JsonType Bool -> Bool -> String -> JsonWriteOptions -> JsonEncoded
+  attempt value-type value context options =
+    if context == "pointer" then json-marshal-attempt (json-nullable-type value-type) options (Some value)
+    else if context == "prefixed" then json-marshal-attempt (fields value-type) options value
+    else if context == "nested" then json-marshal-attempt (nested value-type) options value
+    else if context == "slice" then json-marshal-attempt (json-list-type value-type) options [value]
+    else if context == "map" then json-marshal-attempt (json-map-type json-string-key value-type) options (json-map-set "a/b~" value (json-map-empty json-string-key))
+    else json-marshal-attempt value-type options value
+
+  -- | Select the complete or compact public Result boundary with explicit argument grouping.
+  public-result :: forall a. JsonType a -> a -> JsonWriteOptions -> Bool -> Result JsonError Bytes
+  public-result value-type value options compact = if compact then json-marshal-value value-type options value else json-marshal-with value-type options value
+
+  -- | Observe the actual complete or compact Result family without substituting the partial outcome.
+  encode-result :: JsonType Bool -> Bool -> String -> JsonWriteOptions -> Bool -> Result JsonError Bytes
+  encode-result value-type value context options compact =
+    if context == "pointer" then public-result (json-nullable-type value-type) (Some value) options compact
+    else if context == "prefixed" then public-result (fields value-type) value options compact
+    else if context == "nested" then public-result (nested value-type) value options compact
+    else if context == "slice" then public-result (json-list-type value-type) [value] options compact
+    else if context == "map" then public-result (json-map-type json-string-key value-type) (json-map-set "a/b~" value (json-map-empty json-string-key)) options compact
+    else public-result value-type value options compact
+
+  -- | Recover the original refusal through the public cause tree without flattening it to prose.
+  original :: JsonError -> Bool
+  original error = case error of
+    JsonEncodingError offset message -> offset == 0 && message == "method-refusal"
+    other -> case json-error-cause error of None -> False; Some cause -> original cause
+
+  -- | Observe a Result's actual error alternative.
+  result-error :: Result JsonError Bytes -> Option JsonError
+  result-error encoded = case encoded of Ok output -> None; Err error -> Some error
+
+  -- | Compare the public optional application type, preserving absence rather than normalizing an empty label.
+  type-matches :: JsonError -> Bool -> String -> Bool
+  type-matches error present expected = case json-error-type error of None -> not present; Some label -> present && label == expected
+
+  -- | Classify an original public error family rather than accepting an internal output wrapper.
+  family-matches :: JsonError -> Bool -> Bool
+  family-matches error legacy =
+    if legacy then
+      case error of JsonCustomError label cause -> True; other -> False
+    else
+      case error of JsonSemanticError info cause -> True; other -> False
+
+  -- | Compare all exposed semantic metadata without relying on randomized diagnostic wording.
+  semantic-matches :: JsonError -> Nat -> String -> Nat -> String -> Bool
+  semantic-matches error offset pointer kind reported = case json-error-semantic error of
+    None -> False
+    Some info -> json-semantic-offset info == offset && json-semantic-pointer info == pointer
+      && u8-to-nat (json-semantic-kind-byte info) == kind && same (json-semantic-reported-bytes info) reported
+
+  -- | Return a named property code for the first disagreement while retaining the original row index.
+  error-status :: Option JsonError -> Bool -> Bool -> String -> Nat -> String -> Nat -> String -> Nat
+  error-status error legacy has-type label offset pointer kind reported = case error of
+    None -> 1
+    Some cause ->
+      if not (family-matches cause legacy) then 1
+      else if not (type-matches cause has-type label) then 2
+      else if not (original cause) then 3
+      else if not legacy && not (semantic-matches cause offset pointer kind reported) then 4
+      else 0
+
+  -- | Retain every original method observation, including literal type metadata and compact offset comparison.
+  data Observation where
+    -- | Flavor, context, reporting, layout, HTML, actual prefix, optional type, semantic context and callback count.
+    Observe :: String -> String -> Bool -> String -> Bool -> String -> Bool -> String -> Nat -> Nat -> String -> Nat -> String -> Nat -> Observation
+
+  -- | Invoke each public entry point with its own callback observer and compare all available metadata.
+  observe :: Observation -> Nat
+  observe row = case row of
+    Observe flavor context legacy style html expected has-type label offset compact-offset pointer kind reported calls ->
+      let options = json-write-options html (not (style == "compact")) (if style == "pretty" then "\t " else "") (if style == "pretty" then "  " else "") (json-policies [json-continue-after-type-errors legacy]) in
+      let value = runtime-bool False in
+      let counter-a = bytes-new 1 in let output = attempt (descriptor flavor counter-a) value context options in
+      let counter-b = bytes-new 1 in let complete = encode-result (descriptor flavor counter-b) value context options False in
+      let counter-c = bytes-new 1 in let compact = encode-result (descriptor flavor counter-c) value context options True in
+      let status-a = error-status (json-encoded-error output) legacy has-type label offset pointer kind reported in
+      let status-b = error-status (result-error complete) legacy has-type label offset pointer kind reported in
+      let status-c = error-status (result-error compact) legacy has-type label compact-offset pointer kind reported in
+      if not (same (json-encoded-bytes output) expected) then 1
+      else if not (count-matches counter-a calls && count-matches counter-b calls && count-matches counter-c calls) then 2
+      else if status-a > 0 then 10 + status-a
+      else if status-b > 0 then 20 + status-b
+      else if status-c > 0 then 30 + status-c
+      else 0
+
+  -- | Check bounded literal groups without raising the language's existing nesting limit.
+  group :: List Observation -> Nat -> Nat
+  group rows at = case rows of
+    Nil -> 0
+    Cons first rest -> let status = observe first in if status > 0 then at * 40 + status else group rest (at + 1)
+
+  -- | Preserve original method observations 1 through 16.
+  rows0 :: List Observation
+  rows0 = [
+    Observe "main.jsonRefusal" "value" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "compact" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "compact" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "pretty" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "pretty" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "empty-indent" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "value" False "empty-indent" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 17 through 32.
+  rows1 :: List Observation
+  rows1 = [
+    Observe "main.jsonRefusal" "pointer" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "compact" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "compact" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "pretty" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "pretty" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "empty-indent" True "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "pointer" False "empty-indent" False "" True "main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" True "main.jsonRefusal" 34 34 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" False "compact" False "{\"before\":\"α<&\",\"a/b~\"" True "main.jsonRefusal" 24 24 "/a~1b~0" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 33 through 48.
+  rows2 :: List Observation
+  rows2 = [
+    Observe "main.jsonRefusal" "prefixed" False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"a/b~\"" True "main.jsonRefusal" 46 34 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"a/b~\"" True "main.jsonRefusal" 36 24 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" True "main.jsonRefusal" 38 34 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "prefixed" False "empty-indent" False "{\n\"before\": \"α<&\",\n\"a/b~\"" True "main.jsonRefusal" 28 24 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "compact" True "{\"outer\":{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" True "main.jsonRefusal" 43 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "compact" False "{\"outer\":{\"before\":\"α<&\",\"a/b~\"" True "main.jsonRefusal" 33 33 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "pretty" True "{\n\t   \"outer\": {\n\t     \"before\": \"α\\u003c\\u0026\",\n\t     \"a/b~\"" True "main.jsonRefusal" 65 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "pretty" False "{\n\t   \"outer\": {\n\t     \"before\": \"α<&\",\n\t     \"a/b~\"" True "main.jsonRefusal" 55 33 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "empty-indent" True "{\n\"outer\": {\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" True "main.jsonRefusal" 49 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "nested" False "empty-indent" False "{\n\"outer\": {\n\"before\": \"α<&\",\n\"a/b~\"" True "main.jsonRefusal" 39 33 "/outer/a~1b~0" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 49 through 64.
+  rows3 :: List Observation
+  rows3 = [
+    Observe "main.jsonRefusal" "slice" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "compact" True "[" True "main.jsonRefusal" 1 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "compact" False "[" True "main.jsonRefusal" 1 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "pretty" True "[" True "main.jsonRefusal" 6 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "pretty" False "[" True "main.jsonRefusal" 6 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "empty-indent" True "[" True "main.jsonRefusal" 2 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "slice" False "empty-indent" False "[" True "main.jsonRefusal" 2 1 "/0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" True "compact" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "map" True "compact" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "map" True "pretty" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "map" True "pretty" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 65 through 80.
+  rows4 :: List Observation
+  rows4 = [
+    Observe "main.jsonRefusal" "map" True "empty-indent" True "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "map" True "empty-indent" False "" True "*main.jsonRefusal" 0 0 "" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "compact" True "{\"a/b~\"" True "main.jsonRefusal" 8 8 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "compact" False "{\"a/b~\"" True "main.jsonRefusal" 8 8 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "pretty" True "{\n\t   \"a/b~\"" True "main.jsonRefusal" 14 8 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "pretty" False "{\n\t   \"a/b~\"" True "main.jsonRefusal" 14 8 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "empty-indent" True "{\n\"a/b~\"" True "main.jsonRefusal" 10 8 "/a~1b~0" 0 "" 1,
+    Observe "main.jsonRefusal" "map" False "empty-indent" False "{\n\"a/b~\"" True "main.jsonRefusal" 10 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "value" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" False "compact" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" False "compact" False "" True "main.textRefusal" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 81 through 96.
+  rows5 :: List Observation
+  rows5 = [
+    Observe "main.textRefusal" "value" False "pretty" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" False "pretty" False "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" False "empty-indent" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "value" False "empty-indent" False "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "compact" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "compact" False "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "pretty" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "pretty" False "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "empty-indent" True "" True "main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "pointer" False "empty-indent" False "" True "main.textRefusal" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 97 through 112.
+  rows6 :: List Observation
+  rows6 = [
+    Observe "main.textRefusal" "prefixed" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" True "main.textRefusal" 34 34 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "compact" False "{\"before\":\"α<&\",\"a/b~\"" True "main.textRefusal" 24 24 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"a/b~\"" True "main.textRefusal" 46 34 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"a/b~\"" True "main.textRefusal" 36 24 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" True "main.textRefusal" 38 34 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "prefixed" False "empty-indent" False "{\n\"before\": \"α<&\",\n\"a/b~\"" True "main.textRefusal" 28 24 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "nested" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "nested" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "nested" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 113 through 128.
+  rows7 :: List Observation
+  rows7 = [
+    Observe "main.textRefusal" "nested" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "nested" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "compact" True "{\"outer\":{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" True "main.textRefusal" 43 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "compact" False "{\"outer\":{\"before\":\"α<&\",\"a/b~\"" True "main.textRefusal" 33 33 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "pretty" True "{\n\t   \"outer\": {\n\t     \"before\": \"α\\u003c\\u0026\",\n\t     \"a/b~\"" True "main.textRefusal" 65 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "pretty" False "{\n\t   \"outer\": {\n\t     \"before\": \"α<&\",\n\t     \"a/b~\"" True "main.textRefusal" 55 33 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "empty-indent" True "{\n\"outer\": {\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" True "main.textRefusal" 49 43 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "nested" False "empty-indent" False "{\n\"outer\": {\n\"before\": \"α<&\",\n\"a/b~\"" True "main.textRefusal" 39 33 "/outer/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "slice" False "compact" True "[" True "main.textRefusal" 1 1 "/0" 0 "" 1,
+    Observe "main.textRefusal" "slice" False "compact" False "[" True "main.textRefusal" 1 1 "/0" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 129 through 144.
+  rows8 :: List Observation
+  rows8 = [
+    Observe "main.textRefusal" "slice" False "pretty" True "[" True "main.textRefusal" 6 1 "/0" 0 "" 1,
+    Observe "main.textRefusal" "slice" False "pretty" False "[" True "main.textRefusal" 6 1 "/0" 0 "" 1,
+    Observe "main.textRefusal" "slice" False "empty-indent" True "[" True "main.textRefusal" 2 1 "/0" 0 "" 1,
+    Observe "main.textRefusal" "slice" False "empty-indent" False "[" True "main.textRefusal" 2 1 "/0" 0 "" 1,
+    Observe "main.textRefusal" "map" True "compact" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" True "compact" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" True "pretty" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" True "pretty" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" True "empty-indent" True "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" True "empty-indent" False "" True "*main.textRefusal" 0 0 "" 0 "" 1,
+    Observe "main.textRefusal" "map" False "compact" True "{\"a/b~\"" True "main.textRefusal" 8 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "map" False "compact" False "{\"a/b~\"" True "main.textRefusal" 8 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "map" False "pretty" True "{\n\t   \"a/b~\"" True "main.textRefusal" 14 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "map" False "pretty" False "{\n\t   \"a/b~\"" True "main.textRefusal" 14 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "map" False "empty-indent" True "{\n\"a/b~\"" True "main.textRefusal" 10 8 "/a~1b~0" 0 "" 1,
+    Observe "main.textRefusal" "map" False "empty-indent" False "{\n\"a/b~\"" True "main.textRefusal" 10 8 "/a~1b~0" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 145 through 160.
+  rows9 :: List Observation
+  rows9 = [
+    Observe "main.jsonSemantic" "value" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "value" False "compact" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "value" False "compact" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "value" False "pretty" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "value" False "pretty" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "value" False "empty-indent" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "value" False "empty-indent" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "pointer" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "pointer" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "pointer" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 161 through 176.
+  rows10 :: List Observation
+  rows10 = [
+    Observe "main.jsonSemantic" "pointer" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "pointer" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "pointer" False "compact" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" False "compact" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" False "pretty" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" False "pretty" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" False "empty-indent" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "pointer" False "empty-indent" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "prefixed" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "prefixed" False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" False "" 36 36 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "prefixed" False "compact" False "{\"before\":\"α<&\",\"a/b~\"" False "" 26 26 "/a~1b~0/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve original method observations 177 through 192.
+  rows11 :: List Observation
+  rows11 = [
+    Observe "main.jsonSemantic" "prefixed" False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"a/b~\"" False "" 48 36 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "prefixed" False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"a/b~\"" False "" 38 26 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "prefixed" False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" False "" 40 36 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "prefixed" False "empty-indent" False "{\n\"before\": \"α<&\",\n\"a/b~\"" False "" 30 26 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "nested" False "compact" True "{\"outer\":{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" False "" 45 45 "/outer/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" False "compact" False "{\"outer\":{\"before\":\"α<&\",\"a/b~\"" False "" 35 35 "/outer/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" False "pretty" True "{\n\t   \"outer\": {\n\t     \"before\": \"α\\u003c\\u0026\",\n\t     \"a/b~\"" False "" 67 45 "/outer/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" False "pretty" False "{\n\t   \"outer\": {\n\t     \"before\": \"α<&\",\n\t     \"a/b~\"" False "" 57 35 "/outer/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" False "empty-indent" True "{\n\"outer\": {\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" False "" 51 45 "/outer/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "nested" False "empty-indent" False "{\n\"outer\": {\n\"before\": \"α<&\",\n\"a/b~\"" False "" 41 35 "/outer/a~1b~0/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve original method observations 193 through 208.
+  rows12 :: List Observation
+  rows12 = [
+    Observe "main.jsonSemantic" "slice" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "slice" False "compact" True "[" False "" 3 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "slice" False "compact" False "[" False "" 3 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "slice" False "pretty" True "[" False "" 8 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "slice" False "pretty" False "[" False "" 8 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "slice" False "empty-indent" True "[" False "" 4 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "slice" False "empty-indent" False "[" False "" 4 3 "/0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" True "compact" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "map" True "compact" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "map" True "pretty" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "map" True "pretty" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 209 through 224.
+  rows13 :: List Observation
+  rows13 = [
+    Observe "main.jsonSemantic" "map" True "empty-indent" True "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "map" True "empty-indent" False "" True "*main.jsonSemantic" 0 0 "" 0 "" 1,
+    Observe "main.jsonSemantic" "map" False "compact" True "{\"a/b~\"" False "" 10 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" False "compact" False "{\"a/b~\"" False "" 10 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" False "pretty" True "{\n\t   \"a/b~\"" False "" 16 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" False "pretty" False "{\n\t   \"a/b~\"" False "" 16 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" False "empty-indent" True "{\n\"a/b~\"" False "" 12 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.jsonSemantic" "map" False "empty-indent" False "{\n\"a/b~\"" False "" 12 10 "/a~1b~0/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "value" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "value" False "compact" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "value" False "compact" False "" False "" 2 2 "/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve original method observations 225 through 240.
+  rows14 :: List Observation
+  rows14 = [
+    Observe "main.textSemantic" "value" False "pretty" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "value" False "pretty" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "value" False "empty-indent" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "value" False "empty-indent" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "pointer" False "compact" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" False "compact" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" False "pretty" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" False "pretty" False "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" False "empty-indent" True "" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "pointer" False "empty-indent" False "" False "" 2 2 "/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve original method observations 241 through 256.
+  rows15 :: List Observation
+  rows15 = [
+    Observe "main.textSemantic" "prefixed" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "prefixed" False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "prefixed" False "compact" False "{\"before\":\"α<&\",\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "prefixed" False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "prefixed" False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "prefixed" False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "prefixed" False "empty-indent" False "{\n\"before\": \"α<&\",\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "nested" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "nested" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "nested" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1
+  ]
+
+  -- | Preserve original method observations 257 through 272.
+  rows16 :: List Observation
+  rows16 = [
+    Observe "main.textSemantic" "nested" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "nested" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "nested" False "compact" True "{\"outer\":{\"before\":\"α\\u003c\\u0026\",\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" False "compact" False "{\"outer\":{\"before\":\"α<&\",\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" False "pretty" True "{\n\t   \"outer\": {\n\t     \"before\": \"α\\u003c\\u0026\",\n\t     \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" False "pretty" False "{\n\t   \"outer\": {\n\t     \"before\": \"α<&\",\n\t     \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" False "empty-indent" True "{\n\"outer\": {\n\"before\": \"α\\u003c\\u0026\",\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "nested" False "empty-indent" False "{\n\"outer\": {\n\"before\": \"α<&\",\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "slice" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "slice" False "compact" True "[" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "slice" False "compact" False "[" False "" 2 2 "/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve original method observations 273 through 288.
+  rows17 :: List Observation
+  rows17 = [
+    Observe "main.textSemantic" "slice" False "pretty" True "[" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "slice" False "pretty" False "[" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "slice" False "empty-indent" True "[" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "slice" False "empty-indent" False "[" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" True "compact" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" True "compact" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" True "pretty" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" True "pretty" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" True "empty-indent" True "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" True "empty-indent" False "" True "*main.textSemantic" 0 0 "" 0 "" 1,
+    Observe "main.textSemantic" "map" False "compact" True "{\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" False "compact" False "{\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" False "pretty" True "{\n\t   \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" False "pretty" False "{\n\t   \"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" False "empty-indent" True "{\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1,
+    Observe "main.textSemantic" "map" False "empty-indent" False "{\n\"a/b~\"" False "" 2 2 "/inner~0" 48 "12" 1
+  ]
+
+  -- | Preserve a nonzero row/property result for any independent mismatch.
+  status :: Nat
+  status =
+    let code0 = group rows0 0 in
+    if code0 > 0 then code0 else
+    let code1 = group rows1 16 in
+    if code1 > 0 then code1 else
+    let code2 = group rows2 32 in
+    if code2 > 0 then code2 else
+    let code3 = group rows3 48 in
+    if code3 > 0 then code3 else
+    let code4 = group rows4 64 in
+    if code4 > 0 then code4 else
+    let code5 = group rows5 80 in
+    if code5 > 0 then code5 else
+    let code6 = group rows6 96 in
+    if code6 > 0 then code6 else
+    let code7 = group rows7 112 in
+    if code7 > 0 then code7 else
+    let code8 = group rows8 128 in
+    if code8 > 0 then code8 else
+    let code9 = group rows9 144 in
+    if code9 > 0 then code9 else
+    let code10 = group rows10 160 in
+    if code10 > 0 then code10 else
+    let code11 = group rows11 176 in
+    if code11 > 0 then code11 else
+    let code12 = group rows12 192 in
+    if code12 > 0 then code12 else
+    let code13 = group rows13 208 in
+    if code13 > 0 then code13 else
+    let code14 = group rows14 224 in
+    if code14 > 0 then code14 else
+    let code15 = group rows15 240 in
+    if code15 > 0 then code15 else
+    let code16 = group rows16 256 in
+    if code16 > 0 then code16 else
+    let code17 = group rows17 272 in
+    if code17 > 0 then code17 else
+    0
+
+  -- | Print the complete first row and property code on failure while successful runs remain silent.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = status in
+    if failed == 0 then 0 else
+      let printed = ioWrite (string-to-bytes (string-concat-all ["json-method-error:", nat-to-string failed, "\n"])) in 1

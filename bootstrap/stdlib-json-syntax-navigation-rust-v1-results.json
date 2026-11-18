@@ -1,0 +1,73 @@
+{
+  "status": "passed",
+  "scope": "One-pass partial-navigation component only; 902rows reference-only, selected1494 proof immutable; typed partial-mutation remains unimplemented",
+  "unit": "navigation",
+  "control_groups": 10,
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "2f95c9abc08a221a12fd2b5d810faeeffff726a0408f6323af01f67f9ca19931",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "fixture_path": "/workspace/dasl-stdlib-json/compiler/tests/fixtures/json-syntax-partial-navigation.cinch",
+  "fixture_sha256": "e33df0af68bd7e8c8cb77c5b62c072019343df05432be8f2586b3dfc8c65f063",
+  "free_bytes_before": 378830848,
+  "start_guard_bytes": 367001600,
+  "reserve_bytes": 262144000,
+  "output_limit_bytes": 31457280,
+  "archive_scratch_limit_bytes": 10485760,
+  "SDK_evidence_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "runs": [
+    {
+      "poisoned": false,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=771 bytes=18894 peak=1331 header-blocks=701 header-bytes=18448 immortal=0 freed=701 live=0\n"
+    },
+    {
+      "poisoned": true,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=771 bytes=18894 peak=18683 header-blocks=701 header-bytes=18448 immortal=0 freed=701 live=0\n"
+    }
+  ],
+  "check_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-navigation-v1/source/Main.cinch"
+  ],
+  "check_seconds": 10.952094764012145,
+  "check_exit_code": 0,
+  "emit_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "emit-ir",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-navigation-v1/source/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-navigation-v1/runtime/consumer.ll",
+    "--rc-debug"
+  ],
+  "emit_seconds": 9.84508458498749,
+  "emit_exit_code": 0,
+  "link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-navigation-v1/runtime/consumer.ll",
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-navigation-v1/runtime/consumer"
+  ],
+  "link_seconds": 6.82708005499444,
+  "link_exit_code": 0,
+  "llvm_sha256": "fb2f30ba14d34be2301acc09f9b5f6095bbce50641b00f3fa136dec418f30a90",
+  "executable_sha256": "28a9114d1de82f058353768b276174e6024dc824ea2a11b67f64072ebf02c264",
+  "artifact_bytes": 14593425
+}

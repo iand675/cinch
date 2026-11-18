@@ -1,0 +1,25 @@
+{
+  "status": "verified-all-paths-plain-sealed",
+  "plan": "bootstrap/stdlib-json-sealed-success-model-inputs-v1.json",
+  "plan_sha256": "db2db5e92a06287be0459101d2caed67af960796d63d97a47481dd008017fda6",
+  "passed_source_roots": [
+    "/workspace/dasl-stdlib-json/build/json-error-methods-probe-v7",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-int-v2/source",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-record-v3/source",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-pointer-record-v3/source",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-slice-v4/source"
+  ],
+  "verified_files": 431,
+  "atomic_replacements": 324,
+  "uniform_current_uid_gids": [
+    [
+      1000,
+      1000
+    ]
+  ],
+  "scoped_original_blocks_eligible_for_reclaim_bytes": 12247040,
+  "free_bytes_before": 358518784,
+  "free_bytes_after": 370581504,
+  "observed_global_free_change": 12062720,
+  "note": "Global free change may include other agents. Original per-path times recorded in durable plan; no source contents/modes/owners changed. All directories permanently sealed against compilation."
+}

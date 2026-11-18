@@ -1,0 +1,4 @@
+warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]
+1 warning generated.
+/usr/bin/ld: /tmp/consumer-442cde.o: warning: relocation against `Text.Json.Codec.json-list-type.lam112@R.tapp' in read-only section `.text'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE

@@ -1,0 +1,32 @@
+{
+  "status": "verified-closed-success",
+  "archive_path": "build/json-error-functional-archives/syntax-observations-record-v5.tar.gz",
+  "archive_sha256": "5a1e291e2b48c377b3deef83317b1f83867f6b71409c087f1443aecc64645c64",
+  "archive_bytes": 3461652,
+  "decompressed_tar_sha256": "6a626fb3430febc64dafff4a86d4fc53bb9837ec05ab27f68390da635b1c0ab4",
+  "members": [
+    {
+      "path": "build/json-error-syntax-observations-record-v5/runtime/consumer.ll",
+      "sha256": "c0ef99963a00019e03d67f8aaf2a643029db325a32527f85b1a86abed6f4ebd0",
+      "bytes": 7595948,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-syntax-observations-record-v5/runtime/consumer",
+      "sha256": "7535fa9eb5d9a77fed91b11f7b1129b453864ee6fe0e6ae41ae0bd8b66dd7dfb",
+      "bytes": 7092880,
+      "mode": 448
+    }
+  ],
+  "execution_receipt": "bootstrap/stdlib-json-syntax-observations-record-rust-v5-results.json",
+  "execution_receipt_sha256": "d142ac14e29a692cc052555856b2ab490122973ba320f9b89f55dca6e4660fe3",
+  "verified_before_unlink": true,
+  "ordering": "Archive+directory fsync and full CRC/decompressed/member SHA/size/mode verification; recovery index+parent fsync before unlink; original identity recheck; output parent fsync after. All failed artifacts/sources/frozen/benchmark inputs remain plain.",
+  "restore_command": [
+    "tar",
+    "-xzf",
+    "/workspace/dasl-stdlib-json/build/json-error-functional-archives/syntax-observations-record-v5.tar.gz",
+    "-C",
+    "/workspace/dasl-stdlib-json"
+  ]
+}

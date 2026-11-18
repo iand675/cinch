@@ -1,0 +1,85 @@
+{
+  "description": "Published964 closed functional ELF/LLVM only; all source/log/reference/docs/frozen compiler/provider/runtime, current snapshots and benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-native-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-dynamic-control-native-raw-v2/dynamic-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/consumer",
+      "size": 11987384,
+      "mode": 448,
+      "sha256": "90a6264add7e06719725d2e8ac3b03077b26f804e72b390cde09d9be2e0b2372",
+      "nlink": 1,
+      "allocated_bytes": 11988992
+    },
+    {
+      "path": "build/json-dynamic-control-native-raw-v2/dynamic-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/consumer.ll",
+      "size": 4944665,
+      "mode": 384,
+      "sha256": "38d17d8d8c9e2f97e6a221da2ddcd09c052cc73e8c27a2e7aa2062e16dbdddd6",
+      "nlink": 1,
+      "allocated_bytes": 4947968
+    },
+    {
+      "path": "build/json-dynamic-edge-native-raw-v1/dynamic-edge/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-edge-native-raw-v1/dynamic-edge/consumer",
+      "size": 12103344,
+      "mode": 448,
+      "sha256": "654d24bb2f5bebebab5034b58e8d43772754bb9bdaf2dba02e99dacb5cb018ea",
+      "nlink": 1,
+      "allocated_bytes": 12103680
+    },
+    {
+      "path": "build/json-dynamic-edge-native-raw-v1/dynamic-edge/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-edge-native-raw-v1/dynamic-edge/consumer.ll",
+      "size": 6296735,
+      "mode": 384,
+      "sha256": "fd1963ed744cc4497f501c8635ec368911cdd77ded469b05fb90623f231067e9",
+      "nlink": 1,
+      "allocated_bytes": 6299648
+    },
+    {
+      "path": "build/json-dynamic-native-raw-v1/dynamic/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-native-raw-v1/dynamic/consumer",
+      "size": 14058488,
+      "mode": 448,
+      "sha256": "631f95670289e1a7ed92056077d5e97ccbd7f25ca3da0d699e4eae98d5d3da92",
+      "nlink": 1,
+      "allocated_bytes": 14061568
+    },
+    {
+      "path": "build/json-dynamic-native-raw-v1/dynamic/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-native-raw-v1/dynamic/consumer.ll",
+      "size": 23312088,
+      "mode": 384,
+      "sha256": "d15bf48df1fabdc9bbada64ab80886bae8c988248f0645347b8041f1591f589d",
+      "nlink": 1,
+      "allocated_bytes": 23314432
+    }
+  ],
+  "original_file_bytes": 72702704,
+  "verified": true,
+  "originals_removed": true,
+  "checkpoint": "964e6417d14fbe71cd59668cba78113914615a3a",
+  "stage": "native",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-dynamic-native-raw-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-dynamic-native-raw-v1-results.json": "f85a022e49f1a855cd9bbec2c1e1fb0e12b16bbd393e2a3f8fe76e86c16276ad",
+    "bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json": "1c15280e596f576e2986613d15125d6ebbd80290795885962e496b3852a84991",
+    "bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json": "2c366303e88e79eff006529ff022e75ddbfa38d1a38cc134e2ecc6886823b1f0"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-native-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "26f6d26f51e7ad1ea88c60fcf395d6506466af9b26771db036a2ae34ac3afd55",
+  "archive_bytes": 16240260,
+  "decompressed_tar_sha256": "e8aa27742163583670b2b91ecae5d72b09bd8838bd962d8e4f0a72409b95fd2f",
+  "decompressed_tar_bytes": 72714240,
+  "elapsed_seconds": 1.0673547529877396,
+  "free_bytes_before": 116142080,
+  "free_bytes_after": 172642304,
+  "global_free_change_bytes": 56500224,
+  "own_reclaimed_blocks_before_indexes_bytes": 56475648
+}

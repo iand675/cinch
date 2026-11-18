@@ -2,7 +2,7 @@
   "reference_package": "encoding/json",
   "reference_sdk": "go1.27.4 linux/amd64",
   "reference_declarations": 92,
-  "status": "partial-core-typed-numeric-binary-map-binary32-raw-number; dynamic values, complete error/method capabilities, incremental effects and public pipeline review remain in progress",
+  "status": "partial-core-typed-numeric-binary-map-binary32-raw-number-dynamic-legacy; complete independent methods/errors, incremental effects and public pipeline review remain in progress",
   "source_base_commit": "689eb0c0",
   "existing_modules_preserved": [
     "Text.Json",
@@ -13,7 +13,9 @@
     "Text.Json.Value",
     "Text.Json.Codec",
     "Text.Json.Binary32",
-    "Effect.Json"
+    "Effect.Json",
+    "Text.Json.Dynamic",
+    "Text.Json.Legacy"
   ],
   "declarations": [
     {
@@ -23,10 +25,13 @@
       "planned_cinch_capabilities": [
         "JsonPolicies",
         "json-configure-policies",
-        "json-addressable-methods-only"
+        "json-addressable-methods-only",
+        "json-write-addressable",
+        "json-write-with-addressability",
+        "json-type-with-methods"
       ],
-      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
-      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
+      "status": "implemented explicit receiver selection for successful method contexts; nil-interface/key behavior remains partial",
+      "review_note": "Reference/list elements select addressable receivers; fixed arrays/records inherit; map keys/values and opaque typed payloads clear it. Both actual frontends check79 successful output/callback-count observations and a typed-interface boundary. Nil receiver/interface/key special cases and the invalid quoted-field error row remain mandatory."
     },
     {
       "reference_declaration": "func Compact(*bytes.Buffer, []uint8) error",
@@ -870,10 +875,19 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-encoder",
+        "json-type-with-text-encoder",
+        "json-type-with-addressable-encoder",
+        "json-type-with-addressable-text-encoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type Marshaler interface { MarshalJSON }",
@@ -884,10 +898,19 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-encoder",
+        "json-type-with-text-encoder",
+        "json-type-with-addressable-encoder",
+        "json-type-with-addressable-text-encoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type Marshaler interface, MarshalJSON() ([]uint8, error)",
@@ -898,10 +921,19 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-encoder",
+        "json-type-with-text-encoder",
+        "json-type-with-addressable-encoder",
+        "json-type-with-addressable-text-encoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type MarshalerError struct",
@@ -1246,10 +1278,17 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-decoder",
+        "json-type-with-text-decoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type Unmarshaler interface { UnmarshalJSON }",
@@ -1260,10 +1299,17 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-decoder",
+        "json-type-with-text-decoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type Unmarshaler interface, UnmarshalJSON([]uint8) error",
@@ -1274,10 +1320,17 @@
         "json-custom-type",
         "json-marshal-value",
         "json-update-value",
-        "JsonDecoded"
+        "JsonDecoded",
+        "JsonMethods",
+        "json-methods",
+        "json-type-with-methods",
+        "json-type-write-kind",
+        "json-type-read-kind",
+        "json-type-with-decoder",
+        "json-type-with-text-decoder"
       ],
-      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
-      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
+      "status": "implemented explicit directional/addressability/method-set capabilities; complete reporting, nil-interface/key and streaming semantics remain partial",
+      "review_note": "Pure complete-fragment JSON/text methods are independent typed capabilities with separate read/write categories, JSON-first eligible precedence and explicit receiver metadata. Protocol, ownership and successful addressability output/callback-count groups pass both exact frontends;801 canonical declarations checked. Returned read errors retain advanced values and selected continuation behavior. Full1464 outcomes, application field/record metadata, nil-interface/key adaptations, malformed syntax partial updates and Effect.Json remain open. No runtime reflection or arbitrary IO method equivalence is claimed."
     },
     {
       "reference_declaration": "type UnsupportedTypeError struct",
@@ -1461,5 +1514,38 @@
     "partial_updates": "JsonDecoded retains the partial persistent map, first error and continuation state; source-backed JsonMember key views preserve original quoted spans.",
     "ownership": "Input documents and raw conversion results are independently owned. Key-name snapshots precede every value callback. Keys must keep stable ordering while stored; no hidden capacity or alias mutation is imitated.",
     "invalid_values": "JsonInvalidValueError records an invalid encoding state with no fabricated application value or type label. Typed labels remain explicit capabilities rather than reflection objects."
+  },
+  "method_increment": {
+    "status": "verified partial independent method/addressability/semantic ownership increment; full92 remains open",
+    "base_checkpoint": "964e6417d14fbe71cd59668cba78113914615a3a",
+    "independent_observations": 1464,
+    "original_observations_preserved": 1160,
+    "reference_receipt": "bootstrap/stdlib-json-methods-reference-v2.json",
+    "rust_directional_supporting_unit": "bootstrap/stdlib-json-method-categories-rust-v1-results.json",
+    "rust_addressability_output_unit": "bootstrap/stdlib-json-addressability-rust-v1-results.json",
+    "limitations": [
+      "Supporting runtime units pin their own exact older source snapshots; they do not qualify every current source change.",
+      "Current exact-source protocol7, directional5/metadata-owner3 and79 successful callback-count/addressability rows are runtime-qualified on both frontends; this is not all1464 outcomes.",
+      "The invalid quoted-field descriptor/error row remains mandatory in compiler/tests/fixtures/json-codec-addressability-pending.json.",
+      "Full error/method precedence, interface/key/nil handling, callback error continuation, malformed syntax partial updates, Effect.Json and paired public pipeline measurements remain open."
+    ],
+    "current_rust_protocol_unit": "bootstrap/stdlib-json-method-protocol-rust-v1-results.json",
+    "current_source_docs": "build/json-method-protocol-docs-v1/report.json",
+    "current_canonical_declarations": 801,
+    "current_native_attempt": "bootstrap/stdlib-json-method-protocol-native-v1-results.json",
+    "current_native_status": "protocol7, owner8 and79 callback-count rows passed both bounded profiles on exact2f/1d22/22ab/46a7/80bd",
+    "checkpoint_verifier": "bootstrap/stdlib-json-methods-checkpoint.json",
+    "current_runtime_evidence": [
+      "bootstrap/stdlib-json-method-protocol-rust-v1-results.json",
+      "bootstrap/stdlib-json-method-protocol-native-v1-results.json",
+      "bootstrap/stdlib-json-method-owner-rust-v1-results.json",
+      "bootstrap/stdlib-json-method-owner-native-v1-results.json",
+      "bootstrap/stdlib-json-addressability-trace-rust-v1-results.json",
+      "bootstrap/stdlib-json-addressability-trace-native-v1-results.json"
+    ],
+    "supporting_source_admission_stages": [
+      "build/json-method-metadata-probe-v1/report.json",
+      "build/json-addressability-trace-probe-v1/report.json"
+    ]
   }
 }

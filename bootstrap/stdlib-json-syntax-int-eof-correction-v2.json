@@ -1,0 +1,207 @@
+{
+  "status": "grounded-source-correction-prepared-not-yet-qualified",
+  "failure_receipt": "bootstrap/stdlib-json-syntax-observations-int-rust-v1-results.json",
+  "failure_code": 786,
+  "original_row": 49,
+  "property": "error metadata via both public Decoded/Result APIs",
+  "normal_prior_state_and_zero_leaks_observed": true,
+  "failed_source_and_ELF_IR_remain_plain": "build/json-error-syntax-observations-int-v1",
+  "oracle_unchanged_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "before_value_sha256": "1b31989157537d41aa7efc5071737db4180f26fa3281a6ab2d71b8f3fa8bb358",
+  "after_value_sha256": "5fbb36ccc28d9d4a22efcae2fc20e9ff336dafe142d615300722b7e19fba73cf",
+  "source_cause": "lex-incomplete assigned LexString/LexWord token start, but existing902 outcomes require ordinary string/fixed-word EOF at base+at. Incomplete numbers correctly retain their start; escape-specific checkpoints are unchanged.",
+  "static_inference_not_a_separate_runtime_print": "At failing source row49 the old lexical branch selects quote-start19 rather than oracle EOF23; escaped pointer remains/value.",
+  "historical_focused_sentinel_limitation": "The original focused lexer sentinel expected string-start0 and passed that API contract, but the broader literal SDK oracle disproves that assumption. Original fixtures/receipts stay immutable; distinct corrected fixtures retain exact new observed semantics.",
+  "existing_oracle_evidence": [
+    {
+      "original_row": 49,
+      "observation": {
+        "calls": [],
+        "case": "malformed",
+        "case_index": 20,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 23,
+          "pointer_hex": "2f76616c7565",
+          "text": "jsontext: unexpected EOF within \"/value\" after offset 23"
+        },
+        "input_hex": "7b226265666f7265223a312c2276616c7565223a22787d",
+        "legacy_errors": false,
+        "model": "int",
+        "state": 7,
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 57,
+      "observation": {
+        "calls": [],
+        "case": "malformed",
+        "case_index": 24,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 13,
+          "pointer_hex": "2f62",
+          "text": "jsontext: unexpected EOF within \"/b\" after offset 13"
+        },
+        "input_hex": "7b2261223a312c2262223a2278",
+        "legacy_errors": false,
+        "model": "int",
+        "state": 7,
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 593,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 16,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 16,
+          "pointer_hex": "2f62",
+          "text": "jsontext: unexpected EOF within \"/b\" after offset 16"
+        },
+        "input_hex": "7b2261223a5b312c325d2c2262223a74",
+        "legacy_errors": false,
+        "model": "any",
+        "state": {
+          "a": [
+            1,
+            2
+          ],
+          "b": false
+        },
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 595,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 17,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 17,
+          "pointer_hex": "2f62",
+          "text": "jsontext: unexpected EOF within \"/b\" after offset 17"
+        },
+        "input_hex": "7b2261223a5b312c325d2c2262223a7472",
+        "legacy_errors": false,
+        "model": "any",
+        "state": {
+          "a": [
+            1,
+            2
+          ],
+          "b": false
+        },
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 597,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 18,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 18,
+          "pointer_hex": "2f62",
+          "text": "jsontext: unexpected EOF within \"/b\" after offset 18"
+        },
+        "input_hex": "7b2261223a5b312c325d2c2262223a747275",
+        "legacy_errors": false,
+        "model": "any",
+        "state": {
+          "a": [
+            1,
+            2
+          ],
+          "b": false
+        },
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 833,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 1,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 1,
+          "pointer_hex": "",
+          "text": "jsontext: unexpected EOF after offset 1"
+        },
+        "input_hex": "22",
+        "legacy_errors": false,
+        "model": "text-hook",
+        "state": "prior",
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 835,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 2,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 2,
+          "pointer_hex": "",
+          "text": "jsontext: unexpected EOF after offset 2"
+        },
+        "input_hex": "226e",
+        "legacy_errors": false,
+        "model": "text-hook",
+        "state": "prior",
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 837,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 3,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 3,
+          "pointer_hex": "",
+          "text": "jsontext: unexpected EOF after offset 3"
+        },
+        "input_hex": "226e65",
+        "legacy_errors": false,
+        "model": "text-hook",
+        "state": "prior",
+        "state_encoding": "json"
+      }
+    },
+    {
+      "original_row": 839,
+      "observation": {
+        "calls": [],
+        "case": "canonical-prefix",
+        "case_index": 4,
+        "error": {
+          "family": "*jsontext.SyntacticError",
+          "offset": 4,
+          "pointer_hex": "",
+          "text": "jsontext: unexpected EOF after offset 4"
+        },
+        "input_hex": "226e6577",
+        "legacy_errors": false,
+        "model": "text-hook",
+        "state": "prior",
+        "state_encoding": "json"
+      }
+    }
+  ],
+  "full902_qualification_still_pending": true
+}

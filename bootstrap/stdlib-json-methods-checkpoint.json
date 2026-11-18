@@ -1,0 +1,96 @@
+{
+  "description": "Partial independent method/addressability/semantic ownership checkpoint; full92 remains open",
+  "source_sha256": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "f1a523b75073c5a1972b40f477cce6265a491668d256044153f6318935b131e9",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "b10a3707336bf926cd8166fbf9cda1a2bcac549c0e2d0bb39c6a8c5a0b65edf2",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Json.Dynamic": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93"
+  },
+  "compiler_epochs": {
+    "rust": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "native": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "runtime_epochs": {
+    "rust": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "native": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+  },
+  "receipts": {
+    "bootstrap/stdlib-json-method-protocol-rust-v1-results.json": {
+      "sha256": "4203f3e3ba817730e5fde5b657ed1a79c1bdf750dc799584f40bb798991c34c9",
+      "artifact_bytes": 17981450,
+      "fixture_sha256": "02ecfc7fa839b150d9920dc00139349b10a124ec6aa80d38f4815c641c11a916"
+    },
+    "bootstrap/stdlib-json-method-protocol-native-v1-results.json": {
+      "sha256": "047de25838346fe0524f4fcf3efee4bf8c8a59687afef3aa8c193e1ac119deb4",
+      "artifact_bytes": 16599006,
+      "fixture_sha256": "02ecfc7fa839b150d9920dc00139349b10a124ec6aa80d38f4815c641c11a916"
+    },
+    "bootstrap/stdlib-json-method-owner-rust-v1-results.json": {
+      "sha256": "65c2ede654074afe8abc515cae3919d0e4571529f65400ae29bd8a69861be28a",
+      "artifact_bytes": 16406977,
+      "fixture_sha256": "0a2a714b235703e2d9965c37886a51b914d87de28d36700f74051afb43cc5aed"
+    },
+    "bootstrap/stdlib-json-method-owner-native-v1-results.json": {
+      "sha256": "0878c50b108a9377439d0ba62385bbaf0849366426d001bc6afb178c06fc92eb",
+      "artifact_bytes": 16172581,
+      "fixture_sha256": "0a2a714b235703e2d9965c37886a51b914d87de28d36700f74051afb43cc5aed"
+    },
+    "bootstrap/stdlib-json-addressability-trace-rust-v1-results.json": {
+      "sha256": "1fe611667f8aab40eff274bfedb06e6327826323e67bc60851f70b272b394d33",
+      "artifact_bytes": 18748236,
+      "fixture_sha256": "45a353eb640b2648c1cf9169fb4291ca47c32a9355a2d3549fed65d686519d85"
+    },
+    "bootstrap/stdlib-json-addressability-trace-native-v1-results.json": {
+      "sha256": "0198662232f94b49e06c36d3c1d25a8523fe53cb56a99019e6fff918ede74323",
+      "artifact_bytes": 17348169,
+      "fixture_sha256": "45a353eb640b2648c1cf9169fb4291ca47c32a9355a2d3549fed65d686519d85"
+    }
+  },
+  "bounded_memory_processes": 12,
+  "canonical_docs": {
+    "Value": {
+      "source_sha256": "f1a523b75073c5a1972b40f477cce6265a491668d256044153f6318935b131e9",
+      "canonical_declarations": 334,
+      "doc_sha256": "66526f65b0757356201270fba75e4a52ed92cf30f44907f2e17100d286349933"
+    },
+    "Codec": {
+      "source_sha256": "b10a3707336bf926cd8166fbf9cda1a2bcac549c0e2d0bb39c6a8c5a0b65edf2",
+      "canonical_declarations": 348,
+      "doc_sha256": "de6cd041f5f658cdd88acecfd28d8ef94f11a2763afe96d523c72d6859dba34f"
+    },
+    "Dynamic": {
+      "source_sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+      "canonical_declarations": 73,
+      "doc_sha256": "1259f5d7d9447f8f4096e36059f7d74fcbef9f9515b4d8e84f3f7747ff763e80"
+    },
+    "Binary32": {
+      "source_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "canonical_declarations": 25,
+      "doc_sha256": "fd84ca33ba38a978b50d7f44146e732c1a3b620f756b3cef2c0d6eff793b6891"
+    },
+    "Legacy": {
+      "source_sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
+      "canonical_declarations": 21,
+      "doc_sha256": "ea4651b5c45676a75cd82aec29ea1fa4f7e995aa73cd03a2106e49b253614a91"
+    }
+  },
+  "canonical_declarations": 801,
+  "independent_observations": 1464,
+  "original_observations_preserved": 1160,
+  "tested_increment": "Protocol7 +directional5/metadata-owner3 +79 successful addressability output/callback-count rows and typed-interface boundary, each on both exact frontends",
+  "mandatory_pending_descriptor_error_rows": 1,
+  "remaining": [
+    "Full builtin/descriptor error reporting and application field/record metadata",
+    "Complete method nil-interface/object-key adaptations and remaining1464 outcomes",
+    "Malformed-input partial updates with reporting disabled",
+    "Bounded Effect.Json with shared streaming operation checkpoints and advanced handles",
+    "Paired public pipeline benchmarks/lowering and final92-record reconciliation"
+  ],
+  "performance_claim": null
+}

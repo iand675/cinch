@@ -1,0 +1,27 @@
+{
+  "reference_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "observed_quoted_rows": 1152,
+  "consumers": {
+    "bool": {
+      "source_sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b",
+      "rows": 288,
+      "source_bytes": 43897
+    },
+    "pointer": {
+      "source_sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69",
+      "rows": 288,
+      "source_bytes": 45980
+    },
+    "string": {
+      "source_sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634",
+      "rows": 288,
+      "source_bytes": 45384
+    },
+    "integer": {
+      "source_sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358",
+      "rows": 288,
+      "source_bytes": 44185
+    }
+  },
+  "retained_pending_source_sha256": "e7c496be2aef94f33aa1e4995d05be1916d484094f2524f43ad88b2f7c176da1"
+}

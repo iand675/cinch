@@ -1,0 +1,67 @@
+-- | Semantic metadata preserves exact lexical kinds and independent owned token/value exports.
+module Main where
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Keep metadata input snapshots opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Copy one runtime-sized complete token into an independently mutable buffer.
+  input :: String -> Bytes
+  input text =
+    let original = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len original)))) in
+    let output = bytes-new size in
+    if bytes-len original <= bytes-len output then let copied = bytes-copy-range output original 0 0 (bytes-len original) in output else bytes-new 0
+
+  -- | Compare complete exported bytes without flattening an error to text.
+  same :: Bytes -> String -> Bool
+  same bytes expected = eq-i64 (bytes-compare bytes (string-to-bytes expected)) 0
+
+  -- | Retain metadata after mutating both factory inputs and a previously exported token snapshot.
+  retained :: Unit -> JsonSemanticInfo
+  retained unit =
+    let token = input "[1]" in
+    let reported = input "detail" in
+    let info = json-semantic-info-with-value "unmarshal" 17 "/first" token "Application" 91 reported in
+    let changed-token = if bytes-len token > 0 then bytes-set token 0 120 else () in
+    let changed-reported = if bytes-len reported > 0 then bytes-set reported 0 120 else () in
+    let exported = json-semantic-bytes info in
+    let changed-export = if bytes-len exported > 0 then bytes-set exported 0 120 else () in
+    info
+
+  -- | Exact token kind bytes distinguish booleans, normalized number kind and unavailable metadata.
+  kinds :: Unit -> Bool
+  kinds unit =
+    eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "true") "Bool")) 116
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "false") "Bool")) 102
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "-12.5e2") "Number")) 48
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "marshal" 0 "" (input "") "Application")) 0
+      && (case json-semantic-kind (json-semantic-info "unmarshal" 0 "" (input "false") "Bool") of JsonBooleanKind -> True; other -> False)
+
+  -- | Pointer replacement shares immutable owners while every mutable export remains independent.
+  ownership :: Unit -> Bool
+  ownership unit =
+    let info = retained () in
+    let next = json-semantic-with-pointer info "/second~1name" in
+    let exported = json-semantic-reported-bytes next in
+    let changed = if bytes-len exported > 0 then bytes-set exported 0 120 else () in
+    same (json-semantic-bytes info) "[1]" && same (json-semantic-bytes next) "[1]"
+      && same (json-semantic-reported-bytes info) "detail" && same (json-semantic-reported-bytes next) "detail"
+      && json-semantic-pointer info == "/first" && json-semantic-pointer next == "/second~1name"
+      && json-semantic-action next == "unmarshal" && json-semantic-offset next == 17 && json-semantic-type next == "Application"
+      && eq-u8 (json-semantic-kind-byte next) 91 && (case json-semantic-kind next of JsonArrayKind -> True; other -> False)
+
+  -- | Retained original source and optional reported value remain separate observations.
+  absent-reported :: Unit -> Bool
+  absent-reported unit =
+    let info = json-semantic-info "unmarshal" 0 "" (input "true") "Bool" in
+    same (json-semantic-bytes info) "true" && bytes-len (json-semantic-reported-bytes info) == 0
+
+  -- | Report a nonzero group for any ownership or exact-kind mismatch.
+  main :: Int
+  main = if not (kinds ()) then 1 else if not (ownership ()) then 2 else if not (absent-reported ()) then 3 else 0

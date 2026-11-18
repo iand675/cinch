@@ -1,0 +1,101 @@
+{
+  "description": "Closed superseded numeric/typed/binary functional ELF/LLVM iterations only; no new validation claim. Published final numeric paths and existing archives are untouched; all source/log/reference/docs/frozen compiler/provider/runtime/current snapshots/benchmark inputs stay in place",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-numeric-typed-predecessors-field-float-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-codec-field-native-v1/field/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-field-native-v1/field/consumer",
+      "size": 11445984,
+      "mode": 448,
+      "sha256": "c0cb5b008149bdbf7f8da323928e9d5daf01fe0c49586400cfa0c9c99737c9d4",
+      "nlink": 1,
+      "allocated_bytes": 11448320
+    },
+    {
+      "path": "build/json-codec-field-native-v1/field/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-field-native-v1/field/consumer.ll",
+      "size": 4308284,
+      "mode": 384,
+      "sha256": "be8246f203e66a5005e050371a29105b77afedc80efc073b1482fb6a097a3e0a",
+      "nlink": 1,
+      "allocated_bytes": 4308992
+    },
+    {
+      "path": "build/json-codec-field-rust-v1/field/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-field-rust-v1/field/consumer",
+      "size": 6644000,
+      "mode": 448,
+      "sha256": "d7fc14aff05728204a180e24e4008b94cfd4dbbc60ee14dbc17f334c7f43f1ac",
+      "nlink": 1,
+      "allocated_bytes": 6647808
+    },
+    {
+      "path": "build/json-codec-field-rust-v1/field/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-field-rust-v1/field/consumer.ll",
+      "size": 5817048,
+      "mode": 384,
+      "sha256": "496e71ea56689c2ac6a7adb202b3f601db113dcef59051dfb252c00c68f01d4e",
+      "nlink": 1,
+      "allocated_bytes": 5820416
+    },
+    {
+      "path": "build/json-codec-float-native-v1/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-float-native-v1/float/consumer",
+      "size": 11373160,
+      "mode": 448,
+      "sha256": "73c642ac95feaff3e92ef3c3ef972d5609c77a96225b323f67d11648e94ff228",
+      "nlink": 1,
+      "allocated_bytes": 11374592
+    },
+    {
+      "path": "build/json-codec-float-native-v1/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-float-native-v1/float/consumer.ll",
+      "size": 3929715,
+      "mode": 384,
+      "sha256": "eefecc8f65f174199c8a47ec226c23217d1d211c8582ad519729bf960b2c7338",
+      "nlink": 1,
+      "allocated_bytes": 3932160
+    },
+    {
+      "path": "build/json-codec-float-rust-v1/float/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-float-rust-v1/float/consumer",
+      "size": 6740992,
+      "mode": 448,
+      "sha256": "ddf77687603c5751e6a1764b2711bc48c5902e21bd4b6ad21d906584b4d29494",
+      "nlink": 1,
+      "allocated_bytes": 6742016
+    },
+    {
+      "path": "build/json-codec-float-rust-v1/float/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-codec-float-rust-v1/float/consumer.ll",
+      "size": 5895546,
+      "mode": 384,
+      "sha256": "1f7391a5e6a62d3435132fec3c0ce33feccf6c658532b23695fefcf4406324aa",
+      "nlink": 1,
+      "allocated_bytes": 5898240
+    }
+  ],
+  "original_file_bytes": 56154729,
+  "verified": true,
+  "originals_removed": true,
+  "scope": "closed numeric/typed/binary predecessor iterations",
+  "stage": "field-float",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-numeric-binary-final-rust-validation-results.json",
+    "bootstrap/stdlib-json-numeric-binary-final-native-validation-results.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-numeric-binary-final-rust-validation-results.json": "2ecb1494a69643f4cb960f6767c40afe104da9e876e3a5fde8cfebcc67c76341",
+    "bootstrap/stdlib-json-numeric-binary-final-native-validation-results.json": "6d4192b0d24c85a54286525ab36400254e4d3fe90b62d2ba4ead36a7d0a728a3"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-numeric-typed-predecessors-field-float-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "9cb4ceed914b6b796bef12ecc608498b16db3af506fc92370b82f2d41cc72f07",
+  "archive_bytes": 13758502,
+  "decompressed_tar_sha256": "0b859af740d71dfe7b60b7158bda66e8532be6edab99af581d8ca3c41cbde54a",
+  "decompressed_tar_bytes": 56176640,
+  "elapsed_seconds": 0.9138221519970102,
+  "free_bytes_before": 294928384,
+  "free_bytes_after": 337321984,
+  "global_free_change_bytes": 42393600,
+  "own_reclaimed_blocks_before_indexes_bytes": 42409984
+}

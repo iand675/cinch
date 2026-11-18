@@ -1,0 +1,69 @@
+{
+  "status": "preserved-first-v3-genuine-failure",
+  "code": 6012,
+  "zero_based_row": 150,
+  "property": "optional semantic application type",
+  "expected_type_present": false,
+  "actual_type": "Some empty String",
+  "files": {
+    "Main.cinch": {
+      "original_path": "build/json-error-methods-probe-v3/Main.cinch",
+      "sha256": "ad2bd787ce84f32eb2f7f664471bc8042564fd443b05353067b953941d18c972",
+      "bytes": 47530
+    },
+    "Value.cinch": {
+      "original_path": "build/json-error-methods-probe-v3/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682
+    },
+    "Codec.cinch": {
+      "original_path": "build/json-error-methods-probe-v3/Text.Json.Codec.cinch",
+      "sha256": "7c7baf97991c086536363a860be81095542e76240e4b0a999d0e7c05eb0c85f8",
+      "bytes": 148531
+    },
+    "source-report.json": {
+      "original_path": "build/json-error-methods-probe-v3/report.json",
+      "sha256": "7f9e634348668ece1d6830cccf7a6c3fab6fe65b10f36f72215f03bc257a125c",
+      "bytes": 9841
+    },
+    "runtime-report.json": {
+      "original_path": "bootstrap/stdlib-json-error-methods-rust-v3-results.json",
+      "sha256": "b04201a4d2a76f3176b5b45ce39895e364a9341863b6031c2044772fde98f859",
+      "bytes": 11768
+    },
+    "runtime.log": {
+      "original_path": "build/json-error-methods-rust-v3/ordinary.log",
+      "sha256": "6d897b3135ca79537978f2c30462f4ec0370ddc9bd0507af3294eb2883221c54",
+      "bytes": 183
+    },
+    "generate_method_errors.py": {
+      "original_path": "build/json-next-error-context/generate_method_errors.py",
+      "sha256": "0c62ae6cde0f967aa95afa66de1d2205dc901bc86448469be53c89c7dd34c59b",
+      "bytes": 14164
+    },
+    "probe_remaining.py": {
+      "original_path": "build/json-next-error-context/probe_remaining.py",
+      "sha256": "74511cdf1028cfee7c9b45ab7a88ea8d1fec6705fbc496320ab6126b899a01d8",
+      "bytes": 3436
+    },
+    "qualify_remaining.py": {
+      "original_path": "build/json-next-error-context/qualify_remaining.py",
+      "sha256": "72a5e22167c3d35c439929ebb46fa19c5c747833b9aa802756adf1d827d41331",
+      "bytes": 6465
+    }
+  },
+  "plain_failed_artifacts": {
+    "build/json-error-methods-rust-v3/consumer": {
+      "sha256": "7b90b061df2fa107d8e384ca60ec06766bf0c609ad5bf9176bb775e7c5d97223",
+      "bytes": 7627032,
+      "mode": 448
+    },
+    "build/json-error-methods-rust-v3/consumer.ll": {
+      "sha256": "199e3e97764a79c1197780440bbb6fe788a3fdf8181c536f2deb398144d1fcd4",
+      "bytes": 9703637,
+      "mode": 384
+    }
+  },
+  "poison_pending": true,
+  "updates_pending": true
+}

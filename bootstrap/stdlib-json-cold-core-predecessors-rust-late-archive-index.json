@@ -1,0 +1,99 @@
+{
+  "description": "Closed superseded core functional ELF/LLVM iterations only; no new validation claim. Final expanded-v2 trees and all source/log/reference/docs/frozen compiler/provider/runtime/current snapshots/benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-late-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-core-corpus-v7/number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/number/consumer",
+      "size": 6134048,
+      "mode": 448,
+      "sha256": "db9ed9406a0f9e69dc8c05889975fc504c3ff274a6f3389e6c5faf7dcfb98453",
+      "nlink": 1,
+      "allocated_bytes": 6135808
+    },
+    {
+      "path": "build/json-core-corpus-v7/number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/number/consumer.ll",
+      "size": 3574620,
+      "mode": 384,
+      "sha256": "d80180a23ae0599677e9115cfe6f84b42faf41bc2d63eeca381a5496715e256c",
+      "nlink": 1,
+      "allocated_bytes": 3575808
+    },
+    {
+      "path": "build/json-core-corpus-v7/quote/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/quote/consumer",
+      "size": 6457872,
+      "mode": 448,
+      "sha256": "348d9016c8b3654afcefb6fa86dc860336eb7ca6056391e59f536c63bdc953b8",
+      "nlink": 1,
+      "allocated_bytes": 6459392
+    },
+    {
+      "path": "build/json-core-corpus-v7/quote/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/quote/consumer.ll",
+      "size": 5067929,
+      "mode": 384,
+      "sha256": "8896199aae593fa43ca9769cd6e9fdbd44977e376a2d5b3e6d206b41e8b6f494",
+      "nlink": 1,
+      "allocated_bytes": 5070848
+    },
+    {
+      "path": "build/json-core-corpus-v7/syntax/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/syntax/consumer",
+      "size": 7145760,
+      "mode": 448,
+      "sha256": "e658515d99ce088c80be782460d4400e25b576a2d9009b96bb7dd91ec9c6d5c4",
+      "nlink": 1,
+      "allocated_bytes": 7147520
+    },
+    {
+      "path": "build/json-core-corpus-v7/syntax/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v7/syntax/consumer.ll",
+      "size": 8004064,
+      "mode": 384,
+      "sha256": "144b03a42df75f6dd174bf5b4568b6c84451f73d99817835d4105c169c89b6dc",
+      "nlink": 1,
+      "allocated_bytes": 8007680
+    },
+    {
+      "path": "build/json-core-expanded-v1/syntax/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-expanded-v1/syntax/consumer",
+      "size": 7301248,
+      "mode": 448,
+      "sha256": "db7a8c8aa784d2eb023cf3d5f23175ca078b019c0c62f8763050620fad207dd6",
+      "nlink": 1,
+      "allocated_bytes": 7303168
+    },
+    {
+      "path": "build/json-core-expanded-v1/syntax/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-expanded-v1/syntax/consumer.ll",
+      "size": 8674874,
+      "mode": 384,
+      "sha256": "733ecfc21fc204b4247b0e26d31149f4f6ef7e9dc8e95dd05302cf399813a36c",
+      "nlink": 1,
+      "allocated_bytes": 8675328
+    }
+  ],
+  "original_file_bytes": 52360415,
+  "verified": true,
+  "originals_removed": true,
+  "scope": "closed pre-final core iterations",
+  "stage": "rust-late",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-core-evidence.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-core-evidence.json": "4cc7f42f79ce2ab16ba58fd28b6fa0a5c0eaaf7a4116f96a61410b498e49cbcd"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-late-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "280de8b8313711595f9107433aa0961327503a14f8152a1634e5dc257e181f19",
+  "archive_bytes": 12050808,
+  "decompressed_tar_sha256": "b999c8c81110af46ecc11e69880f88dd0566e9532a24aeff8108d3bd241163a3",
+  "decompressed_tar_bytes": 52377600,
+  "elapsed_seconds": 0.8536407459905604,
+  "free_bytes_before": 264376320,
+  "free_bytes_after": 313077760,
+  "global_free_change_bytes": 48701440,
+  "own_reclaimed_blocks_before_indexes_bytes": 40321024
+}

@@ -1,0 +1,3 @@
+json-method-error:6012
+cinch-leak: live=0 immortal=0 leaked=0
+cinch-alloc: blocks=64493 bytes=2003908 peak=7109 header-blocks=57225 header-bytes=1921456 immortal=0 freed=57225 live=0

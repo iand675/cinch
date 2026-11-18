@@ -1,0 +1,10 @@
+{
+  "description": "Exact frozen value-application fixture refusal; source files remain plain hardlinks to sealed original",
+  "files": {
+    "Main.cinch": "c301eacb8b46efa414e0d5cf6a0cea60fe60f5c9379f0f6623674acdc8c0ec65",
+    "Text.Json.Value.cinch": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+    "Text.Json.Codec.cinch": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+    "check.log": "8d681433c4a0ce9637b3f87479f84f78dd6cd2d06b0875b597e4e55b1676a92d",
+    "report.json": "e9650e690bb6b292329a561c3297e7194ece0390f6026afca6b6696eeb4ebf30"
+  }
+}

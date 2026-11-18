@@ -1,0 +1,60 @@
+{
+  "description": "Actual2f/1d22 check-only declaration/proof, no object-mode/LLVM/runtime verdict",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "snapshot": {
+    "array_positive_certificate_included": false,
+    "base_interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+    "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+    "base_source_modules": 65,
+    "compiler_llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+    "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+    "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+    "description": "Self-contained full combined String/Bytes Native snapshot after fresh Stage1, equal Stage2/3 executable/LLVM/interfaces, all stage smokes, source-absent entry and changed-source probe",
+    "full_chain_log_sha256": "0ffd086108e77d110f0163f7c9fe9f57ec256a9f4afa908274ceae3d21f44692",
+    "new_scalar_import_lowering_included": false,
+    "object_configuration_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+    "original_provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+    "relocated_provider_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "string_source_hash": "416560347689830784",
+    "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+    "relocated_probe": {
+      "normal_and_poison": "passed zero leaks",
+      "source_sha256": "d380d9c1e1fa4217e1d87aa28ae549045602d2c268b829cdf4c6d00f7217d27b",
+      "llvm_sha256": "f03eab13e2917e6f663ef5f3b10fd2bf45a016d02bd1cf54b2b9c733936b935a",
+      "executable_sha256": "7690ef0b55a5cc5c22c9343a975c226aebf701816618495e5f9ed9a208bb4a70",
+      "initial_fixture_failures": [
+        "Invalid source Unicode escape rejected before IR",
+        "Separator-first call rejected: embedded String join accepts the list first; legacy Text.Scan uses separator first"
+      ],
+      "retained_failures": "Exact initial source/diagnostic files beside corrected consumer"
+    }
+  },
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "f1a523b75073c5a1972b40f477cce6265a491668d256044153f6318935b131e9",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "b10a3707336bf926cd8166fbf9cda1a2bcac549c0e2d0bb39c6a8c5a0b65edf2",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Json.Dynamic": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93"
+  },
+  "fixture_sha256": "02ecfc7fa839b150d9920dc00139349b10a124ec6aa80d38f4815c641c11a916",
+  "bundle_sha256": "426aca8ff5d1aefd69a691ba9479a4bff086e9fc4c74418e56a2e54138fe2fe2",
+  "command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--check",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "/workspace/dasl-stdlib-json/build/json-method-protocol-native-probe-v1/Bundle.cinch",
+    "/workspace/dasl-stdlib-json/build/json-method-protocol-native-probe-v1/check.diagnostics"
+  ],
+  "status": "deadline-no-verdict",
+  "exit_code": null,
+  "seconds": 15.068782999005634,
+  "diagnostic": ""
+}

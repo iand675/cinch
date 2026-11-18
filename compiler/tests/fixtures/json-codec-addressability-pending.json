@@ -1,0 +1,26 @@
+{
+  "description": "Mandatory full-scope reporting-disabled invalid quoted-field descriptor error; deferred to complete error-context increment, not asserted by the successful addressability consumer.",
+  "reference_sha256": "3431ef0be63c13151d890198154f52a349898724fd83daf04c634497192e97ac",
+  "rows": [
+    {
+      "bool": true,
+      "calls": [],
+      "context": "quoted",
+      "error": {
+        "cause": "invalid use of `string` tag option",
+        "is_sentinel": false,
+        "kind": "*json.SemanticError",
+        "offset": 9,
+        "pointer_hex": "2f76616c7565",
+        "text": "json: cannot marshal from Go main.pointerMethods within \"/value\": invalid use of `string` tag option",
+        "type": "main.pointerMethods",
+        "value_hex": ""
+      },
+      "legacy_errors": false,
+      "legacy_methods": true,
+      "legacy_stringify": false,
+      "output_hex": "7b2276616c756522",
+      "type": "main.pointerMethods"
+    }
+  ]
+}

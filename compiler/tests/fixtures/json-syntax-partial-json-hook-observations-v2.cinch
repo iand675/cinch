@@ -1,0 +1,256 @@
+-- | Independent partial-update observations retain complete application state, callbacks and structured refusals.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Text.Json.Dynamic
+  import Data.Array
+  import Data.Machine
+
+  -- | Keep the selected source length opaque to front-end evaluation.
+  prim runtime-width :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Snapshot source bytes through a runtime-sized owner.
+  input-bytes :: String -> Bytes
+  input-bytes text =
+    let input = string-to-bytes text in
+    let count = u32-to-nat (runtime-width (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let output = bytes-new count in
+    if bytes-len input <= bytes-len output then let copied = bytes-copy-range output input 0 0 (bytes-len input) in output else bytes-new 0
+
+  -- | Compare every byte without truncating at embedded zeroes.
+  same :: Bytes -> String -> Bool
+  same bytes text = eq-i64 (bytes-compare bytes (string-to-bytes text)) 0
+
+  -- | Retain the exact independent structured error family and its owned metadata.
+  data ExpectedError where
+    -- | A completed operation without a diagnostic.
+    NoError :: ExpectedError
+    -- | Established syntax reporting retains its original cursor.
+    LegacySyntax :: Nat -> ExpectedError
+    -- | Precise syntax reporting retains both byte checkpoint and escaped pointer.
+    NativeSyntax :: Nat -> String -> ExpectedError
+    -- | A semantic conversion keeps kind, optional application identity and reported bytes independently.
+    Semantic :: Nat -> String -> U8 -> Option String -> String -> ExpectedError
+
+  -- | Compare optional application identity without conflating absence with empty text.
+  identity-is :: Option String -> Option String -> Bool
+  identity-is actual expected = case expected of
+    None -> case actual of None -> True; Some name -> False
+    Some name -> case actual of None -> False; Some value -> value == name
+
+  -- | Recognize the independent no-error outcome without a nested ambiguous case expression.
+  no-error :: ExpectedError -> Bool
+  no-error expected = case expected of NoError -> True; other -> False
+
+  -- | Observe the original public error family, common getters and dedicated metadata together.
+  error-is :: JsonError -> ExpectedError -> Bool
+  error-is actual expected = case expected of
+    NoError -> False
+    LegacySyntax offset -> case actual of JsonSyntaxError at message -> at == offset && json-error-offset actual == offset; other -> False
+    NativeSyntax offset pointer -> case actual of
+      JsonSyntacticError info cause -> json-syntactic-offset info == offset && json-syntactic-pointer info == pointer && json-error-offset actual == offset && json-error-path actual == pointer
+      other -> False
+    Semantic offset pointer kind label reported -> case actual of
+      JsonSemanticError info cause -> json-semantic-offset info == offset && json-semantic-pointer info == pointer && eq-u8 (json-semantic-kind-byte info) kind && identity-is (json-semantic-type-option info) label && same (json-semantic-reported-bytes info) reported && json-error-offset actual == offset
+      other -> False
+
+  -- | Inspect both public decoded-result entry points without replacing the original diagnostic.
+  outcome-is :: forall a. JsonDecoded a -> ExpectedError -> Bool
+  outcome-is decoded expected =
+    (case json-decoded-error decoded of None -> no-error expected; Some error -> error-is error expected)
+      && (case json-decoded-result decoded of Ok value -> no-error expected; Err error -> error-is error expected)
+
+  -- | One unchanged reference row contains its index, policy, source, full state, error and callback observations.
+  data Observation where
+    -- | Private global row index, legacy policy, exact input, complete state, error, call count and callback bytes.
+    Observe :: Nat -> Bool -> String -> String -> ExpectedError -> Nat -> String -> Observation
+
+  -- | Change only the requested reporting policy while retaining all other established defaults.
+  options-for :: Bool -> JsonReadOptions
+  options-for legacy = json-read-options False False (json-configure-policies json-default-policies [json-continue-after-type-errors legacy])
+
+  -- | Give integer conversions their independently observed application identity.
+  integer-type :: JsonType I64
+  integer-type = json-type-with-read-identity "int" "" json-int64-type
+
+  -- | Compare full serialized application state after conversion.
+  state-is :: forall a. JsonType a -> a -> String -> Bool
+  state-is descriptor value expected = case json-marshal descriptor value of Err error -> False; Ok bytes -> same bytes expected
+
+  -- | Callback observations travel in an immutable advanced application value.
+  data Hook where
+    -- | Payload, exact invocation count and last complete callback argument.
+    HookValue :: I64 -> Nat -> Bytes -> Hook
+
+  -- | Construct the independent prior state without an earlier callback.
+  prior-value :: Hook
+  prior-value = HookValue 7 0 (bytes-new 0)
+
+  -- | Encode only application payload, retaining callback observations separately.
+  hook-encode :: JsonWriteOptions -> Hook -> Result JsonError Bytes
+  hook-encode options value = case value of HookValue payload count argument -> json-marshal-value integer-type options payload
+
+  -- | Return the exact callback count from the advanced application value.
+  hook-count :: Hook -> Nat
+  hook-count value = case value of HookValue payload count argument -> count
+
+  -- | Return independently owned callback bytes from the advanced application value.
+  hook-argument :: Hook -> Bytes
+  hook-argument value = case value of HookValue payload count argument -> argument
+
+  -- | Record a complete JSON callback and its exact source without accepting partial values.
+  hook-update :: JsonReadOptions -> JsonValue -> Hook -> JsonDecoded Hook
+  hook-update options source prior = case prior of HookValue payload count argument -> json-decoded-ok (HookValue 52 (count + 1) (json-value-source source))
+
+  -- | Install the observed complete-fragment JSON conversion capability.
+  selected-type :: JsonType Hook
+  selected-type = json-custom-type "main.jsonHook" (\unit -> HookValue 0 0 (bytes-new 0)) (\value -> False) (\value -> False) hook-encode hook-update
+
+  -- | Compare every state byte while preserving separate callback observations.
+  model-state :: Hook -> String -> Bool
+  model-state value expected = state-is selected-type value expected
+
+  -- | Preserve the first original global row and mismatching property.
+  check-row :: Observation -> Nat
+  check-row row = case row of
+    Observe index legacy wire expected error calls argument ->
+      let decoded = json-update-with selected-type (options-for legacy) (input-bytes wire) prior-value in
+      let value = json-decoded-value decoded in
+      if not (model-state value expected) then index * 16 + 1
+      else if not (outcome-is decoded error) then index * 16 + 2
+      else if not (hook-count value == calls) then index * 16 + 3
+      else if not (same (hook-argument value) argument) then index * 16 + 4
+      else 0
+
+  -- | Traverse a bounded literal group without constructing a deep generated let chain.
+  check-group :: List Observation -> Nat
+  check-group rows = case rows of Nil -> 0; Cons first rest -> let result = check-row first in if result > 0 then result else check-group rest
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a000 :: List Observation
+  rows-a000 = [Observe 746 True "" "7" (LegacySyntax 0) 0 "",
+    Observe 747 False "" "7" (NativeSyntax 0 "") 0 "",
+    Observe 748 True "{" "7" (LegacySyntax 1) 0 "",
+    Observe 749 False "{" "7" (NativeSyntax 1 "") 0 "",
+    Observe 750 True "{\"" "7" (LegacySyntax 2) 0 "",
+    Observe 751 False "{\"" "7" (NativeSyntax 2 "") 0 "",
+    Observe 752 True "{\"a" "7" (LegacySyntax 3) 0 "",
+    Observe 753 False "{\"a" "7" (NativeSyntax 3 "") 0 "",
+    Observe 754 True "{\"a\"" "7" (LegacySyntax 4) 0 "",
+    Observe 755 False "{\"a\"" "7" (NativeSyntax 4 "/a") 0 "",
+    Observe 756 True "{\"a\":" "7" (LegacySyntax 5) 0 "",
+    Observe 757 False "{\"a\":" "7" (NativeSyntax 5 "/a") 0 "",
+    Observe 758 True "{\"a\":[" "7" (LegacySyntax 6) 0 "",
+    Observe 759 False "{\"a\":[" "7" (NativeSyntax 6 "/a") 0 "",
+    Observe 760 True "{\"a\":[1" "7" (LegacySyntax 7) 0 "",
+    Observe 761 False "{\"a\":[1" "7" (NativeSyntax 7 "/a") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a001 :: List Observation
+  rows-a001 = [Observe 762 True "{\"a\":[1," "7" (LegacySyntax 8) 0 "",
+    Observe 763 False "{\"a\":[1," "7" (NativeSyntax 8 "/a") 0 "",
+    Observe 764 True "{\"a\":[1,2" "7" (LegacySyntax 9) 0 "",
+    Observe 765 False "{\"a\":[1,2" "7" (NativeSyntax 9 "/a") 0 "",
+    Observe 766 True "{\"a\":[1,2]" "7" (LegacySyntax 10) 0 "",
+    Observe 767 False "{\"a\":[1,2]" "7" (NativeSyntax 10 "") 0 "",
+    Observe 768 True "{\"a\":[1,2]}" "52" NoError 1 "{\"a\":[1,2]}",
+    Observe 769 False "{\"a\":[1,2]}" "52" NoError 1 "{\"a\":[1,2]}",
+    Observe 770 True "" "7" (LegacySyntax 0) 0 "",
+    Observe 771 False "" "7" (NativeSyntax 0 "") 0 "",
+    Observe 772 True " " "7" (LegacySyntax 1) 0 "",
+    Observe 773 False " " "7" (NativeSyntax 1 "") 0 "",
+    Observe 774 True "@" "7" (LegacySyntax 1) 0 "",
+    Observe 775 False "@" "7" (NativeSyntax 0 "") 0 "",
+    Observe 776 True "-" "7" (LegacySyntax 0) 0 "",
+    Observe 777 False "-" "7" (NativeSyntax 0 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a002 :: List Observation
+  rows-a002 = [Observe 778 True "1e" "7" (LegacySyntax 0) 0 "",
+    Observe 779 False "1e" "7" (NativeSyntax 0 "") 0 "",
+    Observe 780 True "1e+" "7" (LegacySyntax 0) 0 "",
+    Observe 781 False "1e+" "7" (NativeSyntax 0 "") 0 "",
+    Observe 782 True "1x" "7" (LegacySyntax 2) 0 "",
+    Observe 783 False "1x" "52" (NativeSyntax 1 "") 1 "1",
+    Observe 784 True "truex" "7" (LegacySyntax 5) 0 "",
+    Observe 785 False "truex" "52" (NativeSyntax 4 "") 1 "true",
+    Observe 786 True "\"ok\"x" "7" (LegacySyntax 5) 0 "",
+    Observe 787 False "\"ok\"x" "52" (NativeSyntax 4 "") 1 "\"ok\"",
+    Observe 788 True "1 2" "7" (LegacySyntax 3) 0 "",
+    Observe 789 False "1 2" "52" (NativeSyntax 2 "") 1 "1",
+    Observe 790 True "nullx" "7" (LegacySyntax 5) 0 "",
+    Observe 791 False "nullx" "52" (NativeSyntax 4 "") 1 "null",
+    Observe 792 True "[1]x" "7" (LegacySyntax 4) 0 "",
+    Observe 793 False "[1]x" "52" (NativeSyntax 3 "") 1 "[1]"]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a003 :: List Observation
+  rows-a003 = [Observe 794 True "[" "7" (LegacySyntax 1) 0 "",
+    Observe 795 False "[" "7" (NativeSyntax 1 "") 0 "",
+    Observe 796 True "[1," "7" (LegacySyntax 3) 0 "",
+    Observe 797 False "[1," "7" (NativeSyntax 3 "") 0 "",
+    Observe 798 True "[1,@]" "7" (LegacySyntax 4) 0 "",
+    Observe 799 False "[1,@]" "7" (NativeSyntax 3 "/1") 0 "",
+    Observe 800 True "[true,@]" "7" (LegacySyntax 7) 0 "",
+    Observe 801 False "[true,@]" "7" (NativeSyntax 6 "/1") 0 "",
+    Observe 802 True "[1,,2]" "7" (LegacySyntax 4) 0 "",
+    Observe 803 False "[1,,2]" "7" (NativeSyntax 3 "/1") 0 "",
+    Observe 804 True "{\"before\":1 \"value\":2}" "7" (LegacySyntax 13) 0 "",
+    Observe 805 False "{\"before\":1 \"value\":2}" "7" (NativeSyntax 12 "") 0 "",
+    Observe 806 True "{\"before\":1,\"value\":@}" "7" (LegacySyntax 21) 0 "",
+    Observe 807 False "{\"before\":1,\"value\":@}" "7" (NativeSyntax 20 "/value") 0 "",
+    Observe 808 True "{\"before\":1,\"value\":" "7" (LegacySyntax 20) 0 "",
+    Observe 809 False "{\"before\":1,\"value\":" "7" (NativeSyntax 20 "/value") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a004 :: List Observation
+  rows-a004 = [Observe 810 True "{\"before\":1,\"value\":\"x}" "7" (LegacySyntax 23) 0 "",
+    Observe 811 False "{\"before\":1,\"value\":\"x}" "7" (NativeSyntax 23 "/value") 0 "",
+    Observe 812 True "{\"before\":1,\"value\":2,\"after\":" "7" (LegacySyntax 30) 0 "",
+    Observe 813 False "{\"before\":1,\"value\":2,\"after\":" "7" (NativeSyntax 30 "/after") 0 "",
+    Observe 814 True "{\"before\":1,\"value\":2,\"after\":3}x" "7" (LegacySyntax 33) 0 "",
+    Observe 815 False "{\"before\":1,\"value\":2,\"after\":3}x" "52" (NativeSyntax 32 "") 1 "{\"before\":1,\"value\":2,\"after\":3}",
+    Observe 816 True "{\"a\":1,\"a\":2,}" "7" (LegacySyntax 14) 0 "",
+    Observe 817 False "{\"a\":1,\"a\":2,}" "7" (NativeSyntax 13 "") 0 "",
+    Observe 818 True "{\"a\":1,\"b\":\"x" "7" (LegacySyntax 13) 0 "",
+    Observe 819 False "{\"a\":1,\"b\":\"x" "7" (NativeSyntax 13 "/b") 0 "",
+    Observe 820 True "{\"a\":[1,2" "7" (LegacySyntax 9) 0 "",
+    Observe 821 False "{\"a\":[1,2" "7" (NativeSyntax 9 "/a") 0 "",
+    Observe 822 True "{\"a\":1} {\"a\":2}" "7" (LegacySyntax 9) 0 "",
+    Observe 823 False "{\"a\":1} {\"a\":2}" "52" (NativeSyntax 8 "") 1 "{\"a\":1}",
+    Observe 824 True "{\"before\":1,\"unknown\":[2,@],\"after\":3}" "7" (LegacySyntax 26) 0 "",
+    Observe 825 False "{\"before\":1,\"unknown\":[2,@],\"after\":3}" "7" (NativeSyntax 25 "/unknown/1") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a005 :: List Observation
+  rows-a005 = [Observe 826 True "\"\\u12\"" "7" (LegacySyntax 6) 0 "",
+    Observe 827 False "\"\\u12\"" "7" (NativeSyntax 1 "") 0 "",
+    Observe 828 True "\"\\x\"" "7" (LegacySyntax 3) 0 "",
+    Observe 829 False "\"\\x\"" "7" (NativeSyntax 1 "") 0 ""]
+
+  -- | Stop at the earliest complete original row/property disagreement.
+  status :: Nat
+  status =
+    let result-a000 = check-group rows-a000 in
+    if result-a000 > 0 then result-a000 else
+    let result-a001 = check-group rows-a001 in
+    if result-a001 > 0 then result-a001 else
+    let result-a002 = check-group rows-a002 in
+    if result-a002 > 0 then result-a002 else
+    let result-a003 = check-group rows-a003 in
+    if result-a003 > 0 then result-a003 else
+    let result-a004 = check-group rows-a004 in
+    if result-a004 > 0 then result-a004 else
+    let result-a005 = check-group rows-a005 in
+    if result-a005 > 0 then result-a005 else
+    0
+
+  -- | Emit a normalized failing exit while keeping the complete original row/property code.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = status in
+    if failed == 0 then 0 else let printed = ioWrite (string-to-bytes (string-concat-all ["json-syntax-partial:", nat-to-string failed, "\n"])) in 1

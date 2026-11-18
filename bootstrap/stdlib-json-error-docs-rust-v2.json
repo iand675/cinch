@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "start_guard_bytes": 367001600,
+  "reserve_bytes": 262144000,
+  "output_limit_bytes": 5242880,
+  "scope": "two parse-only doc extractions; no typecheck/emission/runtime/reference",
+  "modules": {
+    "Value": {
+      "source_sha256": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+      "canonical_declarations": 363,
+      "docs_sha256": "398ad8e097389fd63b18cef18cf7f4292c72bb0244f559608d88be002e90cdce",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "doc",
+        "extract",
+        "/workspace/dasl-stdlib-json/compiler/prelude/Text/Json/Value.cinch",
+        "--out",
+        "/workspace/dasl-stdlib-json/build/json-error-docs-rust-v2/Value.json"
+      ]
+    },
+    "Codec": {
+      "source_sha256": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595",
+      "canonical_declarations": 372,
+      "docs_sha256": "f1345ab69208026ac877430ae1ddb8a46cf8186e31ed7a9096021c2a05817705",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "doc",
+        "extract",
+        "/workspace/dasl-stdlib-json/compiler/prelude/Text/Json/Codec.cinch",
+        "--out",
+        "/workspace/dasl-stdlib-json/build/json-error-docs-rust-v2/Codec.json"
+      ]
+    }
+  }
+}

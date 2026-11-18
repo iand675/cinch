@@ -1,0 +1,32 @@
+{
+  "status": "verified-closed-success",
+  "archive_path": "build/json-error-functional-archives/read-field-focused-v1.tar.gz",
+  "archive_sha256": "02a5119ed47539cde3dea40b2412f017ba540c31b9e75a3e92d320ae7093f822",
+  "archive_bytes": 3453669,
+  "decompressed_tar_sha256": "c6cad1a2b1671c312e869253052c3367cc411c79e714608c3bc2223e9df7c4e4",
+  "members": [
+    {
+      "path": "build/json-error-read-field-focused-v1/runtime/consumer.ll",
+      "sha256": "bf3a064719dd085b2d3c011cb8a64d148ebde130d851265d79ff076ff9f8f4cf",
+      "bytes": 7561886,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-read-field-focused-v1/runtime/consumer",
+      "sha256": "c83b07b603c865171aff3eac898b641720bd0713769a97f582e923a576d22177",
+      "bytes": 7010480,
+      "mode": 448
+    }
+  ],
+  "execution_receipt": "bootstrap/stdlib-json-read-field-focused-rust-v1-results.json",
+  "execution_receipt_sha256": "92144f4c31f14791bc37208ebd28e864ea061378cd57a15fe7079189c1dc2dc3",
+  "verified_before_unlink": true,
+  "ordering": "Archive+directory fsync and full CRC/decompressed/member SHA/size/mode verification; recovery index+parent fsync before unlink; original identity recheck; output parent fsync after. All failed artifacts/sources/frozen/benchmark inputs remain plain.",
+  "restore_command": [
+    "tar",
+    "-xzf",
+    "/workspace/dasl-stdlib-json/build/json-error-functional-archives/read-field-focused-v1.tar.gz",
+    "-C",
+    "/workspace/dasl-stdlib-json"
+  ]
+}

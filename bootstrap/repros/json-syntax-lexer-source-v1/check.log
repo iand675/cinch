@@ -1,0 +1,1 @@
+cinch: 2084:5: non-exhaustive patterns: constructor JsonLexFailureAt is not covered (in /workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v1/source/Text.Json.Value.cinch)

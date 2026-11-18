@@ -1,0 +1,127 @@
+{
+  "description": "Actual frozen Native directional5 +metadata-owner3 controls; no full1464/package claim",
+  "frontend": "native-raw",
+  "classification_epoch": "2f077/1d22/22ab/46a7/80bd; no newer root base/runtime adoption",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_manifest_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "provider_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "observed_runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "snapshot": {
+    "array_positive_certificate_included": false,
+    "base_interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+    "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+    "base_source_modules": 65,
+    "compiler_llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+    "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+    "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+    "description": "Self-contained full combined String/Bytes Native snapshot after fresh Stage1, equal Stage2/3 executable/LLVM/interfaces, all stage smokes, source-absent entry and changed-source probe",
+    "full_chain_log_sha256": "0ffd086108e77d110f0163f7c9fe9f57ec256a9f4afa908274ceae3d21f44692",
+    "new_scalar_import_lowering_included": false,
+    "object_configuration_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+    "original_provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+    "relocated_provider_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "string_source_hash": "416560347689830784",
+    "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+    "relocated_probe": {
+      "normal_and_poison": "passed zero leaks",
+      "source_sha256": "d380d9c1e1fa4217e1d87aa28ae549045602d2c268b829cdf4c6d00f7217d27b",
+      "llvm_sha256": "f03eab13e2917e6f663ef5f3b10fd2bf45a016d02bd1cf54b2b9c733936b935a",
+      "executable_sha256": "7690ef0b55a5cc5c22c9343a975c226aebf701816618495e5f9ed9a208bb4a70",
+      "initial_fixture_failures": [
+        "Invalid source Unicode escape rejected before IR",
+        "Separator-first call rejected: embedded String join accepts the list first; legacy Text.Scan uses separator first"
+      ],
+      "retained_failures": "Exact initial source/diagnostic files beside corrected consumer"
+    }
+  },
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "f1a523b75073c5a1972b40f477cce6265a491668d256044153f6318935b131e9",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "b10a3707336bf926cd8166fbf9cda1a2bcac549c0e2d0bb39c6a8c5a0b65edf2",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Json.Dynamic": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93"
+  },
+  "fixture_sha256": "0a2a714b235703e2d9965c37886a51b914d87de28d36700f74051afb43cc5aed",
+  "bundle_sha256": "e035abae33e1a7e8db1675dd5a1c960cede18159023fb03eaca3370e279a0007",
+  "frozen_inputs": "/workspace/dasl-stdlib-json/build/json-method-owner-native-input-v1",
+  "frozen_input_report_sha256": "490328d4ff9a74b80ecfe704bf7e877f3489591bbd14355e4aa72b12c1575469",
+  "input_preparation_status": "input-only; no Native verdict",
+  "rust_protocol_receipt_sha256": "65c2ede654074afe8abc515cae3919d0e4571529f65400ae29bd8a69861be28a",
+  "runner_sha256": "27fc7e7faf2ca2f526478e38b6cbb69d3249b45ef685e0b828d8afe9f84866d6",
+  "raw_compile_command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-json/build/json-method-owner-native-input-v1/Bundle.cinch",
+    "/workspace/dasl-stdlib-json/build/json-method-owner-native-v1/consumer.ll"
+  ],
+  "raw_link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-method-owner-native-v1/consumer.ll",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library.o",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-method-owner-native-v1/consumer"
+  ],
+  "opt_level": 2,
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "free_bytes_before": 488419328,
+  "runs": [
+    {
+      "poisoned_free_validation": false,
+      "heap_limit": "32M",
+      "stdout": "",
+      "stats": {
+        "blocks": 1049,
+        "bytes": 30463,
+        "peak": 2072,
+        "header-blocks": 921,
+        "header-bytes": 29376,
+        "immortal": 0,
+        "freed": 921,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "poisoned_free_validation": true,
+      "heap_limit": "256M",
+      "stdout": "",
+      "stats": {
+        "blocks": 1049,
+        "bytes": 30463,
+        "peak": 29602,
+        "header-blocks": 921,
+        "header-bytes": 29376,
+        "immortal": 0,
+        "freed": 921,
+        "live": 0
+      },
+      "leaked": 0
+    }
+  ],
+  "status": "passed",
+  "llvm_sha256": "f4547b5225fe3698c03d2d9943bfc6208891163347a557004b6578bb4f438d95",
+  "build_seconds": 47.17508689200622,
+  "artifact_bytes": 16172581,
+  "elapsed_seconds": 47.20280582201667
+}

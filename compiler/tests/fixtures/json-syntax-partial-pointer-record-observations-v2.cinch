@@ -1,0 +1,323 @@
+-- | Independent partial-update observations retain complete application state, callbacks and structured refusals.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Text.Json.Dynamic
+  import Data.Array
+  import Data.Machine
+
+  -- | Keep the selected source length opaque to front-end evaluation.
+  prim runtime-width :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Snapshot source bytes through a runtime-sized owner.
+  input-bytes :: String -> Bytes
+  input-bytes text =
+    let input = string-to-bytes text in
+    let count = u32-to-nat (runtime-width (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let output = bytes-new count in
+    if bytes-len input <= bytes-len output then let copied = bytes-copy-range output input 0 0 (bytes-len input) in output else bytes-new 0
+
+  -- | Compare every byte without truncating at embedded zeroes.
+  same :: Bytes -> String -> Bool
+  same bytes text = eq-i64 (bytes-compare bytes (string-to-bytes text)) 0
+
+  -- | Retain the exact independent structured error family and its owned metadata.
+  data ExpectedError where
+    -- | A completed operation without a diagnostic.
+    NoError :: ExpectedError
+    -- | Established syntax reporting retains its original cursor.
+    LegacySyntax :: Nat -> ExpectedError
+    -- | Precise syntax reporting retains both byte checkpoint and escaped pointer.
+    NativeSyntax :: Nat -> String -> ExpectedError
+    -- | A semantic conversion keeps kind, optional application identity and reported bytes independently.
+    Semantic :: Nat -> String -> U8 -> Option String -> String -> ExpectedError
+
+  -- | Compare optional application identity without conflating absence with empty text.
+  identity-is :: Option String -> Option String -> Bool
+  identity-is actual expected = case expected of
+    None -> case actual of None -> True; Some name -> False
+    Some name -> case actual of None -> False; Some value -> value == name
+
+  -- | Recognize the independent no-error outcome without a nested ambiguous case expression.
+  no-error :: ExpectedError -> Bool
+  no-error expected = case expected of NoError -> True; other -> False
+
+  -- | Observe the original public error family, common getters and dedicated metadata together.
+  error-is :: JsonError -> ExpectedError -> Bool
+  error-is actual expected = case expected of
+    NoError -> False
+    LegacySyntax offset -> case actual of JsonSyntaxError at message -> at == offset && json-error-offset actual == offset; other -> False
+    NativeSyntax offset pointer -> case actual of
+      JsonSyntacticError info cause -> json-syntactic-offset info == offset && json-syntactic-pointer info == pointer && json-error-offset actual == offset && json-error-path actual == pointer
+      other -> False
+    Semantic offset pointer kind label reported -> case actual of
+      JsonSemanticError info cause -> json-semantic-offset info == offset && json-semantic-pointer info == pointer && eq-u8 (json-semantic-kind-byte info) kind && identity-is (json-semantic-type-option info) label && same (json-semantic-reported-bytes info) reported && json-error-offset actual == offset
+      other -> False
+
+  -- | Inspect both public decoded-result entry points without replacing the original diagnostic.
+  outcome-is :: forall a. JsonDecoded a -> ExpectedError -> Bool
+  outcome-is decoded expected =
+    (case json-decoded-error decoded of None -> no-error expected; Some error -> error-is error expected)
+      && (case json-decoded-result decoded of Ok value -> no-error expected; Err error -> error-is error expected)
+
+  -- | One unchanged reference row contains its index, policy, source, full state, error and callback observations.
+  data Observation where
+    -- | Private global row index, legacy policy, exact input, complete state, error, call count and callback bytes.
+    Observe :: Nat -> Bool -> String -> String -> ExpectedError -> Nat -> String -> Observation
+
+  -- | Change only the requested reporting policy while retaining all other established defaults.
+  options-for :: Bool -> JsonReadOptions
+  options-for legacy = json-read-options False False (json-configure-policies json-default-policies [json-continue-after-type-errors legacy])
+
+  -- | Give integer conversions their independently observed application identity.
+  integer-type :: JsonType I64
+  integer-type = json-type-with-read-identity "int" "" json-int64-type
+
+  -- | Compare full serialized application state after conversion.
+  state-is :: forall a. JsonType a -> a -> String -> Bool
+  state-is descriptor value expected = case json-marshal descriptor value of Err error -> False; Ok bytes -> same bytes expected
+
+  -- | Explicit prior/default record state keeps unrelated fields independently observable.
+  data Record where
+    -- | Before, selected and after application field values.
+    RecordValue :: I64 -> (Option I64) -> I64 -> Record
+
+  -- | Create independent zero/default fields.
+  initial-record :: Unit -> Record
+  initial-record unit = RecordValue 0 None 0
+
+  -- | Record zero classification is irrelevant to source conversion.
+  record-zero :: Record -> Bool
+  record-zero value = False
+
+  -- | Inspect the before field.
+  before :: Record -> I64
+  before value = case value of RecordValue first selected last -> first
+
+  -- | Replace only the before field.
+  set-before :: I64 -> Record -> Record
+  set-before next value = case value of RecordValue first selected last -> RecordValue next selected last
+
+  -- | Inspect the selected field.
+  selected :: Record -> (Option I64)
+  selected value = case value of RecordValue first selected last -> selected
+
+  -- | Replace only the selected field.
+  set-selected :: (Option I64) -> Record -> Record
+  set-selected next value = case value of RecordValue first selected last -> RecordValue first next last
+
+  -- | Inspect the after field.
+  after :: Record -> I64
+  after value = case value of RecordValue first selected last -> last
+
+  -- | Replace only the after field.
+  set-after :: I64 -> Record -> Record
+  set-after next value = case value of RecordValue first selected last -> RecordValue first selected next
+
+  -- | Describe all observed fields without inferring application identities from source text.
+  selected-type :: JsonType Record
+  selected-type = json-record-type "main.pointerRecord" initial-record record-zero [json-field "before" integer-type before set-before,json-field "value" (json-nullable-type integer-type) selected set-selected,json-field "after" integer-type after set-after]
+
+  -- | Preserve the exact independently observed prior application record.
+  prior-value :: Record
+  prior-value = RecordValue 7 None 11
+
+  -- | Compare every state byte while preserving separate callback observations.
+  model-state :: Record -> String -> Bool
+  model-state value expected = state-is selected-type value expected
+
+  -- | Preserve the first original global row and mismatching property.
+  check-row :: Observation -> Nat
+  check-row row = case row of
+    Observe index legacy wire expected error calls argument ->
+      let decoded = json-update-with selected-type (options-for legacy) (input-bytes wire) prior-value in
+      let value = json-decoded-value decoded in
+      if not (model-state value expected) then index * 16 + 1
+      else if not (outcome-is decoded error) then index * 16 + 2
+      else if not (calls == 0) then index * 16 + 3
+      else 0
+
+  -- | Traverse a bounded literal group without constructing a deep generated let chain.
+  check-group :: List Observation -> Nat
+  check-group rows = case rows of Nil -> 0; Cons first rest -> let result = check-row first in if result > 0 then result else check-group rest
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a000 :: List Observation
+  rows-a000 = [Observe 194 True "" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 0) 0 "",
+    Observe 195 False "" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 196 True "{" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 1) 0 "",
+    Observe 197 False "{" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 1 "") 0 "",
+    Observe 198 True "{\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 2) 0 "",
+    Observe 199 False "{\"" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 2 "") 0 "",
+    Observe 200 True "{\"b" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 3) 0 "",
+    Observe 201 False "{\"b" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 3 "") 0 "",
+    Observe 202 True "{\"be" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 4) 0 "",
+    Observe 203 False "{\"be" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 4 "") 0 "",
+    Observe 204 True "{\"bef" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 5) 0 "",
+    Observe 205 False "{\"bef" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 5 "") 0 "",
+    Observe 206 True "{\"befo" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 6) 0 "",
+    Observe 207 False "{\"befo" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 6 "") 0 "",
+    Observe 208 True "{\"befor" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 7) 0 "",
+    Observe 209 False "{\"befor" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 7 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a001 :: List Observation
+  rows-a001 = [Observe 210 True "{\"before" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 8) 0 "",
+    Observe 211 False "{\"before" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 8 "") 0 "",
+    Observe 212 True "{\"before\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 9) 0 "",
+    Observe 213 False "{\"before\"" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 9 "/before") 0 "",
+    Observe 214 True "{\"before\":" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 10) 0 "",
+    Observe 215 False "{\"before\":" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 10 "/before") 0 "",
+    Observe 216 True "{\"before\":1" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 11) 0 "",
+    Observe 217 False "{\"before\":1" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 11 "") 0 "",
+    Observe 218 True "{\"before\":1," "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 12) 0 "",
+    Observe 219 False "{\"before\":1," "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 12 "") 0 "",
+    Observe 220 True "{\"before\":1,\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 13) 0 "",
+    Observe 221 False "{\"before\":1,\"" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 13 "") 0 "",
+    Observe 222 True "{\"before\":1,\"v" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 14) 0 "",
+    Observe 223 False "{\"before\":1,\"v" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 14 "") 0 "",
+    Observe 224 True "{\"before\":1,\"va" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 15) 0 "",
+    Observe 225 False "{\"before\":1,\"va" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 15 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a002 :: List Observation
+  rows-a002 = [Observe 226 True "{\"before\":1,\"val" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 16) 0 "",
+    Observe 227 False "{\"before\":1,\"val" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 16 "") 0 "",
+    Observe 228 True "{\"before\":1,\"valu" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 17) 0 "",
+    Observe 229 False "{\"before\":1,\"valu" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 17 "") 0 "",
+    Observe 230 True "{\"before\":1,\"value" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 18) 0 "",
+    Observe 231 False "{\"before\":1,\"value" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 18 "") 0 "",
+    Observe 232 True "{\"before\":1,\"value\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 19) 0 "",
+    Observe 233 False "{\"before\":1,\"value\"" "{\"before\":1,\"value\":0,\"after\":11}" (NativeSyntax 19 "/value") 0 "",
+    Observe 234 True "{\"before\":1,\"value\":" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 20) 0 "",
+    Observe 235 False "{\"before\":1,\"value\":" "{\"before\":1,\"value\":0,\"after\":11}" (NativeSyntax 20 "/value") 0 "",
+    Observe 236 True "{\"before\":1,\"value\":2" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 21) 0 "",
+    Observe 237 False "{\"before\":1,\"value\":2" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 21 "") 0 "",
+    Observe 238 True "{\"before\":1,\"value\":2," "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 22) 0 "",
+    Observe 239 False "{\"before\":1,\"value\":2," "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 22 "") 0 "",
+    Observe 240 True "{\"before\":1,\"value\":2,\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 23) 0 "",
+    Observe 241 False "{\"before\":1,\"value\":2,\"" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 23 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a003 :: List Observation
+  rows-a003 = [Observe 242 True "{\"before\":1,\"value\":2,\"a" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 24) 0 "",
+    Observe 243 False "{\"before\":1,\"value\":2,\"a" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 24 "") 0 "",
+    Observe 244 True "{\"before\":1,\"value\":2,\"af" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 25) 0 "",
+    Observe 245 False "{\"before\":1,\"value\":2,\"af" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 25 "") 0 "",
+    Observe 246 True "{\"before\":1,\"value\":2,\"aft" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 26) 0 "",
+    Observe 247 False "{\"before\":1,\"value\":2,\"aft" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 26 "") 0 "",
+    Observe 248 True "{\"before\":1,\"value\":2,\"afte" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 27) 0 "",
+    Observe 249 False "{\"before\":1,\"value\":2,\"afte" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 27 "") 0 "",
+    Observe 250 True "{\"before\":1,\"value\":2,\"after" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 28) 0 "",
+    Observe 251 False "{\"before\":1,\"value\":2,\"after" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 28 "") 0 "",
+    Observe 252 True "{\"before\":1,\"value\":2,\"after\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 29) 0 "",
+    Observe 253 False "{\"before\":1,\"value\":2,\"after\"" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 29 "/after") 0 "",
+    Observe 254 True "{\"before\":1,\"value\":2,\"after\":" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 30) 0 "",
+    Observe 255 False "{\"before\":1,\"value\":2,\"after\":" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 30 "/after") 0 "",
+    Observe 256 True "{\"before\":1,\"value\":2,\"after\":3" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 31) 0 "",
+    Observe 257 False "{\"before\":1,\"value\":2,\"after\":3" "{\"before\":1,\"value\":2,\"after\":3}" (NativeSyntax 31 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a004 :: List Observation
+  rows-a004 = [Observe 258 True "{\"before\":1,\"value\":2,\"after\":3}" "{\"before\":1,\"value\":2,\"after\":3}" NoError 0 "",
+    Observe 259 False "{\"before\":1,\"value\":2,\"after\":3}" "{\"before\":1,\"value\":2,\"after\":3}" NoError 0 "",
+    Observe 260 True "" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 0) 0 "",
+    Observe 261 False "" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 262 True " " "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 1) 0 "",
+    Observe 263 False " " "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 1 "") 0 "",
+    Observe 264 True "@" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 1) 0 "",
+    Observe 265 False "@" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 266 True "-" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 0) 0 "",
+    Observe 267 False "-" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 268 True "1e" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 0) 0 "",
+    Observe 269 False "1e" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 270 True "1e+" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 0) 0 "",
+    Observe 271 False "1e+" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 0 "") 0 "",
+    Observe 272 True "1x" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 2) 0 "",
+    Observe 273 False "1x" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 48 (Some "main.pointerRecord") "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a005 :: List Observation
+  rows-a005 = [Observe 274 True "truex" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 5) 0 "",
+    Observe 275 False "truex" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 116 (Some "main.pointerRecord") "") 0 "",
+    Observe 276 True "\"ok\"x" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 5) 0 "",
+    Observe 277 False "\"ok\"x" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 34 (Some "main.pointerRecord") "") 0 "",
+    Observe 278 True "1 2" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 3) 0 "",
+    Observe 279 False "1 2" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 48 (Some "main.pointerRecord") "") 0 "",
+    Observe 280 True "nullx" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 5) 0 "",
+    Observe 281 False "nullx" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 4 "") 0 "",
+    Observe 282 True "[1]x" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 4) 0 "",
+    Observe 283 False "[1]x" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 "",
+    Observe 284 True "[" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 1) 0 "",
+    Observe 285 False "[" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 "",
+    Observe 286 True "[1," "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 3) 0 "",
+    Observe 287 False "[1," "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 "",
+    Observe 288 True "[1,@]" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 4) 0 "",
+    Observe 289 False "[1,@]" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a006 :: List Observation
+  rows-a006 = [Observe 290 True "[true,@]" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 7) 0 "",
+    Observe 291 False "[true,@]" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 "",
+    Observe 292 True "[1,,2]" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 4) 0 "",
+    Observe 293 False "[1,,2]" "{\"before\":7,\"value\":null,\"after\":11}" (Semantic 0 "" 91 (Some "main.pointerRecord") "") 0 "",
+    Observe 294 True "{\"before\":1 \"value\":2}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 13) 0 "",
+    Observe 295 False "{\"before\":1 \"value\":2}" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 12 "") 0 "",
+    Observe 296 True "{\"before\":1,\"value\":@}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 21) 0 "",
+    Observe 297 False "{\"before\":1,\"value\":@}" "{\"before\":1,\"value\":0,\"after\":11}" (NativeSyntax 20 "/value") 0 "",
+    Observe 298 True "{\"before\":1,\"value\":" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 20) 0 "",
+    Observe 299 False "{\"before\":1,\"value\":" "{\"before\":1,\"value\":0,\"after\":11}" (NativeSyntax 20 "/value") 0 "",
+    Observe 300 True "{\"before\":1,\"value\":\"x}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 23) 0 "",
+    Observe 301 False "{\"before\":1,\"value\":\"x}" "{\"before\":1,\"value\":0,\"after\":11}" (NativeSyntax 23 "/value") 0 "",
+    Observe 302 True "{\"before\":1,\"value\":2,\"after\":" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 30) 0 "",
+    Observe 303 False "{\"before\":1,\"value\":2,\"after\":" "{\"before\":1,\"value\":2,\"after\":11}" (NativeSyntax 30 "/after") 0 "",
+    Observe 304 True "{\"before\":1,\"value\":2,\"after\":3}x" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 33) 0 "",
+    Observe 305 False "{\"before\":1,\"value\":2,\"after\":3}x" "{\"before\":1,\"value\":2,\"after\":3}" (NativeSyntax 32 "") 0 ""]
+
+  -- | Preserve sixteen or fewer unchanged independent rows in original order.
+  rows-a007 :: List Observation
+  rows-a007 = [Observe 306 True "{\"a\":1,\"a\":2,}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 14) 0 "",
+    Observe 307 False "{\"a\":1,\"a\":2,}" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 12 "") 0 "",
+    Observe 308 True "{\"a\":1,\"b\":\"x" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 13) 0 "",
+    Observe 309 False "{\"a\":1,\"b\":\"x" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 13 "/b") 0 "",
+    Observe 310 True "{\"a\":[1,2" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 9) 0 "",
+    Observe 311 False "{\"a\":[1,2" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 9 "/a") 0 "",
+    Observe 312 True "{\"a\":1} {\"a\":2}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 9) 0 "",
+    Observe 313 False "{\"a\":1} {\"a\":2}" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 8 "") 0 "",
+    Observe 314 True "{\"before\":1,\"unknown\":[2,@],\"after\":3}" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 26) 0 "",
+    Observe 315 False "{\"before\":1,\"unknown\":[2,@],\"after\":3}" "{\"before\":1,\"value\":null,\"after\":11}" (NativeSyntax 25 "/unknown/1") 0 "",
+    Observe 316 True "\"\\u12\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 6) 0 "",
+    Observe 317 False "\"\\u12\"" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 1 "") 0 "",
+    Observe 318 True "\"\\x\"" "{\"before\":7,\"value\":null,\"after\":11}" (LegacySyntax 3) 0 "",
+    Observe 319 False "\"\\x\"" "{\"before\":7,\"value\":null,\"after\":11}" (NativeSyntax 1 "") 0 ""]
+
+  -- | Stop at the earliest complete original row/property disagreement.
+  status :: Nat
+  status =
+    let result-a000 = check-group rows-a000 in
+    if result-a000 > 0 then result-a000 else
+    let result-a001 = check-group rows-a001 in
+    if result-a001 > 0 then result-a001 else
+    let result-a002 = check-group rows-a002 in
+    if result-a002 > 0 then result-a002 else
+    let result-a003 = check-group rows-a003 in
+    if result-a003 > 0 then result-a003 else
+    let result-a004 = check-group rows-a004 in
+    if result-a004 > 0 then result-a004 else
+    let result-a005 = check-group rows-a005 in
+    if result-a005 > 0 then result-a005 else
+    let result-a006 = check-group rows-a006 in
+    if result-a006 > 0 then result-a006 else
+    let result-a007 = check-group rows-a007 in
+    if result-a007 > 0 then result-a007 else
+    0
+
+  -- | Emit a normalized failing exit while keeping the complete original row/property code.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = status in
+    if failed == 0 then 0 else let printed = ioWrite (string-to-bytes (string-concat-all ["json-syntax-partial:", nat-to-string failed, "\n"])) in 1

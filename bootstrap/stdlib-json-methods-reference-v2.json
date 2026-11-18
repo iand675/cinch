@@ -1,0 +1,36 @@
+{
+  "description": "Independent new method/JSONKind/precedence observations; original1160 v1 unchanged",
+  "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "go_version": "go1.27.4",
+  "source_sha256": "861f5a121d85f2bdb1d52a720a14a333d007684dd610ab30a7d2c6efd9e1e865",
+  "vectors_sha256": "1ab1be1a043176124f482f011170444418cb22a785d55375822ba8b011f40a91",
+  "counts": {
+    "decoding": 720,
+    "encoding": 720,
+    "nil_methods": 16,
+    "partial": 8
+  },
+  "observations": 1464,
+  "output_bytes": 632361,
+  "elapsed_seconds": 0.6802055299922358,
+  "v1_sha256": "3431ef0be63c13151d890198154f52a349898724fd83daf04c634497192e97ac",
+  "command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-json/tooling/go_json_methods_vectors.go"
+  ],
+  "cpu_affinity": [
+    2
+  ],
+  "environment": {
+    "GOCACHE": "/tmp/cinch-go-surface-cache",
+    "GOTELEMETRY": "off",
+    "GOTOOLCHAIN": "local",
+    "GOMAXPROCS": "1",
+    "GOMEMLIMIT": "256MiB",
+    "GOWORK": "off",
+    "GOEXPERIMENT": ""
+  },
+  "v1_original_rows_preserved": 1160,
+  "v1_comparison": "All1160 original rows match exactly after removing newly observed json_kind; combinedmethod rows are additive."
+}

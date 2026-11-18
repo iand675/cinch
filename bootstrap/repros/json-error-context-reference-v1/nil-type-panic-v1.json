@@ -1,0 +1,7 @@
+{
+  "status": "reference-error-rendering-panic",
+  "source_sha256": "44dd5de7a6b18abe531f26a776517c9ee86978eff44eef8576ae7097aeec394c",
+  "log_sha256": "c33a0cb17b69cc8adad83730cca6f4e069fb41b7ea70a110196625ac3725d1b1",
+  "cause": "legacy UnmarshalTypeError has nil Type after returned SemanticError with nil GoType",
+  "no_cinch_verdict": true
+}

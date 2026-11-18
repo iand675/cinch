@@ -1,0 +1,10 @@
+panic: json: invalid character 'P' in indent prefix
+
+goroutine 1 [running]:
+encoding/json/jsontext.WithIndentPrefix({0x52e019, 0x2})
+	/tmp/cinch-go-current/go/src/encoding/json/jsontext/options.go:267 +0xa8
+main.rows[...](0x1, 0x1)
+	/workspace/dasl-stdlib-json/build/json-next-error-context/go_json_error_context_vectors.go:143 +0xe3e
+main.main()
+	/workspace/dasl-stdlib-json/build/json-next-error-context/go_json_error_context_vectors.go:196 +0x30
+exit status 2

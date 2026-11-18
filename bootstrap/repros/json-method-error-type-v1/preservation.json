@@ -1,0 +1,78 @@
+{
+  "status": "preserved-first-genuine-method-mismatch",
+  "files": {
+    "Main.cinch": {
+      "original_path": "build/json-error-methods-probe-v1/Main.cinch",
+      "sha256": "4401f69a9a3c2bde705e37da231fb629432eef9d036941a57c51368ad4ef2c37",
+      "bytes": 46715
+    },
+    "Value.cinch": {
+      "original_path": "build/json-error-methods-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682
+    },
+    "Codec.cinch": {
+      "original_path": "build/json-error-methods-probe-v1/Text.Json.Codec.cinch",
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291
+    },
+    "source-report.json": {
+      "original_path": "build/json-error-methods-probe-v1/report.json",
+      "sha256": "c72a52a036289311c9a11bec282eacdf26c4b1451c097e935d3444b6573e285b",
+      "bytes": 9841
+    },
+    "runtime-report.json": {
+      "original_path": "bootstrap/stdlib-json-error-methods-rust-v1-results.json",
+      "sha256": "7f2d051c1f297610737a7d2e1ace879835b369f7151ad89c57277d60489dc318",
+      "bytes": 11701
+    },
+    "runtime.log": {
+      "original_path": "build/json-error-methods-rust-v1/ordinary.log",
+      "sha256": "934cac03bcd8aecc544a98b965bacf23980ce1a0a1fe505ca868c66a7ab6543c",
+      "bytes": 148
+    },
+    "generate_method_errors.py": {
+      "original_path": "build/json-next-error-context/generate_method_errors.py",
+      "sha256": "9a2f3ab90bfade5421ac27d38f34fe8d1e553ea9cd4a8dc5b1bdf1dbbd1155de",
+      "bytes": 13194
+    },
+    "probe_remaining.py": {
+      "original_path": "build/json-next-error-context/probe_remaining.py",
+      "sha256": "1949eb28d071ec97cf9fa4ddb048fcdcaf20400948ea7e3e37640758f9333e17",
+      "bytes": 3087
+    },
+    "qualify_remaining.py": {
+      "original_path": "build/json-next-error-context/qualify_remaining.py",
+      "sha256": "01ab0199e1ae0764914bc1732626f37519c7941dd6867d8b490d40666501ae8b",
+      "bytes": 6445
+    }
+  },
+  "failed_artifacts_plain": {
+    "build/json-error-methods-rust-v1/consumer.ll": {
+      "sha256": "bc646f667538b48c428075643b525d0cb09c2c938313a5e4297ea71baef8d975",
+      "bytes": 9661680,
+      "mode": "0o600"
+    },
+    "build/json-error-methods-rust-v1/consumer": {
+      "sha256": "305113eeaacf4a4bdae241e2b9ce27771f636c97ed5e7d46d80f234309636757",
+      "bytes": 7613904,
+      "mode": "0o700"
+    }
+  },
+  "reference_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "first_mismatch": {
+    "zero_based_row": 0,
+    "exit_code": 12,
+    "property": "partial outcome optional application type",
+    "expected": "*main.jsonRefusal",
+    "supplied_application_label": "main.jsonRefusal",
+    "normal_only": true,
+    "poison_pending": true,
+    "updates_pending": true
+  },
+  "rationale": "Pinned method dispatch calls va.Addr() and constructs the legacy wrapper from reflect.TypeOf(val). Its semantic error uses t. A value-receiver method still dispatches through the address receiver. The application value and dispatched receiver require independent explicit descriptor metadata; no implicit prefixing of arbitrary labels.",
+  "sdk_sources": {
+    "/tmp/cinch-go-current/go/src/encoding/json/v2/arshal_methods.go": "4d3e44dd3c4cd7a1b39e081016a3fd69c86f6f1c1862add2194c621eeb0e0ef6",
+    "/tmp/cinch-go-current/go/src/encoding/json/v2_inject.go": "b91accbba6b414cbc94bc2e08193736f601e956188bcdff837e2e24f45d74c19"
+  }
+}

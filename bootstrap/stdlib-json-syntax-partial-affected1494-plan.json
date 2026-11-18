@@ -1,0 +1,183 @@
+{
+  "status": "static-plan-only-no-unit-authorized-or-started",
+  "reason": "New partial syntax representation and disabled-reporting update entry affect the old quoted marshal/update/descriptor/error consumers. Refresh all seven current-source units before promotion.",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+    "Text.Json.Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "oracle": {
+    "path": "compiler/tests/fixtures/json-codec-error-context-vectors.json",
+    "sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+    "rows": 1494,
+    "existing_rendering_panic_outcomes": 12,
+    "regenerate_or_normalize": false
+  },
+  "units": [
+    {
+      "unit": "methods",
+      "oracle_rows": 288,
+      "extra_retained_rows": 0,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-methods.cinch",
+      "fixture_sha256": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4",
+      "prior_receipt": "bootstrap/stdlib-json-error-methods-rust-v7-results.json",
+      "prior_receipt_sha256": "92933a8006539be3e7b5fa50dcbf29a315bd3d40e8b1e24322c91216a165bcea",
+      "prior_success_ELF_IR_bytes": 17632468,
+      "prior_archive_bytes": 3945512,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "updates",
+      "oracle_rows": 54,
+      "extra_retained_rows": 0,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-updates.cinch",
+      "fixture_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+      "prior_receipt": "bootstrap/stdlib-json-error-updates-rust-v2-results.json",
+      "prior_receipt_sha256": "087ad338fce794fd7ae11298193d45a5b93fd452d29afda289583e000f4348b7",
+      "prior_success_ELF_IR_bytes": 15911059,
+      "prior_archive_bytes": 3648016,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "pointer",
+      "oracle_rows": 288,
+      "extra_retained_rows": 1,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-pointer.cinch",
+      "fixture_sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69",
+      "prior_receipt": "bootstrap/stdlib-json-error-pointer-final-rust-v3-results.json",
+      "prior_receipt_sha256": "3e9eb9553a4fe9cfe01349b7808c8830ff93dc41c9458f5ba8200d2484d7bce6",
+      "prior_success_ELF_IR_bytes": 16172842,
+      "prior_archive_bytes": 3693604,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "owner",
+      "oracle_rows": 0,
+      "extra_retained_rows": 0,
+      "owner_groups": 4,
+      "fixture": "compiler/tests/fixtures/json-codec-error-owner-control.cinch",
+      "fixture_sha256": "130289ba144caa43c494d8cddac9b663d4f74e01cc82b0ca63bebbe4a049d736",
+      "prior_receipt": "bootstrap/stdlib-json-error-owner-final-rust-v3-results.json",
+      "prior_receipt_sha256": "093fa94c1f785796ada19ed5781b9e7c5976469bf69925e30852e04ca4d34135",
+      "prior_success_ELF_IR_bytes": 12904483,
+      "prior_archive_bytes": 3110175,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "bool",
+      "oracle_rows": 288,
+      "extra_retained_rows": 0,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-bool.cinch",
+      "fixture_sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b",
+      "prior_receipt": "bootstrap/stdlib-json-error-bool-final-rust-v3-results.json",
+      "prior_receipt_sha256": "0571095715ec3f5068ea4492fe93419dc7056352a88511532dbdbf76268c4c9a",
+      "prior_success_ELF_IR_bytes": 15414474,
+      "prior_archive_bytes": 3528159,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "string",
+      "oracle_rows": 288,
+      "extra_retained_rows": 0,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-string.cinch",
+      "fixture_sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634",
+      "prior_receipt": "bootstrap/stdlib-json-error-string-final-rust-v3-results.json",
+      "prior_receipt_sha256": "b5c23908b4882d725cee2aa72c46ee2c4068c069f867cae9ed9d264ef7858fb2",
+      "prior_success_ELF_IR_bytes": 15350168,
+      "prior_archive_bytes": 3517168,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    },
+    {
+      "unit": "integer",
+      "oracle_rows": 288,
+      "extra_retained_rows": 0,
+      "owner_groups": 0,
+      "fixture": "compiler/tests/fixtures/json-codec-error-integer.cinch",
+      "fixture_sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358",
+      "prior_receipt": "bootstrap/stdlib-json-error-integer-final-rust-v3-results.json",
+      "prior_receipt_sha256": "ad02aeadc2fb1223c882cdf90114fc492cc45c82ce750d26644699eb8550ed36",
+      "prior_success_ELF_IR_bytes": 15338007,
+      "prior_archive_bytes": 3513221,
+      "fresh_growth_estimate_bytes": 31457280,
+      "archive_scratch_cap_bytes": 10485760,
+      "required_source_gate": "Exact frozen855 check of new immutable current-source snapshot before emit; <=15 seconds and <=5 MiB. Deadline without verdict requires review, never admission.",
+      "memory_profiles": [
+        "32MiB normal / 8MiB stack",
+        "256MiB poisoned / 8MiB stack"
+      ],
+      "must_observe": "Unchanged exact output/state/errors, partial prefixes, Result/Decoded family identity, offsets/pointers, reported context, callback/addressability counts and leak0."
+    }
+  ],
+  "resource_plan": {
+    "cpu": 2,
+    "serial_only": true,
+    "start_guard_bytes": 367001600,
+    "reserve_bytes": 262144000,
+    "fresh_unit_cap_bytes": 31457280,
+    "success_archive_scratch_cap_bytes": 10485760,
+    "peak_reserved_per_unit_bytes": 41943040,
+    "current_measured_free_bytes": 327122944,
+    "current_runtime_grant": false,
+    "normal_policy": "Fresh guard before each phase; stop first genuine failure; never run poison after failed normal. Preserve failed outputs plain. Archive only a completed successful ELF/IR pair with full verification and durable index before unlink."
+  },
+  "baseline_preservation": "Prior a330/8ea7/81d passed units and all genuine failure epochs remain sealed and unchanged; use new directory/receipt names, all THREE current JSON overrides plus exact qualified dependency closure. Never compile into historical hardlinked epochs.",
+  "old_driver_reference": "bootstrap/repros/json-final-compat-qualified-runners; adapt and snapshot new drivers rather than execute old fixed-hash/fixed-path scripts.",
+  "expected_memory_processes": 14,
+  "native_or_full92_claim": false
+}

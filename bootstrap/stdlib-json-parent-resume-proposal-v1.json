@@ -1,0 +1,39 @@
+{
+  "status": "static-source-only-resume-proposal-not-executed",
+  "files": {
+    "bootstrap/repros/json-parent-resume-v1/README.md": "98277d2479778eebdbd2fc89c59061d89807418b9f2ac9712395894024d29a32",
+    "bootstrap/repros/json-parent-resume-v1/json_parent_gate_common.py": "747ceacb116f3ba6ad7e88accc59efb16cde7009feecbaff89abf1c87386a908",
+    "bootstrap/repros/json-parent-resume-v1/json_parent_resume_verify.py": "76d3370ea6743f001b1c263500acca567e67a9388730a336c19153701f0b2bfc",
+    "bootstrap/repros/json-parent-resume-v1/prior-v2-binding.json": "43234bc3a42f255d2dbb6df254d1a16b6fb13b8d5a3399f476ce08e051aa728b",
+    "bootstrap/repros/json-parent-resume-v1/run_json_parent_resume.py": "32f4546737e27b5e0d8cb70b6e58f7fc38c2a0fbd83c9d8b1bac1cfd7a0fc3b3"
+  },
+  "prior_v2_gate": "/workspace/dasl-stdlib-io/build/json-parent-retained-v2",
+  "verified_at_future_Root_execution_only": "All15 closed process/log/marker/archive/dedup chains plus decoded members and plain files; this static child step did not execute the verifier or mutate any project.",
+  "old_root_artifacts_unchanged": true,
+  "existing_test_executable_sha256": "025505f4c661b8a7787e5323a9d9851bbca51b63cfc122589df2b480d306cee0",
+  "context_sha256": "58d8b11cfe50bacadd879ecfcd7f2bc98e564e5757bf6c3b737a5bc8547ddc67",
+  "test_source_sha256": "8d7c84d55093dc228d8e59aa72c0ae0354ff1e056233533485273a15fecdd610",
+  "warm_runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "actual_tests": 45,
+  "owned_json_tests": 42,
+  "shared_controls": 3,
+  "baseline_owned": 31,
+  "baseline_total": 34,
+  "added_owned": 11,
+  "prior_closed_count": 15,
+  "remaining_count": 30,
+  "no_Cargo_no_library_restore": true,
+  "prestart_guard": "Wait read-only/nochild/nowrites until350MiB; no next-unit directory/log before passing",
+  "active_soft_pause_mib": 270,
+  "reserve_mib": 250,
+  "normal_complete_test_cap_mib": 30,
+  "archive_scratch_cap_mib": 10,
+  "new_archive_codec": {
+    "gzip_level": 6,
+    "format": "pax",
+    "old_payloads_not_rewritten": true
+  },
+  "new_input_dedup": "Existing reviewed sealed-success policy, canonical map rebuilt only from verifiedprefix; explicitoptin;\u22645MiB metadata",
+  "new_cap_changes_automatic": false,
+  "native_performance_package_claim": false
+}

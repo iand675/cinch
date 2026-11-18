@@ -1,0 +1,10 @@
+{
+  "description": "First bounded-Nat/U8 fixture refusal; no production admission or execution",
+  "files": {
+    "Main.cinch": "d5dce756b597d6cdbc485ac82968baacb1d4d41821121f7baefd591e1ec37d97",
+    "Text.Json.Value.cinch": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+    "Text.Json.Codec.cinch": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+    "check.log": "ef59d29ed4e7472ddcdeaab74f3caab55d8dc175e6d051c3bec712a2c187da79",
+    "report.json": "c981817c3b022790d1a3df7a8715853fd657a0bd7b70c00c7766e3defe461af6"
+  }
+}

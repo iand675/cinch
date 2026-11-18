@@ -1,0 +1,2420 @@
+-- | Exact JSON syntax, immutable source-backed values and byte-preserving formatting.
+-- Documents own one byte snapshot and an immutable navigation tape. Returned
+-- byte buffers are independent copies; scalar strings replace malformed UTF-8
+-- and unmatched surrogate escapes while number spellings remain exact.
+module Text.Json.Value where
+
+  import Text.Json.Binary32
+  import Data.Array
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+  import Data.Unicode.Kernel
+
+  export JsonSyntacticInfo, JsonSyntacticError, json-syntactic-info, json-syntactic-offset, json-syntactic-pointer, json-error-syntactic
+  export JsonError, JsonSyntaxError, JsonTypeError, JsonValueError, JsonTargetError
+  export JsonInvalidValueError, json-error-invalid-value
+  export JsonNumericErrorKind, JsonNumericSyntax, JsonNumericRange, JsonNumericError, json-numeric-error-function, json-numeric-error-input, json-numeric-error-bytes, json-numeric-error-kind, json-numeric-error-message, json-numeric-is-range
+  export json-numeric-error-info
+  export JsonNumericResult, json-numeric-value, json-numeric-error, json-numeric-result, JsonNumberError, json-error-numeric
+  export json-number-from-text, json-number-from-bytes, json-number-bytes, json-number-check, json-number-int64-result, json-number-float64-result
+  export JsonUnknownField, JsonCustomError, JsonPathError, JsonEncodingError, JsonTypeCause, JsonUnsupportedType
+  export JsonTypeInfo, JsonTypeInfoError, json-type-info, json-type-info-with-record-field, json-error-type-info, json-error-record
+  export json-type-error-type, json-type-error-value, json-type-error-offset, json-type-error-record, json-type-error-field
+  export JsonReturnedError, json-error-returned, json-preserve-error-context, json-error-preserved-context
+  export JsonWriteInfo, json-write-info, json-write-written-bytes, json-write-logical-prefix, JsonWrittenError, json-error-write-info, json-error-written-bytes
+  export JsonSemanticError, JsonSemanticInfo, json-semantic-info, json-error-semantic
+  export json-semantic-action, json-semantic-offset, json-semantic-pointer, json-semantic-bytes, json-semantic-type
+  export json-semantic-info-with-value, json-semantic-info-with-optional-type, json-semantic-type-option, json-semantic-with-type, json-semantic-field-path, json-semantic-with-field-path, json-semantic-kind, json-semantic-kind-byte, json-semantic-reported-bytes, json-semantic-with-pointer, json-semantic-with-offset
+  export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
+  export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
+  export JsonRawMessage, json-raw-null, json-raw-from-bytes, json-raw-bytes, json-raw-replace
+  export JsonKind, JsonNullKind, JsonBooleanKind, JsonNumberKind, JsonStringKind, JsonArrayKind, JsonObjectKind, JsonInvalidKind
+  export JsonScanResult, json-scan-document, json-scan-value, json-scan-error, json-value-complete, json-value-refusal
+  export JsonDocument, JsonValue, json-document, json-document-value, json-document-input
+  export json-value-kind, json-value-start, json-value-end, json-value-source
+  export json-value-bool, json-value-number, json-value-string
+  export json-array-length, json-array-get, json-array-values
+  export JsonMember, json-member-name, json-member-value, json-member-key, json-object-members, json-object-lookup
+  export json-indent-bytes, json-append-indent-bytes
+  export json-indent-prefix, json-prefix-next-offset
+  export json-valid, json-compact, json-append-compact, json-indent, json-append-indent, json-html-escape, json-append-html-escape
+  export json-quote, json-quote-bytes
+  export JsonLexState, json-lex-start, JsonLexStep, JsonLexEnd, JsonLexNeedInput, JsonLexToken, JsonLexFailure
+  export JsonLexeme, json-lexeme-start, json-lexeme-end, json-lexeme-tag
+  export JsonLexTag, JsonLexNull, JsonLexTrue, JsonLexFalse, JsonLexNumber, JsonLexString
+  export JsonLexArrayStart, JsonLexArrayEnd, JsonLexObjectStart, JsonLexObjectEnd, JsonLexColon, JsonLexComma
+  export json-lex-read, json-lex-read-positioned
+
+  -- | The independent syntax or representability reason for a numeric conversion refusal.
+  data JsonNumericErrorKind where
+    -- | The original bytes are outside the requested numeric grammar.
+    JsonNumericSyntax :: JsonNumericErrorKind
+    -- | A valid numeric prefix or value exceeds the representable magnitude.
+    JsonNumericRange :: JsonNumericErrorKind
+
+  -- | Immutable original function, input bytes and numeric refusal reason.
+  data JsonNumericError where
+    -- | Private function label, owned exact spelling and syntax/range reason.
+    NumericError :: String -> Bytes -> JsonNumericErrorKind -> JsonNumericError
+
+  -- | A numeric value and its optional refusal, preserving saturated and infinite outcomes.
+  data JsonNumericResult a where
+    -- | Private completed numeric value and original conversion error.
+    NumericResult :: a -> Option JsonNumericError -> JsonNumericResult a
+
+  -- | Exact zero-based syntax checkpoint and escaped pointer retained independently from diagnostic prose.
+  data JsonSyntacticInfo where
+    -- | Private checkpoint and immutable pointer to the grammar location that refused input.
+    SyntacticInfo :: Nat -> String -> JsonSyntacticInfo
+
+  -- | Construct precise syntax context without replacing its original structured refusal.
+  json-syntactic-info :: Nat -> String -> JsonSyntacticInfo
+  json-syntactic-info offset pointer = SyntacticInfo offset pointer
+
+  -- | Inspect the exact byte checkpoint before the offending token or at incomplete input.
+  json-syntactic-offset :: JsonSyntacticInfo -> Nat
+  json-syntactic-offset info = case info of SyntacticInfo offset pointer -> offset
+
+  -- | Inspect the original escaped grammar pointer of a syntax refusal.
+  json-syntactic-pointer :: JsonSyntacticInfo -> String
+  json-syntactic-pointer info = case info of SyntacticInfo offset pointer -> pointer
+
+  -- | Immutable optional application identity, actual value, source position and record context for a type refusal.
+  data JsonTypeInfo where
+    -- | Private optional type, value description, byte offset, record name and field path.
+    TypeInfo :: Option String -> String -> Nat -> String -> String -> JsonTypeInfo
+
+  -- | Construct explicit type metadata without conflating an absent identity and an empty application label.
+  json-type-info :: Option String -> String -> Nat -> String -> String -> JsonTypeInfo
+  json-type-info label actual offset record-name field = TypeInfo label actual offset record-name field
+
+  -- | Inspect the optional application identity of a type refusal.
+  json-type-error-type :: JsonTypeInfo -> Option String
+  json-type-error-type info = case info of TypeInfo label actual offset record-name field -> label
+
+  -- | Inspect the original source value description of a type refusal.
+  json-type-error-value :: JsonTypeInfo -> String
+  json-type-error-value info = case info of TypeInfo label actual offset record-name field -> actual
+
+  -- | Inspect the original byte offset reported by a type refusal.
+  json-type-error-offset :: JsonTypeInfo -> Nat
+  json-type-error-offset info = case info of TypeInfo label actual offset record-name field -> offset
+
+  -- | Inspect the independently named root application record.
+  json-type-error-record :: JsonTypeInfo -> String
+  json-type-error-record info = case info of TypeInfo label actual offset record-name field -> record-name
+
+  -- | Inspect the original escaped application field path.
+  json-type-error-field :: JsonTypeInfo -> String
+  json-type-error-field info = case info of TypeInfo label actual offset record-name field -> field
+
+  -- | Replace record and field context while sharing immutable identity and value metadata.
+  json-type-info-with-record-field :: JsonTypeInfo -> String -> String -> JsonTypeInfo
+  json-type-info-with-record-field info next-record next-field = case info of TypeInfo label actual offset record-name field -> TypeInfo label actual offset next-record next-field
+
+  -- | Owned operation context for a conversion that stops at the first semantic failure.
+  data JsonSemanticInfo where
+    -- | Private action, original byte offset, JSON pointer, exact token bytes, optional application type, lexical kind, reported bytes and optional conventional field path.
+    SemanticInfo :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> Option String -> JsonSemanticInfo
+
+  -- | Snapshot exact source bytes while constructing explicit semantic conversion metadata.
+  json-semantic-info :: String -> Nat -> String -> Bytes -> String -> JsonSemanticInfo
+  json-semantic-info action offset pointer input label = json-semantic-info-with-value action offset pointer input label (semantic-token-kind input) (bytes-new 0)
+
+  -- | Classify a complete token's leading byte, using zero for unavailable kind and digit zero for every number.
+  semantic-token-kind :: Bytes -> U8
+  semantic-token-kind input =
+    if bytes-len input > 0 then
+      let first = bytes-get input 0 in
+      if first == 34 then 34 else if first == 91 then 91 else if first == 123 then 123
+      else if first == 110 then 110 else if first == 116 then 116 else if first == 102 then 102
+      else if first == 45 || (first >= 48 && first <= 57) then 48 else 0
+    else 0
+
+  -- | Snapshot source context and independently reported value bytes, retaining an explicit lexical kind byte.
+  -- Kind bytes use the opening delimiter, n/t/f for null and booleans, digit
+  -- zero for a number, and zero when the conversion does not identify a kind.
+  json-semantic-info-with-value :: String -> Nat -> String -> Bytes -> String -> U8 -> Bytes -> JsonSemanticInfo
+  json-semantic-info-with-value action offset pointer input label kind reported = json-semantic-info-with-optional-type action offset pointer input (Some label) kind reported
+
+  -- | Snapshot exact semantic bytes while preserving absence of an application type independently of an empty label.
+  json-semantic-info-with-optional-type :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> JsonSemanticInfo
+  json-semantic-info-with-optional-type action offset pointer input label kind reported = SemanticInfo action offset pointer (snapshot input 0 (bytes-len input)) label kind (snapshot reported 0 (bytes-len reported)) None
+
+  -- | Inspect the exact lexical kind byte, preserving true, false and unspecified distinctions.
+  json-semantic-kind-byte :: JsonSemanticInfo -> U8
+  json-semantic-kind-byte info = case info of SemanticInfo action offset pointer input label kind reported field-path -> kind
+
+  -- | Inspect the semantic source category while retaining exact lexical distinctions through the byte getter.
+  json-semantic-kind :: JsonSemanticInfo -> JsonKind
+  json-semantic-kind info =
+    let kind = json-semantic-kind-byte info in
+    if eq-u8 kind 34 then JsonStringKind else if eq-u8 kind 91 then JsonArrayKind else if eq-u8 kind 123 then JsonObjectKind
+    else if eq-u8 kind 110 then JsonNullKind else if eq-u8 kind 116 || eq-u8 kind 102 then JsonBooleanKind
+    else if eq-u8 kind 48 then JsonNumberKind else JsonInvalidKind
+
+  -- | Export a fresh copy of the independently reported value, which may be empty despite retained original source bytes.
+  json-semantic-reported-bytes :: JsonSemanticInfo -> Bytes
+  json-semantic-reported-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot reported 0 (bytes-len reported)
+
+  -- | Replace only the pointer while retaining immutable source, reported value and operation metadata.
+  json-semantic-with-pointer :: JsonSemanticInfo -> String -> JsonSemanticInfo
+  json-semantic-with-pointer info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset next input label kind reported field-path
+
+  -- | Inspect the conversion operation, such as marshal or unmarshal.
+  json-semantic-action :: JsonSemanticInfo -> String
+  json-semantic-action info = case info of SemanticInfo action offset pointer input label kind reported field-path -> action
+
+  -- | Inspect the original zero-based byte offset at which semantic conversion began.
+  json-semantic-offset :: JsonSemanticInfo -> Nat
+  json-semantic-offset info = case info of SemanticInfo action offset pointer input label kind reported field-path -> offset
+
+  -- | Inspect the escaped JSON pointer identifying the original source value.
+  json-semantic-pointer :: JsonSemanticInfo -> String
+  json-semantic-pointer info = case info of SemanticInfo action offset pointer input label kind reported field-path -> pointer
+
+  -- | Export an independent copy of the original complete source token.
+  json-semantic-bytes :: JsonSemanticInfo -> Bytes
+  json-semantic-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot input 0 (bytes-len input)
+
+  -- | Inspect the application type as text, using empty text when no identity was supplied.
+  json-semantic-type :: JsonSemanticInfo -> String
+  json-semantic-type info = case json-semantic-type-option info of None -> ""; Some label -> label
+
+  -- | Inspect the optional application identity without conflating absence and an explicitly empty label.
+  json-semantic-type-option :: JsonSemanticInfo -> Option String
+  json-semantic-type-option info = case info of SemanticInfo action offset pointer input label kind reported field-path -> label
+
+  -- | Replace only optional application identity while retaining immutable source and reported-value owners.
+  json-semantic-with-type :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
+  json-semantic-with-type info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input next kind reported field-path
+
+  -- | Inspect conventional field context only when supplied independently from the precise semantic pointer.
+  json-semantic-field-path :: JsonSemanticInfo -> Option String
+  json-semantic-field-path info = case info of SemanticInfo action offset pointer input label kind reported field-path -> field-path
+
+  -- | Replace conventional field context while sharing immutable source, identity and reported-value owners.
+  json-semantic-with-field-path :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
+  json-semantic-with-field-path info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input label kind reported next
+
+  -- | Owned bytes already emitted and the logical compact prefix before a failing next value.
+  data JsonWriteInfo where
+    -- | Private immutable snapshots of written output and logical next-value context.
+    WriteInfo :: Bytes -> Bytes -> JsonWriteInfo
+
+  -- | Snapshot written output and logical delimiter context independently from caller mutation.
+  json-write-info :: Bytes -> Bytes -> JsonWriteInfo
+  json-write-info written logical = WriteInfo (snapshot written 0 (bytes-len written)) (snapshot logical 0 (bytes-len logical))
+
+  -- | Export a fresh copy of the output emitted before an encoding refusal.
+  json-write-written-bytes :: JsonWriteInfo -> Bytes
+  json-write-written-bytes info = case info of WriteInfo written logical -> snapshot written 0 (bytes-len written)
+
+  -- | Export the compact next-value context, including delimiters counted before they are emitted.
+  json-write-logical-prefix :: JsonWriteInfo -> Bytes
+  json-write-logical-prefix info = case info of WriteInfo written logical -> snapshot logical 0 (bytes-len logical)
+
+  -- | Replace only the semantic byte offset while sharing immutable token and reported-value owners.
+  json-semantic-with-offset :: JsonSemanticInfo -> Nat -> JsonSemanticInfo
+  json-semantic-with-offset info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action next pointer input label kind reported field-path
+
+  -- | Structured JSON syntax, type, configuration and custom conversion diagnostics.
+  data JsonError where
+    -- | Original byte offset and a syntax diagnostic; end-of-input offsets may be zero.
+    JsonSyntaxError :: Nat -> String -> JsonError
+    -- | Exact grammar context and its original lexical or structural diagnostic.
+    JsonSyntacticError :: JsonSyntacticInfo -> JsonError -> JsonError
+    -- | Expected type, actual value description, original offset and application field path.
+    JsonTypeError :: String -> String -> Nat -> String -> JsonError
+    -- | Conversion mismatch metadata and its retained numeric/text conversion cause.
+    JsonTypeCause :: String -> String -> Nat -> String -> JsonError -> JsonError
+    -- | Exact optional type, record and field metadata with the original conversion cause.
+    JsonTypeInfoError :: JsonTypeInfo -> JsonError -> JsonError
+    -- | A type descriptor with no supported JSON representation.
+    JsonUnsupportedType :: String -> JsonError
+    -- | An unsupported or unrepresentable value, with its application type label.
+    JsonValueError :: String -> String -> JsonError
+    -- | An invalid application decoding descriptor or target configuration.
+    JsonTargetError :: String -> JsonError
+    -- | Unknown member name, original byte offset and application field path.
+    JsonUnknownField :: String -> Nat -> String -> JsonError
+    -- | A custom conversion's type label and original structured cause.
+    JsonCustomError :: String -> JsonError -> JsonError
+    -- | A method-returned cause whose existing identity and context survive containing application values.
+    JsonReturnedError :: JsonError -> JsonError
+    -- | Private origin barrier retaining application-owned context until its public encoding boundary.
+    PreservedContext :: JsonError -> JsonError
+    -- | Transparent diagnostic context with independently owned partial output and logical next-value bytes.
+    JsonWrittenError :: JsonWriteInfo -> JsonError -> JsonError
+    -- | Additional application path context around an existing conversion diagnostic.
+    JsonPathError :: String -> JsonError -> JsonError
+    -- | Explicit strict text conversion failure with its original byte offset.
+    JsonEncodingError :: Nat -> String -> JsonError
+    -- | An unrepresentable encoding state without a valid application value or type label.
+    JsonInvalidValueError :: String -> JsonError
+    -- | Structured numeric conversion metadata retained through JSON error adapters.
+    JsonNumberError :: JsonNumericError -> JsonError
+    -- | A stopped semantic conversion with exact source context and its original structured cause.
+    JsonSemanticError :: JsonSemanticInfo -> JsonError -> JsonError
+
+  -- | Render a diagnostic using JSON and application type names.
+  json-error-message :: JsonError -> String
+  json-error-message error = case error of
+    JsonSyntacticError info cause -> json-error-message cause
+    JsonTypeInfoError info cause -> string-concat-all ["cannot unmarshal ", json-type-error-value info, " into ", (case json-type-error-type info of None -> "unspecified application type"; Some label -> label)]
+    JsonReturnedError cause -> json-error-message cause
+    PreservedContext cause -> json-error-message cause
+    JsonWrittenError info cause -> json-error-message cause
+    JsonSyntaxError offset message -> message
+    JsonTypeError expected actual offset path -> string-concat-all ["cannot decode ", actual, " as ", expected, if path == "" then "" else string-concat " at " path]
+    JsonTypeCause expected actual offset path cause -> json-error-message (JsonTypeError expected actual offset path)
+    JsonUnsupportedType label -> string-concat "unsupported JSON type: " label
+    JsonValueError label message -> string-concat-all ["unsupported JSON value for ", label, ": ", message]
+    JsonTargetError message -> string-concat "invalid JSON target: " message
+    JsonUnknownField name offset path -> string-concat-all ["unknown JSON field ", name, if path == "" then "" else string-concat " at " path]
+    JsonCustomError label cause -> string-concat-all ["JSON conversion for ", label, ": ", json-error-message cause]
+    JsonPathError path cause -> string-concat-all [json-error-message cause, " at ", path]
+    JsonEncodingError offset message -> message
+    JsonInvalidValueError message -> string-concat "unsupported JSON value: " message
+    JsonNumberError numeric -> json-numeric-error-message numeric
+    JsonSemanticError info cause -> string-concat-all ["cannot ", json-semantic-action info, " JSON as ", json-semantic-type info, if json-semantic-pointer info == "" then "" else string-concat " at " (json-semantic-pointer info), ": ", json-error-message cause]
+
+  -- | Original byte offset when one exists, otherwise zero.
+  json-error-offset :: JsonError -> Nat
+  json-error-offset error = case error of
+    JsonSyntacticError info cause -> json-syntactic-offset info
+    JsonTypeInfoError info cause -> json-type-error-offset info
+    JsonReturnedError cause -> json-error-offset cause
+    PreservedContext cause -> json-error-offset cause
+    JsonWrittenError info cause -> json-error-offset cause
+    JsonSyntaxError offset message -> offset
+    JsonTypeError expected actual offset path -> offset
+    JsonTypeCause expected actual offset path cause -> offset
+    JsonUnsupportedType label -> 0
+    JsonValueError label message -> 0
+    JsonTargetError message -> 0
+    JsonUnknownField name offset path -> offset
+    JsonCustomError label cause -> json-error-offset cause
+    JsonPathError path cause -> json-error-offset cause
+    JsonEncodingError offset message -> offset
+    JsonInvalidValueError message -> 0
+    JsonNumberError numeric -> 0
+    JsonSemanticError info cause -> json-semantic-offset info
+
+  -- | Application member/index path carried by a diagnostic.
+  json-error-path :: JsonError -> String
+  json-error-path error = case error of
+    JsonSyntacticError info cause -> json-syntactic-pointer info
+    JsonTypeInfoError info cause -> json-type-error-field info
+    JsonReturnedError cause -> json-error-path cause
+    PreservedContext cause -> json-error-path cause
+    JsonWrittenError info cause -> json-error-path cause
+    JsonTypeError expected actual offset path -> path
+    JsonTypeCause expected actual offset path cause -> path
+    JsonUnknownField name offset path -> path
+    JsonCustomError label cause -> json-error-path cause
+    JsonPathError path cause -> path
+    JsonSemanticError info cause -> case json-semantic-field-path info of None -> json-semantic-pointer info; Some path -> path
+    other -> ""
+
+  -- | Application type label associated with a conversion failure.
+  json-error-type :: JsonError -> Option String
+  json-error-type error = case error of
+    JsonSyntacticError info cause -> None
+    JsonTypeInfoError info cause -> json-type-error-type info
+    JsonReturnedError cause -> json-error-type cause
+    PreservedContext cause -> json-error-type cause
+    JsonWrittenError info cause -> json-error-type cause
+    JsonTypeError expected actual offset path -> Some expected
+    JsonTypeCause expected actual offset path cause -> Some expected
+    JsonUnsupportedType label -> Some label
+    JsonValueError label message -> Some label
+    JsonCustomError label cause -> Some label
+    JsonPathError path cause -> json-error-type cause
+    JsonSemanticError info cause -> json-semantic-type-option info
+    other -> None
+
+  -- | Actual value description associated with a conversion failure.
+  json-error-value :: JsonError -> Option String
+  json-error-value error = case error of
+    JsonSyntacticError info cause -> None
+    JsonTypeInfoError info cause -> Some (json-type-error-value info)
+    JsonReturnedError cause -> json-error-value cause
+    PreservedContext cause -> json-error-value cause
+    JsonWrittenError info cause -> json-error-value cause
+    JsonTypeError expected actual offset path -> Some actual
+    JsonTypeCause expected actual offset path cause -> Some actual
+    JsonValueError label message -> Some message
+    JsonInvalidValueError message -> Some message
+    JsonCustomError label cause -> json-error-value cause
+    JsonPathError path cause -> json-error-value cause
+    JsonSemanticError info cause -> json-error-value cause
+    other -> None
+
+  -- | Inspect a wrapped custom conversion or path diagnostic without flattening it.
+  json-error-cause :: JsonError -> Option JsonError
+  json-error-cause error = case error of
+    JsonSyntacticError info cause -> Some cause
+    JsonTypeInfoError info cause -> Some cause
+    JsonTypeCause expected actual offset path cause -> Some cause
+    JsonCustomError label cause -> Some cause
+    JsonPathError path cause -> Some cause
+    JsonSemanticError info cause -> Some cause
+    JsonReturnedError cause -> Some cause
+    PreservedContext cause -> Some cause
+    JsonWrittenError info cause -> json-error-cause cause
+    other -> None
+
+  -- | Inspect output context attached by an encoding boundary without treating a returned callback cause as emitted output.
+  json-error-write-info :: JsonError -> Option JsonWriteInfo
+  json-error-write-info error = case error of JsonWrittenError info cause -> Some info; other -> None
+
+  -- | Export independently owned partial output when an encoding boundary retained it.
+  json-error-written-bytes :: JsonError -> Option Bytes
+  json-error-written-bytes error = case json-error-write-info error of None -> None; Some info -> Some (json-write-written-bytes info)
+
+  -- | Retain application-owned context across automatic encoding container decoration.
+  json-preserve-error-context :: JsonError -> JsonError
+  json-preserve-error-context error = PreservedContext error
+
+  -- | Recover an origin-protected cause at the public encoding boundary without altering its error family.
+  json-error-preserved-context :: JsonError -> Option JsonError
+  json-error-preserved-context error = case error of PreservedContext cause -> Some cause; other -> None
+
+  -- | Recover an original method-returned error through containing conversion wrappers.
+  json-error-returned :: JsonError -> Option JsonError
+  json-error-returned error = case error of
+    JsonSyntacticError info cause -> json-error-returned cause
+    JsonTypeInfoError info cause -> json-error-returned cause
+    JsonReturnedError cause -> Some cause
+    PreservedContext cause -> Some cause
+    JsonWrittenError info cause -> json-error-returned cause
+    JsonCustomError label cause -> json-error-returned cause
+    JsonPathError path cause -> json-error-returned cause
+    JsonTypeCause expected actual offset path cause -> json-error-returned cause
+    JsonSemanticError info cause -> json-error-returned cause
+    other -> None
+
+  -- | Recover exact type metadata through ordinary path and conversion context without flattening its cause.
+  json-error-type-info :: JsonError -> Option JsonTypeInfo
+  json-error-type-info error = case error of
+    JsonTypeInfoError info cause -> Some info
+    JsonTypeError expected actual offset path -> Some (json-type-info (Some expected) actual offset "" path)
+    JsonTypeCause expected actual offset path cause -> Some (json-type-info (Some expected) actual offset "" path)
+    JsonReturnedError cause -> json-error-type-info cause
+    PreservedContext cause -> json-error-type-info cause
+    JsonWrittenError info cause -> json-error-type-info cause
+    JsonCustomError label cause -> json-error-type-info cause
+    JsonPathError path cause -> case json-error-type-info cause of None -> None; Some info -> Some (json-type-info-with-record-field info (json-type-error-record info) path)
+    other -> None
+
+  -- | Recover precise grammar context through transparent ownership and conversion adapters.
+  json-error-syntactic :: JsonError -> Option JsonSyntacticInfo
+  json-error-syntactic error = case error of
+    JsonSyntacticError info cause -> Some info
+    JsonReturnedError cause -> json-error-syntactic cause
+    PreservedContext cause -> json-error-syntactic cause
+    JsonWrittenError info cause -> json-error-syntactic cause
+    JsonCustomError label cause -> json-error-syntactic cause
+    JsonPathError path cause -> json-error-syntactic cause
+    JsonTypeInfoError info cause -> json-error-syntactic cause
+    JsonTypeCause label actual offset path cause -> json-error-syntactic cause
+    JsonSemanticError info cause -> json-error-syntactic cause
+    other -> None
+
+  -- | Inspect the root record name independently from the escaped field path.
+  json-error-record :: JsonError -> String
+  json-error-record error = case json-error-type-info error of None -> ""; Some info -> json-type-error-record info
+
+  -- | Whether a value failure lacks a valid application value, after custom/path context is removed.
+  json-error-invalid-value :: JsonError -> Bool
+  json-error-invalid-value error = case error of
+    JsonSyntacticError info cause -> False
+    JsonTypeInfoError info cause -> json-error-invalid-value cause
+    JsonReturnedError cause -> json-error-invalid-value cause
+    PreservedContext cause -> json-error-invalid-value cause
+    JsonWrittenError info cause -> json-error-invalid-value cause
+    JsonInvalidValueError message -> True
+    JsonPathError path cause -> json-error-invalid-value cause
+    JsonCustomError label cause -> json-error-invalid-value cause
+    JsonSemanticError info cause -> json-error-invalid-value cause
+    other -> False
+
+  -- | Recover numeric metadata through custom, path and typed-cause wrappers.
+  json-error-numeric :: JsonError -> Option JsonNumericError
+  json-error-numeric error = case error of
+    JsonSyntacticError info cause -> json-error-numeric cause
+    JsonTypeInfoError info cause -> json-error-numeric cause
+    JsonReturnedError cause -> json-error-numeric cause
+    PreservedContext cause -> json-error-numeric cause
+    JsonWrittenError info cause -> json-error-numeric cause
+    JsonNumberError numeric -> Some numeric
+    JsonCustomError label cause -> json-error-numeric cause
+    JsonPathError path cause -> json-error-numeric cause
+    JsonTypeCause expected actual at path cause -> json-error-numeric cause
+    JsonSemanticError info cause -> json-error-numeric cause
+    other -> None
+
+  -- | Recover semantic source context through containing custom, path and typed-cause adapters.
+  json-error-semantic :: JsonError -> Option JsonSemanticInfo
+  json-error-semantic error = case error of
+    JsonSyntacticError info cause -> None
+    JsonTypeInfoError info cause -> json-error-semantic cause
+    JsonReturnedError cause -> json-error-semantic cause
+    PreservedContext cause -> json-error-semantic cause
+    JsonWrittenError info cause -> json-error-semantic cause
+    JsonSemanticError info cause -> Some info
+    JsonCustomError label cause -> json-error-semantic cause
+    JsonPathError path cause -> json-error-semantic cause
+    JsonTypeCause expected actual at path cause -> json-error-semantic cause
+    other -> None
+
+  -- | Inspect the original operation label associated with a numeric refusal.
+  json-numeric-error-function :: JsonNumericError -> String
+  json-numeric-error-function error = case error of NumericError function input kind -> function
+
+  -- | Export an independent copy of the original input, including malformed UTF-8.
+  json-numeric-error-bytes :: JsonNumericError -> Bytes
+  json-numeric-error-bytes error = case error of NumericError function input kind -> snapshot input 0 (bytes-len input)
+
+  -- | Project the original input to scalar text, replacing malformed UTF-8 while its byte view stays exact.
+  json-numeric-error-input :: JsonNumericError -> String
+  json-numeric-error-input error = case error of NumericError function input kind -> number-byte-text input
+
+  -- | Inspect the exact syntax or range classification independently of its message.
+  json-numeric-error-kind :: JsonNumericError -> JsonNumericErrorKind
+  json-numeric-error-kind error = case error of NumericError function input kind -> kind
+
+  -- | Whether a numeric refusal reports representability rather than syntax.
+  json-numeric-is-range :: JsonNumericError -> Bool
+  json-numeric-is-range error = case json-numeric-error-kind error of JsonNumericRange -> True; JsonNumericSyntax -> False
+
+  -- | Render numeric metadata using the original operation and a scalar-safe quoted input.
+  json-numeric-error-message :: JsonNumericError -> String
+  json-numeric-error-message error = case error of
+    NumericError function input kind ->
+      let quoted = case string-from-bytes (json-quote-bytes input False) of Some text -> text; None -> "\"\"" in
+      string-concat-all [function, ": parsing ", quoted, if json-numeric-is-range error then ": value out of range" else ": invalid syntax"]
+
+  -- | Inspect the completed value even when conversion also reports an error.
+  json-numeric-value :: forall a. JsonNumericResult a -> a
+  json-numeric-value result = case result of NumericResult value error -> value
+
+  -- | Inspect an optional original numeric refusal without discarding its completed value.
+  json-numeric-error :: forall a. JsonNumericResult a -> Option JsonNumericError
+  json-numeric-error result = case result of NumericResult value error -> error
+
+  -- | Select an ordinary success or refusal when the caller does not need a partial numeric value.
+  json-numeric-result :: forall a. JsonNumericResult a -> Result JsonNumericError a
+  json-numeric-result result = case result of NumericResult value error -> case error of None -> Ok value; Some cause -> Err cause
+
+  -- | An exact number spelling with checked, raw-scalar and owned-byte construction.
+  data JsonNumber where
+    -- | Private immutable ASCII spelling, including sign/fraction/exponent or the absent empty default.
+    Number :: String -> JsonNumber
+    -- | Private unchecked scalar spelling, validated only by the selected operation.
+    RawNumber :: String -> JsonNumber
+    -- | Private owned byte spelling for input outside the scalar-string domain.
+    ByteNumber :: Bytes -> JsonNumber
+
+  -- | Project the original spelling to scalar text; the byte view retains malformed UTF-8 exactly.
+  json-number-text :: JsonNumber -> String
+  json-number-text number = case number of Number text -> text; RawNumber text -> text; ByteNumber input -> number-byte-text input
+
+  -- | Preserve an arbitrary scalar spelling without treating its construction as numeric validation.
+  json-number-from-text :: String -> JsonNumber
+  json-number-from-text text = RawNumber text
+
+  -- | Snapshot an arbitrary byte spelling, preserving malformed UTF-8 for conversion diagnostics.
+  json-number-from-bytes :: Bytes -> JsonNumber
+  json-number-from-bytes input = case string-from-bytes input of Some text -> RawNumber text; None -> ByteNumber (snapshot input 0 (bytes-len input))
+
+  -- | Export a fresh exact spelling independently of scalar text projection.
+  json-number-bytes :: JsonNumber -> Bytes
+  json-number-bytes number = case number of Number text -> string-to-bytes text; RawNumber text -> string-to-bytes text; ByteNumber input -> snapshot input 0 (bytes-len input)
+
+  -- | Project arbitrary bytes to scalar text while retaining valid scalars and one replacement per malformed byte.
+  number-byte-text :: Bytes -> String
+  number-byte-text input = case string-from-bytes input of Some text -> text; None -> number-byte-text-from input 0 Nil
+
+  -- | Decode an arbitrary spelling through the shared UTF-8 classifier without interpreting JSON escapes.
+  number-byte-text-from :: Bytes -> Nat -> List Char -> String
+  number-byte-text-from input at reversed = if at < bytes-len input then
+    case raw-rune input at of
+      Rune scalar width ->
+        let character = case char-from-code scalar of Some value -> value; None -> unicode-replacement in
+        number-byte-text-from input (at + (if width > 0 then width else 1)) (Cons character reversed)
+    else pack (reverse reversed)
+
+  -- | An immutable raw JSON message; null and a non-null empty buffer are distinct.
+  data JsonRawMessage where
+    -- | Private optional owned raw bytes, deliberately not required to be syntactically valid.
+    RawMessage :: Option Bytes -> JsonRawMessage
+
+  -- | The absent raw message, which encodes as the JSON null literal.
+  json-raw-null :: JsonRawMessage
+  json-raw-null = RawMessage None
+
+  -- | Snapshot an arbitrary raw message without changing whitespace or validating its syntax.
+  json-raw-from-bytes :: Bytes -> JsonRawMessage
+  json-raw-from-bytes input = RawMessage (Some (snapshot input 0 (bytes-len input)))
+
+  -- | Obtain an independent copy of raw storage, preserving the distinction between null and empty.
+  json-raw-bytes :: JsonRawMessage -> Option Bytes
+  json-raw-bytes message = case message of
+    RawMessage None -> None
+    RawMessage (Some input) -> Some (snapshot input 0 (bytes-len input))
+
+  -- | Replace a raw message with a fresh snapshot while retained earlier messages stay independent.
+  json-raw-replace :: JsonRawMessage -> Bytes -> JsonRawMessage
+  json-raw-replace previous input = json-raw-from-bytes input
+
+  -- | Public value categories, including an explicit invalid internal representation category.
+  data JsonKind where
+    -- | The null literal.
+    JsonNullKind :: JsonKind
+    -- | Either boolean literal.
+    JsonBooleanKind :: JsonKind
+    -- | A grammar-valid exact number.
+    JsonNumberKind :: JsonKind
+    -- | A quoted JSON string.
+    JsonStringKind :: JsonKind
+    -- | A JSON array.
+    JsonArrayKind :: JsonKind
+    -- | A JSON object, with original member ordering and duplicates.
+    JsonObjectKind :: JsonKind
+    -- | A non-value tape marker, never produced by successful public value construction.
+    JsonInvalidKind :: JsonKind
+
+  -- | Private navigation categories distinguish value strings, member names and closing markers.
+  data NodeKind where
+    -- | Null node.
+    NNull :: NodeKind
+    -- | True node.
+    NTrue :: NodeKind
+    -- | False node.
+    NFalse :: NodeKind
+    -- | Number node.
+    NNumber :: NodeKind
+    -- | String value node.
+    NString :: NodeKind
+    -- | Object member name node.
+    NKey :: NodeKind
+    -- | Opening array node.
+    NArray :: NodeKind
+    -- | Closing array marker.
+    NArrayEnd :: NodeKind
+    -- | Opening object node.
+    NObject :: NodeKind
+    -- | Closing object marker.
+    NObjectEnd :: NodeKind
+
+    -- | An incomplete null token.
+    NPartialNull :: NodeKind
+    -- | An incomplete true token.
+    NPartialTrue :: NodeKind
+    -- | An incomplete false token.
+    NPartialFalse :: NodeKind
+    -- | An incomplete number token.
+    NPartialNumber :: NodeKind
+    -- | An incomplete string token.
+    NPartialString :: NodeKind
+    -- | An array whose closing grammar was refused.
+    NPartialArray :: NodeKind
+    -- | An object whose closing grammar was refused.
+    NPartialObject :: NodeKind
+    -- | Structural tape closure for an incomplete array, without synthesizing source bytes.
+    NPartialArrayEnd :: NodeKind
+    -- | Structural tape closure for an incomplete object, without synthesizing source bytes.
+    NPartialObjectEnd :: NodeKind
+    -- | A value slot entered before a valid token was available.
+    NInvalid :: NodeKind
+
+  -- | Private direct-child indexes avoid repeatedly traversing nested subtrees.
+  data ChildIndexes where
+    -- | A scalar or closing marker has no child-index allocation.
+    NoChildren :: ChildIndexes
+    -- | Array element indexes or object member-name indexes in source order.
+    Children :: Array Nat -> ChildIndexes
+
+  -- | A private immutable navigation node with byte interval and next-sibling jump.
+  data JsonNode where
+    -- | Category, tape index, source start/end, next sibling and optional direct children.
+    Node :: NodeKind -> Nat -> Nat -> Nat -> Nat -> ChildIndexes -> JsonNode
+
+  -- | An immutable document retaining one owned source snapshot and its navigation tape.
+  data JsonDocument where
+    -- | Private owned source, immutable tape and already-validated root node.
+    Document :: Bytes -> Array JsonNode -> JsonNode -> JsonDocument
+
+  -- | An immutable value view retaining its document and selected node without copying the input.
+  data JsonValue where
+    -- | Private document owner and validated selected node.
+    Value :: JsonDocument -> JsonNode -> Option JsonError -> JsonValue
+
+  -- | An explicit partial scan retains a source-backed root and its optional first grammar refusal.
+  data JsonScanResult where
+    -- | Private root view and original refusal; complete scans carry no refusal.
+    Scanned :: JsonValue -> Option JsonError -> JsonScanResult
+
+  -- | Inspect a scan's retained root without implying that its source was a complete document.
+  json-scan-value :: JsonScanResult -> JsonValue
+  json-scan-value scan = case scan of Scanned value error -> value
+
+  -- | Inspect the first grammar refusal independently from completed child views.
+  json-scan-error :: JsonScanResult -> Option JsonError
+  json-scan-error scan = case scan of Scanned value error -> error
+
+  -- | Whether one selected value was completely recognized before its containing scan stopped.
+  json-value-complete :: JsonValue -> Bool
+  json-value-complete value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NPartialNull -> False
+        NPartialTrue -> False
+        NPartialFalse -> False
+        NPartialNumber -> False
+        NPartialString -> False
+        NPartialArray -> False
+        NPartialObject -> False
+        NInvalid -> False
+        other -> True
+
+  -- | Recover a scan refusal only for an incomplete value, preserving completed sibling independence.
+  json-value-refusal :: JsonValue -> Option JsonError
+  json-value-refusal value = if json-value-complete value then None else case value of Value document node refusal -> refusal
+
+  -- | An object member retains its decoded name and source-backed value view.
+  data JsonMember where
+    -- | Private member name/value pair.
+    Member :: String -> JsonValue -> JsonMember
+
+  -- | Observe a decoded object member name.
+  json-member-name :: JsonMember -> String
+  json-member-name member = case member of Member name value -> name
+
+  -- | Observe the member value while retaining its source document.
+  json-member-value :: JsonMember -> JsonValue
+  json-member-value member = case member of Member name value -> value
+
+  -- | Obtain the validated root view without copying document storage.
+  json-document-value :: JsonDocument -> JsonValue
+  json-document-value document = case document of Document input tape root -> Value document root None
+
+  -- | Copy the complete original document bytes before exposing mutable storage.
+  json-document-input :: JsonDocument -> Bytes
+  json-document-input document = case document of Document input tape root -> snapshot input 0 (bytes-len input)
+
+  -- | Observe a node's source start.
+  node-start :: JsonNode -> Nat
+  node-start node = case node of Node kind index start end next children -> start
+
+  -- | Observe a node's source end, including closing quotation/container delimiters.
+  node-end :: JsonNode -> Nat
+  node-end node = case node of Node kind index start end next children -> end
+
+  -- | Observe the selected value's zero-based original source start.
+  json-value-start :: JsonValue -> Nat
+  json-value-start value = case value of Value document node refusal -> node-start node
+
+  -- | Observe the selected value's original exclusive source end.
+  json-value-end :: JsonValue -> Nat
+  json-value-end value = case value of Value document node refusal -> node-end node
+
+  -- | Observe a value category without traversing or decoding its subtree.
+  json-value-kind :: JsonValue -> JsonKind
+  json-value-kind value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NNull -> JsonNullKind
+        NPartialNull -> JsonNullKind
+        NTrue -> JsonBooleanKind
+        NPartialTrue -> JsonBooleanKind
+        NFalse -> JsonBooleanKind
+        NPartialFalse -> JsonBooleanKind
+        NNumber -> JsonNumberKind
+        NPartialNumber -> JsonNumberKind
+        NString -> JsonStringKind
+        NPartialString -> JsonStringKind
+        NKey -> JsonStringKind
+        NArray -> JsonArrayKind
+        NPartialArray -> JsonArrayKind
+        NObject -> JsonObjectKind
+        NPartialObject -> JsonObjectKind
+        other -> JsonInvalidKind
+
+  -- | Copy exactly the selected value's original bytes, preserving duplicate members and number spellings.
+  json-value-source :: JsonValue -> Bytes
+  json-value-source value = case value of
+    Value document node refusal -> case document of
+      Document input tape root ->
+        let start = node-start node in let end = node-end node in
+        if start <= end then snapshot input start (end - start) else bytes-new 0
+
+  -- | Read a boolean literal without treating other categories as false.
+  json-value-bool :: JsonValue -> Option Bool
+  json-value-bool value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of NTrue -> Some True; NFalse -> Some False; other -> None
+
+  -- | Copy one checked source interval, keeping byte aliases private.
+  snapshot :: Bytes -> Nat -> Nat -> Bytes
+  snapshot input start size = if start + size <= bytes-len input then
+    let out = bytes-new size in let copied = bytes-copy-range out input 0 start size in out
+    else bytes-new 0
+
+  -- | Retain a byte owner until an entire private raw traversal has returned.
+  hold-scan :: Bytes -> U64 -> U64
+  hold-scan input result = case bytes-len input of _ -> result
+
+  -- | Classify sixteen bytes for whitespace, digit, string and HTML-escape traversals.
+  -- The caller proves the complete load interval and retains the owner; the kernel has no stores.
+  prim block16 :: I64 -> U32 -> U8 where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %pointer, align 1
+      %space = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tab = icmp eq <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %lf = icmp eq <16 x i8> %bytes, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %cr = icmp eq <16 x i8> %bytes, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
+      %ws0 = or <16 x i1> %space, %tab
+      %ws1 = or <16 x i1> %lf, %cr
+      %ws = or <16 x i1> %ws0, %ws1
+      %d0 = icmp uge <16 x i8> %bytes, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %d1 = icmp ule <16 x i8> %bytes, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digits = and <16 x i1> %d0, %d1
+      %quote = icmp ne <16 x i8> %bytes, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %slash = icmp ne <16 x i8> %bytes, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %printable = icmp uge <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %ascii = icmp ult <16 x i8> %bytes, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
+      %q0 = and <16 x i1> %quote, %slash
+      %ordinary = and <16 x i1> %q0, %printable
+      %asciiordinary = and <16 x i1> %ordinary, %ascii
+      %less = icmp ne <16 x i8> %bytes, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %greater = icmp ne <16 x i8> %bytes, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %amp = icmp ne <16 x i8> %bytes, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %e2 = icmp ne <16 x i8> %bytes, <i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30>
+      %h0 = and <16 x i1> %less, %greater
+      %htmlsafe = and <16 x i1> %h0, %amp
+      %quotehtml = and <16 x i1> %asciiordinary, %htmlsafe
+      %rawhtml = and <16 x i1> %htmlsafe, %e2
+      %m3 = icmp eq i32 %1, 3
+      %m4 = icmp eq i32 %1, 4
+      %h1 = select i1 %m4, <16 x i1> %quotehtml, <16 x i1> %rawhtml
+      %h2 = select i1 %m3, <16 x i1> %asciiordinary, <16 x i1> %h1
+      %m0 = icmp eq i32 %1, 0
+      %m1 = icmp eq i32 %1, 1
+      %m2 = icmp eq i32 %1, 2
+      %q1 = select i1 %m2, <16 x i1> %ordinary, <16 x i1> %h2
+      %q2 = select i1 %m1, <16 x i1> %digits, <16 x i1> %q1
+      %good = select i1 %m0, <16 x i1> %ws, <16 x i1> %q2
+      %mask = bitcast <16 x i1> %good to i16
+      %all = icmp eq i16 %mask, -1
+      %out = zext i1 %all to i8
+      ret i8 %out
+    }
+
+  -- | Traverse complete classified blocks using only machine counters in the hot loop.
+  skip-blocks :: I64 -> U64 -> U32 -> U64 -> U64
+  skip-blocks address remaining mode skipped =
+    if ge-u64 remaining 16 && eq-u8 (block16 address mode) 1 then
+      skip-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) mode (wrapping-add-u64 skipped 16)
+    else skipped
+
+  -- | Convert a machine distance exactly through unsigned halves outside the traversal.
+  scan-distance :: U64 -> Nat
+  scan-distance value =
+    let low = u32-to-nat (wrapping-u64-to-u32 value) in
+    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
+    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
+
+  -- | Establish a complete raw scan interval and retain its backing owner once around the loop.
+  block-end :: Bytes -> Nat -> U32 -> Nat
+  block-end input at mode = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = hold-scan input (skip-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) mode 0) in
+    let size = scan-distance skipped in if size <= remaining then at + size else at
+    else at
+
+  -- | Recognize the four ASCII JSON whitespace bytes.
+  white-byte :: Nat -> Bool
+  white-byte byte = byte == 32 || byte == 9 || byte == 10 || byte == 13
+
+  -- | Recognize one ASCII decimal digit.
+  digit-byte :: Nat -> Bool
+  digit-byte byte = byte >= 48 && byte <= 57
+
+  -- | Recognize one byte permitted unescaped inside a JSON string.
+  ordinary-byte :: Nat -> Bool
+  ordinary-byte byte = byte >= 32 && byte /= 34 && byte /= 92
+
+  -- | Recognize one ordinary ASCII string byte before a scalar/escape boundary.
+  ascii-ordinary-byte :: Nat -> Bool
+  ascii-ordinary-byte byte = byte < 128 && ordinary-byte byte
+
+  -- | Classify a scalar fringe byte according to the shared block mode.
+  good-byte :: U32 -> Nat -> Bool
+  good-byte mode byte = if eq-u32 mode 0 then white-byte byte else if eq-u32 mode 1 then digit-byte byte else if eq-u32 mode 2 then ordinary-byte byte else if eq-u32 mode 3 then ascii-ordinary-byte byte else if eq-u32 mode 4 then ascii-ordinary-byte byte && html-ordinary-byte byte else html-ordinary-byte byte && byte /= 226
+
+  -- | Skip complete vector blocks and a bounded scalar fringe, restarting after false short intervals.
+  run-end :: Bytes -> Nat -> U32 -> Nat
+  run-end input at mode =
+    let next = if at + 16 <= bytes-len input then block-end input at mode else at in
+    run-fringe input next mode 16
+
+  -- | Inspect at most one candidate block or short tail before another bounded vector traversal.
+  run-fringe :: Bytes -> Nat -> U32 -> Nat -> Nat
+  run-fringe input at mode remaining =
+    if at < bytes-len input then
+      if good-byte mode (bytes-get input at) then
+        if remaining > 0 then run-fringe input (at + 1) mode (remaining - 1) else run-end input (at + 1) mode
+      else at
+    else at
+
+  -- | Lexical categories shared by immutable documents and incremental stream readers.
+  data JsonLexTag where
+    -- | Null literal.
+    JsonLexNull :: JsonLexTag
+    -- | True literal.
+    JsonLexTrue :: JsonLexTag
+    -- | False literal.
+    JsonLexFalse :: JsonLexTag
+    -- | Exact numeric token.
+    JsonLexNumber :: JsonLexTag
+    -- | Quoted string token, including a possible object member name.
+    JsonLexString :: JsonLexTag
+    -- | Opening array delimiter.
+    JsonLexArrayStart :: JsonLexTag
+    -- | Closing array delimiter.
+    JsonLexArrayEnd :: JsonLexTag
+    -- | Opening object delimiter.
+    JsonLexObjectStart :: JsonLexTag
+    -- | Closing object delimiter.
+    JsonLexObjectEnd :: JsonLexTag
+    -- | Object member separator.
+    JsonLexColon :: JsonLexTag
+    -- | Array element or object member separator.
+    JsonLexComma :: JsonLexTag
+
+  -- | One lexical token's original byte interval.
+  data JsonLexeme where
+    -- | Private category and zero-based absolute start/exclusive end.
+    Lexeme :: JsonLexTag -> Nat -> Nat -> JsonLexeme
+
+  -- | Observe a lexical token's original start.
+  json-lexeme-start :: JsonLexeme -> Nat
+  json-lexeme-start token = case token of Lexeme tag start end -> start
+
+  -- | Observe a lexical token's original exclusive end.
+  json-lexeme-end :: JsonLexeme -> Nat
+  json-lexeme-end token = case token of Lexeme tag start end -> end
+
+  -- | Observe a lexical category without decoding its source bytes.
+  json-lexeme-tag :: JsonLexeme -> JsonLexTag
+  json-lexeme-tag token = case token of Lexeme tag start end -> tag
+
+  -- | Private number grammar stages preserve ambiguous chunk endings without rescanning a prefix.
+  data NumberStage where
+    -- | A minus sign needs an integer digit.
+    NumMinus :: NumberStage
+    -- | A single leading zero may be followed only by fraction or exponent syntax.
+    NumZero :: NumberStage
+    -- | Ordinary integer digits.
+    NumInteger :: NumberStage
+    -- | A decimal point needs a fraction digit.
+    NumPoint :: NumberStage
+    -- | Ordinary fraction digits.
+    NumFraction :: NumberStage
+    -- | An exponent marker permits one sign and requires a digit.
+    NumExponent :: NumberStage
+    -- | An exponent sign requires a digit.
+    NumExponentSign :: NumberStage
+    -- | Ordinary exponent digits.
+    NumExponentDigits :: NumberStage
+
+  -- | An immutable resumable lexer state; source bytes remain owned by its caller.
+  data JsonLexState where
+    -- | Between tokens and before optional ASCII whitespace.
+    LexIdle :: JsonLexState
+    -- | Inside a quoted token, retaining its original opening offset.
+    LexString :: Nat -> JsonLexState
+    -- | An unfinished UTF-8 prefix inside a string retains its leading-byte checkpoint and bounded progress.
+    LexStringTail :: Nat -> Nat -> Nat -> Nat -> Nat -> JsonLexState
+    -- | A backslash needs an escape code.
+    LexEscape :: Nat -> Nat -> JsonLexState
+    -- | A Unicode escape needs the specified remaining hexadecimal digits.
+    LexHex :: Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> Bool -> JsonLexState
+    -- | A partial number and its original start.
+    LexNumber :: Nat -> Nat -> NumberStage -> JsonLexState
+    -- | A partial fixed literal, its original start and matched byte count.
+    LexWord :: Nat -> JsonLexTag -> Nat -> JsonLexState
+    -- | At most four bytes of an unexpected non-ASCII scalar and its diagnostic context.
+    LexUnexpected :: Nat -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> String -> JsonLexState
+
+  -- | Begin scanning one token without assuming any source chunk is already available.
+  json-lex-start :: JsonLexState
+  json-lex-start = LexIdle
+
+  -- | Incremental lexical progress distinguishes a complete token, clean EOF and a required continuation.
+  data JsonLexStep where
+    -- | Clean final input with no unfinished token, at the returned buffer cursor.
+    JsonLexEnd :: Nat -> JsonLexStep
+    -- | Resume the retained grammar state after supplying more owned source bytes.
+    JsonLexNeedInput :: JsonLexState -> Nat -> JsonLexStep
+    -- | A complete lexical token and the first unconsumed buffer position.
+    JsonLexToken :: JsonLexeme -> Nat -> JsonLexStep
+    -- | A syntax/configuration failure and its consumed buffer cursor.
+    JsonLexFailure :: JsonError -> Nat -> JsonLexStep
+
+  -- | Whether a hexadecimal byte is valid inside a four-digit Unicode escape.
+  hex-byte :: Nat -> Bool
+  hex-byte byte = digit-byte byte || (byte >= 65 && byte <= 70) || (byte >= 97 && byte <= 102)
+
+  -- | Render one small lowercase hexadecimal nibble for syntax diagnostics.
+  hex-nibble-text :: Nat -> String
+  hex-nibble-text nibble = case nibble of
+    0 -> "0"; 1 -> "1"; 2 -> "2"; 3 -> "3"; 4 -> "4"; 5 -> "5"; 6 -> "6"; 7 -> "7"
+    8 -> "8"; 9 -> "9"; 10 -> "a"; 11 -> "b"; 12 -> "c"; 13 -> "d"; 14 -> "e"; other -> "f"
+
+  -- | Render a fixed-width hexadecimal scalar without decimal or locale conversions.
+  diagnostic-hex :: Nat -> Nat -> String
+  diagnostic-hex scalar digits = if digits == 0 then "" else string-concat (diagnostic-hex (nat-div scalar 16) (digits - 1)) (hex-nibble-text (nat-rem scalar 16))
+
+  -- | Classify diagnostic scalars using the immutable Unicode print table.
+  diagnostic-print :: Nat -> Bool
+  diagnostic-print scalar = if scalar <= 1114111 then unicode-is-print-code (wrapping-i64-to-i32 (nat-to-i64 scalar)) else False
+
+  -- | Classify whitespace for deciding whether a bounded escape may use raw quotation marks.
+  diagnostic-space :: Nat -> Bool
+  diagnostic-space scalar = if scalar <= 1114111 then unicode-is-space-code (wrapping-i64-to-i32 (nat-to-i64 scalar)) else False
+
+  -- | Quote a scalar body, retaining malformed source bytes as hexadecimal byte escapes.
+  diagnostic-body :: Nat -> Bool -> Nat -> String
+  diagnostic-body scalar valid quotation =
+    if not valid then string-concat "\\x" (diagnostic-hex scalar 2)
+    else if scalar == 7 then "\\a" else if scalar == 8 then "\\b" else if scalar == 9 then "\\t"
+    else if scalar == 10 then "\\n" else if scalar == 11 then "\\v" else if scalar == 12 then "\\f" else if scalar == 13 then "\\r"
+    else if scalar == 92 then "\\\\"
+    else if scalar == quotation then if quotation == 39 then "\\'" else "\\\""
+    else if diagnostic-print scalar then (case char-from-code scalar of Some character -> pack [character]; None -> "?")
+    else if scalar < 128 then string-concat "\\x" (diagnostic-hex scalar 2)
+    else if scalar <= 65535 then string-concat "\\u" (diagnostic-hex scalar 4)
+    else string-concat "\\U" (diagnostic-hex scalar 8)
+
+  -- | Quote one valid scalar or malformed byte using single quotation marks.
+  diagnostic-rune :: Nat -> Bool -> String
+  diagnostic-rune scalar valid = string-concat-all ["'", diagnostic-body scalar valid 39, "'"]
+
+  -- | Quote a known ASCII grammar selector without interpreting it as a source sequence.
+  quote-byte :: Nat -> String
+  quote-byte byte = diagnostic-rune byte True
+
+  -- | Build a byte-specific syntax diagnostic at its original one-based offset.
+  syntax-byte :: Nat -> Nat -> String -> JsonError
+  syntax-byte offset byte context = JsonSyntaxError offset (string-concat-all ["invalid character ", quote-byte byte, " ", context])
+
+  -- | Include an entire decoded source scalar in a syntax error and its byte offset.
+  syntax-source :: Bytes -> Nat -> Nat -> String -> JsonError
+  syntax-source input at base context = if at < bytes-len input then
+    case utf8-at input at of
+      Some pair -> case pair of (character, width) -> JsonSyntaxError (base + at + width) (string-concat-all ["invalid character ", diagnostic-rune (char-code character) True, " ", context])
+      None -> JsonSyntaxError (base + at + 1) (string-concat-all ["invalid character ", diagnostic-rune (bytes-get input at) False, " ", context])
+    else JsonSyntaxError (base + at) "unexpected end of JSON input"
+
+  -- | Whether bounded diagnostic text needs double-quoted escaping instead of raw backticks.
+  diagnostic-needs-quote :: Bytes -> Nat -> Bool
+  diagnostic-needs-quote input at =
+    if at < bytes-len input then
+      case utf8-at input at of
+        None -> True
+        Some pair -> case pair of
+          (character, width) ->
+            let scalar = char-code character in
+            scalar == 96 || scalar == 65533 || diagnostic-space scalar || not (diagnostic-print scalar) || diagnostic-needs-quote input (at + width)
+    else False
+
+  -- | Render a bounded diagnostic string from complete scalars and malformed byte escapes.
+  diagnostic-string-body :: Bytes -> Nat -> List String -> String
+  diagnostic-string-body input at pieces =
+    if at < bytes-len input then
+      case utf8-at input at of
+        None -> diagnostic-string-body input (at + 1) (Cons (diagnostic-body (bytes-get input at) False 34) pieces)
+        Some pair -> case pair of (character, width) -> diagnostic-string-body input (at + width) (Cons (diagnostic-body (char-code character) True 34) pieces)
+    else string-concat-all (reverse pieces)
+
+  -- | Render at most six original escape bytes without losing malformed UTF-8 or embedded controls.
+  diagnostic-escape :: Bytes -> String
+  diagnostic-escape input = if diagnostic-needs-quote input 0 then string-concat-all ["\"", diagnostic-string-body input 0 Nil, "\""]
+    else case string-from-bytes input of Some text -> string-concat-all ["`", text, "`"]; None -> "\"\""
+
+  -- | Finish an incomplete token only when the caller has declared true end of input.
+  lex-incomplete :: JsonLexState -> Nat -> Nat -> Bool -> JsonLexStep
+  lex-incomplete state at base final =
+    if final then
+      let position = case state of LexString start -> start; LexWord start tag matched -> start; LexNumber start checkpoint phase -> start; other -> base + at in
+      lex-failure-at (JsonSyntaxError (base + at) "unexpected end of JSON input") position at
+    else JsonLexNeedInput state at
+
+  -- | True only for number stages that already form a complete numeric spelling.
+  number-complete :: NumberStage -> Bool
+  number-complete number-phase = case number-phase of NumZero -> True; NumInteger -> True; NumFraction -> True; NumExponentDigits -> True; other -> False
+
+  -- | Return the length of a fixed literal without allocating a comparison buffer.
+  literal-size :: JsonLexTag -> Nat
+  literal-size tag = case tag of JsonLexTrue -> 4; JsonLexFalse -> 5; other -> 4
+
+  -- | Keep exact lexical position as owned error context while retaining the original diagnostic as its cause.
+  lex-failure-at :: JsonError -> Nat -> Nat -> JsonLexStep
+  lex-failure-at error position next = JsonLexFailure (JsonSyntacticError (json-syntactic-info position "") error) next
+
+  -- | Read one fixed literal byte by grammar position.
+  literal-byte :: JsonLexTag -> Nat -> Nat
+  literal-byte tag at = case tag of
+    JsonLexTrue -> case at of 0 -> 116; 1 -> 114; 2 -> 117; other -> 101
+    JsonLexFalse -> case at of 0 -> 102; 1 -> 97; 2 -> 108; 3 -> 115; other -> 101
+    other -> case at of 0 -> 110; 1 -> 117; 2 -> 108; other -> 108
+
+  -- | The fixed literal's display name for an exact lexical diagnostic.
+  literal-text :: JsonLexTag -> String
+  literal-text tag = case tag of JsonLexTrue -> "true"; JsonLexFalse -> "false"; other -> "null"
+
+  -- | Scan at most one token from a checked owned buffer interval, resuming a partial prior token.
+  -- Base is the absolute position of buffer byte zero; returned cursors are local to this buffer.
+  json-lex-read :: JsonLexState -> Bytes -> Nat -> Nat -> Bool -> JsonLexStep
+  json-lex-read state input at base final = case json-lex-read-positioned state input at base final of
+    JsonLexFailure error next -> case error of JsonSyntacticError info cause -> JsonLexFailure cause next; other -> JsonLexFailure error next
+    other -> other
+
+  -- | Retain an exact lexical refusal checkpoint without changing successful token or continuation ownership.
+  json-lex-read-positioned :: JsonLexState -> Bytes -> Nat -> Nat -> Bool -> JsonLexStep
+  json-lex-read-positioned state input at base final =
+    if at > bytes-len input then JsonLexFailure (JsonTargetError "lexer cursor exceeds its source chunk") at
+    else case state of
+      LexIdle -> lex-idle input at base final
+      LexString start -> lex-string input at base final start
+      LexStringTail start checkpoint needed matched first -> lex-string-tail input at base final start checkpoint needed matched first
+      LexEscape start checkpoint -> lex-escape input at base final start checkpoint
+      LexHex start checkpoint remaining prefix valid -> lex-hex input at base final start checkpoint remaining prefix valid
+      LexNumber start checkpoint number-phase -> lex-number input at base final start checkpoint number-phase
+      LexWord start tag matched -> lex-word input at base final start tag matched
+      LexUnexpected start needed matched first prefix context -> lex-unexpected input at base final start needed matched first prefix context
+
+  -- | Skip ASCII whitespace and dispatch the first byte of a new token.
+  lex-idle :: Bytes -> Nat -> Nat -> Bool -> JsonLexStep
+  lex-idle input at base final =
+    if at < bytes-len input then
+      let byte = bytes-get input at in let start = base + at in
+      if white-byte byte then lex-idle input (run-end input at 0) base final
+      else if byte == 34 then lex-string input (at + 1) base final start
+      else if byte == 91 then JsonLexToken (Lexeme JsonLexArrayStart start (start + 1)) (at + 1)
+      else if byte == 93 then JsonLexToken (Lexeme JsonLexArrayEnd start (start + 1)) (at + 1)
+      else if byte == 123 then JsonLexToken (Lexeme JsonLexObjectStart start (start + 1)) (at + 1)
+      else if byte == 125 then JsonLexToken (Lexeme JsonLexObjectEnd start (start + 1)) (at + 1)
+      else if byte == 58 then JsonLexToken (Lexeme JsonLexColon start (start + 1)) (at + 1)
+      else if byte == 44 then JsonLexToken (Lexeme JsonLexComma start (start + 1)) (at + 1)
+      else if byte == 45 then lex-number input (at + 1) base final start start NumMinus
+      else if byte == 48 then lex-number input (at + 1) base final start start NumZero
+      else if byte >= 49 && byte <= 57 then lex-number input (at + 1) base final start start NumInteger
+      else if byte == 116 then lex-word input (at + 1) base final start JsonLexTrue 1
+      else if byte == 102 then lex-word input (at + 1) base final start JsonLexFalse 1
+      else if byte == 110 then lex-word input (at + 1) base final start JsonLexNull 1
+      else unexpected-start input at base final "looking for beginning of value"
+    else if final then JsonLexEnd at else JsonLexNeedInput LexIdle at
+
+  -- | Expected encoded width of a valid leading byte, with malformed leads consuming one byte.
+  unexpected-width :: Nat -> Nat
+  unexpected-width byte = if byte >= 194 && byte <= 223 then 2 else if byte >= 224 && byte <= 239 then 3 else if byte >= 240 && byte <= 244 then 4 else 1
+
+  -- | Validate a continuation prefix without reading past the supplied chunk.
+  unexpected-continuation :: Nat -> Nat -> Nat -> Bool
+  unexpected-continuation first matched byte =
+    byte >= 128 && byte <= 191 && (matched /= 1 || ((first /= 224 || byte >= 160) && (first /= 237 || byte <= 159) && (first /= 240 || byte >= 144) && (first /= 244 || byte <= 143)))
+
+  -- | Finish a scalar diagnostic using only the bounded retained prefix.
+  unexpected-finish :: Nat -> Nat -> List (InRange 0 255 Nat) -> String -> JsonLexStep
+  unexpected-finish at start prefix context = lex-failure-at (syntax-source (bytes-from-list (reverse prefix)) 0 start context) start at
+
+  -- | Retain only an unexpected scalar's bounded prefix while waiting for the next source chunk.
+  lex-unexpected :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> String -> JsonLexStep
+  lex-unexpected input at base final start needed matched first prefix context =
+    if matched >= needed then unexpected-finish at start prefix context
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      if matched == 0 || unexpected-continuation first matched byte then
+        lex-unexpected input (at + 1) base final start needed (matched + 1) first (Cons byte prefix) context
+      else unexpected-finish at start prefix context
+    else if final then unexpected-finish at start prefix context
+    else JsonLexNeedInput (LexUnexpected start needed matched first prefix context) at
+
+  -- | Begin a scalar-aware syntax refusal, permitting a multibyte character to cross chunk boundaries.
+  unexpected-start :: Bytes -> Nat -> Nat -> Bool -> String -> JsonLexStep
+  unexpected-start input at base final context = if at < bytes-len input then
+    let first = bytes-get input at in lex-unexpected input at base final (base + at) (unexpected-width first) 0 first Nil context
+    else lex-incomplete LexIdle at base final
+
+  -- | Scan an unescaped string run while retaining arbitrary non-control source bytes exactly.
+  lex-string :: Bytes -> Nat -> Nat -> Bool -> Nat -> JsonLexStep
+  lex-string input at base final start =
+    if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 34 then JsonLexToken (Lexeme JsonLexString start (base + at + 1)) (at + 1)
+      else if byte == 92 then lex-escape input (at + 1) base final start (base + at)
+      else if byte < 32 then lex-failure-at (syntax-source input at base "in string") (base + at) (at + 1)
+      else lex-string input (run-end input at 2) base final start
+    else lex-string-end input at base final start
+
+  -- | Check the at-most-three continuation bytes of a candidate unfinished string scalar.
+  string-tail-valid :: Bytes -> Nat -> Nat -> Nat -> Bool
+  string-tail-valid input at first matched = if at < bytes-len input then
+    unexpected-continuation first matched (bytes-get input at) && string-tail-valid input (at + 1) first (matched + 1)
+    else True
+
+  -- | Inspect only the bounded trailing UTF-8 prefix when an ordinary string run reaches a chunk end.
+  string-tail-state :: Bytes -> Nat -> Nat -> Nat -> Nat -> Option JsonLexState
+  string-tail-state input base start at remaining =
+    if at < bytes-len input then
+      let first = bytes-get input at in let needed = unexpected-width first in
+      let matched = bytes-len input - at in
+      if needed > 1 then
+        if matched < needed && string-tail-valid input (at + 1) first 1 then Some (LexStringTail start (base + at) needed matched first) else None
+      else if first >= 128 && first <= 191 && at > 0 && remaining > 0 then string-tail-state input base start (at - 1) (remaining - 1)
+      else None
+    else None
+
+  -- | Preserve an incomplete string scalar's original checkpoint across a final empty source read.
+  lex-string-end :: Bytes -> Nat -> Nat -> Bool -> Nat -> JsonLexStep
+  lex-string-end input at base final start =
+    let tail = if bytes-len input > 0 then string-tail-state input base start (bytes-len input - 1) 3 else None in
+    case tail of
+      None -> lex-incomplete (LexString start) at base final
+      Some state -> if final then (case state of LexStringTail saved checkpoint needed matched first -> lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") saved at; other -> lex-incomplete state at base final)
+        else JsonLexNeedInput state at
+
+  -- | Resume a string's bounded UTF-8 prefix, permitting malformed bytes while preserving true EOF checkpoints.
+  lex-string-tail :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> Nat -> Nat -> Nat -> JsonLexStep
+  lex-string-tail input at base final start checkpoint needed matched first =
+    if matched >= needed then lex-string input at base final start
+    else if at < bytes-len input then
+      if unexpected-continuation first matched (bytes-get input at) then lex-string-tail input (at + 1) base final start checkpoint needed (matched + 1) first
+      else lex-string input at base final start
+    else if final then lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") start at
+    else JsonLexNeedInput (LexStringTail start checkpoint needed matched first) at
+
+  -- | Report a bounded malformed escape using its entire available spelling.
+  escape-refusal :: Nat -> List (InRange 0 255 Nat) -> JsonLexStep
+  escape-refusal offset prefix =
+    let bytes = bytes-from-list (reverse prefix) in
+    JsonLexFailure (JsonSyntaxError offset (string-concat-all ["invalid escape sequence ", diagnostic-escape bytes, " in string"])) 0
+
+  -- | Retain the local cursor separately from the absolute diagnostic checkpoint.
+  escape-failure :: Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> JsonLexStep
+  escape-failure at offset position prefix = case escape-refusal offset prefix of
+    JsonLexFailure error ignored -> lex-failure-at error position at
+    other -> other
+
+  -- | Finish a partial escape at its opening backslash rather than after its prefix.
+  escape-incomplete :: JsonLexState -> Nat -> Nat -> Bool -> JsonLexStep
+  escape-incomplete state at checkpoint final =
+    if final then
+      let position = case state of LexNumber start saved phase -> start; other -> checkpoint in
+      lex-failure-at (JsonSyntaxError checkpoint "unexpected end of JSON input") position at
+    else JsonLexNeedInput state at
+
+  -- | Validate one escape selector without prematurely decoding surrogate pairs.
+  lex-escape :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> JsonLexStep
+  lex-escape input at base final start checkpoint =
+    if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 117 then lex-hex input (at + 1) base final start checkpoint 4 (Cons 117 (Cons 92 Nil)) True
+      else if byte == 34 || byte == 47 || byte == 92 || byte == 98 || byte == 102 || byte == 110 || byte == 114 || byte == 116 then lex-string input (at + 1) base final start
+      else escape-failure (at + 1) (base + at + 1) checkpoint (Cons byte (Cons 92 Nil))
+    else escape-incomplete (LexEscape start checkpoint) at checkpoint final
+
+  -- | Retain at most six escape bytes across chunks so diagnostics include the complete spelling.
+  lex-hex :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> Nat -> List (InRange 0 255 Nat) -> Bool -> JsonLexStep
+  lex-hex input at base final start checkpoint remaining prefix valid =
+    if remaining == 0 then
+      if valid then lex-string input at base final start else escape-failure at (base + at) checkpoint prefix
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      lex-hex input (at + 1) base final start checkpoint (remaining - 1) (Cons byte prefix) (valid && hex-byte byte)
+    else if final && not valid then escape-failure at (base + at) checkpoint prefix
+    else escape-incomplete (LexHex start checkpoint remaining prefix valid) at checkpoint final
+
+  -- | Resume a fixed literal without retaining or rescanning previous input chunks.
+  lex-word :: Bytes -> Nat -> Nat -> Bool -> Nat -> JsonLexTag -> Nat -> JsonLexStep
+  lex-word input at base final start tag matched =
+    if matched >= literal-size tag then JsonLexToken (Lexeme tag start (base + at)) at
+    else if at < bytes-len input then
+      let expected = literal-byte tag matched in let byte = bytes-get input at in
+      if byte == expected then lex-word input (at + 1) base final start tag (matched + 1)
+      else unexpected-start input at base final (string-concat-all ["in literal ", literal-text tag, " (expecting ", quote-byte expected, ")"])
+    else lex-incomplete (LexWord start tag matched) at base final
+
+  -- | Recognize exact number grammar, consuming digit runs with bounded SIMD scans.
+  lex-number :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat -> NumberStage -> JsonLexStep
+  lex-number input at base final start checkpoint number-phase =
+    if at >= bytes-len input then
+      if final && number-complete number-phase then JsonLexToken (Lexeme JsonLexNumber start (base + at)) at
+      else escape-incomplete (LexNumber start checkpoint number-phase) at checkpoint final
+    else let byte = bytes-get input at in case number-phase of
+      NumMinus -> if byte == 48 then lex-number input (at + 1) base final start checkpoint NumZero
+        else if byte >= 49 && byte <= 57 then lex-number input (at + 1) base final start checkpoint NumInteger
+        else unexpected-start input at base final "in numeric literal"
+      NumZero -> if byte == 46 then lex-number input (at + 1) base final start (base + at) NumPoint
+        else if byte == 101 || byte == 69 then lex-number input (at + 1) base final start (base + at) NumExponent
+        else JsonLexToken (Lexeme JsonLexNumber start (base + at)) at
+      NumInteger -> if digit-byte byte then lex-number input (run-end input at 1) base final start checkpoint NumInteger
+        else if byte == 46 then lex-number input (at + 1) base final start (base + at) NumPoint
+        else if byte == 101 || byte == 69 then lex-number input (at + 1) base final start (base + at) NumExponent
+        else JsonLexToken (Lexeme JsonLexNumber start (base + at)) at
+      NumPoint -> if digit-byte byte then lex-number input (at + 1) base final start checkpoint NumFraction
+        else unexpected-start input at base final "in numeric literal"
+      NumFraction -> if digit-byte byte then lex-number input (run-end input at 1) base final start checkpoint NumFraction
+        else if byte == 101 || byte == 69 then lex-number input (at + 1) base final start (base + at) NumExponent
+        else JsonLexToken (Lexeme JsonLexNumber start (base + at)) at
+      NumExponent -> if byte == 43 || byte == 45 then lex-number input (at + 1) base final start checkpoint NumExponentSign
+        else if digit-byte byte then lex-number input (at + 1) base final start checkpoint NumExponentDigits
+        else unexpected-start input at base final "in numeric literal"
+      NumExponentSign -> if digit-byte byte then lex-number input (at + 1) base final start checkpoint NumExponentDigits
+        else unexpected-start input at base final "in numeric literal"
+      NumExponentDigits -> if digit-byte byte then lex-number input (run-end input at 1) base final start checkpoint NumExponentDigits
+        else JsonLexToken (Lexeme JsonLexNumber start (base + at)) at
+
+  -- | Explicit container grammar phases avoid call-stack growth with document nesting.
+  data ParsePhase where
+    -- | An array may begin with a value or close immediately.
+    ArrayFirst :: ParsePhase
+    -- | A comma requires another array value.
+    ArrayNext :: ParsePhase
+    -- | A completed array value requires comma or closing bracket.
+    ArrayAfter :: ParsePhase
+    -- | An object may begin with a member name or close immediately.
+    ObjectFirst :: ParsePhase
+    -- | A comma requires another object member name.
+    ObjectNext :: ParsePhase
+    -- | A member name requires its colon.
+    ObjectColon :: ParsePhase
+    -- | A colon requires its member value.
+    ObjectValue :: ParsePhase
+    -- | A completed member requires comma or closing brace.
+    ObjectAfter :: ParsePhase
+
+  -- | One parser frame retains its opening index and reversed direct-child indexes.
+  data ParseFrame where
+    -- | Private grammar phase, opening tape index and direct-child indexes.
+    Frame :: ParsePhase -> Nat -> List Nat -> ParseFrame
+
+  -- | An intermediate token event is paired with its container end only after validation succeeds.
+  data TapeEvent where
+    -- | Private node kind/index/source interval and closing-container direct children.
+    Event :: NodeKind -> Nat -> Nat -> Nat -> ChildIndexes -> TapeEvent
+
+  -- | Closing metadata used by one reverse pass over the event tape.
+  data Closing where
+    -- | Array/object kind, closing tape index, source end and direct children.
+    Close :: NodeKind -> Nat -> Nat -> ChildIndexes -> Closing
+
+  -- | Internal validation outcomes distinguish syntax-only scans from constructed documents.
+  data ParseResult where
+    -- | Successful syntax-only validation without source copying or tape construction.
+    SyntaxValid :: Nat -> ParseResult
+    -- | Successful immutable document construction.
+    DocumentValid :: JsonDocument -> ParseResult
+    -- | Retained incomplete navigation state and its original grammar refusal.
+    DocumentPartial :: JsonDocument -> JsonError -> ParseResult
+    -- | Original syntax or internal representation failure.
+    ParseRefused :: JsonError -> ParseResult
+
+  -- | Append one event only when the caller requested a navigable document.
+  save-event :: Bool -> NodeKind -> Nat -> Nat -> Nat -> ChildIndexes -> List TapeEvent -> List TapeEvent
+  save-event build kind index start end children events = if build then Cons (Event kind index start end children) events else events
+
+  -- | Advance tape indexes only in document-building scans.
+  advance-index :: Bool -> Nat -> Nat
+  advance-index build index = if build then index + 1 else index
+
+  -- | Record one direct child without allocating per-element metadata during syntax-only validation.
+  save-child :: Bool -> Nat -> List Nat -> List Nat
+  save-child build index children = if build then Cons index children else children
+
+  -- | Construct an immutable child-index array once, avoiding an array allocation for empty containers.
+  child-indexes :: Bool -> List Nat -> ChildIndexes
+  child-indexes build children = if build then (case children of Nil -> NoChildren; Cons first rest -> Children (array-from-list (reverse children))) else NoChildren
+
+  -- | Run strict grammar with optional tape construction and no partial result exposure.
+  parse-run :: Bytes -> Bool -> ParseResult
+  parse-run input build = parse-loop input 0 Nil False 0 0 build False Nil
+
+  -- | Validate and snapshot one complete JSON document, preserving all original source spellings.
+  json-document :: Bytes -> Result JsonError JsonDocument
+  json-document input =
+    let owned = snapshot input 0 (bytes-len input) in
+    case parse-run owned True of
+      DocumentValid document -> Ok document
+      DocumentPartial document error -> Err error
+      ParseRefused error -> Err error
+      SyntaxValid end -> Err (JsonValueError "document" "navigation tape was not constructed")
+
+  -- | Scan once while retaining explicit partial value state and the first original grammar refusal.
+  json-scan-document :: Bytes -> JsonScanResult
+  json-scan-document input =
+    let owned = snapshot input 0 (bytes-len input) in
+    case parse-loop owned 0 Nil False 0 0 True True Nil of
+      DocumentValid document -> Scanned (json-document-value document) None
+      DocumentPartial document error -> case document of Document bytes tape root -> Scanned (Value document root (Some error)) (Some error)
+      ParseRefused error -> failed-scan owned error
+      SyntaxValid end -> failed-scan owned (JsonValueError "document" "navigation tape was not constructed")
+
+  -- | Retain a source owner even when a scan could not construct any valid token.
+  failed-scan :: Bytes -> JsonError -> JsonScanResult
+  failed-scan input error =
+    let root = Node NInvalid 0 0 0 1 NoChildren in
+    let document = Document input (array-from-list [root]) root in
+    Scanned (Value document root (Some error)) (Some error)
+
+  -- | Validate JSON byte grammar without constructing a document or decoding scalar strings.
+  json-valid :: Bytes -> Bool
+  json-valid input = case parse-run input False of ParseRefused error -> False; DocumentPartial document error -> False; other -> True
+
+  -- | Retain the original validation failure before formatting any output bytes.
+  validate-input :: Bytes -> Result JsonError Nat
+  validate-input input = case parse-run input False of ParseRefused error -> Err error; DocumentPartial document error -> Err error; SyntaxValid end -> Ok end; DocumentValid document -> Ok (json-value-end (json-document-value document))
+
+  -- | Explain a token that cannot occur where a JSON value was required.
+  token-error :: Bytes -> JsonLexeme -> String -> JsonError
+  token-error input token context = let at = json-lexeme-start token in if at < bytes-len input then syntax-source input at 0 context else JsonSyntaxError at "unexpected end of JSON input"
+
+  -- | Classify whether a refusal was within a value, a member name or container grammar.
+  data StopPhase where
+    -- | The current scalar/value slot was entered.
+    StopValue :: StopPhase
+    -- | A member name was not completed.
+    StopKey :: StopPhase
+    -- | A delimiter or end-of-input was required between values.
+    StopGrammar :: StopPhase
+
+  -- | Retain lexical checkpoints only when the caller requested partial state.
+  parse-lex :: Bool -> Bytes -> Nat -> JsonLexStep
+  parse-lex retain input at = if retain then json-lex-read-positioned LexIdle input at 0 True else json-lex-read LexIdle input at 0 True
+
+  -- | Share the exact grammar while deciding only whether failure retains navigation state.
+  parse-loop :: Bytes -> Nat -> List ParseFrame -> Bool -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-loop input at frames started depth index build retain events =
+    let next = if at < bytes-len input && white-byte (bytes-get input at) then run-end input at 0 else at in
+    if next >= bytes-len input then case frames of
+      Nil -> if started then if build then finish-tape input events else SyntaxValid at
+        else parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
+      Cons first rest -> parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
+    else let byte = bytes-get input next in case frames of
+      Nil -> if started then parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after top-level value")
+        else parse-value input next Nil depth index build retain events
+      Cons first rest -> case first of
+        Frame phase opening children -> case phase of
+          ArrayFirst -> if byte == 93 then close-array input next rest depth index build retain events children
+            else parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
+          ArrayNext -> parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
+          ArrayAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ArrayNext opening children) rest) True depth index build retain events
+            else if byte == 93 then close-array input next rest depth index build retain events children
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 (if build then "after array element" else "after array value"))
+          ObjectFirst -> if byte == 125 then close-object input next rest depth index build retain events children
+            else if byte == 34 then parse-key input next rest opening children depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+          ObjectNext -> if byte == 34 then parse-key input next rest opening children depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+          ObjectColon -> if byte == 58 then parse-loop input (next + 1) (Cons (Frame ObjectValue opening children) rest) True depth index build retain events
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key")
+          ObjectValue -> parse-value input next (Cons (Frame ObjectAfter opening children) rest) depth index build retain events
+          ObjectAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ObjectNext opening children) rest) True depth index build retain events
+            else if byte == 125 then close-object input next rest depth index build retain events children
+            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key:value pair")
+
+  -- | Retain only completed member names before their following value slot is entered.
+  parse-key :: Bytes -> Nat -> List ParseFrame -> Nat -> List Nat -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-key input at rest opening children depth index build retain events = case parse-lex retain input at of
+    JsonLexToken token next ->
+      let saved = save-event build NKey index (json-lexeme-start token) (json-lexeme-end token) NoChildren events in
+      parse-loop input next (Cons (Frame ObjectColon opening (save-child build index children)) rest) True depth (advance-index build index) build retain saved
+    JsonLexFailure error next -> parse-stop input at next (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey error
+    other -> parse-stop input at (bytes-len input) (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+
+  -- | Preserve the existing strict document reader's incomplete-number checkpoint adaptation.
+  document-lex-error :: Bytes -> Nat -> Nat -> Bool -> JsonError -> JsonError
+  document-lex-error input start next build error =
+    if build && next == bytes-len input && start < bytes-len input then
+      let byte = bytes-get input start in
+      if byte == 45 || digit-byte byte then case error of
+        JsonSyntaxError offset message -> if message == "unexpected end of JSON input" then JsonSyntaxError start message else error
+        other -> error
+      else error
+    else error
+
+  -- | Consume one scalar or opening container, sharing token validation and bounded scans.
+  parse-value :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
+  parse-value input at frames depth index build retain events = case parse-lex retain input at of
+    JsonLexFailure error next -> parse-stop input at next frames index build retain events StopValue (if retain then error else document-lex-error input at next build error)
+    JsonLexToken token next -> case token of
+      Lexeme tag start end -> case tag of
+        JsonLexNull -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNull index start end NoChildren events)
+        JsonLexTrue -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NTrue index start end NoChildren events)
+        JsonLexFalse -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NFalse index start end NoChildren events)
+        JsonLexNumber -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNumber index start end NoChildren events)
+        JsonLexString -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NString index start end NoChildren events)
+        JsonLexArrayStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+          else parse-loop input next (Cons (Frame ArrayFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NArray index start end NoChildren events)
+        JsonLexObjectStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+          else parse-loop input next (Cons (Frame ObjectFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NObject index start end NoChildren events)
+        other -> parse-stop input start next frames index build retain events StopValue (token-error input token "looking for beginning of value")
+    other -> parse-stop input at (bytes-len input) frames index build retain events StopValue (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+
+  -- | Close one completely recognized array without retaining any partial marker.
+  close-array :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
+  close-array input at rest depth index build retain events children =
+    let saved = save-event build NArrayEnd index at (at + 1) (child-indexes build children) events in
+    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "array" "closing frame has no opening container")
+
+  -- | Close one completely recognized object without retaining any partial marker.
+  close-object :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
+  close-object input at rest depth index build retain events children =
+    let saved = save-event build NObjectEnd index at (at + 1) (child-indexes build children) events in
+    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "object" "closing frame has no opening container")
+
+  -- | Prepared partial frames, next tape index and immutable reversed events.
+  data PartialBuild where
+    -- | Private partial construction state before structural closure.
+    PartialState :: List ParseFrame -> Nat -> List TapeEvent -> PartialBuild
+
+  -- | Retain the lexical category of an incomplete scalar without constructing a validated scalar token.
+  partial-kind :: Bytes -> Nat -> NodeKind
+  partial-kind input at =
+    if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 110 then NPartialNull else if byte == 116 then NPartialTrue else if byte == 102 then NPartialFalse
+      else if byte == 34 then NPartialString else if byte == 45 || digit-byte byte then NPartialNumber
+      else if byte == 91 then NPartialArray else if byte == 123 then NPartialObject else NInvalid
+    else NInvalid
+
+  -- | Add an entered value slot only where the grammar and typed decoder had selected one.
+  prepare-stop :: Bytes -> Nat -> Nat -> List ParseFrame -> Nat -> List TapeEvent -> StopPhase -> PartialBuild
+  prepare-stop input at next frames index events phase = case phase of
+    StopValue -> PartialState frames (index + 1) (Cons (Event (partial-kind input at) index at next NoChildren) events)
+    StopKey -> PartialState frames index events
+    StopGrammar -> case frames of
+      Nil -> case events of Nil -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events); other -> PartialState frames index events
+      Cons first rest -> case first of
+        Frame expected opening children -> case expected of
+          ArrayFirst -> partial-array-slot at next opening children rest index events
+          ArrayNext -> partial-array-slot at next opening children rest index events
+          ArrayAfter -> partial-array-slot at next opening children rest index events
+          ObjectColon -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+          ObjectValue -> PartialState frames (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+          other -> PartialState frames index events
+
+  -- | Represent the array slot initialized before a missing delimiter or element is discovered.
+  partial-array-slot :: Nat -> Nat -> Nat -> List Nat -> List ParseFrame -> Nat -> List TapeEvent -> PartialBuild
+  partial-array-slot at next opening children rest index events = PartialState (Cons (Frame ArrayAfter opening (Cons index children)) rest) (index + 1) (Cons (Event NInvalid index at next NoChildren) events)
+
+  -- | Close incomplete container metadata in linear time without adding bytes to the original input.
+  close-partial-frames :: List ParseFrame -> Nat -> Nat -> List TapeEvent -> List TapeEvent
+  close-partial-frames frames next index events = case frames of
+    Nil -> events
+    Cons first rest -> case first of
+      Frame phase opening children ->
+        let kind = case phase of ArrayFirst -> NPartialArrayEnd; ArrayNext -> NPartialArrayEnd; ArrayAfter -> NPartialArrayEnd; other -> NPartialObjectEnd in
+        close-partial-frames rest next (index + 1) (Cons (Event kind index next next (child-indexes True children)) events)
+
+  -- | Count the selected array slot without traversing any nested subtree.
+  partial-index-count :: List Nat -> Nat -> Nat
+  partial-index-count indexes count = case indexes of Nil -> count; Cons first rest -> partial-index-count rest (count + 1)
+
+  -- | Decode a completed member name by its already retained constant-time tape index.
+  partial-key-name :: JsonDocument -> List Nat -> Option String
+  partial-key-name document children = case children of
+    Nil -> None
+    Cons index rest -> case document of
+      Document input tape root -> case array-get tape index of None -> None; Some node -> case decode-node-string input node of Err error -> None; Ok name -> Some name
+
+  -- | Select one active grammar component independently from its eventual diagnostic formatting.
+  partial-frame-name :: JsonDocument -> ParseFrame -> Bool -> Option String
+  partial-frame-name document frame skip = case frame of
+    Frame phase opening children ->
+      if skip then case phase of ObjectColon -> partial-key-name document children; ObjectValue -> partial-key-name document children; other -> None
+      else case phase of
+        ObjectColon -> partial-key-name document children
+        ObjectValue -> partial-key-name document children
+        ObjectAfter -> partial-key-name document children
+        ArrayAfter -> let count = partial-index-count children 0 in if count > 0 then Some (nat-to-string (count - 1)) else None
+        other -> None
+
+  -- | Escape a pointer component once, retaining literal conventional names in their separate metadata.
+  partial-pointer-component :: List Char -> List String -> String
+  partial-pointer-component chars reversed = case chars of
+    Nil -> string-concat-all (reverse reversed)
+    Cons first rest -> partial-pointer-component rest (Cons (if char-code first == 126 then "~0" else if char-code first == 47 then "~1" else pack [first]) reversed)
+
+  -- | Render the original active path only on refusal, with one indexed key lookup per frame.
+  partial-pointer :: JsonDocument -> List ParseFrame -> Bool -> List String -> String
+  partial-pointer document frames skip pieces = case frames of
+    Nil -> string-concat-all pieces
+    Cons first rest -> case partial-frame-name document first skip of
+      None -> partial-pointer document rest False pieces
+      Some name -> partial-pointer document rest False (Cons (string-concat "/" (partial-pointer-component (unpack name) Nil)) pieces)
+
+  -- | Retain partial navigation and exact source context only in explicitly requested partial scans.
+  parse-stop :: Bytes -> Nat -> Nat -> List ParseFrame -> Nat -> Bool -> Bool -> List TapeEvent -> StopPhase -> JsonError -> ParseResult
+  parse-stop input at next frames index build retain events phase error =
+    if not retain then ParseRefused error
+    else case prepare-stop input at next frames index events phase of
+      PartialState selected end saved -> case finish-tape input (close-partial-frames selected next end saved) of
+        DocumentValid document ->
+          let skip = case phase of StopValue -> False; other -> True in
+          let pointer = partial-pointer document frames skip Nil in
+          let position = case json-error-syntactic error of None -> at; Some info -> json-syntactic-offset info in
+          let cause = case error of JsonSyntacticError info original -> original; other -> error in
+          DocumentPartial document (JsonSyntacticError (json-syntactic-info position pointer) cause)
+        ParseRefused internal -> ParseRefused internal
+        other -> ParseRefused (JsonValueError "document" "partial navigation tape was not constructed")
+
+  -- | Pair container ends in one reverse traversal before constructing the immutable tape.
+  finish-tape :: Bytes -> List TapeEvent -> ParseResult
+  finish-tape input events = pair-events input events Nil Nil
+
+  -- | Construct forward nodes while carrying only unmatched closing-container metadata.
+  pair-events :: Bytes -> List TapeEvent -> List Closing -> List JsonNode -> ParseResult
+  pair-events input events closes nodes = case events of
+    Nil -> case closes of
+      Cons first rest -> ParseRefused (JsonValueError "document" "unmatched closing tape marker")
+      Nil -> let tape = array-from-list nodes in case array-get tape 0 of
+        Some root -> DocumentValid (Document input tape root)
+        None -> ParseRefused (JsonValueError "document" "missing root tape node")
+    Cons first rest -> case first of
+      Event kind index start end children -> case kind of
+        NArrayEnd -> pair-events input rest (Cons (Close NArray index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NPartialArrayEnd -> pair-events input rest (Cons (Close NPartialArray index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NPartialObjectEnd -> pair-events input rest (Cons (Close NPartialObject index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NObjectEnd -> pair-events input rest (Cons (Close NObject index end children) closes) (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+        NArray -> case closes of
+          Cons closing more -> case closing of
+            Close close-kind close-index close-end close-children -> case close-kind of
+              NArray -> pair-events input rest more (Cons (Node kind index start close-end (close-index + 1) close-children) nodes)
+              NPartialArray -> pair-events input rest more (Cons (Node NPartialArray index start close-end (close-index + 1) close-children) nodes)
+              other -> ParseRefused (JsonValueError "array" "mismatched tape closing marker")
+          Nil -> ParseRefused (JsonValueError "array" "missing tape closing marker")
+        NObject -> case closes of
+          Cons closing more -> case closing of
+            Close close-kind close-index close-end close-children -> case close-kind of
+              NObject -> pair-events input rest more (Cons (Node kind index start close-end (close-index + 1) close-children) nodes)
+              NPartialObject -> pair-events input rest more (Cons (Node NPartialObject index start close-end (close-index + 1) close-children) nodes)
+              other -> ParseRefused (JsonValueError "object" "mismatched tape closing marker")
+          Nil -> ParseRefused (JsonValueError "object" "missing tape closing marker")
+        other -> pair-events input rest closes (Cons (Node kind index start end (index + 1) NoChildren) nodes)
+
+  -- | The invariant exact integer-zero number, usable as a total descriptor default.
+  json-zero-number :: JsonNumber
+  json-zero-number = Number "0"
+
+  -- | An explicitly absent number spelling; typed marshaling represents this default as zero.
+  -- Checked integer and float conversions reject the empty spelling.
+  json-empty-number :: JsonNumber
+  json-empty-number = Number ""
+
+  -- | Read a validated exact number from a source-backed scalar view.
+  json-value-number :: JsonValue -> Option JsonNumber
+  json-value-number value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NNumber -> case string-from-bytes (json-value-source value) of Some text -> Some (Number text); None -> None
+        other -> None
+
+  -- | Validate a complete number spelling without accepting surrounding whitespace or another value.
+  json-number :: String -> Result JsonError JsonNumber
+  json-number text =
+    let input = string-to-bytes text in
+    case json-lex-read LexIdle input 0 0 True of
+      JsonLexToken token next -> case token of
+        Lexeme tag start end -> case tag of
+          JsonLexNumber -> if start == 0 && end == bytes-len input then Ok (Number text)
+            else Err (JsonValueError "number" "spelling contains trailing bytes or surrounding whitespace")
+          other -> Err (JsonValueError "number" "spelling is not a JSON number")
+      JsonLexFailure error next -> Err error
+      other -> Err (JsonValueError "number" "empty number spelling")
+
+  -- | Snapshot explicit operation, original bytes and refusal reason for an application error adapter.
+  json-numeric-error-info :: String -> Bytes -> JsonNumericErrorKind -> JsonNumericError
+  json-numeric-error-info function input kind = NumericError function (snapshot input 0 (bytes-len input)) kind
+
+  -- | Preserve zero for syntax failures and the signed endpoint for range failures.
+  numeric-int-refused :: Bytes -> Bool -> Bool -> JsonNumericResult I64
+  numeric-int-refused input negative range = NumericResult (if range then (if negative then (-9223372036854775808 :: I64) else 9223372036854775807) else 0) (Some (NumericError "ParseInt" input (if range then JsonNumericRange else JsonNumericSyntax)))
+
+  -- | Accumulate unsigned decimal64 first so prefix overflow keeps its original error precedence.
+  numeric-int-from :: Bytes -> Nat -> Bool -> U64 -> JsonNumericResult I64
+  numeric-int-from input at negative total = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then
+      let digit = wrapping-i64-to-u64 (nat-to-i64 (byte - 48)) in
+      if gt-u64 total 1844674407370955161 || (eq-u64 total 1844674407370955161 && gt-u64 digit 5) then numeric-int-refused input negative True
+      else numeric-int-from input (at + 1) negative (wrapping-add-u64 (wrapping-mul-u64 total 10) digit)
+    else numeric-int-refused input negative False
+    else if gt-u64 total (if negative then 9223372036854775808 else 9223372036854775807) then numeric-int-refused input negative True
+      else let value = wrapping-u64-to-i64 total in NumericResult (if negative then wrapping-neg-i64 value else value) None
+
+  -- | Convert arbitrary signed decimal spellings, returning saturated range outcomes and original metadata.
+  json-number-int64-result :: JsonNumber -> JsonNumericResult I64
+  json-number-int64-result number =
+    let input = json-number-bytes number in
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let begin = if bytes-len input > 0 && (bytes-get input 0 == 45 || bytes-get input 0 == 43) then (1 :: Nat) else 0 in
+    if begin < bytes-len input then numeric-int-from input begin negative 0 else numeric-int-refused input negative False
+
+  -- | Reconstruct an IEEE binary64 payload without numeric approximation.
+  prim numeric-float-from-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | Round a retained hexadecimal prefix plus sticky suffix with defined zero, wide and midpoint cases.
+  prim numeric-hex-round :: U64 -> U32 -> U8 -> U64 where
+    llvm {
+      %nonzero = icmp ne i32 %1, 0
+      %below64 = icmp ult i32 %1, 64
+      %narrow = and i1 %nonzero, %below64
+      %safecount = select i1 %narrow, i32 %1, i32 1
+      %shift = zext i32 %safecount to i64
+      %quotient = lshr i64 %0, %shift
+      %unit = shl i64 1, %shift
+      %mask = sub i64 %unit, 1
+      %remainder = and i64 %0, %mask
+      %half = lshr i64 %unit, 1
+      %above = icmp ugt i64 %remainder, %half
+      %tie = icmp eq i64 %remainder, %half
+      %low = and i64 %quotient, 1
+      %odd = icmp ne i64 %low, 0
+      %sticky = icmp ne i8 %2, 0
+      %preferup = or i1 %odd, %sticky
+      %tieup = and i1 %tie, %preferup
+      %up = or i1 %above, %tieup
+      %increment = zext i1 %up to i64
+      %rounded = add i64 %quotient, %increment
+      %above64 = icmp ugt i64 %0, -9223372036854775808
+      %tie64 = icmp eq i64 %0, -9223372036854775808
+      %tieup64 = and i1 %tie64, %sticky
+      %up64 = or i1 %above64, %tieup64
+      %result64 = zext i1 %up64 to i64
+      %exact64 = icmp eq i32 %1, 64
+      %widevalue = select i1 %exact64, i64 %result64, i64 0
+      %shifted = select i1 %below64, i64 %rounded, i64 %widevalue
+      %result = select i1 %nonzero, i64 %shifted, i64 %0
+      ret i64 %result
+    }
+
+  -- | Compare one complete ASCII special spelling without Unicode case expansion.
+  numeric-ascii-equal :: Bytes -> Nat -> String -> Bool
+  numeric-ascii-equal input begin expected =
+    let wanted = string-to-bytes expected in
+    begin <= bytes-len input && bytes-len wanted == bytes-len input - begin && numeric-ascii-from input begin wanted 0
+
+  -- | Compare a bounded ASCII suffix after folding only uppercase Latin letters.
+  numeric-ascii-from :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  numeric-ascii-from input begin wanted at = if at < bytes-len wanted then
+    if begin + at < bytes-len input then
+      let byte = bytes-get input (begin + at) in
+      let lower = if byte >= 65 && byte <= 90 then (byte + 32 :: Nat) else byte in
+      lower == bytes-get wanted at && numeric-ascii-from input begin wanted (at + 1)
+    else False
+    else True
+
+  -- | Whether a checked next source position contains a decimal digit.
+  numeric-next-digit :: Bytes -> Nat -> Bool
+  numeric-next-digit input at = at < bytes-len input && bytes-get input at >= 48 && bytes-get input at <= 57
+
+  -- | Finish a decimal mantissa, adding a zero after a permitted trailing decimal point.
+  numeric-decimal-finish :: List (InRange 0 255 Nat) -> Bool -> Bytes
+  numeric-decimal-finish reversed prior = bytes-from-list (reverse (if prior then reversed else Cons 48 reversed))
+
+  -- | Validate decimal exponent digits and separators while collecting an exact runtime spelling.
+  numeric-decimal-exponent :: Bytes -> Nat -> Bool -> List (InRange 0 255 Nat) -> Option Bytes
+  numeric-decimal-exponent input at prior reversed = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then numeric-decimal-exponent input (at + 1) True (Cons byte reversed)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-decimal-exponent input (at + 1) False reversed
+    else None
+    else if prior then Some (bytes-from-list (reverse reversed)) else None
+
+  -- | Normalize raw decimal mantissas without admitting repeated punctuation or misplaced separators.
+  numeric-decimal :: Bytes -> Nat -> Bool -> Bool -> Bool -> List (InRange 0 255 Nat) -> Option Bytes
+  numeric-decimal input at point seen prior reversed = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then numeric-decimal input (at + 1) point True True (Cons byte reversed)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-decimal input (at + 1) point seen False reversed
+    else if byte == 46 && not point then numeric-decimal input (at + 1) True seen False (Cons 46 (if seen then reversed else Cons 48 reversed))
+    else if (byte == 101 || byte == 69) && seen then
+      let mantissa = if prior then reversed else Cons 48 reversed in
+      let begin = at + 1 in
+      if begin < bytes-len input && (bytes-get input begin == 43 || bytes-get input begin == 45) then
+        numeric-decimal-exponent input (begin + 1) False (Cons (bytes-get input begin) (Cons 101 mantissa))
+      else numeric-decimal-exponent input begin False (Cons 101 mantissa)
+    else None
+    else if seen then Some (numeric-decimal-finish reversed prior) else None
+
+  -- | Parse one ASCII hexadecimal digit without accepting a decimal exponent marker as punctuation.
+  numeric-hex-digit :: Nat -> Option U64
+  numeric-hex-digit byte = if byte >= 48 && byte <= 57 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 48)))
+    else if byte >= 65 && byte <= 70 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 55)))
+    else if byte >= 97 && byte <= 102 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 87)))
+    else None
+
+  -- | Whether a bounded next source byte is a hexadecimal mantissa digit.
+  numeric-next-hex :: Bytes -> Nat -> Bool
+  numeric-next-hex input at = at < bytes-len input && (case numeric-hex-digit (bytes-get input at) of Some digit -> True; None -> False)
+
+  -- | Retain a bounded signed exponent while validating every original decimal digit and separator.
+  numeric-exponent-from :: Bytes -> Nat -> Bool -> Bool -> Nat -> Nat -> Option Int
+  numeric-exponent-from input at negative prior cap total = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then
+      let next = total * 10 + (byte - 48) in
+      numeric-exponent-from input (at + 1) negative True cap (if next < cap then next else cap)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-exponent-from input (at + 1) negative False cap total
+    else None
+    else if prior then Some (if negative then 0 - nat-to-int total else nat-to-int total) else None
+
+  -- | Parse a required optionally signed hexadecimal binary exponent with a safe input-size bound.
+  numeric-exponent :: Bytes -> Nat -> Option Int
+  numeric-exponent input at =
+    let negative = at < bytes-len input && bytes-get input at == 45 in
+    let begin = if at < bytes-len input && (bytes-get input at == 43 || bytes-get input at == 45) then at + 1 else at in
+    numeric-exponent-from input begin negative False (bytes-len input * 4 + 2048) 0
+
+  -- | A bounded hexadecimal prefix, exact digit counts, sticky suffix and binary exponent.
+  data NumericHex where
+    -- | First sixteen significant nibbles, significant/fractional nibble counts, omitted nonzero flag and exponent.
+    HexNumber :: U64 -> Nat -> Nat -> Bool -> Int -> NumericHex
+
+  -- | Validate a complete hexadecimal mantissa while retaining bounded significant bits and exact scale.
+  numeric-hex-mantissa :: Bytes -> Nat -> Bool -> Bool -> Bool -> U64 -> Nat -> Nat -> Bool -> Option NumericHex
+  numeric-hex-mantissa input at point seen prior prefix significant places sticky = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 112 || byte == 80 then
+      if seen then case numeric-exponent input (at + 1) of
+        Some exponent -> Some (HexNumber prefix significant places sticky exponent)
+        None -> None
+      else None
+    else if byte == 46 && not point then numeric-hex-mantissa input (at + 1) True seen False prefix significant places sticky
+    else if byte == 95 && prior && numeric-next-hex input (at + 1) then numeric-hex-mantissa input (at + 1) point seen False prefix significant places sticky
+    else case numeric-hex-digit byte of
+      None -> None
+      Some digit ->
+        let started = significant > 0 || ne-u64 digit 0 in
+        let count = if started then significant + 1 else 0 in
+        let next = if started && significant < 16 then bit-or-u64 (wrapping-shl-u64 prefix 4) digit else prefix in
+        numeric-hex-mantissa input (at + 1) point True True next count (if point then places + 1 else places) (sticky || (significant >= 16 && ne-u64 digit 0))
+    else None
+
+  -- | Quantize a bounded hexadecimal prefix to its target binary unit, preserving discarded midpoint information.
+  numeric-hex-quantize :: U64 -> Int -> Bool -> U64
+  numeric-hex-quantize prefix shift sticky = if shift > 0 then
+    let count = if shift > 64 then (65 :: U32) else wrapping-i64-to-u32 (nat-to-i64 (nat-from-int shift)) in
+    numeric-hex-round prefix count (if sticky then 1 else 0)
+    else let distance = 0 - shift in
+      if distance >= 0 && distance <= 63 then wrapping-shl-u64 prefix (wrapping-i64-to-u32 (nat-to-i64 (nat-from-int distance))) else 0
+
+  -- | Round an exact hexadecimal magnitude directly into normal, subnormal, zero or overflow IEEE bits.
+  numeric-hex-bits :: NumericHex -> U64
+  numeric-hex-bits number = case number of
+    HexNumber prefix significant places sticky exponent ->
+      if eq-u64 prefix 0 then 0 else
+        let width = nat-to-int (saturating-sub 64 (u32-to-nat (leading-zeros-u64 prefix))) in
+        let power = exponent - nat-to-int (places * 4) + nat-to-int (saturating-sub significant 16 * 4) in
+        let highest = power + width - 1 in
+        if highest > 1023 then 9218868437227405312
+        else if highest < -1075 then 0
+        else let unit = if highest < -1022 then (0 - 1074) else highest - 52 in
+          let rounded = numeric-hex-quantize prefix (unit - power) sticky in
+          if highest < -1022 then rounded
+          else let carry = ge-u64 rounded 9007199254740992 in
+            let adjusted = highest + (if carry then 1 else 0) in
+            if adjusted > 1023 then 9218868437227405312
+            else let biased = case checked-int-to-i64 (adjusted + 1023) of Some value -> wrapping-i64-to-u64 value; None -> 2047 in
+              let coefficient = if carry then wrapping-shr-u64 rounded 1 else rounded in
+              bit-or-u64 (wrapping-shl-u64 biased 52) (bit-and-u64 coefficient 4503599627370495)
+
+  -- | Keep syntax failure at positive zero with original function and input metadata.
+  numeric-float-refused :: Bytes -> JsonNumericResult F64
+  numeric-float-refused input = NumericResult (i64-to-f64 0) (Some (NumericError "ParseFloat" input JsonNumericSyntax))
+
+  -- | Keep overflow infinity together with its range error while finite underflow remains successful.
+  numeric-float-complete :: Bytes -> F64 -> JsonNumericResult F64
+  numeric-float-complete input value = NumericResult value (if is-finite-f64 value then None else Some (NumericError "ParseFloat" input JsonNumericRange))
+
+  -- | Convert arbitrary decimal, hexadecimal, separator and special spellings with exact original outcomes.
+  json-number-float64-result :: JsonNumber -> JsonNumericResult F64
+  json-number-float64-result number =
+    let input = json-number-bytes number in
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let begin = if bytes-len input > 0 && (bytes-get input 0 == 43 || bytes-get input 0 == 45) then (1 :: Nat) else 0 in
+    if begin == 0 && numeric-ascii-equal input 0 "nan" then NumericResult (numeric-float-from-bits 9221120237041090560) None
+    else if numeric-ascii-equal input begin "inf" || numeric-ascii-equal input begin "infinity" then NumericResult (numeric-float-from-bits (if negative then 18442240474082181120 else 9218868437227405312)) None
+    else if begin + 2 <= bytes-len input && bytes-get input begin == 48 && (bytes-get input (begin + 1) == 120 || bytes-get input (begin + 1) == 88) then
+      case numeric-hex-mantissa input (begin + 2) False False True 0 0 0 False of
+        None -> numeric-float-refused input
+        Some parsed ->
+          let bits = numeric-hex-bits parsed in
+          numeric-float-complete input (numeric-float-from-bits (if negative then bit-or-u64 bits 9223372036854775808 else bits))
+    else case numeric-decimal input begin False False False (if negative then Cons 45 Nil else Nil) of
+      None -> numeric-float-refused input
+      Some normalized -> numeric-float-complete input (f64-from-decimal normalized)
+
+  -- | Validate the exact spelling of a raw number without accepting repaired or surrounding text.
+  json-number-check :: JsonNumber -> Result JsonError JsonNumber
+  json-number-check number = case number of
+    Number text -> if text == "" then Err (JsonValueError "number" "empty number spelling") else Ok number
+    RawNumber text -> json-number text
+    ByteNumber input -> Err (JsonValueError "number" "number spelling contains malformed UTF-8")
+
+  -- | Convert an exact number to a finite binary float, naming overflow instead of returning infinity.
+  json-number-float64 :: JsonNumber -> Result JsonError F64
+  json-number-float64 number = if json-number-text number == "" then Err (JsonValueError "F64" "empty number spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let value = f64-from-decimal (string-to-bytes (json-number-text number)) in
+        if is-finite-f64 value then Ok value else Err (JsonValueError "F64" "number is outside the finite binary64 range")
+
+  -- | Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
+  json-number-float32 :: JsonNumber -> Result JsonError F32
+  json-number-float32 number = if json-number-text number == "" then Err (JsonValueError "F32" "empty number spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let value = binary32-from-decimal (string-to-bytes (json-number-text number)) in
+        if is-finite-f32 value then Ok value else Err (JsonValueError "F32" "number is outside the finite binary32 range")
+
+  -- | Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
+  json-number-int64 :: JsonNumber -> Result JsonError I64
+  json-number-int64 number = if json-number-text number == "" then Err (JsonValueError "I64" "number is not an integer spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let input = string-to-bytes (json-number-text number) in
+      let negative = 0 < bytes-len input && bytes-get input 0 == 45 in
+      let start = if negative then (1 :: Nat) else 0 in
+      let end = run-end input start 1 in
+      if start >= bytes-len input || end /= bytes-len input then Err (JsonValueError "I64" "number is not an integer spelling")
+      else let limit = if negative then (9223372036854775808 :: Nat) else 9223372036854775807 in
+        case integer-digits input start limit 0 of
+          Err error -> Err error
+          Ok magnitude ->
+            let signed = if negative then int-neg (nat-to-int magnitude) else nat-to-int magnitude in
+            case checked-int-to-i64 signed of Some result -> Ok result; None -> Err (JsonValueError "I64" "integer is outside the signed64 range")
+
+  -- | Accumulate a bounded integer without growing a bignum past the requested limit.
+  integer-digits :: Bytes -> Nat -> Nat -> Nat -> Result JsonError Nat
+  integer-digits input at limit total =
+    if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte >= 48 && byte <= 57 then
+        let digit = byte - 48 in
+        if total <= nat-div limit 10 then
+          let next = total * 10 + digit in
+          if next <= limit then integer-digits input (at + 1) limit next else Err (JsonValueError "I64" "integer is outside the signed64 range")
+        else Err (JsonValueError "I64" "integer is outside the signed64 range")
+      else Err (JsonValueError "I64" "number is not an integer spelling")
+    else Ok total
+
+  -- | Read the element count without traversing nested values or copying the source.
+  json-array-length :: JsonValue -> Option Nat
+  json-array-length value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NArray -> case children of NoChildren -> Some 0; Children indexes -> Some (array-length indexes)
+        NPartialArray -> case children of NoChildren -> Some 0; Children indexes -> Some (array-length indexes)
+        other -> None
+
+  -- | Read one direct array element by zero-based index, retaining its original document owner.
+  json-array-get :: JsonValue -> Nat -> Option JsonValue
+  json-array-get value wanted = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NArray -> case children of
+          NoChildren -> None
+          Children indexes -> case array-get indexes wanted of
+            None -> None
+            Some selected -> case document of Document input tape root -> case array-get tape selected of Some child -> Some (Value document child refusal); None -> None
+        NPartialArray -> case children of
+          NoChildren -> None
+          Children indexes -> case array-get indexes wanted of
+            None -> None
+            Some selected -> case document of Document input tape root -> case array-get tape selected of Some child -> Some (Value document child refusal); None -> None
+        other -> None
+
+  -- | Collect array element views in source order without copying their payload bytes.
+  json-array-values :: JsonValue -> Option (List JsonValue)
+  json-array-values value = case json-array-length value of None -> None; Some count -> Some (array-values-from value 0 count Nil)
+
+  -- | Tail-recursively collect direct array views before restoring their original order.
+  array-values-from :: JsonValue -> Nat -> Nat -> List JsonValue -> List JsonValue
+  array-values-from value at count reversed =
+    if at < count then case json-array-get value at of
+      Some child -> array-values-from value (at + 1) count (Cons child reversed)
+      None -> reverse reversed
+    else reverse reversed
+
+  -- | Read object members in original order, preserving repeated decoded names.
+  json-object-members :: JsonValue -> Option (List JsonMember)
+  json-object-members value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NObject -> case children of NoChildren -> Some Nil; Children indexes -> Some (object-members-from document refusal indexes 0 Nil)
+        NPartialObject -> case children of NoChildren -> Some Nil; Children indexes -> Some (object-members-from document refusal indexes 0 Nil)
+        other -> None
+
+  -- | Decode member names once per returned member, retaining each member value's document.
+  object-members-from :: JsonDocument -> Option JsonError -> Array Nat -> Nat -> List JsonMember -> List JsonMember
+  object-members-from document refusal indexes at reversed =
+    if at < array-length indexes then case array-get indexes at of
+      None -> reverse reversed
+      Some key-index -> case document of
+        Document input tape root -> case array-get tape key-index of
+          None -> reverse reversed
+          Some key-node -> case array-get tape (key-index + 1) of
+            None -> reverse reversed
+            Some value-node -> case decode-node-string input key-node of
+              Err error -> reverse reversed
+              Ok name -> object-members-from document refusal indexes (at + 1) (Cons (Member name (Value document value-node refusal)) reversed)
+    else reverse reversed
+
+  -- | Find the final exact decoded member name; later duplicates replace earlier matches.
+  json-object-lookup :: JsonValue -> String -> Option JsonValue
+  json-object-lookup value wanted = case json-object-members value of None -> None; Some members -> lookup-member members wanted None
+
+  -- | Preserve the last exact match while visiting each member once.
+  lookup-member :: List JsonMember -> String -> Option JsonValue -> Option JsonValue
+  lookup-member members wanted selected = case members of
+    Nil -> selected
+    Cons first rest -> case first of Member name value -> lookup-member rest wanted (if name == wanted then Some value else selected)
+
+  -- | Decode a string value without exposing mutable source storage.
+  json-value-string :: JsonValue -> Option String
+  json-value-string value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> case kind of
+        NString -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
+        NKey -> case document of Document input tape root -> case decode-node-string input node of Ok text -> Some text; Err error -> None
+        other -> None
+
+  -- | Decode a checked hexadecimal byte to its numeric nibble.
+  hex-value :: Nat -> Nat
+  hex-value byte = if byte >= 48 && byte <= 57 then byte - 48 else if byte >= 65 && byte <= 70 then byte - 55 else if byte >= 97 && byte <= 102 then byte - 87 else 0
+
+  -- | Decode exactly four proved hexadecimal bytes without reading a suffix beyond the buffer.
+  hex4 :: Bytes -> Nat -> Option Nat
+  hex4 input at = if at + 4 <= bytes-len input then
+    let a = bytes-get input at in let b = bytes-get input (at + 1) in let c = bytes-get input (at + 2) in let d = bytes-get input (at + 3) in
+    if hex-byte a && hex-byte b && hex-byte c && hex-byte d then Some (hex-value a * 4096 + hex-value b * 256 + hex-value c * 16 + hex-value d) else None
+    else None
+
+  -- | Decode one simple escape selector to its scalar value.
+  escape-scalar :: Nat -> Option Nat
+  escape-scalar byte = case byte of
+    34 -> Some 34; 47 -> Some 47; 92 -> Some 92; 98 -> Some 8; 102 -> Some 12; 110 -> Some 10; 114 -> Some 13; 116 -> Some 9; other -> None
+
+  -- | One decoded scalar and the positive source width consumed to obtain it.
+  data DecodedRune where
+    -- | Private scalar and one-to-twelve-byte encoded source width.
+    Rune :: Nat -> Nat -> DecodedRune
+
+  -- | Decode a validated quoted-string body, replacing invalid UTF-8 and unmatched surrogates.
+  string-rune :: Bytes -> Nat -> Nat -> Option DecodedRune
+  string-rune input at end =
+    if at < end && end <= bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 92 then
+        if at + 1 < end then
+          let escaped = bytes-get input (at + 1) in
+          if escaped == 117 && at + 6 <= end then case hex4 input (at + 2) of
+            None -> None
+            Some first ->
+              if first >= 55296 && first <= 56319 then
+                if at + 12 <= end && bytes-get input (at + 6) == 92 && bytes-get input (at + 7) == 117 then case hex4 input (at + 8) of
+                  Some second -> if second >= 56320 && second <= 57343 then Some (Rune (65536 + (first - 55296) * 1024 + (second - 56320)) 12) else Some (Rune 65533 6)
+                  None -> Some (Rune 65533 6)
+                else Some (Rune 65533 6)
+              else if first >= 56320 && first <= 57343 then Some (Rune 65533 6)
+              else Some (Rune first 6)
+          else case escape-scalar escaped of Some scalar -> Some (Rune scalar 2); None -> None
+        else None
+      else if byte < 128 then Some (Rune byte 1)
+      else case utf8-at input at of
+        None -> Some (Rune 65533 1)
+        Some pair -> case pair of (scalar, width) -> if at + width <= end then Some (Rune (char-code scalar) width) else Some (Rune 65533 1)
+    else None
+
+  -- | Find ordinary ASCII source bytes while preserving the selected string-body interval.
+  string-ascii-end :: Bytes -> Nat -> Nat -> Nat
+  string-ascii-end input at end = let next = run-end input at 3 in if at < next && next <= end then next else at
+
+  -- | Compute exact decoded UTF-8 size before allocating its final output once.
+  string-decoded-size :: Bytes -> Nat -> Nat -> Nat -> Result JsonError Nat
+  string-decoded-size input at end total =
+    if at < end then
+      let next = string-ascii-end input at end in
+      if at < next then string-decoded-size input next end (total + (next - at))
+      else case string-rune input at end of
+        None -> Err (JsonEncodingError (at + 1) "invalid encoded JSON string representation")
+        Some decoded -> case decoded of
+          Rune scalar width ->
+            if width > 0 then string-decoded-size input (at + width) end (total + utf8-encode-width scalar)
+            else Err (JsonEncodingError (at + 1) "zero-width JSON string scalar")
+    else Ok total
+
+  -- | Fill one exact decoded string using complete ordinary spans and checked scalar encoding.
+  string-decoded-write :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Result JsonError Unit
+  string-decoded-write input at end out oi =
+    if at < end then
+      let next = string-ascii-end input at end in
+      if at < next then
+        let size = next - at in
+        if oi + size <= bytes-len out && at + size <= bytes-len input then
+          let copied = bytes-copy-range out input oi at size in string-decoded-write input next end out (oi + size)
+        else Err (JsonEncodingError at "decoded string span exceeds output interval")
+      else case string-rune input at end of
+        None -> Err (JsonEncodingError (at + 1) "invalid encoded JSON string representation")
+        Some decoded -> case decoded of
+          Rune scalar width ->
+            if width > 0 && oi + utf8-encode-width scalar <= bytes-len out then
+              let encoded = utf8-encode-into out oi scalar in string-decoded-write input (at + width) end out (oi + utf8-encode-width scalar)
+            else Err (JsonEncodingError at "decoded scalar exceeds output interval")
+    else Ok ()
+
+  -- | Decode a member-name or string node from its private, validated source interval.
+  decode-node-string :: Bytes -> JsonNode -> Result JsonError String
+  decode-node-string input node =
+    let start = node-start node in let end = node-end node in
+    if start + 2 <= end && end <= bytes-len input then
+      let begin = start + 1 in let finish = end - 1 in
+      case string-decoded-size input begin finish 0 of
+        Err error -> Err error
+        Ok size ->
+          let out = bytes-new size in case string-decoded-write input begin finish out 0 of
+            Err error -> Err error
+            Ok unit -> case string-from-bytes out of Some text -> Ok text; None -> Err (JsonEncodingError start "decoded JSON scalar sequence is not valid UTF-8")
+    else Err (JsonEncodingError start "invalid quoted JSON source interval")
+
+  -- | Recognize source bytes that never require HTML escaping.
+  html-ordinary-byte :: Nat -> Bool
+  html-ordinary-byte byte = byte /= 60 && byte /= 62 && byte /= 38
+
+  -- | Decode one raw UTF-8 scalar, replacing a malformed byte with one replacement scalar.
+  raw-rune :: Bytes -> Nat -> DecodedRune
+  raw-rune input at = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte < 128 then Rune byte 1 else case utf8-at input at of
+      Some pair -> case pair of (scalar, width) -> Rune (char-code scalar) width
+      None -> Rune 65533 1
+    else Rune 0 1
+
+  -- | Recognize control/quotation scalars with a short two-byte JSON escape.
+  short-escape :: Nat -> Bool
+  short-escape scalar = scalar == 34 || scalar == 92 || scalar == 8 || scalar == 12 || scalar == 10 || scalar == 13 || scalar == 9
+
+  -- | Return the second byte of a recognized short JSON escape.
+  escape-byte :: Nat -> InRange 0 255 Nat
+  escape-byte scalar = case scalar of 34 -> 34; 92 -> 92; 8 -> 98; 12 -> 102; 10 -> 110; 13 -> 114; 9 -> 116; other -> 63
+
+  -- | Whether one raw scalar needs a six-byte Unicode escape under the requested policy.
+  unicode-escape :: Nat -> Nat -> Bool -> Bool
+  unicode-escape scalar width html = scalar < 32 || scalar == 8232 || scalar == 8233 || (html && (scalar == 60 || scalar == 62 || scalar == 38))
+
+  -- | The exact output width of one raw scalar in a JSON string body.
+  quote-scalar-size :: Nat -> Nat -> Bool -> Nat
+  quote-scalar-size scalar width html = if short-escape scalar then 2 else if unicode-escape scalar width html then 6 else utf8-encode-width scalar
+
+  -- | Encode one small nibble as a checked ASCII hexadecimal byte.
+  hex-code :: Nat -> InRange 0 255 Nat
+  hex-code nibble = if nibble < 10 then 48 + nibble else if nibble < 16 then 87 + nibble else 48
+
+  -- | Write one complete Unicode escape after checking the entire six-byte destination interval.
+  write-unicode-escape :: Bytes -> Nat -> Nat -> Unit
+  write-unicode-escape out at scalar = if at + 6 <= bytes-len out then
+    let a = bytes-set out at 92 in let b = bytes-set out (at + 1) 117 in
+    let c = bytes-set out (at + 2) (hex-code (nat-rem (nat-div scalar 4096) 16)) in
+    let d = bytes-set out (at + 3) (hex-code (nat-rem (nat-div scalar 256) 16)) in
+    let e = bytes-set out (at + 4) (hex-code (nat-rem (nat-div scalar 16) 16)) in
+    bytes-set out (at + 5) (hex-code (nat-rem scalar 16))
+    else ()
+
+  -- | Count JSON string-body bytes, skipping whole ordinary spans with SIMD classifiers.
+  quote-size :: Bytes -> Nat -> Bool -> Nat -> Nat
+  quote-size input at html total =
+    if at < bytes-len input then
+      let mode = if html then (4 :: U32) else 3 in let next = run-end input at mode in
+      if at < next then quote-size input next html (total + (next - at))
+      else case raw-rune input at of Rune scalar width -> quote-size input (at + width) html (total + quote-scalar-size scalar width html)
+    else total
+
+  -- | Write JSON string-body bytes with checked scalar stores and checked complete-span copies.
+  quote-write :: Bytes -> Nat -> Bool -> Bytes -> Nat -> Unit
+  quote-write input at html out oi =
+    if at < bytes-len input then
+      let mode = if html then (4 :: U32) else 3 in let next = run-end input at mode in
+      if at < next then
+        let size = next - at in
+        if oi + size <= bytes-len out && at + size <= bytes-len input then
+          let copied = bytes-copy-range out input oi at size in quote-write input next html out (oi + size)
+        else ()
+      else case raw-rune input at of
+        Rune scalar width ->
+          if short-escape scalar then
+            if oi + 2 <= bytes-len out then let a = bytes-set out oi 92 in let b = bytes-set out (oi + 1) (escape-byte scalar) in quote-write input (at + width) html out (oi + 2) else ()
+          else if unicode-escape scalar width html then
+            let copied = write-unicode-escape out oi scalar in quote-write input (at + width) html out (oi + 6)
+          else if oi + utf8-encode-width scalar <= bytes-len out then
+            let encoded = utf8-encode-into out oi scalar in quote-write input (at + width) html out (oi + utf8-encode-width scalar)
+          else ()
+    else ()
+
+  -- | Encode arbitrary byte-string contents as valid quoted JSON, replacing each malformed UTF-8 byte.
+  json-quote-bytes :: Bytes -> Bool -> Bytes
+  json-quote-bytes input html =
+    let size = quote-size input 0 html 0 in let out = bytes-new (size + 2) in
+    let opening = bytes-set out 0 34 in let body = quote-write input 0 html out 1 in
+    let closing = bytes-set out (size + 1) 34 in out
+
+  -- | Encode an immutable scalar string with explicit HTML escaping policy.
+  json-quote :: String -> Bool -> Bytes
+  json-quote text html = json-quote-bytes (string-to-bytes text) html
+
+  -- | Recognize exactly the three raw bytes of either Unicode line separator.
+  separator-code :: Bytes -> Nat -> Option Nat
+  separator-code input at = if at + 3 <= bytes-len input then
+    if bytes-get input at == 226 && bytes-get input (at + 1) == 128 then
+      let last = bytes-get input (at + 2) in if last == 168 then Some 8232 else if last == 169 then Some 8233 else None
+    else None
+    else None
+
+  -- | Count byte-preserving HTML escapes without imposing JSON syntax or UTF-8 validity.
+  html-size :: Bytes -> Nat -> Nat -> Nat
+  html-size input at total =
+    if at < bytes-len input then
+      let next = run-end input at 5 in
+      if at < next then html-size input next (total + (next - at))
+      else let byte = bytes-get input at in
+        if not (html-ordinary-byte byte) then html-size input (at + 1) (total + 6)
+        else case separator-code input at of Some scalar -> html-size input (at + 3) (total + 6); None -> html-size input (at + 1) (total + 1)
+    else total
+
+  -- | Write byte-preserving HTML escapes and copy all other bytes, including malformed UTF-8.
+  html-write :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  html-write input at out oi =
+    if at < bytes-len input then
+      let next = run-end input at 5 in
+      if at < next then
+        let size = next - at in
+        if oi + size <= bytes-len out && at + size <= bytes-len input then let copied = bytes-copy-range out input oi at size in html-write input next out (oi + size) else ()
+      else let byte = bytes-get input at in
+        if not (html-ordinary-byte byte) then let copied = write-unicode-escape out oi byte in html-write input (at + 1) out (oi + 6)
+        else case separator-code input at of
+          Some scalar -> let copied = write-unicode-escape out oi scalar in html-write input (at + 3) out (oi + 6)
+          None -> if oi < bytes-len out then let copied = bytes-set out oi byte in html-write input (at + 1) out (oi + 1) else ()
+    else ()
+
+  -- | Append escaped source bytes to an independent copy of an existing destination prefix.
+  json-append-html-escape :: Bytes -> Bytes -> Bytes
+  json-append-html-escape prefix input =
+    let before = bytes-len prefix in let size = html-size input 0 0 in let out = bytes-new (before + size) in
+    let copied = bytes-copy-range out prefix 0 0 before in let escaped = html-write input 0 out before in out
+
+  -- | Escape HTML-sensitive bytes and line separators without validating the source as JSON.
+  json-html-escape :: Bytes -> Bytes
+  json-html-escape input = json-append-html-escape (bytes-new 0) input
+
+  -- | Previous significant token class determines indentation without inspecting string contents again.
+  data FormatPrevious where
+    -- | No output token has been emitted.
+    FormatNone :: FormatPrevious
+    -- | The previous token opened an array/object, which may still be empty.
+    FormatOpen :: FormatPrevious
+    -- | A comma separates the next element/member.
+    FormatComma :: FormatPrevious
+    -- | A scalar, colon or completed container has been emitted.
+    FormatOther :: FormatPrevious
+
+  -- | Decide whether a token closes a container.
+  closes-container :: JsonLexTag -> Bool
+  closes-container tag = case tag of JsonLexArrayEnd -> True; JsonLexObjectEnd -> True; other -> False
+
+  -- | Decide whether a token opens a container.
+  opens-container :: JsonLexTag -> Bool
+  opens-container tag = case tag of JsonLexArrayStart -> True; JsonLexObjectStart -> True; other -> False
+
+  -- | Determine the optional indentation depth before this token.
+  indentation-before :: Bool -> JsonLexTag -> FormatPrevious -> Nat -> Option Nat
+  indentation-before pretty tag previous depth =
+    if not pretty then None
+    else if closes-container tag then case previous of
+      FormatOpen -> None
+      other -> if depth > 0 then Some (depth - 1) else None
+    else case previous of FormatOpen -> Some depth; FormatComma -> Some depth; other -> None
+
+  -- | Update output depth after one already-validated token.
+  format-depth :: JsonLexTag -> Nat -> Nat
+  format-depth tag depth = if opens-container tag then depth + 1 else if closes-container tag && depth > 0 then depth - 1 else depth
+
+  -- | Remember only syntax that affects the next indentation decision.
+  format-previous :: JsonLexTag -> FormatPrevious
+  format-previous tag = if opens-container tag then FormatOpen else case tag of JsonLexComma -> FormatComma; other -> FormatOther
+
+  -- | Compute exact formatter size using preserved token spans and mathematical indentation widths.
+  format-size :: Bytes -> Nat -> Bool -> Nat -> Nat -> Nat -> FormatPrevious -> Nat -> Bool -> Result JsonError Nat
+  format-size input at pretty prefix-size step-size depth previous total next-value =
+    case json-lex-read LexIdle input at 0 True of
+      JsonLexEnd end ->
+        if next-value then
+          case indentation-before pretty JsonLexNull previous depth of
+            None -> Ok total
+            Some level -> Ok (total + 1 + prefix-size + step-size * level)
+        else Ok total
+      JsonLexFailure error next -> Err error
+      JsonLexNeedInput state next -> Err (JsonSyntaxError next "unexpected end of JSON input")
+      JsonLexToken token next -> case token of
+        Lexeme tag start end ->
+          if start <= end then
+            let before = case indentation-before pretty tag previous depth of None -> 0; Some level -> 1 + prefix-size + step-size * level in
+            let after = case tag of JsonLexColon -> if pretty then (1 :: Nat) else 0; other -> 0 in
+            format-size input next pretty prefix-size step-size (format-depth tag depth) (format-previous tag) (total + before + (end - start) + after) next-value
+          else Err (JsonValueError "format" "token source interval is reversed")
+
+  -- | Copy one complete source interval only after checking both destination and source capacities.
+  copy-span :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
+  copy-span out oi input at size = if oi + size <= bytes-len out && at + size <= bytes-len input then bytes-copy-range out input oi at size else ()
+
+  -- | Copy the indentation step repeatedly with constant traversal stack.
+  write-indent-steps :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  write-indent-steps out at step count =
+    if count > 0 then
+      let size = bytes-len step in let copied = copy-span out at step 0 size in
+      write-indent-steps out (at + size) step (count - 1)
+    else at
+
+  -- | Write one newline, prefix and repeated indentation without constructing temporary strings.
+  write-indent-line :: Bytes -> Nat -> Bytes -> Bytes -> Nat -> Nat
+  write-indent-line out at prefix step depth =
+    if at < bytes-len out then
+      let newline = bytes-set out at 10 in let copied = copy-span out (at + 1) prefix 0 (bytes-len prefix) in
+      write-indent-steps out (at + 1 + bytes-len prefix) step depth
+    else at
+
+  -- | Append an indentation colon space after checking its complete destination byte.
+  format-after-token :: Bool -> JsonLexTag -> Bytes -> Nat -> Nat
+  format-after-token pretty tag out at = case tag of
+    JsonLexColon -> if pretty && at < bytes-len out then let copied = bytes-set out at 32 in at + 1 else at
+    other -> at
+
+  -- | Write preserved token spans and indentation into the exact precomputed output interval.
+  format-write :: Bytes -> Nat -> Bool -> Bytes -> Bytes -> Nat -> FormatPrevious -> Bytes -> Nat -> Result JsonError Nat
+  format-write input at pretty prefix step depth previous out oi =
+    case json-lex-read LexIdle input at 0 True of
+      JsonLexEnd end -> Ok oi
+      JsonLexFailure error next -> Err error
+      JsonLexNeedInput state next -> Err (JsonSyntaxError next "unexpected end of JSON input")
+      JsonLexToken token next -> case token of
+        Lexeme tag start end ->
+          if start <= end then
+            let begin = case indentation-before pretty tag previous depth of None -> oi; Some level -> write-indent-line out oi prefix step level in
+            let size = end - start in
+            if begin + size <= bytes-len out && start + size <= bytes-len input then
+              let copied = bytes-copy-range out input begin start size in
+              let after = format-after-token pretty tag out (begin + size) in
+              format-write input next pretty prefix step (format-depth tag depth) (format-previous tag) out after
+            else Err (JsonValueError "format" "token exceeds precomputed output interval")
+          else Err (JsonValueError "format" "token source interval is reversed")
+
+  -- | Validate before appending any bytes, preserving original trailing whitespace only for indentation.
+  append-format :: Bytes -> Bytes -> Bool -> Bytes -> Bytes -> Result JsonError Bytes
+  append-format existing input pretty prefix step =
+    case validate-input input of
+      Err error -> Err error
+      Ok value-end ->
+        case format-size input 0 pretty (bytes-len prefix) (bytes-len step) 0 FormatNone 0 False of
+          Err error -> Err error
+          Ok body-size ->
+            let tail-size = if pretty && value-end <= bytes-len input then bytes-len input - value-end else 0 in
+            let before = bytes-len existing in let out = bytes-new (before + body-size + tail-size) in
+            let copied = bytes-copy-range out existing 0 0 before in
+            case format-write input 0 pretty prefix step 0 FormatNone out before of
+              Err error -> Err error
+              Ok after -> let trailing = copy-span out after input value-end tail-size in Ok out
+
+  -- | Format a lexically complete JSON prefix without requiring its containers or pending members to be complete.
+  -- Every token must be complete. This operation retains only token spelling
+  -- and indentation; it does not accept a prefix as a complete JSON value.
+  json-indent-prefix :: Bytes -> String -> String -> Result JsonError Bytes
+  json-indent-prefix input prefix step =
+    let prefix-bytes = string-to-bytes prefix in let step-bytes = string-to-bytes step in
+    case format-size input 0 True (bytes-len prefix-bytes) (bytes-len step-bytes) 0 FormatNone 0 False of
+      Err error -> Err error
+      Ok size ->
+        let output = bytes-new size in
+        case format-write input 0 True prefix-bytes step-bytes 0 FormatNone output 0 of
+          Err error -> Err error
+          Ok written -> Ok output
+
+  -- | Count the logical byte position of a next value after a lexically complete prefix.
+  -- The caller includes any upcoming colon or comma in the prefix. Pretty
+  -- mode additionally counts colon spacing and pending container indentation.
+  -- This is a diagnostic operation, not complete-document validation.
+  json-prefix-next-offset :: Bytes -> Bool -> String -> String -> Result JsonError Nat
+  json-prefix-next-offset input pretty prefix step = format-size input 0 pretty (bytes-len (string-to-bytes prefix)) (bytes-len (string-to-bytes step)) 0 FormatNone 0 True
+
+  -- | Append compact validated JSON while retaining numeric spellings and original string escape bytes.
+  json-append-compact :: Bytes -> Bytes -> Result JsonError Bytes
+  json-append-compact existing input = append-format existing input False (bytes-new 0) (bytes-new 0)
+
+  -- | Remove insignificant whitespace from one complete validated JSON value.
+  json-compact :: Bytes -> Result JsonError Bytes
+  json-compact input = json-append-compact (bytes-new 0) input
+
+  -- | Append indented JSON, dropping leading whitespace and preserving original trailing whitespace.
+  json-append-indent :: Bytes -> Bytes -> String -> String -> Result JsonError Bytes
+  json-append-indent existing input prefix step = append-format existing input True (string-to-bytes prefix) (string-to-bytes step)
+
+  -- | Indent one complete JSON value with arbitrary per-line prefix and indentation strings.
+  json-indent :: Bytes -> String -> String -> Result JsonError Bytes
+  json-indent input prefix step = json-append-indent (bytes-new 0) input prefix step
+
+
+  -- | Append indented JSON with arbitrary byte prefixes, preserving malformed bytes and embedded NUL.
+  json-append-indent-bytes :: Bytes -> Bytes -> Bytes -> Bytes -> Result JsonError Bytes
+  json-append-indent-bytes existing input prefix step = append-format existing input True prefix step
+
+  -- | Indent one complete value with byte-exact line-prefix and indentation fragments.
+  json-indent-bytes :: Bytes -> Bytes -> Bytes -> Result JsonError Bytes
+  json-indent-bytes input prefix step = json-append-indent-bytes (bytes-new 0) input prefix step
+
+  -- | Select a private member-name tape node while retaining its original source owner.
+  member-key-at :: JsonDocument -> Option JsonError -> Nat -> Option JsonValue
+  member-key-at document refusal at = case document of
+    Document input tape root -> case array-get tape at of
+      None -> None
+      Some node -> case node of
+        Node kind index start end next children -> case kind of NKey -> Some (Value document node refusal); other -> None
+
+  -- | Find the immediately preceding validated key node without copying the complete input document.
+  member-key-before :: JsonValue -> Option JsonValue
+  member-key-before value = case value of
+    Value document node refusal -> case node of
+      Node kind index start end next children -> if index > 0 then member-key-at document refusal (index - 1) else None
+
+  -- | Retain the exact original quoted member-name token as an immutable source-backed string view.
+  json-member-key :: JsonMember -> Option JsonValue
+  json-member-key member = case member of Member name value -> member-key-before value

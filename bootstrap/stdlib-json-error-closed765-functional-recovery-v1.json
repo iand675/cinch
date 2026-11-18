@@ -1,0 +1,163 @@
+{
+  "description": "Root-authorized exact six closed765 functional ELF/IR pairs only; no source/log/receipt/frozen/compiler/provider/runtime/benchmark input archived",
+  "original_payload_bytes": 96419608,
+  "archive_path": "build/json-error-functional-archives/closed765-six-functional-pairs-v1.tar.gz",
+  "archive_bytes": 23723372,
+  "archive_sha256": "f2969f0c2f7a2304eab00329e00f75d972c15b1e7ae4e79639388f922b3ea0df",
+  "decompressed_tar_sha256": "aef7e934006f3980956e4753beb135722e4d72121ccfaf86b53cd55757116324",
+  "members": [
+    {
+      "path": "build/json-method-protocol-probe-v1/consumer.ll",
+      "bytes": 7535858,
+      "mode": 384,
+      "sha256": "58a09bdca026d6ceadfce1da2637c9923ff7acce008d15b0e0d8c8b9f7eb89f1"
+    },
+    {
+      "path": "build/json-method-protocol-probe-v1/consumer",
+      "bytes": 7020160,
+      "mode": 448,
+      "sha256": "d14fc051ce6e9e8242e9d314adcb748fdaeba422438dffd4a12d6a7a26110f4a"
+    },
+    {
+      "path": "build/json-method-protocol-native-v1/consumer.ll",
+      "bytes": 4683442,
+      "mode": 384,
+      "sha256": "230c6d554a03b6e53839bb32ffd7c46eb0430af4083c93768cb9d20701aca41c"
+    },
+    {
+      "path": "build/json-method-protocol-native-v1/consumer",
+      "bytes": 11914856,
+      "mode": 448,
+      "sha256": "4060e783a48b32b29e253c81ccc438467ff067c2e1ddf6c5aa8e7631735f668c"
+    },
+    {
+      "path": "build/json-method-owner-probe-v1/consumer.ll",
+      "bytes": 6217104,
+      "mode": 384,
+      "sha256": "67e8cb4d2ab0d9f59879d6c4ef0da95abf82c76482047ae525eb3f87cece266d"
+    },
+    {
+      "path": "build/json-method-owner-probe-v1/consumer",
+      "bytes": 6780936,
+      "mode": 448,
+      "sha256": "6f696f146881addf7566d4017affcb25439a12a00c45aa05075299e9af43eca9"
+    },
+    {
+      "path": "build/json-method-owner-native-v1/consumer.ll",
+      "bytes": 4304671,
+      "mode": 384,
+      "sha256": "f4547b5225fe3698c03d2d9943bfc6208891163347a557004b6578bb4f438d95"
+    },
+    {
+      "path": "build/json-method-owner-native-v1/consumer",
+      "bytes": 11867200,
+      "mode": 448,
+      "sha256": "8c3fb15aa3fc82b84bc52417ec483992cef299f3e42100b52e6e01a9925f83b8"
+    },
+    {
+      "path": "build/json-addressability-trace-rust-v1/consumer.ll",
+      "bytes": 11013075,
+      "mode": 384,
+      "sha256": "2e3e21d4a5f121c3ca3112ebd29d1f0290a719eaa5dc811acc0261b1a8e29e92"
+    },
+    {
+      "path": "build/json-addressability-trace-rust-v1/consumer",
+      "bytes": 7734856,
+      "mode": 448,
+      "sha256": "8e99be24ce0a1df91c9e8d6e2d05d67ef37c5ccacc55220d4c04a0393c0bae57"
+    },
+    {
+      "path": "build/json-addressability-trace-native-v1/consumer.ll",
+      "bytes": 5318730,
+      "mode": 384,
+      "sha256": "ada27a56dfb210ff8e9f9159ee5ffd921e0b2de8e99cc4d327d74ee88abda461"
+    },
+    {
+      "path": "build/json-addressability-trace-native-v1/consumer",
+      "bytes": 12028720,
+      "mode": 448,
+      "sha256": "9815d7423724b4ad8042be034cf4d893c1056b97eb78940c1f64522668690719"
+    }
+  ],
+  "passed_execution_linkage": [
+    {
+      "stage": "method-protocol",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-method-protocol-rust-v1-results.json",
+      "receipt_sha256": "4203f3e3ba817730e5fde5b657ed1a79c1bdf750dc799584f40bb798991c34c9",
+      "llvm_sha256_from_passed_receipt": "58a09bdca026d6ceadfce1da2637c9923ff7acce008d15b0e0d8c8b9f7eb89f1",
+      "executable_link_path_from_passed_receipt": "build/json-method-protocol-probe-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    },
+    {
+      "stage": "method-protocol",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-method-protocol-native-v1-results.json",
+      "receipt_sha256": "047de25838346fe0524f4fcf3efee4bf8c8a59687afef3aa8c193e1ac119deb4",
+      "llvm_sha256_from_passed_receipt": "230c6d554a03b6e53839bb32ffd7c46eb0430af4083c93768cb9d20701aca41c",
+      "executable_link_path_from_passed_receipt": "build/json-method-protocol-native-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    },
+    {
+      "stage": "method-owner",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-method-owner-rust-v1-results.json",
+      "receipt_sha256": "65c2ede654074afe8abc515cae3919d0e4571529f65400ae29bd8a69861be28a",
+      "llvm_sha256_from_passed_receipt": "67e8cb4d2ab0d9f59879d6c4ef0da95abf82c76482047ae525eb3f87cece266d",
+      "executable_link_path_from_passed_receipt": "build/json-method-owner-probe-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    },
+    {
+      "stage": "method-owner",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-method-owner-native-v1-results.json",
+      "receipt_sha256": "0878c50b108a9377439d0ba62385bbaf0849366426d001bc6afb178c06fc92eb",
+      "llvm_sha256_from_passed_receipt": "f4547b5225fe3698c03d2d9943bfc6208891163347a557004b6578bb4f438d95",
+      "executable_link_path_from_passed_receipt": "build/json-method-owner-native-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    },
+    {
+      "stage": "addressability-trace",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-addressability-trace-rust-v1-results.json",
+      "receipt_sha256": "1fe611667f8aab40eff274bfedb06e6327826323e67bc60851f70b272b394d33",
+      "llvm_sha256_from_passed_receipt": "2e3e21d4a5f121c3ca3112ebd29d1f0290a719eaa5dc811acc0261b1a8e29e92",
+      "executable_link_path_from_passed_receipt": "build/json-addressability-trace-rust-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    },
+    {
+      "stage": "addressability-trace",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-addressability-trace-native-v1-results.json",
+      "receipt_sha256": "0198662232f94b49e06c36d3c1d25a8523fe53cb56a99019e6fff918ede74323",
+      "llvm_sha256_from_passed_receipt": "ada27a56dfb210ff8e9f9159ee5ffd921e0b2de8e99cc4d327d74ee88abda461",
+      "executable_link_path_from_passed_receipt": "build/json-addressability-trace-native-v1/consumer",
+      "executable_prior_hash_available": false,
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    }
+  ],
+  "executable_identity_note": "Historical receipts record successful execution and exact executable link paths but no executable hashes; original ELF hashes are captured now, not retroactively claimed as execution-time hashes. LLVM hashes are checked against their original passed receipts.",
+  "recovery_command": [
+    "tar",
+    "-xzf",
+    "/workspace/dasl-stdlib-json/build/json-error-functional-archives/closed765-six-functional-pairs-v1.tar.gz",
+    "-C",
+    "/workspace/dasl-stdlib-json"
+  ],
+  "verified_before_unlink": true,
+  "durability": "archive+archive-directory fsync; compressed/decompressed/member hashes+size+mode verification; index+index-parent fsync BEFORE any unlink; original file identities and passed-receipt hashes rechecked; each output parent fsynced AFTER unlink",
+  "free_bytes_before": 273600512,
+  "start_guard_bytes": 52428800,
+  "temporary_compressed_limit_bytes": 31457280
+}

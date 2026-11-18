@@ -1,0 +1,20 @@
+{
+  "status": "actual-independent-reference",
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-json/tooling/go_json_stop_context_vectors_v2.go"
+  ],
+  "observer_sha256": "501458704f521ebecc9787807b63fb42ca92356d9b510536243ac321d3b9e3a3",
+  "vectors_sha256": "46e8786c3cb7d40b9fee5eb6253be898385f03b8dfc2cc3577bb7a9ef59982cd",
+  "rows": 8,
+  "elapsed_seconds": 0.4468391409900505,
+  "bytes": 2697,
+  "scope": "Original4 remain separately preserved; adds literal escaped-name and array contexts. SDK metadata remains literal, no normalization.",
+  "previous_vectors_sha256": "17fe43442d5757c6683da257bb1b4d011cab0b6dc60de8bb5e0febdd21edb881",
+  "prior1494_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "Cinch_execution": false
+}

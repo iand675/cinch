@@ -1,0 +1,31 @@
+{
+  "status": "first-normal-fixture-state-mismatch-preserved",
+  "original_row": 357,
+  "failure_code": 5713,
+  "cause": "Nonnullable List I64 cannot represent the source model nullable []int; nullx changes its application state to null before trailing syntax refusal. Correct new model is Option(List I64), with exact collection identity []int inside nullable wrapper. No oracle/state normalization.",
+  "original_project": "build/json-error-syntax-observations-slice-v3",
+  "ELF_IR_stay_plain": true,
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "2a02c4a822d92b6f0cdd20a8fd82ef3fd8ec5699afa90d5fee21ebbee10f66de",
+    "Text.Json.Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "files": {
+    "Text.Json.Dynamic.cinch": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+    "Text.Json.Codec.cinch": "2a02c4a822d92b6f0cdd20a8fd82ef3fd8ec5699afa90d5fee21ebbee10f66de",
+    "emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "execution-receipt.json": "62860457342c0e2257e8cb8a28e5556cf2021d44fed3d4c2a1f23218116a8a06",
+    "Main.cinch": "663fb9a1f8260cd1f955646ac7634a56f2e66ddfdf92010db9590e052822d1a4",
+    "check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "link.log": "11b964f7970495afabaed974af4ed298d47fe2707d0259d9348b97e8d8b1fe0a",
+    "normal.log": "749336887f2be6ff4c2f85cae28f4e8470c9fcd391fdcc6042473dbb161cc27b",
+    "Text.Json.Value.cinch": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0"
+  }
+}

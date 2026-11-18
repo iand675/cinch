@@ -1,0 +1,155 @@
+{
+  "status": "passed-rust-quoted-stage-only",
+  "description": "Rust855/c4 only: all1152 quoted-field outcomes plus original retained descriptor refusal and4 owner/error-family groups; no Native/family/package promotion",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881"
+  },
+  "working_sources_match": {
+    "Data.Array": true,
+    "Data.Bytes.Word": true,
+    "Data.Unicode.Tables": true,
+    "Data.Unicode.Kernel": true,
+    "Text.Json.Binary32": true,
+    "Text.Json.Value": true,
+    "Text.Base64.Encoding": true,
+    "Text.Json.Codec": true
+  },
+  "source_and_runtime_receipts": {
+    "pointer": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-pointer-rust-v1-results.json",
+      "runtime_receipt_sha256": "e6b2a6a007fdca4114ac75b52b634314a14c562bec7c2bbfa16e9059ac601a37",
+      "source_receipt_sha256": "2bdf506113a3483e00008c88cb86ddd190074745859e0adf0c112f238d84b46f",
+      "fixture_sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69",
+      "recovery_index": "bootstrap/stdlib-json-error-pointer-rust-v1-functional-archive.json",
+      "recovery_index_sha256": "b1c3e9a5071d2f7b004663f8362195803502fb217b5385cf769d245795d502c6",
+      "archive_sha256": "4d0e7f50b524b1b3a6a243805f8452cfbb70f4dfe6632a21f86a009383f0d14b",
+      "tested_output_bytes": 15772939
+    },
+    "owner": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-owner-rust-v1-results.json",
+      "runtime_receipt_sha256": "89da68f418301852e7d8434a495c70a5c1036a4d8117347be63de2f2cc7b87eb",
+      "source_receipt_sha256": "fa37aed6342b5c9ee8f39cd018048bba35229efe7d4bbf23b5bf850e828cddb9",
+      "fixture_sha256": "130289ba144caa43c494d8cddac9b663d4f74e01cc82b0ca63bebbe4a049d736",
+      "recovery_index": "bootstrap/stdlib-json-error-owner-rust-v1-functional-archive.json",
+      "recovery_index_sha256": "93c4ce652d2ed0cafa53a90e07f947d2fc6c24a599fdc0f02e06caaed7877102",
+      "archive_sha256": "78c602fccf963949457f02b8d0864fb8bffe1dc34e39ea8e17d8e5ee469642da",
+      "tested_output_bytes": 12764740
+    },
+    "bool": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-bool-rust-v1-results.json",
+      "runtime_receipt_sha256": "a547b34dd640943a61f93ef09914977a0ce16f094fec8c560e61247afdb209b1",
+      "source_receipt_sha256": "cfdc42d16925b6652e72424790b6bd9599e90d528b4a8a926bc4bd4261b04103",
+      "fixture_sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b",
+      "recovery_index": "bootstrap/stdlib-json-error-bool-rust-v1-functional-archive.json",
+      "recovery_index_sha256": "1c0690892a01384f98812ae2f7a1b6a03158a89641717bfc9b2b88401db713e3",
+      "archive_sha256": "42ee714a37270bb9a4c865f288c61df8e998f82d3239dd362a96a5ad92e76c57",
+      "tested_output_bytes": 15170692
+    },
+    "string": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-string-rust-v1-results.json",
+      "runtime_receipt_sha256": "9e77ce787fda8db94f2c9eac77aba5655fa795afe0061e82538bd81f7cc5aa9e",
+      "source_receipt_sha256": "75cb1ded8e5e74557b5775dd2aa0e989eb8511443d94fb7e0ec93d0de54c1bb5",
+      "fixture_sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634",
+      "recovery_index": "bootstrap/stdlib-json-error-string-rust-v1-functional-archive.json",
+      "recovery_index_sha256": "12a367d8d6083bd7ca15b64f39743101731c1c01d27fd87fd29e26a0cab72ed3",
+      "archive_sha256": "f8fe8040249ac7775591cf72420c1ca71457c657483321d06ce426ca5c752382",
+      "tested_output_bytes": 15112636
+    },
+    "integer": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-integer-rust-v1-results.json",
+      "runtime_receipt_sha256": "31c95952165197449e81a5abcbb97b0649f43eec9c2fb6f1e749d8af7949af7c",
+      "source_receipt_sha256": "f1e7ba28097583e93349d01dfacb8a99f5d981a9e8de620d2dd04cca8cdd9a2a",
+      "fixture_sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358",
+      "recovery_index": "bootstrap/stdlib-json-error-integer-rust-v1-functional-archive.json",
+      "recovery_index_sha256": "0ce8138bd46c21b4c3bf6c9d1eb406e966c51cceafe0251e43cea2551cab26c7",
+      "archive_sha256": "83ca967c6a36f4e8ce7c8796cc4628cd4f36b264b075b03d962cdaa4f7bb09af",
+      "tested_output_bytes": 15094890
+    }
+  },
+  "qualified_quoted_reference_rows": 1152,
+  "retained_original_descriptor_rows": 1,
+  "additional_ownership_error_family_groups": 4,
+  "bounded_memory_processes": 10,
+  "independent_oracle_rows_retained": 1494,
+  "sdk_error_render_panic_outcomes_retained": 12,
+  "canonical_docs": {
+    "status": "passed",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "start_guard_bytes": 293601280,
+    "reserve_bytes": 262144000,
+    "output_limit_bytes": 5242880,
+    "scope": "two parse-only doc extractions; no typecheck/emission/runtime/reference",
+    "modules": {
+      "Value": {
+        "source_sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+        "canonical_declarations": 345,
+        "docs_sha256": "bd60718d8856a9b21edb231e974c53087af8c0b6bdc4962b0e6b12209acea206",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+          "doc",
+          "extract",
+          "/workspace/dasl-stdlib-json/compiler/prelude/Text/Json/Value.cinch",
+          "--out",
+          "/workspace/dasl-stdlib-json/build/json-error-docs-rust-v1/Value.json"
+        ]
+      },
+      "Codec": {
+        "source_sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+        "canonical_declarations": 358,
+        "docs_sha256": "774b3057d2886302d3ea30f4d3680253bcb60d0711947dd1624d94649dd8b35b",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+          "doc",
+          "extract",
+          "/workspace/dasl-stdlib-json/compiler/prelude/Text/Json/Codec.cinch",
+          "--out",
+          "/workspace/dasl-stdlib-json/build/json-error-docs-rust-v1/Codec.json"
+        ]
+      }
+    }
+  },
+  "unchanged_canonical_docs": {
+    "Dynamic": {
+      "source_sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+      "canonical_declarations": 73,
+      "docs_sha256": "1259f5d7d9447f8f4096e36059f7d74fcbef9f9515b4d8e84f3f7747ff763e80"
+    },
+    "Binary32": {
+      "source_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "canonical_declarations": 25,
+      "docs_sha256": "fd84ca33ba38a978b50d7f44146e732c1a3b620f756b3cef2c0d6eff793b6891"
+    },
+    "Legacy": {
+      "source_sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
+      "canonical_declarations": 21,
+      "docs_sha256": "ea4651b5c45676a75cd82aec29ea1fa4f7e995aa73cd03a2106e49b253614a91"
+    }
+  },
+  "canonical_json_declarations": 822,
+  "canonical_docs_status": "passed",
+  "remaining_existing_oracle_rows": {
+    "method_errors": 288,
+    "updates": 54
+  },
+  "native_executed": false,
+  "production_promoted": false,
+  "full92_complete": false,
+  "performance_claim": null,
+  "remaining": [
+    "Method JSON/text error identity and context; all12 SDK panic observations remain explicit",
+    "All54 read/type/record/state outcomes and missing error metadata capabilities",
+    "Value-sensitive nullable/interface/key semantics",
+    "Reporting-disabled malformed-syntax partial updates",
+    "Bounded Effect.Json and actual public pipeline evidence",
+    "Native qualification and final92 reconciliation"
+  ]
+}

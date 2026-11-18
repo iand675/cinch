@@ -110,11 +110,14 @@ def main() -> None:
     if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "raw-number", "raw-number-edge", "raw-number-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic", "dynamic-control"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
-    if any(suite in {"dynamic", "dynamic-edge", "dynamic-control"} for suite in args.suites):
+    if any(suite in {"dynamic", "dynamic-edge", "dynamic-control", "addressability"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
         modules["Data.Bytes.Utf8"] = ROOT / "compiler/prelude/Data/Bytes/Utf8.cinch"
         modules["Text.Json.Dynamic"] = ROOT / "compiler/prelude/Text/Json/Dynamic.cinch"
+    if any(suite in {"method-categories", "method-owner-control", "method-protocol", "addressability", "error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"} for suite in args.suites):
+        modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
+        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
     if "dynamic-control" in args.suites:
         modules["Data.Json"] = ROOT / "compiler/prelude/Data/Json.cinch"
         modules["Text.Codec"] = ROOT / "compiler/prelude/Text/Codec.cinch"
@@ -123,6 +126,10 @@ def main() -> None:
     frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
     reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode", "dynamic", "dynamic-edge"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
+    for method_suite in {"method-categories", "addressability", "method-metadata", "method-owner-control", "method-protocol"}.intersection(args.suites):
+        reference_paths[method_suite] = ROOT / ("compiler/tests/fixtures/json-codec-methods-vectors.json" if method_suite in {"method-categories", "addressability"} else "compiler/tests/fixtures/json-codec-methods-vectors-v2.json")
+    for error_suite in {"error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"}.intersection(args.suites):
+        reference_paths[error_suite] = ROOT / "compiler/tests/fixtures/json-codec-error-context-vectors.json"
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,
@@ -133,6 +140,8 @@ def main() -> None:
         "reference_fixtures": {suite: digest(path) for suite, path in reference_paths.items()},
         "cpu_affinity": [args.cpu], "compiler_host_stack_kib": args.compiler_host_stack_kib, "consumer_stack_limit": "8M", "suites": [],
     }
+    if (compiler.parent / "provenance.json").is_file():
+        report["compiler_provenance"] = json.loads((compiler.parent / "provenance.json").read_text())
     if legacy_dependencies:
         report["embedded_legacy_dependencies"] = legacy_dependencies
         report["legacy_dependency_selection"] = "Unchanged Data.Json/Text.Codec contracts come from the strict provided base; no source shadowing of embedded homes. New Text.Json.Legacy remains source-distributed."
@@ -154,7 +163,8 @@ def main() -> None:
         (directory / "reference-vectors.json").write_bytes(reference_paths[suite].read_bytes())
         output = directory / "consumer"
         if args.frontend == "rust":
-            command = [str(compiler), "build", str(directory / "Main.cinch"), "-o", str(output), "--opt-level", str(args.opt_level), "--rc-debug"]
+            command = ([str(compiler), "emit-ir", str(directory / "Main.cinch"), "-o", str(output.with_suffix(".ll")), "--rc-debug"]
+                       if args.runtime_receipt else [str(compiler), "build", str(directory / "Main.cinch"), "-o", str(output), "--opt-level", str(args.opt_level), "--rc-debug"])
         else:
             bundle = directory / "Bundle.cinch"
             bundle.write_text("\n\n".join(contents.decode() for contents in frozen_modules.values()) + "\n\n" + frozen_consumers[suite].decode())
@@ -182,6 +192,13 @@ def main() -> None:
             (directory / "link-report.txt").write_text(linked.stdout + linked.stderr)
             report["raw_compile_command"] = command
             report["raw_link_command"] = link
+        if args.frontend == "rust" and args.runtime_receipt:
+            link = [os.environ.get("CINCH_CLANG", "clang"), f"-O{args.opt_level}", str(output.with_suffix(".ll")), str(args.runtime_receipt.resolve()), "-ldl", "-lpthread", "-lm", "-o", str(output)]
+            linked = execute(link, directory)
+            (directory / "link-report.txt").write_text(linked.stdout + linked.stderr)
+            report["raw_compile_command"] = command
+            report["raw_link_command"] = link
+            report["rust_runtime_selection"] = "Explicit matched-runtime archive; no internal runtime discovery or Cargo build."
         item = {"suite": suite, "consumer_source_sha256": hashlib.sha256(frozen_consumers[suite]).hexdigest(), "llvm_sha256": digest(output.with_suffix(".ll")), "build_seconds": time.monotonic() - started, "runs": []}
         for debug in [False, True]:
             environment = {**os.environ, "CINCH_HEAP_LIMIT": "256M" if debug else "32M", "CINCH_STACK_SIZE": "8M", "CINCH_LEAK_CHECK": "1", "CINCH_RC_DEBUG": "1" if debug else "0", "CINCH_ALLOC_STATS": "1"}

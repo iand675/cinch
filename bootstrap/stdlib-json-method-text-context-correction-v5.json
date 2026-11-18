@@ -1,0 +1,17 @@
+{
+  "status": "prepared-not-qualified",
+  "rationale": "Pinned text method path preserves a directly returned SemanticError verbatim. A private immutable PreservedContext origin barrier keeps automatic record/index paths and public-position offsets from decorating that cause; ordinary JSON semantic errors still compose. Each public Result/JsonEncoded boundary removes only this private barrier, preserving the exact original public family and cause. No mutation, string normalization, oracle change, user JsonReturnedError stripping, or public error flattening.",
+  "old_sources": {
+    "Value": "d912638c037bd2ec203127f654bf4fed9ad3f5ac8495a95d9c5fd7cf3bf5af36",
+    "Codec": "7c7baf97991c086536363a860be81095542e76240e4b0a999d0e7c05eb0c85f8",
+    "Main": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4"
+  },
+  "new_sources": {
+    "Value": "2222a8f6d6ec0e382b3fc5cb9115b53cf4e2d061a87a19a74891457ba99cafa9",
+    "Codec": "b2846240e1fd05e564d9e5dbb135d88934da37755d9a958f837a2148fb095194",
+    "Main": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4"
+  },
+  "oracle_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "preserved_failure": "bootstrap/repros/json-method-error-text-context-v4/preservation.json",
+  "ownership": "Barrier holds the original immutable JsonError directly; no byte copies/mutable continuation cell/new runtime intrinsic. All semantic getters are transparent to the barrier."
+}

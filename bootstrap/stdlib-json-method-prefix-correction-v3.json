@@ -1,0 +1,10 @@
+{
+  "status": "prepared-not-qualified",
+  "old_codec_sha256": "a6b1e9e89ff1286eee16790a63d643b1f44f339337a3d4ec6ea1cdacc6465c44",
+  "new_codec_sha256": "7c7baf97991c086536363a860be81095542e76240e4b0a999d0e7c05eb0c85f8",
+  "unchanged_fixture_sha256": "ad2bd787ce84f32eb2f7f664471bc8042564fd443b05353067b953941d18c972",
+  "oracle_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "rationale": "Pinned Marshal returns nil buffer for every failed legacy-reporting call. The private container prefix is useful for semantic offset composition, but public marshal-attempt must honor the reporting policy when exporting failed output. Current attempt exports it unconditionally.",
+  "scope": "Only failed JsonEncoded public byte export is policy-selected. Original Result error families and logical/error-prefix context are unchanged. Successful output and disabled-policy partial prefix are unchanged.",
+  "preserved_failure": "bootstrap/repros/json-method-error-prefix-v2/preservation.json"
+}

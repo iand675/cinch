@@ -1,0 +1,73 @@
+{
+  "status": "passed",
+  "scope": "First syntax-feature lexical checkpoint component only; 902rows reference-only, selected1494 proof immutable; no partial-mutation completion/promotion claim",
+  "unit": "lexer",
+  "control_groups": 8,
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "22b7d3396727c99d994fa488132c0ccb30c12b4d4456142c08f8d979e1eb0585",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "fixture_path": "/workspace/dasl-stdlib-json/compiler/tests/fixtures/json-syntax-positioned-lexer.cinch",
+  "fixture_sha256": "c8fea89ddade208828b05ac01f4d3af3c49f7c39422f3b3b2e4290c834441eb4",
+  "free_bytes_before": 896753664,
+  "start_guard_bytes": 367001600,
+  "reserve_bytes": 262144000,
+  "output_limit_bytes": 31457280,
+  "archive_scratch_limit_bytes": 10485760,
+  "SDK_evidence_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "runs": [
+    {
+      "poisoned": false,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=273 bytes=5759 peak=681 header-blocks=236 header-bytes=5160 immortal=0 freed=236 live=0\n"
+    },
+    {
+      "poisoned": true,
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=273 bytes=5759 peak=5389 header-blocks=236 header-bytes=5160 immortal=0 freed=236 live=0\n"
+    }
+  ],
+  "check_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v2/source/Main.cinch"
+  ],
+  "check_seconds": 11.222459573007654,
+  "check_exit_code": 0,
+  "emit_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "emit-ir",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v2/source/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v2/runtime/consumer.ll",
+    "--rc-debug"
+  ],
+  "emit_seconds": 9.032664541999111,
+  "emit_exit_code": 0,
+  "link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v2/runtime/consumer.ll",
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-lexer-v2/runtime/consumer"
+  ],
+  "link_seconds": 4.3289188130002,
+  "link_exit_code": 0,
+  "llvm_sha256": "8d87f24d4277395bbc63edbde6a3955db03ad5e928c00332d89724476e7fc443",
+  "executable_sha256": "4a84b50975b2c44797f8019ea42089a6bbe4c24e87b6df14bfebf7eefe3f4d43",
+  "artifact_bytes": 13294283
+}

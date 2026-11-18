@@ -1,0 +1,586 @@
+{
+  "description": "Exact duplicate sealed snapshots/repros remain plain; only equal SHA/size/mode members share inodes; all unique epochs preserved",
+  "before_unique_bytes": 4713573,
+  "after_unique_bytes": 1246526,
+  "logical_member_bytes": 4713573,
+  "relinked": [
+    {
+      "path": "build/json-error-pointer-probe-v2/Data.Unicode.Tables.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Tables.cinch",
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Data.Array.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Text.Json.Binary32.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Binary32.cinch",
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Text.Base64.Encoding.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Base64.Encoding.cinch",
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Data.Unicode.Kernel.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Kernel.cinch",
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v2/Data.Bytes.Word.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Bytes.Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Text.Json.Codec.cinch",
+      "canonical": "build/json-error-pointer-probe-v2/Text.Json.Codec.cinch",
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Data.Unicode.Tables.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Tables.cinch",
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Data.Array.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Text.Json.Binary32.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Binary32.cinch",
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Text.Base64.Encoding.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Base64.Encoding.cinch",
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Data.Unicode.Kernel.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Kernel.cinch",
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v3/Data.Bytes.Word.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Bytes.Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Text.Json.Codec.cinch",
+      "canonical": "build/json-error-pointer-probe-v2/Text.Json.Codec.cinch",
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Data.Unicode.Tables.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Tables.cinch",
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Data.Array.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Text.Json.Binary32.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Binary32.cinch",
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Text.Base64.Encoding.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Base64.Encoding.cinch",
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Data.Unicode.Kernel.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Unicode.Kernel.cinch",
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    {
+      "path": "build/json-error-pointer-probe-v4/Data.Bytes.Word.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Data.Bytes.Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v1/Text.Json.Codec.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Codec.cinch",
+      "sha256": "0fad67f733eaca0217a5a9f381599978d2a3a4f85789f35f14f23d4117569159",
+      "bytes": 146605,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v1/report.json",
+      "canonical": "build/json-error-pointer-probe-v1/report.json",
+      "sha256": "8f7671d2284cd68b2ed108663d3b8fdfcf4f887f849e25ba6239d2b9a7f57d39",
+      "bytes": 9624,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v1/Main.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Main.cinch",
+      "sha256": "5870c85d164ceec3656b66cfb9e1be48940b3e2c0499766626daa9239ce4e61c",
+      "bytes": 45945,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v1/check.log",
+      "canonical": "build/json-error-pointer-probe-v1/check.log",
+      "sha256": "6935e05870c3996f4d472b3e313e262f71be66bdb50b2353cebddd54fbafeadf",
+      "bytes": 129,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v1/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v2/Text.Json.Codec.cinch",
+      "canonical": "build/json-error-pointer-probe-v2/Text.Json.Codec.cinch",
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v2/report.json",
+      "canonical": "build/json-error-pointer-probe-v2/report.json",
+      "sha256": "0802d24cb98a067b4ff441fd333f5ffe1ee4737e0759135263e948f6d584388a",
+      "bytes": 9640,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v2/Main.cinch",
+      "canonical": "build/json-error-pointer-probe-v2/Main.cinch",
+      "sha256": "79485c3975c7d6bf2556bb221ee6b37c3d1a834fd806b25a18a5fe2cbaa90f65",
+      "bytes": 45963,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v2/check.log",
+      "canonical": "build/json-error-pointer-probe-v2/check.log",
+      "sha256": "46c53dbb3a812878b61e3fd8df9a97c658a7b7c281fbf596fc1904d3052db4e9",
+      "bytes": 145,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v2/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v3/Text.Json.Codec.cinch",
+      "canonical": "build/json-error-pointer-probe-v2/Text.Json.Codec.cinch",
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v3/report.json",
+      "canonical": "build/json-error-pointer-probe-v3/report.json",
+      "sha256": "c981817c3b022790d1a3df7a8715853fd657a0bd7b70c00c7766e3defe461af6",
+      "bytes": 9623,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v3/Main.cinch",
+      "canonical": "build/json-error-pointer-probe-v3/Main.cinch",
+      "sha256": "d5dce756b597d6cdbc485ac82968baacb1d4d41821121f7baefd591e1ec37d97",
+      "bytes": 45990,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v3/check.log",
+      "canonical": "build/json-error-pointer-probe-v3/check.log",
+      "sha256": "ef59d29ed4e7472ddcdeaab74f3caab55d8dc175e6d051c3bec712a2c187da79",
+      "bytes": 128,
+      "mode": 384
+    },
+    {
+      "path": "bootstrap/repros/json-error-context-source-v3/Text.Json.Value.cinch",
+      "canonical": "build/json-error-pointer-probe-v1/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    }
+  ],
+  "all_member_identities": {
+    "build/json-error-pointer-probe-v1/Text.Json.Codec.cinch": {
+      "sha256": "0fad67f733eaca0217a5a9f381599978d2a3a4f85789f35f14f23d4117569159",
+      "bytes": 146605,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Data.Unicode.Tables.cinch": {
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Data.Array.cinch": {
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Text.Json.Binary32.cinch": {
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/report.json": {
+      "sha256": "8f7671d2284cd68b2ed108663d3b8fdfcf4f887f849e25ba6239d2b9a7f57d39",
+      "bytes": 9624,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Main.cinch": {
+      "sha256": "5870c85d164ceec3656b66cfb9e1be48940b3e2c0499766626daa9239ce4e61c",
+      "bytes": 45945,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/check.log": {
+      "sha256": "6935e05870c3996f4d472b3e313e262f71be66bdb50b2353cebddd54fbafeadf",
+      "bytes": 129,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Text.Base64.Encoding.cinch": {
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Data.Unicode.Kernel.cinch": {
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v1/Data.Bytes.Word.cinch": {
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Text.Json.Codec.cinch": {
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Data.Unicode.Tables.cinch": {
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Data.Array.cinch": {
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Text.Json.Binary32.cinch": {
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/report.json": {
+      "sha256": "0802d24cb98a067b4ff441fd333f5ffe1ee4737e0759135263e948f6d584388a",
+      "bytes": 9640,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Main.cinch": {
+      "sha256": "79485c3975c7d6bf2556bb221ee6b37c3d1a834fd806b25a18a5fe2cbaa90f65",
+      "bytes": 45963,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/check.log": {
+      "sha256": "46c53dbb3a812878b61e3fd8df9a97c658a7b7c281fbf596fc1904d3052db4e9",
+      "bytes": 145,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Text.Base64.Encoding.cinch": {
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Data.Unicode.Kernel.cinch": {
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v2/Data.Bytes.Word.cinch": {
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Text.Json.Codec.cinch": {
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Data.Unicode.Tables.cinch": {
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Data.Array.cinch": {
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Text.Json.Binary32.cinch": {
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/report.json": {
+      "sha256": "c981817c3b022790d1a3df7a8715853fd657a0bd7b70c00c7766e3defe461af6",
+      "bytes": 9623,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Main.cinch": {
+      "sha256": "d5dce756b597d6cdbc485ac82968baacb1d4d41821121f7baefd591e1ec37d97",
+      "bytes": 45990,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/check.log": {
+      "sha256": "ef59d29ed4e7472ddcdeaab74f3caab55d8dc175e6d051c3bec712a2c187da79",
+      "bytes": 128,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Text.Base64.Encoding.cinch": {
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Data.Unicode.Kernel.cinch": {
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v3/Data.Bytes.Word.cinch": {
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Text.Json.Codec.cinch": {
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Data.Unicode.Tables.cinch": {
+      "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "bytes": 507869,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Data.Array.cinch": {
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "bytes": 1709,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Text.Json.Binary32.cinch": {
+      "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "bytes": 12464,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/report.json": {
+      "sha256": "e9650e690bb6b292329a561c3297e7194ece0390f6026afca6b6696eeb4ebf30",
+      "bytes": 9637,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Main.cinch": {
+      "sha256": "c301eacb8b46efa414e0d5cf6a0cea60fe60f5c9379f0f6623674acdc8c0ec65",
+      "bytes": 45978,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/check.log": {
+      "sha256": "8d681433c4a0ce9637b3f87479f84f78dd6cd2d06b0875b597e4e55b1676a92d",
+      "bytes": 142,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Text.Base64.Encoding.cinch": {
+      "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "bytes": 40735,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Data.Unicode.Kernel.cinch": {
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "bytes": 34313,
+      "mode": 384
+    },
+    "build/json-error-pointer-probe-v4/Data.Bytes.Word.cinch": {
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/Text.Json.Codec.cinch": {
+      "sha256": "0fad67f733eaca0217a5a9f381599978d2a3a4f85789f35f14f23d4117569159",
+      "bytes": 146605,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/report.json": {
+      "sha256": "8f7671d2284cd68b2ed108663d3b8fdfcf4f887f849e25ba6239d2b9a7f57d39",
+      "bytes": 9624,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/Main.cinch": {
+      "sha256": "5870c85d164ceec3656b66cfb9e1be48940b3e2c0499766626daa9239ce4e61c",
+      "bytes": 45945,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/preserved-files.json": {
+      "sha256": "fcb75bc8cf6e6ab66eb98b1ecca129698b55d37811338d8a0ec6f9bb90190972",
+      "bytes": 552,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/check.log": {
+      "sha256": "6935e05870c3996f4d472b3e313e262f71be66bdb50b2353cebddd54fbafeadf",
+      "bytes": 129,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v1/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/Text.Json.Codec.cinch": {
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/report.json": {
+      "sha256": "0802d24cb98a067b4ff441fd333f5ffe1ee4737e0759135263e948f6d584388a",
+      "bytes": 9640,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/Main.cinch": {
+      "sha256": "79485c3975c7d6bf2556bb221ee6b37c3d1a834fd806b25a18a5fe2cbaa90f65",
+      "bytes": 45963,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/preserved-files.json": {
+      "sha256": "295e7abc382eb50cfd5bf97a553aab69d092022ac76496db2f1cd734d894335d",
+      "bytes": 552,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/check.log": {
+      "sha256": "46c53dbb3a812878b61e3fd8df9a97c658a7b7c281fbf596fc1904d3052db4e9",
+      "bytes": 145,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v2/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/Text.Json.Codec.cinch": {
+      "sha256": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881",
+      "bytes": 147291,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/report.json": {
+      "sha256": "c981817c3b022790d1a3df7a8715853fd657a0bd7b70c00c7766e3defe461af6",
+      "bytes": 9623,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/Main.cinch": {
+      "sha256": "d5dce756b597d6cdbc485ac82968baacb1d4d41821121f7baefd591e1ec37d97",
+      "bytes": 45990,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/preserved-files.json": {
+      "sha256": "f105fba78609adae9eef2c1f43014619fe4df78f8f84cf6164c141113ac8debb",
+      "bytes": 567,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/check.log": {
+      "sha256": "ef59d29ed4e7472ddcdeaab74f3caab55d8dc175e6d051c3bec712a2c187da79",
+      "bytes": 128,
+      "mode": 384
+    },
+    "bootstrap/repros/json-error-context-source-v3/Text.Json.Value.cinch": {
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682,
+      "mode": 384
+    }
+  }
+}

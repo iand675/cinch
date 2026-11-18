@@ -1,0 +1,74 @@
+/// Select explicit project retention without changing the default test lifetime.
+fn keep_qualification_projects() -> bool {
+    std::env::var_os("CINCH_KEEP_QUALIFICATION_PROJECTS").as_deref()
+        == Some(std::ffi::OsStr::new("1"))
+}
+
+/// Hash the exact bytes, independent of names or semantic interface interpretation.
+fn qualification_sha256(path: &std::path::Path) -> String {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).unwrap();
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let count = file.read(&mut buffer).unwrap();
+        if count == 0 { break; }
+        hash.update(&buffer[..count]);
+    }
+    format!("{:x}", hash.finalize())
+}
+
+/// Record complete recoverable storage identity for one ordinary file.
+fn qualification_file(path: &std::path::Path, base: &std::path::Path) -> serde_json::Value {
+    let metadata = std::fs::symlink_metadata(path).unwrap();
+    assert!(metadata.is_file() && !metadata.file_type().is_symlink());
+    #[cfg(unix)]
+    let identity = {
+        use std::os::unix::fs::MetadataExt;
+        serde_json::json!({"mode": metadata.mode() & 0o7777,
+            "uid": metadata.uid(), "gid": metadata.gid(),
+            "mtime_ns": metadata.mtime() * 1_000_000_000 + metadata.mtime_nsec()})
+    };
+    #[cfg(not(unix))]
+    let identity = serde_json::json!({"mode": null, "uid": null, "gid": null, "mtime_ns": null});
+    serde_json::json!({"path": path.strip_prefix(base).unwrap(),
+        "bytes": metadata.len(), "sha256": qualification_sha256(path),
+        "identity": identity})
+}
+
+/// Inventory source, interfaces and artifacts after all compilation has completed.
+fn qualification_files(base: &std::path::Path) -> Vec<serde_json::Value> {
+    fn visit(base: &std::path::Path, dir: &std::path::Path, files: &mut Vec<serde_json::Value>) {
+        let mut entries: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        entries.sort();
+        for path in entries {
+            let metadata = std::fs::symlink_metadata(&path).unwrap();
+            assert!(!metadata.file_type().is_symlink());
+            if metadata.is_dir() { visit(base, &path, files); }
+            else if path.file_name().unwrap() != "qualified.json"
+                && path.file_name().unwrap() != "portable-qualified.json" {
+                files.push(qualification_file(&path, base));
+            }
+        }
+    }
+    let mut files = Vec::new();
+    visit(base, base, &mut files);
+    files
+}
+
+/// Publish success atomically only after every required runtime or portable check passed.
+fn qualification_marker(base: &std::path::Path, name: &str, mut marker: serde_json::Value) {
+    use std::io::Write;
+    marker["files"] = serde_json::json!(qualification_files(base));
+    marker["test_process"] = serde_json::json!({"path": std::env::current_exe().unwrap(),
+        "sha256": qualification_sha256(&std::env::current_exe().unwrap())});
+    let path = base.join(name);
+    let temporary = base.join(format!("{name}.pending"));
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&temporary).unwrap();
+    file.write_all(&serde_json::to_vec_pretty(&marker).unwrap()).unwrap();
+    file.write_all(b"\n").unwrap();
+    file.sync_all().unwrap();
+    std::fs::rename(&temporary, &path).unwrap();
+    std::fs::File::open(base).unwrap().sync_all().unwrap();
+}
