@@ -125,8 +125,15 @@ module Bootstrap.RuntimeIr where
   -- expand) and how many decisions it carries (at most one).
   data UnfoldShape where
     MkUnfoldShape :: Bool -> Nat -> UnfoldShape
+  -- Keep emission order in the work list. The index covers both pending
+  -- and emitted workers, so finishing a closure releases its Core body.
+  data WorkerQueue where
+    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> WorkerQueue
+  empty-queue :: WorkerQueue
+  empty-queue = WorkerQueue Nil hash-map-empty False
+
   data RuntimeContext where
-    RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> InlinePlan -> RuntimeContext
+    RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
   data Writer where
     Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
 
@@ -161,7 +168,7 @@ module Bootstrap.RuntimeIr where
   writer-context :: Writer -> RuntimeContext
   writer-context w = case w of Writer next globals code errors layouts context -> context
   writer-program :: Writer -> ProgramInfo
-  writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
+  writer-program w = case writer-context w of RuntimeContext info bounds rigids queue inlining -> info
   program-data :: ProgramInfo -> List CoreData
   program-data info = case data-index-of info of DataIndex datas types constructors unpacked -> datas
   data-index-of :: ProgramInfo -> DataIndex
@@ -246,9 +253,9 @@ module Bootstrap.RuntimeIr where
     Cons (MethodVersion name index actual) rest -> (same owner name && slot == index && same-classes classes actual) || version-present owner slot classes rest
   note-version :: String -> Nat -> List Nat -> Writer -> Writer
   note-version owner slot classes w = case w of
-    Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done inlining) ->
+    Writer next globals code errors layouts (RuntimeContext info bounds rigids queue inlining) ->
       if list-length classes == 0 || version-present owner slot classes (program-versions info) then w else
-        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids pending done inlining)
+        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids queue inlining)
   method-class-ids :: CoreClassMethod -> List Nat
   method-class-ids member = case scheme-requirements (class-method-scheme member) of Cons self rest -> type-free-bound (requirement-type self); Nil -> Nil
   id-present :: Nat -> List Nat -> Bool
@@ -335,7 +342,7 @@ module Bootstrap.RuntimeIr where
     UApp (UCon name kind) predicate -> same name "b.Dec" && kind-equal kind (KFun KProp KType) && kind-equal (type-kind predicate) KProp && valid-type predicate
     other -> False
   program-info :: RuntimeContext -> ProgramInfo
-  program-info context = case context of RuntimeContext info bounds rigids pending done inlining -> info
+  program-info context = case context of RuntimeContext info bounds rigids queue inlining -> info
   foreign-type-equal :: UType -> UType -> Bool
   foreign-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) first second (empty-store "foreign ABI type")) of Nil -> True; other -> False)
   foreign-parameter-matches :: UType -> ForeignParameter -> Bool
@@ -363,7 +370,7 @@ module Bootstrap.RuntimeIr where
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-foreign-plans (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
-    RuntimeContext datas bounds rigids pending done inlining -> case base ty of
+    RuntimeContext datas bounds rigids queue inlining -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
@@ -500,10 +507,8 @@ module Bootstrap.RuntimeIr where
     Some opened -> Some (opened <> private-word-classes (core-private-types d))
   with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
   with-representations bounds rigids w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done inlining) ->
-      Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining)
-  demand-seen :: String -> List Demand -> Bool
-  demand-seen key demands = case demands of Nil -> False; Cons first rest -> same key (demand-key first) || demand-seen key rest
+    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid queue inlining) ->
+      Writer next globals code errors layouts (RuntimeContext datas bounds rigids queue inlining)
   demand-key :: Demand -> String
   demand-key demand = case demand of
     Demand name classes -> specialized-name name classes
@@ -522,9 +527,11 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining) ->
-      if demand-seen (demand-key demand) (pending <> done) then w else
-        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons demand pending) done inlining)
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) ->
+      let key = demand-key demand in case hash-map-lookup key keys of
+        Some found -> w
+        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries in
+          Writer next globals code errors layouts (RuntimeContext datas bounds rigids queue inlining)
   demand-worker :: String -> List Nat -> Writer -> Writer
   demand-worker name classes w = request-demand (Demand name classes) w
   runtime-number :: UType -> String
@@ -763,13 +770,13 @@ module Bootstrap.RuntimeIr where
   request-data sp d classes w = case class-bindings (core-data-params d) classes of
     None -> (refuse w sp "data parameters need first-order runtime representation classes", Nil)
     Some bounds -> case w of
-      Writer next globals code errors (LayoutPlan names) (RuntimeContext datas old-bound rigids pending done inlining) ->
+      Writer next globals code errors (LayoutPlan names) (RuntimeContext datas old-bound rigids queue inlining) ->
         let key = specialized-name (core-data-name d) classes in
         case named-layout key names of
           Some descriptions -> (w, descriptions)
           None -> if list-length (core-data-constructors d) >= 16777216 then
             (refuse w sp "data family exceeds the runtime descriptor tag capacity", Nil)
-            else case constructor-descriptions (RuntimeContext datas bounds Nil pending done inlining) d 0 (core-data-constructors d) w of
+            else case constructor-descriptions (RuntimeContext datas bounds Nil queue inlining) d 0 (core-data-constructors d) w of
               (described, descriptions) -> (remember-layout key descriptions described, descriptions)
   remember-layout :: String -> List Nat -> Writer -> Writer
   remember-layout key descriptions w = case w of
@@ -1574,11 +1581,11 @@ module Bootstrap.RuntimeIr where
     None -> None
     Some bounds -> case definition-rigids d bounds of
       None -> None
-      Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids Nil Nil NoInline)
+      Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids empty-queue NoInline)
   constructor-context :: CoreData -> List Nat -> Writer -> Option RuntimeContext
   constructor-context d classes w = case class-bindings (core-data-params d) classes of
     None -> None
-    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil NoInline)
+    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil empty-queue NoInline)
   -- Array workers specialize on checked element classes; packed constructors
   -- carry their fixed format in their canonical operation identity.
   array-binder-field :: CoreData -> UType -> Bool
@@ -2637,7 +2644,7 @@ module Bootstrap.RuntimeIr where
     Nil -> None
     Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
   extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
-  extend-context bindings context = case context of RuntimeContext info bounds rigids pending done inlining -> RuntimeContext info (bindings <> bounds) rigids pending done inlining
+  extend-context bindings context = case context of RuntimeContext info bounds rigids queue inlining -> RuntimeContext info (bindings <> bounds) rigids queue inlining
   external-field-map :: Writer -> CoreClass -> Scheme -> List Nat -> List (Nat, Nat, List Nat) -> Option (List Nat)
   external-field-map w description factory factory-codes slots = case slots of
     Nil -> Some Nil
@@ -3034,7 +3041,7 @@ module Bootstrap.RuntimeIr where
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh w ".lambda" in
         (case writer-context named of
-          RuntimeContext datas bounds rigids pending done inlining ->
+          RuntimeContext datas bounds rigids queue inlining ->
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
             case capture-values saved planned of
               (ready, values) -> closure sp name classes values ready)
@@ -3056,7 +3063,7 @@ module Bootstrap.RuntimeIr where
   request-recursive-workers group pending saved w = case pending of
     Nil -> w
     Cons member rest -> case writer-context w of
-      RuntimeContext datas bounds rigids earlier done inlining ->
+      RuntimeContext datas bounds rigids queue inlining ->
         request-recursive-workers group rest saved (request-demand (RecursiveDemand member group bounds rigids saved) w)
   -- The sibling closures save only the group's outer environment. Rebuild
   -- a closure when its worker needs that value without an owning cycle.
@@ -3291,11 +3298,11 @@ module Bootstrap.RuntimeIr where
     (Cons id rest, Cons code more) -> Cons (id, code) (zip-classes rest more)
     other -> Nil
   writer-rigids :: Writer -> List (Nat, Nat)
-  writer-rigids w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> rigids
+  writer-rigids w = case writer-context w of RuntimeContext info bounds rigids queue inlining -> rigids
   with-writer-rigids :: List (Nat, Nat) -> Writer -> Writer
   with-writer-rigids rigids w = case w of
-    Writer next globals code errors layouts (RuntimeContext info bounds old pending done inlining) ->
-      Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done inlining)
+    Writer next globals code errors layouts (RuntimeContext info bounds old queue inlining) ->
+      Writer next globals code errors layouts (RuntimeContext info bounds rigids queue inlining)
   writer-errors :: Writer -> List Diagnostic
   writer-errors w = case w of Writer next globals code errors layouts context -> errors
   poly-project :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> List UType -> (Writer, String)
@@ -3916,10 +3923,10 @@ module Bootstrap.RuntimeIr where
   with-inline :: InlinePlan -> Writer -> Writer
   with-inline plan w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-inline plan context)
   context-inline :: InlinePlan -> RuntimeContext -> RuntimeContext
-  context-inline plan context = case context of RuntimeContext info bounds rigids pending done current -> RuntimeContext info bounds rigids pending done plan
+  context-inline plan context = case context of RuntimeContext info bounds rigids queue current -> RuntimeContext info bounds rigids queue plan
   inline-admitted :: RuntimeContext -> String -> Bool
   inline-admitted context name = case context of
-    RuntimeContext info bounds rigids pending done plan -> case plan of
+    RuntimeContext info bounds rigids queue plan -> case plan of
       InlinePlan enabled names stack -> enabled && name-listed name names && not (same (function-hint info name) "noinline") && not (name-listed name stack)
       NoInline -> False
   -- The unfolding stack and its one bound: a unit already on the stack is
@@ -3927,15 +3934,15 @@ module Bootstrap.RuntimeIr where
   -- the depth cap bounds a long acyclic chain.
   inline-stack :: RuntimeContext -> List String
   inline-stack context = case context of
-    RuntimeContext info bounds rigids pending done plan -> case plan of
+    RuntimeContext info bounds rigids queue plan -> case plan of
       InlinePlan enabled names stack -> stack
       NoInline -> Nil
   inline-depth :: RuntimeContext -> Nat
   inline-depth context = list-length (inline-stack context)
   context-push-inline :: String -> RuntimeContext -> RuntimeContext
   context-push-inline name context = case context of
-    RuntimeContext info bounds rigids pending done plan -> case plan of
-      InlinePlan enabled names stack -> RuntimeContext info bounds rigids pending done (InlinePlan enabled names (Cons name stack))
+    RuntimeContext info bounds rigids queue plan -> case plan of
+      InlinePlan enabled names stack -> RuntimeContext info bounds rigids queue (InlinePlan enabled names (Cons name stack))
       NoInline -> context
   push-inline :: String -> Writer -> Writer
   push-inline name w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-push-inline name context)
@@ -3944,8 +3951,8 @@ module Bootstrap.RuntimeIr where
   -- push inside the copy has already popped itself.
   context-pop-inline :: RuntimeContext -> RuntimeContext
   context-pop-inline context = case context of
-    RuntimeContext info bounds rigids pending done plan -> case plan of
-      InlinePlan enabled names (Cons first stack) -> RuntimeContext info bounds rigids pending done (InlinePlan enabled names stack)
+    RuntimeContext info bounds rigids queue plan -> case plan of
+      InlinePlan enabled names (Cons first stack) -> RuntimeContext info bounds rigids queue (InlinePlan enabled names stack)
       other -> context
   pop-inline :: Writer -> Writer
   pop-inline w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-pop-inline context)
@@ -3957,7 +3964,7 @@ module Bootstrap.RuntimeIr where
       (case inline-body-shape d of
         Some (patterns, body) -> if list-length args == list-length patterns then
           (case definition-context d classes w of
-            Some (RuntimeContext info bounds rigids pending done inlining) ->
+            Some (RuntimeContext info bounds rigids queue inlining) ->
               (case inline-copy definitions locals (push-inline (core-name d) (with-representations bounds rigids w)) args patterns body of
                 (done, result) -> Some (pop-inline done, result))
             None -> None)
@@ -4698,7 +4705,7 @@ module Bootstrap.RuntimeIr where
         emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
       Some d -> case constructor-context d classes w of
         Some context -> case context of
-          RuntimeContext datas bounds rigids pending done inlining ->
+          RuntimeContext datas bounds rigids queue inlining ->
             let scoped = with-representations bounds rigids w in
             case request-data (Span 0 0 1 1) d classes scoped of
               (planned, descriptor) ->
@@ -4970,10 +4977,11 @@ module Bootstrap.RuntimeIr where
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done inlining) -> case pending of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) -> case pending of
       Nil -> w
       Cons demand rest ->
-        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons demand done) inlining) in
+        let emitted-dictionary = dictionaries || (case demand of DictionaryDemand name classes -> True; other -> False) in
+        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary) inlining) in
         case demand of
           Demand name classes -> case definition name definitions of
             Some d -> workers definitions (worker definitions classes claimed d)
@@ -5144,7 +5152,7 @@ module Bootstrap.RuntimeIr where
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
-  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil Nil Nil plan)
+  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil empty-queue plan)
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
@@ -5493,16 +5501,11 @@ module Bootstrap.RuntimeIr where
       Ok public -> JArr (JObj "class" (JStr public)
         (JObj "declared_methods" (JNum (nat-to-int (list-length (class-methods description))))
           (JObj "slots" (library-method-slot-facts (class-method-slots w description)) JObjEnd))) (library-method-family-facts w rest)
-  library-has-dictionary-demand :: List Demand -> Bool
-  library-has-dictionary-demand demands = case demands of
-    Nil -> False
-    Cons (DictionaryDemand name codes) rest -> True
-    Cons first rest -> library-has-dictionary-demand rest
   library-object-facts :: Writer -> Json
   library-object-facts w = case w of
     Writer next globals code errors (LayoutPlan names) context ->
       let datas = program-data (writer-program w) in
-      let dictionary-demand = (case context of RuntimeContext info bounds rigids pending done inlining -> library-has-dictionary-demand done) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted) inlining -> emitted) in
       JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand)
         (JObj "constructors" (library-constructor-layout-facts names datas) JObjEnd))
 
