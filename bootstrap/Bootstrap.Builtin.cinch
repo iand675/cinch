@@ -256,7 +256,7 @@ module Bootstrap.Builtin where
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
-    , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("ignore", "b.ignore"), ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
     , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Proof.search", "b.Proof.search")

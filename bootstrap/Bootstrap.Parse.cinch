@@ -2777,6 +2777,7 @@ module Bootstrap.Parse where
     Nil -> body
     Cons (p, rhs) rest -> case p of
       PVar s name -> ELet sp (binding-spine sp (Cons (name, rhs) Nil)) (let-patterns sp rest body)
+      PWild at -> ELet sp (binding-spine sp [("_", rhs)]) (let-patterns sp rest body)
       PTuple at fields -> (case rhs of
         ETuple site values -> ELocalGroup sp (ELocalStrict at p rhs (ELocalEnd at)) (let-patterns sp rest body)
         other -> ECase sp rhs (alt-spine sp [(p, let-patterns sp rest body)]))

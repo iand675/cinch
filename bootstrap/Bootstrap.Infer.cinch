@@ -28,7 +28,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
+  import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
   import Bootstrap.Report (Diagnostic)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -1081,9 +1081,16 @@ module Bootstrap.Infer where
           checked-source-index sp (normalize checked ty) index checked
       other -> bad sp "local index requires unresolved dictionary evidence" st
 
+  -- Only the defining Result type has the kernel's must-use default.
+  check-discard :: Span -> Bool -> UType -> Store -> Store
+  check-discard sp discarded ty st = if not discarded then st else case normalize st ty of
+    UApp (UApp (UCon name kind) error) value | same name global-data-core-result || same name "m.Data$2eCore.Result" ->
+      add-error sp "discarding a `Result`-typed expression without `ignore`: check the outcome or discard it on purpose (`ignore e`; the return-value discipline of JPL rule 7)" st
+    other -> st
+
   let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
   let-binding sp env name sc id level value before =
-    let st = check-borrow-binding sp env (scheme-body sc) before in
+    let st = check-discard sp (same name "_") (scheme-body sc) (check-borrow-binding sp env (scheme-body sc) before) in
     if volatile-borrow-index (normalize st (scheme-body sc)) then
       (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
     else if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
@@ -4778,7 +4785,8 @@ module Bootstrap.Infer where
     ELocalStrict sp pattern syntax rest -> let level = store-level st in
       (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
         (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
-          (value, prepared) -> (case bind-group-values classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value prepared of
+          (value, prepared) -> let checked-discard = check-discard sp (case pattern of PWild at -> True; other -> False) (core-type value) prepared in
+            (case bind-group-values classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value checked-discard of
             (bound, first, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
               (finished, steps, done) -> (finished, first <> steps, done)))))
     ELocalMemo sp name syntax rest -> infer-group-strict classes kinds families env locals signatures rest st
@@ -5860,7 +5868,8 @@ module Bootstrap.Infer where
     other -> finish-do-value classes kinds families env locals sp at name value rest expected st
   finish-do-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> CoreTerm -> Expr -> UType -> Store -> (CoreTerm, Store)
   finish-do-value classes kinds families env locals sp at name value rest expected st = case fresh-id st of
-    (id, ready) -> let scheme = mono (normalize ready (core-type value)) in
+    (id, fresh) -> let ready = check-discard at (same name "_") (core-type value) fresh in
+      let scheme = mono (normalize ready (core-type value)) in
       let bound = proof-let-env env (MkLocalBinding name scheme id (store-level ready)) id scheme value ready in
       case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
         (body, done) -> (CLet at expected id name scheme value body, done)

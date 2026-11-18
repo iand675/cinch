@@ -772,7 +772,9 @@ module Bootstrap.Resolve where
       (case rename-expr visible locals f of (head, errors) -> case rename-decision-syntax visible locals a of (argument, more) -> (EApp s head argument, errors <> more))
       else (case rename-expr visible locals f of
         (head, errors) -> case rename-expr visible locals a of
-          (arg, more) -> (EApp s head arg, errors <> more))
+          (arg, more) -> (case head of
+            EVar at name | same name "b.ignore" -> (ELet s (EBinding s "#discard" arg (EBindingsEnd s)) (EUnit s), errors <> more)
+            other -> (EApp s head arg, errors <> more)))
     EBin s op a b -> case rename-expr visible locals a of
       (left, errors) -> case rename-expr visible locals b of
         (right, more) ->
