@@ -22,7 +22,7 @@ module Bootstrap.Expand where
   export term-has-macro-call, decl-has-macro-call, clauses-have-macro-call
   export hygienic-term
   export fill-splices
-  export macro-parameters, template-of
+  export macro-parameters, template-of, syntax-template-of
   export expand-error
 
   same :: String -> String -> Bool
@@ -132,30 +132,67 @@ module Bootstrap.Expand where
     PAs s name inner -> Cons name (pat-name-list inner)
     other -> Cons "#pattern" Nil
 
-  -- The template a `macro` declaration's body denotes, when the body is a
-  -- quotation: one clause, no patterns, `[| e |]`. Anything else is a
-  -- compile-time computation whose value the evaluator has to produce.
   template-of :: String -> List Decl -> Option Expr
-  template-of name declarations = case declarations of
-    Nil -> None
-    Cons first rest -> case first of
-      DMacro s body -> if same (definition-name-of body) name then
-        (case body of
-          DFun at n clauses -> (case clause-template-of clauses of
-            Some template -> Some template
-            None -> template-of name rest)
-          other -> template-of name rest)
-        else template-of name rest
-      other -> template-of name rest
+  template-of name declarations = syntax-template-of (\op -> False) name declarations
 
-  -- A macro's template is its one clause's whole right-hand side when that
-  -- side is a quotation. The clause's patterns are the macro's parameters,
-  -- not binders of the template, so they do not affect this lookup: `macro
-  -- wrap body = [| 42 |]` and `macro number = [| 42 |]` are both templates.
-  clause-template-of :: List (List Pat, Expr) -> Option Expr
-  clause-template-of clauses = case clauses of
-    Cons (patterns, EQuote at body) Nil -> Some body
-    Cons (patterns, EMacroCall at path tokens) Nil -> Some (EMacroCall at path tokens)
+  syntax-template-of :: (String -> Bool) -> String -> List Decl -> Option Expr
+  syntax-template-of available name declarations = macro-body available name (macro-signature name declarations) declarations
+
+  macro-signature :: String -> List Decl -> Option TypeExpr
+  macro-signature name declarations = case declarations of
+    Nil -> None
+    Cons (DMacro site (DSig at declared ty)) rest -> if same declared name then Some ty else macro-signature name rest
+    Cons other rest -> macro-signature name rest
+
+  macro-body :: (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
+  macro-body available name declared-type declarations = case declarations of
+    Nil -> None
+    Cons (DMacro site (DFun at defined [(patterns, rhs)])) rest -> if same defined name then
+      let inputs = (case declared-type of Some ty -> syntax-inputs ty patterns; None -> Nil) in
+      (case (code-template available inputs rhs, declared-type) of
+        (Some body, Some ty) -> (case fixed-code-carrier ty of
+          Some carrier -> Some (EAnn (expr-span body) body carrier)
+          None -> Some body)
+        (result, other) -> result)
+      else macro-body available name declared-type rest
+    Cons other rest -> macro-body available name declared-type rest
+
+  -- A monomorphic quotation carries its declared type into ordinary checking
+  -- in the defining scope. Explicitly quantified macros are instantiated at
+  -- their use, where their syntax operands supply the type information.
+  fixed-code-carrier :: TypeExpr -> Option TypeExpr
+  fixed-code-carrier ty = case ty of
+    TFun at domain result -> fixed-code-carrier result
+    TApp at (TName head name) (TArg slot carrier (TArgsEnd end)) | same name "Code" -> Some carrier
+    other -> None
+
+  syntax-inputs :: TypeExpr -> List Pat -> List String
+  syntax-inputs ty patterns = case ty of
+    TForall at binders body -> syntax-inputs body patterns
+    TFun at domain result -> (case patterns of
+      Nil -> Nil
+      Cons pattern rest -> let more = syntax-inputs result rest in case (domain, pattern) of
+        (TName s sort, PVar site param) | same sort "Syntax" -> Cons param more
+        other -> more)
+    other -> Nil
+
+  syntax-input :: String -> List String -> Bool
+  syntax-input name inputs = case inputs of
+    Nil -> False
+    Cons first rest -> same name first || syntax-input name rest
+
+  -- These stage operations construct scoped code directly. Their result is
+  -- an ordinary term which the resolver and type checker visit at insertion.
+  code-template :: (String -> Bool) -> List String -> Expr -> Option Expr
+  code-template available inputs rhs = case rhs of
+    EQuote at body -> Some body
+    EMacroCall at path tokens -> Some rhs
+    EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
+      Some (ESplice at (EVar arg param))
+    EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
+      (case (code-template available inputs function, code-template available inputs argument) of
+        (Some head, Some value) -> Some (EApp at head value)
+        other -> None)
     other -> None
 
   -- ------------------------------------------------------------- hygiene

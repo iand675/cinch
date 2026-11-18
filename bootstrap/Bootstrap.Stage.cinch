@@ -4,9 +4,9 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, fill-splices as macro-fill-splices, macro-parameters, template-of, expand-error)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, fill-splices as macro-fill-splices, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
-  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro)
+  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.StageEval
   import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
@@ -596,10 +596,10 @@ module Bootstrap.Stage where
   expand-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else
     case caller of
       MkMacroSite owner fix modules names parent -> case lookup-macro names owner path of
-        None -> expand-error site (cat ["unknown macro ", path])
+        None -> expand-error site (cat ["`", path, "` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)"])
         Some (home, name) -> case macro-module home modules of
           None -> expand-error site (cat ["unavailable macro module ", home])
-          Some definition -> let declarations = module-decls definition in case template-of name declarations of
+          Some definition -> let declarations = module-decls definition in case syntax-template-of (stage-operation-available names home) name declarations of
             None -> expand-error site (cat ["macro `", path, "` has no quotation template; only a `[| ... |]` macro body expands in this rung"])
             Some template -> let parameters = macro-parameters name declarations in
               let groups = macro-argument-groups tokens (list-length parameters) in

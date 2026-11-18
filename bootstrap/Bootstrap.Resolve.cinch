@@ -18,7 +18,7 @@ module Bootstrap.Resolve where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
-  export MacroNamespaces, macro-namespaces, lookup-macro
+  export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available
   export resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
@@ -324,7 +324,7 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons b rest -> case lookup-binding (binding-name b) seen of
       None -> qualified-duplicates sp rest (Cons b seen)
-      Some old -> (if same (binding-symbol old) (binding-symbol b) && same (binding-owner old) (binding-owner b) then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
+      Some old -> (if same (binding-symbol old) (binding-symbol b) && (not (macro-binding b) || same (binding-owner old) (binding-owner b)) then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
         <> qualified-duplicates sp rest seen
 
   export-items :: List Decl -> List ExportItem
@@ -364,7 +364,7 @@ module Bootstrap.Resolve where
     Cons b rest -> case lookup-binding (binding-name b) acc of
       None -> add-exports sp rest (Cons b acc)
       Some old -> case add-exports sp rest acc of
-        (entries, errors) -> (entries, (if same (binding-symbol old) (binding-symbol b) && same (binding-owner old) (binding-owner b) then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+        (entries, errors) -> (entries, (if same (binding-symbol old) (binding-symbol b) && (not (macro-binding b) || same (binding-owner old) (binding-owner b)) then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
 
   build-exports :: List ExportItem -> List Binding -> List View -> List Binding -> (List Binding, List Diagnostic)
   build-exports items visible views acc = case items of
@@ -418,9 +418,18 @@ module Bootstrap.Resolve where
   data MacroNamespaces where
     MkMacroNamespaces :: List (String, List Binding) -> MacroNamespaces
   macro-namespaces :: List Module -> List Module -> MacroNamespaces
-  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules) (map empty-header headers) Nil)
-  empty-header :: Module -> Scoped
-  empty-header m = MkScoped (module-name m) Nil Nil
+  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules) (external-macro-headers modules headers) Nil)
+  external-macro-headers :: List Module -> List Module -> List Scoped
+  external-macro-headers sources headers = case headers of
+    Nil -> Nil
+    Cons m rest -> let home = module-name m in
+      if has-module home sources then external-macro-headers sources rest else
+        Cons (MkScoped home (external-names home (module-decls m)) Nil) (external-macro-headers sources rest)
+  external-names :: String -> List Decl -> List Binding
+  external-names home declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal site name role declared-type metadata) rest -> Cons (MkBinding name home name) (external-names home rest)
+    Cons other rest -> external-names home rest
   macro-header :: Module -> Module
   macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
   macro-declaration :: Decl -> Decl
@@ -434,16 +443,21 @@ module Bootstrap.Resolve where
     Some (m, pending) -> let (declared, visible, views, diagnostics) = module-visibility m done Nil in
       let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
       let home = module-name m in
-      macro-scope-order pending (Cons (MkScoped home surface Nil) done) (Cons (home, select-phase True visible) scopes)
+      macro-scope-order pending (Cons (MkScoped home surface Nil) done) (Cons (home, visible) scopes)
   lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
-  lookup-macro names owner spelling = case names of MkMacroNamespaces scopes -> module-macro scopes owner spelling
-  module-macro :: List (String, List Binding) -> String -> String -> Option (String, String)
+  lookup-macro names owner spelling = case macro-site-binding names owner spelling of
+    Some binding | macro-binding binding -> Some (binding-owner binding, string-drop 7 (binding-symbol binding))
+    other -> None
+  stage-operation-available :: MacroNamespaces -> String -> String -> Bool
+  stage-operation-available names owner spelling = case macro-site-binding names owner spelling of
+    None -> True
+    Some shadow -> False
+  macro-site-binding :: MacroNamespaces -> String -> String -> Option Binding
+  macro-site-binding names owner spelling = case names of MkMacroNamespaces scopes -> module-macro scopes owner spelling
+  module-macro :: List (String, List Binding) -> String -> String -> Option Binding
   module-macro scopes owner spelling = case scopes of
     Nil -> None
-    Cons (home, bindings) rest -> if not (same home owner) then module-macro rest owner spelling else
-      case lookup-binding spelling bindings of
-        None -> None
-        Some (MkBinding name origin symbol) -> Some (origin, string-drop 7 symbol)
+    Cons (home, bindings) rest -> if same home owner then lookup-binding spelling bindings else module-macro rest owner spelling
 
   resolve-ordered :: List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> (List Scoped, List Diagnostic)
   resolve-ordered remaining done base homes = case remaining of
@@ -631,6 +645,8 @@ module Bootstrap.Resolve where
     else case visible-lookup name visible of
       Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
       Some b -> (binding-symbol b, Nil)
+      None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.captureType"] ->
+        (name, fail sp (cat [name, " is compile-time only"]))
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
