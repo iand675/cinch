@@ -698,13 +698,46 @@ module Bootstrap.Parse where
     POk name rest1 -> case rest1 of
       Cons w rest3 ->
         if is-word-t (lt-token w) "where" then
-          case parse-block rest3 src (module-scope-fixes name headers fix) of
+          case parse-module-block name rest3 src headers fix of
             POk ds rest4 -> let finish = case rest4 of Cons next more -> span-start (sp-of next); Nil -> bytes-len src in
               POk (MkModule (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start ds)) rest4
             PBad -> PBad
         else PBad
       Nil -> PBad
     PBad -> PBad
+
+  -- The first pass supplies operator owners, fixities, imports and exports
+  -- to the second. An ordinary identifier's signature or equation cannot
+  -- contribute one of those facts. Skip its balanced tokens without building
+  -- the pattern, type and expression trees that the second pass will produce.
+  parse-module-block :: String -> List LToken -> Bytes -> List Module -> List (String, Fix) -> Ps (List Decl)
+  parse-module-block name toks src headers fix = case (fix, toks) of
+    (Cons (marker, entry) more, Cons t rest) | string-compare marker "$bootstrap-header" == 0 && is-punct-t (lt-token t) "{" ->
+      header-decls rest src fix Nil
+    other -> parse-block toks src (module-scope-fixes name headers fix)
+
+  header-decls :: List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  header-decls toks src fix acc = case toks of
+    Nil -> POk (reverse acc) Nil
+    Cons t rest -> case lt-token t of
+      TPunct p | string-compare p ";" == 0 -> header-decls rest src fix acc
+      TPunct p | string-compare p "}" == 0 -> POk (reverse acc) rest
+      TEOF -> POk (reverse acc) toks
+      TVar name | string-compare name "when" /= 0 && not (is-operator-name name) -> header-decls (skip-header-body rest 0) src fix acc
+      TAttr text -> decls-loop toks src fix acc
+      other -> (case parse-decl-recover toks src fix of
+        POk d tail -> header-decls tail src fix (Cons d acc)
+        PBad -> POk (reverse acc) toks)
+
+  skip-header-body :: List LToken -> Nat -> List LToken
+  skip-header-body toks depth = case toks of
+    Nil -> Nil
+    Cons t rest -> case lt-token t of
+      TPunct p -> if depth == 0 && is-boundary-tok (lt-token t) then toks else
+        if is-open-tok (lt-token t) then skip-header-body rest (depth + 1)
+        else if depth > 0 && is-close-tok (lt-token t) then skip-header-body rest (depth - 1) else skip-header-body rest depth
+      TEOF -> toks
+      other -> skip-header-body rest depth
 
   -- `a.b.c` from segments collected in reverse order, flattened once.
   join-dots :: List String -> String

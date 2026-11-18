@@ -69,6 +69,8 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Guarded", 0),
     ("Bootstrap.Kinds", 0),
     ("Bootstrap.Typing", 0),
+    ("Bootstrap.Target", 0),
+    ("Bootstrap.Usage", 0),
     ("Bootstrap.Interface", 0),
     ("Bootstrap.Ir", 0),
     ("Bootstrap.Load", 0),
@@ -126,7 +128,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Prim.Sys.Darwin", 0),
     ("Prim.Sys.Linux", 0),
     ("Prim.Sys.Portable", 0),
-    ("Prim.Sys", 3),
+    ("Prim.Sys", 0),
     ("Effect.Fs", 0),
     ("Effect.Process", 0),
     ("Effect.Io", 0),
@@ -161,6 +163,11 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.Hash", 0),
     ("Text.Codec", 0),
     ("Data.HashMap", 0),
+    ("stdlib-byte-split-literal-depth-host-stack-repro", 0),
+    ("stdlib-byte-view-nested-abi-repro", 0),
+    ("stdlib-byte-view-nested-abi-sequenced", 0),
+    ("stdlib-csv-char-contract-repro", 0),
+    ("stdlib-csv-expected-text-stack-repro", 0),
     ("01-bounded-index", 0),
     ("02-vector-filter", 2),
     ("03-map-fusion", 0),
@@ -195,7 +202,11 @@ fn corpus() -> Vec<(String, String, String)> {
     for path in sources {
         let src = std::fs::read_to_string(&path).expect("read bootstrap module");
         let name = module_name(&src).expect("bootstrap module name");
-        out.push((name.clone(), format!("bootstrap/{name}"), src));
+        // Several standalone regression programs declare Main. Measure each
+        // file independently so one result cannot overwrite another.
+        let stem = path.file_stem().unwrap().to_str().unwrap();
+        let label = if name == "Main" { stem.to_owned() } else { name };
+        out.push((label, format!("bootstrap/{stem}"), src));
     }
     for (path, src) in common::TOOLKIT {
         let name = module_name(src).expect("toolkit module name");
