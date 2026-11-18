@@ -3,7 +3,7 @@ use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 use cinch::driver::{DriverOptions, Mode, Package, BASE_PACKAGE};
 use cinch::lsp::{parse_json, Json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -233,27 +233,35 @@ fn reachable_sources(files: &[PathBuf], entry: &Path) -> Vec<PathBuf> {
     let headers = files.iter().map(|path| {
         std::fs::read_to_string(path).ok().and_then(|text| cinch::driver::scan_file(&text, &path.display().to_string()).ok())
     }).collect::<Vec<_>>();
-    let mut selected = BTreeSet::from([entry.to_path_buf()]);
-    loop {
-        let mut additional = BTreeSet::new();
-        for (index, path) in files.iter().enumerate().filter(|(_, path)| selected.contains(*path)) {
-            let Some(header) = &headers[index] else { continue };
-            for (_, imports) in &header.modules {
-                for (wanted, _) in imports {
-                    // Include every actual provider of a requested module;
-                    // duplicate-provider diagnostics belong to the compiler.
-                    for (candidate, metadata) in files.iter().zip(&headers) {
-                        if metadata.as_ref().is_some_and(|header| header.modules.iter().any(|(name, _)| name == wanted)) {
-                            additional.insert(candidate.clone());
+    let mut providers = HashMap::<&str, Vec<usize>>::new();
+    for (index, header) in headers.iter().enumerate() {
+        if let Some(header) = header {
+            for (name, _) in &header.modules {
+                providers.entry(name).or_default().push(index);
+            }
+        }
+    }
+
+    // The caller supplies sorted paths and has validated the entry.
+    let start = files.binary_search_by(|path| path.as_path().cmp(entry)).expect("project entry");
+    let mut selected = BTreeSet::from([start]);
+    let mut pending = vec![start];
+    while let Some(index) = pending.pop() {
+        let Some(header) = &headers[index] else { continue };
+        for (_, imports) in &header.modules {
+            for (wanted, _) in imports {
+                // Keep every provider so the compiler can diagnose duplicates.
+                if let Some(matches) = providers.get(wanted.as_str()) {
+                    for &provider in matches {
+                        if selected.insert(provider) {
+                            pending.push(provider);
                         }
                     }
                 }
             }
-            let _ = path;
         }
-        let before = selected.len(); selected.extend(additional);
-        if selected.len() == before { return selected.into_iter().collect(); }
     }
+    selected.into_iter().map(|index| files[index].clone()).collect()
 }
 
 fn next_invocation_id() -> String {
@@ -320,7 +328,7 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
 
 /// [`drive`] with the profile flags and program words of `request`.
 pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, request: &Request) -> Result<i32, String> {
-    let objects = if matches!(mode, Mode::EmitObject | Mode::Check) {
+    let objects = if mode == Mode::EmitObject {
         std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from)
     } else {
         None
@@ -357,23 +365,17 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let requested_output = out.is_some();
     let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| if mode == Mode::EmitObject { entry.with_extension("o") } else { work.join("program") });
     let report = work.join("link-report.txt");
-    // This CLI has no check mode that writes the artifacts a Native check
-    // writes, so a check runs its interface-and-manifest emitting mode and
-    // the selector publishes what it wrote into the project's `build/`.
-    let flag = match mode { Mode::Check => "--emit-ir-with-interfaces", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
+    let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
     let mut args = vec![flag.to_owned()];
     args.extend(request.flags.iter().cloned());
     args.extend(["--interfaces".into(), interfaces.display().to_string()]);
-    if mode == Mode::Check && objects.is_none() {
-        return Err("external check requires CINCH_TEST_OBJECTS: this CLI writes a check's interfaces and build manifest only in its interface mode".into());
-    }
     if mode == Mode::EmitObject {
         if objects.is_none() { return Err("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback".into()); }
         ir = exe.with_extension("ll");
         if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
         std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
     }
-    if matches!(mode, Mode::EmitObject | Mode::EmitIr | Mode::Check) {
+    if matches!(mode, Mode::EmitObject | Mode::EmitIr) {
         if let Some(configuration) = objects {
             let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
             args.extend(["--objects".into(), configuration.display().to_string()]);
@@ -398,7 +400,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
         return Err(format!("selected Cinch compiler exited {:?}: {diagnostic}\ninvocation: {}", output.status.code(), work.display()));
     }
     match mode {
-        Mode::Check => { publish_check_artifacts(frontend, &dir, &entry, &ir)?; Ok(0) }
+        Mode::Check => Ok(0),
         Mode::Build => if exe.is_file() {
             // Match the development driver's inspectable LLVM companion so
             // consumers can verify the actual selected compiler's kernels.
@@ -415,48 +417,6 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
         Mode::EmitObject => if exe.is_file() && ir.is_file() && exe.with_extension("abi.json").is_file() { Ok(0) }
             else { Err("selected compiler succeeded without object companions".into()) },
     }
-}
-
-/// Publish a check's artifacts into the project's `build/` directory: the
-/// base interfaces the selected manifest names, the project's own
-/// interfaces, and the build manifest. That is the layout a Native check
-/// leaves, which the selectors read back.
-fn publish_check_artifacts(frontend: &Frontend, dir: &Path, entry: &Path, ir: &Path) -> Result<(), String> {
-    let build = dir.join("build");
-    std::fs::create_dir_all(&build).map_err(|error| format!("{}: {error}", build.display()))?;
-    let text = std::fs::read_to_string(&frontend.interfaces)
-        .map_err(|error| format!("{}: {error}", frontend.interfaces.display()))?;
-    let manifest = parse_json(&text)?;
-    let rows = manifest
-        .get("interfaces")
-        .and_then(Json::as_arr)
-        .ok_or("selected interface manifest names no interfaces")?;
-    for row in rows {
-        let fields = row.as_arr().ok_or("selected interface manifest row is not a list")?;
-        let (Some(name), Some(path)) = (
-            fields.first().and_then(Json::as_str),
-            fields.get(2).and_then(Json::as_str),
-        ) else {
-            return Err("selected interface manifest row is not (name, hash, path)".into());
-        };
-        let target = build.join(format!("{name}.cinchif"));
-        std::fs::copy(path, &target).map_err(|error| format!("{}: {error}", target.display()))?;
-    }
-    let work = ir.parent().ok_or("check output needs a directory")?;
-    let named = ir.file_name().and_then(|name| name.to_str()).ok_or("check output needs a filename")?;
-    let prefix = format!("{named}.");
-    for artifact in std::fs::read_dir(work).map_err(|error| format!("{}: {error}", work.display()))? {
-        let path = artifact.map_err(|error| error.to_string())?.path();
-        let file = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-        let Some(module) = file.strip_prefix(&prefix).and_then(|rest| rest.strip_suffix(".cinchif")) else { continue };
-        let target = build.join(format!("{module}.cinchif"));
-        std::fs::copy(&path, &target).map_err(|error| format!("{}: {error}", target.display()))?;
-    }
-    let stem = entry.file_stem().and_then(|name| name.to_str()).ok_or("check entry needs a name")?;
-    let written = PathBuf::from(format!("{}.manifest.json", ir.display()));
-    let target = build.join(format!("{stem}.manifest.json"));
-    std::fs::copy(&written, &target).map_err(|error| format!("{}: {error}", target.display()))?;
-    Ok(())
 }
 
 #[cfg(test)]

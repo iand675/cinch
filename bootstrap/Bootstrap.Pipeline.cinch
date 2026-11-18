@@ -447,7 +447,10 @@ module Bootstrap.Pipeline where
       Ok view -> (if checks-only mode then case recheck-source-overlays src view interfaces interfaces Nil of
           Err message -> write-failure ir message pipeline-check-refused
           Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
-            (Nil, Cons first rest) -> write-interface-output ir (Ok Nil)
+            (Nil, Cons first rest) -> (case mode of
+              CheckOnly -> case serialize-artifacts (path-stem (path-from-string name)) effective replaced of
+                done -> write-interface-output ir (Ok Nil)
+              other -> write-interface-output ir (Ok Nil))
             other -> after-check-artifacts inlining reclaim mode name src effective replaced (checked-source remaining effective) ir exe report
         else after-check-artifacts inlining reclaim mode name src interfaces Nil (checked-source view interfaces) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed

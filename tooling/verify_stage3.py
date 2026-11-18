@@ -38,16 +38,8 @@ def compile_client(compiler, objects, runtime, args):
     args = [arg for arg in args if arg not in PROFILE_FLAGS]
     if args[0:1] == ["--interfaces"] and args[2:3] == ["--objects"] and args[4:5] == ["run"]:
         return subprocess.call([compiler, *profile, *args], env=env)
-    # The selectors run a check as the interface-and-manifest emitting mode,
-    # because this CLI has no check mode that writes those artifacts.
-    if args[0:1] == ["--emit-ir-with-interfaces"]:
+    if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"]):
         return subprocess.call([compiler, *profile, *args], env=env)
-    if args[0:1] == ["--check"] and len(args) == 5 and args[1] == "--interfaces":
-        mode = "--emit-interfaces" if api else "--check"
-        code = subprocess.call([compiler, mode, *profile, *args[1:]], env=env)
-        if code == 0 and api:
-            publish_interfaces(*(Path(value) for value in args[2:]))
-        return code
     if args[0:1] == ["--emit-object"]:
         return subprocess.call([compiler, args[0], *profile, *args[1:]], env=env)
     if args[0:1] == ["--emit-ir"]:

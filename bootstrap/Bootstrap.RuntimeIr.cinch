@@ -4313,7 +4313,7 @@ module Bootstrap.RuntimeIr where
           case call ready "@cinch_nat_to_len" [count-word] of
             (converted, length) -> case call converted (par-entry "par_tabulate") [length, closure, nat-to-string class] of
               -- The callback is borrowed and dropped after the call.
-              (called, built) -> (count-op False (core-type callback) closure called, built)
+              (called, built) -> (count-op False (core-type count) count-word (count-op False (core-type callback) closure called), built)
   -- `parMap`'s array primitive: the elaboration has already put
   -- `array-from-list` in front and `array-to-list` behind it, so the
   -- runtime never builds list cells.
@@ -4333,7 +4333,7 @@ module Bootstrap.RuntimeIr where
   par-workers definitions locals w sp count = case expression definitions locals w count of
     (counted, count-word) -> case call counted "@cinch_nat_to_len" [count-word] of
       (converted, workers) -> case call converted (par-entry "par_set_workers") [workers] of
-        (called, ignored) -> (called, "0")
+        (called, ignored) -> (count-op False (core-type count) count-word called, "0")
   -- The element class of an `Array a` result, as the scan code the array
   -- constructors take.
   array-element-class :: RuntimeContext -> UType -> Option Nat

@@ -277,17 +277,10 @@ module Bootstrap.Interface where
 
   fnv-from :: Bytes -> Nat -> U64 -> U64
   fnv-from b i h =
-    if i < bytes-len b then fnv-from b (i + 1) (fnv-step h (bytes-get b i))
+    if i < bytes-len b then
+      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
+      fnv-from b (i + 1) (wrapping-mul-u64 (bit-xor-u64 h byte) fnv-prime)
     else h
-
-  fnv-step :: U64 -> Nat -> U64
-  fnv-step h byte = wrapping-mul-u64 (bit-xor-u64 h (nat-to-u64 byte)) fnv-prime
-
-  -- A byte value (0..255) as a `U64`: `Bytes` yields `Nat` and the hash works
-  -- on `U64`. The residue below 2^63 is the value itself for a byte, and
-  -- it is the evidence the conversion through `I64` needs.
-  nat-to-u64 :: Nat -> U64
-  nat-to-u64 n = let w = nat-rem n 9223372036854775808 in wrapping-i64-to-u64 (nat-to-i64 w)
 
   -- The decimal spelling of a `U64`, the form the interface records both
   -- hashes in. A `U64` can exceed `I64`, so it is rendered by division rather

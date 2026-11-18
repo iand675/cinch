@@ -3377,6 +3377,7 @@ module Bootstrap.Infer where
             term-error sp "a proof definition can only be used as erased evidence" ss
           MkSyntaxBinding symbol -> if same symbol "b.spawn" then
             term-error sp "spawn must be applied directly to check the task callback" ss
+            else if same symbol "b.parWorkers" then term-error sp "parWorkers must be applied directly to its participant count" ss
             else if par-syntax-name symbol then
               term-error sp (string-concat (par-spelling symbol) " must be applied directly to check its parallel callback (design/parallel-evaluation.md section 4.1)") ss
             else term-error sp "kernel syntax is not a first-class function" ss
@@ -5599,7 +5600,7 @@ module Bootstrap.Infer where
             let result = primitive-type "Unit" in
             (CPrimitive sp result "par-workers" (CArgument sp checked-count (CArgumentsEnd sp)),
               case wanted of None -> one; Some expected -> unify sp result expected one))
-        other -> term-error sp "workers takes exactly one participant count" st)
+        other -> term-error sp "parWorkers takes exactly one participant count" st)
       else if same name "b.parTabulate" then (case args of
         Cons count (Cons f Nil) -> (case check classes kinds families env locals count (primitive-type "Nat") st of
           (checked-count, one) -> case fresh-meta KType one of

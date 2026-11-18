@@ -18,6 +18,7 @@ printf invoked > selected-was-invoked
 if [ -f fail-compiler ]; then printf 'selected checker refused' >&2; exit 4; fi
 if [ "$1" = '--check' ]; then : > "$5.diagnostics"; exit 0; fi
 if [ "$1" != '--compile-only' ]; then exit 91; fi
+printf 'fixture LLVM' > "$5"
 printf 'clang-exit: 0\n' > "$7"
 cat > "$6" <<'PROGRAM'
 #!/bin/sh

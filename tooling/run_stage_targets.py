@@ -107,11 +107,11 @@ def main():
     # 2026-11-11: targets failing with a missing stage binary or a Core shape
     # that existed for a few minutes). bootstrap.py takes the same lock
     # exclusively and refuses rather than blocking.
-    lock_path = a.tree / 'build' / 'bootstrap' / '.lock'
+    lock_path = bootstrap.BUILD / '.lock'
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     suite_lock = lock_path.open('a')
     try:
-        fcntl.flock(suite_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(suite_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
     except OSError:
         sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
         return 3
@@ -121,16 +121,21 @@ def main():
     global TREE; TREE = a.tree
     # Build every test binary once so parallel runs do not race the cargo lock.
     subprocess.run(['nice', 'cargo', 'test', '--target-dir', str(a.cargo_target), '--no-run',
-                    *sum([['--test', t] for t in a.targets], [])], cwd=TREE / 'compiler', check=True,
+                    *sum([['--test', t] for t in a.targets], [])], cwd=TREE / 'compiler', env=env, check=True,
                    stdout=subprocess.DEVNULL)
     rows = []
     with cf.ThreadPoolExecutor(a.jobs) as pool:
-        for row in pool.map(lambda t: run(t, env, a.out.resolve(), a.cargo_target), a.targets):
+        futures = [pool.submit(run, t, env, a.out.resolve(), a.cargo_target) for t in a.targets]
+        for future in cf.as_completed(futures):
+            row = future.result()
             rows.append(row)
             print(f"{row['target']}: exit={row['exit']} passed={row['passed']} failed={row['failed_count']}", flush=True)
+    rows.sort(key=lambda row: row['target'])
     (a.out / 'summary.json').write_text(json.dumps(rows, indent=1))
-    print('targets passing:', sum(r['exit'] == 0 for r in rows), '/', len(rows))
+    passing = sum(row['exit'] == 0 for row in rows)
+    print('targets passing:', passing, '/', len(rows))
+    return int(passing != len(rows))
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
