@@ -5041,12 +5041,12 @@ module Bootstrap.RuntimeIr where
   apply-entry-with-linkage linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
     "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
     "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
-  entry :: Nat -> Bool -> String
-  entry mode reclaim =
-    let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol "main", "()\n"]
-      else if mode == 1 then cat ["  %result = call i64 ", symbol "main", "(i64 0)\n"]
-      else if mode == 3 then cat ["  %function = call i64 ", symbol "main", "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
-      else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
+  entry :: String -> Nat -> Bool -> String
+  entry name mode reclaim =
+    let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol name, "()\n"]
+      else if mode == 1 then cat ["  %result = call i64 ", symbol name, "(i64 0)\n"]
+      else if mode == 3 then cat ["  %function = call i64 ", symbol name, "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
+      else cat ["  %function = call i64 ", symbol name, "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
     cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
     "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n", if reclaim then "  call void @cinch.typed.rc.drop(i64 %result)\n" else "", "  ret i64 %exit\n}\n",
     "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n", if reclaim then "  call void @cinch_reclaim_enable()\n" else "", "  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
@@ -5065,10 +5065,29 @@ module Bootstrap.RuntimeIr where
         other -> False) in
       if not valid then None else if erased-value-arrow function then Some 3
       else if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None
+  -- Resolved source names encode the owner and member separately. In particular,
+  -- a dot inside either component cannot be mistaken for the member separator.
+  -- Imported externals and instance methods are outside this definition list.
+  runtime-entry :: List CoreDefinition -> Option CoreDefinition -> Result (List Diagnostic) (Option CoreDefinition)
+  runtime-entry definitions found = case definitions of
+    Nil -> Ok found
+    Cons d rest -> let name = core-name d in
+      if not (same name "main" || qualified-entry-name name) then runtime-entry rest found
+      else case found of
+        None -> runtime-entry rest (Some d)
+        Some prior -> case d of
+          MkCoreDefinition sp n scheme openings givens private clauses ->
+            Err [MkDiagnostic "bootstrap.check" sp "several modules of the entry file define `main`; the entry file's `main` is unique"]
+  qualified-entry-name :: String -> Bool
+  qualified-entry-name name = let bytes = string-to-bytes name in let n = bytes-len bytes in
+    n > 7 && bytes-get bytes 0 == 109 && bytes-get bytes 1 == 46 &&
+      bytes-get bytes (n - 5) == 46 && bytes-get bytes (n - 4) == 109 && bytes-get bytes (n - 3) == 97 &&
+      bytes-get bytes (n - 2) == 105 && bytes-get bytes (n - 1) == 110
   check-runtime-entry :: CheckedProgram -> Result (List Diagnostic) CheckedProgram
-  check-runtime-entry checked = case definition "main" (elaboration-core (checked-elaboration checked)) of
-    None -> Ok checked
-    Some d -> case entry-mode d of
+  check-runtime-entry checked = case runtime-entry (elaboration-core (checked-elaboration checked)) None of
+    Err errors -> Err errors
+    Ok None -> Ok checked
+    Ok (Some d) -> case entry-mode d of
       Some mode -> Ok checked
       None -> case d of
         MkCoreDefinition sp name scheme openings givens private clauses ->
@@ -5497,14 +5516,15 @@ module Bootstrap.RuntimeIr where
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
     let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
-    case definition "main" definitions of
-      None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
-      Some d -> case entry-mode d of
+    case runtime-entry (elaboration-core typed) None of
+      Err errors -> Err errors
+      Ok None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
+      Ok (Some d) -> case entry-mode d of
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit -> Int, optionally effectful, without external evidence"]
         -- The planning roots demand `main` as a worker unless a constructor
         -- shares the name; only then does the entry need its own pass.
-        Some mode -> let plan = inline-plan inlining definitions info in
-          let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
-          case (case constructor "main" info of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
+        Some mode -> let name = core-name d in let plan = inline-plan inlining definitions info in
+          let settled = settled-workers-with-plan plan definitions [(name, Nil)] info in
+          case (case constructor name info of Some found -> workers definitions (demand-worker name Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
+            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry name mode reclaim])
             Writer next globals code errors layouts datas -> Err errors
