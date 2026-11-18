@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import check_compare
 import run_stage_targets as runner
 
 
@@ -38,6 +39,27 @@ class StageTargetCounts(unittest.TestCase):
                            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out;\n", 101)
         self.assertEqual(row["failed"], ["failed_case"])
         self.assertEqual(row["failed_count"], 1)
+
+
+class CorpusEmitMode(unittest.TestCase):
+    def test_fresh_runs_probe_the_selected_compiler(self):
+        for status, expected in ((1, "--emit-ir"), (2, "--emit-ir-only")):
+            compiler = Path("/selected/cinch")
+            with self.subTest(status=status), patch.object(
+                check_compare.subprocess, "run", return_value=subprocess.CompletedProcess([], status)
+            ) as probe:
+                self.assertEqual(check_compare.corpus_emit_mode(compiler, []), expected)
+                self.assertEqual(probe.call_args.args[0][:2], [compiler, "--emit-ir-only"])
+
+    def test_resume_reuses_the_recorded_command(self):
+        rows = [{"frontend": "rust"}, {"frontend": "native", "command": ["cinch", "--emit-ir"]}]
+        with patch.object(check_compare.subprocess, "run") as probe:
+            self.assertEqual(check_compare.corpus_emit_mode(Path("cinch"), rows), "--emit-ir")
+            probe.assert_not_called()
+
+    def test_unexpected_status_fails_the_run(self):
+        with patch.object(check_compare.subprocess, "run", return_value=subprocess.CompletedProcess([], 4)), self.assertRaises(RuntimeError):
+            check_compare.corpus_emit_mode(Path("cinch"), [])
 
 
 if __name__ == "__main__":

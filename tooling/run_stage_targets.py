@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tooling'))
 TREE = ROOT
 import bootstrap  # noqa
-from verify_stage3 import supports_check_types, write_wrapper  # noqa
+from verify_stage3 import standalone_inputs, supports_check_types, write_wrapper  # noqa
 
 
 def setup(stage, out, tree):
@@ -29,7 +29,8 @@ def setup(stage, out, tree):
     wrapper = out / 'frontend.py'
     write_wrapper(wrapper, compiler, objects, provider['runtime'])
     env = {k: v for k, v in bootstrap.environment().items() if not k.startswith('CINCH_TEST_')}
-    env.update(CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
+    env.update(CINCH_TEST_STANDALONE=standalone_inputs(out / "standalone", compiler, manifest, objects, provider["runtime"]),
+               CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(provider['runtime']),
                CINCH_TEST_LIBRARY_OBJECT=str(provider['object']),
@@ -49,7 +50,7 @@ def run_in_slot(target, env, out, cargo_target):
     fixtures.mkdir(parents=True, exist_ok=True)
     log = out / f'{target}.log'
     e = dict(env, TMPDIR=str(fixtures), CINCH_TEST_API_EMIT_INTERFACES='1' if target.startswith('interface_') else '0')
-    cmd = ['nice', 'cargo', 'test', '--target-dir', str(cargo_target), '--test', target, '--',
+    cmd = ['cargo', 'test', '--target-dir', str(cargo_target), '--test', target, '--',
            '--include-ignored', '--test-threads=1']
     with log.open('wb') as f:
         code = subprocess.run(cmd, cwd=TREE / 'compiler', env=e, stdout=f, stderr=subprocess.STDOUT).returncode
@@ -71,8 +72,13 @@ TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'p
 
 def all_targets(tree):
     tests = tree / 'compiler' / 'tests'
-    return sorted(p.stem for p in tests.glob('*.rs')
-                  if 'mod common;' in p.read_text() and p.stem not in TOOLING_TARGETS)
+    targets = []
+    for path in tests.glob('*.rs'):
+        if path.stem not in TOOLING_TARGETS:
+            source = path.read_text()
+            if 'mod common;' in source or 'mod corpus_frontend;' in source:
+                targets.append(path.stem)
+    return sorted(targets)
 
 
 def main():

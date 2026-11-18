@@ -168,6 +168,18 @@ def supports_check_types(compiler):
     return supports_source_mode(compiler, "--check-types")
 
 
+def standalone_inputs(directory, compiler, manifest, objects, runtime):
+    """Expose the selected artifacts to public CLI corpus runners."""
+    directory.mkdir(exist_ok=True)
+    for name, source in (("cinch", compiler), ("base-interfaces.json", manifest),
+                         ("objects.json", objects), ("libcinchruntime.a", runtime)):
+        path = directory / name
+        if path.is_symlink() and path.resolve() == source.resolve(strict=True):
+            continue
+        path.symlink_to(source.resolve(strict=True))
+    return str(directory)
+
+
 def write_wrapper(wrapper, compiler, objects, runtime):
     ir_only = supports_source_mode(compiler, "--emit-ir-only")
     wrapper.write_text(
@@ -226,7 +238,8 @@ def verify(evidence, cargo_target, jobs=1):
     write_wrapper(wrapper, compiler, objects, runtime)
     hashes[wrapper] = bootstrap.file_hash(wrapper)
     env = {name: value for name, value in bootstrap.environment().items() if not name.startswith("CINCH_TEST_")}
-    env.update(CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
+    env.update(CINCH_TEST_STANDALONE=standalone_inputs(evidence / "standalone", compiler, manifest, objects, runtime),
+               CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
                CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "compiler"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")

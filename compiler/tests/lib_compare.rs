@@ -1,5 +1,8 @@
 //! Documentation and independent fixture coverage for explicit comparison policies.
 
+#[path = "common/corpus_frontend.rs"]
+mod corpus_frontend;
+
 /// Public and private declarations must have canonical Cinch documentation.
 #[test]
 fn comparison_declarations_have_canonical_documentation() {
@@ -49,50 +52,32 @@ fn comparison_fixture_corpus_is_complete() {
     assert_eq!(fixtures["strings"].as_array().unwrap().len(), 10 * 10);
 }
 
-/// Rust-only CLI execution of committed scalar, NaN, string and default fixtures.
-/// External frontend selectors are refused explicitly: this test cannot stand
-/// in for Native coverage. The normal build initializes the current compiler's
-/// exact host runtime; the Python runner gives compiler processes 64 MiB host
-/// stacks and consumers separate 8 MiB stacks in normal and poisoned profiles.
+/// Execute the committed fixtures through the selected public CLI under both heap profiles.
 #[test]
-fn rust_cli_executes_comparison_fixtures_with_normal_and_poison_profiles() {
+fn selected_cli_executes_comparison_fixtures_with_normal_and_poison_profiles() {
     use std::path::Path;
     use std::process::Command;
 
-    for selector in [
-        "CINCH_TEST_COMPILER",
-        "CINCH_TEST_INTERFACES",
-        "CINCH_TEST_OBJECTS",
-        "CINCH_TEST_RUNTIME_ARCHIVE",
-    ] {
-        assert!(
-            std::env::var_os(selector).is_none(),
-            "Rust-only comparison CLI regression refuses external frontend selector {selector}; run the standalone Native corpus instead"
-        );
-    }
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let repository = compiler_root.parent().unwrap();
     let runtime = compiler_root.join("runtime/target/release/libcinchruntime.a");
     let work = tempfile::tempdir().unwrap();
+    let frontend = corpus_frontend::Frontend::selected(&runtime);
     let result = Command::new("python3")
         .arg(repository.join("tooling/check_compare.py"))
         .arg("--work")
         .arg(work.path())
-        .arg("--rust")
-        .arg(env!("CARGO_BIN_EXE_cinch"))
-        .arg("--rust-runtime")
-        .arg(&runtime)
-        .arg("--initialize-rust-runtime")
+        .args(frontend.arguments())
         .args(["--only", "I8", "F32", "Default", "String"])
         .env("CARGO_BUILD_JOBS", "1")
         .env("RUST_TEST_THREADS", "1")
         .env("RUST_MIN_STACK", "67108864")
         .current_dir(repository)
         .output()
-        .expect("run committed comparison corpus through current Rust CLI");
+        .expect("run committed comparison corpus through the selected CLI");
     assert!(
         result.status.success(),
-        "Rust comparison runtime regression failed:\n{}\n{}",
+        "comparison runtime regression failed:\n{}\n{}",
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
@@ -100,19 +85,7 @@ fn rust_cli_executes_comparison_fixtures_with_normal_and_poison_profiles() {
         serde_json::from_str(&std::fs::read_to_string(work.path().join("report.json")).unwrap())
             .unwrap();
     assert_eq!(report["compiler_host_stack_bytes"], 64 * 1024 * 1024);
-    assert_eq!(report["frontends"].as_object().unwrap().len(), 1);
-    assert_eq!(
-        report["runtime_initialization"]["archive_path"].as_str(),
-        runtime.to_str()
-    );
-    assert_eq!(
-        report["frontends"]["rust"]["runtime_sha256"],
-        report["runtime_initialization"]["archive_sha256"]
-    );
-    assert_eq!(
-        report["runtime_initialization"]["snapshot_sha256"],
-        report["runtime_initialization"]["archive_sha256"]
-    );
+    frontend.check_identity(&report);
     let rows = report["runs"].as_array().unwrap();
     assert_eq!(rows.len(), 4);
     let groups: std::collections::BTreeSet<_> = rows
@@ -124,7 +97,7 @@ fn rust_cli_executes_comparison_fixtures_with_normal_and_poison_profiles() {
         ["Default", "F32", "I8", "String"].into_iter().collect()
     );
     for row in rows {
-        assert_eq!(row["frontend"], "rust");
+        assert_eq!(row["frontend"], frontend.label());
         let profiles = row["profiles"].as_array().unwrap();
         assert_eq!(profiles.len(), 2);
         for (profile, (poison, heap)) in profiles.iter().zip([("0", "32M"), ("1", "256M")]) {

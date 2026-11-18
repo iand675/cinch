@@ -16,7 +16,7 @@ import shutil
 import time
 from bench_stdlib import source_closure
 from multipart_qualification_support import archive_completed
-from check_compare import digest, initialize_runtime, list_of, run
+from check_compare import corpus_emit_mode, digest, initialize_runtime, list_of, run
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -187,6 +187,7 @@ def main() -> None:
     for label, compiler, runtime in frontends:
         identity = {'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'compile_rc_debug': label == 'native'}
         if label == 'native':
+            mode = corpus_emit_mode(compiler, report['runs'])
             config = json.loads((snap / 'objects.json').read_text())
             provider = Path(config['object'])
             identity.update({name: digest(snap / name) for name in ('objects.json', 'base-interfaces.json')})
@@ -200,7 +201,7 @@ def main() -> None:
             shutil.copyfile(work / (name + '.source'), work / 'Main.cinch')
             ir, exe = work / f'{label}-{name}.ll', work / f'{label}-{name}'
             (work / 'bundle.source').write_text('\n'.join((work / (module + '.cinch')).read_text() for module in modules) + '\n' + (work / 'Main.cinch').read_text())
-            command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)] if label == 'rust' else [str(compiler), '--emit-ir', '--rc-debug', '--interfaces', str(snap / 'base-interfaces.json'), '--objects', str(snap / 'objects.json'), str(work / 'bundle.source'), str(ir)]
+            command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)] if label == 'rust' else [str(compiler), mode, '--rc-debug', '--interfaces', str(snap / 'base-interfaces.json'), '--objects', str(snap / 'objects.json'), str(work / 'bundle.source'), str(ir)]
             start = time.monotonic()
             result = execute(command, 300)
             target = re.search(r'target triple = "([^"]+)"', ir.read_text())

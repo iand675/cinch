@@ -18,6 +18,7 @@ import re
 import resource
 import shutil
 import subprocess
+import tempfile
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -26,6 +27,23 @@ ROOT=Path(__file__).resolve().parents[1]
 def digest(path: Path) -> str:
     """Identify the bytes actually used for source, compiler and object artifacts."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def corpus_emit_mode(compiler: Path, runs: list[dict]) -> str:
+    """Reuse the recorded native mode on resume. Fresh consumers only need IR."""
+    for row in runs:
+        if row.get('frontend') == 'native':
+            mode = row['command'][1]
+            if mode not in ('--emit-ir', '--emit-ir-only'):
+                raise ValueError(f'unknown native emit mode in corpus report: {mode}')
+            return mode
+    # Supporting stages reach the missing input (2). Older stages refuse the option (1).
+    with tempfile.TemporaryDirectory() as directory:
+        probe = subprocess.run([compiler, '--emit-ir-only', 'missing.cinch', 'unused.ll'],
+                               cwd=directory, capture_output=True, timeout=30)
+    if probe.returncode not in (1, 2):
+        raise RuntimeError(f'native emit-mode probe failed ({probe.returncode}): {probe.stderr!r}')
+    return '--emit-ir-only' if probe.returncode == 2 else '--emit-ir'
 
 
 def initialize_runtime(compiler: Path, runtime: Path, work: Path) -> tuple[Path,dict]:
@@ -247,6 +265,7 @@ def main() -> None:
             raise RuntimeError(f'cannot resume changed count instrumentation for {label}')
         report['frontends'][label]={'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'compile_rc_debug':label=='native' and args.native_rc_debug}
         if label=='native':
+            mode=corpus_emit_mode(compiler, report['runs'])
             snap=args.native.resolve(); cfg=json.loads((snap/'objects.json').read_text()); provider=Path(cfg['object'])
             report['frontends'][label].update({key:digest(snap/key) for key in ('base-interfaces.json','objects.json')}); report['frontends'][label]['provider_sha256']=digest(provider)
         for name in args.only or counts:
@@ -254,7 +273,7 @@ def main() -> None:
             shutil.copyfile(work/f'{name}.source',work/'Main.cinch')
             ir=work/f'{label}-{name}.ll'; exe=work/f'{label}-{name}'
             (work/'bundle.source').write_text((work/'Data.Compare.cinch').read_text()+'\n'+(work/'Main.cinch').read_text())
-            command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)] if label=='rust' else [str(compiler),'--emit-ir','--interfaces',str(snap/'base-interfaces.json'),'--objects',str(snap/'objects.json'),str(work/'bundle.source'),str(ir)]
+            command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)] if label=='rust' else [str(compiler),mode,'--interfaces',str(snap/'base-interfaces.json'),'--objects',str(snap/'objects.json'),str(work/'bundle.source'),str(ir)]
             if label=='native' and args.native_rc_debug: command.insert(2,'--rc-debug')
             start=time.monotonic(); result=run(command,work,300)
             target=re.search(r'target triple = "([^"]+)"',ir.read_text())
