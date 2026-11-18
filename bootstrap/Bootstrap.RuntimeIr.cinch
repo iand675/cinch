@@ -641,11 +641,11 @@ module Bootstrap.RuntimeIr where
   -- A heap word is eight bytes on every target. Wasm relocates an address
   -- in the low four bytes, with zero in the high four (little endian).
   static-word-type :: StaticWord -> String
-  static-word-type word = case word of StaticAddress address -> "ptr, i32"; StaticBits bits -> "i64"
+  static-word-type word = case word of StaticAddress address -> "[2 x i32]"; StaticBits bits -> "i64"
   static-word-value :: Bool -> StaticWord -> String
   static-word-value wasm32 word = case word of
     StaticBits bits -> cat ["i64 ", nat-to-string bits]
-    StaticAddress address -> if wasm32 then cat ["ptr ", address, ", i32 0"] else cat ["i64 ptrtoint (ptr ", address, " to i64)"]
+    StaticAddress address -> if wasm32 then cat ["[2 x i32] [i32 ptrtoint (ptr ", address, " to i32), i32 0]"] else cat ["i64 ptrtoint (ptr ", address, " to i64)"]
   static-block :: Writer -> String -> Nat -> Nat -> List StaticWord -> Writer
   static-block w storage descriptor kind payload =
     let header = StaticBits (static-header kind (description-field descriptor)) in
@@ -1722,7 +1722,7 @@ module Bootstrap.RuntimeIr where
     None -> refuse w (Span 0 0 1 1) "array worker unavailable in selected ABI"
     Some (operation, format, scheme) ->
       let parameters = array-argument-classes operation classes in
-      let started = line (line w (cat ["define ", worker-linkage w (array-symbol name classes), "i64 ", symbol (array-symbol name classes), "(", join (argument-words (value-parameters (list-length parameters) 0)), ") {"])) "entry:" in
+      let started = line (line w (cat ["define ", worker-linkage w (array-symbol name classes), "i64 ", symbol (array-symbol name classes), "(", join (argument-words (value-parameters (list-length parameters) 0)), ")", worker-open w])) "entry:" in
       case array-lower started operation format classes of
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
@@ -1811,7 +1811,7 @@ module Bootstrap.RuntimeIr where
     (Some (operation, scheme), [element]) -> if element > 2 then refuse w (Span 0 0 1 1) "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet" else
       let parameters = mvar-argument-classes operation element in
       let worker = specialized-name name classes in
-      let started = line (line w (cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(", join (argument-words (value-parameters (mvar-arity operation) 0)), ") {"])) "entry:" in
+      let started = line (line w (cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(", join (argument-words (value-parameters (mvar-arity operation) 0)), ")", worker-open w])) "entry:" in
       (case mvar-lower started operation element of
         (made, result) -> let done = mvar-drop-arguments operation parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}")
     other -> refuse w (Span 0 0 1 1) "MVar worker needs an available canonical operation and one checked payload class"
@@ -1932,7 +1932,7 @@ module Bootstrap.RuntimeIr where
   builtin-worker :: String -> Writer -> Writer
   builtin-worker name w =
     let classes = builtin-classes name in
-    let started = line (line w (cat ["define ", worker-linkage w name, builtin-result-llvm name, " ", symbol name, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ") {"])) "entry:" in
+    let started = line (line w (cat ["define ", worker-linkage w name, builtin-result-llvm name, " ", symbol name, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ")", worker-open w])) "entry:" in
     let lowered = (if same name "b.newIO" then (started, "0")
       else if wide-builtin name then (case wide-intrinsic name of
         Some (scheme, operation) -> if same operation "eq" || same operation "ne" then compare-typed started "i128" operation "%arg0" "%arg1"
@@ -2795,7 +2795,7 @@ module Bootstrap.RuntimeIr where
         case dictionary-map factory plans scoped of
           Some fields -> case request-dictionary-shape (Span 0 0 1 1) fields scoped of
             (planned, descriptor) ->
-              let started = line (line planned (cat ["define ", worker-linkage planned (dictionary-name (instance-name factory) classes), "i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
+              let started = line (line planned (cat ["define ", worker-linkage planned (dictionary-name (instance-name factory) classes), "i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ")", worker-open w])) "entry:" in
               let count = list-length fields in
               let fixed = if list-length context == 0 && not (has-strict-values started factory (instance-fields factory)) then static-dictionary-fields factory classes count plans started else None in
               case fixed of
@@ -3099,6 +3099,11 @@ module Bootstrap.RuntimeIr where
     let (seven, slot) = fresh word-line "%ptr" in
     let slot-line = line seven (cat ["  ", slot, " = getelementptr i8, ptr ", frame, ", i64 ", nat-to-string (index * 8)]) in
     merge-words (line slot-line (cat ["  store i64 ", word, ", ptr ", slot])) frame (index + 1) count filled saved-bytes
+  copy-closure-bytes :: Writer -> String -> String -> String -> Writer
+  copy-closure-bytes w destination source bytes = if program-wasm32 (writer-program w) then
+    (let (next, size) = fresh w "%size" in
+      line (line next (cat ["  ", size, " = trunc i64 ", bytes, " to i32"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", source, ", i32 ", size, ")"]))
+    else line w (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", source, ", i64 ", bytes, ")"])
   -- The grow half: fewer words than the arity, so build a closure whose
   -- payload is the `filled` saved words followed by the `%argc` incoming
   -- ones and whose code word is this same stub, so the next application
@@ -3120,9 +3125,9 @@ module Bootstrap.RuntimeIr where
     let (seven, incoming-bytes) = fresh six "%v" in
     let (eight, incoming) = fresh seven "%ptr" in
     let copied = line (line eight (cat ["  ", destination, " = getelementptr i64, ptr ", pointer, ", i64 3"])) (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
-    let saved-copy = line (line copied (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
+    let saved-copy = copy-closure-bytes (line copied (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"])) destination saved saved-bytes in
     let argv-copy = line (line saved-copy (cat ["  ", incoming-bytes, " = mul i64 %argc, 8"])) (cat ["  ", incoming, " = getelementptr i8, ptr ", destination, ", i64 ", saved-bytes]) in
-    let (nine, self-word) = fresh (saved-dups classes 0 filled destination (line argv-copy (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", incoming-bytes, ")"]))) "%v" in
+    let (nine, self-word) = fresh (saved-dups classes 0 filled destination (copy-closure-bytes argv-copy incoming "%argv" incoming-bytes)) "%v" in
     let released = count-line False self-word (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     let (ten, closure-word) = fresh released "%v" in
     line (line ten (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word])
@@ -3156,7 +3161,7 @@ module Bootstrap.RuntimeIr where
   app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
     (planned, descriptor) ->
       let arity = list-length classes in
-      let header = line (line planned (cat ["define ", worker-linkage planned (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+      let header = line (line planned (cat ["define ", worker-linkage planned (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv)", worker-open w])) "entry:" in
       let (loaded, filled) = load-word header "%self" "2" in
       let (one, total) = fresh loaded "%v" in
       let total-line = line one (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
@@ -4474,7 +4479,7 @@ module Bootstrap.RuntimeIr where
         (loaded, value) -> (count-op False (core-type cell) word (count-op True result value loaded), value)
   memo-worker :: Writer -> Writer
   memo-worker w = global w (cat [
-    "define internal i64 @cinch.typed.memo.demand(i64 %cell, i64 %counted) {\nentry:\n",
+    "define internal i64 @cinch.typed.memo.demand(i64 %cell, i64 %counted)", worker-open w, "\nentry:\n",
     "  %p = inttoptr i64 %cell to ptr\n  %owned = getelementptr i64, ptr %p, i64 1\n  %cache = getelementptr i64, ptr %p, i64 2\n",
     "  %state = load i64, ptr %p\n  switch i64 %state, label %bad [ i64 0, label %eval i64 2, label %done ]\n",
     "eval:\n  %thunk = load i64, ptr %owned\n  %empty = icmp eq i64 %thunk, 0\n  br i1 %empty, label %bad, label %force\n",
@@ -4638,7 +4643,7 @@ module Bootstrap.RuntimeIr where
       let name = proof-stage-name (specialized-name (core-name d) classes) rung in
       let result = (case rest of Nil -> definition-result-llvm (writer-context w) d; other -> "i64") in
       let parameters = typed-arguments (typed-values (value-llvms (writer-context w) (take-types count types)) (value-parameters count 0)) in
-      let started = line (line w (cat ["define ", worker-linkage w name, result, " ", symbol name, "(", join parameters, ")", llvm-hint w (core-name d), " {"])) "entry:" in
+      let started = line (line w (cat ["define ", worker-linkage w name, result, " ", symbol name, "(", join parameters, ")", llvm-hint w (core-name d), worker-open w])) "entry:" in
       (case rest of
         Nil -> line (worker-clauses definitions prefix roots offset (core-clauses d) started) "}"
         Cons next-count more -> if wide-type (writer-context started) (final-result (scheme-body (core-scheme d))) then refuse started (Span 0 0 1 1) wide-refusal else
@@ -4654,7 +4659,7 @@ module Bootstrap.RuntimeIr where
   constructor-worker name classes w = case constructor name (writer-program w) of
     Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
       Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
-        emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0) {"], "entry:", "  ret i64 %arg0", "}"]
+        emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
       Some d -> case constructor-context d classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids pending done inlining ->
@@ -4664,7 +4669,7 @@ module Bootstrap.RuntimeIr where
                 let count = list-length (core-constructor-fields c) in
                 let values = value-parameters count 0 in
                 let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
-                let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ") {"])) "entry:" in
+                let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
                 case allocate-constructor d started (data-descriptor descriptor tag) typed of
                   (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
@@ -4677,12 +4682,12 @@ module Bootstrap.RuntimeIr where
       let types = capture-types saved in
       let offset = list-length types in
       if erased-pattern parameter then
-        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
+        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ")", worker-open w])) "entry:" in
         (case expression definitions (captured-bindings saved 0) started body of
           (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret ", value-llvm (writer-context done) (core-type body), " ", result])) "}")
       else
         let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
-        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
+        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ")", worker-open w])) "entry:" in
         line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
   recursive-width :: List RecursiveWorker -> Nat
   recursive-width group = case group of
@@ -4885,11 +4890,11 @@ module Bootstrap.RuntimeIr where
       let entry = value-parameters arity 0 in
       let callee = tail-worker-name name in
       let widened = value-parameters width 0 in
-      let wrapper = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words entry), ")", hint, " {"])) "entry:" in
+      let wrapper = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words entry), ")", hint, worker-open w])) "entry:" in
       case call wrapper (symbol callee) (entry <> padding-words (width - arity)) of
         (called, result) ->
           let wrapped = line (line called (cat ["  ret i64 ", result])) "}" in
-          line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words widened), ")", hint, " {"])) "entry:"
+          line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words widened), ")", hint, worker-open w])) "entry:"
     else refuse w (Span 0 0 1 1) "tail wrapper exceeds its checked worker width"
 
   global-tail-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> TailContext -> List CoreClause -> Writer -> Writer
@@ -4950,7 +4955,7 @@ module Bootstrap.RuntimeIr where
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
-  declarations = declarations-counting False True
+  declarations = declarations-counting False False True
   -- The four pooled parallel entries (runtime ABI 8). They are declared
   -- only when the program contains a parallel primitive, so a program that
   -- uses none emits the same IR bytes as before the builtins existed
@@ -4984,12 +4989,17 @@ module Bootstrap.RuntimeIr where
   -- so every other declaration and every call site is the same bytes. An
   -- emission that does not reclaim emits neither helper, because no body
   -- of it calls one.
-  declarations-counting :: Bool -> Bool -> String
-  declarations-counting debug reclaim = cat [
+  function-open :: Bool -> String
+  function-open wasm32 = if wasm32 then " \"target-features\"=\"+tail-call\" {" else " {"
+  worker-open :: Writer -> String
+  worker-open w = function-open (program-wasm32 (writer-program w))
+  declarations-counting :: Bool -> Bool -> Bool -> String
+  declarations-counting wasm32 debug reclaim = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
-    "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\ndeclare ptr @memcpy(ptr, ptr, i64)\n",
+    "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n",
+    if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    if not reclaim then "" else if debug then debug-count-helpers else count-helpers,
+    if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
@@ -5012,14 +5022,14 @@ module Bootstrap.RuntimeIr where
   -- block shared with other tasks (the runtime's atomic paths); 0 is an
   -- immortal block, never written. A drop of the last reference calls
   -- cinch_drop_slow, which releases the block.
-  count-helpers :: String
-  count-helpers = cat [
-    "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline {\nentry:\n",
+  count-helpers :: Bool -> String
+  count-helpers wasm32 = cat [
+    "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
     "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
     "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
     "  %plain = icmp sgt i64 %top, 0\n  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
     "other:\n  %shared = icmp ne i64 %top, 0\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n",
-    "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline {\nentry:\n",
+    "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
     "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
     "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
     "  %plain = icmp sgt i64 %top, 536870912\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
@@ -5030,27 +5040,29 @@ module Bootstrap.RuntimeIr where
   -- cinch_dup and cinch_drop, so CINCH_RC_DEBUG=1 checks every count
   -- operation this module performs against a live header. The helpers are
   -- the only count operations the module emits, so no inline path stays.
-  debug-count-helpers :: String
-  debug-count-helpers = cat [
+  debug-count-helpers :: Bool -> String
+  debug-count-helpers wasm32 = cat [
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\n",
-    "define internal void @cinch.typed.rc.dup(i64 %w) {\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
-    "define internal void @cinch.typed.rc.drop(i64 %w) {\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
+    "define internal void @cinch.typed.rc.dup(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
+    "define internal void @cinch.typed.rc.drop(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
   apply-entry :: String
-  apply-entry = apply-entry-with-linkage ""
-  apply-entry-with-linkage :: String -> String
-  apply-entry-with-linkage linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
+  apply-entry = apply-entry-with-linkage False ""
+  apply-entry-with-linkage :: Bool -> String -> String
+  apply-entry-with-linkage wasm32 linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv)", function-open wasm32, "\nentry:\n",
     "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
     "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
-  entry :: String -> Nat -> Bool -> String
-  entry name mode reclaim =
+  entry :: Bool -> String -> Nat -> Bool -> String
+  entry wasm32 name mode reclaim =
     let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol name, "()\n"]
       else if mode == 1 then cat ["  %result = call i64 ", symbol name, "(i64 0)\n"]
       else if mode == 3 then cat ["  %function = call i64 ", symbol name, "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
       else cat ["  %function = call i64 ", symbol name, "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
-    cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
+    cat ["define i64 @cinch.typed.exit()", function-open wasm32, "\nentry:\n", invocation,
     "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n", if reclaim then "  call void @cinch.typed.rc.drop(i64 %result)\n" else "", "  ret i64 %exit\n}\n",
-    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n", if reclaim then "  call void @cinch_reclaim_enable()\n" else "", "  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
-    "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
+    if wasm32 then "define i32 @main()" else "define i32 @main(i32 %argc, ptr %argv)", function-open wasm32, "\nentry:\n",
+    if reclaim then "  call void @cinch_reclaim_enable()\n" else "",
+    if wasm32 then "" else "  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+    if wasm32 then "  %exit = call i64 @cinch.typed.exit()\n" else "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n", "  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
   entry-parameters :: List Quant -> Bool
   entry-parameters qs = case qs of Nil -> True; Cons q rest -> erased-kind (quant-kind q) && entry-parameters rest
   entry-mode :: CoreDefinition -> Option Nat
@@ -5266,7 +5278,7 @@ module Bootstrap.RuntimeIr where
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage False "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -5312,11 +5324,11 @@ module Bootstrap.RuntimeIr where
   library-bridge :: String -> String -> List Nat -> Writer -> Writer
   library-bridge public worker params w =
     let arguments = value-parameters (list-length params) 0 in
-    let started = line (line w (cat ["define i64 ", llvm-object-symbol public, "(", join (argument-words arguments), ") {"])) "entry:" in
+    let started = line (line w (cat ["define i64 ", llvm-object-symbol public, "(", join (argument-words arguments), ")", worker-open w])) "entry:" in
     case call started (symbol worker) arguments of
       (called, value) ->
         let returned = line (line called (cat ["  ret i64 ", value])) "}" in
-        let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "() {"])) "entry:" in
+        let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "()", worker-open w])) "entry:" in
         case closure (Span 0 0 1 1) worker params Nil accessor of
           (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
   library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)
@@ -5490,7 +5502,7 @@ module Bootstrap.RuntimeIr where
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [header, declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code] in
+          let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "internal ", builder-run code] in
           Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
@@ -5526,5 +5538,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let name = core-name d in let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [(name, Nil)] info in
           case (case constructor name info of Some found -> workers definitions (demand-worker name Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry name mode reclaim])
+            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "", builder-run code, entry wasm32 name mode reclaim])
             Writer next globals code errors layouts datas -> Err errors

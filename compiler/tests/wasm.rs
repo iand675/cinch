@@ -497,15 +497,9 @@ module Wide where
   main :: Int
   main = if n == 2 then 0 else 1
 "#;
-    let program = cinch::driver::check_sources_profile(
+    let ir = common::source_frontend::emit_ir_profile(
         src,
-        "<test>",
         &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
-    )
-    .expect("the program checks at wasm32");
-    let ir = cinch::codegen::emit_for(
-        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
-        &program,
     )
     .expect("wasm32 IR emission");
 
@@ -556,15 +550,9 @@ module Wide where
   main :: Int
   main = if n == 2 then 0 else 1
 "#;
-    let program = cinch::driver::check_sources_profile(
+    let ir = common::source_frontend::emit_ir_profile(
         src,
-        "<test>",
         &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
-    )
-    .expect("the program checks at wasm32");
-    let ir = cinch::codegen::emit_for(
-        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
-        &program,
     )
     .expect("wasm32 IR emission");
     let main = ir
@@ -572,6 +560,8 @@ module Wide where
         .nth(1)
         .expect("a wasm module has the plain main shape");
     assert!(!ir.contains("__cinch_layouts_init") && !ir.contains("cinch_layouts_register"), "no layout table is registered");
+    assert!(main.contains("call void @cinch_reclaim_enable()") || main.contains("call void @__cinch_reclaim_init()"),
+            "the counting entry must enable reclamation:\n{main}");
     assert_eq!(
         main.contains("call void @__cinch_reclaim_init()"),
         ir.contains("define internal void @__cinch_reclaim_init()"),
