@@ -58,25 +58,7 @@ def hold(owner: str = "", poll: float = 0.25):
     """
     if _HELD:
         return
-    count = slot_count()
-    directory = slot_directory()
-    while True:
-        for index in range(count):
-            path = directory / f"{index}.lock"
-            handle = path.open("a+")
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                handle.close()
-                continue
-            if owner:
-                handle.seek(0)
-                handle.truncate()
-                handle.write(f"{owner} {os.getpid()}\n")
-                handle.flush()
-            _HELD.append(handle)
-            return
-        time.sleep(poll)
+    _HELD.append(_acquire(owner, poll))
 
 
 def slot_directory() -> Path:
@@ -98,29 +80,33 @@ def slot(owner: str = "", poll: float = 0.25):
     `owner` is only a label written into the lock file, so a stuck build can
     be attributed to a lane without guessing from pids alone.
     """
+    with _acquire(owner, poll):
+        yield
+
+
+def _acquire(owner: str, poll: float):
     count = slot_count()
     directory = slot_directory()
-    while True:
-        for index in range(count):
-            path = directory / f"{index}.lock"
-            handle = path.open("a+")
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                handle.close()
-                continue
-            if owner:
-                handle.seek(0)
-                handle.truncate()
-                handle.write(f"{owner} {os.getpid()}\n")
-                handle.flush()
-            try:
-                yield
-            finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
-                handle.close()
-            return
-        time.sleep(poll)
+    # Queue contenders before probing. A suite that releases a slot and
+    # immediately schedules its next target otherwise outruns every lane
+    # asleep between polls. Hold the queue lock only until a slot is taken.
+    with (directory / "admission.lock").open("a") as admission:
+        fcntl.flock(admission, fcntl.LOCK_EX)
+        while True:
+            for index in range(count):
+                handle = (directory / f"{index}.lock").open("a+")
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    handle.close()
+                    continue
+                if owner:
+                    handle.seek(0)
+                    handle.truncate()
+                    handle.write(f"{owner} {os.getpid()}\n")
+                    handle.flush()
+                return handle
+            time.sleep(poll)
 
 
 def status() -> list[tuple[int, str]]:
