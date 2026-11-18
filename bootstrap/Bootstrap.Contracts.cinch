@@ -279,6 +279,7 @@ module Bootstrap.Contracts where
     EProject s value name -> expr-references value
     ETuple s args -> expr-references args
     EList s args -> [global-data-core-nil, global-data-core-cons, global-data-fromlist-fromlist-from-list] <> expr-references args
+    ESupplied s f a -> expr-references f <> expr-references a
     EApp s f a -> expr-references f <> expr-references a
     EBin s op a b -> expr-references a <> expr-references b
     ENeg s x -> expr-references x

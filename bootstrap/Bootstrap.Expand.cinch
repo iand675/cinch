@@ -49,6 +49,7 @@ module Bootstrap.Expand where
     EProject s value name -> term-has-macro-call value
     ETuple s xs -> term-has-macro-call xs
     EList s xs -> term-has-macro-call xs
+    ESupplied s f a -> term-has-macro-call f || term-has-macro-call a
     EApp s f a -> term-has-macro-call f || term-has-macro-call a
     EBin s op l r -> term-has-macro-call l || term-has-macro-call r
     ENeg s x -> term-has-macro-call x
@@ -268,6 +269,9 @@ module Bootstrap.Expand where
       (renamed, after) -> (ETuple s renamed, after)
     EList s xs -> case hygiene xs renames serial of
       (renamed, after) -> (EList s renamed, after)
+    ESupplied s f a -> case hygiene f renames serial of
+      (renamed-f, more) -> case hygiene a renames more of
+        (renamed-a, after) -> (ESupplied s renamed-f renamed-a, after)
     EApp s f a -> case hygiene f renames serial of
       (renamed-f, more) -> case hygiene a renames more of
         (renamed-a, after) -> (EApp s renamed-f renamed-a, after)
@@ -472,6 +476,7 @@ module Bootstrap.Expand where
     EQuote s body -> case fill-walk body groups fix of
       Err errors -> Err errors
       Ok (filled, more) -> Ok (EQuote s filled, more)
+    ESupplied s f a -> fill-two (\x y -> ESupplied s x y) f a groups fix
     EApp s f a -> fill-two (\x y -> EApp s x y) f a groups fix
     EBin s op l r -> fill-two (\x y -> EBin s op x y) l r groups fix
     ERecordField s label value rest -> fill-two (\x y -> ERecordField s label x y) value rest groups fix

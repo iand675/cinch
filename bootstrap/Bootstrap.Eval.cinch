@@ -558,6 +558,7 @@ module Bootstrap.Eval where
     EHandler s label clauses -> fail s "unsupported expression: handler"
     EHandlerClause s name pats continuation body rest -> fail s "unsupported expression: handler clause"
     EHandlerEnd s -> fail s "unsupported expression: handler clause end"
+    ESupplied s bs body -> fail s "unsupported expression: capability supply"
     EWith s bs body -> fail s "unsupported expression: with"
     EArg s x rest -> fail s "unsupported expression: argument spine cell"
     EArgsEnd s -> fail s "unsupported expression: argument spine end"

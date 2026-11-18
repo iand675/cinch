@@ -761,6 +761,7 @@ module Bootstrap.Ir where
     EHandler s label clauses -> "handler"
     EHandlerClause s name pats continuation body rest -> "handler clause"
     EHandlerEnd s -> "handler clause end"
+    ESupplied s bs body -> "capability supply"
     EWith s bs body -> "with"
     EArg s x rest -> "argument spine"
     EArgsEnd s -> "argument spine end"

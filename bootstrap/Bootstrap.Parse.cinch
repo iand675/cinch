@@ -2302,24 +2302,24 @@ module Bootstrap.Parse where
   record-expr-spine sp fields = case fields of
     Nil -> EArgsEnd sp
     Cons (name, value) rest -> ERecordField (expr-span value) name value (record-expr-spine sp rest)
-  parse-record-expr-fields :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
-  parse-record-expr-fields sp name toks src fix acc = case toks of
+  parse-record-expr-fields :: Span -> (Span -> Expr -> Expr) -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
+  parse-record-expr-fields sp build toks src fix acc = case toks of
     Cons t rest -> if is-punct-t (lt-token t) "}" then
-      POk (ERecord (span-join sp (sp-of t)) name (record-expr-spine sp (reverse acc))) rest
+      POk (build (span-join sp (sp-of t)) (record-expr-spine sp (reverse acc))) rest
       else (case record-field-label toks of
         POk label (Cons equals input) -> if is-punct-t (lt-token equals) "=" then
           (case parse-expr input src fix of
-            POk value remaining -> record-expr-separator sp name remaining src fix (Cons (label, value) acc)
+            POk value remaining -> record-expr-separator sp build remaining src fix (Cons (label, value) acc)
             PBad -> PBad)
           else PBad
         other -> PBad)
     Nil -> PBad
-  record-expr-separator :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
-  record-expr-separator sp name toks src fix acc = case toks of
+  record-expr-separator :: Span -> (Span -> Expr -> Expr) -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
+  record-expr-separator sp build toks src fix acc = case toks of
     Cons t rest -> if is-punct-t (lt-token t) "," then (case rest of
-      Cons next more -> if is-punct-t (lt-token next) "}" then PBad else parse-record-expr-fields sp name rest src fix acc
+      Cons next more -> if is-punct-t (lt-token next) "}" then PBad else parse-record-expr-fields sp build rest src fix acc
       Nil -> PBad)
-      else if is-punct-t (lt-token t) "}" then parse-record-expr-fields sp name toks src fix acc else PBad
+      else if is-punct-t (lt-token t) "}" then parse-record-expr-fields sp build toks src fix acc else PBad
     Nil -> PBad
 
   finish-app :: Expr -> List LToken -> List Expr -> Ps Expr
@@ -2353,10 +2353,15 @@ module Bootstrap.Parse where
   parse-postfix :: Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-postfix value toks src fix = case toks of
     Cons t rest -> if is-punct-t (lt-token t) "{" then (case value of
-      ECon sp name (EArgsEnd end) -> (case parse-record-expr-fields sp name rest src fix Nil of
+      ECon sp name (EArgsEnd end) -> (case parse-record-expr-fields sp (\at fields -> ERecord at name fields) rest src fix Nil of
         POk constructed more -> parse-postfix constructed more src fix
         PBad -> PBad)
       other -> POk value toks)
+      else if is-punct-t (lt-token t) "@" then (case rest of
+        Cons brace fields | is-punct-t (lt-token brace) "{" -> (case parse-record-expr-fields (expr-span value) (\at supplied -> ESupplied at value supplied) fields src fix Nil of
+          POk applied more -> parse-postfix applied more src fix
+          PBad -> PBad)
+        other -> POk value toks)
       else if is-punct-t (lt-token t) "." then (case rest of
         Cons label more -> (case lt-token label of
           TVar name -> if string-compare name "_" == 0 then PBad else parse-postfix (EProject (span-join (expr-span value) (sp-of label)) value name) more src fix

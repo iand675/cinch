@@ -455,6 +455,7 @@ module Bootstrap.Check where
     EHandler s label clauses -> (TyHole, fail s "unsupported expression: handler")
     EHandlerClause s name pats continuation body rest -> (TyHole, fail s "unsupported expression: handler clause")
     EHandlerEnd s -> (TyHole, fail s "unsupported expression: handler clause end")
+    ESupplied s bs body -> (TyHole, fail s "unsupported expression: capability supply")
     EWith s bs body -> (TyHole, fail s "unsupported expression: with")
     ETuple s xs -> case spine-ok-exprs xs of
       False -> (TyHole, fail s "malformed tuple expression spine")

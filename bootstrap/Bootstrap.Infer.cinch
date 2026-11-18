@@ -359,6 +359,7 @@ module Bootstrap.Infer where
     ELetScope sp body -> expression-needs body
     ELocalGroup sp bindings body -> True
     ELetRec sp bindings body -> True
+    ESupplied s head supplies -> True
     EWith s bs body -> True
     EDo sp statements -> True
     EHandle s body handled-by -> True
@@ -4011,6 +4012,7 @@ module Bootstrap.Infer where
     ELetScope sp body -> scoped-let sp (infer classes kinds families env locals body) st
     ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body None st
     ELetRec sp bindings body -> scoped-let sp (infer-recursive-group classes kinds families env locals sp bindings body None) st
+    ESupplied sp head fields -> infer-supplied classes kinds families env locals sp head fields st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
     EHandle sp body handled-by -> infer-handle classes kinds families env locals sp body handled-by st
     EHandler sp label clauses -> case fresh-meta KType st of
@@ -4796,6 +4798,45 @@ module Bootstrap.Infer where
                 None -> term-error sp "handler needs its actual checked effect declaration" matched
               None -> term-error sp "handler body needs a resolved effect row" matched
           None -> term-error sp "handle expects a checked handler value" next
+  -- Each label selects one slot in the callee's instantiated context.
+  -- Other wants keep their original lexical candidates, even when two
+  -- named parameters have the same capability type.
+  infer-supplied :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
+  infer-supplied classes kinds families env locals sp head fields st = case (head, record-expression-fields fields) of
+    (EVar at name, Some supplies) -> (case lookup-binding name env of
+      Some binding -> (case lookup-value at name env st of
+        (callee, opened) -> let requirements = scheme-requirements (checked-scheme binding) in
+          let apply = supply-context classes kinds families env locals sp name supplies requirements in
+          (case callee of
+            CQualifiedUse pos ty owner role actuals holes -> apply holes (\evidence -> CQualifiedUse pos ty owner role actuals evidence) opened
+            CMethod pos ty method owner slot actuals holes -> apply holes (\evidence -> CMethod pos ty method owner slot actuals evidence) opened
+            CUse pos ty owner role actuals -> apply Nil (\unused -> callee) opened
+            other -> term-error at "explicit capability supplies apply to a named function" opened))
+      None -> term-error at ("unknown name " <> name) st)
+    other -> term-error sp "explicit capability supplies apply to a named function" st
+  take-supply :: String -> List (String, Expr) -> Option (Expr, List (String, Expr))
+  take-supply wanted supplies = case supplies of
+    Nil -> None
+    Cons (label, value) rest -> if same wanted label then Some (value, rest) else
+      (case take-supply wanted rest of Some (found, remaining) -> Some (found, Cons (label, value) remaining); None -> None)
+  supply-context :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> List (String, Expr) -> List Requirement -> List CoreEvidence -> (List CoreEvidence -> CoreTerm) -> Store -> (CoreTerm, Store)
+  supply-context classes kinds families env locals sp name supplies requirements holes build st = case (requirements, holes) of
+    (Nil, Nil) -> (case supplies of
+      Nil -> (build Nil, st)
+      Cons (label, value) rest -> term-error (expr-span value) (name <> " has no capability parameter " <> label <> " available to supply") st)
+    (Cons requirement rest, Cons (CENeeded pos wanted candidates) more) ->
+      let keep = CENeeded pos wanted candidates in
+      (case (with-region (normalize st wanted), take-supply (requirement-name requirement) supplies) of
+        (Some region, Some (rhs, remaining)) -> (case check classes kinds families env locals rhs wanted st of
+          (value, checked) -> (case store-errors checked of
+            Cons error prior -> term-error (expr-span rhs) ("checking the supplied value against the declared capability type: got " <> display-type-text (normalize st wanted) <> " for " <> requirement-name requirement) checked
+            Nil -> case fresh-id checked of
+              (id, fresh) -> let symbol = "#capability_" <> nat-to-string id in
+                let given = CGiven pos symbol wanted in
+                case supply-context classes kinds families (proof-env-after-term env value fresh) locals sp name remaining rest more (\tail -> build (Cons (CEGiven pos wanted symbol) tail)) fresh of
+                  (body, done) -> (CWith pos (core-type body) given value body, done)))
+        other -> supply-context classes kinds families env locals sp name supplies rest more (\tail -> build (Cons keep tail)) st)
+    other -> term-error sp "capability parameter list disagrees with its checked dictionary context" st
   infer-with :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-with classes kinds families env locals bindings body expected st = case bindings of
     EBindingsEnd s -> case expected of None -> infer classes kinds families env locals body st; Some ty -> check classes kinds families env locals body ty st
@@ -7654,6 +7695,7 @@ module Bootstrap.Infer where
       EUsing sp bounds body -> nested flow body
       EBind sp name rhs -> eager rhs
       EDo sp statements -> eager statements
+      ESupplied sp head supplies -> first-guard-error (eager head) (eager supplies)
       EWith sp bindings body -> first-guard-error (eager bindings) (nested flow body)
       EHandle sp body handler-value -> first-guard-error (eager body) (eager handler-value)
       EHandler sp label clauses -> eager clauses
@@ -7815,6 +7857,9 @@ module Bootstrap.Infer where
     Cons (name, value) rest -> if same name wanted then value else record-written-argument sp wanted rest
   record-expression :: List Decl -> Expr -> Expr
   record-expression all expression = case expression of
+    ESupplied sp head fields -> (case record-expression-fields fields of
+      Some values -> ESupplied sp (record-expression all head) (record-value-expressions all sp values)
+      None -> expression)
     ERecord sp name fields -> (case record-expression-fields fields of
       Some values -> ERecord sp name (record-value-expressions all sp values)
       None -> expression)

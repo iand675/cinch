@@ -295,6 +295,7 @@ module Bootstrap.Ast where
     EHandler :: Span -> TypeExpr -> Expr -> Expr
     EHandlerClause :: Span -> String -> List Pat -> Option String -> Expr -> Expr -> Expr
     EHandlerEnd :: Span -> Expr
+    ESupplied :: Span -> Expr -> Expr -> Expr
     EWith :: Span -> Expr -> Expr -> Expr
     EArg :: Span -> Expr -> Expr -> Expr
     EArgsEnd :: Span -> Expr
@@ -395,6 +396,7 @@ module Bootstrap.Ast where
     EHandler s label clauses -> s
     EHandlerClause s name pats continuation body rest -> s
     EHandlerEnd s -> s
+    ESupplied s bs body -> s
     EWith s bs body -> s
     EArg s x rest -> s
     EArgsEnd s -> s
@@ -790,6 +792,7 @@ module Bootstrap.Ast where
     EHandler s label clauses -> type-unmodeled-count label + expr-unmodeled-count clauses
     EHandlerClause s name pats continuation body rest -> pats-unmodeled pats + expr-unmodeled-count body + expr-unmodeled-count rest
     EHandlerEnd s -> 0
+    ESupplied s bs body -> expr-unmodeled-count bs + expr-unmodeled-count body
     EWith s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
     EArg s x rest -> expr-unmodeled-count x + expr-unmodeled-count rest
     EArgsEnd s -> 0
@@ -1021,6 +1024,7 @@ module Bootstrap.Ast where
     EHandler part0 part1 part2 -> JArr (JStr "EHandler") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EHandlerClause part0 part1 part2 part3 part4 part5 -> JArr (JStr "EHandlerClause") (JArr (JStr part1) (JArr (source-identity-pats part2) (JArr (source-identity-optional part3) (JArr (source-identity-expr part4) (JArr (source-identity-expr part5) (JArrEnd))))))
     EHandlerEnd part0 -> JArr (JStr "EHandlerEnd") (JArrEnd)
+    ESupplied part0 part1 part2 -> JArr (JStr "ESupplied") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EWith part0 part1 part2 -> JArr (JStr "EWith") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EArg part0 part1 part2 -> JArr (JStr "EArg") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EArgsEnd part0 -> JArr (JStr "EArgsEnd") (JArrEnd)

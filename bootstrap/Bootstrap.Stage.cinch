@@ -544,6 +544,7 @@ module Bootstrap.Stage where
     EDo s stmts -> expand-one (EDo s) stmts site-context fuel
     EHandler s label clauses -> expand-one (EHandler s label) clauses site-context fuel
     EQuote s body -> expand-one (EQuote s) body site-context fuel
+    ESupplied s f a -> expand-two (\x y -> ESupplied s x y) f a site-context fuel
     EApp s f a -> expand-two (\x y -> EApp s x y) f a site-context fuel
     EBin s op l r -> expand-two (\x y -> EBin s op x y) l r site-context fuel
     ERecordField s label value rest -> expand-two (\x y -> ERecordField s label x y) value rest site-context fuel

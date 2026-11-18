@@ -860,6 +860,9 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (ETuple s renamed, errors)
     EList s args -> case rename-expr visible locals args of
       (renamed, errors) -> (EList s renamed, errors)
+    ESupplied s callee supplies -> case rename-expr visible locals callee of
+      (head, errors) -> case rename-expr visible locals supplies of
+        (fields, more) -> (ESupplied s head fields, errors <> more)
     EApp s f a -> if builtin-decision-use visible locals f then
       (case rename-expr visible locals f of (head, errors) -> case rename-decision-syntax visible locals a of (argument, more) -> (EApp s head argument, errors <> more))
       else (case rename-expr visible locals f of
