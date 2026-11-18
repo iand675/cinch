@@ -721,6 +721,10 @@
     },
     {
       "classes": "R",
+      "symbol": "Data.List.length"
+    },
+    {
+      "classes": "R",
       "symbol": "Data.List.list-length"
     },
     {

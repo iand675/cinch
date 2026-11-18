@@ -859,6 +859,7 @@ module Bootstrap.RuntimeIr where
   -- must keep its original once-evaluated let and cannot enter this path.
   local-function-value :: CoreTerm -> Bool
   local-function-value value = case value of
+    CRecursiveFunctions sp ty members (CLocal at member key name actuals) -> local-in-recursive-functions key members
     CLambda sp ty pattern body -> True
     CLocal sp ty id name actuals -> True
     CUse sp ty name role actuals -> True

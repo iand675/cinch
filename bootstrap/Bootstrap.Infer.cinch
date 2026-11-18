@@ -5182,6 +5182,31 @@ module Bootstrap.Infer where
         None -> None
     other -> None
 
+  -- Inside the group every use still has its monotype. Only the outer
+  -- body sees fresh instances. A function's generalizable value closes
+  -- over its reachable siblings as well as its ordinary outer captures.
+  recursive-closure-slice :: Nat -> List (Nat, List (Nat, Bool)) -> CoreTerm -> CoreTerm
+  recursive-closure-slice root graph closures = case closures of
+    CRecursiveBinding id name value rest ->
+      let more = recursive-closure-slice root graph rest in
+      if id == root || reaches-recursive-member id (edges-from root graph) graph Nil then
+        CRecursiveBinding id name value more else more
+    other -> CRecursiveBindingsEnd
+
+  recursive-function-exports :: List CheckedBinding -> Nat -> CoreTerm -> List (Nat, List (Nat, Bool)) -> List RecursiveDefinition -> Store -> (List CheckedBinding, List LocalStep, Bool, Store)
+  recursive-function-exports outer level closures graph members st = case members of
+    Nil -> (outer, Nil, False, st)
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      let ty = core-type value in
+      let (scheme, pairs) = strict-value-scheme True level outer value st in
+      case fresh-id st of
+        (key, fresh) -> case recursive-function-exports outer level closures graph rest fresh of
+          (env, steps, generic, ready) ->
+            let projection = CRecursiveFunctions sp ty (recursive-closure-slice id graph closures) (CLocal sp ty id name Nil) in
+            let binding = MkLocalBinding name scheme key level in
+            (Cons binding env, Cons (StrictValueStep sp key name scheme (abstract-term ready pairs projection)) steps,
+              (case scheme-params scheme of Nil -> generic; other -> True), ready)
+
   recursive-knot-name :: List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> String
   recursive-knot-name definitions graph = case definitions of
     Nil -> "letrec"
@@ -5228,10 +5253,14 @@ module Bootstrap.Infer where
                         -- initializer may store a closure over a later box.
                         None -> (case (cells, checked-recursive-closures definitions) of
                           (Nil, Some closures) -> (case order-recursive-members definitions strict-graph Nil Nil of
-                            None -> (case (case wanted of
-                              Some expected -> check classes kinds families bound locals body expected typed
-                              None -> infer classes kinds families bound locals body typed) of
-                              (result, done) -> (CRecursiveFunctions sp (core-type result) closures result, restore-level (store-level st) done))
+                            None -> (case recursive-function-exports env (store-level st) closures strict-graph definitions typed of
+                              (exports, steps, generic, prepared) ->
+                                let visible = if generic then exports else bound in
+                                (case (case wanted of
+                                  Some expected -> check classes kinds families visible locals body expected prepared
+                                  None -> infer classes kinds families visible locals body prepared) of
+                                  (result, done) -> (if generic then local-step-terms steps result else CRecursiveFunctions sp (core-type result) closures result,
+                                    restore-level (store-level st) done)))
                             Some other -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st)
                           (Nil, None) -> (case infer-recursive-values classes kinds families bound locals sp id definitions strict-graph body wanted typed of
                             (result, done) -> (result, restore-level (store-level st) done))
