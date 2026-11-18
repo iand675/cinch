@@ -1,0 +1,33 @@
+{
+  "scope": "Static source proposal only; no Cargo, Rust typecheck, compiler emission, runtime, Native/provider/seed or performance gate run.",
+  "patch_sha256": "e1ba2b17058f740d95d626f83a085c545aa4842585958a8baffdae3d072252e2",
+  "patch_apply_check": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "rustfmt_parse_only": [
+    "compiler/src/check.rs",
+    "compiler/src/check_decls.rs",
+    "compiler/src/check_terms.rs",
+    "compiler/src/codegen.rs",
+    "compiler/src/core.rs",
+    "compiler/src/coretext.rs",
+    "compiler/src/ifaceopt.rs",
+    "compiler/src/rc.rs",
+    "compiler/src/simplify.rs",
+    "compiler/tests/borrow_inference.rs",
+    "compiler/tests/inline_copy.rs",
+    "compiler/tests/simplify.rs",
+    "compiler/tests/stack_allocation.rs",
+    "compiler/tests/wide_reuse.rs"
+  ],
+  "all_target_hashes_match": true,
+  "qualified_pcg_producer_source_b9c4e48c_matches_current": [
+    "compiler/src/rc.rs",
+    "compiler/src/codegen.rs"
+  ],
+  "tests_prepared": 6,
+  "runtime_gates_pending": true,
+  "word_store_implementation_pending": true
+}

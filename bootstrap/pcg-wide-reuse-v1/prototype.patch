@@ -1,0 +1,834 @@
+--- a/compiler/src/check.rs
++++ b/compiler/src/check.rs
+@@ -917,10 +917,11 @@
+                 .map(|a| {
+                     let p = match &a.pat {
+                         CPat::Var(l, c) => CPat::Var(m(l), *c),
+-                        CPat::Con { tag, fields, classes } => CPat::Con {
++                        CPat::Con { tag, fields, classes, ctor } => CPat::Con {
+                             tag: *tag,
+                             fields: fields.iter().map(m).collect(),
+                             classes: classes.clone(),
++                            ctor: ctor.as_ref().map(|id| r.unit(id)),
+                         },
+                         CPat::Wild => CPat::Wild,
+                     };
+@@ -1602,10 +1603,11 @@
+                             cx.inferred.borrow_mut().insert(*l, c);
+                             CPat::Var(*l, c)
+                         }
+-                        CPat::Con { tag, fields, .. } => CPat::Con {
++                        CPat::Con { tag, fields, ctor, .. } => CPat::Con {
+                             tag: *tag,
+                             fields: fields.clone(),
+                             classes: fields.iter().map(|f| cx.local(*f)).collect(),
++                            ctor: ctor.clone(),
+                         },
+                         CPat::Wild => CPat::Wild,
+                     },
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -2590,6 +2590,7 @@
+                         tag: 1,
+                         fields: vec![LocalId(2), LocalId(3)],
+                         classes: vec![Class::Param(0), Class::Obj],
++                        ctor: None,
+                     },
+                     crate::core::Core::If(
+                         Box::new(i_is_zero),
+@@ -2677,6 +2678,7 @@
+                         tag: 1,
+                         fields: vec![LocalId(1), LocalId(2)],
+                         classes: vec![Class::Param(0), Class::Obj],
++                        ctor: None,
+                     },
+                     crate::core::Core::App(
+                         Box::new(crate::core::Core::Ctor(yield_gid, vec![Class::Obj, Class::Param(0)])),
+--- a/compiler/src/check_terms.rs
++++ b/compiler/src/check_terms.rs
+@@ -6305,6 +6305,7 @@
+                         tag: cons_tag,
+                         fields: vec![LocalId(1), LocalId(2)],
+                         classes: vec![Class::Raw, Class::Obj],
++                        ctor: None,
+                     },
+                     Core::If(
+                         Box::new(elem_ok),
+@@ -6381,6 +6382,7 @@
+                         tag: cons_tag,
+                         fields: vec![LocalId(3), LocalId(4)],
+                         classes: vec![Class::TObj, Class::Obj],
++                        ctor: None,
+                     },
+                     Core::If(
+                         Box::new(elem_cmp),
+@@ -6399,6 +6401,7 @@
+                         tag: cons_tag,
+                         fields: vec![LocalId(1), LocalId(2)],
+                         classes: vec![Class::TObj, Class::Obj],
++                        ctor: None,
+                     },
+                     inner,
+                 ),
+@@ -6472,6 +6475,7 @@
+                         tag: cons_tag,
+                         fields: vec![LocalId(1), LocalId(2)],
+                         classes: vec![Class::Raw, Class::Obj],
++                        ctor: None,
+                     },
+                     succ,
+                 ),
+@@ -9318,7 +9322,12 @@
+                     alt_branch.push(branch_lists.len());
+                     branch_lists.push(branch);
+                     alt_maps.push(m);
+-                    alt_pats.push(CPat::con(tag, slots));
++                    alt_pats.push(CPat::Con {
++                        tag,
++                        fields: slots,
++                        classes: Vec::new(),
++                        ctor: Some(fn_id(&constructor.module, &constructor.name)),
++                    });
+                     alts.push(core);
+                 }
+                 if let Some((core, m, branch_index)) = default_alt {
+--- a/compiler/src/codegen.rs
++++ b/compiler/src/codegen.rs
+@@ -8580,6 +8580,15 @@
+     }
+ }
+ 
++/// Store one ordinary constructor field using its physical representation.
++/// Wide fields occupy two raw words; every other field occupies one word.
++/// Boundary-layout fields use their separate recorded layout machinery.
++fn store_uniform_field(b: &mut Builder, payload: &str, offset: usize, class: Class, value: &str) {
++    let at = if offset == 0 { payload.to_string() } else { b.gep(payload, offset) };
++    let ty = if class == Class::Wide { "i128" } else { "i64" };
++    b.line(&format!("store {ty} {value}, ptr {at}, align 8"));
++}
++
+ fn ctor_body(
+     b: &mut Builder,
+     reg: &Registry,
+@@ -8622,9 +8631,7 @@
+         let p = b.reg();
+         b.line(&ctor_alloc_call(&p, bytes, desc));
+         for (i, (c, off)) in classes.iter().zip(&offsets).enumerate() {
+-            let at = if *off == 0 { p.clone() } else { b.gep(&p, *off) };
+-            let ty = if *c == Class::Wide { "i128" } else { "i64" };
+-            b.line(&format!("store {ty} %p{i}, ptr {at}, align 8"));
++            store_uniform_field(b, &p, *off, *c, &format!("%p{i}"));
+         }
+         let w = b.reg();
+         b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
+@@ -10957,8 +10964,21 @@
+             ));
+         }
+         let desc = self.reg.ctor_desc(ctor)?;
++        let classes = self.reg.unit_params.get(ctor)
++            .filter(|classes| classes.len() == fields);
++        let wide = classes.is_some_and(|classes| classes.contains(&Class::Wide));
++        let offsets = classes.map(|classes| field_offsets(classes));
++        let bytes = classes.map_or(8 * fields, |classes| classes.iter().map(|c| 8 * c.words()).sum());
++        if wide && (self.reg.plans.contains_key(ctor)
++            || self.reg.plans.contains_key(crate::repr::base_unit(ctor).as_ref()))
++        {
++            return err("internal error: wide reuse reached a boundary layout");
++        }
+         let mut vals = Vec::with_capacity(args.len());
+-        for a in args {
++        for (i, a) in args.iter().enumerate() {
++            if wide && self.rep_wide(a) != (classes.expect("wide classes")[i] == Class::Wide) {
++                return err("internal error: reuse field width disagrees with its constructor");
++            }
+             vals.push(self.emit_expr(a)?);
+         }
+         let slot = self.slot(token);
+@@ -10971,9 +10991,13 @@
+         // A fresh block holds nothing, so the cold path writes every word.
+         self.b.start(&lcold);
+         let fresh = self.b.reg();
+-        self.b.line(&ctor_alloc_call(&fresh, 8 * fields, desc));
++        self.b.line(&ctor_alloc_call(&fresh, bytes, desc));
+         for (i, v) in vals.iter().enumerate() {
+-            self.b.store_at(&fresh, 8 * i, v);
++            if wide {
++                store_uniform_field(self.b, &fresh, offsets.as_ref().expect("wide offsets")[i], classes.expect("wide classes")[i], v);
++            } else {
++                self.b.store_at(&fresh, 8 * i, v);
++            }
+         }
+         self.b.line(&format!("br label %{ljoin}"));
+         // The kept cell already holds the words the arm's own binders name
+@@ -11006,7 +11030,11 @@
+         }
+         for (i, v) in vals.iter().enumerate() {
+             if !already_set.contains(&(i as u32)) {
+-                self.b.store_at(&cell, 8 * i, v);
++                if wide {
++                    store_uniform_field(self.b, &cell, offsets.as_ref().expect("wide offsets")[i], classes.expect("wide classes")[i], v);
++                } else {
++                    self.b.store_at(&cell, 8 * i, v);
++                }
+             }
+         }
+         self.b.line(&format!("br label %{ljoin}"));
+@@ -11936,7 +11964,7 @@
+         let mut default: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
+         for a in alts {
+             match &a.pat {
+-                CPat::Con { tag, fields, classes } => {
++                CPat::Con { tag, fields, classes, .. } => {
+                     if cons.iter().any(|(t, _, _, _)| t == tag) {
+                         return err(format!("duplicate case tag {tag}"));
+                     }
+--- a/compiler/src/core.rs
++++ b/compiler/src/core.rs
+@@ -1800,13 +1800,22 @@
+     /// Zero-arity constructor; `tag` selects the branch. `classes` is
+     /// parallel to `fields` (each field binder's class, resolved against
+     /// the scrutinee's type); it is empty only before lowering.
+-    Con { tag: usize, fields: Vec<LocalId>, classes: Vec<Class> },
++    Con {
++        tag: usize,
++        fields: Vec<LocalId>,
++        classes: Vec<Class>,
++        /// The checked defining constructor, before representation specialization.
++        /// Synthetic and decoded legacy patterns carry no identity and cannot
++        /// authorize reuse of a payload containing wide fields.
++        ctor: Option<GlobalId>,
++    },
+ }
+ 
+ impl CPat {
+-    /// A constructor pattern whose field classes lowering fills in.
++    /// A synthetic constructor pattern whose field classes lowering fills in.
++    /// It carries no checked nominal identity and cannot authorize wide reuse.
+     pub fn con(tag: usize, fields: Vec<LocalId>) -> CPat {
+-        CPat::Con { tag, fields, classes: Vec::new() }
++        CPat::Con { tag, fields, classes: Vec::new(), ctor: None }
+     }
+ }
+ 
+@@ -2068,14 +2077,15 @@
+     /// takes the new constructor's layout, so a later drop sees the
+     /// constructor that is actually there.
+     ///
+-    /// `already_set` lists the payload words the kept cell already holds:
+-    /// the index `i` is present when `args[i]` is payload word `i` of the
++    /// `already_set` lists the logical fields the kept cell already holds:
++    /// the index `i` is present when `args[i]` is logical field `i` of the
+     /// dying block (a pattern binder of the arm, or a projection of the
+     /// block at slot `i`). On the reused path those stores are skipped,
+     /// because the cell holds exactly that word; a fresh block writes
+     /// every word. This is Lean's `partitionSelfSets`
+     /// (`src/Lean/Compiler/LCNF/ExpandResetReuse.lean`), and the list is
+-    /// sorted and deduplicated.
++    /// sorted and deduplicated. A wide field occupies two raw words; its
++    /// logical index skips the complete i128 store, not only its low word.
+     Reuse { token: LocalId, ctor: GlobalId, args: Vec<Core>, already_set: Vec<u32> },
+     /// A typed quotation template under construction (staging): the
+     /// template carrying `SpliceHole` placeholders plus the elaborated
+@@ -5091,8 +5101,8 @@
+     match (a, b) {
+         (CPat::Var(x, c1), CPat::Var(y, c2)) => x == y && c1 == c2,
+         (CPat::Wild, CPat::Wild) => true,
+-        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+-            t1 == t2 && f1 == f2 && k1 == k2
++        (CPat::Con { tag: t1, fields: f1, classes: k1, ctor: o1 }, CPat::Con { tag: t2, fields: f2, classes: k2, ctor: o2 }) => {
++            o1 == o2 && t1 == t2 && f1 == f2 && k1 == k2
+         }
+         _ => false,
+     }
+@@ -5549,13 +5559,14 @@
+                 .map(|a| {
+                     let pat = match &a.pat {
+                         CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
+-                        CPat::Con { tag, fields, classes } => CPat::Con {
++                        CPat::Con { tag, fields, classes, ctor } => CPat::Con {
+                             tag: *tag,
+                             fields: fields
+                                 .iter()
+                                 .map(|l| *map.get(l).unwrap_or(l))
+                                 .collect(),
+                             classes: classes.clone(),
++                            ctor: ctor.clone(),
+                         },
+                         CPat::Wild => CPat::Wild,
+                     };
+@@ -5754,14 +5765,14 @@
+                                 locals.push(*l);
+                                 CPat::Var(nl, *c)
+                             }
+-                            CPat::Con { tag, fields, classes } => {
++                            CPat::Con { tag, fields, classes, ctor } => {
+                                 let mut out = Vec::new();
+                                 for l in fields {
+                                     let nl = fresh(*l, ren, next);
+                                     locals.push(*l);
+                                     out.push(nl);
+                                 }
+-                                CPat::Con { tag: *tag, fields: out, classes: classes.clone() }
++                                CPat::Con { tag: *tag, fields: out, classes: classes.clone(), ctor: ctor.clone() }
+                             }
+                             CPat::Wild => CPat::Wild,
+                         };
+@@ -5921,8 +5932,8 @@
+     match (a, b) {
+         (CPat::Var(_, c1), CPat::Var(_, c2)) => match_class(*c1, *c2, cb),
+         (CPat::Wild, CPat::Wild) => true,
+-        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+-            t1 == t2 && f1.len() == f2.len() && match_classes(k1, k2, cb)
++        (CPat::Con { tag: t1, fields: f1, classes: k1, ctor: o1 }, CPat::Con { tag: t2, fields: f2, classes: k2, ctor: o2 }) => {
++            o1 == o2 && t1 == t2 && f1.len() == f2.len() && match_classes(k1, k2, cb)
+         }
+         _ => false,
+     }
+@@ -7961,8 +7972,8 @@
+                             bound.push(*p);
+                             true
+                         }
+-                        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 })
+-                            if t1 == t2 && f1.len() == f2.len() && k1 == k2 =>
++                        (CPat::Con { tag: t1, fields: f1, classes: k1, ctor: o1 }, CPat::Con { tag: t2, fields: f2, classes: k2, ctor: o2 })
++                            if o1 == o2 && t1 == t2 && f1.len() == f2.len() && k1 == k2 =>
+                         {
+                             for (p, q) in f1.iter().zip(f2) {
+                                 map.insert(*p, *q);
+@@ -8728,7 +8739,7 @@
+                 match &a.pat {
+                     CPat::Var(_, c) => (0u8, c).hash(h),
+                     CPat::Wild => 1u8.hash(h),
+-                    CPat::Con { tag, fields, classes } => (2u8, tag, fields.len(), classes).hash(h),
++                    CPat::Con { tag, fields, classes, ctor } => (2u8, tag, fields.len(), classes, ctor).hash(h),
+                 }
+             }
+         }
+@@ -8903,8 +8914,8 @@
+                                 && match (&x.pat, &y.pat) {
+                                     (CPat::Wild, CPat::Wild) => true,
+                                     (CPat::Var(p, c1), CPat::Var(q, c2)) => c1 == c2 && self.bind(*p, *q),
+-                                    (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+-                                        t1 == t2 && k1 == k2 && f1.len() == f2.len() && f1.iter().zip(f2).all(|(p, q)| self.bind(*p, *q))
++                                    (CPat::Con { tag: t1, fields: f1, classes: k1, ctor: o1 }, CPat::Con { tag: t2, fields: f2, classes: k2, ctor: o2 }) => {
++                                        o1 == o2 && t1 == t2 && k1 == k2 && f1.len() == f2.len() && f1.iter().zip(f2).all(|(p, q)| self.bind(*p, *q))
+                                     }
+                                     _ => false,
+                                 }
+--- a/compiler/src/coretext.rs
++++ b/compiler/src/coretext.rs
+@@ -929,7 +929,7 @@
+         match pat {
+             CPat::Wild => Node::atom("_"),
+             CPat::Var(id, class) => Node::list(self.local(*id)).mark(format!("@class({})", class_text(*class))),
+-            CPat::Con { tag, fields, classes } => {
++            CPat::Con { tag, fields, classes, .. } => {
+                 let mut node = Node::list("con").child(Node::atom(tag.to_string()));
+                 for (index, field) in fields.iter().enumerate() {
+                     let mut binder = Node::list(self.local(*field));
+--- a/compiler/src/ifaceopt.rs
++++ b/compiler/src/ifaceopt.rs
+@@ -507,7 +507,7 @@
+             class_str(*class).into(),
+         ]),
+         CPat::Wild => JsonValue::Arr(vec!["wild".into()]),
+-        CPat::Con { tag, fields, classes } => JsonValue::Arr(vec![
++        CPat::Con { tag, fields, classes, .. } => JsonValue::Arr(vec![
+             "con".into(),
+             (*tag as u64).into(),
+             JsonValue::arr(fields, |l| (l.0 as u64).into()),
+@@ -724,7 +724,7 @@
+                         .to_string(),
+                 ));
+             }
+-            CPat::Con { tag: num(parts.get(1).ok_or_else(|| ParseError::from("pattern needs a tag".to_string()))?)?, fields, classes }
++            CPat::Con { tag: num(parts.get(1).ok_or_else(|| ParseError::from("pattern needs a tag".to_string()))?)?, fields, classes, ctor: None }
+         }
+         other => return Err(ParseError::from(format!("unknown optimisation pattern {other}"))),
+     })
+--- a/compiler/src/rc.rs
++++ b/compiler/src/rc.rs
+@@ -410,7 +410,7 @@
+         if let Core::Var(p) = &**scrut {
+             for a in alts {
+                 if let CPat::Con { tag, fields, .. } = &a.pat {
+-                    if reuse_allocation_anywhere::<MEASURE>(&a.body, fields.len(), *tag, ctors, work) {
++                    if reuse_allocation_anywhere::<MEASURE>(&a.body, fields.len(), *tag, &a.pat, ctors, work) {
+                         out.insert(p.0);
+                     }
+                 }
+@@ -994,6 +994,10 @@
+     /// layout, not its fields, so its cells are not interchangeable with
+     /// a uniform constructor's.
+     planned: bool,
++    /// A boundary layout is never eligible for wide-field reuse.
++    boundary: bool,
++    /// The checked constructor tag, independent of the successor expression.
++    tag: usize,
+     /// The qualified data type whose constructors share a tag space.
+     data: Option<String>,
+     /// The class of each runtime field (`Cons` is `[Param(0), Obj]`): the
+@@ -1024,10 +1028,10 @@
+             // A wide field takes two payload words, so a constructor with
+             // one is, like a boundary layout, not word-for-word
+             // interchangeable with a uniform constructor of its field count.
+-            let planned = program.plans.contains_key(&f.id.0)
+-                || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref())
+-                || f.repr.fields.contains(&Class::Wide);
+-            let fact = CtorFact { fields, planned, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
++            let boundary = program.plans.contains_key(&f.id.0)
++                || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref());
++            let planned = boundary || f.repr.fields.contains(&Class::Wide);
++            let fact = CtorFact { fields, planned, boundary, tag, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
+             if let Some(d) = &f.repr.data {
+                 by_data.entry(d.clone()).or_default().push((tag, fact.clone()));
+             }
+@@ -1078,35 +1082,36 @@
+     tag: usize,
+     fields: &[LocalId],
+     relaxed: bool,
++    pat: &CPat,
+     ctors: &Ctors,
+ ) -> Option<Core> {
+-    if let Some(r) = reuse_allocation(e, token, words, tag, fields, relaxed, ctors) {
++    if let Some(r) = reuse_allocation(e, token, words, tag, fields, relaxed, pat, ctors) {
+         return Some(r);
+     }
+     match e {
+         Core::Let(x, c, v, b) => {
+             // The value is evaluated first, so its allocation is the
+             // earlier one: reuse it and leave the continuation alone.
+-            if let Some(v2) = insert_reuse(v, token, words, tag, fields, relaxed, ctors) {
++            if let Some(v2) = insert_reuse(v, token, words, tag, fields, relaxed, pat, ctors) {
+                 return Some(Core::Let(*x, *c, Box::new(v2), b.clone()));
+             }
+-            let b2 = insert_reuse(b, token, words, tag, fields, relaxed, ctors)?;
++            let b2 = insert_reuse(b, token, words, tag, fields, relaxed, pat, ctors)?;
+             Some(Core::Let(*x, *c, v.clone(), Box::new(b2)))
+         }
+-        Core::Dup(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
++        Core::Dup(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, pat, ctors)
+             .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
+-        Core::Drop(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, ctors)
++        Core::Drop(x, c, b) => insert_reuse(b, token, words, tag, fields, relaxed, pat, ctors)
+             .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
+         // The computed head runs before the arguments and the transfer.
+         // Its unconditional spine can take the token under the same rule
+         // as an argument. Leaf heads cannot allocate here.
+         Core::App(f, args) => {
+             if computed_call_head(e).is_some() {
+-                if let Some(head) = insert_reuse(f, token, words, tag, fields, relaxed, ctors) {
++                if let Some(head) = insert_reuse(f, token, words, tag, fields, relaxed, pat, ctors) {
+                     return Some(Core::App(Box::new(head), args.clone()));
+                 }
+             }
+-            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, ctors)?;
++            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, pat, ctors)?;
+             let mut args = args.clone();
+             args[i] = a2;
+             Some(Core::App(f.clone(), args))
+@@ -1115,7 +1120,7 @@
+         // same order and with the same "evaluated before the transfer"
+         // rule, so its arguments are on the spine for the same reason.
+         Core::Jump { id, args } => {
+-            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, ctors)?;
++            let (i, a2) = insert_reuse_in_args(args, token, words, tag, fields, relaxed, pat, ctors)?;
+             let mut args = args.clone();
+             args[i] = a2;
+             Some(Core::Jump { id: *id, args })
+@@ -1133,10 +1138,11 @@
+     tag: usize,
+     fields: &[LocalId],
+     relaxed: bool,
++    pat: &CPat,
+     ctors: &Ctors,
+ ) -> Option<(usize, Core)> {
+     for (i, a) in args.iter().enumerate() {
+-        if let Some(a2) = insert_reuse(a, token, words, tag, fields, relaxed, ctors) {
++        if let Some(a2) = insert_reuse(a, token, words, tag, fields, relaxed, pat, ctors) {
+             return Some((i, a2));
+         }
+     }
+@@ -1185,13 +1191,14 @@
+     words: usize,
+     tag: usize,
+     fields: &[LocalId],
++    pat: &CPat,
+     ctors: &Ctors,
+ ) -> Option<Core> {
+     // The arm's body with the reuse on its spine, when it allocates a
+     // compatible constructor there.
+     let arm = |body: &Core| -> (Core, bool) {
+-        let reused = insert_reuse(body, token, words, tag, fields, false, ctors)
+-            .or_else(|| insert_reuse(body, token, words, tag, fields, true, ctors));
++        let reused = insert_reuse(body, token, words, tag, fields, false, pat, ctors)
++            .or_else(|| insert_reuse(body, token, words, tag, fields, true, pat, ctors));
+         match reused {
+             Some(rewritten) => (rewritten, true),
+             None => (body.clone(), false),
+@@ -1264,26 +1271,28 @@
+ /// block of `words` payload words with tag `tag` (the borrow inference's
+ /// ownership question, which ignores whether the spine makes the reuse
+ /// legal).
+-fn reuse_allocation_anywhere<const MEASURE: bool>(e: &Core, words: usize, tag: usize, ctors: &Ctors, work: &mut BorrowWork) -> bool {
++fn reuse_allocation_anywhere<const MEASURE: bool>(e: &Core, words: usize, tag: usize, pat: &CPat, ctors: &Ctors, work: &mut BorrowWork) -> bool {
+     if MEASURE { work.allocation_nodes += 1; }
+     // Both passes are asked, so the forced-ownership rule covers exactly
+     // what either pass could reuse.
+-    if compatible_ctor(e, words, tag, false, ctors).is_some()
+-        || compatible_ctor(e, words, tag, true, ctors).is_some()
++    if compatible_ctor(e, words, tag, false, pat, ctors).is_some()
++        || compatible_ctor(e, words, tag, true, pat, ctors).is_some()
+     {
+         return true;
+     }
+-    if computed_call_head(e).is_some_and(|head| reuse_allocation_anywhere::<MEASURE>(head, words, tag, ctors, work)) {
++    if computed_call_head(e).is_some_and(|head| reuse_allocation_anywhere::<MEASURE>(head, words, tag, pat, ctors, work)) {
+         return true;
+     }
+     crate::core::child_slots_imm(e)
+         .into_iter()
+-        .any(|k| reuse_allocation_anywhere::<MEASURE>(k, words, tag, ctors, work))
++        .any(|k| reuse_allocation_anywhere::<MEASURE>(k, words, tag, pat, ctors, work))
+ }
+ 
+ /// The constructor and fields of a saturated allocation whose cell is
+-/// interchangeable with a dying block of `words` payload words matched at
+-/// `tag`, if any.
++/// interchangeable with a dying constructor matched at `tag`, if any.
++/// `words` is the legacy uniform path's logical field count. Wide fields
++/// additionally require checked nominal identity and an exact class vector;
++/// their physical byte count and stores come from that complete layout.
+ ///
+ /// Two proofs, one per pass. The first (`relaxed` off) requires the
+ /// block's tag to name, inside the *same* data type, an unplanned
+@@ -1303,6 +1312,7 @@
+     words: usize,
+     tag: usize,
+     relaxed: bool,
++    pat: &CPat,
+     ctors: &Ctors,
+ ) -> Option<(&'a GlobalId, &'a Vec<Core>)> {
+     let Core::App(head, args) = e else {
+@@ -1317,8 +1327,24 @@
+         return None;
+     }
+     let fact = ctors.by_unit.get(&id.0)?;
+-    if fact.planned || fact.fields != words || args.len() != words {
++    if fact.fields != words || args.len() != words {
+         return None;
++    }
++    if fact.planned {
++        // A wide payload is admitted only by a checked same-constructor
++        // certificate. A tag or a logical field count alone says nothing
++        // about physical width, pointer maps, or boundary layouts.
++        let CPat::Con { ctor: Some(dying), classes, tag: old_tag, .. } = pat else {
++            return None;
++        };
++        if relaxed || fact.boundary || !fact.classes.contains(&Class::Wide)
++            || fact.classes.iter().any(|c| c.is_param())
++            || classes != &fact.classes || *old_tag != fact.tag
++            || crate::repr::base_unit(&dying.0) != crate::repr::base_unit(&id.0)
++        {
++            return None;
++        }
++        return Some((id, args));
+     }
+     let data = fact.data.as_deref()?;
+     let dying = ctors.at_tag(data, tag)?;
+@@ -1348,9 +1374,10 @@
+     tag: usize,
+     fields: &[LocalId],
+     relaxed: bool,
++    pat: &CPat,
+     ctors: &Ctors,
+ ) -> Option<Core> {
+-    let (ctor, args) = compatible_ctor(e, words, tag, relaxed, ctors)?;
++    let (ctor, args) = compatible_ctor(e, words, tag, relaxed, pat, ctors)?;
+     Some(Core::Reuse {
+         token: LocalId(token),
+         ctor: ctor.clone(),
+@@ -1875,9 +1902,9 @@
+                         // of the scrutinee's own type is never passed over
+                         // for one of another type.
+                         let words = fields.len();
+-                        let found = insert_reuse(&body, self.next, words, *tag, fields, false, self.ctors)
++                        let found = insert_reuse(&body, self.next, words, *tag, fields, false, &a.pat, self.ctors)
+                             .or_else(|| {
+-                                insert_reuse(&body, self.next, words, *tag, fields, true, self.ctors)
++                                insert_reuse(&body, self.next, words, *tag, fields, true, &a.pat, self.ctors)
+                             });
+                         match found {
+                             Some(body) => {
+@@ -1899,7 +1926,7 @@
+                                 // before every arm and a field it consumes
+                                 // is dead at arm entry.
+                                 let token = self.fresh(Class::Raw);
+-                                match branch_reuse(&body, token, words, *tag, fields, self.ctors) {
++                                match branch_reuse(&body, token, words, *tag, fields, &a.pat, self.ctors) {
+                                     Some(body) => Core::Release {
+                                         block: LocalId(s),
+                                         moved,
+--- a/compiler/src/simplify.rs
++++ b/compiler/src/simplify.rs
+@@ -2620,9 +2620,9 @@
+         (CPat::Wild, CPat::Wild) => true,
+         (CPat::Var(x, cx), CPat::Var(y, cy)) => x == y && cx == cy,
+         (
+-            CPat::Con { tag: t1, fields: f1, classes: c1 },
+-            CPat::Con { tag: t2, fields: f2, classes: c2 },
+-        ) => t1 == t2 && f1 == f2 && c1 == c2,
++            CPat::Con { tag: t1, fields: f1, classes: c1, ctor: o1 },
++            CPat::Con { tag: t2, fields: f2, classes: c2, ctor: o2 },
++        ) => o1 == o2 && t1 == t2 && f1 == f2 && c1 == c2,
+         _ => false,
+     }
+ }
+--- a/compiler/tests/borrow_inference.rs
++++ b/compiler/tests/borrow_inference.rs
+@@ -29,7 +29,7 @@
+ fn reader() -> FnDef {
+     unit("Main.read", vec![Class::Obj], Core::Case {
+         scrut: Box::new(var(0)), alts: vec![CAlt {
+-            pat: CPat::Con { tag: 0, fields: vec![], classes: vec![] },
++            pat: CPat::Con { tag: 0, fields: vec![], classes: vec![], ctor: None },
+             weight: None, body: Box::new(Core::Bool(true)),
+         }],
+     })
+@@ -210,7 +210,7 @@
+             Core::App(Box::new(Core::Ctor(GlobalId("Main.Box".into()), vec![])), vec![var(2)])
+         } else { Core::Int(0) };
+         let body = Core::Case { scrut: Box::new(var(0)), alts: vec![CAlt {
+-            pat: CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![Class::Raw] },
++            pat: CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![Class::Raw], ctor: None },
+             weight: None, body: Box::new(Core::Let(LocalId(3), Class::Raw,
+                 Box::new(call("Main.read", var(1))), Box::new(result))),
+         }] };
+@@ -257,7 +257,7 @@
+                 Box::new(Core::Global(GlobalId("Main.worker".into()), vec![])))));
+         let apply = |h| Core::App(Box::new(h), vec![Core::Unit]);
+         let matched = Core::Case { scrut: Box::new(var(0)), alts: vec![CAlt {
+-            pat: CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw] },
++            pat: CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw], ctor: None },
+             weight: None, body: Box::new(if match_in_head { head.clone() } else { apply(head.clone()) }),
+         }] };
+         let body = if match_in_head { apply(matched) } else { matched };
+--- a/compiler/tests/inline_copy.rs
++++ b/compiler/tests/inline_copy.rs
+@@ -50,7 +50,7 @@
+         Core::Case {
+             scrut: Box::new(Core::Var(LocalId(0))),
+             alts: vec![CAlt::new(
+-                CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![] },
++                CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![], ctor: None },
+                 Core::Var(LocalId(1)),
+             )],
+         },
+@@ -177,7 +177,7 @@
+     projector.body = Core::Case {
+         scrut: Box::new(Core::Var(LocalId(0))),
+         alts: vec![CAlt::new(
+-            CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![] },
++            CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![], ctor: None },
+             Core::Var(LocalId(2)),
+         )],
+     };
+--- a/compiler/tests/simplify.rs
++++ b/compiler/tests/simplify.rs
+@@ -39,7 +39,7 @@
+ }
+ 
+ fn con(pattern_tag: usize, fields: &[usize]) -> CPat {
+-    CPat::Con { tag: pattern_tag, fields: fields.iter().map(|i| LocalId(*i)).collect(), classes: vec![] }
++    CPat::Con { tag: pattern_tag, fields: fields.iter().map(|i| LocalId(*i)).collect(), classes: vec![], ctor: None }
+ }
+ 
+ /// `case x of Red -> 1; _ -> case x of Blue -> 2; Green -> 3` becomes one
+@@ -1004,7 +1004,7 @@
+     let getter = unit("Main.invert", vec![Class::Obj], Core::Case {
+         scrut: Box::new(Core::Var(LocalId(0))),
+         alts: vec![CAlt::new(
+-            CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw] },
++            CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw], ctor: None },
+             prim(cinch::core::PrimOp::NotBool, vec![Core::Var(LocalId(1))]),
+         )],
+     });
+--- a/compiler/tests/stack_allocation.rs
++++ b/compiler/tests/stack_allocation.rs
+@@ -667,6 +667,7 @@
+         tag: 0,
+         fields: vec![LocalId(binder)],
+         classes: vec![field],
++        ctor: None,
+     };
+     let body = Core::Let(
+         LocalId(0),
+@@ -919,7 +920,7 @@
+             Box::new(Core::Case {
+                 scrut: Box::new(Core::Var(LocalId(0))),
+                 alts: vec![CAlt::new(
+-                    CPat::Con { tag: 0, fields: vec![LocalId(1), LocalId(2)], classes: vec![Class::Raw, Class::Raw] },
++                    CPat::Con { tag: 0, fields: vec![LocalId(1), LocalId(2)], classes: vec![Class::Raw, Class::Raw], ctor: None },
+                     Core::Int(0),
+                 )],
+             }),
+--- /dev/null
++++ b/compiler/tests/wide_reuse.rs
+@@ -0,0 +1,157 @@
++//! Physical constructor reuse must preserve complete wide fields and ownership.
++//! These tests are a source-only proposal until the matching compiler is built.
++
++use cinch::core::{CAlt, CPat, Core, CtorLayout, FnDef, FnHints, FnMeta, GlobalId,
++    LocalId, PrimOp, Program, TargetProfile, UnitRepr};
++use cinch::repr::Class;
++use cinch::types::Scalar;
++
++/// Construct a nominal constructor with its actual typed runtime field classes.
++fn constructor(name: &str, classes: &[Class]) -> FnDef {
++    FnDef {
++        id: GlobalId(name.into()),
++        params: (0..classes.len()).map(|i| format!("p{i}")).collect(),
++        body: Core::Unit, prim: None, ctor: Some((0, classes.len())),
++        hints: FnHints::default(), meta: FnMeta::default(),
++        repr: UnitRepr { params: classes.to_vec(), fields: classes.to_vec(),
++            result: Some(Class::Obj), data: Some(format!("{name}.Type")),
++            ..UnitRepr::default() },
++    }
++}
++
++/// Build a read-transform-rebuild worker without relying on optimizer inlining.
++fn rebuild(classes: &[Class], old: Option<&str>, target: &str) -> FnDef {
++    let fields: Vec<_> = (1..=classes.len()).map(LocalId).collect();
++    let args = fields.iter().zip(classes).map(|(field, class)| {
++        if *class == Class::Wide {
++            Core::App(Box::new(Core::Prim(PrimOp::BitNot { ty: Scalar::U128 })),
++                      vec![Core::Var(*field)])
++        } else {
++            Core::Var(*field)
++        }
++    }).collect();
++    FnDef {
++        id: GlobalId("Main.step".into()), params: vec!["state".into()],
++        body: Core::Case {
++            scrut: Box::new(Core::Var(LocalId(0))),
++            alts: vec![CAlt::new(CPat::Con {
++                tag: 0, fields, classes: classes.to_vec(),
++                ctor: old.map(|name| GlobalId(name.into())),
++            }, Core::App(Box::new(Core::Ctor(GlobalId(target.into()), vec![])), args))],
++        },
++        prim: None, ctor: None, hints: FnHints::default(), meta: FnMeta::default(),
++        repr: UnitRepr { params: vec![Class::Obj], result: Some(Class::Obj),
++                        ..UnitRepr::default() },
++    }
++}
++
++/// Lower the worker and independently verify every ownership path.
++fn lower(fns: Vec<FnDef>, boundary: bool) -> Program {
++    let mut program = Program::from_functions(fns);
++    if boundary {
++        // Only the existence of a genuine distinct boundary layout is relevant
++        // to this refusal; no emission is attempted for this synthetic layout.
++        program.plans.insert("Main.State".into(), CtorLayout { payload: 16, fields: vec![] });
++    }
++    let counted = cinch::rc::insert_closed(program, &TargetProfile::native()).expect("RC insertion");
++    cinch::rc::verify_program(&counted).expect("independent ownership verification");
++    counted
++}
++
++/// Find reuse nodes including constructor calls nested in computed call heads.
++fn reuses(body: &Core) -> usize {
++    format!("{body:?}").matches("Reuse {").count()
++}
++
++/// A wide rebuild needs an owned parameter, a reset token and complete stores.
++#[test]
++fn exact_wide_constructor_reuses_its_physical_payload() {
++    let classes = [Class::Wide];
++    let counted = lower(vec![constructor("Main.State", &classes),
++        rebuild(&classes, Some("Main.State"), "Main.State")], false);
++    let worker = counted.fns.iter().find(|f| f.id.0 == "Main.step").unwrap();
++    assert_eq!(reuses(&worker.body), 1, "{:?}", worker.body);
++    assert!(!counted.borrowed.get("Main.step").is_some_and(|modes| modes[0]),
++            "reuse cannot mutate a borrowed input");
++    let ir = cinch::codegen::emit(&counted).expect("typed physical reuse IR");
++    let body = ir.split("define ").find(|body| body.lines().next().is_some_and(|header|
++        header.contains("@\"Main.step\"(") || header.contains("@\"Main.step#cc\"(")))
++        .expect("worker IR");
++    assert!(body.contains("@cinch_alloc_ctor(i64 16, i64 0)"), "{body}");
++    assert!(body.matches("store i128 ").count() >= 2, "both hot/cold paths must store all128bits: {body}");
++    assert!(body.contains("@cinch.rc.unique"), "{body}");
++}
++
++/// A tag and width alone cannot authorize overwriting an unknown nominal cell.
++#[test]
++fn wide_legacy_patterns_and_other_constructors_keep_fresh_allocation() {
++    let classes = [Class::Wide];
++    for old in [None, Some("Main.Other")] {
++        let counted = lower(vec![constructor("Main.State", &classes),
++            constructor("Main.Other", &classes), rebuild(&classes, old, "Main.State")], false);
++        let worker = counted.fns.iter().find(|f| f.id.0 == "Main.step").unwrap();
++        assert_eq!(reuses(&worker.body), 0, "{old:?}: {:?}", worker.body);
++    }
++}
++
++/// Nominal identity does not override a custom physical layout or field width.
++#[test]
++fn boundary_layouts_and_different_wide_field_positions_refuse_reuse() {
++    let classes = [Class::Wide, Class::Raw];
++    let boundary = lower(vec![constructor("Main.State", &classes),
++        rebuild(&classes, Some("Main.State"), "Main.State")], true);
++    assert_eq!(reuses(&boundary.fns.last().unwrap().body), 0);
++    let mismatch = lower(vec![constructor("Main.State", &[Class::Raw, Class::Wide]),
++        rebuild(&classes, Some("Main.State"), "Main.State")], false);
++    assert_eq!(reuses(&mismatch.fns.last().unwrap().body), 0);
++}
++
++/// A counted neighbor must remain owned while its raw wide neighbor is rebuilt.
++#[test]
++fn counted_neighbors_keep_their_release_and_descriptor_discipline() {
++    for classes in [[Class::Wide, Class::Obj], [Class::Obj, Class::Wide]] {
++        let counted = lower(vec![constructor("Main.State", &classes),
++            rebuild(&classes, Some("Main.State"), "Main.State")], false);
++        let worker = counted.fns.iter().find(|f| f.id.0 == "Main.step").unwrap();
++        assert_eq!(reuses(&worker.body), 1, "{:?}", worker.body);
++        let ir = cinch::codegen::emit(&counted).expect("mixed physical reuse IR");
++        assert!(ir.contains("@cinch_alloc_ctor(i64 24,"), "{ir}");
++    }
++}
++
++/// Legacy optimization bodies do not mint a locally checked layout identity.
++#[test]
++fn optimization_roundtrip_drops_untrusted_reuse_identity() {
++    let classes = [Class::Wide];
++    let mut worker = rebuild(&classes, Some("Main.State"), "Main.State");
++    let encoded = cinch::ifaceopt::encode_core(&worker.body).expect("supported shallow body");
++    worker.body = cinch::ifaceopt::decode_core(&encoded).expect("legacy pattern decoding");
++    let Core::Case { alts, .. } = &worker.body else { panic!("case") };
++    assert!(matches!(&alts[0].pat, CPat::Con { ctor: None, .. }));
++    let counted = lower(vec![constructor("Main.State", &classes), worker], false);
++    assert_eq!(reuses(&counted.fns.last().unwrap().body), 0);
++}
++
++/// Actual checked source must preserve the defining pattern identity to RC.
++#[test]
++fn source_nominal_patterns_authorize_wide_reuse() {
++    let source = r#"module Main where
++  import Data.Wide
++  -- | An immutable wide state, retained independently by aliases.
++  data State where
++    State :: U128 -> State
++  -- | Rebuild a state without consuming any externally retained snapshot.
++  next :: State -> State
++  next state = case state of
++    State word -> State (bit-not-u128 word)
++  -- | Keep the worker in the checked source without staging a literal loop.
++  main :: Int
++  main = 0
++"#;
++    let profile = TargetProfile::native();
++    let checked = cinch::driver::check_sources_profile(source, "wide-reuse.cinch", &profile)
++        .expect("real source checking");
++    let counted = cinch::rc::insert_closed(checked, &profile).expect("RC insertion");
++    let worker = counted.fns.iter().find(|f| f.id.0.starts_with("Main.next")).expect("worker");
++    assert!(reuses(&worker.body) > 0, "{:?}", worker.body);
++}
