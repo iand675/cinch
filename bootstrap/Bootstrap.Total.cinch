@@ -12,14 +12,14 @@ module Bootstrap.Total where
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
   export total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
-  export source-total-projection, total-source-projection, read-total-function
+  export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
-    MkSourceProjection :: String -> String -> Json -> TotalFunction
+    MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
     MkKeyedOrdering :: String -> Nat -> Nat -> TotalFunction
 
   same :: String -> String -> Bool
@@ -154,8 +154,14 @@ module Bootstrap.Total where
   -- Projections are reconstructed against the checked source constructors.
   -- Their carrier-tree representation carries no imported body authority.
   source-total-projection :: String -> String -> List (String, Nat) -> Option TotalFunction
-  source-total-projection name domain steps = read-source-projection name
-    (JObj "domain" (JStr domain) (JObj "fields" (projection-steps steps) JObjEnd))
+  source-total-projection name domain steps = source-field-projection name domain "Bytes" steps
+  projection-result-sort :: String -> Bool
+  projection-result-sort result = has result ["Bytes", "Nat", "Int"]
+  projection-document :: String -> String -> Json -> Json
+  projection-document domain result steps = JObj "domain" (JStr domain) (JObj "fields" steps
+    (if same result "Bytes" then JObjEnd else JObj "result" (JStr result) JObjEnd))
+  source-field-projection :: String -> String -> String -> List (String, Nat) -> Option TotalFunction
+  source-field-projection name domain result steps = read-source-projection name (projection-document domain result (projection-steps steps))
   projection-steps :: List (String, Nat) -> Json
   projection-steps steps = case steps of
     Nil -> JArrEnd
@@ -167,9 +173,9 @@ module Bootstrap.Total where
     JArrEnd -> True
     other -> False
   read-source-projection :: String -> Json -> Option TotalFunction
-  read-source-projection name doc = if not (fields ["domain", "fields"] doc && string-length name > 0) then None else
-    case (field "domain" doc, field "fields" doc) of
-      (JStr domain, JArr first rest) -> if string-length domain > 0 && not (valid-sort domain) && valid-projection-steps (JArr first rest) then Some (MkSourceProjection name domain (JArr first rest)) else None
+  read-source-projection name doc = let result = if fields ["domain", "fields"] doc then "Bytes" else if fields ["domain", "fields", "result"] doc then text (field "result" doc) else "" in
+    if not (projection-result-sort result && string-length name > 0) then None else case (field "domain" doc, field "fields" doc) of
+      (JStr domain, JArr first rest) -> if string-length domain > 0 && not (valid-sort domain) && valid-projection-steps (JArr first rest) then Some (MkSourceProjection name domain result (JArr first rest)) else None
       other -> None
   read-total-function :: Json -> String -> Option TotalFunction
   read-total-function doc name = if fields ["source_projection"] doc then read-source-projection name (field "source_projection" doc) else
@@ -184,23 +190,23 @@ module Bootstrap.Total where
   keyed-ordering-slots :: TotalFunction -> Option (Nat, Nat)
   keyed-ordering-slots function = case function of MkKeyedOrdering name less greater -> Some (less, greater); other -> None
   total-source-projection :: TotalFunction -> Bool
-  total-source-projection function = case function of MkSourceProjection name domain steps -> True; other -> False
+  total-source-projection function = case function of MkSourceProjection name domain result steps -> True; other -> False
   total-identity :: TotalFunction -> String
-  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain steps -> name; MkKeyedOrdering name less greater -> name
+  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain result steps -> name; MkKeyedOrdering name less greater -> name
   function-row :: TotalFunction -> Json
   function-row function = case function of
     MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
     other -> JNull
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
-    MkSourceProjection name domain steps -> [domain]
+    MkSourceProjection name domain result steps -> [domain]
     other -> (case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil)
   total-result :: TotalFunction -> String
-  total-result function = if total-source-projection function then "Bytes" else text (field "result" (function-row function))
+  total-result function = case function of MkSourceProjection name domain result steps -> result; other -> text (field "result" (function-row function))
   total-function-document :: TotalFunction -> Json
   total-function-document function = case function of
     MkTotalFunction graph name -> total-document graph
-    MkSourceProjection name domain steps -> JObj "source_projection" (JObj "domain" (JStr domain) (JObj "fields" steps JObjEnd)) JObjEnd
+    MkSourceProjection name domain result steps -> JObj "source_projection" (projection-document domain result steps) JObjEnd
     MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
   closure-rows :: List String -> Json -> Json
   closure-rows names rows = case rows of

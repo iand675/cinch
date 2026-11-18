@@ -2907,7 +2907,7 @@ module Bootstrap.Core where
   integer-index-carrier carrier = same-number-sort carrier carrier || valid-type (UIndexPromote (UIndex carrier (IBound 0 "#sort")))
   typed-index-arithmetic :: ProofScope -> UType -> Option Arithmetic
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
-    UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma (total-parameters function) args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
+    UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case body-index-arguments gamma function args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
     UIndexByteLength input -> byte-observation-reading gamma input
     UIndexBorrowRead input -> borrow-observation-reading gamma input
     UIndex carrier index -> index-arithmetic gamma carrier index
@@ -3711,9 +3711,9 @@ module Bootstrap.Core where
   projection-local id ty scope = case scope of
     Nil -> None
     Cons (bound, carrier, path) rest -> if id == bound then (if contract-equal ty carrier then Some path else None) else projection-local id ty rest
-  projection-expression :: List CoreData -> List (Nat, UType, List (String, Nat)) -> CoreTerm -> Option (List (String, Nat))
-  projection-expression datas scope term = case term of
-    CLocal sp (UCon name KType) id label Nil -> if string-compare name "Bytes" == 0 then projection-local id (UCon name KType) scope else None
+  projection-expression :: String -> List CoreData -> List (Nat, UType, List (String, Nat)) -> CoreTerm -> Option (List (String, Nat))
+  projection-expression sort datas scope term = case term of
+    CLocal sp (UCon name KType) id label Nil -> if string-compare name sort == 0 then projection-local id (UCon name KType) scope else None
     CCase sp result (CLocal at (UCon carrier KType) id label Nil)
       (CAlternative arm (CPConstructor pat matched constructor Nil ctor-type fields) body (CAlternativesEnd end)) ->
         let input = UCon carrier KType in
@@ -3723,23 +3723,23 @@ module Bootstrap.Core where
               if not (string-compare constructor (core-constructor-name definition) == 0 && contract-equal ctor-type (scheme-body sc)) then None else
                 (case (scheme-params sc, scheme-requirements sc, projection-fields input ctor-type) of
                   (Nil, Nil, Some field-types) -> (case projection-bindings constructor path 0 field-types fields scope of
-                    Some inner -> projection-expression datas inner body
+                    Some inner -> projection-expression sort datas inner body
                     None -> None)
                   other -> None)
             other -> None)
     other -> None
-  core-byte-projection :: List CoreData -> CoreDefinition -> String -> Option TotalFunction
-  core-byte-projection datas definition native = if not (core-definition-closed definition && core-definition-result-types definition) then None else
+  core-field-projection :: List CoreData -> CoreDefinition -> String -> Option TotalFunction
+  core-field-projection datas definition native = if not (core-definition-closed definition && core-definition-result-types definition) then None else
     let sc = core-scheme definition in
     case (scheme-params sc, scheme-requirements sc, core-givens definition, scheme-body sc, core-clauses definition) of
       (Nil, Nil, Nil, UFun (UCon domain KType) (UCon result KType), [MkCoreClause sp [CPVar at input id label] body]) ->
-        if not (string-compare result "Bytes" == 0 && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
-          (case projection-expression datas [(id, input, Nil)] body of Some steps -> source-total-projection native domain steps; None -> None)
+        if not (projection-result-sort result && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
+          (case projection-expression result datas [(id, input, Nil)] body of Some steps -> source-field-projection native domain result steps; None -> None)
       other -> None
   core-source-function :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option TotalFunction
   core-source-function bindings definitions datas native = case core-total-function bindings definitions native of
     Some function -> Some function
-    None -> (case total-core-native-definition native definitions of Some definition -> core-byte-projection datas definition native; None -> None)
+    None -> (case total-core-native-definition native definitions of Some definition -> core-field-projection datas definition native; None -> None)
   core-source-body :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option BodyBinding
   core-source-body bindings definitions datas native = case total-core-native-definition native definitions of
     Some definition -> (case core-source-function bindings definitions datas native of

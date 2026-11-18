@@ -7832,19 +7832,25 @@ module Bootstrap.Infer where
     other -> source-total-atom ty
   source-projection-domain :: UType -> Option String
   source-projection-domain ty = case ty of
-    UFun (UCon domain KType) (UCon result KType) -> if same result "Bytes" && not (primitive domain) then Some domain else None
+    UFun (UCon domain KType) (UCon result KType) -> if projection-result-sort result && not (primitive domain) then Some domain else None
     other -> None
-  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> TypeExpr -> Bool
-  source-total-candidate classes kinds declarations syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+  projection-function-shape :: String -> List Decl -> Bool
+  projection-function-shape symbol declarations = case declarations of
+    Nil -> False
+    Cons (DFun sp name clauses) rest -> if not (same name symbol) then projection-function-shape symbol rest else
+      (case clauses of [([PVar at binder], ECase site (EVar use subject) arms)] -> same binder subject; other -> False)
+    Cons other rest -> projection-function-shape symbol rest
+  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> String -> TypeExpr -> Bool
+  source-total-candidate classes kinds declarations symbol syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
     (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
       (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case source-projection-domain (scheme-body sc) of
-        Some name -> (case source-total-find-data name declarations of Some decl -> True; None -> False)
+        Some name -> projection-function-shape symbol declarations && (case source-total-find-data name declarations of Some decl -> True; None -> False)
         None -> False)
       other -> False
   source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List Decl -> List String
   source-total-names classes kinds all declarations = case declarations of
     Nil -> Nil
-    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all syntax then Cons name (source-total-names classes kinds all rest) else source-total-names classes kinds all rest
+    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all name syntax then Cons name (source-total-names classes kinds all rest) else source-total-names classes kinds all rest
     Cons other rest -> source-total-names classes kinds all rest
   source-total-select :: List String -> List String -> List String -> List Decl -> List Decl
   source-total-select names aliases datas declarations = case declarations of
@@ -7894,7 +7900,7 @@ module Bootstrap.Infer where
   source-total-data-roots names declarations = case declarations of
     Nil -> Nil
     Cons (DSig sp name (TFun arrow (TName at domain) (TName end result))) rest ->
-      if same result "Bytes" && has name names then Cons domain (source-total-data-roots names rest)
+      if projection-result-sort result && has name names then Cons domain (source-total-data-roots names rest)
       else source-total-data-roots names rest
     Cons other rest -> source-total-data-roots names rest
   source-total-parameter-references :: List TypeParam -> List String
