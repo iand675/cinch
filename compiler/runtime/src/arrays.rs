@@ -58,6 +58,8 @@ pub(crate) unsafe fn array(len: i64, format: i64) -> i64 {
         p.write(format);
         p.add(1).write(len);
     }
+    #[cfg(test)]
+    crate::cycle::register_array(p as usize, format);
     p as usize as i64
 }
 

@@ -568,6 +568,10 @@ unsafe fn claim(word: i64) -> bool {
         // released frame block's field is its marker, not a count to negate.
         return false;
     }
+    #[cfg(test)]
+    if block::kind(h) == block::KIND_ARRAY {
+        crate::cycle::retire_array(p as usize);
+    }
     unsafe { block::write_header(p, block::header(-n, block::kind(h), block::layout(h))) };
     true
 }
@@ -722,6 +726,16 @@ unsafe fn dispose(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::
         crate::abi::drop_box_payload(p, block::kind(h));
         block::free_in(p, h, debug, local);
     }
+}
+
+/// Dispose a test collector's unreachable block after every counted pointer edge was detached.
+///
+/// # Safety
+/// The block has no external owner, no later access is possible, and its original
+/// header is intact; outgoing live edges have already been released exactly once.
+#[cfg(test)]
+pub(crate) unsafe fn dispose_detached(p: *mut u8, h: u64) {
+    unsafe { dispose(p, h, crate::heap::rc_debug(), crate::small::local()) };
 }
 
 #[cfg(test)]

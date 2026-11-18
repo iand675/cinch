@@ -597,6 +597,10 @@ pub unsafe fn free(p: *mut u8) {
 /// As for [`free`]; `local` is the calling thread's heap, or `None`.
 #[inline(always)]
 pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
+    #[cfg(test)]
+    if kind(h) == KIND_ARRAY {
+        crate::cycle::retire_array(p as usize);
+    }
     if debug {
         // A frame block lives in a stack frame: freeing it would hand the
         // stack's memory to the allocator. Only a compiler bug reaches

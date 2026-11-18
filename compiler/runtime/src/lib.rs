@@ -574,6 +574,8 @@ pub mod abi;
 pub mod alloc_kinds;
 pub mod arena;
 pub mod block;
+#[cfg(test)]
+mod cycle;
 pub mod bytes;
 pub mod arrays;
 pub mod coop;

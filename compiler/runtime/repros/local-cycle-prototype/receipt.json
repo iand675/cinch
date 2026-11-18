@@ -1,0 +1,80 @@
+{
+  "status": "test-only prototype; production collection and buffered-I/O promotion remain held",
+  "baseline": "9bc5237aede73322b100b5ac2d58c4f4d1a90f20",
+  "known_cycle_evidence_commit": "60c4119c6b06f55602cbb38f8ea673775a65f1bb",
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0\nLLVM version: 23.1.5\n",
+  "source_sha256": {
+    "compiler/runtime/src/cycle.rs": "1627e77b4c6e4977f36e41640b80e178ac3e8669ad04c2cfe64c62c0de410aaf",
+    "compiler/runtime/src/arrays.rs": "821c926dd86f41df05b6a7c75f31bbd9d5106e3c5c9bb02ee5f07754849a9b31",
+    "compiler/runtime/src/block.rs": "12a3e5fdf5768a31155d60ddd099f5cb8d21ff825d1c8495dbc30a9c34b350bc",
+    "compiler/runtime/src/lib.rs": "0eab7ed2aede91dac67137f3a2345416b60674fab9810d84165cdd8dff73775f",
+    "compiler/runtime/src/rc.rs": "110ff0de54005113865bdfe9292efe30cb72c087a360e1ba40c860647462b12e",
+    "compiler/runtime/Cargo.toml": "2c98c293d2f26f59f422818de2a4bdaa13be24d7d342f83bfeeae3cf592bfcac",
+    "compiler/runtime/CYCLE-COLLECTOR-DESIGN.md": "0849559983447ee8ba08122eab7c516c64b9a155cb50484c55e4d0e026573b33"
+  },
+  "unit_executable": {
+    "path": "/workspace/dasl-stdlib-cycle-runtime/build/runtime-unit-target/debug/build/cinchruntime/52a4327d48e63904/out/cinchruntime-52a4327d48e63904",
+    "sha256": "a1df28c3839d731ffd27ffe5577b6fb858ce92590f7d1a0a4b56de6ec5e39453",
+    "stored_in_git": false
+  },
+  "build_command": "source /workspace/.tools/cinch-env.sh; CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=67108864 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_TARGET_DIR=build/runtime-unit-target taskset -c 2 cargo test --manifest-path compiler/runtime/Cargo.toml --lib cycle::tests -- --test-threads=1",
+  "compiler_host_stack_kib": 65536,
+  "execution_shell_stack_kib": 8192,
+  "run_arguments": [
+    "cycle::tests",
+    "--test-threads=1"
+  ],
+  "common_environment": {
+    "CINCH_STACK_LIMIT": "8M",
+    "CINCH_ALLOC_STATS": "1",
+    "CINCH_LEAK_CHECK": "1",
+    "RUST_TEST_THREADS": "1",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "profiles": [
+    {
+      "name": "normal",
+      "environment": {
+        "CINCH_HEAP_LIMIT": "32M",
+        "CINCH_RC_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "tests_passed": 9,
+      "header_blocks": 10143,
+      "freed": 10143,
+      "live": 0,
+      "immortal": 0,
+      "peak_bytes": 2081517
+    },
+    {
+      "name": "poison",
+      "environment": {
+        "CINCH_HEAP_LIMIT": "256M",
+        "CINCH_RC_DEBUG": "1"
+      },
+      "exit_code": 0,
+      "tests_passed": 9,
+      "header_blocks": 10143,
+      "freed": 10143,
+      "live": 0,
+      "immortal": 0,
+      "peak_bytes": 2081429
+    }
+  ],
+  "leak_evidence": "Allocation accounting shows every managed header block freed; no cinch_exit_check or cinch-leak report is invoked by this unit harness.",
+  "log_sha256": {
+    "build.log": "588b7854a42478779b7efa7d48a36cae0fb7dbf8ac99daa50d75fecf822d0aee",
+    "normal.log": "25b0543707c5ab949ca4d9c6c04970456d0d033162a54ada09789c53dd141407",
+    "poison.log": "4139c6182957e2d653b7ac2c91d4fc0638905045adbfa5ba2295d45c84c71e06"
+  },
+  "output_bytes": 8868473,
+  "output_budget_bytes": 62914560,
+  "production_changes": false,
+  "unresolved": [
+    "positive task-result ownership transfer must retire or migrate registry membership",
+    "cooperative context migration invalidates a bare OS-thread-local registry",
+    "production safepoint must prove worker and borrowed-root quiescence",
+    "unchanged original/EOF22-block compiled repro has not been relinked against an enabled collector",
+    "full runtime suite and foreign builds are not claimed"
+  ]
+}
