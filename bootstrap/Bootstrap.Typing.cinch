@@ -119,9 +119,21 @@ module Bootstrap.Typing where
   close-typing-context-with-definitions :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> Option TypingContext
   close-typing-context-with-definitions kinds declarations effects datas definitions = close-typing-context-with-usage kinds declarations effects datas definitions Nil
   -- | Preserve validated usage-only fields through the final independent Core, task and provenance checks.
+  constructor-index-kinds :: List CoreData -> List (String, Kind)
+  constructor-index-kinds datas = case datas of
+    Nil -> Nil
+    Cons d rest -> let more = constructor-index-kinds rest in
+      (case (core-data-kind d, core-data-params d, core-data-constructors d) of
+        (KType, Nil, [constructor]) -> let sc = core-constructor-scheme constructor in
+          (case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
+            (Nil, Nil, UFun domain (UCon owner KType)) -> if same owner (core-data-name d)
+              then Cons (constructor-index-key (core-constructor-name constructor), KValue (scheme-body sc)) more else more
+            other -> more)
+        other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
-  close-typing-context-with-usage kinds declarations effects datas definitions usage = let all = kernel-effect-kinds <> kinds in
-    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
+  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
+    let all = declared <> constructor-index-kinds datas in
+    if nominal-kinds-closed declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
         && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
       (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage); None -> None)
     else None
@@ -189,8 +201,9 @@ module Bootstrap.Typing where
   -- `False` and need different fixes. The checking form stays the one every
   -- caller uses; this one only shapes a message.
   closure-refusal :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> String
-  closure-refusal kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
-    if not (nominal-kinds-closed all) then "the nominal kind table is not closed"
+  closure-refusal kinds declarations effects datas definitions = let declared = kernel-effect-kinds <> kinds in
+    let all = declared <> constructor-index-kinds datas in
+    if not (nominal-kinds-closed declared) then "the nominal kind table is not closed"
     else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))
     else if not (effects-registered all declarations Nil effects) then "an effect declaration is not registered"
     else if not (task-data-closed all datas) then "task data is not closed"

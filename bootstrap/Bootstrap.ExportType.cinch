@@ -288,6 +288,7 @@ module Bootstrap.ExportType where
     UIndexPromote value -> type-in-style display scope value
     UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
     UIndexBorrowRead value -> Err "local borrow observation cannot appear in a published contract"
+    UIndexConstructor name arrow input -> join [Ok "(", export-global name, Ok " ", type-in-style display scope input, Ok ")"]
     UIndexCall function args -> if total-source-projection function && not display then Err "source nominal projection requires a local proof context"
       else join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
     UIndexMath op a b -> if display || (portable-arithmetic-operand a && portable-arithmetic-operand b) then

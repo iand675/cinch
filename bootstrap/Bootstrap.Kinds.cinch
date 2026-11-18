@@ -7,7 +7,7 @@ module Bootstrap.Kinds where
 
   export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme, add-value-parameter
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
-  export nominal-kinds-closed, add-rigid-kind
+  export nominal-kinds-closed, add-rigid-kind, constructor-index-key
   export proper-type, argument-well-formed
   export borrow-scope-conflict, open-memo-region, in-memo-region
 
@@ -161,9 +161,16 @@ module Bootstrap.Kinds where
     Some bound -> type-well-formed kinds bound body
     None -> False)
   -- | Recheck nominal and lexical authority, interpreting mutation labels only inside effect rows.
+  -- This namespace is reserved at context closure. Only the independently
+  -- supplied nominal data table can contribute a constructor signature.
+  nominal-name :: String -> Bool
+  nominal-name name = let bytes = string-to-bytes name in bytes-len bytes > 0 && bytes-get bytes 0 /= 64
+  constructor-index-key :: String -> String
+  constructor-index-key name = string-concat "@constructor:" name
+
   type-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
   type-well-formed kinds scope ty = valid-type ty && (case ty of
-    UCon name actual -> (case lookup-kind name kinds of Some expected -> kind-equal actual expected; None -> False)
+    UCon name actual -> (case lookup-kind name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope-bound scope) of Some expected -> kind-equal actual expected; None -> False)
     URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-well-formed kinds scope carrier && local-carrier carrier id scope; None -> False)
     UMeta id kind -> False
@@ -183,7 +190,9 @@ module Bootstrap.Kinds where
     UIndexPromote value -> type-well-formed kinds scope value
     UIndexByteLength value -> type-well-formed kinds scope value
     UIndexBorrowRead value -> type-well-formed kinds scope value
-    UIndexConstructor name arrow input -> type-well-formed kinds scope arrow && type-well-formed kinds scope input
+    UIndexConstructor name arrow input -> (case lookup-kind (constructor-index-key name) kinds of
+      Some (KValue declared) -> same-shape arrow declared && type-well-formed kinds scope arrow && type-well-formed kinds scope input
+      other -> False)
     UIndexList element fields -> type-well-formed kinds scope element && type-well-formed kinds scope fields
     UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
     UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
@@ -251,7 +260,7 @@ module Bootstrap.Kinds where
   nominal-seen :: List (String, Kind) -> List (String, Kind) -> List String -> Bool
   nominal-seen all entries names = case entries of
     Nil -> True
-    Cons (name, kind) rest -> string-length name > 0 && not (name-seen name names)
+    Cons (name, kind) rest -> nominal-name name && not (name-seen name names)
       && kind-well-formed all empty-type-scope kind && nominal-seen all rest (Cons name names)
   name-seen :: String -> List String -> Bool
   name-seen name names = case names of Nil -> False; Cons key rest -> same name key || name-seen name rest
