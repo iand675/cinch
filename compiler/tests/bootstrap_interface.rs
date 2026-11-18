@@ -473,6 +473,26 @@ fn the_interface_reader_answers_a_real_artifact() {
     );
     assert_eq!(derived, exp.contract, "the derived contract is the compiler's contract");
 
+    // Only outer fields are removed from the identity. Matching keys before
+    // and after them, including escaped delimiters in strings, stay intact.
+    let mut nested = inputs.clone();
+    let mut doc: serde_json::Value = serde_json::from_slice(&artifact).unwrap();
+    let nested_fields = serde_json::json!({
+        "compiler": "another producer", "source_hash": "inner", "units": ["quoted \"}["]
+    });
+    doc["aaa"] = nested_fields.clone();
+    doc["zzz"] = nested_fields;
+    doc["units"] = serde_json::json!(["outer units", {"row": [1, 2]}]);
+    nested.artifact = serde_json::to_vec(&doc).unwrap();
+    nested.copy = nested.artifact.clone();
+    write_inputs(&dir, &nested);
+    let (status, report) = run_reader(&dir, &exe);
+    assert_eq!(status, 10, "the extra contract fields must change its identity");
+    doc["compiler"] = "".into();
+    doc["source_hash"] = "".into();
+    doc["units"] = serde_json::json!([]);
+    assert_eq!(report_contract(&report), serde_json::to_string(&doc).unwrap());
+
     // Each negative case alters one thing and must name the answer it breaks.
     let mut cases: Vec<(&str, i32, Inputs)> = Vec::new();
 

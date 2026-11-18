@@ -37,12 +37,8 @@
 -- runs FNV-1a 64 over the result, which is the whole rule. It is a text
 -- transformation and not a re-serialization on purpose: re-serializing would
 -- make this module a second implementation of the canonical printer, and the
--- artifact's bytes are already canonical. The reader locates keys by their
--- canonical spelling (`"key":`, anchored on the `{` or `,` before it), not by
--- indentation, so the layout the canonical printer chooses is not a contract
--- this reader depends on: only the key order and the spelling of the three
--- blanked regions having no effect on the result, which they cannot, since
--- blanking a string or clearing an array changes neither.
+-- artifact's bytes are already canonical. The reader matches keys in the outer
+-- object and skips quoted values and nested containers, so a nested key with the same spelling stays in the hash.
 --
 -- THE SOURCE HASH IS NOT A SHA-256 (reported)
 --
@@ -113,14 +109,6 @@ module Bootstrap.Interface where
     if k == 0 then True
     else if nat-cmp (bytes-get hay hi) (bytes-get needle ni) == 0 then bytes-equal-at hay (hi + 1) needle (ni + 1) (k - 1)
     else False
-
-  -- The first index at or after `from` where `needle` occurs, or `None`.
-  bytes-find :: Bytes -> Bytes -> Nat -> Option Nat
-  bytes-find hay needle from =
-    if from + bytes-len needle <= bytes-len hay then
-      if bytes-equal-at hay from needle 0 (bytes-len needle) then Some from
-      else bytes-find hay needle (from + 1)
-    else None
 
   -- `hay` with the half-open range `[lo, hi)` replaced by `repl`: the prefix,
   -- the replacement and the suffix, copied into one fresh buffer. A range
@@ -204,36 +192,55 @@ module Bootstrap.Interface where
   key-needle :: String -> String
   key-needle k = string-concat "\"" (string-concat k "\":")
 
-  -- `key-needle`'s anchor: the byte before the opening quote of an object key
-  -- is `{` (first key) or `,` (any other). Without that check a key's spelling
-  -- inside some string value would match, so a document that mentions
-  -- `"source_hash":` in a scheme could make this reader blank the wrong bytes.
-  bytes-find-key :: Bytes -> Bytes -> Nat -> Option Nat
-  bytes-find-key hay needle from = case bytes-find hay needle from of
-    None -> None
-    Some p -> if key-anchored hay p then Some p else bytes-find-key hay needle (p + 1)
+  key-at :: Bytes -> Bytes -> Nat -> Bool
+  key-at hay needle at = at + bytes-len needle <= bytes-len hay
+    && bytes-equal-at hay at needle 0 (bytes-len needle)
 
-  -- `p` is a match `bytes-find` returned, so it is inside `hay`; the
-  -- restated bound is that guarantee in a form the checker reads.
-  key-anchored :: Bytes -> Nat -> Bool
-  key-anchored hay p =
-    if p == 0 then False
-    else if p <= bytes-len hay then
-      if nat-cmp (bytes-get hay (p - 1)) 123 == 0 then True
-      else nat-cmp (bytes-get hay (p - 1)) 44 == 0
-    else False
+  -- The compiler field precedes the exports. Only compare a needle at an
+  -- outer string, skipping nested contracts and escaped quotes in values.
+  forward-key :: Bytes -> Bytes -> Nat -> Nat -> Option Nat
+  forward-key hay needle i depth = if i < bytes-len hay then
+    let byte = bytes-get hay i in
+    if byte == 34 then if depth == 1 && key-at hay needle i then Some i
+      else forward-key hay needle (string-stop hay (i + 1) + 1) depth
+    else if byte == 123 || byte == 91 then forward-key hay needle (i + 1) (depth + 1)
+    else if byte == 125 || byte == 93 then if depth > 0 then forward-key hay needle (i + 1) (depth - 1) else None
+    else forward-key hay needle (i + 1) depth
+    else None
 
-  -- The index of a top-level key's value, or `None` when the key is absent or
-  -- the document ends where its value should begin. Being total on a
-  -- malformed document matters: the artifact's bytes are read, not trusted.
+  -- A quote is escaped exactly when an odd run of backslashes precedes it.
+  quote-escaped :: Bytes -> Nat -> Bool -> Bool
+  quote-escaped hay i odd = if i > 0 && i <= bytes-len hay then
+    if bytes-get hay (i - 1) == 92 then quote-escaped hay (i - 1) (not odd) else odd
+    else odd
+
+  string-open :: Bytes -> Nat -> Nat
+  string-open hay end = if end > 0 && end <= bytes-len hay then
+    let i = end - 1 in
+    if bytes-get hay i == 34 && not (quote-escaped hay i False) then i else string-open hay i
+    else 0
+
+  -- source_hash and units follow the exports in canonical files. Start at
+  -- the end so a small suffix does not require scanning the export table.
+  backward-key :: Bytes -> Bytes -> Nat -> Nat -> Option Nat
+  backward-key hay needle end depth = if end > 0 && end <= bytes-len hay then
+    let i = end - 1 in let byte = bytes-get hay i in
+    if byte == 34 then let open = string-open hay i in
+      if depth == 1 && key-at hay needle open then Some open else backward-key hay needle open depth
+    else if byte == 125 || byte == 93 then backward-key hay needle i (depth + 1)
+    else if byte == 123 || byte == 91 then if depth > 0 then backward-key hay needle i (depth - 1) else None
+    else backward-key hay needle i depth
+    else None
+
   value-start :: Bytes -> String -> Option Nat
   value-start hay key =
     let needle = string-to-bytes (key-needle key) in
-    case bytes-find-key hay needle 0 of
+    let position = if string-compare key "compiler" == 0 then forward-key hay needle 0 0
+          else backward-key hay needle (bytes-len hay) 0 in
+    case position of
       None -> None
       Some p -> let at = skip-spaces hay (p + bytes-len needle) in
-        if nat-cmp at (bytes-len hay) < 0 then Some at
-        else None
+        if at < bytes-len hay then Some at else None
 
   -- `hay` with the string value of top-level key `key` blanked: the bytes
   -- between the value's quotes are removed, so `"source_hash":"123"` becomes
@@ -244,7 +251,7 @@ module Bootstrap.Interface where
     Some open ->
       if open < bytes-len hay && nat-cmp (bytes-get hay open) 34 == 0 then
         let close = string-stop hay (open + 1) in
-        bytes-splice hay (open + 1) close (bytes-new 0)
+        if close == open + 1 then hay else bytes-splice hay (open + 1) close (bytes-new 0)
       else hay
 
   -- `hay` with the value of top-level key `key` replaced by `[]`, whatever its
@@ -257,7 +264,7 @@ module Bootstrap.Interface where
       if open < bytes-len hay && nat-cmp (bytes-get hay open) 91 == 0 then
         let close = array-stop hay open in
         if nat-cmp close (bytes-len hay) < 0 then
-          bytes-splice hay open (close + 1) (string-to-bytes "[]")
+          if close == open + 1 then hay else bytes-splice hay open (close + 1) (string-to-bytes "[]")
         else hay
       else hay
 
