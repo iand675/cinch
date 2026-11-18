@@ -2770,13 +2770,16 @@ module Bootstrap.Parse where
       else PBad
     Nil -> PBad
 
-  -- A tuple let is a single-scrutinee case with one irrefutable tuple
-  -- pattern. Keep the pattern and evaluate the right side exactly once.
+  -- Retain tuple literal bindings for component-wise value generalization.
+  -- Other pattern bindings evaluate their scrutinee once as a one-arm case.
   let-patterns :: Span -> List (Pat, Expr) -> Expr -> Expr
   let-patterns sp bs body = case bs of
     Nil -> body
     Cons (p, rhs) rest -> case p of
       PVar s name -> ELet sp (binding-spine sp (Cons (name, rhs) Nil)) (let-patterns sp rest body)
+      PTuple at fields -> (case rhs of
+        ETuple site values -> ELocalGroup sp (ELocalStrict at p rhs (ELocalEnd at)) (let-patterns sp rest body)
+        other -> ECase sp rhs (alt-spine sp [(p, let-patterns sp rest body)]))
       other -> ECase sp rhs (alt-spine sp (Cons (p, let-patterns sp rest body) Nil))
 
   strict-locals :: List LocalSyntax -> Option (List (Pat, Expr))

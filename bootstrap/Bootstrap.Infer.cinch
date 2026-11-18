@@ -4778,13 +4778,36 @@ module Bootstrap.Infer where
     ELocalStrict sp pattern syntax rest -> let level = store-level st in
       (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
         (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
-          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value prepared of
-            (bound, step, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
-              (finished, steps, done) -> (finished, Cons step steps, done)))))
+          (value, prepared) -> (case bind-group-values classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value prepared of
+            (bound, first, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
+              (finished, steps, done) -> (finished, first <> steps, done)))))
     ELocalMemo sp name syntax rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalSignature sp name ty rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalEnd sp -> (env, Nil, st)
     other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
+  -- All components already have checked Core in the original scope. Splitting
+  -- a pure tuple literal here therefore cannot capture a sibling's new name.
+  bind-group-values :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> Bool -> CoreTerm -> Store -> (List CheckedBinding, List LocalStep, Store)
+  bind-group-values classes kinds families env locals sp pattern level eligible value st = case (pattern, value) of
+    (PTuple at patterns, CTuple site ty fields) | eligible && strict-value-pure value st && tuple-value-patterns patterns fields ->
+      bind-tuple-values classes kinds families env locals level patterns fields (duplicate-names at (pattern-names pattern) Nil st)
+    other -> case bind-group-value classes kinds families env locals sp pattern level eligible value st of
+      (bound, step, ready) -> (bound, [step], ready)
+  tuple-value-patterns :: Pat -> CoreTerm -> Bool
+  tuple-value-patterns patterns fields = case (patterns, fields) of
+    (PArgsEnd sp, CArgumentsEnd at) -> True
+    (PArg sp p rest, CArgument site value more) -> (case (p, value) of
+      (PVar at name, rhs) -> True
+      (PWild at, rhs) -> True
+      (PTuple at nested, CTuple s ty values) -> tuple-value-patterns nested values
+      other -> False) && tuple-value-patterns rest more
+    other -> False
+  bind-tuple-values :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Nat -> Pat -> CoreTerm -> Store -> (List CheckedBinding, List LocalStep, Store)
+  bind-tuple-values classes kinds families env locals level patterns fields st = case (patterns, fields) of
+    (PArg sp p rest, CArgument site value more) -> case bind-group-values classes kinds families env locals sp p level True value st of
+      (bound, steps, ready) -> case bind-tuple-values classes kinds families bound locals level rest more ready of
+        (finished, others, done) -> (finished, steps <> others, done)
+    other -> (env, Nil, st)
   -- | Apply the same value restriction to strict local groups and ordinary let syntax.
   bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> Bool -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
   bind-group-value classes kinds families env locals sp pattern level eligible value st = case pattern of

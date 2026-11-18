@@ -542,6 +542,7 @@ module Bootstrap.Eval where
     ELam s ps body -> Ok (VClosure ps body env)
     ELet s bs body -> eval-let globals env s bs body
     ELetScope sp body -> eval-expr globals env body
+    ELocalGroup sp (ELocalStrict at (PTuple site fields) rhs (ELocalEnd end)) body -> eval-case globals env sp rhs (alt-spine sp [(PTuple site fields, body)])
     EIf s c t f -> eval-if globals env s c t f
     ECase s scrut alts -> eval-case globals env s scrut alts
     EGuarded s guard body -> fail s "a guarded body is valid only inside a case alternative"
