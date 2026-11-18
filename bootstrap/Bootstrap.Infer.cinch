@@ -70,7 +70,7 @@ module Bootstrap.Infer where
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
     -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
-    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
+    MkTypeContext :: Bool -> List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
 
   -- | Remove authority when a source or imported header claims an existing primitive identity.
   revoke-payload :: String -> List PayloadCertificate -> List PayloadCertificate
@@ -101,37 +101,44 @@ module Bootstrap.Infer where
         else remaining
       other -> remaining
 
+  -- Track applications evaluated under a handler. A lambda starts a fresh computation.
+  context-handling :: TypeContext -> Bool
+  context-handling context = case context of MkTypeContext handling kinds aliases active observers effects classes payloads -> handling
+  handling-context :: Bool -> TypeContext -> TypeContext
+  handling-context enabled context = case context of
+    MkTypeContext handling kinds aliases active observers effects classes payloads ->
+      if handling == enabled then context else MkTypeContext enabled kinds aliases active observers effects classes payloads
   -- | Observe a declared kind without granting any payload evidence.
   context-kind :: String -> TypeContext -> Option Kind
-  context-kind name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> lookup-kind name kinds
+  context-kind name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> lookup-kind name kinds
   -- | Install an ordinary header and revoke any competing primitive payload authority.
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
-  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects source-classes (revoke-payload name payloads)
+  context-add-kind name kind context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling (Cons (name, kind) kinds) aliases active observers effects source-classes (revoke-payload name payloads)
   -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> aliases
+  context-aliases context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> aliases
   -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
   context-add-alias alias context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads ->
-      MkTypeContext kinds (Cons alias aliases) active observers effects source-classes (declaration-payloads alias payloads)
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads ->
+      MkTypeContext handling kinds (Cons alias aliases) active observers effects source-classes (declaration-payloads alias payloads)
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects source-classes payloads)
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> if has name active then None else Some (MkTypeContext handling kinds aliases (Cons name active) observers effects source-classes payloads)
 
   -- | Observe the context's declared effect families.
   context-effects :: TypeContext -> List CoreEffect
-  context-effects context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> effects
+  context-effects context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> effects
   -- | Extend declared effects without modifying primitive payload authority.
   context-with-effects :: List CoreEffect -> TypeContext -> TypeContext
-  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active observers (declarations <> effects) source-classes payloads
+  context-with-effects declarations context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active observers (declarations <> effects) source-classes payloads
   -- | Observe checked class descriptions.
   context-source-classes :: TypeContext -> List CoreClass
-  context-source-classes context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> source-classes
+  context-source-classes context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> source-classes
   -- | Extend class descriptions while preserving sealed primitive authority.
   context-with-source-class :: CoreClass -> TypeContext -> TypeContext
-  context-with-source-class description context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active observers effects (Cons description source-classes) payloads
+  context-with-source-class description context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active observers effects (Cons description source-classes) payloads
   -- The whole-environment projections the checker asks for once per name use,
   -- folded once when the module environment is sealed. A projection of an
   -- environment longer than the sealed one is the same fold over the local
@@ -417,7 +424,7 @@ module Bootstrap.Infer where
     else primitive-type name
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> mvar-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> mvar-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -426,7 +433,7 @@ module Bootstrap.Infer where
   certified-array-payload :: TypeContext -> UType -> Option UType
   certified-array-payload context ty = case ty of
     UApp (UCon name kind) element -> case context of
-      MkTypeContext kinds aliases active observers effects source-classes payloads ->
+      MkTypeContext handling kinds aliases active observers effects source-classes payloads ->
         if payload-certified name kind payloads then (case context-kind name context of
           Some actual -> if kind-equal actual kind then Some element else None
           None -> None) else None
@@ -849,7 +856,7 @@ module Bootstrap.Infer where
   -- | Retain a checked byte observation while preserving primitive payload authority.
   context-add-byte-observation :: String -> Option String -> TypeContext -> TypeContext
   context-add-byte-observation name scheme context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects source-classes payloads
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active (Cons (ByteObservation name scheme) observers) effects source-classes payloads
   byte-observation :: String -> List ByteObservation -> Option ByteObservation
   byte-observation name observers = case observers of
     Nil -> None
@@ -857,7 +864,7 @@ module Bootstrap.Infer where
     Cons other rest -> byte-observation name rest
   -- | Read a checked byte observation without deriving authority from its spelling.
   context-byte-observation :: String -> TypeContext -> Option ByteObservation
-  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> byte-observation name observers
+  context-byte-observation name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> byte-observation name observers
   byte-length-binding :: String -> TypeContext -> Bool
   byte-length-binding name context = case context-byte-observation name context of Some observer -> True; None -> False
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
@@ -871,10 +878,10 @@ module Bootstrap.Infer where
     Cons other rest -> identity-observation name rest
   -- | Read a checked identity observation while retaining the same context authority.
   context-identity-observation :: String -> TypeContext -> Option Scheme
-  context-identity-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> identity-observation name observers
+  context-identity-observation name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> identity-observation name observers
   -- | Register an identity observation without changing sealed payload evidence.
   context-add-identity :: String -> Scheme -> TypeContext -> TypeContext
-  context-add-identity name sc context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (IdentityObservation name sc) observers) effects source-classes payloads
+  context-add-identity name sc context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active (Cons (IdentityObservation name sc) observers) effects source-classes payloads
   identity-type-shape :: TypeExpr -> Bool
   identity-type-shape syntax = case syntax of
     TForall sp binders body -> identity-type-shape body
@@ -1746,7 +1753,7 @@ module Bootstrap.Infer where
     None -> (context-add-kind name k kinds, st)
   -- | Read a checked array observation independently from primitive payload certificates.
   context-array-observation :: String -> TypeContext -> Option Json
-  context-array-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> array-observation name observers
+  context-array-observation name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> array-observation name observers
   array-observation :: String -> List ByteObservation -> Option Json
   array-observation name observers = case observers of
     Nil -> None
@@ -1755,11 +1762,11 @@ module Bootstrap.Infer where
   -- | Retain a checked array observation without granting primitive type authority.
   context-add-array-observation :: String -> Json -> TypeContext -> TypeContext
   context-add-array-observation identity row context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes payloads
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes payloads
   -- | Locate MVar authority by the checked defining binding, never by a display name.
   context-mvar-observation :: String -> TypeContext -> Option Json
   context-mvar-observation name context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads -> mvar-observation name observers
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> mvar-observation name observers
 
   -- | Read only the MVar-specific observation constructor.
   mvar-observation :: String -> List ByteObservation -> Option Json
@@ -1771,7 +1778,7 @@ module Bootstrap.Infer where
   -- | Preserve a validated MVar row without granting nominal or finite-payload authority.
   context-add-mvar-observation :: String -> Json -> TypeContext -> TypeContext
   context-add-mvar-observation identity row context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (MVarObservation identity row) observers) effects source-classes payloads
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active (Cons (MVarObservation identity row) observers) effects source-classes payloads
 
   -- | Admit only intrinsic ccall envelopes; the complete effectful scheme is checked separately.
   imported-mvar-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
@@ -2308,7 +2315,7 @@ module Bootstrap.Infer where
     else st
   -- | Read an independently checked total-body observation.
   context-total-observation :: String -> TypeContext -> Option BodyBinding
-  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> total-observation name observers
+  context-total-observation name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> total-observation name observers
   total-observation :: String -> List ByteObservation -> Option BodyBinding
   total-observation name observers = case observers of
     Nil -> None
@@ -2318,7 +2325,7 @@ module Bootstrap.Infer where
   context-add-total :: Span -> BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   context-add-total sp binding context st = case context-total-observation (binding-name binding) context of
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
-    None -> (case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes payloads, st))
+    None -> (case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> (MkTypeContext handling kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes payloads, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-total-metadata sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
     JNull -> collect-closed-body sp name native metadata classes kinds st
@@ -2369,7 +2376,7 @@ module Bootstrap.Infer where
     Cons other rest -> observation-bindings rest
   -- | Project checked body observations without exposing payload certificates.
   context-body-bindings :: TypeContext -> List CheckedBinding
-  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> observation-bindings observers
+  context-body-bindings context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> observation-bindings observers
   register-total-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-total-value sp name sc kinds env st = case context-total-observation name kinds of
     Some binding -> if not (binding-matches name "external" sc binding) then (env, add-error sp "actual imported value disagrees with defining total body scheme" st)
@@ -4029,7 +4036,7 @@ module Bootstrap.Infer where
           None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
             (case infer classes kinds families env locals f st of
               (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
-    ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
+    ELam s ps body -> case infer-lambda classes (handling-context False kinds) families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
@@ -4110,7 +4117,7 @@ module Bootstrap.Infer where
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
-    ELam s ps body -> check-lambda-patterns None classes kinds families env locals s ps body expected st
+    ELam s ps body -> check-lambda-patterns None classes (handling-context False kinds) families env locals s ps body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
   check-contextual-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
@@ -4607,7 +4614,7 @@ module Bootstrap.Infer where
     if erased-value-arrow function then
       (case erased-argument-domain (arrow-shape function) of
         Some domain -> (case check classes kinds families env locals arg domain st of
-          (value, checked) -> apply-runtime-argument classes sp env fun value checked)
+          (value, checked) -> apply-runtime-argument (context-handling kinds) classes sp env fun value checked)
         None -> term-error sp "malformed erased value arrow" st)
     else case arrow-shape function of
       UProofFun predicate effects result -> case (fun, arg) of
@@ -4641,9 +4648,9 @@ module Bootstrap.Infer where
   apply-source-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> CoreTerm -> Store -> Store -> (CoreTerm, Store)
   apply-source-argument classes kinds families env locals sp fun arg value before checked =
     if not (let-chain-mentions (type-all-ids (normalize checked (core-type fun))) value) then
-      apply-runtime-argument classes sp env fun value checked
+      apply-runtime-argument (context-handling kinds) classes sp env fun value checked
     else case generalize-application-with (\u -> env-metas env before) (core-type fun) before of
-      (scheme, Nil) -> apply-runtime-argument classes sp env fun value checked
+      (scheme, Nil) -> apply-runtime-argument (context-handling kinds) classes sp env fun value checked
       (scheme, pairs) -> case fresh-id before of
         (id, fresh) ->
           let name = "#argument-polymorphic-function" in
@@ -4868,7 +4875,7 @@ module Bootstrap.Infer where
     EAnn sp value ty -> handled-do-error value
     other -> None
   infer-handle :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
-  infer-handle classes kinds families env locals sp body handled-by st = case infer classes kinds families env locals body (case handled-do-error body of Some (site, reason) -> add-error site reason st; None -> st) of
+  infer-handle classes kinds families env locals sp body handled-by st = case infer classes (handling-context True kinds) families env locals body (case handled-do-error body of Some (site, reason) -> add-error site reason st; None -> st) of
     (value, checked) -> case fresh-meta KType checked of
       (output, fresh) -> case (case handled-by of
         EHandler at label clauses -> infer-source-handler classes kinds families env locals at label clauses (core-type value) output fresh
@@ -6662,7 +6669,7 @@ module Bootstrap.Infer where
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   -- | Project declared kind headers without serializing primitive payload authority.
   declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> kinds
+  declared-kind-rows context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> kinds
   -- | Register only proof-bearing data owners, leaving unrelated unused refinement and class elaboration unchanged.
   usage-json-rows :: List Json -> Json
   usage-json-rows rows = case rows of
@@ -8885,11 +8892,62 @@ module Bootstrap.Infer where
       (Some callee, checked) -> (case apply-checked-runtime classes sp env callee argument checked of (out, done) -> (Some out, done))
       (None, checked) -> (None, checked))
     other -> (None, st)
-  apply-runtime-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-runtime-argument classes sp env fun value st = case store-errors st of
+  -- A handler captures the rest of an application when an operation runs
+  -- inside an operand. An instance whose member needs positional proofs may
+  -- only discharge them at a direct call, before passing a method to a continuation.
+  performs-operation :: CoreTerm -> Bool
+  performs-operation term = case term of
+    CUse sp ty name role actuals -> same role "operation"
+    CLambda sp ty pattern body -> False
+    CHandler sp ty returned operations -> False
+    CHandle sp ty label residual body handler -> False
+    other -> any-operation (term-children term)
+  any-operation :: List CoreTerm -> Bool
+  any-operation terms = case terms of Nil -> False; Cons term rest -> performs-operation term || any-operation rest
+  conditional-callee :: List CheckedBinding -> CoreTerm -> Option CheckedBinding
+  conditional-callee env fun = case fun of
+    CUse sp ty name role actuals -> if same role "external" then lookup-binding name env else None
+    CApply sp ty function argument -> conditional-callee env function
+    CApplyEff sp ty row function argument -> conditional-callee env function
+    other -> None
+  positional-obligation :: Nat -> UType -> String
+  positional-obligation position ty = case ty of
+    UPi id name domain row result ->
+      let argument = UIndex domain (IRigid id ("arg" <> int-to-string (nat-to-int position)) 0) in
+      positional-obligation (position + 1) (substitute-bound [(id, argument)] result)
+    UFun domain result -> positional-obligation (position + 1) result
+    UFunEff domain row result -> positional-obligation (position + 1) result
+    UUsageArrow usage arrow -> positional-obligation position arrow
+    URequire (UArg first rest) result -> obligation-text first
+    other -> type-text ty
+  -- A resumed application can export independent result bounds, while the
+  -- argument witness bound inside a strict let cannot escape that let.
+  resumed-conjuncts :: CoreTerm -> UType -> Option UType
+  resumed-conjuncts call predicate = case predicate of
+    UPropAnd left right -> (case (resumed-conjuncts call left, resumed-conjuncts call right) of
+      (Some a, Some b) -> Some (UPropAnd a b)
+      (Some a, None) -> Some a
+      (None, rest) -> rest)
+    other -> if let-chain-mentions (type-all-ids predicate) call then None else Some predicate
+  resumed-result :: List CheckedBinding -> Span -> CoreTerm -> Store -> (CoreTerm, Store)
+  resumed-result env sp call st = case refinement-view (normalize st (core-type call)) of
+    URefine id name carrier predicate -> if comparison-refinement (core-type call) && let-result-escapes call then
+      (case resumed-conjuncts call predicate of
+        None -> (project-comparison sp call st, st)
+        Some kept -> refine-inferred env sp (URefine id name carrier kept) carrier call st)
+      else (call, st)
+    other -> (call, st)
+  apply-runtime-argument :: Bool -> List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-runtime-argument handling classes sp env fun value st = case store-errors st of
     Nil -> (case conditional-prefix classes sp env fun st of
-      (Some callee, checked) -> apply-scoped-argument classes sp env callee value checked
-      (None, checked) -> apply-scoped-argument classes sp env fun value checked)
+      (selected, checked) -> let callee = case selected of Some implementation -> implementation; None -> fun in
+        let interrupted = handling && (performs-operation fun || performs-operation value) in
+        case (if interrupted then conditional-callee env callee else None) of
+          Some (MkConditionalBinding name owner slot dictionary head sc guarded) ->
+            term-error sp (string-concat-all ["`", diagnostic-member-name name, "` needs `", positional-obligation 1 (scheme-body sc),
+              "`: a method with argument obligations must be applied directly"]) checked
+          other -> (case apply-scoped-argument classes sp env callee value checked of
+            (call, done) -> if interrupted then resumed-result env sp call done else (call, done)))
     other -> (CError sp, st)
   -- A numeric method with a checked total body may perform its pure first
   -- application after both operands have been evaluated. Keep the actual

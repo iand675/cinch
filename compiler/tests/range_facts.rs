@@ -307,6 +307,22 @@ module Main where
 "#,
         0,
     );
+    // The handler return clause sees the carrier after the continuation's
+    // private argument goes out of scope. Its returned number still runs.
+    expect_run(
+        "cps-result",
+        r#"
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Char
+
+  main :: Int
+  main = handle nat-to-int (char-code (poke ())) with (handler Poke where
+    return x -> x
+    poke u resume k -> k 'A')
+"#,
+        65,
+    );
     // No range is assumed there: a subtraction that would need one is
     // refused (under a handler `-` at `Nat` is not applied directly, so
     // its obligation cannot even be stated).
