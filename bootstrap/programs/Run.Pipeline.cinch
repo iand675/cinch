@@ -1,3 +1,5 @@
+-- --check-types validates the same source and interface overlays as --check
+-- and omits the interface and manifest files for diagnostic-only callers.
 -- The bootstrap compiler's command line. Without a mode flag it compiles,
 -- links and runs, retaining the ladder's original four-path interface.
 -- --compile-only links without executing the artifact. --check accepts a
@@ -19,7 +21,7 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, CheckOnly, BodiesOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode-at, compile-source-with-manifest-mode-at, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode-at, compile-source-with-manifest-mode-at, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Bootstrap.Pipeline (run-source-with-object, compile-source-object, compile-source-library-object-at, report-target-refusal)
   import Bootstrap.Target (target-profile)
   import Data.Path (path-from-string)
@@ -32,6 +34,8 @@ module Main where
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
         if selected then pipeline-bad-args else run-options CheckOnly manifest object-config wanted debug reclaim inlining True rest
+      else if string-compare flag "--check-types" == 0 then
+        if selected then pipeline-bad-args else run-options TypesOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-bodies" == 0 then
         if selected then pipeline-bad-args else run-options BodiesOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--compile-only" == 0 then
@@ -95,6 +99,9 @@ module Main where
     InterfacesOnly -> case ws of
       Cons source (Cons prefix Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source prefix prefix prefix
       other -> pipeline-bad-args
+    TypesOnly -> case ws of
+      Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
+      other -> pipeline-bad-args
     CheckOnly -> case ws of
       Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
       other -> pipeline-bad-args
@@ -117,6 +124,7 @@ module Main where
 
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of
+    TypesOnly -> False
     CheckOnly -> False
     BodiesOnly -> False
     InterfacesOnly -> False

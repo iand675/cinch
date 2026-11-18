@@ -30,7 +30,9 @@ fn source_project<T>(
 pub fn check_sources(source: &str, name: &str) -> Result<(), String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project(name, source, |dir, entry| {
-            external_frontend::drive(&frontend, Mode::Check, dir, entry, None).map(|_| ())
+            let mut request = external_frontend::Request::default();
+            request.diagnostics_only = true;
+            external_frontend::drive_profile(&frontend, Mode::Check, dir, entry, None, &request).map(|_| ())
         }),
         None => driver::check_sources(source, name).map(|_| ()).map_err(|error| error.to_string()),
     }
@@ -73,7 +75,8 @@ pub fn run_source(source: &str) -> Result<i32, String> {
 pub fn check_sources_profile(source: &str, name: &str, profile: &TargetProfile) -> Result<(), String> {
     match external_frontend::configured()? {
         Some(frontend) => {
-            let request = external_frontend::profile_request(Mode::Check, StageMode::Refresh, profile)?;
+            let mut request = external_frontend::profile_request(Mode::Check, StageMode::Refresh, profile)?;
+            request.diagnostics_only = true;
             source_project(name, source, |dir, entry| {
                 external_frontend::drive_profile(&frontend, Mode::Check, dir, entry, None, &request).map(|_| ())
             })

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tooling'))
 TREE = ROOT
 import bootstrap  # noqa
-from verify_stage3 import write_wrapper  # noqa
+from verify_stage3 import supports_check_types, write_wrapper  # noqa
 
 
 def setup(stage, out, tree):
@@ -29,7 +29,8 @@ def setup(stage, out, tree):
     wrapper = out / 'frontend.py'
     write_wrapper(wrapper, compiler, objects, provider['runtime'])
     env = {k: v for k, v in bootstrap.environment().items() if not k.startswith('CINCH_TEST_')}
-    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
+    env.update(CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
+               CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(provider['runtime']),
                CINCH_TEST_LIBRARY_OBJECT=str(provider['object']),
                CINCH_TEST_SOURCE_ROOT=str(tree / 'compiler'), PYTHONDONTWRITEBYTECODE='1')

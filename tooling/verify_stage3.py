@@ -6,6 +6,7 @@ import argparse
 import fcntl
 import json
 import os
+import tempfile
 from pathlib import Path
 import shutil
 import subprocess
@@ -40,7 +41,7 @@ def compile_client(compiler, objects, runtime, args):
     args = [arg for arg in args if arg not in PROFILE_FLAGS]
     if args[0:1] == ["--interfaces"] and args[2:3] == ["--objects"] and args[4:5] == ["run"]:
         return subprocess.call([compiler, *profile, *args], env=env)
-    if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"]):
+    if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"], ["--check-types"]):
         return subprocess.call([compiler, *profile, *args], env=env)
     if args[0:1] == ["--emit-object"]:
         return subprocess.call([compiler, args[0], *profile, *args[1:]], env=env)
@@ -153,6 +154,14 @@ def test_target_inputs(directory, objects, triple):
     return 0
 
 
+def supports_check_types(compiler):
+    # An older stage refuses the option (1). A supporting stage reaches the
+    # source read (2). Probe once per runner, using no interface or source.
+    with tempfile.TemporaryDirectory() as directory:
+        return subprocess.run([compiler, "--check-types", "missing.cinch", "unused.ll"],
+                              cwd=directory, env=bootstrap.environment()).returncode == 2
+
+
 def write_wrapper(wrapper, compiler, objects, runtime):
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
@@ -205,7 +214,8 @@ def verify(evidence, cargo_target):
     write_wrapper(wrapper, compiler, objects, runtime)
     hashes[wrapper] = bootstrap.file_hash(wrapper)
     env = {name: value for name, value in bootstrap.environment().items() if not name.startswith("CINCH_TEST_")}
-    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
+    env.update(CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
+               CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
                CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "compiler"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")
     report = {

@@ -17,6 +17,7 @@ pub struct Frontend {
 /// hands the built program.
 #[derive(Clone, Debug, Default)]
 pub struct Request {
+    pub diagnostics_only: bool,
     pub flags: Vec<String>,
     pub program_args: Vec<String>,
     link: Option<DriverOptions>,
@@ -124,7 +125,7 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     let link = (foreign_triple && matches!(mode, Mode::Build | Mode::Run)).then(|| DriverOptions {
         target: Some(host.triple.clone()), ..Default::default()
     });
-    Ok(Request { flags, program_args: Vec::new(), link })
+    Ok(Request { flags, link, ..Request::default() })
 }
 
 pub fn profile_options_request(mode: Mode, stage: StageMode, profile: &TargetProfile, opts: &DriverOptions) -> Result<Request, String> {
@@ -201,7 +202,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     let link = (matches!(mode, Mode::Build | Mode::Run)
         && (!target_flags.is_empty() || runtime_archive.is_some() || opt_level.is_some())).then(|| opts.clone());
     if opts.no_reclaim { target_flags.push("--no-reclaim".into()); }
-    Ok(Request { flags: target_flags, program_args, link })
+    Ok(Request { flags: target_flags, program_args, link, ..Request::default() })
 }
 
 pub fn configured() -> Result<Option<Frontend>, String> {
@@ -422,7 +423,13 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| if mode == Mode::EmitObject { entry.with_extension("o") } else { work.join("program") });
     let report = work.join("link-report.txt");
     let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
-    let flag = if request.link.is_some() { "--emit-ir" } else { flag };
+    let flag = if mode == Mode::Check && request.diagnostics_only && std::env::var_os("CINCH_TEST_CHECK_TYPES").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        "--check-types"
+    } else if request.link.is_some() {
+        "--emit-ir"
+    } else {
+        flag
+    };
     let mut args = vec![flag.to_owned()];
     args.extend(request.flags.iter().cloned());
     args.extend(["--interfaces".into(), interfaces.display().to_string()]);

@@ -152,6 +152,7 @@ class FrozenVerification(unittest.TestCase):
                 self.assertIn("--include-ignored", command)
                 self.assertEqual(env["CINCH_TEST_API_EMIT_INTERFACES"], "1" if target == "api" else "0")
                 self.assertEqual(env["CINCH_TEST_INTERFACES"], str(manifest))
+                self.assertEqual(env["CINCH_TEST_CHECK_TYPES"], "1")
                 wrapper = Path(env["CINCH_TEST_COMPILER"])
                 self.assertIn(f"compiler={str(compiler)!r}", wrapper.read_text().splitlines())
                 if target != "api" or record_api:
@@ -164,6 +165,7 @@ class FrozenVerification(unittest.TestCase):
 
             with patch.object(verify.bootstrap, "ROOT", root), \
                     patch.object(verify_stage3, "stage3_artifacts", return_value=(compiler, manifest, objects, runtime, hashes)), \
+                    patch.object(verify_stage3, "supports_check_types", return_value=True), \
                     patch.object(verify_stage3.subprocess, "run", side_effect=cargo):
                 self.assertEqual(verify_stage3.verify(root / "missing", root / "cargo"), 1)
                 record_api = True

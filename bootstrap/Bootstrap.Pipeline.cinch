@@ -51,6 +51,7 @@ module Bootstrap.Pipeline where
   -- Check-only preserves all frontend checks while stopping before emission.
   -- Compile-only emits and links without running the generated program.
   data PipelineMode where
+    TypesOnly :: PipelineMode
     CheckOnly :: PipelineMode
     BodiesOnly :: PipelineMode
     EmitOnly :: PipelineMode
@@ -446,9 +447,10 @@ module Bootstrap.Pipeline where
         else after-check-artifacts profile inlining reclaim mode name src interfaces Nil (checked-source view interfaces) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
-  -- Modes that stop after checking and leave no interfaces behind.
+  -- Check-only modes validate source overlays against the admitted interfaces.
   checks-only :: PipelineMode -> Bool
   checks-only mode = case mode of
+    TypesOnly -> True
     CheckOnly -> True
     BodiesOnly -> True
     other -> False
@@ -462,6 +464,7 @@ module Bootstrap.Pipeline where
   after-check-artifacts profile inlining reclaim mode name src interfaces replaced result ir exe report = case (mode, result) of
     (InterfacesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
     (ObjectOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
+    (TypesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
     (BodiesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Err found) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
@@ -559,12 +562,16 @@ module Bootstrap.Pipeline where
     Some bodies -> Some (JObj "schema" (JNum 1) (JObj "bodies" bodies JObjEnd))
     None -> None
 
+  finish-check :: forall r. using (io :: Io r) => Path ->{IO r} Int
+  finish-check ir = case fs-write (refusal-path ir) (string-to-bytes "") of
+    Ok written -> pipeline-ok
+    Err e -> pipeline-write-failed
+
   after-check :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-check profile inlining reclaim mode src result ir exe report = case result of
     Ok prog -> case mode of
-      CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
-        Ok written -> pipeline-ok
-        Err e -> pipeline-write-failed
+      TypesOnly -> finish-check ir
+      CheckOnly -> finish-check ir
       BodiesOnly -> case dense-bodies-document prog of
         Some doc -> (case fs-write ir (canonical-bytes doc) of
           Ok written -> pipeline-ok
@@ -601,6 +608,7 @@ module Bootstrap.Pipeline where
     Ok u -> case mode of
       CompileOnly -> link-only-and-report ir exe report
       CompileAndRun -> link-and-report ir exe report
+      TypesOnly -> pipeline-emit-refused
       CheckOnly -> pipeline-emit-refused
       BodiesOnly -> pipeline-emit-refused
       EmitOnly -> pipeline-emit-refused
