@@ -124,6 +124,23 @@ module Main where
     assert!(error.contains("Int") && error.contains("Bool"), "{error}");
 }
 
+#[test]
+fn generated_expressions_expand_nested_scalar_and_code_splices() {
+    let source = r#"module Main where
+  stage n :: Int
+  stage n = 40
+  stage small :: Code Int
+  stage small = [| 2 |]
+  generate do
+    emit (quoteDecls where
+      answer :: Int
+      answer = let x = $(quoteInt n) in if True then x + $(small) else 0)
+  main :: Int
+  main = answer
+"#;
+    assert_eq!(run(source).unwrap(), 42);
+}
+
 /// `quoteDecls` with a splice produces a checked declaration: the
 /// generated `base` is spliced code, and `answer` references the generated
 /// `base` by its chosen name.

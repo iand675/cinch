@@ -152,11 +152,16 @@ module Bootstrap.Stage where
     Nil -> Ok Nil
     Cons (patterns, body) rest -> case template-clause-probes rest of
       Err errors -> Err errors
-      Ok tail -> case body of
-        ESplice site expression -> case quotation site expression of
-          Err errors -> Ok tail
-          Ok carrier -> Ok (probe site (quote-type site (string-concat-all [stage-quotation-module, ".", quote-type-name]) carrier) expression <> tail)
-        other -> Ok tail
+      Ok tail -> (case stage-splice-probes body tail of
+        Ok (checked, probes) -> Ok probes
+        Err errors -> Err errors)
+
+  stage-splice-probes :: Expr -> List Decl -> Result (List Diagnostic) (Expr, List Decl)
+  stage-splice-probes term probes = case term of
+    ESplice site expression -> (case quotation site expression of
+      Ok carrier -> walk-children stage-splice-probes term (probe site (quote-type site (string-concat-all [stage-quotation-module, ".", quote-type-name]) carrier) expression <> probes)
+      Err errors -> walk-children stage-splice-probes term probes)
+    other -> walk-children stage-splice-probes term probes
 
   template-probes :: List Decl -> Result (List Diagnostic) (List Decl)
   template-probes declarations = case declarations of
@@ -294,71 +299,6 @@ module Bootstrap.Stage where
       else stage-error site "checked scalar quotation did not produce its declared carrier"
     other -> stage-error site "checked scalar quotation did not produce its declared carrier"
 
-  -- A quotation expands to the code it denotes: its template with every
-  -- splice filled by the value its hole evaluates to. The template is
-  -- re-checked where it lands, so the effects a splice carries stay latent
-  -- here (decision D44) and ordinary checking sees them at the use site.
-  expand-quotation :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-quotation checked owner template fuel = case fill-splices checked owner template fuel of
-    Err errors -> Err errors
-    Ok (body, remaining) -> Ok (body, remaining)
-
-  fill-splices :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  fill-splices checked owner expression fuel = case expression of
-    ESplice site inner -> case evaluate-splice checked owner site fuel of
-      Err errors -> Err errors
-      Ok (term, remaining) -> Ok (term, remaining)
-    EApp at f x -> case fill-splices checked owner f fuel of
-      Err errors -> Err errors
-      Ok (head, after-head) -> case fill-splices checked owner x after-head of
-        Err errors -> Err errors
-        Ok (argument, remaining) -> Ok (EApp at head argument, remaining)
-    EBin at op a b -> case fill-splices checked owner a fuel of
-      Err errors -> Err errors
-      Ok (left, after-left) -> case fill-splices checked owner b after-left of
-        Err errors -> Err errors
-        Ok (right, remaining) -> Ok (EBin at op left right, remaining)
-    ENeg at x -> case fill-splices checked owner x fuel of
-      Err errors -> Err errors
-      Ok (value, remaining) -> Ok (ENeg at value, remaining)
-    ELam at ps body -> case fill-splices checked owner body fuel of
-      Err errors -> Err errors
-      Ok (renamed, remaining) -> Ok (ELam at ps renamed, remaining)
-    EIf at c a b -> case fill-splices checked owner c fuel of
-      Err errors -> Err errors
-      Ok (condition, after-c) -> case fill-splices checked owner a after-c of
-        Err errors -> Err errors
-        Ok (yes, after-a) -> case fill-splices checked owner b after-a of
-          Err errors -> Err errors
-          Ok (no, remaining) -> Ok (EIf at condition yes no, remaining)
-    EAnn at x ty -> case fill-splices checked owner x fuel of
-      Err errors -> Err errors
-      Ok (value, remaining) -> Ok (EAnn at value ty, remaining)
-    ETuple at xs -> case fill-splices checked owner xs fuel of
-      Err errors -> Err errors
-      Ok (items, remaining) -> Ok (ETuple at items, remaining)
-    EList at xs -> case fill-splices checked owner xs fuel of
-      Err errors -> Err errors
-      Ok (items, remaining) -> Ok (EList at items, remaining)
-    EArg at x rest -> case fill-splices checked owner x fuel of
-      Err errors -> Err errors
-      Ok (value, after-value) -> case fill-splices checked owner rest after-value of
-        Err errors -> Err errors
-        Ok (more, remaining) -> Ok (EArg at value more, remaining)
-    ECon at name args -> case fill-splices checked owner args fuel of
-      Err errors -> Err errors
-      Ok (values, remaining) -> Ok (ECon at name values, remaining)
-    other -> Ok (other, fuel)
-
-  -- One hole: its expression evaluates in the stage, and the value it
-  -- produces is the code the hole stands for.
-  evaluate-splice :: CheckedProgram -> String -> Span -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  evaluate-splice checked owner site fuel = case evaluate-probe checked owner site fuel of
-    Err errors -> Err errors
-    Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
-    Ok (StageQuoted value, remaining) -> Ok (EUnit site, remaining)
-    Ok other -> stage-error site "a splice did not produce checked code"
-
   -- Resolve the spelling through the caller's imports and exports. The
   -- quotation's free names and carrier belong to its defining module.
   data CodeTemplate where
@@ -398,6 +338,11 @@ module Bootstrap.Stage where
   scope-site :: ExpandScope -> MacroSite
   scope-site scope = case scope of MkExpandScope site template -> site
 
+  defining-scope :: String -> ExpandScope -> ExpandScope
+  defining-scope home scope = case scope-site scope of
+    MkMacroSite owner fix modules names parent ->
+      MkExpandScope (MkMacroSite home (module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
+
   scope-template :: ExpandScope -> List Decl
   scope-template scope = case scope of MkExpandScope site template -> template
 
@@ -407,7 +352,7 @@ module Bootstrap.Stage where
   expand-clause :: CheckedProgram -> String -> ExpandScope -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-clause checked owner scope body fuel = case body of
     ESplice site expression -> expand-code checked owner scope site expression fuel
-    other -> Ok (body, fuel)
+    other -> walk-children (expand-clause checked owner scope) body fuel
 
   expand-code :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-code checked owner scope site expression fuel = code-application checked owner scope site expression expression Nil fuel
@@ -415,11 +360,11 @@ module Bootstrap.Stage where
   code-application :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Expr -> List Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   code-application checked owner scope site original expression args fuel = if fuel == 0 || fuel > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else case expression of
     EApp at function argument -> code-application checked owner scope site original function (Cons argument args) (fuel - 1)
-    EQuote at body -> (case args of Nil -> expand-quotation checked owner body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
+    EQuote at body -> (case args of Nil -> expand-clause checked owner scope body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
     EVar at name -> (case surface-template (scope-site scope) name of
       Some (CodeTemplate home parameters ty body) -> (case hygienic-term body (macro-budget - fuel) of
         (renamed, serial) -> if serial + 1 > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else
-          (case apply-code-template checked owner scope site parameters ty args Nil renamed (macro-budget - (serial + 1)) of
+          (case apply-code-template checked owner scope home site parameters ty args Nil renamed (macro-budget - (serial + 1)) of
             Ok (result, remaining) -> Ok (ETemplateScope site home result, remaining)
             Err errors -> Err errors))
       None -> splice-value checked owner site original (fuel - 1))
@@ -428,21 +373,17 @@ module Bootstrap.Stage where
   -- A Code operand is a suspended runtime expression. The checked thunk
   -- preserves its caller's bindings, validates even unused operands and
   -- executes only at the splice sites that the quotation actually reaches.
-  apply-code-template :: CheckedProgram -> String -> ExpandScope -> Span -> List Pat -> TypeExpr -> List Expr -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  apply-code-template checked owner scope site parameters ty arguments names body fuel = case (parameters, arguments, ty) of
+  apply-code-template :: CheckedProgram -> String -> ExpandScope -> String -> Span -> List Pat -> TypeExpr -> List Expr -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  apply-code-template checked owner scope home site parameters ty arguments names body fuel = case (parameters, arguments, ty) of
     (Nil, Nil, result) -> (case code-carrier result of
-      Some carrier -> (case names of
-        Nil -> (case expand-quotation checked owner body fuel of
-          Ok (expanded, remaining) -> Ok (EAnn site expanded carrier, remaining)
-          Err errors -> Err errors)
-        other -> (case fill-splices-with (code-operand names) body Nil Nil of
-          Ok expanded -> Ok (EAnn site expanded carrier, fuel)
-          Err errors -> Err errors))
+      Some carrier -> (case template-holes checked home (defining-scope home scope) names body fuel of
+        Ok (expanded, remaining) -> Ok (EAnn site expanded carrier, remaining)
+        Err errors -> Err errors)
       None -> stage-error site "a quoted stage definition must return Code")
     (Cons (PVar at name) rest, Cons argument more, TFun arrow domain result) -> (case code-carrier domain of
       Some carrier -> (case expand-code checked owner scope (expr-span argument) argument fuel of
         Ok (value, next) -> let key = cat ["#stage-operand-", nat-to-string (span-start site), "-", nat-to-string (list-length rest)] in
-          (case apply-code-template checked owner scope site rest result more (Cons (name, key) names) body next of
+          (case apply-code-template checked owner scope home site rest result more (Cons (name, key) names) body next of
             Ok (expanded, remaining) -> let thunk = ELam site [PAnn site (PWild site) (TName site "Unit")] (EAnn site (EArgumentScope site value) carrier) in
               Ok (ELet site (EBinding site key thunk (EBindingsEnd site)) expanded, remaining)
             Err errors -> Err errors)
@@ -450,10 +391,18 @@ module Bootstrap.Stage where
       None -> stage-error site "a quotation parameter must have a Code carrier")
     other -> stage-error site "quotation arguments disagree with the stage definition"
 
-  code-operand :: List (String, String) -> Span -> Expr -> Result (List Diagnostic) (Option Expr)
-  code-operand names site expression = case (names, expression) of
-    (Cons (parameter, key) rest, EVar at name) -> if same name parameter then Ok (Some (EApp site (EVar site key) (EUnit site))) else code-operand rest site expression
-    other -> Ok None
+  template-holes :: CheckedProgram -> String -> ExpandScope -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  template-holes checked home scope names term fuel = case term of
+    ESplice site (EVar at name) -> (case code-operand name names of
+      Some key -> Ok (EApp site (EVar site key) (EUnit site), fuel)
+      None -> expand-code checked home scope site (EVar at name) fuel)
+    ESplice site expression -> expand-code checked home scope site expression fuel
+    other -> walk-children (template-holes checked home scope names) term fuel
+
+  code-operand :: String -> List (String, String) -> Option String
+  code-operand name names = case names of
+    Cons (parameter, key) rest -> if same name parameter then Some key else code-operand name rest
+    Nil -> None
 
   -- A splice whose expression is a stage computation: evaluate it and reify
   -- the code it produced.
@@ -568,69 +517,69 @@ module Bootstrap.Stage where
   expand-term :: MacroSite -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-term site-context e fuel = case e of
     ESyntaxCaptureUnder at key name argument -> (case site-context of
-      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> expand-one (ESyntaxCaptureUnder at key name) argument (MkMacroSite owner caller-fix modules names parent) fuel
+      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MkMacroSite owner caller-fix modules names parent)) (ESyntaxCaptureUnder at key name) argument fuel
       other -> stage-error at "Syntax.captureUnder outside its expansion")
     EArgumentScope at argument -> (case site-context of
-      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> expand-one (EArgumentScope at) argument (MkMacroSite owner caller-fix modules names parent) fuel
+      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MkMacroSite owner caller-fix modules names parent)) (EArgumentScope at) argument fuel
       other -> stage-error at "macro argument outside its expansion")
     EMacroCall site path tokens -> expand-call site-context site path tokens fuel
-    ECon s name args -> expand-sub (ECon s name) args site-context fuel
-    ERecord s name fields -> expand-sub (ERecord s name) fields site-context fuel
-    EProject s value name -> expand-one (\x -> EProject s x name) value site-context fuel
-    ETuple s xs -> expand-sub (ETuple s) xs site-context fuel
-    EList s xs -> expand-sub (EList s) xs site-context fuel
-    ENeg s x -> expand-one (ENeg s) x site-context fuel
-    ELam s ps body -> expand-one (ELam s ps) body site-context fuel
-    ELetScope s body -> expand-one (ELetScope s) body site-context fuel
-    ELocalSignature s name ty rest -> expand-one (ELocalSignature s name ty) rest site-context fuel
-    EAnn s x ty -> expand-one (\y -> EAnn s y ty) x site-context fuel
-    EForall s vs body -> expand-one (EForall s vs) body site-context fuel
-    EUsing s bounds body -> expand-one (EUsing s bounds) body site-context fuel
-    EBind s name rhs -> expand-one (EBind s name) rhs site-context fuel
-    EDoLet s simple stmts -> expand-one (EDoLet s simple) stmts site-context fuel
-    EDo s stmts -> expand-one (EDo s) stmts site-context fuel
-    EHandler s label clauses -> expand-one (EHandler s label) clauses site-context fuel
-    EQuote s body -> expand-one (EQuote s) body site-context fuel
-    ESupplied s f a -> expand-two (\x y -> ESupplied s x y) f a site-context fuel
-    EApp s f a -> expand-two (\x y -> EApp s x y) f a site-context fuel
-    EBin s op l r -> expand-two (\x y -> EBin s op x y) l r site-context fuel
-    ERecordField s label value rest -> expand-two (\x y -> ERecordField s label x y) value rest site-context fuel
-    ELocalStrict s p value rest -> expand-two (\x y -> ELocalStrict s p x y) value rest site-context fuel
-    ELocalMemo s name value rest -> expand-two (\x y -> ELocalMemo s name x y) value rest site-context fuel
-    EGuarded s guard body -> expand-two (\x y -> EGuarded s x y) guard body site-context fuel
-    EHandle s body h -> expand-two (\x y -> EHandle s x y) body h site-context fuel
-    EHandlerClause s name pats continuation body rest -> expand-two (\x y -> EHandlerClause s name pats continuation x y) body rest site-context fuel
-    EWith s bs body -> expand-two (\x y -> EWith s x y) bs body site-context fuel
-    EArg s x rest -> expand-two (\x y -> EArg s x y) x rest site-context fuel
-    EBinding s name rhs rest -> expand-two (\x y -> EBinding s name x y) rhs rest site-context fuel
-    EAlt s p body rest -> expand-two (\x y -> EAlt s p x y) body rest site-context fuel
-    ECase s scrut alts -> expand-two (\x y -> ECase s x y) scrut alts site-context fuel
-    ELocalGroup s bs body -> expand-two (\x y -> ELocalGroup s x y) bs body site-context fuel
-    ELetRec s bs body -> expand-two (\x y -> ELetRec s x y) bs body site-context fuel
-    ELet s bs body -> expand-two (\x y -> ELet s x y) bs body site-context fuel
-    EIf s c t f -> case expand-term site-context c fuel of
+    other -> walk-children (expand-term site-context) e fuel
+
+  walk-children :: forall s. (Expr -> s -> Result (List Diagnostic) (Expr, s)) -> Expr -> s -> Result (List Diagnostic) (Expr, s)
+  walk-children visit e state = case e of
+    ESplice s operand -> walk-one visit (ESplice s) operand state
+    ECon s name args -> walk-one visit (ECon s name) args state
+    ERecord s name fields -> walk-one visit (ERecord s name) fields state
+    EProject s value name -> walk-one visit (\x -> EProject s x name) value state
+    ETuple s xs -> walk-one visit (ETuple s) xs state
+    EList s xs -> walk-one visit (EList s) xs state
+    ENeg s x -> walk-one visit (ENeg s) x state
+    ELam s ps body -> walk-one visit (ELam s ps) body state
+    ELetScope s body -> walk-one visit (ELetScope s) body state
+    ELocalSignature s name ty rest -> walk-one visit (ELocalSignature s name ty) rest state
+    EAnn s x ty -> walk-one visit (\y -> EAnn s y ty) x state
+    EForall s vs body -> walk-one visit (EForall s vs) body state
+    EUsing s bounds body -> walk-one visit (EUsing s bounds) body state
+    EBind s name rhs -> walk-one visit (EBind s name) rhs state
+    EDoLet s simple stmts -> walk-one visit (EDoLet s simple) stmts state
+    EDo s stmts -> walk-one visit (EDo s) stmts state
+    EHandler s label clauses -> walk-one visit (EHandler s label) clauses state
+    EQuote s body -> walk-one visit (EQuote s) body state
+    ESupplied s f a -> walk-two visit (\x y -> ESupplied s x y) f a state
+    EApp s f a -> walk-two visit (\x y -> EApp s x y) f a state
+    EBin s op l r -> walk-two visit (\x y -> EBin s op x y) l r state
+    ERecordField s label value rest -> walk-two visit (\x y -> ERecordField s label x y) value rest state
+    ELocalStrict s p value rest -> walk-two visit (\x y -> ELocalStrict s p x y) value rest state
+    ELocalMemo s name value rest -> walk-two visit (\x y -> ELocalMemo s name x y) value rest state
+    EGuarded s guard body -> walk-two visit (\x y -> EGuarded s x y) guard body state
+    EHandle s body h -> walk-two visit (\x y -> EHandle s x y) body h state
+    EHandlerClause s name pats continuation body rest -> walk-two visit (\x y -> EHandlerClause s name pats continuation x y) body rest state
+    EWith s bs body -> walk-two visit (\x y -> EWith s x y) bs body state
+    EArg s x rest -> walk-two visit (\x y -> EArg s x y) x rest state
+    EBinding s name rhs rest -> walk-two visit (\x y -> EBinding s name x y) rhs rest state
+    EAlt s p body rest -> walk-two visit (\x y -> EAlt s p x y) body rest state
+    ECase s scrut alts -> walk-two visit (\x y -> ECase s x y) scrut alts state
+    ELocalGroup s bs body -> walk-two visit (\x y -> ELocalGroup s x y) bs body state
+    ELetRec s bs body -> walk-two visit (\x y -> ELetRec s x y) bs body state
+    ELet s bs body -> walk-two visit (\x y -> ELet s x y) bs body state
+    EIf s c t f -> case visit c state of
       Err errors -> Err errors
-      Ok (expanded-c, a) -> case expand-term site-context t a of
+      Ok (expanded-c, a) -> case visit t a of
         Err errors -> Err errors
-        Ok (expanded-t, b) -> case expand-term site-context f b of
+        Ok (expanded-t, b) -> case visit f b of
           Err errors -> Err errors
           Ok (expanded-f, after) -> Ok (EIf s expanded-c expanded-t expanded-f, after)
-    other -> Ok (e, fuel)
+    other -> Ok (e, state)
 
-  expand-sub :: (Expr -> Expr) -> Expr -> MacroSite -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-sub build spine site-context fuel = case expand-term site-context spine fuel of
+  walk-one :: forall s. (Expr -> s -> Result (List Diagnostic) (Expr, s)) -> (Expr -> Expr) -> Expr -> s -> Result (List Diagnostic) (Expr, s)
+  walk-one visit build first state = case visit first state of
     Err errors -> Err errors
-    Ok (expanded, remaining) -> Ok (build expanded, remaining)
+    Ok (expanded, next) -> Ok (build expanded, next)
 
-  expand-one :: (Expr -> Expr) -> Expr -> MacroSite -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-one build body site-context fuel = expand-sub build body site-context fuel
-
-  expand-two :: (Expr -> Expr -> Expr) -> Expr -> Expr -> MacroSite -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-two build first second site-context fuel = case expand-term site-context first fuel of
+  walk-two :: forall s. (Expr -> s -> Result (List Diagnostic) (Expr, s)) -> (Expr -> Expr -> Expr) -> Expr -> Expr -> s -> Result (List Diagnostic) (Expr, s)
+  walk-two visit build first second state = case visit first state of
     Err errors -> Err errors
-    Ok (expanded-first, more) -> case expand-term site-context second more of
-      Err errors -> Err errors
-      Ok (expanded-second, after) -> Ok (build expanded-first expanded-second, after)
+    Ok (left, next) -> walk-one visit (build left) second next
 
   -- One invocation: bind the token tree's groups to the macro's parameters,
   -- rename the template's own binders apart, fill its splices with the
