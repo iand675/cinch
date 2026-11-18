@@ -4,7 +4,7 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, declaration-macro, macro-parameters, syntax-template-of, expand-error)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
@@ -649,6 +649,12 @@ module Bootstrap.Stage where
 
   fill-declaration :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
   fill-declaration scope fix groups declaration fuel = case declaration of
+    DNamedDeclaration site hole body -> (case declaration-spelling site hole groups fix of
+      Err errors -> Err errors
+      Ok spelling -> case body of
+        DSig at name ty -> Ok (DSig at spelling ty, fuel)
+        DFun at name clauses -> fill-declaration scope fix groups (DFun at spelling clauses) fuel
+        other -> expand-error site "a name splice names a value declaration")
     DFun site name clauses -> (case fill-declared-clauses scope fix groups clauses fuel of
       Err errors -> Err errors
       Ok (expanded, remaining) -> Ok (DFun site name expanded, remaining))

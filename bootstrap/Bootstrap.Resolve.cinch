@@ -1096,6 +1096,7 @@ module Bootstrap.Resolve where
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
+    DNamedDeclaration s hole body -> (Nil, fail s "a name splice is only meaningful inside a `quoteDecls` template")
     DGeneratedGroup s owner template -> (case visible of
       MkVisible insertion homes caller -> case find-home owner homes of
         None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))

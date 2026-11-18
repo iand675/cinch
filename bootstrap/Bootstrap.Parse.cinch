@@ -899,6 +899,11 @@ module Bootstrap.Parse where
         else parse-sig-or-eq toks src fix
       TPunct p ->
         if string-compare p "(" == 0 then parse-sig-or-eq toks src fix
+        else if string-compare p "$" == 0 then (case parse-splice (sp-of t) rest src fix of
+          POk (ESplice site expression) suffix -> (case parse-named-sig-or-eq "" toks suffix src fix of
+            POk declaration tail -> POk (DNamedDeclaration site expression declaration) tail
+            PBad -> PBad)
+          other -> PBad)
         else PBad
       _ -> PBad
     Nil -> PBad
@@ -1525,16 +1530,19 @@ module Bootstrap.Parse where
 
   parse-sig-or-eq :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-sig-or-eq toks src fix = case parse-value-name toks of
-    POk name rest -> case rest of
-      Cons t rest2 ->
-        if is-punct-t (lt-token t) "::" then
-          case parse-type rest2 src of
-            POk ty rest3 ->
-              if at-boundary rest3 then POk (DSig (list-start-span toks) name ty) rest3 else PBad
-            PBad -> PBad
-        else parse-eq name toks rest src fix
-      Nil -> PBad
+    POk name rest -> parse-named-sig-or-eq name toks rest src fix
     PBad -> PBad
+
+  parse-named-sig-or-eq :: String -> List LToken -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-named-sig-or-eq name toks rest src fix = case rest of
+    Cons t rest2 ->
+      if is-punct-t (lt-token t) "::" then
+        case parse-type rest2 src of
+          POk ty rest3 ->
+            if at-boundary rest3 then POk (DSig (list-start-span toks) name ty) rest3 else PBad
+          PBad -> PBad
+      else parse-eq name toks rest src fix
+    Nil -> PBad
 
   parse-eq :: String -> List LToken -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-eq name start toks src fix = case parse-pats toks src of
