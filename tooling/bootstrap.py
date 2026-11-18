@@ -599,7 +599,10 @@ def prepare_outputs(directory: Path) -> None:
 def build_stage(stage: int) -> Path:
     if stage == 0:
         return build_seed()
-    builder = build_stage(stage - 1)
+    return build_next_stage(stage, build_stage(stage - 1))
+
+
+def build_next_stage(stage: int, builder: Path) -> Path:
     files = compiler_sources()
     if stage >= 2:
         source = BUILD / "stage1" / "compiler.cinch"
@@ -829,8 +832,7 @@ def runtime_archive() -> Path:
     raise BootstrapError("the verified stage-1 build has no matching pinned runtime archive")
 
 
-def smoke(stage: int) -> None:
-    compiler = build_stage(stage)
+def smoke(stage: int, compiler: Path) -> None:
     directory = BUILD / "smoke" / f"stage{stage}"
     directory.mkdir(parents=True, exist_ok=True)
     cases = [("fib", (ROOT / "examples" / "compiler" / "fib.cinch").read_text(), 0),
@@ -865,8 +867,11 @@ def smoke(stage: int) -> None:
 
 
 def check_fixed_point() -> None:
-    for stage in (0, 1, 2, 3):
-        smoke(stage)
+    compiler = build_seed()
+    smoke(0, compiler)
+    for stage in (1, 2, 3):
+        compiler = build_next_stage(stage, compiler)
+        smoke(stage, compiler)
     second, third = BUILD / "stage2", BUILD / "stage3"
     if file_hash(second / "cinch") != file_hash(third / "cinch"):
         raise BootstrapError("stage-2 and stage-3 compiler executables differ")
@@ -1050,7 +1055,7 @@ def main() -> int:
         if args.command == "build":
             build_stage(args.stage)
         elif args.command == "smoke":
-            smoke(args.stage)
+            smoke(args.stage, build_stage(args.stage))
         elif args.command == "check":
             check_fixed_point()
         else:

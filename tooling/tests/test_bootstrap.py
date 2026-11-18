@@ -168,7 +168,10 @@ class BootstrapContract(unittest.TestCase):
                 (directory / "cinch").write_bytes(stage.encode())
                 (directory / "compiler.ll").write_bytes(b"identical IR")
                 (directory / "Main.cinchif").write_bytes(b"identical interface")
-            with patch.object(bootstrap, "BUILD", build), patch.object(bootstrap, "smoke"), \
+            with patch.object(bootstrap, "BUILD", build), \
+                    patch.object(bootstrap, "build_seed", return_value=build / "stage0/cinch") as seed, \
+                    patch.object(bootstrap, "build_next_stage", side_effect=lambda n, previous: build / f"stage{n}/cinch") as step, \
+                    patch.object(bootstrap, "smoke") as smoke, \
                     patch.object(bootstrap, "compiler_sources", return_value={}), \
                     patch.object(bootstrap, "require_compiler_interfaces"), \
                     patch.object(bootstrap, "check_interface_consumer") as consumer, \
@@ -177,10 +180,18 @@ class BootstrapContract(unittest.TestCase):
                     bootstrap.check_fixed_point()
                 consumer.assert_not_called()
                 changed.assert_not_called()
+                seed.reset_mock()
+                step.reset_mock()
+                smoke.reset_mock()
                 (build / "stage3/cinch").write_bytes(b"stage2")
                 bootstrap.check_fixed_point()
                 consumer.assert_called_once()
                 changed.assert_called_once()
+                seed.assert_called_once_with()
+                self.assertEqual([args.args for args in smoke.call_args_list],
+                                 [(n, build / f"stage{n}/cinch") for n in range(4)])
+                self.assertEqual([args.args for args in step.call_args_list],
+                                 [(n, build / f"stage{n - 1}/cinch") for n in (1, 2, 3)])
 
     def test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts(self):
         with tempfile.TemporaryDirectory() as temp:
