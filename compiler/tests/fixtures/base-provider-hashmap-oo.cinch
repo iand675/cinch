@@ -1,0 +1,17 @@
+-- | Observe the concrete immutable-string map enumeration required by provider clients.
+module Main where
+  export main
+  import Data.HashMap
+  import Data.String
+  -- | Fix both stored fields to the public immutable String carrier.
+  values :: HashMap String String
+  values = hash-map-insert "x" "y" hash-map-empty
+  -- | Require the exact enumerated key and value while retaining the source map.
+  main :: Int
+  main = let entries = hash-map-to-list values in
+    let retained = hash-map-lookup "x" values in
+    case entries of
+      Cons (key, value) Nil -> if string-compare key "x" == 0 && string-compare value "y" == 0 then
+        (case retained of Some same -> if string-compare same "y" == 0 then 0 else 3; None -> 4)
+        else 2
+      _ -> 1

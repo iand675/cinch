@@ -1,0 +1,78 @@
+{
+  "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+  "results": [
+    {
+      "artifact_sha256": "cfb679e3ac7e4a55edcc5b2c36998e0b54b6945eef5e3a0a64742d2e85959636",
+      "declarations": 37,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.Builtin.cinch",
+      "source_sha256": "432ad4032460ebb58d2688f89262468bf8c7f7b6d4c41c25db8cb24cc08305ae"
+    },
+    {
+      "artifact_sha256": "4dc765b21b580fe26384a5cf4acff0da5f7f2aac75eeb5b508a072959f1dc90f",
+      "declarations": 158,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.Export.cinch",
+      "source_sha256": "599471009e75851f60ebfa6c544a03a812dd2923be105a2cd1d658fdc3dc29b3"
+    },
+    {
+      "artifact_sha256": "9e0fb4803df21b250d324dadb189b3063cff815baf4b0046e5ad2f32f20ce451",
+      "declarations": 76,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.Foreign.cinch",
+      "source_sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1"
+    },
+    {
+      "artifact_sha256": "f7a99d764f3e4d1a061e6d2b37ddb1d8bf7487ffcf358f5494be2634f9397c8f",
+      "declarations": 1028,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.Infer.cinch",
+      "source_sha256": "8e8771d10c771a328f7e25e98e23a3d2961ee1bb0b2663b409d804ea73e4504f"
+    },
+    {
+      "artifact_sha256": "4c94b088d81cdd0baf059da08f08f5266e2836102253dd1d14fec20d2d43d8b0",
+      "declarations": 64,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.Object.cinch",
+      "source_sha256": "54d5ec6fd23e3e8ae35eb81f0fb933039e4932545cf265200e276681454a4bee"
+    },
+    {
+      "artifact_sha256": "96b7de761ab51fdbf02a62b5ec949e239acc4646732588992785797ef64dc083",
+      "declarations": 719,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "source_sha256": "6751d76d1a61589d1876af73378444e8b05ae545acc36a46ee3691f3cc71797a"
+    },
+    {
+      "artifact_sha256": "068301e491883d1aaf4009526c8f15bd9ef11128dbb94690f2557e91b0e12824",
+      "declarations": 5,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "bootstrap/programs/Run.ScalarIntrinsicLoop.cinch",
+      "source_sha256": "9fd7754fd297514e1a2716207f41adf3382fde260096aa9a74bb39c20fbca0f9"
+    },
+    {
+      "artifact_sha256": "d39607d179ebc1cf0e009f96b88e5de0a51dd14abe65ff7af208de86cea28d0f",
+      "declarations": 3,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "compiler/tests/fixtures/native-scalar-nested-abi.cinch",
+      "source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e"
+    },
+    {
+      "artifact_sha256": "a95c543210cf7ebe812f726b1face87ded2225beefeef3ff7244d02bdbdf61d6",
+      "declarations": 3,
+      "diagnostics": 0,
+      "orphans": 0,
+      "source": "compiler/tests/fixtures/native-scalar-sequenced-abi.cinch",
+      "source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+    }
+  ],
+  "status": "passed"
+}

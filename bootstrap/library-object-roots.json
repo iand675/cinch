@@ -1282,6 +1282,10 @@
     {
       "classes": "OOT",
       "symbol": "Data.Result.map-err"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.HashMap.hash-map-to-list"
     }
   ]
 }

@@ -1,0 +1,128 @@
+[
+  {
+    "command": [
+      "/workspace/dasl-stdlib-mutable-family/build/mutable-stage3-frozen/cinch",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/objects.json",
+      "/workspace/dasl-stdlib-scalar-imports/compiler/tests/fixtures/native-scalar-nested-abi.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/baseline-nested/consumer.ll"
+    ],
+    "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+    "diagnostics": "bootstrap.runtime-ir:17:22: foreign call must supply every checked ABI argument\n",
+    "exit": 5,
+    "name": "baseline-nested",
+    "runs": [],
+    "source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e"
+  },
+  {
+    "command": [
+      "/workspace/dasl-stdlib-mutable-family/build/mutable-stage3-frozen/cinch",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/objects.json",
+      "/workspace/dasl-stdlib-scalar-imports/compiler/tests/fixtures/native-scalar-sequenced-abi.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/baseline-sequenced/consumer.ll"
+    ],
+    "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+    "diagnostics": "",
+    "exit": 0,
+    "name": "baseline-sequenced",
+    "runs": [
+      {
+        "debug": false,
+        "exit": 0,
+        "opt": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": true,
+        "exit": 0,
+        "opt": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": false,
+        "exit": 0,
+        "opt": 2,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": true,
+        "exit": 0,
+        "opt": 2,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+  },
+  {
+    "command": [
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r2/cinch",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/objects.json",
+      "/workspace/dasl-stdlib-scalar-imports/compiler/tests/fixtures/native-scalar-nested-abi.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/experimental-nested/consumer.ll"
+    ],
+    "compiler_sha256": "1a24657f654fec583e92a4d8d58ddd02fc421c3ad92d2cfe113cbab78cc6811e",
+    "diagnostics": "bootstrap.runtime-ir:17:22: foreign call must supply every checked ABI argument\n",
+    "exit": 5,
+    "name": "experimental-nested",
+    "runs": [],
+    "source_sha256": "17ce627a299b6a986187133d5264f8f0670c4446bd15432579b27e4bfea7ca6e"
+  },
+  {
+    "command": [
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r2/cinch",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/objects.json",
+      "/workspace/dasl-stdlib-scalar-imports/compiler/tests/fixtures/native-scalar-sequenced-abi.cinch",
+      "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-nested-abi/experimental-sequenced/consumer.ll"
+    ],
+    "compiler_sha256": "1a24657f654fec583e92a4d8d58ddd02fc421c3ad92d2cfe113cbab78cc6811e",
+    "diagnostics": "",
+    "exit": 0,
+    "name": "experimental-sequenced",
+    "runs": [
+      {
+        "debug": false,
+        "exit": 0,
+        "opt": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": true,
+        "exit": 0,
+        "opt": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": false,
+        "exit": 0,
+        "opt": 2,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": true,
+        "exit": 0,
+        "opt": 2,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "source_sha256": "2267b7d4574fd096f5c633ab7cd1976ef44226251f8a8aa51a4bbf50c68daf42"
+  }
+]

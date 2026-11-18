@@ -19,7 +19,7 @@ module Bootstrap.Foreign where
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
   export PrimitiveAssembly, AssemblyFragment
-  export foreign-llvm-type
+  export foreign-llvm-type, primitive-layout
 
   data ForeignParameter where
     Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
@@ -336,17 +336,22 @@ module Bootstrap.Foreign where
             (None, None) -> checked-prim-bodies rest arity result baseline seen-default selected-endian (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
             (None, Some prior) -> Err "duplicate unconditional assembly body in an inline primitive")
           else Err (string-concat "unsupported inline target-IR family " family))
-  primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
-  primitive-plan name scheme bodies =
+  -- | Derive scalar operand and result layouts from a closed monomorphic signature without granting executable code authority.
+  primitive-layout :: Scheme -> Result String (List ForeignParameter, ForeignParameter)
+  primitive-layout scheme =
     if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
       Err "a prim declaration needs a monomorphic checked signature"
-    else (case (export-global name, primitive-parameters (scheme-body scheme) Nil) of
+    else primitive-parameters (scheme-body scheme) Nil
+  -- | Check a declared primitive body against its validated layout and containment rules.
+  primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
+  primitive-plan name scheme bodies =
+    case (export-global name, primitive-layout scheme) of
       (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None False False None "the current target profile" of
         Ok body -> Ok (Plan (string-concat symbol ".llvm") scheme arguments result
           (Some (body, primitive-identity symbol (primitive-body-text bodies), primitive-trust symbol bodies)))
         Err message -> Err message)
       (Err message, other) -> Err message
-      (other, Err message) -> Err message)
+      (other, Err message) -> Err message
   strings :: String -> List String -> String
   strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
   visible-regions :: List Quant -> List (Nat, UType)
