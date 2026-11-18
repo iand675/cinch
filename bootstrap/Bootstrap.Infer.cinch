@@ -7882,24 +7882,33 @@ module Bootstrap.Infer where
   source-projection-domain ty = case ty of
     UFun (UCon domain KType) (UCon result KType) -> if projection-result-sort result && not (primitive domain) then Some domain else None
     other -> None
-  projection-function-shape :: String -> List Decl -> Bool
-  projection-function-shape symbol declarations = case declarations of
-    Nil -> False
-    Cons (DFun sp name clauses) rest -> if not (same name symbol) then projection-function-shape symbol rest else
-      (case clauses of [([PVar at binder], ECase site (EVar use subject) arms)] -> same binder subject; other -> False)
-    Cons other rest -> projection-function-shape symbol rest
-  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> String -> TypeExpr -> Bool
-  source-total-candidate classes kinds declarations symbol syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+  -- Only one exhaustive constructor match per path can establish a field
+  -- projection. The checked Core still validates the field types and path.
+  projection-branch :: Expr -> Bool
+  projection-branch arms = case arms of
+    EAlt at pattern (EVar site selected) (EAltsEnd end) -> True
+    EAlt at pattern (ECase site (EVar use subject) inner) (EAltsEnd end) -> projection-branch inner
+    other -> False
+  projection-candidates :: List Decl -> HashMap String Bool -> HashMap String Bool
+  projection-candidates declarations found = case declarations of
+    Nil -> found
+    Cons (DFun sp name [([PVar at binder], ECase site (EVar use subject) arms)]) rest ->
+      projection-candidates rest (if same binder subject && projection-branch arms then hash-map-insert name True found else found)
+    Cons other rest -> projection-candidates rest found
+  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> HashMap String Bool -> String -> TypeExpr -> Bool
+  source-total-candidate classes kinds declarations projections symbol syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
     (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case source-projection-domain (scheme-body sc) of
-        Some name -> projection-function-shape symbol declarations && (case source-total-find-data name declarations of Some decl -> True; None -> False)
-        None -> False)
+      (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case hash-map-lookup symbol projections of
+        Some True -> (case source-projection-domain (scheme-body sc) of
+          Some name -> (case source-total-find-data name declarations of Some decl -> True; None -> False)
+          None -> False)
+        other -> False)
       other -> False
-  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List Decl -> List String
-  source-total-names classes kinds all declarations = case declarations of
+  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> HashMap String Bool -> List Decl -> List String
+  source-total-names classes kinds all projections declarations = case declarations of
     Nil -> Nil
-    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all name syntax then Cons name (source-total-names classes kinds all rest) else source-total-names classes kinds all rest
-    Cons other rest -> source-total-names classes kinds all rest
+    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all projections name syntax then Cons name (source-total-names classes kinds all projections rest) else source-total-names classes kinds all projections rest
+    Cons other rest -> source-total-names classes kinds all projections rest
   source-total-select :: List String -> List String -> List String -> List Decl -> List Decl
   source-total-select names aliases datas declarations = case declarations of
     Nil -> Nil
@@ -8087,7 +8096,7 @@ module Bootstrap.Infer where
   -- so the table that decides who is unresolved is built on that path alone.
   source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
   source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
-    let names = source-total-names classes kinds declarations declarations in
+    let names = source-total-names classes kinds declarations (projection-candidates declarations hash-map-empty) declarations in
     case names of
       Nil -> Nil
       other -> let preliminary = source-total-preliminary interfaces label m names in
