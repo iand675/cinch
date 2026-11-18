@@ -86,8 +86,25 @@ module Bootstrap.RuntimeIr where
   -- first binding of each name, as a scan in binding order would.
   data BindingIndex where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String String) -> BindingIndex
+  -- Keep declaration order for emitted layouts. The indexes are lookup-only,
+  -- so their iteration order cannot affect the output.
+  data DataIndex where
+    DataIndex :: List CoreData -> HashMap String CoreData -> HashMap String (String, Nat, CoreConstructor) -> DataIndex
+  index-data :: List CoreData -> DataIndex
+  index-data datas = case index-data-rows datas of (types, constructors) -> DataIndex datas types constructors
+  index-data-rows :: List CoreData -> (HashMap String CoreData, HashMap String (String, Nat, CoreConstructor))
+  index-data-rows rows = case rows of
+    Nil -> (hash-map-empty, hash-map-empty)
+    Cons d rest -> case index-data-rows rest of
+      (types, constructors) -> let owner = core-data-name d in
+        (hash-map-insert owner d types, index-constructors owner 0 (core-data-constructors d) constructors)
+  index-constructors :: String -> Nat -> List CoreConstructor -> HashMap String (String, Nat, CoreConstructor) -> HashMap String (String, Nat, CoreConstructor)
+  index-constructors owner tag constructors index = case constructors of
+    Nil -> index
+    Cons c rest -> hash-map-insert (core-constructor-name c) (owner, tag, c) (index-constructors owner (tag + 1) rest index)
+
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> Bool -> ProgramInfo
+    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> Bool -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -139,7 +156,9 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> datas
+  program-data info = case data-index-of info of DataIndex datas types constructors -> datas
+  data-index-of :: ProgramInfo -> DataIndex
+  data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> index
   program-classes :: ProgramInfo -> List CoreClass
   program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
@@ -296,12 +315,8 @@ module Bootstrap.RuntimeIr where
   type-param-count qs = case qs of Nil -> 0; Cons q rest -> (if kind-equal (quant-kind q) KType then 1 else 0) + type-param-count rest
   method-reference :: String -> String -> Nat -> List CheckedBinding -> Bool
   method-reference name owner slot bindings = case bindings of Nil -> False; Cons first rest -> checked-method-matches first name owner slot || method-reference name owner slot rest
-  writer-data :: Writer -> List CoreData
-  writer-data w = program-data (writer-program w)
-  data-declaration :: String -> List CoreData -> Option CoreData
-  data-declaration name datas = case datas of
-    Nil -> None
-    Cons d rest -> if same name (core-data-name d) then Some d else data-declaration name rest
+  data-declaration :: String -> ProgramInfo -> Option CoreData
+  data-declaration name info = case data-index-of info of DataIndex datas types constructors -> hash-map-lookup name types
   type-head :: UType -> UType
   type-head ty = case base ty of UApp f x -> type-head f; other -> other
   representation :: Nat -> List (Nat, Nat) -> Option Nat
@@ -356,13 +371,20 @@ module Bootstrap.RuntimeIr where
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
           else if (array-type-name name || mvar-type-name name) && kind-equal kind (KFun KType KType) then Some 1
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
-          (case data-declaration name (program-data datas) of
-            Some d -> Some 1
+          (case data-declaration name datas of
+            Some d -> Some (data-word-class d)
             None -> if kind-equal kind KType && checked-string-word name datas then Some 1
               else case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
         UBound id name kind -> applied-former-class ty kind (representation id bounds)
         URigid id name level kind -> applied-former-class ty kind (representation id rigids)
         other -> None
+  data-word-class :: CoreData -> Nat
+  data-word-class d = case core-data-layout d of UniformData -> 1; UnboxedData label word bytes align -> word
+  unboxed-owner :: String -> Writer -> Bool
+  unboxed-owner owner w = case data-declaration owner (writer-program w) of
+    Some d -> (case core-data-layout d of UnboxedData label word bytes align -> True; UniformData -> False)
+    None -> False
+
   applied-former-class :: UType -> Kind -> Option Nat -> Option Nat
   applied-former-class ty kind code = if former-kind kind && kind-equal (type-kind ty) KType then code else None
   word-type :: RuntimeContext -> UType -> Bool
@@ -743,16 +765,8 @@ module Bootstrap.RuntimeIr where
   data-descriptor descriptions tag = case descriptions of
     Nil -> 0
     Cons first rest -> if tag == 0 then first else data-descriptor rest (tag - 1)
-  constructor-in :: String -> Nat -> List CoreConstructor -> Option (Nat, CoreConstructor)
-  constructor-in name index constructors = case constructors of
-    Nil -> None
-    Cons c rest -> if same name (core-constructor-name c) then Some (index, c) else constructor-in name (index + 1) rest
-  constructor :: String -> List CoreData -> Option (String, Nat, CoreConstructor)
-  constructor name datas = case datas of
-    Nil -> None
-    Cons d rest -> case constructor-in name 0 (core-data-constructors d) of
-      Some (tag, c) -> Some (core-data-name d, tag, c)
-      None -> constructor name rest
+  constructor :: String -> ProgramInfo -> Option (String, Nat, CoreConstructor)
+  constructor name info = case data-index-of info of DataIndex datas types constructors -> hash-map-lookup name constructors
   definition :: String -> List CoreDefinition -> Option CoreDefinition
   definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
   join :: List String -> String
@@ -1283,7 +1297,7 @@ module Bootstrap.RuntimeIr where
       Some fused -> expression definitions locals w fused
       None -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
         expression definitions locals w (specialize-local id sc rhs body)
-        else if deferred-let w id sc rhs body then (case deferred-value (writer-data w) rhs of
+        else if deferred-let w id sc rhs body then (case deferred-value (writer-program w) rhs of
           Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
           None -> unsupported w sp "deferred constructor let failed its checked representation")
         else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
@@ -1364,7 +1378,7 @@ module Bootstrap.RuntimeIr where
         other -> None)
     other -> None
   task-result-abi :: Writer -> Bool
-  task-result-abi w = case data-declaration (global-data-core-result) (writer-data w) of
+  task-result-abi w = case data-declaration (global-data-core-result) (writer-program w) of
     Some d -> (case (core-data-params d, core-data-constructors d) of
       ([error, value], [first, second]) -> same (core-constructor-name first) (global-data-core-err) && same (core-constructor-name second) (global-data-core-ok)
         && (case (core-constructor-fields first, core-constructor-fields second) of
@@ -1399,7 +1413,7 @@ module Bootstrap.RuntimeIr where
   task-tuple-fields fields = case fields of UEnd -> Some Nil; UArg ty more -> (case task-tuple-fields more of Some rest -> Some (Cons ty rest); None -> None); other -> None
   task-join-success :: Writer -> Span -> UType -> List String -> (Writer, String)
   task-join-success w sp ty values = case task-result-types ty of
-    Some (error, payload) -> (case (task-tuple-types payload, data-declaration (global-data-core-result) (writer-data w)) of
+    Some (error, payload) -> (case (task-tuple-types payload, data-declaration (global-data-core-result) (writer-program w)) of
       (Some types, Some d) -> (case class-vector (writer-context w) types of
         Some classes -> (case request-tuple-shape sp classes w of
           (planned, descriptor) -> case allocate planned descriptor values of
@@ -1531,7 +1545,7 @@ module Bootstrap.RuntimeIr where
     ([parameter], UBound id name KType) -> quant-id parameter == id && kind-equal (quant-kind parameter) KType
     other -> False
   array-list-abi :: Writer -> Bool
-  array-list-abi w = case (data-declaration (global-data-core-list) (writer-data w), constructor (global-data-core-nil) (writer-data w), constructor (global-data-core-cons) (writer-data w)) of
+  array-list-abi w = case (data-declaration (global-data-core-list) (writer-program w), constructor (global-data-core-nil) (writer-program w), constructor (global-data-core-cons) (writer-program w)) of
     (Some d, Some (nil-owner, 0, nil-constructor), Some (cons-owner, 1, cons-constructor)) ->
       same nil-owner (core-data-name d) && same cons-owner nil-owner && list-length (core-data-constructors d) == 2 && list-length (core-constructor-fields nil-constructor) == 0 &&
       (case core-constructor-fields cons-constructor of
@@ -1575,10 +1589,10 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else count-line False (cat ["%arg", nat-to-string index]) w)
   array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
   array-option w sp payload-class invalid runtime arguments =
-    case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
+    case (constructor (global-data-core-some) (writer-program w), constructor (global-data-core-none) (writer-program w)) of
       (Some (owner, some-tag, some-constructor), Some (none-owner, none-tag, none-constructor)) ->
         if not (same owner (global-data-core-option) && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "array result needs its checked Option declaration" else
-        (case data-declaration owner (writer-data w) of
+        (case data-declaration owner (writer-program w) of
           Some d -> if list-length (core-data-constructors d) /= 2 || not (case core-constructor-fields some-constructor of [field] -> array-binder-field d field; other -> False) then unsupported w sp "array Option payload disagrees with its checked parameter" else (case request-data sp d [payload-class] w of
             (planned, descriptor) ->
               let (one, failure) = fresh planned "arraynone" in let (two, success) = fresh one "arraysome" in
@@ -1729,10 +1743,10 @@ module Bootstrap.RuntimeIr where
   -- | Construct Option only from the canonical source family, loading output solely on success.
   mvar-option :: Writer -> Nat -> String -> String -> (Writer, String)
   mvar-option w element status output = let sp = Span 0 0 1 1 in
-    case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
+    case (constructor (global-data-core-some) (writer-program w), constructor (global-data-core-none) (writer-program w)) of
       (Some (owner, some-tag, some-constructor), Some (none-owner, none-tag, none-constructor)) ->
         if not (same owner (global-data-core-option) && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "MVar result needs its checked Option declaration" else
-        (case data-declaration owner (writer-data w) of
+        (case data-declaration owner (writer-program w) of
           Some d -> if list-length (core-data-constructors d) /= 2 || not (case core-constructor-fields some-constructor of [field] -> array-binder-field d field; other -> False) then unsupported w sp "MVar Option payload disagrees with its checked parameter" else
             (case request-data sp d [element] w of
               (planned, descriptor) ->
@@ -1868,10 +1882,10 @@ module Bootstrap.RuntimeIr where
   -- its result code names (platform-intrinsic).
   platform-result :: Writer -> String -> Nat -> (Writer, String)
   platform-result w raw result = let sp = Span 0 0 1 1 in
-    case (constructor (global-data-core-err) (writer-data w), constructor (global-data-core-ok) (writer-data w)) of
+    case (constructor (global-data-core-err) (writer-program w), constructor (global-data-core-ok) (writer-program w)) of
       (Some (owner, err-tag, err-constructor), Some (ok-owner, ok-tag, ok-constructor)) ->
         if not (same owner (global-data-core-result) && same owner ok-owner) || err-tag /= 0 || ok-tag /= 1 then unsupported w sp "runtime result needs its checked Result declaration" else
-        (case data-declaration owner (writer-data w) of
+        (case data-declaration owner (writer-program w) of
           Some d -> if list-length (core-data-constructors d) /= 2 || not (result-binder-fields d err-constructor ok-constructor) then unsupported w sp "runtime Result fields disagree with their checked parameters" else
             (case request-data sp d [0, if result == 3 then 2 else if result == 4 then 1 else 0] w of
               (planned, descriptor) ->
@@ -1957,6 +1971,11 @@ module Bootstrap.RuntimeIr where
           None -> (case call started "@cinch_bytes_len" ["%arg0"] of
             (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (count-line False "%arg0" done, result))) in
     case lowered of (done, result) -> line (line done (cat ["  ret ", builtin-result-llvm name, " ", result])) "}"
+  box-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> List Nat -> Nat -> List CoreTerm -> (Writer, String)
+  box-constructor definitions locals w sp d classes tag args = case request-data sp d classes w of
+    (planned, descriptor) -> case expressions definitions locals planned args of
+      (ready, values) -> allocate-typed ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values)
+
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
@@ -1966,16 +1985,16 @@ module Bootstrap.RuntimeIr where
         Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
           call (request-demand (DictionaryDemand name classes) w) (symbol-for-dictionary name classes) givens else unsupported w sp "factory constructor arguments disagree with its checked context"
         None -> unsupported w sp "factory needs runtime representation specialization"
-      None -> case constructor name (writer-data w) of
-        Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+      None -> case constructor name (writer-program w) of
+        Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
           Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
             None -> unsupported w sp "constructor parameters need runtime representation classes"
             Some classes -> case constructor-context d classes w of
               None -> unsupported w sp "constructor parameters need first-order representation classes"
               Some context -> if list-length args == list-length (core-constructor-fields c) then
-                (case request-data sp d classes w of
-                  (planned, descriptor) -> case expressions definitions locals planned args of
-                    (ready, values) -> allocate-typed ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values))
+                (case (core-data-layout d, args) of
+                  (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
+                  other -> box-constructor definitions locals w sp d classes tag args)
                 else if list-length args < list-length (core-constructor-fields c) then
                   (case class-vector context (core-constructor-fields c) of
                     Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
@@ -3399,7 +3418,8 @@ module Bootstrap.RuntimeIr where
         else if named ty "Bool" && (same name "True" || same name "False") then
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
-        else case constructor name (writer-data w) of
+        else case constructor name (writer-program w) of
+          Some (owner, tag, c) | unboxed-owner owner w -> match-unboxed fields value failed w
           Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then
             (case constructor-tag w value of
               (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
@@ -3420,6 +3440,12 @@ module Bootstrap.RuntimeIr where
         None -> (refuse w sp "invalid typed character pattern", Nil)) else (refuse w sp "character pattern has no checked Char carrier", Nil)
       CPString sp ty text -> string-pattern w sp ty value text failed
       other -> (refuse w (Span 0 0 1 1) "pattern form needs typed runtime match lowering", Nil)
+  match-unboxed :: CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-unboxed fields value failed w = case fields of
+    CPField sp (CPProof at predicate id name) rest -> match-unboxed rest value failed w
+    CPField sp first rest -> match-pattern first value failed w
+    other -> (refuse w (Span 0 0 1 1) "unboxed pattern lacks its checked payload", Nil)
+
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
     CPDone end -> (w, Nil)
@@ -3506,8 +3532,8 @@ module Bootstrap.RuntimeIr where
   deferred-let w id sc rhs body =
     (case scheme-params sc of Nil -> True; other -> False) && (case scheme-requirements sc of Nil -> True; other -> False)
       && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc)
-      && case-scrutinee-only id body && (case deferred-value (writer-data w) rhs of Some plan -> True; None -> False)
-  deferred-value :: List CoreData -> CoreTerm -> Option (String, List UType, List CoreTerm)
+      && case-scrutinee-only id body && (case deferred-value (writer-program w) rhs of Some plan -> True; None -> False)
+  deferred-value :: ProgramInfo -> CoreTerm -> Option (String, List UType, List CoreTerm)
   deferred-value datas rhs = case erased-constructor-call rhs Nil of
     Some (name, actuals, args) -> if trivial-arguments args && (case constructor name datas of Some found -> True; None -> False) then Some (name, actuals, args) else None
     None -> None
@@ -3575,7 +3601,7 @@ module Bootstrap.RuntimeIr where
   known-constructor-fields w ty name =
     if named ty "Bool" && (same name "True" || same name "False") then Some 0
     else if decision-word-type ty && (same name "b.Yes" || same name "b.No") then Some 0
-    else case constructor name (writer-data w) of
+    else case constructor name (writer-program w) of
       Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then Some (list-length (core-constructor-fields c)) else None
       None -> None
   fold-alternatives :: CoreTerm -> String -> Nat -> CaseFold
@@ -3952,8 +3978,8 @@ module Bootstrap.RuntimeIr where
         if decision-word-type ty then NoArm
         else if named ty "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
-        else case constructor name (writer-data w) of
-          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
+        else case constructor name (writer-program w) of
+          Some (owner, tag, c) -> if not (unboxed-owner owner w) && list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
           None -> NoArm
       other -> NoArm
   -- The dispatch a case can use. The switch's case list is fixed before any
@@ -4562,8 +4588,10 @@ module Bootstrap.RuntimeIr where
   value-parameters :: Nat -> Nat -> List String
   value-parameters count index = if count == 0 then Nil else Cons (cat ["%arg", nat-to-string index]) (value-parameters (count - 1) (index + 1))
   constructor-worker :: String -> List Nat -> Writer -> Writer
-  constructor-worker name classes w = case constructor name (writer-data w) of
-    Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+  constructor-worker name classes w = case constructor name (writer-program w) of
+    Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
+      Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
+        emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0) {"], "entry:", "  ret i64 %arg0", "}"]
       Some d -> case constructor-context d classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids pending done inlining ->
@@ -5007,7 +5035,7 @@ module Bootstrap.RuntimeIr where
   demand-roots :: List (String, List Nat) -> Writer -> Writer
   demand-roots roots w = case roots of
     Nil -> w
-    Cons (name, classes) rest -> demand-roots rest (case constructor name (writer-data w) of
+    Cons (name, classes) rest -> demand-roots rest (case constructor name (writer-program w) of
       Some found -> request-demand (ConstructorDemand name classes) w
       None -> demand-worker name classes w)
   -- Group only direct, saturated source calls in return position. An
@@ -5153,7 +5181,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
@@ -5212,11 +5240,11 @@ module Bootstrap.RuntimeIr where
   library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)
   library-checked-shape definitions w name classes = case definition name definitions of
     Some d -> library-root-shape w d classes
-    None -> case constructor name (writer-data w) of
-      Some (owner, tag, c) -> (case data-declaration owner (writer-data w) of
+    None -> case constructor name (writer-program w) of
+      Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
         Some d -> (case constructor-context d classes w of
           Some context -> if not (constructor-supported context d c) then None else
-            (case class-vector context (core-constructor-fields c) of Some fields -> Some (fields, 1); None -> None)
+            (case class-vector context (core-constructor-fields c) of Some fields -> Some (fields, data-word-class d); None -> None)
           None -> None)
         None -> None)
       None -> None
@@ -5227,7 +5255,7 @@ module Bootstrap.RuntimeIr where
       Some True -> library-bridges definitions rest seen w
       Some False -> (refuse w (Span 0 0 1 1) "library ABI export symbols collide", JArrEnd)
       None -> if not (library-public-symbol public) then (refuse w (Span 0 0 1 1) "library ABI export symbol is empty or collides with typed workers", JArrEnd) else
-        if (case (definition name definitions, constructor name (writer-data w)) of (None, None) -> True; other -> False) then
+        if (case (definition name definitions, constructor name (writer-program w)) of (None, None) -> True; other -> False) then
           (refuse w (Span 0 0 1 1) "library ABI root has no checked definition", JArrEnd) else
           case library-checked-shape definitions w name classes of
             None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked physical parameter/result shape", JArrEnd)
@@ -5251,7 +5279,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -5374,7 +5402,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
@@ -5404,7 +5432,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
+    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
@@ -5413,6 +5441,6 @@ module Bootstrap.RuntimeIr where
         -- shares the name; only then does the entry need its own pass.
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
-          case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
+          case (case constructor "main" info of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
             Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
             Writer next globals code errors layouts datas -> Err errors

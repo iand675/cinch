@@ -14,7 +14,7 @@ module Bootstrap.Usage where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export UsageShape, usage-name, usage-fields-for, read-usage-shape, usage-fields-json
+  export UsageShape, usage-name, usage-single-field, usage-fields-for, read-usage-shape, usage-fields-json
   export usage-equal, usage-shape-closed, usage-constructor-agrees
 
   -- | A validated field table supplies no source constructor names, descriptors, tags or bodies.
@@ -25,6 +25,13 @@ module Bootstrap.Usage where
   -- | Read the exact checked nominal owner used only by the task-property table.
   usage-name :: UsageShape -> String
   usage-name shape = case shape of CheckedUsageShape owner parameters fields -> owner
+
+  -- A checked single-constructor shape can validate the field type in
+  -- an explicitly unboxed ABI even when its constructor is private.
+  usage-single-field :: UsageShape -> Option UType
+  usage-single-field shape = case shape of
+    CheckedUsageShape owner params [(constructor, [payload])] -> Some payload
+    other -> None
 
   -- | Compare scalar identity spellings without assigning semantic authority to a display name.
   same :: String -> String -> Bool

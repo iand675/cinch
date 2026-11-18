@@ -1051,6 +1051,7 @@ module Bootstrap.Resolve where
     -- could not read is the only useful thing to report. Falling through to
     -- the catch-all below would claim namespace work is missing when the
     -- real gap is a surface form the parser does not accept yet.
+    DUnboxed s name label -> ([DUnboxed s (global-name home name) label], Nil)
     DInlineHint s name hint -> (case hint of
       Err message -> (Nil, fail s message)
       Ok value -> ([DInlineHint s (global-name home name) hint], Nil))

@@ -6,7 +6,7 @@ module Bootstrap.Export where
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
-  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+  import Bootstrap.Core (CoreData, DataLayout, UniformData, UnboxedData, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -675,20 +675,22 @@ module Bootstrap.Export where
   -- modules: every public row looks its symbol up in both. Each map keeps
   -- the first entry of a name, as find-binding and find-data do.
   data ExportIndex where
-    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> ExportIndex
+    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> ExportIndex
   export-index :: Elaboration -> ExportIndex
   export-index typed = ExportIndex (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
-    (declaration-reference-index (elaboration-declarations typed))
+    (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed))
   binding-index :: List CheckedBinding -> HashMap String CheckedBinding
   binding-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (checked-name row) row (binding-index rest)
   data-index :: List CoreData -> HashMap String CoreData
   data-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (core-data-name row) row (data-index rest)
+  indexed-layouts :: ExportIndex -> HashMap String DataLayout
+  indexed-layouts index = case index of ExportIndex bindings datas references physical -> physical
   indexed-binding :: String -> ExportIndex -> Option CheckedBinding
-  indexed-binding name index = case index of ExportIndex bindings datas references -> hash-map-lookup name bindings
+  indexed-binding name index = case index of ExportIndex bindings datas references physical -> hash-map-lookup name bindings
   indexed-data :: String -> ExportIndex -> Option CoreData
-  indexed-data name index = case index of ExportIndex bindings datas references -> hash-map-lookup name datas
+  indexed-data name index = case index of ExportIndex bindings datas references physical -> hash-map-lookup name datas
   indexed-references :: ExportIndex -> HashMap String (List String)
-  indexed-references index = case index of ExportIndex bindings datas references -> references
+  indexed-references index = case index of ExportIndex bindings datas references physical -> references
   -- Constructors and erased equation methods have their own checked
   -- tables. Neither needs an ordinary value row.
   exports :: Elaboration -> ExportIndex -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
@@ -732,10 +734,20 @@ module Bootstrap.Export where
     other -> JArr (JStr name) JArrEnd
   sorted-strings :: Json -> Json
   sorted-strings rows = case rows of JArr (JStr name) rest -> insert-string name (sorted-strings rest); other -> JArrEnd
-  layouts :: Json -> Json
-  layouts types = case types of
-    JArr row rest -> JArr (JObj "type" (field "name" row) (JObj "size" (JNum 8)
-      (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd))))) (layouts rest)
+  unboxed-layouts :: List CoreData -> HashMap String DataLayout
+  unboxed-layouts datas = case datas of
+    Nil -> hash-map-empty
+    Cons d rest -> let more = unboxed-layouts rest in case core-data-layout d of
+      UniformData -> more
+      layout -> (case export-global (core-data-name d) of Ok identity -> hash-map-insert identity layout more; Err message -> more)
+
+  layouts :: HashMap String DataLayout -> Json -> Json
+  layouts index types = case types of
+    JArr row rest -> let layout = (case hash-map-lookup (text (field "identity" row)) index of
+          Some (UnboxedData label word size align) -> let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
+            JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr "unboxed") JObjEnd)))
+          other -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd)))) in
+      JArr (JObj "type" (field "name" row) layout) (layouts index rest)
     other -> JArrEnd
   public-spelling :: String -> Json -> Bool
   public-spelling name surface = case surface of
@@ -900,8 +912,8 @@ module Bootstrap.Export where
           (Err error, other) -> Err error
           (other, Err error) -> Err error)
         else Ok rows
-  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
-  document context source-hash dependencies values types signatures instances checked-assumptions foreign-rows laws =
+  document :: HashMap String DataLayout -> Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+  document layout-index context source-hash dependencies values types signatures instances checked-assumptions foreign-rows laws =
     JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
@@ -909,7 +921,7 @@ module Bootstrap.Export where
             (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" signatures
               (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
-                (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
+                (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts layout-index types) JObjEnd)))
                 (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
                   (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
@@ -979,7 +991,7 @@ module Bootstrap.Export where
                   (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
                   (other, Err error, more) -> Err error
                   (other, more, Err error) -> Err error
-                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
+                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
                     (case export-loop typed index interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))

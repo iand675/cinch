@@ -68,6 +68,7 @@ module Bootstrap.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
+  export DataLayout, UniformData, UnboxedData, core-data-layout, with-data-layout
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
   export core-constructor-name, core-constructor-scheme, core-constructor-fields
@@ -221,17 +222,25 @@ module Bootstrap.Core where
   -- remain checked interface contracts, not reconstructed source data.
   data CoreConstructor where
     MkCoreConstructor :: Span -> String -> Scheme -> CoreConstructor
+  data DataLayout where
+    UniformData :: DataLayout
+    -- Represented field name, runtime word class, ABI size and alignment.
+    UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
   data CoreData where
-    MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
+    MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> DataLayout -> CoreData
 
+  core-data-layout :: CoreData -> DataLayout
+  core-data-layout d = case d of MkCoreData sp name k qs cs layout -> layout
+  with-data-layout :: DataLayout -> CoreData -> CoreData
+  with-data-layout layout d = case d of MkCoreData sp name k qs cs previous -> MkCoreData sp name k qs cs layout
   core-data-name :: CoreData -> String
-  core-data-name d = case d of MkCoreData s name k qs constructors -> name
+  core-data-name d = case d of MkCoreData s name k qs constructors layout -> name
   core-data-kind :: CoreData -> Kind
-  core-data-kind d = case d of MkCoreData s name k qs constructors -> k
+  core-data-kind d = case d of MkCoreData s name k qs constructors layout -> k
   core-data-params :: CoreData -> List Quant
-  core-data-params d = case d of MkCoreData s name k qs constructors -> qs
+  core-data-params d = case d of MkCoreData s name k qs constructors layout -> qs
   core-data-constructors :: CoreData -> List CoreConstructor
-  core-data-constructors d = case d of MkCoreData s name k qs constructors -> constructors
+  core-data-constructors d = case d of MkCoreData s name k qs constructors layout -> constructors
   core-constructor-name :: CoreConstructor -> String
   core-constructor-name c = case c of MkCoreConstructor s name sc -> name
   core-constructor-scheme :: CoreConstructor -> Scheme

@@ -987,6 +987,7 @@ module Bootstrap.Check where
     DConditional s clauses inner -> check-decl tops inner
     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
     DDeclsEnd s -> Nil
+    DUnboxed s name label -> Nil
     DInlineHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 

@@ -547,6 +547,7 @@ module Bootstrap.Ast where
     -- same wrapper around the `DImport`, so one pruning pass handles both.
     -- Where a clause does not hold the name is absent from the interface,
     -- from the module's exports and from code generation.
+    DUnboxed :: Span -> String -> List String -> Decl
     DInlineHint :: Span -> String -> Result String String -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
@@ -599,6 +600,7 @@ module Bootstrap.Ast where
     DContract s kind name subject clauses -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
+    DUnboxed s name label -> s
     DInlineHint s name hint -> s
     DUnmodeled s text -> s
 
@@ -628,6 +630,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> Some name
     DDecl s x rest -> None
     DDeclsEnd s -> None
+    DUnboxed s name label -> None
     DInlineHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
@@ -867,6 +870,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> type-unmodeled-count ty + prim-bodies-unmodeled bodies
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
+    DUnboxed s name label -> 0
     DInlineHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body

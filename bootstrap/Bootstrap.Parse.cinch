@@ -40,7 +40,7 @@ module Bootstrap.Parse where
                    lex-source, bytes-slice)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, Bundle,
                      ParseError, EFail)
-  import Text.Scan (string-index-of, string-take, string-drop, string-strip)
+  import Text.Scan (string-index-of, string-take, string-drop, string-strip, string-split-on)
   import Data.Bool
   import Data.Bytes
   import Data.Char
@@ -788,12 +788,40 @@ module Bootstrap.Parse where
         if string-compare p ";" == 0 then decls-loop rest src fix acc
         else if string-compare p "}" == 0 then POk (reverse acc) rest
         else decl-step toks src fix acc
-      TAttr text -> (case inline-attribute text of
-        Some (family, hint) -> inline-decl (sp-of t) family hint rest src fix acc
-        None -> decl-step toks src fix acc)
+      TAttr text -> (case repr-arguments text of
+        Some args | string-compare args "unboxed" == 0 -> unboxed-decl (sp-of t) rest src fix acc
+        Some args | has-unboxed-item (string-split-on "," args) -> unboxed-decl (sp-of t) rest src fix
+          (Cons (DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") acc)
+        other -> (case inline-attribute text of
+          Some (family, hint) -> inline-decl (sp-of t) family hint rest src fix acc
+          None -> decl-step toks src fix acc))
       TEOF -> POk (reverse acc) toks
       _ -> decl-step toks src fix acc
     Nil -> POk (reverse acc) Nil
+
+  repr-arguments :: String -> Option String
+  repr-arguments text = let trimmed = string-strip text in
+    case string-index-of "(" trimmed of
+      Some open -> let end = string-length trimmed in
+        if string-compare (string-strip (string-take open trimmed)) "repr" == 0 && open + 2 <= end
+          && string-compare (string-drop (end - 1) trimmed) ")" == 0
+        then Some (string-strip (string-take (end - open - 2) (string-drop (open + 1) trimmed))) else None
+      None -> None
+  has-unboxed-item :: List String -> Bool
+  has-unboxed-item args = case args of
+    Nil -> False
+    Cons arg rest -> string-compare (string-strip arg) "unboxed" == 0 || has-unboxed-item rest
+
+  unboxed-decl :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  unboxed-decl site toks src fix acc = case toks of
+    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then unboxed-decl site rest src fix acc else
+      (case parse-decl-recover toks src fix of
+        POk d tail -> (case d of
+          DData sp name params constructors -> decls-loop tail src fix (Cons d (Cons (DUnboxed site name Nil) acc))
+          DRecord sp name params fields -> decls-loop tail src fix (Cons d (Cons (DUnboxed site name (map (\field -> case field of (label, ty) -> label) fields)) acc))
+          other -> decls-loop tail src fix (Cons d (Cons (DUnmodeled site "repr(unboxed) requires a data or record declaration") acc)))
+        PBad -> PBad)
+    Nil -> PBad
 
   inline-attribute :: String -> Option (String, Result String String)
   inline-attribute text =

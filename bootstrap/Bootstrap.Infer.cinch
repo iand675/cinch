@@ -16,6 +16,7 @@ module Bootstrap.Infer where
   import Text.Scan (string-words)
   import Data.Bytes (bytes-len)
   import Bootstrap.Core
+  import Bootstrap.Layout (check-layouts)
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
@@ -2766,6 +2767,7 @@ module Bootstrap.Infer where
       -- A temporal contract binds no value: it is verified after the
       -- definition it names has been elaborated (its write log and its
       -- recursion), which is the pass `temporal-contracts` runs.
+      DUnboxed s name label -> register all rows classes kinds rest env st
       DInlineHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
       DContract s keyword name subject clauses -> register all rows classes kinds rest env st
       other -> register all rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
@@ -6468,19 +6470,19 @@ module Bootstrap.Infer where
     DData s name ps cs -> case context-kind name kinds of
       Some k -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case checked-constructors cs env sq of
-          (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
+          (constructors, sc) -> (Some (MkCoreData s name k qs constructors UniformData), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
     DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data" || same variety "record" || same variety "codata"; other -> False) then
       (case imported-kinds kinds (field "parameters" metadata) st of
         (qs, checked) -> if (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
           let storage = record-storage-name True name in
           (case lookup-binding storage env of
-            Some binding -> (Some (MkCoreData s name (kind-arrow qs) qs [MkCoreConstructor s storage (checked-scheme binding)]), checked)
+            Some binding -> (Some (MkCoreData s name (kind-arrow qs) qs [MkCoreConstructor s storage (checked-scheme binding)] UniformData), checked)
             None -> (None, add-error s "codata has no checked observation storage" checked))
           else if runtime-constructors-complete name (field "ctors" metadata) then
             (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
-              (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors), done))
-            else (Some (MkCoreData s name (kind-arrow qs) qs Nil), checked))
+              (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors UniformData), done))
+            else (Some (MkCoreData s name (kind-arrow qs) qs Nil UniformData), checked))
       else (None, st)
     other -> (None, st)
   checked-data :: List (String, Kind) -> TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
@@ -6496,7 +6498,7 @@ module Bootstrap.Infer where
     JArr row rest -> (case (field "kind" row, field "identity" row) of
       (JStr variety, JStr identity) -> if same variety "data" && not (runtime-data-present (interface-global identity) datas) then
         (case imported-kinds kinds (field "parameters" row) st of
-          (params, checked) -> nominal-runtime-data rest kinds (Cons (MkCoreData zero (interface-global identity) (kind-arrow params) params Nil) datas) checked)
+          (params, checked) -> nominal-runtime-data rest kinds (Cons (MkCoreData zero (interface-global identity) (kind-arrow params) params Nil UniformData) datas) checked)
         else nominal-runtime-data rest kinds datas st
       other -> nominal-runtime-data rest kinds datas st)
     other -> (datas, st)
@@ -7271,9 +7273,10 @@ module Bootstrap.Infer where
       other -> (Nil, done)) in
     let (declared-data, declared-store) = case store-errors rewritten of Nil -> checked-data classes linked-kinds env ds Nil rewritten; other -> (Nil, rewritten) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
-    let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
+    let (runtime-data, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
-    let finished = case store-errors usage-store of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage usage-store); other -> usage-store in
+    let (datas, layout-store) = case store-errors usage-store of Nil -> check-layouts ds runtime-data usage usage-store; other -> (runtime-data, usage-store) in
+    let finished = case store-errors layout-store of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage layout-store); other -> layout-store in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
     MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites temporal-rows
