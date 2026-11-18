@@ -690,7 +690,8 @@ def link_directory(ir: Path) -> Path:
 
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None,
-               pgo_enabled: bool | None = None, opt_level: int = 2) -> Path:
+               pgo_enabled: bool | None = None, opt_level: int = 2,
+               publish_interfaces: bool = True) -> Path:
     provider = runtime_provider()
     base = provider["interfaces"]
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
@@ -701,7 +702,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "shard_count": JOBS,
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
-              "interface_output": "checked-schema10",
+              "interface_output": "checked-schema10" if publish_interfaces else "none",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
     # Normal stages keep the existing -O2 cache identity. A one-shot
@@ -729,7 +730,8 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     # library object and its matching pinned runtime. Native builds only the
     # generated library root and its base closure, never Bootstrap sources.
     ir, exe = directory / "compiler.ll", directory / "cinch"
-    code = run([builder, "--emit-ir-with-interfaces", "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
+    mode = "--emit-ir-with-interfaces" if publish_interfaces else "--emit-ir-only"
+    code = run([builder, mode, "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
     if code:
         from bootstrap_objects import requested_roots
         diagnostics = directory / "compiler.ll.diagnostics"
@@ -973,7 +975,7 @@ def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
     output = case / "entry"
     diagnostics = case / "entry.diagnostics"
     diagnostics.unlink(missing_ok=True)
-    code = run([directory / "cinch", "--check", "--interfaces", manifest, source, output],
+    code = run([directory / "cinch", "--check-types", "--interfaces", manifest, source, output],
                case, case / "check.log")
     if code != 0 or not diagnostics.is_file() or diagnostics.read_bytes():
         raise BootstrapError(f"self-built compiler cannot consume its actual compiler interfaces: {diagnostics}")
@@ -993,7 +995,8 @@ def check_changed_source() -> None:
     directory = BUILD / "changed-source" / "stage2"
     # This executable runs once on a two-line refusal. It still compiles the
     # complete changed source with Stage2 and links its actual emitted IR.
-    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2, pgo_enabled=False, opt_level=0)
+    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2, pgo_enabled=False,
+                          opt_level=0, publish_interfaces=False)
     case = directory / "probe"
     case.mkdir(exist_ok=True)
     evidence = case / "checked.json"

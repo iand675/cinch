@@ -526,6 +526,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual(build.call_args.args[0], directory / "stage2" / "cinch")
                 self.assertEqual(build.call_args.args[3], 2)
                 self.assertEqual(build.call_args.kwargs["opt_level"], 0)
+                self.assertFalse(build.call_args.kwargs["publish_interfaces"])
             self.assertFalse((product / "probe" / "checked.json").exists())
 
 
