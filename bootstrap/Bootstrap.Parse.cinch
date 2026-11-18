@@ -2027,6 +2027,11 @@ module Bootstrap.Parse where
               PBad -> PBad)
             else POk (PVar (sp-of t) s) rest
           Nil -> POk (PVar (sp-of t) s) rest
+      TAttr text -> (case inline-attribute text of
+        Some (family, hint) -> (case parse-pat-atomic rest src of
+          POk subject more -> POk (PUnmodeled (sp-of t) ("`" <> family <> "` is a hint on a function declaration")) more
+          PBad -> PBad)
+        None -> PBad)
       TCon s -> parse-named-pat (sp-of t) s rest src True
       TInt s -> POk (PLitInt (sp-of t) s) rest
       TStr b -> POk (PLitStr (sp-of t) (bytes-to-string b)) rest
