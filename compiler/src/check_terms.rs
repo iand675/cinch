@@ -6758,6 +6758,12 @@ impl Checker {
     }
 
     fn check_lam(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
+        self.check_lam_in_group(env, term, expected, None)
+    }
+
+    fn check_lam_in_group(
+        &mut self, env: &mut Env, term: &ast::Term, expected: &Ty, recursive_member: Option<LocalId>,
+    ) -> Result<ECore> {
         let (pats, body, span) = match term {
             ast::Term::Lam(pats, body, span) => (pats, body, *span),
             _ => unreachable!(),
@@ -6770,6 +6776,7 @@ impl Checker {
         let mut params = Vec::new();
         let mut rest = expected.clone();
         let mut effs = Vec::new();
+        let mut recursive_domains = Vec::new();
         for p in pats {
             rest = self.uni.zonk(&rest);
             let (dom, mult, eff) = match rest {
@@ -6795,6 +6802,9 @@ impl Checker {
                     ));
                 }
             };
+            if recursive_member.is_some() {
+                recursive_domains.push(dom.clone());
+            }
             let l = self.fresh_local();
             let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
             let computational_erased = !logical && mult == Mult::Zero;
@@ -6871,6 +6881,26 @@ impl Checker {
                     self.uni
                         .unify_rows(e, &EffRow::pure())
                         .map_err(|m| Error::at(span, m))?;
+                }
+                let mut performed = performed;
+                if let (Some(member), RowTail::Meta(id)) = (recursive_member, &last.tail) {
+                    let inferred = self.uni.resolve_row(&performed);
+                    // Calling this function contributes its own latent row.
+                    // Solve r = labels ∪ r only if the tail occurs exclusively
+                    // on this function's final arrow. Callback rows stay open.
+                    if last.labels.is_empty() && inferred.tail == last.tail
+                        && self.uni.resolve_row(last) == *last
+                    {
+                        let meta = EitherMeta::Row(*id);
+                        let mut outer = env.clone();
+                        outer.locals.retain(|(_, local, _)| *local != member);
+                        if !env_free_metas(&self.uni, &outer).contains(&meta)
+                            && !self.uni.free_metas(&rest).contains(&meta)
+                            && !recursive_domains.iter().any(|ty| self.uni.free_metas(ty).contains(&meta))
+                        {
+                            performed = EffRow::closed(inferred.labels);
+                        }
+                    }
                 }
                 self.uni
                     .unify_rows(last, &performed)
@@ -8000,7 +8030,8 @@ impl Checker {
             } else if m.is_fun {
                 let lam =
                     ast::Term::Lam(m.pats.clone(), Box::new(m.body.clone()), m.span);
-                cores.push(self.check_lam(env, &lam, &m.ty)?);
+                let recursive_member = (!sigs.contains_key(&m.name)).then_some(m.l);
+                cores.push(self.check_lam_in_group(env, &lam, &m.ty, recursive_member)?);
             } else {
                 let saved = std::mem::replace(&mut self.perf, EffRow::pure());
                 let checked = (|| match sigs.get(&m.name).filter(|_| form != LocalForm::Proof) {
