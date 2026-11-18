@@ -3961,8 +3961,7 @@ module Bootstrap.Infer where
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
-    ELam s ps body -> case check-lambda classes kinds families env locals ps body expected (duplicate-names s (patterns-names ps) Nil st) of
-      (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss expected))) [ps] ss)
+    ELam s ps body -> check-lambda-patterns None classes kinds families env locals s ps body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
   check-contextual-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
@@ -4365,19 +4364,35 @@ module Bootstrap.Infer where
       (arg, sa) -> case bind-pattern classes kinds families (proof-env-after-writes env [(pat-span p, None)] sa) locals p arg sa of
         (bound, pattern, sb) -> case infer-lambda classes kinds families bound locals rest body sb of
           (rhs, sr) -> (CLambda (pat-span p) (function-type arg (normalize sr (core-effects rhs)) (core-type rhs)) pattern rhs, sr)
-  check-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check-lambda classes kinds families env locals ps body expected st = case ps of
+  check-lambda-patterns :: Option UType -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Pat -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-lambda-patterns owned classes kinds families env locals sp ps body expected st =
+    case check-lambda owned classes kinds families env locals ps body expected (duplicate-names sp (patterns-names ps) Nil st) of
+      (term, checked) -> (term, ensure-coverage sp families env (take-types (list-length ps) (domains (normalize checked expected))) [ps] checked)
+  check-lambda :: Option UType -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-lambda owned classes kinds families env locals ps body expected st = case ps of
     Nil -> check-required classes kinds families env locals body expected st
     Cons p rest -> case normalize st expected of
       UMeta id kind -> case infer-lambda classes kinds families env locals ps body st of
         (term, checked) -> (term, unify (pat-span p) expected (core-type term) checked)
       other -> case bind-arrow-pattern classes kinds families (proof-env-after-writes env [(pat-span p, None)] st) locals p expected st of
-        (bound, pattern, row, result, checked) -> case check-lambda classes kinds families bound locals rest body result checked of
-          (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, inferred-lambda-effects (expr-span body) (core-effects rhs) row sr)
-  inferred-lambda-effects :: Span -> UType -> UType -> Store -> Store
-  inferred-lambda-effects sp actual allowed st = case normalize st allowed of
-    UMeta id KRow -> unify sp allowed (normalize st actual) st
+        (bound, pattern, row, result, checked) -> case check-lambda owned classes kinds families bound locals rest body result checked of
+          (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, inferred-lambda-effects owned (expr-span body) (core-effects rhs) row sr)
+  inferred-lambda-effects :: Option UType -> Span -> UType -> UType -> Store -> Store
+  inferred-lambda-effects owned sp actual allowed st = case normalize st allowed of
+    UMeta id KRow -> let performed = normalize st actual in
+      case owned of
+        Some (UMeta key KRow) | key == id -> unify sp allowed (without-recursive-row id performed) st
+        other -> unify sp allowed performed st
     other -> include-effects sp actual allowed st
+
+  -- The least solution to r = effects union r is effects. Only the fresh
+  -- latent row of this recursive lambda can be removed, and only as a row
+  -- union operand. Rows of callbacks and effects performed locally survive.
+  without-recursive-row :: Nat -> UType -> UType
+  without-recursive-row owned row = case row of
+    UMeta id KRow | id == owned -> URow UEnd
+    URowJoin a b -> union-effects (without-recursive-row owned a) (without-recursive-row owned b)
+    other -> row
   function-type :: UType -> UType -> UType -> UType
   function-type a row b = case row of URow UEnd -> UFun a b; other -> UFunEff a row b
   arrow-parts :: Span -> UType -> Store -> (UType, UType, UType, Store)
@@ -4885,7 +4900,7 @@ module Bootstrap.Infer where
                         else term-error sp "region escape: a value leaves its local memo group" closed))))))
 
   data RecursiveMember where
-    RecursiveMember :: Span -> Nat -> String -> UType -> Expr -> RecursiveMember
+    RecursiveMember :: Span -> Nat -> String -> UType -> Option UType -> Expr -> RecursiveMember
   data RecursiveDefinition where
     RecursiveDefinition :: Span -> Nat -> String -> Expr -> CoreTerm -> RecursiveDefinition
 
@@ -4902,19 +4917,33 @@ module Bootstrap.Infer where
   open-recursive-member :: TypeContext -> List CheckedBinding -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Span -> String -> Expr -> Expr -> Store -> (List CheckedBinding, List RecursiveMember, Store)
   open-recursive-member kinds outer env locals signatures sp name syntax rest st =
     (case (case group-signature name signatures of
-      Some annotation -> checked-local-signature kinds outer locals annotation st
-      None -> fresh-meta KType st) of
-      (ty, checked) -> case fresh-id checked of
+      Some annotation -> (case checked-local-signature kinds outer locals annotation st of (ty, ready) -> (ty, None, ready))
+      None -> (case syntax of
+        ELam site patterns body -> recursive-lambda-shape patterns st
+        other -> case fresh-meta KType st of (ty, fresh) -> (ty, None, fresh))) of
+      (ty, owned, checked) -> case fresh-id checked of
         (id, fresh) ->
           let bound = if same name "" then env else Cons (MkLocalBinding name (mono ty) id (store-level fresh)) env in
           (case open-recursive-members kinds outer bound locals signatures rest fresh of
-            (all, members, ready) -> (all, Cons (RecursiveMember sp id name ty syntax) members, ready)))
+            (all, members, ready) -> (all, Cons (RecursiveMember sp id name ty owned syntax) members, ready)))
+
+  -- Partial application creates a closure. The body runs only at the last
+  -- argument, so recursive calls share exactly that arrow's latent row.
+  recursive-lambda-shape :: List Pat -> Store -> (UType, Option UType, Store)
+  recursive-lambda-shape patterns st = case patterns of
+    Nil -> (case fresh-meta KType st of (ty, ready) -> (ty, None, ready))
+    Cons p rest -> case fresh-meta KType st of
+      (arg, fresh) -> case recursive-lambda-shape rest fresh of
+        (result, None, ready) -> (case fresh-meta KRow ready of (row, done) -> (UFunEff arg row result, Some row, done))
+        (result, owned, ready) -> (UFun arg result, owned, ready)
   check-recursive-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List RecursiveMember -> Store -> (List RecursiveDefinition, Store)
   check-recursive-members classes kinds families env locals members st = case members of
     Nil -> (Nil, st)
-    Cons (RecursiveMember sp id name ty syntax) rest -> case check classes kinds families env locals syntax ty st of
-      (value, checked) -> case check-recursive-members classes kinds families env locals rest checked of
-        (more, done) -> (Cons (RecursiveDefinition sp id name syntax value) more, done)
+    Cons (RecursiveMember sp id name ty owned syntax) rest -> case (case (owned, syntax) of
+      (Some row, ELam site patterns body) -> check-lambda-patterns owned classes kinds families env locals site patterns body ty st
+      other -> check classes kinds families env locals syntax ty st) of
+        (value, checked) -> case check-recursive-members classes kinds families env locals rest checked of
+          (more, done) -> (Cons (RecursiveDefinition sp id name syntax value) more, done)
 
   recursive-edges :: Bool -> CoreTerm -> List (Nat, Bool)
   recursive-edges guarded term = case term of

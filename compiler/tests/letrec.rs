@@ -74,6 +74,31 @@ module Main where
 }
 
 #[test]
+fn unannotated_mutual_functions_infer_pure_recursive_calls() {
+    expect_ok("inferred mutual calls", r#"
+module Main where
+  main :: Int
+  main = letrec ev = \k x -> if k == 0 then Nil else Cons x (od (k - 1) x); od = \k x -> if k == 0 then Nil else ev (k - 1) x
+    in case ev (3 :: Int) True of Nil -> 1; _ -> 0
+"#, 0);
+}
+
+#[test]
+fn recursive_calls_preserve_callback_effects() {
+    let source = r#"
+module Main where
+  recur :: forall r. (Int ->{IO r} Int) -> Int ->{IO r} Int
+  recur g n = letrec f = \k -> if k == 0 then g k else f (k - 1)
+    in f n
+  main :: Int
+  main = 0
+"#;
+    check_sources(source, "Main.cinch").expect("the recursive callback can perform its declared IO");
+    let pure = source.replace("-> Int ->{IO r} Int", "-> Int -> Int");
+    expect_err("recursive callback in a pure function", &pure, "effect");
+}
+
+#[test]
 fn letrec_group_of_functions_and_values() {
     expect_ok(
         "letrec-mixed",
