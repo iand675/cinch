@@ -155,6 +155,7 @@ module Bootstrap.Expand where
   clause-template-of :: List (List Pat, Expr) -> Option Expr
   clause-template-of clauses = case clauses of
     Cons (patterns, EQuote at body) Nil -> Some body
+    Cons (patterns, EMacroCall at path tokens) Nil -> Some (EMacroCall at path tokens)
     other -> None
 
   -- ------------------------------------------------------------- hygiene
@@ -391,7 +392,7 @@ module Bootstrap.Expand where
       EVar at name -> case take-group name groups of
         Some tokens -> case parse-group-term tokens fix of
           Err errors -> Err errors
-          Ok term -> Ok (term, groups)
+          Ok term -> Ok (EArgumentScope s term, groups)
         None -> Ok (e, groups)
       other -> Ok (e, groups)
     ECon s name args -> fill-node (ECon s name) args groups fix

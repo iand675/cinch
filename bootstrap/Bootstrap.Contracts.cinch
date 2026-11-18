@@ -280,6 +280,8 @@ module Bootstrap.Contracts where
     EQuote s body -> expr-references body
     -- The macro's name is a compile-time reference, not a value one: the
     -- expansion is what names runtime values.
+    ETemplateScope s home body -> expr-references body
+    EArgumentScope s body -> expr-references body
     EMacroCall s path tokens -> Nil
     EArg s x rest -> expr-references x <> expr-references rest
     EBinding s name rhs rest -> expr-references rhs <> expr-references rest

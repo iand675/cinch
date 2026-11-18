@@ -13,10 +13,12 @@ module Bootstrap.Resolve where
   import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
+  import Text.Scan (string-starts-with, string-drop)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
+  export MacroNamespaces, macro-namespaces, lookup-macro
   export resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
@@ -56,11 +58,13 @@ module Bootstrap.Resolve where
   -- hash probe instead of a scan of every visible declaration. The index
   -- keeps the front-most binding of a repeated spelling, which is the one
   -- the scan would find.
+  data LexicalScope where
+    MkLexicalScope :: List Binding -> HashMap String Binding -> LexicalScope
+  data CallerScopes where
+    NoCaller :: CallerScopes
+    CallerScope :: LexicalScope -> List String -> CallerScopes -> CallerScopes
   data Visible where
-    MkVisible :: List Binding -> HashMap String Binding -> Visible
-
-  visible-of :: List Binding -> Visible
-  visible-of entries = MkVisible entries (binding-index entries)
+    MkVisible :: LexicalScope -> List (String, LexicalScope) -> CallerScopes -> Visible
 
   binding-index :: List Binding -> HashMap String Binding
   binding-index entries = case entries of
@@ -69,14 +73,17 @@ module Bootstrap.Resolve where
 
   visible-lookup :: String -> Visible -> Option Binding
   visible-lookup name entries = case entries of
-    MkVisible order index -> hash-map-lookup name index
+    MkVisible (MkLexicalScope order index) homes caller -> hash-map-lookup name index
 
   visible-order :: Visible -> List Binding
-  visible-order entries = case entries of MkVisible order index -> order
+  visible-order entries = case entries of MkVisible (MkLexicalScope order index) homes caller -> order
 
   binding-name :: Binding -> String
   binding-name b = case b of
     MkBinding name owner symbol -> name
+
+  binding-owner :: Binding -> String
+  binding-owner binding = case binding of MkBinding name home symbol -> home
 
   binding-symbol :: Binding -> String
   binding-symbol b = case b of
@@ -132,6 +139,7 @@ module Bootstrap.Resolve where
     Cons d rest -> case d of
       DImport s path mods alias members hidden args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
+      DMacroBinding s name -> own-bindings home rest (add-macro home name acc)
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
       DData s name params ctors -> own-bindings home rest (own-ctors home ctors (add-own home name acc))
@@ -140,6 +148,23 @@ module Bootstrap.Resolve where
       other -> case decl-name other of
         None -> own-bindings home rest acc
         Some name -> own-bindings home rest (add-own home name acc)
+
+  add-macro :: String -> String -> List Binding -> List Binding
+  add-macro home name entries = case lookup-binding name entries of
+    Some binding -> entries
+    None -> Cons (MkBinding name home ("#macro." <> name)) entries
+  macro-binding :: Binding -> Bool
+  macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
+  select-phase :: Bool -> List Binding -> List Binding
+  select-phase macros bindings = case bindings of
+    Nil -> Nil
+    Cons first rest -> if macro-binding first == macros then Cons first (select-phase macros rest) else select-phase macros rest
+
+  declares-macros :: List Decl -> Bool
+  declares-macros declarations = case declarations of
+    Nil -> False
+    Cons (DMacroBinding s name) rest -> True
+    Cons other rest -> declares-macros rest
 
   -- A resolved method already names its binding; re-deriving the symbol from
   -- the home would rebind it to a name the checker never registered.
@@ -193,7 +218,7 @@ module Bootstrap.Resolve where
         (if has-module path all then Nil else case lookup-scoped path interfaces of
           Some i -> Nil
           None -> fail s (cat ["missing source module or checked interface: ", path]))
-        <> (case mods of Nil -> Nil; Cons mode more -> fail s "modified imports require stage/module-argument elaboration")
+        <> (case mods of Nil -> Nil; [mode] | same mode "stage" -> Nil; other -> fail s "modified imports require stage/module-argument elaboration")
         <> (case args of Nil -> Nil; Cons arg more -> fail s "applied imports require module-argument elaboration")
       other -> Nil) <> validate-imports all interfaces rest
 
@@ -264,7 +289,7 @@ module Bootstrap.Resolve where
           Some (MkScoped home surface body) -> case import-surface s path members hidden surface of
             (selected, failures) ->
               (Cons (MkView s path (case alias of None -> short-name path; Some qualifier -> qualifier)
-                (case alias of None -> False; Some qualifier -> case members of Nil -> True; Cons item more -> False) selected) views, failures <> errors)
+                (case alias of None -> False; Some qualifier -> case members of Nil -> True; Cons item more -> False) (case mods of [mode] | same mode "stage" -> select-phase True selected; other -> selected)) views, failures <> errors)
         other -> (views, errors)
 
   -- Explicit imports have an eager duplicate-name rule even when an declared
@@ -299,7 +324,7 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons b rest -> case lookup-binding (binding-name b) seen of
       None -> qualified-duplicates sp rest (Cons b seen)
-      Some old -> (if same (binding-symbol old) (binding-symbol b) then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
+      Some old -> (if same (binding-symbol old) (binding-symbol b) && same (binding-owner old) (binding-owner b) then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
         <> qualified-duplicates sp rest seen
 
   export-items :: List Decl -> List ExportItem
@@ -339,7 +364,7 @@ module Bootstrap.Resolve where
     Cons b rest -> case lookup-binding (binding-name b) acc of
       None -> add-exports sp rest (Cons b acc)
       Some old -> case add-exports sp rest acc of
-        (entries, errors) -> (entries, (if same (binding-symbol old) (binding-symbol b) then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+        (entries, errors) -> (entries, (if same (binding-symbol old) (binding-symbol b) && same (binding-owner old) (binding-owner b) then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
 
   build-exports :: List ExportItem -> List Binding -> List View -> List Binding -> (List Binding, List Diagnostic)
   build-exports items visible views acc = case items of
@@ -369,23 +394,64 @@ module Bootstrap.Resolve where
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
 
-  build-scope :: Module -> List Scoped -> List Binding -> (Scoped, List Diagnostic)
-  build-scope m done base =
+  build-scope :: Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> (Scoped, List (String, LexicalScope), List Diagnostic)
+  build-scope m done base earlier =
     let home = module-name m in
     let (declared, visible, views, visibility-errors) = module-visibility m done base in
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
-    let (body, body-errors) = rename-decls home (visible-of visible) (module-decls m) in
-    (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
+    let lexical = MkLexicalScope visible (binding-index visible) in
+    let has-macro = declares-macros (module-decls m) in
+    let homes = if has-macro then Cons (home, lexical) earlier else earlier in
+    let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
+    (MkScoped home surface body, homes, visibility-errors <> export-errors <> body-errors)
 
-  resolve-ordered :: List Module -> List Scoped -> List Binding -> (List Scoped, List Diagnostic)
-  resolve-ordered remaining done base = case remaining of
+  find-home :: String -> List (String, LexicalScope) -> Option LexicalScope
+  find-home name homes = case homes of
+    Nil -> None
+    Cons (home, scope) rest -> if same name home then Some scope else find-home name rest
+
+  -- Index the macro spelling chosen by the same imports and exports the
+  -- resolver uses for values. Source and interface validation still runs on
+  -- the complete program before any generated code can be accepted.
+  data MacroNamespaces where
+    MkMacroNamespaces :: List (String, List Binding) -> MacroNamespaces
+  macro-namespaces :: List Module -> List Module -> MacroNamespaces
+  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules) (map empty-header headers) Nil)
+  empty-header :: Module -> Scoped
+  empty-header m = MkScoped (module-name m) Nil Nil
+  macro-header :: Module -> Module
+  macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
+  macro-declaration :: Decl -> Decl
+  macro-declaration declaration = case declaration of
+    DMacro s (DFun at name clauses) -> DMacroBinding s name
+    DMacro s (DSig at name ty) -> DMacroBinding s name
+    other -> declaration
+  macro-scope-order :: List Module -> List Scoped -> List (String, List Binding) -> List (String, List Binding)
+  macro-scope-order remaining done scopes = case pick-ready remaining done Nil of
+    None -> scopes
+    Some (m, pending) -> let (declared, visible, views, diagnostics) = module-visibility m done Nil in
+      let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
+      let home = module-name m in
+      macro-scope-order pending (Cons (MkScoped home surface Nil) done) (Cons (home, select-phase True visible) scopes)
+  lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
+  lookup-macro names owner spelling = case names of MkMacroNamespaces scopes -> module-macro scopes owner spelling
+  module-macro :: List (String, List Binding) -> String -> String -> Option (String, String)
+  module-macro scopes owner spelling = case scopes of
+    Nil -> None
+    Cons (home, bindings) rest -> if not (same home owner) then module-macro rest owner spelling else
+      case lookup-binding spelling bindings of
+        None -> None
+        Some (MkBinding name origin symbol) -> Some (origin, string-drop 7 symbol)
+
+  resolve-ordered :: List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> (List Scoped, List Diagnostic)
+  resolve-ordered remaining done base homes = case remaining of
     Nil -> (reverse done, Nil)
     Cons first rest -> case pick-ready remaining done Nil of
       None -> (reverse done, import-cycle first remaining)
-      Some (m, pending) -> case build-scope m done base of
-        (ready, errors) -> case resolve-ordered pending (Cons ready done) base of
+      Some (m, pending) -> case build-scope m done base homes of
+        (ready, more-homes, errors) -> case resolve-ordered pending (Cons ready done) base more-homes of
           (ordered, more) -> (ordered, errors <> more)
 
   -- Every remaining module has an unresolved edge into the remaining
@@ -563,6 +629,7 @@ module Bootstrap.Resolve where
   resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
     else case visible-lookup name visible of
+      Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
       Some b -> (binding-symbol b, Nil)
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else let qualifier = name-qualifier name in
@@ -832,6 +899,13 @@ module Bootstrap.Resolve where
     -- its free names resolve where the template is written (decision D43).
     EQuote s body -> case rename-expr visible locals body of
       (renamed, errors) -> (EQuote s renamed, errors)
+    ETemplateScope s home body -> (case visible of
+      MkVisible lexical homes caller -> case find-home home homes of
+        Some definition -> rename-expr (MkVisible definition homes (CallerScope lexical locals caller)) Nil body
+        None -> (e, fail s (cat ["macro definition module is unavailable: ", home])))
+    EArgumentScope s body -> (case visible of
+      MkVisible lexical homes (CallerScope previous names remaining) -> rename-expr (MkVisible previous homes remaining) names body
+      other -> (e, fail s "macro argument outside its expansion"))
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
@@ -939,6 +1013,7 @@ module Bootstrap.Resolve where
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
+    DMacroBinding s name -> (Nil, Nil)
     DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
@@ -1204,7 +1279,7 @@ module Bootstrap.Resolve where
   resolve-context :: Program -> List Scoped -> List Module -> List Binding -> (Program, List Diagnostic)
   resolve-context p interfaces headers base = case p of
     MkProgram sp modules -> case validate-modules modules interfaces modules Nil of
-      Nil -> case resolve-ordered modules (reverse interfaces) base of
+      Nil -> case resolve-ordered modules (reverse interfaces) base Nil of
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
@@ -1258,7 +1333,7 @@ module Bootstrap.Resolve where
         (JObj "module" (JStr name)
           (JObj "source_start" (JNum (nat-to-int begin))
             (JObj "source_end" (JNum (nat-to-int finish))
-              (JObj "exports" (surface-json surface)
+              (JObj "exports" (surface-json (select-phase False surface))
                 (JObj "declarations" (symbols-json body)
                   (JObj "imports" (strings-json (module-imports name modules prelude base surface body))
                     (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records base)

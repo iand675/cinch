@@ -573,6 +573,8 @@ module Bootstrap.Eval where
     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
     EQuote s body -> fail s "a quotation requires the typed checker"
     ESplice s expression -> fail s "a splice requires a compile-time quotation"
+    ETemplateScope s home body -> fail s "unresolved macro scope reached evaluation"
+    EArgumentScope s body -> fail s "unresolved macro scope reached evaluation"
     EMacroCall s path tokens -> fail s "a macro invocation requires compile-time expansion"
     EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
 
@@ -666,6 +668,7 @@ module Bootstrap.Eval where
     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
     DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
     DProof s body -> Cons (MkDiagnostic rung s "a proof declaration requires erased checking") Nil
+    DMacroBinding s name -> Cons (MkDiagnostic rung s "unresolved macro declaration") Nil
     DMacro s body -> Cons (MkDiagnostic rung s "a macro declaration requires compile-time expansion") Nil
     DStage s body -> Cons (MkDiagnostic rung s "a stage declaration requires compile-time checking") Nil
     DGenerate s actions -> Cons (MkDiagnostic rung s "a generate block requires compile-time expansion") Nil
