@@ -4191,6 +4191,91 @@ module Bootstrap.RuntimeIr where
       let entry = line one (cat [missed, ":"]) in
       case guarded-expression definitions locals entry missed body of
         (done, result) -> switch-leave definitions locals done join out result rest index incoming True
+  -- A field passed unchanged, or consumed by one saturated word worker.
+  -- Both forms evaluate once and give the next owner the existing reference.
+  data FieldMove where
+    FieldMove :: Nat -> UType -> String -> Option String -> FieldMove
+  move-word :: FieldMove -> String
+  move-word input = case input of FieldMove id ty word worker -> word
+  move-field :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> Option FieldMove
+  move-field definitions locals w term = case term of
+    CLocal sp ty id name Nil -> local-field id locals None
+    CApply sp ty (CUse at scheme name role Nil) (CLocal arg carrier id label Nil) ->
+      (case definition name definitions of
+        Some d -> if (case (scheme-params (core-scheme d), scheme-requirements (core-scheme d), definition-parameters d) of
+              (Nil, Nil, [parameter]) -> not (wide-type (writer-context w) ty || wide-type (writer-context w) carrier)
+              other -> False) && (case definition-value-dependencies w d of Nil -> True; other -> False)
+            && (case (core-givens d, core-openings d) of (Nil, Nil) -> True; other -> False)
+            then local-field id locals (Some name) else None
+        None -> None)
+    other -> None
+  local-field :: Nat -> List Local -> Option String -> Option FieldMove
+  local-field id locals worker = case local id locals of
+    Some (ty, word) -> Some (FieldMove id ty word worker)
+    None -> None
+  evaluate-move :: FieldMove -> Writer -> (Writer, String)
+  evaluate-move input w = case input of
+    FieldMove id ty word None -> (w, word)
+    FieldMove id ty word (Some name) -> call (demand-worker name Nil w) (symbol (specialized-name name Nil)) [word]
+  -- Every old field must have exactly one destination in the same physical
+  -- slot. Aliased cells take the ordinary allocation path and keep all of
+  -- their fields. A unique cell transfers its fields before calling workers.
+  rebuilding-fields :: List CoreDefinition -> List Local -> Writer -> CorePattern -> List CoreTerm -> Option (List FieldMove)
+  rebuilding-fields definitions locals w fields args = case (fields, args) of
+    (CPDone sp, Nil) -> Some Nil
+    (CPField sp (CPVar at ty id name) rest, Cons arg more) ->
+      (case move-field definitions locals w arg of
+        Some (FieldMove actual carrier word worker) | actual == id ->
+          (case rebuilding-fields definitions locals w rest more of
+            Some moves -> Some (Cons (FieldMove actual carrier word worker) moves)
+            None -> None)
+        other -> None)
+    other -> None
+  retain-fields :: List FieldMove -> Writer -> Writer
+  retain-fields fields w = case fields of
+    Nil -> w
+    Cons (FieldMove id ty word worker) rest -> retain-fields rest (count-op True ty word w)
+  evaluate-fields :: List FieldMove -> Writer -> (Writer, List String)
+  evaluate-fields fields w = case fields of
+    Nil -> (w, Nil)
+    Cons input rest -> case evaluate-move input w of
+      (ready, result) -> case evaluate-fields rest ready of (done, values) -> (done, Cons result values)
+  rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
+  rebuild-case-cell definitions locals w ty value pointer pattern body = if not (program-reclaim (writer-program w)) then None else case (pattern, head body) of
+    (CPConstructor sp subject name actuals sc fields, CUse at output ctor role params) | same name ctor && same role "constructor" && scheme-equivalent (mono ty) (mono (core-type body)) ->
+      let args = arguments body Nil in
+      (case (args, constructor name (writer-program w)) of
+        (Cons first rest, Some (owner, tag, c)) -> (case data-declaration owner (writer-program w) of
+          Some d -> (case (core-data-layout d, source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) params) of
+            (UniformData, Some classes) -> (case rebuilding-fields definitions locals w fields args of
+              Some moves -> (case request-data sp d classes w of
+                (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (writer-context w) (term-types args)) moves))
+              None -> None)
+            other -> None)
+          None -> None)
+        other -> None)
+    other -> None
+  emit-rebuilt-cell :: Writer -> UType -> String -> String -> Nat -> List String -> List FieldMove -> (Writer, String)
+  emit-rebuilt-cell w ty value pointer descriptor types moves =
+    let (one, unique) = fresh w "%unique" in
+    let (two, shared) = fresh one "shared" in
+    let (three, evaluate) = fresh two "fields" in
+    let tested = line three (cat ["  ", unique, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"]) in
+    let checked = line tested (cat ["  br i1 ", unique, ", label %", evaluate, ", label %", shared]) in
+    let retained = retain-fields moves (line checked (cat [shared, ":"])) in
+    let released = line (count-op False ty value retained) (cat ["  br label %", evaluate]) in
+    case evaluate-fields moves (line released (cat [evaluate, ":"])) of
+      (ready, values) -> let words = typed-values types values in
+        let (four, reuse) = fresh ready "reuse" in
+        let (five, create) = fresh four "allocate" in
+        let (six, join) = fresh five "rebuilt" in
+        let branched = line six (cat ["  br i1 ", unique, ", label %", reuse, ", label %", create]) in
+        let filled = store-typed (line branched (cat [reuse, ":"])) pointer 0 words in
+        let left = line filled (cat ["  br label %", join]) in
+        (case allocate-typed (line left (cat [create, ":"])) descriptor words of
+          (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
+            let (done, selected) = fresh both "%v" in
+            (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
   -- A constructor arm reached by the switch: its fields are read from the
   -- cell the tag selected. Every field pattern is irrefutable, so no field
   -- can reach the miss block.
@@ -4203,8 +4288,10 @@ module Bootstrap.RuntimeIr where
         let (pointed, pointer) = fresh entry "%ptr" in
         let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
         case match-fields fields pointer 0 missed cell of
-          (bound, bindings) -> case guarded-expression definitions (bindings <> locals) bound missed body of
-            (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted
+          (bound, bindings) -> case rebuild-case-cell definitions bindings bound ty value pointer pattern body of
+            Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
+            None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
+              (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
       other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
   switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
@@ -4218,8 +4305,11 @@ module Bootstrap.RuntimeIr where
   switch-leave :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-leave definitions locals w join out result rest index incoming defaulted = case join of
     SwitchJoin joined missed base ty value ->
-      let released = count-op False ty value w in
-      let left = line (line released (cat ["  br label %", out])) (cat [out, ":"]) in
+      switch-finish definitions locals (count-op False ty value w) join out result rest index incoming defaulted
+  switch-finish :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
+  switch-finish definitions locals w join out result rest index incoming defaulted = case join of
+    SwitchJoin joined missed base ty value ->
+      let left = line (line w (cat ["  br label %", out])) (cat [out, ":"]) in
       switch-arms definitions locals (line left (cat ["  br label %", joined])) join rest (index + 1)
         (cat [incoming, if index == 0 then "" else ", ", "[ ", result, ", %", out, " ]"]) defaulted
   -- A word an arm contributes without emitting code and without a reference
@@ -4791,14 +4881,28 @@ module Bootstrap.RuntimeIr where
 
   -- | Transfer checked evidence before positional arguments, retaining all values
   -- until this frame's roots have been released. Captures remain the local worker prefix.
+  -- Once preceding arguments have been evaluated, the last call operand
+  -- can consume a frame owner directly. Saved captures are read afterwards.
+  tail-operands :: List CoreDefinition -> List Local -> List Local -> List Local -> Writer -> List CoreTerm -> (Writer, List String, List Local)
+  tail-operands definitions locals roots saved w args = case args of
+    Nil -> (w, Nil, roots)
+    Cons arg rest -> case (rest, saved) of
+      (Nil, Nil) -> (case move-field definitions locals w arg of
+        Some input -> (case take-parameter-root (move-word input) roots of
+          Some remaining -> (case evaluate-move input w of (done, value) -> (done, [value], remaining))
+          None -> (case expression definitions locals w arg of (done, value) -> (done, [value], roots)))
+        None -> (case expression definitions locals w arg of (done, value) -> (done, [value], roots)))
+      other -> case expression definitions locals w arg of
+        (ready, value) -> case tail-operands definitions locals roots saved ready rest of
+          (done, values, remaining) -> (done, Cons value values, remaining)
   transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Option (String, String) -> Writer
-  transfer-tail-prefix definitions locals roots saved width w callee prefix args loop = case expressions definitions locals w args of
-    (evaluated, values) -> case capture-values saved evaluated of
+  transfer-tail-prefix definitions locals roots saved width w callee prefix args loop = case tail-operands definitions locals roots saved w args of
+    (evaluated, values, remaining) -> case capture-values saved evaluated of
       (copied, captures) ->
         let count = list-length prefix + list-length values in
         if count <= width then
           let passed = captures <> prefix <> values <> padding-words (width - count) in
-          let ready = drop-locals roots copied in
+          let ready = drop-locals remaining copied in
           (case loop of
             Some (self, metadata) | same self callee -> line (store-loop-arguments passed 0 ready) ("  br label %self.loop, !llvm.loop " <> metadata)
             other -> let (next, result) = fresh ready "%v" in
@@ -5120,6 +5224,8 @@ module Bootstrap.RuntimeIr where
   -- cinch_drop_slow, which releases the block.
   count-helpers :: Bool -> String
   count-helpers wasm32 = cat [
+    "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n",
+    "  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n  %single = icmp eq i64 %top, 536870912\n  ret i1 %single\n}\n",
     "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
     "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
     "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
@@ -5138,6 +5244,7 @@ module Bootstrap.RuntimeIr where
   -- the only count operations the module emits, so no inline path stays.
   debug-count-helpers :: Bool -> String
   debug-count-helpers wasm32 = cat [
+    "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n  ret i1 false\n}\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\n",
     "define internal void @cinch.typed.rc.dup(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
     "define internal void @cinch.typed.rc.drop(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]

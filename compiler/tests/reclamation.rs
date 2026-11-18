@@ -1065,3 +1065,29 @@ module Main where
       _ -> 2
 "#, 0, 0);
 }
+
+#[test]
+fn rebuilding_a_shared_list_preserves_the_original_fields() {
+    expect_leaked("shared-rebuild", r#"
+module Main where
+  import Data.List
+
+  #[noinline]
+  bump :: Int -> Int
+  bump x = x + 1
+
+  #[noinline]
+  rebuild :: List Int -> List Int
+  rebuild xs = case xs of
+    Nil -> Nil
+    Cons x tail -> Cons (bump x) (rebuild tail)
+
+  main :: Int
+  main =
+    let original = Cons (2 :: Int) (Cons 4 Nil) in
+    case (rebuild original, original) of
+      (Cons a (Cons b Nil), Cons c (Cons d Nil)) ->
+        if a == 3 && b == 5 && c == 2 && d == 4 then 0 else 1
+      _ -> 2
+"#, 0, 0);
+}
