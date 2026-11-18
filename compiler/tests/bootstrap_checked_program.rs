@@ -18,7 +18,7 @@ fn files() -> Vec<(&'static str, &'static str)> {
 #[test]
 fn checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary() {
     let dir = common::project("checked_program", &files());
-    let exe = common::build(&dir, "Main.cinch", "checked-program").expect("build actual Cinch checked boundary probe");
+    let exe = common::build_executable(&dir, "Main.cinch", "checked-program").expect("build actual Cinch checked boundary probe");
     let valid = "module Main where\n  data Box a where\n    Box :: a -> Box a\n  identity :: forall a. a -> a\n  identity x = x\n  unwrap :: forall a. Box a -> a\n  unwrap (Box value) = identity value\n  main :: Int\n  main = 0\n";
     for (source, expected) in [(valid.to_owned(), 0), (valid.replace("identity value", "identity True"), 4)] {
         std::fs::write(dir.join("input.cinch"), source).unwrap();

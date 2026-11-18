@@ -19,7 +19,7 @@ fn checked_library_roots_emit_linkable_owned_and_specialized_workers() {
         ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RuntimeLibrary.cinch")),
     ]);
-    let emitter = common::build(&dir, "Main.cinch", "library-emitter").expect("build actual Cinch library emitter");
+    let emitter = common::build_executable(&dir, "Main.cinch", "library-emitter").expect("build actual Cinch library emitter");
     let source = r#"module Library where
   data Parcel a where
     Parcel :: a -> Parcel a

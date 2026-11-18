@@ -49,7 +49,7 @@ fn library_abi_entries_describe_actual_workers_and_owned_closure_accessors() {
         assert_eq!(fixture_sources(&dir), fixture_sources(cached.parent().unwrap()), "cached emitter inputs changed");
         cached
     } else {
-        common::build(&dir, "Main.cinch", "library-abi-emitter").expect("build actual Cinch ABI emitter")
+        common::build_executable(&dir, "Main.cinch", "library-abi-emitter").expect("build actual Cinch ABI emitter")
     };
     let source = r#"module Library where
   data Parcel a where

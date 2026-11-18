@@ -7,7 +7,7 @@ fn type_and_core_recheck_machine_ranges_and_actual_typed_scope() {
         ("Bootstrap.Core.cinch", include_str!("../../bootstrap/Bootstrap.Core.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.MachineValues.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "machine-values").expect("build real machine-value Type/Core checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "machine-values").expect("build real machine-value Type/Core checker");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();
         let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();

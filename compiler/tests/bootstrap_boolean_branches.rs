@@ -71,7 +71,7 @@ fn compiled_cinch_retains_only_valid_one_way_boolean_facts() {
         std::fs::write(dir.join(format!("{name}-interfaces.json")), &base).unwrap();
     }
     std::fs::write(dir.join("cases.json"), format!("[{}]", requests.join(","))).unwrap();
-    let exe = common::build(&dir, "Main.cinch", "boolean-branches").expect("compile actual Cinch branch checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "boolean-branches").expect("compile actual Cinch branch checker");
     let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
     let report = common::read_output(&dir, "guarded-call-report.txt");
     assert_eq!(result.status.code(), Some(0), "project {}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));

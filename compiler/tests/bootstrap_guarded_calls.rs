@@ -128,7 +128,7 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     }
     assert!(oracle_errors.is_empty(), "Native oracle differences: {oracle_errors:#?}");
     std::fs::write(dir.join("cases.json"), format!("[{}]", requests.join(","))).unwrap();
-    let exe = common::build(&dir, "Main.cinch", "guarded-calls").expect("compile independent Cinch refinement constructor elaborator");
+    let exe = common::build_executable(&dir, "Main.cinch", "guarded-calls").expect("compile independent Cinch refinement constructor elaborator");
     let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
     let report = common::read_output(&dir, "guarded-call-report.txt");
     assert_eq!(result.status.code(), Some(0), "project {}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
