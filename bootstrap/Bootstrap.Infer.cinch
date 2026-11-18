@@ -32,7 +32,7 @@ module Bootstrap.Infer where
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
-  import Bootstrap.Report (Diagnostic)
+  import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -6511,12 +6511,9 @@ module Bootstrap.Infer where
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero (string-concat "typed core contains an unresolved scheme or error term: " (string-concat (core-name d) (string-concat ": " (case core-definition-refusal (context-body-context globals) (context-guarded-bodies globals) d of Some reason -> reason; None -> "the conjunction refused without a named clause")))) st
-      else case par-definition-error globals d of
-        Some (sp, message) -> add-error sp message st
-        None -> case task-definition-error globals d of
-          Some (sp, message) -> add-error sp message st
-          None -> if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
+    Cons d rest -> check-core-closed globals rest (case checked-definition-error globals d of
+      Some (sp, message) -> add-error sp message st
+      None -> st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
@@ -8529,7 +8526,10 @@ module Bootstrap.Infer where
         -- succeed. On failure keep the original reification diagnostic.
         other -> case materialize-dependent classes sp env fun value st of
           (call, trial) -> if list-length (store-errors trial) == list-length (store-errors st) then (call, trial)
-            else (CError sp, checked)
+            else (case (normalize st (core-type fun), store-errors st, store-errors trial) of
+              (UPi id name domain row (URequire predicates result), Nil, [reason]) ->
+                (CError sp, add-error (diagnostic-span reason) (diagnostic-message reason) checked)
+              other -> (CError sp, checked))
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   materialize-dependent classes sp env fun value st = materialize-dependent-view classes sp env fun value None st
   materialize-dependent-view :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Option UType -> Store -> (CoreTerm, Store)

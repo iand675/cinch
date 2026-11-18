@@ -18,7 +18,7 @@ module Bootstrap.Typing where
   import Algebra.Semigroup
 
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
-  export par-definition-error
+  export par-definition-error, checked-definition-error
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   export context-body-context, close-typing-context-with-definitions, closure-refusal
   export task-source-forwarder, task-forwarder-type
@@ -1736,9 +1736,28 @@ module Bootstrap.Typing where
     Nil -> True
     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
-  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage -> global-definition-closed globals definition)
-    && core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
-    && task-definition-safe context definition
+  typing-definition-closed context definition =
+    core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
+    && task-definition-safe context definition && definition-structure-closed context definition
+
+  -- On the compiler path the same checks also provide diagnostics. Keep
+  -- their order so the most specific refusal reaches the source location.
+  checked-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
+  checked-definition-error context definition =
+    let bodies = context-body-context context in
+    let guarded = context-guarded-bodies context in
+    let at = Span 0 0 1 1 in
+    if not (core-definition-checked-contracts-closed bodies guarded definition) then
+      let reason = case core-definition-refusal bodies guarded definition of Some message -> message; None -> "the conjunction refused without a named clause" in
+      Some (at, "typed core contains an unresolved scheme or error term: " <> core-name definition <> ": " <> reason)
+      else case par-definition-error context definition of
+        Some error -> Some error
+        None -> case task-definition-error context definition of
+          Some error -> Some error
+          None -> if definition-structure-closed context definition then None
+            else Some (at, "independent Core typing disagrees with the declaration or term: " <> core-name definition)
+  definition-structure-closed :: TypingContext -> CoreDefinition -> Bool
+  definition-structure-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage -> global-definition-closed globals definition)
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of
         Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)

@@ -57,7 +57,7 @@ module Bootstrap.Core where
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
-  export core-source-body, core-source-function, core-total-function-uses-native, core-method-total-function
+  export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
@@ -3886,14 +3886,12 @@ module Bootstrap.Core where
   core-method-total-function bindings definitions dictionary owner factory members slot = case total-method-member slot members of
     Some (selector, native, definition) -> core-total-function bindings (total-method-definitions bindings dictionary owner factory members members <> definitions) native
     None -> None
-  -- Whether a total function's graph uses the definition whose identity
-  -- export-global decoded as `decoded`.
+  -- The names used by an admitted source graph include every transitive
+  -- dependency. A field projection carries only its own definition.
+  core-total-function-names :: TotalFunction -> List String
+  core-total-function-names function = if total-source-projection function then [total-identity function]
+    else map (\row -> total-core-text (total-core-field "identity" row)) (total-core-members (total-core-field "definitions" (total-function-document function)))
   core-total-function-uses-native :: TotalFunction -> Result String String -> Bool
   core-total-function-uses-native function decoded = case decoded of
-    Ok native -> if total-source-projection function then string-compare native (total-identity function) == 0
-      else total-core-has-row native (total-core-members (total-core-field "definitions" (total-function-document function)))
+    Ok native -> total-core-has native (core-total-function-names function)
     Err error -> False
-  total-core-has-row :: String -> List Json -> Bool
-  total-core-has-row native rows = case rows of
-    Nil -> False
-    Cons first rest -> string-compare native (total-core-text (total-core-field "identity" first)) == 0 || total-core-has-row native rest
