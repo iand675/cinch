@@ -140,11 +140,17 @@ module Effect.FileUtils where
   -- `fs-write`: it creates or truncates `dst` and is NOT atomic (the
   -- atomic replacement is write-then-`fs-rename`, which `mv` uses).
   cp :: forall r. using (io :: Io r) => Path -> Path ->{IO r} Result FileUtilsError Unit
-  cp src dst = case fs-read src of
+  cp src dst = case fs-metadata src of
     Err e -> Err (file-utils-of-fs e)
-    Ok content -> case fs-write dst content of
-      Err e -> Err (file-utils-of-fs e)
-      Ok u -> Ok u
+    Ok metadata -> case file-meta-kind metadata of
+      -- Some filesystems give a directory a seek offset as large as the
+      -- largest signed word. It is never a byte count for a file copy.
+      FileIsDirectory -> Err FileUtilsIsADirectory
+      _ -> case fs-read src of
+        Err e -> Err (file-utils-of-fs e)
+        Ok content -> case fs-write dst content of
+          Err e -> Err (file-utils-of-fs e)
+          Ok u -> Ok u
 
   -- `mv src dst`: move `src` to `dst` with `fs-rename`, the POSIX
   -- atomic rename. It is used rather than copy-then-remove because it
