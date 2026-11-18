@@ -42,7 +42,7 @@ fn imported_conditions_use_actual_caller_arguments() {
     }
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
-    let exe = common::build(&dir, "Main.cinch", "imported-preconditions").expect("build imported precondition consumer");
+    let exe = common::build_executable(&dir, "Main.cinch", "imported-preconditions").expect("build imported precondition consumer");
     let cases = [
         ("literal", "answer :: Nat\n  answer = previous 1", 0),
         ("branch", "safe :: Nat -> Nat\n  safe n = if n > 0 then previous n else 0", 0),

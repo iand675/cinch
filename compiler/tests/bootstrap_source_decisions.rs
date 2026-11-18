@@ -15,7 +15,7 @@ fn source_decisions_preserve_predicates_and_check_authority() {
         ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.SourceDecisions.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "source-decisions").expect("build source constructor checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "source-decisions").expect("build source constructor checker");
     let cases = [
         ("ambiguous conjunction branch", "choose :: (n :: Int) -> Dec (n > 0 && True)\n  choose n = decide (n > 0 && True)", 0),
         ("ambiguous disjunction branch", "choose :: (n :: Int) -> Dec (n > 0 || False)\n  choose n = decide (n > 0 || False)", 0),

@@ -37,7 +37,7 @@ fn private_refinements_keep_checked_bounds_without_exporting_names() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RefinementClosure.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "private-refinements").expect("compile the actual Cinch consumer");
+    let exe = common::build_executable(&dir, "Main.cinch", "private-refinements").expect("compile the actual Cinch consumer");
     manifest(&source, &dir);
     for (name, body, status, diagnostic) in [
         ("private bounded result projects", "probe :: Nat\n  probe = one", 0, ""),

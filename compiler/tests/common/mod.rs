@@ -310,16 +310,32 @@ pub fn host_runtime_archive() -> PathBuf {
 
 /// Build `entry` into an executable named `out` inside the project.
 pub fn build(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
+    build_fixture(dir, entry, out, false)
+}
+
+/// Build a fixture whose tests only run the resulting program.
+pub fn build_executable(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
+    build_fixture(dir, entry, out, true)
+}
+
+fn build_fixture(dir: &Path, entry: &str, out: &str, executable_only: bool) -> Result<PathBuf, String> {
     let exe = dir.join(out);
-    let code = drive(Mode::Build, dir, entry, Some(exe.clone()))?;
+    let code = match external_frontend::configured()? {
+        Some(frontend) => {
+            let mut request = external_frontend::Request::default();
+            request.discard_interfaces = executable_only;
+            external_frontend::drive_profile(&frontend, Mode::Build, dir, entry, Some(exe.clone()), &request)?
+        }
+        None => drive_native(Mode::Build, dir, entry, Some(exe.clone()))?,
+    };
     if code != 0 { return Err(format!("building {entry} returned {code}")); }
-    Ok(dir.join(out))
+    Ok(exe)
 }
 
 /// Reuse only an explicitly supplied, byte-identical Native-built Cinch
 /// refinement-checker fixture. The final selected frontend always builds it.
 pub fn build_refinement_checker(dir: &Path, out: &str) -> Result<PathBuf, String> {
-    let Some(path) = std::env::var_os("CINCH_TEST_REFINEMENT_EMITTER") else { return build(dir, "Main.cinch", out); };
+    let Some(path) = std::env::var_os("CINCH_TEST_REFINEMENT_EMITTER") else { return build_executable(dir, "Main.cinch", out); };
     if external_frontend::configured()?.is_some() { return Err("a cached Native checker cannot replace the selected Cinch frontend".into()); }
     let path = PathBuf::from(path).canonicalize().map_err(|e| e.to_string())?;
     let sources = |root: &Path| -> Result<std::collections::BTreeMap<std::ffi::OsString, Vec<u8>>, String> {

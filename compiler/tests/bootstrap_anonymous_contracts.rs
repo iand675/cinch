@@ -43,7 +43,7 @@ fn imported_anonymous_results_and_arguments_keep_their_meaning() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RefinementClosure.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "anonymous-contracts").expect("compile the Cinch interface consumer");
+    let exe = common::build_executable(&dir, "Main.cinch", "anonymous-contracts").expect("compile the Cinch interface consumer");
     manifest(&source, &dir);
     for (name, body, status) in [
         ("result names argument", "probe :: refined (r <= 3) Nat\n  probe = bound 3", 0),

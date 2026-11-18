@@ -11,7 +11,7 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.FunctionPreconditions.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");
     let cases = [
         ("partial Boolean right conjunction proves subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe flag n m = if flag && n >= m then n - m else 0", 0),
         ("partial Boolean left conjunction retains subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe flag n m = if n >= m && flag then n - m else 0", 0),

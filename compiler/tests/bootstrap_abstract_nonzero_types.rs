@@ -8,7 +8,7 @@ fn abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence() {
         ("Bootstrap.Core.cinch", include_str!("../../bootstrap/Bootstrap.Core.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.AbstractNonZeroTypes.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "nonzero-types").expect("build structural NonZero type/Core runner");
+    let exe = common::build_executable(&dir, "Main.cinch", "nonzero-types").expect("build structural NonZero type/Core runner");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();

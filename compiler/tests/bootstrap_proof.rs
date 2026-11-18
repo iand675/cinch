@@ -16,7 +16,7 @@ fn arithmetic_search_requires_independently_rechecked_evidence() {
             ),
         ],
     );
-    let exe = common::build(&dir, "Main.cinch", "proof").expect("build Cinch certificate checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "proof").expect("build Cinch certificate checker");
     for input in ["", "a", "integer", "three term byte bounds"] {
         std::fs::write(
             dir.join("case.txt"),

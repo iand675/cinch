@@ -44,7 +44,7 @@ fn real_div_and_rem_contracts_keep_abstract_carriers_until_specialization() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RefinementClosure.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "abstract-nonzero").expect("compile actual Cinch method consumer");
+    let exe = common::build_executable(&dir, "Main.cinch", "abstract-nonzero").expect("compile actual Cinch method consumer");
     manifest(&producer, &dir);
     for (name, body, status, diagnostic) in [
         ("generic refined identity", "keep :: forall a. NonZero a -> NonZero a\n  keep d = d", 0, ""),
