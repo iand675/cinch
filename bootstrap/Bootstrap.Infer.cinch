@@ -1198,7 +1198,10 @@ module Bootstrap.Infer where
             (out, done) -> (function-type domain effects out, expect-type sp out (expect-type sp domain done)))
 
   expect-type :: Span -> UType -> Store -> Store
-  expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
+  expect-type sp ty st = case type-kind ty of
+    KType -> st
+    KRow -> add-error sp "row parameter has an incompatible kind or non-row use: a value type must have kind Type" st
+    other -> add-error sp "a value type must have kind Type" st
   -- A declaration's own type is a value type or a proposition: `witness ::
   -- Eq n n` declares a proof former, and the seed admits it. Everything
   -- that must be a value still goes through `expect-type`.
@@ -1212,7 +1215,7 @@ module Bootstrap.Infer where
         None -> (URow out, checked)
         Some name -> case lookup-local name locals of
           Some rest -> if kind-equal (type-kind rest) KRow then (union-effects (URow out) rest, checked)
-            else bad s "effect row tail must have kind Row" checked
+            else bad s ("row parameter " <> name <> " has an incompatible kind or non-row use: effect row tail must have kind Row") checked
           None -> bad s "effect row tail is not bound by this scheme" checked
     other -> bad (type-expr-span row) "malformed effect row syntax" st
   convert-effects :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
@@ -4580,7 +4583,7 @@ module Bootstrap.Infer where
   source-handler-shape sp wanted seen clauses st = case clauses of
     EHandlerEnd at -> if list-length seen == list-length wanted then st else add-error sp "handler is missing a declared operation or return clause" st
     EHandlerClause at name pats continuation body rest ->
-      let checked = if has name wanted && not (has name seen) then st else add-error at "handler clause is duplicate or belongs to a different effect" st in
+      let checked = if has name seen then add-error at ("duplicate handler clause for operation " <> diagnostic-member-name name) st else if has name wanted then st else add-error at ("handler operation belongs to a different effect: " <> diagnostic-member-name name) st in
       source-handler-shape sp wanted (Cons name seen) rest (if same name "return" then
         (case (pats, continuation) of (Cons p Nil, None) -> checked; other -> add-error at "handler return needs exactly one pattern and no resumption" checked)
         else checked)
@@ -4628,7 +4631,7 @@ module Bootstrap.Infer where
             let expected = handler-clause-type opened output (URow UEnd) in
             case source-handler-lambda classes kinds families env locals ps body expected shape of
               (closure, row, checked) ->
-                let safe = if handler-resumption-safe (normalize checked opened) (map-term-types (normalize checked) closure) then checked else add-error sp "handler resumption is repeated or escapes its one-shot scope" checked in
+                let safe = if handler-resumption-safe (normalize checked opened) (map-term-types (normalize checked) closure) then checked else add-error sp "a one-shot handler resumption must be used at most once and within its handler clause" checked in
                 case source-handler-operations classes kinds families env locals declaration label output clauses rest safe of
                   (tail, latent, done) -> (CHandlerOperation sp (core-operation-slot operation) openings row closure tail, union-effects row latent, done)
         None -> (CError sp, UError, add-error sp "handler operation has unsupported or ill-scoped declaration constraints" st)
@@ -4680,7 +4683,7 @@ module Bootstrap.Infer where
     EBindingsEnd s -> case expected of None -> infer classes kinds families env locals body st; Some ty -> check classes kinds families env locals body ty st
     EBinding s name rhs rest -> case infer classes kinds families env locals rhs st of
       (value, checked) -> let ty = normalize checked (core-type value) in
-        if not (checked-class-type classes ty) then term-error s "with binding needs a checked signature value" checked else
+        if not (checked-class-type classes ty) then term-error s (if same name "io" then "with binding io must have type `Io r`" else "with binding needs a checked signature value") checked else
         case fresh-id checked of
           (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
             case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) (proof-env-after-term env value fresh)) locals rest body expected fresh of

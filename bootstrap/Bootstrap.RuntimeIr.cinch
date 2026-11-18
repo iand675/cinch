@@ -1281,7 +1281,8 @@ module Bootstrap.RuntimeIr where
           Some (declared, value) -> (count-op True declared value w, value)
           None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
-      if named ty "Bool" && same name "True" then (w, "1")
+      if same role "dictionary" then evidence-value definitions locals w (CEGiven sp ty name)
+      else if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
       else direct-call definitions locals w sp name actuals Nil
     CQualifiedUse sp ty name role actuals evidence -> case evidences definitions locals w evidence of
@@ -2905,6 +2906,7 @@ module Bootstrap.RuntimeIr where
   evidences-use name evidence = case evidence of Nil -> False; Cons first rest -> evidence-uses name first || evidences-use name rest
   given-uses :: String -> CoreTerm -> Bool
   given-uses name term = case term of
+    CUse sp ty symbol role actuals -> same role "dictionary" && same name symbol
     CQualifiedUse sp ty symbol role actuals evidence -> evidences-use name evidence
     CMethod sp ty symbol owner slot actuals evidence -> evidences-use name evidence
     CApply sp ty first second -> given-uses name first || given-uses name second
