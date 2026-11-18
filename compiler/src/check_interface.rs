@@ -1,6 +1,6 @@
 // Definition-site contracts for rank-one values and class dictionaries.
 // Kernel regions and closed builtin effects retain their checked syntax.
-// Unsupported dependent and open-row schemes keep `resolved: null`.
+// Class methods can also retain a bare, universally quantified effect row.
 // Display spellings must never be used to guess a nominal's definition.
 
 #[derive(Clone)]
@@ -223,7 +223,7 @@ impl Checker {
     ) {
         if !scheme.evidence_params.is_empty() || !scheme.idx_params.is_empty()
             || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes))
-            || !scheme.row_params.is_empty() { return }
+            || (class.is_none() && !scheme.row_params.is_empty()) { return }
         let mut references = std::collections::BTreeSet::new();
         let mut vars = Vec::new();
         let Some(mut prefix) = self.resolved_binders(inherited, scheme, &mut vars) else { return };
@@ -364,6 +364,7 @@ impl Checker {
             // Explicit annotations were checked by the source checker;
             // inferred kinds come from its resulting scheme.
             let kind = if scheme.region_params.contains(name.into()) { "Region".to_string() }
+                else if scheme.row_params.contains(name) { "Row".to_string() }
                 else if scheme.prop_params.contains(name.into()) { "Prop".to_string() }
                 else if let Some((_, carrier)) = scheme.val_params.iter().find(|(n, _)| n == name) {
                     match carrier { Ty::Nat | Ty::Int | Ty::Bytes => carrier.to_string(), _ => return None }
@@ -489,6 +490,19 @@ impl Checker {
         let actual_mvar = checked.labels.iter().any(|label| label.head.as_str() == "MVar");
         let source_mvar = source.labels.iter().any(|(path, _)|
             self.effect_head(path, false).ok().as_deref() == Some("MVar"));
+        // A class projection may pass its own universally quantified row
+        // through a continuation. Both the binder and its occurrence must
+        // agree with the defining checked scheme.
+        if let Some(tail) = &source.tail {
+            return match &checked.tail {
+                crate::types::RowTail::Rigid(actual)
+                    if source.labels.is_empty() && checked.labels.is_empty()
+                        && actual.as_str() == tail.text && vars.contains(&tail.text)
+                        && scheme.row_params.contains(&tail.text) => Some(format!("{{|{actual}}}")),
+                _ => None,
+            };
+        }
+        if !matches!(checked.tail, crate::types::RowTail::Closed) { return None }
         if !actual_mvar && !source_mvar {
             return self.resolved_kernel_effect_row(source, scheme, vars);
         }
@@ -553,7 +567,7 @@ impl Checker {
         }
         // Keep existing canonical application parentheses for contracts
         // without predicates or kernel MVar effects. Those structures need checked printing.
-        if !carries_predicates(checked) && !Self::interface_type_mentions_mvar(checked) {
+        if scheme.row_params.is_empty() && !carries_predicates(checked) && !Self::interface_type_mentions_mvar(checked) {
             return self.resolved_source_type(source, scheme, vars, references, display);
         }
         // Print propositions from their checked structure. Operator source
@@ -614,7 +628,7 @@ impl Checker {
             (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, actual_row, codomain)) => {
                 let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments, display)?;
                 let effects = match eff {
-                    None if !actual_row.labels.iter().any(|label| label.head.as_str() == "MVar") => String::new(),
+                    None if actual_row.is_pure() => String::new(),
                     None => return None,
                     Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, vars)?,
                 };
@@ -632,7 +646,7 @@ impl Checker {
                 let mut next = arguments.to_vec();
                 next.push((Some(name.text.clone()), (**dom).clone()));
                 let effects = match row {
-                    None if !actual_row.labels.iter().any(|label| label.head.as_str() == "MVar") => String::new(),
+                    None if actual_row.is_pure() => String::new(),
                     None => return None,
                     Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, &bound)?,
                 };
@@ -896,6 +910,26 @@ mod mvar_effect_contract_tests {
             )).collect(),
             tail: None,
             span,
+        }
+    }
+
+    #[test]
+    fn quantified_method_row_requires_the_same_bound_tail_and_no_fixed_labels() {
+        let checker = Checker::new();
+        let mut source = row(&[]);
+        source.tail = Some(ast::Name::new("e", source.span));
+        let mut scheme = Scheme::mono(Ty::Unit);
+        scheme.row_params.push("e".into());
+        let vars = vec![String::from("e")];
+        let actual = EffRow { labels: vec![], tail: crate::types::RowTail::Rigid("e".into()) };
+        assert_eq!(checker.resolved_checked_kernel_effect_row(&source, &actual, &scheme, &vars).as_deref(), Some("{|e}"));
+        assert!(checker.resolved_checked_kernel_effect_row(&source, &actual, &scheme, &[]).is_none());
+        for wrong in [
+            EffRow::pure(),
+            EffRow { tail: crate::types::RowTail::Rigid("other".into()), ..actual.clone() },
+            EffRow { labels: vec![EffLabel::plain("MVar")], ..actual },
+        ] {
+            assert!(checker.resolved_checked_kernel_effect_row(&source, &wrong, &scheme, &vars).is_none());
         }
     }
 
