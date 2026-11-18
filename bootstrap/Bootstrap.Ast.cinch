@@ -219,6 +219,7 @@ module Bootstrap.Ast where
     PLitInt :: Span -> String -> Pat
     PLitStr :: Span -> String -> Pat
     PLitChar :: Span -> String -> Pat
+    PLitSym :: Span -> String -> Pat
     PTuple :: Span -> Pat -> Pat
     PList :: Span -> Pat -> Pat
     PAs :: Span -> String -> Pat -> Pat
@@ -248,6 +249,7 @@ module Bootstrap.Ast where
     PLitInt s text -> s
     PLitStr s text -> s
     PLitChar s text -> s
+    PLitSym s text -> s
     PTuple s xs -> s
     PList s xs -> s
     PAs s n inner -> s
@@ -268,6 +270,7 @@ module Bootstrap.Ast where
     ELitFloat :: Span -> String -> Expr
     ELitStr :: Span -> String -> Expr
     ELitChar :: Span -> String -> Expr
+    ELitSym :: Span -> String -> Expr
     EUnit :: Span -> Expr
     ETuple :: Span -> Expr -> Expr
     EList :: Span -> Expr -> Expr
@@ -371,6 +374,7 @@ module Bootstrap.Ast where
     ELitFloat s text -> s
     ELitStr s text -> s
     ELitChar s text -> s
+    ELitSym s text -> s
     EUnit s -> s
     ETuple s xs -> s
     EList s xs -> s
@@ -745,6 +749,7 @@ module Bootstrap.Ast where
     PLitInt s text -> 0
     PLitStr s text -> 0
     PLitChar s text -> 0
+    PLitSym s text -> 0
     PTuple s xs -> pats-unmodeled (pats-of xs)
     PList s xs -> pats-unmodeled (pats-of xs)
     PAs s n inner -> pat-unmodeled-count inner
@@ -769,6 +774,7 @@ module Bootstrap.Ast where
     ELitFloat s text -> 0
     ELitStr s text -> 0
     ELitChar s text -> 0
+    ELitSym s text -> 0
     EUnit s -> 0
     ETuple s xs -> exprs-unmodeled (exprs-of xs)
     EList s xs -> exprs-unmodeled (exprs-of xs)
@@ -984,6 +990,7 @@ module Bootstrap.Ast where
     PLitInt part0 part1 -> JArr (JStr "PLitInt") (JArr (JStr part1) (JArrEnd))
     PLitStr part0 part1 -> JArr (JStr "PLitStr") (JArr (JStr part1) (JArrEnd))
     PLitChar part0 part1 -> JArr (JStr "PLitChar") (JArr (JStr part1) (JArrEnd))
+    PLitSym part0 part1 -> JArr (JStr "PLitSym") (JArr (JStr part1) (JArrEnd))
     PTuple part0 part1 -> JArr (JStr "PTuple") (JArr (source-identity-pat part1) (JArrEnd))
     PList part0 part1 -> JArr (JStr "PList") (JArr (source-identity-pat part1) (JArrEnd))
     PAs part0 part1 part2 -> JArr (JStr "PAs") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
@@ -1003,6 +1010,7 @@ module Bootstrap.Ast where
     ELitFloat part0 part1 -> JArr (JStr "ELitFloat") (JArr (JStr part1) (JArrEnd))
     ELitStr part0 part1 -> JArr (JStr "ELitStr") (JArr (JStr part1) (JArrEnd))
     ELitChar part0 part1 -> JArr (JStr "ELitChar") (JArr (JStr part1) (JArrEnd))
+    ELitSym part0 part1 -> JArr (JStr "ELitSym") (JArr (JStr part1) (JArrEnd))
     EUnit part0 -> JArr (JStr "EUnit") (JArrEnd)
     ETuple part0 part1 -> JArr (JStr "ETuple") (JArr (source-identity-expr part1) (JArrEnd))
     EList part0 part1 -> JArr (JStr "EList") (JArr (source-identity-expr part1) (JArrEnd))
@@ -1150,6 +1158,7 @@ module Bootstrap.Ast where
     JArr (JStr tag) (JArr (JStr name) JArrEnd) ->
       if default-tag tag "PVar" && default-local name then Some (PVar sp name, [name])
       else if default-tag tag "PLitInt" then Some (PLitInt sp name, Nil)
+      else if default-tag tag "PLitSym" then Some (PLitSym sp name, Nil)
       else if default-tag tag "PLitChar" then Some (PLitChar sp name, Nil)
       else if default-tag tag "PLitStr" then Some (PLitStr sp name, Nil)
       else None
@@ -1212,6 +1221,7 @@ module Bootstrap.Ast where
         (case default-reference globals bound value of Some name -> Some (EVar sp name); None -> None)
       else if default-tag tag "ELitInt" then Some (ELitInt sp value)
       else if default-tag tag "ELitStr" then Some (ELitStr sp value)
+      else if default-tag tag "ELitSym" then Some (ELitSym sp value)
       else if default-tag tag "ELitChar" then Some (ELitChar sp value)
       else None
     JArr (JStr tag) (JArr value JArrEnd) -> case default-expression sp globals bound value of

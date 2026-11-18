@@ -866,6 +866,7 @@ module Bootstrap.Resolve where
     ELitInt s digits -> (e, Nil)
     ELitFloat s digits -> (e, Nil)
     ELitStr s text -> (e, Nil)
+    ELitSym s text -> (e, Nil)
     ELitChar s text -> (e, Nil)
     EUnit s -> (e, Nil)
     ETuple s args -> case rename-expr visible locals args of
@@ -994,9 +995,11 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (DFun s name renamed, errors)
     other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
 
+  stage-type-name :: String -> Bool
+  stage-type-name name = has-name name ["Code", "Syntax", "SyntaxBinding", "TypeSyntax", "PackedCode", "Declarations", "Name"]
   opaque-name-reserved :: String -> Bool
-  opaque-name-reserved name = kernel-type-name name || has-name name
-    ["Array", "Tensor", "Columnar", "Type", "Prop", "Code", "Syntax", "Declarations", "Name", "Secret"
+  opaque-name-reserved name = kernel-type-name name || stage-type-name name || has-name name
+    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret"
     , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
     , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
     , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]
@@ -1012,6 +1015,9 @@ module Bootstrap.Resolve where
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
+    DData s name params ctors | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
+    DRecord s name params fields | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
+    DRefine s name params binder predicate | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)

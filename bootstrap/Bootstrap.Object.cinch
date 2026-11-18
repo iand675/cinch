@@ -382,4 +382,10 @@ module Bootstrap.Object where
   llvm-object-symbol :: String -> String
   llvm-object-symbol name = "@\"" <> llvm-bytes (string-to-bytes name) 0 <> "\""
   llvm-data-bytes :: String -> String
-  llvm-data-bytes text = llvm-bytes (string-to-bytes text) 0
+  llvm-data-bytes text = let bytes = string-to-bytes text in
+    if plain-llvm-bytes bytes 0 then text else llvm-bytes bytes 0
+  plain-llvm-bytes :: Bytes -> Nat -> Bool
+  plain-llvm-bytes bytes offset = if offset < bytes-len bytes then
+    let byte = bytes-get bytes offset in
+    byte >= 32 && byte <= 126 && byte /= 34 && byte /= 92 && plain-llvm-bytes bytes (offset + 1)
+    else True

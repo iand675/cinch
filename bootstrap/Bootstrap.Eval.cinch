@@ -53,7 +53,7 @@ module Bootstrap.Eval where
   -- The value family is exported so a caller can build and compare the
   -- interpreter's answers (an oracle's surface), not only read them as
   -- text.
-  export Value, VInt, VBool, VUnit, VStr, VChr, VCon, VTuple, VArgsEnd, VArg, VClosure, VFun, VEnvEnd, VBind
+  export Value, VInt, VBool, VUnit, VStr, VChr, VSymbol, VCon, VTuple, VArgsEnd, VArg, VClosure, VFun, VEnvEnd, VBind
   export eval-program, eval-main, eval-main-result, eval-expr-in-program, value-equal, render-value
 
   -- The rung's name in every diagnostic it renders.
@@ -80,6 +80,7 @@ module Bootstrap.Eval where
     VBool :: Bool -> Value
     VUnit :: Value
     VStr :: String -> Value
+    VSymbol :: String -> Value
     VChr :: Char -> Value
     VCon :: String -> Value -> Value
     VTuple :: Value -> Value
@@ -208,6 +209,7 @@ module Bootstrap.Eval where
     VStr a -> case r of
       VStr b -> Some (string-compare a b == 0)
       other -> None
+    VSymbol a -> (case r of VSymbol b -> Some (string-compare a b == 0); other -> None)
     VChr a -> case r of
       VChr b -> Some (eq-char a b)
       other -> None
@@ -255,6 +257,7 @@ module Bootstrap.Eval where
     PLitStr s text -> case v of
       VStr s2 -> if string-compare s2 text == 0 then MHit VEnvEnd else MMiss
       other -> MMiss
+    PLitSym s text -> (case v of VSymbol other -> if string-compare text other == 0 then MHit VEnvEnd else MMiss; different -> MMiss)
     PLitChar s text -> case v of
       VChr c -> case string-first-char text of
         None -> MBad s (string-concat "bad character literal pattern: " text)
@@ -532,6 +535,7 @@ module Bootstrap.Eval where
     EProject s value name -> fail s "field projection requires typed record evaluation"
     ELitInt s text -> Ok (VInt (lit-int-value text))
     ELitStr s text -> Ok (VStr text)
+    ELitSym s text -> Ok (VSymbol text)
     ELitChar s text -> case string-first-char text of
       None -> fail s (string-concat "bad character literal: " text)
       Some c -> Ok (VChr c)
@@ -765,6 +769,7 @@ module Bootstrap.Eval where
     VBool b -> if b then "True" else "False"
     VUnit -> "()"
     VStr s -> s
+    VSymbol text -> string-concat "'" text
     VChr c -> char-string c
     VCon n args -> string-concat n (render-args (args-to-list args))
     VTuple args -> string-concat "(" (string-concat (render-args (args-to-list args)) ")")

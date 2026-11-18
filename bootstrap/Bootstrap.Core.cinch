@@ -21,8 +21,8 @@ module Bootstrap.Core where
   import Algebra.Semigroup
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
-  export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
-  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
+  export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPSymbol, CPTuple, CPField, CPDone
+  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
   export recursive-functions, recursive-function-ids, map-recursive-functions, recursive-proof-scope, recursive-value-writes
   export recursive-box-slots, recursive-member-use, recursive-captures
@@ -279,6 +279,7 @@ module Bootstrap.Core where
     CPInt :: Span -> UType -> String -> CorePattern
     CPString :: Span -> UType -> String -> CorePattern
     CPChar :: Span -> UType -> String -> CorePattern
+    CPSymbol :: Span -> UType -> String -> CorePattern
     CPTuple :: Span -> UType -> CorePattern -> CorePattern
     CPField :: Span -> CorePattern -> CorePattern -> CorePattern
     CPDone :: Span -> CorePattern
@@ -322,6 +323,7 @@ module Bootstrap.Core where
     CInt :: Span -> UType -> String -> CoreTerm
     CString :: Span -> UType -> String -> CoreTerm
     CChar :: Span -> UType -> String -> CoreTerm
+    CSymbol :: Span -> UType -> String -> CoreTerm
     CUnit :: Span -> UType -> CoreTerm
     CApply :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CApplyEff :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
@@ -834,6 +836,7 @@ module Bootstrap.Core where
     CInt s ty text -> ty
     CString s ty text -> ty
     CChar s ty text -> ty
+    CSymbol s ty text -> ty
     CUnit s ty -> ty
     CApply s ty f x -> ty
     CApplyEff s ty row f x -> ty
@@ -933,6 +936,7 @@ module Bootstrap.Core where
       (CInt sp ty text, CInt at other value) -> typed && string-compare text value == 0
       (CString sp ty text, CString at other value) -> typed && string-compare text value == 0
       (CChar sp ty text, CChar at other value) -> typed && string-compare text value == 0
+      (CSymbol sp ty text, CSymbol at other value) -> typed && string-compare text value == 0
       (CUnit sp ty, CUnit at other) -> typed
       (CIf sp ty guard yes no, CIf at other test left right) -> typed && equal guard test && equal yes left && equal no right
       (CPrimitive sp ty name args, CPrimitive at other symbol supplied) ->
@@ -1172,6 +1176,7 @@ module Bootstrap.Core where
     CPInt s ty text -> CPInt s (f ty) text
     CPString s ty text -> CPString s (f ty) text
     CPChar s ty text -> CPChar s (f ty) text
+    CPSymbol s ty text -> CPSymbol s (f ty) text
     CPTuple s ty fields -> CPTuple s (f ty) (map-pattern-types f fields)
     CPField s x rest -> CPField s (map-pattern-types f x) (map-pattern-types f rest)
     CPDone s -> p
@@ -1188,6 +1193,7 @@ module Bootstrap.Core where
     CInt s ty text -> CInt s (f ty) text
     CString s ty text -> CString s (f ty) text
     CChar s ty text -> CChar s (f ty) text
+    CSymbol s ty text -> CSymbol s (f ty) text
     CUnit s ty -> CUnit s (f ty)
     CApply s ty fun arg -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
     CErasedApply s ty row fun witness -> CErasedApply s (f ty) (f row) (map-term-types f fun) (map-term-types f witness)
@@ -1352,6 +1358,7 @@ module Bootstrap.Core where
     CPInt s ty text -> type-metas st ty
     CPString s ty text -> type-metas st ty
     CPChar s ty text -> type-metas st ty
+    CPSymbol s ty text -> type-metas st ty
     CPTuple s ty fields -> type-metas st ty <> pattern-metas st fields
     CPField s x rest -> pattern-metas st x <> pattern-metas st rest
     CPDone s -> Nil
@@ -1367,6 +1374,7 @@ module Bootstrap.Core where
     CInt s ty text -> type-metas st ty
     CString s ty text -> type-metas st ty
     CChar s ty text -> type-metas st ty
+    CSymbol s ty text -> type-metas st ty
     CUnit s ty -> type-metas st ty
     CApply s ty f x -> type-metas st ty <> term-metas st f <> term-metas st x
     CApplyEff s ty row f x -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st x
@@ -1533,6 +1541,7 @@ module Bootstrap.Core where
     CPInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
     CPString s ty text -> closed-runtime-type ty
     CPChar s ty text -> closed-runtime-type ty
+    CPSymbol s ty text -> closed-runtime-type ty
     CPTuple s ty fields -> closed-runtime-type ty && valid-pattern fields
     CPField s x rest -> valid-pattern x && valid-pattern rest
     CPDone s -> True
@@ -1567,6 +1576,7 @@ module Bootstrap.Core where
     CInt s ty text -> closed-runtime-type ty && valid-number-literal ty text
     CString s ty text -> closed-runtime-type ty
     CChar s ty text -> closed-runtime-type ty
+    CSymbol s ty text -> closed-runtime-type ty
     CUnit s ty -> closed-runtime-type ty
     CApply s ty f x -> closed-runtime-type ty && valid-term f && valid-term x
     CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
@@ -1761,6 +1771,7 @@ module Bootstrap.Core where
     CPInt s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
     CPString s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
     CPChar s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
+    CPSymbol s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
     CPDone s -> Some scope
   patterns-scope-with :: List Nat -> List Nat -> List CorePattern -> List Nat -> Option (List Nat)
   patterns-scope-with universals values patterns scope = case patterns of
@@ -3165,7 +3176,7 @@ module Bootstrap.Core where
   erased-pattern :: CorePattern -> Bool
   erased-pattern pattern = case pattern of CPProof sp ty id name -> True; CPErasedValue sp ty id name -> True; other -> False
   pattern-type :: CorePattern -> UType
-  pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPErasedValue s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
+  pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPErasedValue s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPSymbol s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
   pattern-value :: CorePattern -> Option CoreTerm
   pattern-value pattern = case pattern of
     CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
@@ -3855,6 +3866,7 @@ module Bootstrap.Core where
     CInt sp ty text -> Some term
     CString sp ty text -> Some term
     CChar sp ty text -> Some term
+    CSymbol sp ty text -> Some term
     CUnit sp ty -> Some term
     CMethod sp ty name declaring slot actuals [evidence] ->
       if total-method-self given dictionary factory evidence then

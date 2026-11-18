@@ -361,6 +361,7 @@ module Bootstrap.Global where
     CPInt sp ty text -> Some locals
     CPString sp ty text -> Some locals
     CPChar sp ty text -> Some locals
+    CPSymbol sp ty text -> Some locals
     CPDone sp -> Some locals
   patterns-locals :: HashMap String CoreGlobal -> List (Nat, Scheme) -> List CorePattern -> Option (List (Nat, Scheme))
   patterns-locals globals locals patterns = case patterns of Nil -> Some locals; Cons first rest -> case pattern-locals globals locals first of Some bound -> patterns-locals globals bound rest; None -> None
@@ -416,6 +417,7 @@ module Bootstrap.Global where
     CInt sp ty value -> True
     CString sp ty value -> True
     CChar sp ty value -> True
+    CSymbol sp ty value -> True
     CUnit sp ty -> True
     CArgumentsEnd sp -> True
     CAlternativesEnd sp -> True

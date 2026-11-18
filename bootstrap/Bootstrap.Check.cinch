@@ -434,6 +434,7 @@ module Bootstrap.Check where
     EProject s value name -> (TyHole, fail s "field projection requires typed record elaboration")
     ELitInt s text -> (TyInt, Nil)
     ELitStr s text -> (TyStr, Nil)
+    ELitSym s text -> (TyCon "Sym" (TyArgsEnd s), Nil)
     ELitChar s text -> (TyChr, Nil)
     EUnit s -> (TyUnit, Nil)
     EApp s f a -> infer-app env s f a
@@ -713,6 +714,7 @@ module Bootstrap.Check where
     PVar s n -> (Cons (n, expected) env, Nil)
     PLitInt s text -> (env, ty-compare s TyInt expected)
     PLitStr s text -> (env, ty-compare s TyStr expected)
+    PLitSym s text -> (env, ty-compare s (TyCon "Sym" (TyArgsEnd s)) expected)
     PLitChar s text -> (env, ty-compare s TyChr expected)
     PCon s n args -> check-con-pat env s n args expected
     PRecord s name fields -> (env, fail s "record pattern requires typed record elaboration")
@@ -798,6 +800,7 @@ module Bootstrap.Check where
     PLitStr s t -> case b of
       PLitStr s2 t2 -> string-compare t t2 == 0
       other -> False
+    PLitSym s t -> (case b of PLitSym s2 t2 -> string-compare t t2 == 0; other -> False)
     PLitChar s t -> case b of
       PLitChar s2 t2 -> string-compare t t2 == 0
       other -> False

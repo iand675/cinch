@@ -71,6 +71,7 @@ module Bootstrap.RuntimeIr where
     -- | Request a checked MVar wrapper with its concrete payload representation.
     MVarDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
+    SymbolEquality :: Demand
     MemoWorker :: Demand
     ExternalDemand :: RuntimeUnit -> Demand
     ForeignDemand :: ForeignPlan -> Demand
@@ -514,6 +515,7 @@ module Bootstrap.RuntimeIr where
     ArrayDemand name classes -> array-symbol name classes
     MVarDemand name classes -> specialized-name name classes
     BuiltinDemand name -> name
+    SymbolEquality -> "runtime:symEq"
     MemoWorker -> "runtime:memo"
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
     ForeignDemand plan -> cat ["foreign:", foreign-symbol plan]
@@ -849,6 +851,13 @@ module Bootstrap.RuntimeIr where
         (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage 1, " to i64"]), result)
       None -> unsupported w sp "String literal has no checked defining wrapper layout")
     other -> unsupported w sp "String literal needs its checked library object layout"
+  -- Intern the static UTF-8 name through the same process table as Data.Sym.
+  symbol-literal :: Writer -> Span -> UType -> String -> (Writer, String)
+  symbol-literal w sp ty text = if not (named ty "Sym") then unsupported w sp "symbol literal requires Sym" else
+    let (named-word, storage) = fresh w "@symbol" in
+    let size = nat-to-string (bytes-len (string-to-bytes text)) in
+    let declared = global named-word (cat [storage, " = private unnamed_addr constant [", size, " x i8] c\"", llvm-data-bytes text, "\"", ", align 1"]) in
+    call declared "@cinch_sym_intern" [cat ["ptrtoint (ptr ", storage, " to i64)"], size]
   string-bytes :: Writer -> String -> (Writer, String)
   string-bytes w word = let (one, pointer) = fresh w "%ptr" in
     let (two, bytes) = fresh one "%v" in
@@ -1271,6 +1280,7 @@ module Bootstrap.RuntimeIr where
         Some bits -> (w, int-to-string bits)
         None -> unsupported w sp "integer carrier needs runtime lowering")
     CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
+    CSymbol sp ty text -> symbol-literal w sp ty text
     CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")
     CLocal sp ty id name actuals -> if not (erased-region-arguments actuals) then unsupported w sp "local type arguments need representation specialization" else case deferred-constructor id locals of
@@ -3415,6 +3425,7 @@ module Bootstrap.RuntimeIr where
     CPConstructor sp ty name actuals constructor fields -> ty
     CPInt sp ty text -> ty
     CPChar sp ty text -> ty
+    CPSymbol sp ty text -> ty
     CPString sp ty text -> ty
     other -> UError
   continue-if :: Writer -> String -> String -> Writer
@@ -3496,6 +3507,9 @@ module Bootstrap.RuntimeIr where
         else if raw-integer ty then (case compare-word w "eq" value text of (ready, condition) -> (continue-if ready condition failed, Nil))
         else if wide-scalar ty then (case compare-typed w "i128" "eq" value (wide-literal ty text) of (ready, condition) -> (continue-if ready condition failed, Nil))
         else (refuse w sp "literal pattern needs mathematical runtime comparison", Nil)
+      CPSymbol sp ty text -> (case symbol-literal w sp ty text of
+        (interned, cell) -> case call (request-demand SymbolEquality interned) "@\"cinch.runtime.symEq\"" [value, cell] of
+          (ready, condition) -> (continue-if ready condition failed, Nil))
       CPChar sp ty text -> if named ty "Char" then (case char-word text of
         Some word -> (case compare-word w "eq" value word of (ready, condition) -> (continue-if ready condition failed, Nil))
         None -> (refuse w sp "invalid typed character pattern", Nil)) else (refuse w sp "character pattern has no checked Char carrier", Nil)
@@ -3610,6 +3624,7 @@ module Bootstrap.RuntimeIr where
     CLocal sp ty id name Nil -> True
     CInt sp ty text -> True
     CString sp ty text -> True
+    CSymbol sp ty text -> True
     CChar sp ty text -> True
     CUnit sp ty -> True
     CProofRef sp ty id name -> True
@@ -3837,6 +3852,7 @@ module Bootstrap.RuntimeIr where
   unfold-shape term = case term of
     CInt sp ty text -> Some (MkUnfoldShape False 0)
     CString sp ty text -> Some (MkUnfoldShape False 0)
+    CSymbol sp ty text -> Some (MkUnfoldShape False 0)
     CChar sp ty text -> Some (MkUnfoldShape False 0)
     CUnit sp ty -> Some (MkUnfoldShape False 0)
     -- A constructor use is a block build: one allocation per copy.
@@ -4970,6 +4986,7 @@ module Bootstrap.RuntimeIr where
           ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
           MVarDemand name classes -> workers definitions (mvar-worker name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
+          SymbolEquality -> workers definitions (global claimed "define internal i64 @\"cinch.runtime.symEq\"(i64 %a, i64 %b) alwaysinline {\n  %same = icmp eq i64 %a, %b\n  %result = zext i1 %same to i64\n  ret i64 %result\n}")
           MemoWorker -> workers definitions (memo-worker claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
@@ -5020,7 +5037,7 @@ module Bootstrap.RuntimeIr where
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",

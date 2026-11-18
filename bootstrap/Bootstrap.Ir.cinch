@@ -733,6 +733,7 @@ module Bootstrap.Ir where
     ELitInt s text -> "integer literal"
     ELitFloat s text -> "float literal"
     ELitStr s text -> "string literal"
+    ELitSym s text -> "symbol literal"
     ELitChar s text -> "character literal"
     EUnit s -> "unit"
     ETuple s xs -> "tuple"

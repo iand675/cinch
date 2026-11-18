@@ -89,7 +89,7 @@ module Bootstrap.Foreign where
     UCon name KType -> if same name "Unit" then Ok (Parameter ty "unit" "value" 0 1 False False)
       else (case scalar name of
         Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
-        None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err "type has no supported C representation at the foreign boundary")
+        None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err (string-concat name " has no C representation at the foreign boundary"))
     UApp (UCon name kind) pointee -> if foreign-pointer ty then
         Ok (Parameter ty "ptr" (if same name "RawPtr" then "raw" else if same name "Borrowed" then "borrowed" else "maybe-null") 8 8 False (same name "MaybeNull"))
       else if has name ["Owned", "Retained", "Out"] then Err "foreign ownership, retention and out-cell protocols require their checked resource plans"

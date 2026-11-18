@@ -246,6 +246,7 @@ module Bootstrap.Typing where
     CPInt sp ty text -> ty
     CPString sp ty text -> ty
     CPChar sp ty text -> ty
+    CPSymbol sp ty text -> ty
     CPTuple sp ty fields -> ty
     other -> UError
   char-value :: String -> Bool
@@ -262,6 +263,7 @@ module Bootstrap.Typing where
     CPInt sp ty text -> if integer-carrier ty || wide-carrier ty then Some scope else None
     CPString sp ty text -> if string-type ty then Some scope else None
     CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
+    CPSymbol sp ty text -> if type-is "Sym" ty then Some scope else None
     other -> None
   arrow-pattern-scope :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
   arrow-pattern-scope context scope function domain pattern = case pattern of
@@ -409,6 +411,7 @@ module Bootstrap.Typing where
     CInt sp ty value -> number-literal-carrier ty
     CString sp ty value -> string-type ty
     CChar sp ty value -> type-is "Char" ty && char-value value
+    CSymbol sp ty value -> type-is "Sym" ty
     CUnit sp ty -> type-is "Unit" ty
     CApply sp ty f x -> checked-application context scope gamma facts ty empty-row f x
     CApplyEff sp ty row f x -> wf context scope row && checked-application context scope gamma facts ty row f x
@@ -898,6 +901,7 @@ module Bootstrap.Typing where
     CPInt sp ty text -> Some (1, 1)
     CPString sp ty text -> Some (1, 1)
     CPChar sp ty text -> Some (1, 1)
+    CPSymbol sp ty text -> Some (1, 1)
     other -> None
   use-count-fits :: ArrowUsage -> Option (Nat, Nat) -> Bool
   use-count-fits usage count = case (usage, count) of

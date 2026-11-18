@@ -15,7 +15,6 @@
 
 mod common;
 
-use cinch::driver::check_sources;
 use common::source_frontend::run_source;
 use cinch::lexer::{lex, Tok};
 
@@ -45,9 +44,7 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
-    let program =
-        check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    common::source_frontend::emit_ir(src).unwrap_or_else(|error| panic!("{name}: {error}"))
 }
 
 /// The token kinds of one source (the lexical rules are observable

@@ -720,6 +720,7 @@ module Bootstrap.Infer where
     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
+    TUnmodeled s message -> bad s message st
     other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
   -- A nested quantifier (design/rank-n-polymorphism.md section 8): its
   -- binders classify by use exactly as a signature's do, and they bind
@@ -4024,6 +4025,7 @@ module Bootstrap.Infer where
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
+    ELitSym s text -> (CSymbol s (primitive-type "Sym") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
     EApp s f x | memo-demand-head env f -> infer-memo-demand classes kinds families env locals s x st
     EApp s f x -> case thunk-syntax-operation env f of
@@ -5351,6 +5353,7 @@ module Bootstrap.Infer where
     CInt sp ty text -> True
     CString sp ty text -> True
     CChar sp ty text -> True
+    CSymbol sp ty text -> True
     CUnit sp ty -> True
     CLocal sp ty id name actuals -> True
     CLambda sp ty pattern body -> True
@@ -5656,6 +5659,7 @@ module Bootstrap.Infer where
         (other, checked) -> (env, CPWild s UError, checked)
     PLitStr s text -> (env, CPString s expected text, unify s expected (literal-type kinds "String") st)
     PLitChar s text -> (env, CPChar s expected text, unify s expected (primitive-type "Char") st)
+    PLitSym s text -> (env, CPSymbol s expected text, unify s expected (primitive-type "Sym") st)
     PTuple s args -> case pattern-fields args st of
       (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (check-tuple-pattern-type s expected fields sf) of
         (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
@@ -6327,6 +6331,7 @@ module Bootstrap.Infer where
       PLitInt sp text -> Some text
       PLitStr sp text -> Some (string-concat-all ["\"", text, "\""])
       PLitChar sp text -> Some (string-concat-all ["'", text, "'"])
+      PLitSym sp text -> Some (string-concat-all ["'", text])
       other -> None) in
       (case literal of
         Some text -> coverage-literals rest (if has text seen then seen else Cons text seen)

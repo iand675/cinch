@@ -34,7 +34,7 @@ module Bootstrap.Parse where
   import Bootstrap.Ast
   import Bootstrap.Report
   import Text.Lex (Span, span-start, span-end, span-line, span-col,
-                   Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPrimFrag,
+                   Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TTickName, TTickType, TWord, TPrimFrag,
                    TPunct, TAttr, TEOF, LToken, lt-span, lt-virtual, lt-token,
                    Lexed, LexedTokens, LexedFail, LexErrorKind, lex-error-message,
                    lex-source, bytes-slice)
@@ -2014,6 +2014,8 @@ module Bootstrap.Parse where
     TCon s -> True
     TInt s -> True
     TStr b -> True
+    TTickName name -> True
+    TTickType name -> True
     TChar n -> True
     TPunct p ->
       if string-compare p "(" == 0 then True else if string-compare p "[" == 0 then True else False
@@ -2075,6 +2077,8 @@ module Bootstrap.Parse where
         None -> PBad)
       TCon s -> parse-named-pat (sp-of t) s rest src True
       TInt s -> POk (PLitInt (sp-of t) s) rest
+      TTickType name -> POk (PUnmodeled (sp-of t) "a type name quote belongs in a staging or macro name position") rest
+      TTickName name -> POk (PLitSym (sp-of t) name) rest
       TStr b -> POk (PLitStr (sp-of t) (bytes-to-string b)) rest
       TChar n -> case char-from-code n of
         Some c -> POk (PLitChar (sp-of t) (char-string c)) rest
@@ -2211,6 +2215,8 @@ module Bootstrap.Parse where
     TInt s -> True
     TFloat s -> True
     TStr b -> True
+    TTickName name -> True
+    TTickType name -> True
     TChar n -> True
     TPunct p ->
       if string-compare p "(" == 0 then True
@@ -2509,6 +2515,8 @@ module Bootstrap.Parse where
     Cons t rest -> case lt-token t of
       TInt s -> POk (ELitInt (sp-of t) s) rest
       TFloat s -> POk (ELitFloat (sp-of t) s) rest
+      TTickType name -> POk (EUnmodeled (sp-of t) "a type name quote belongs in a staging or macro name position") rest
+      TTickName name -> POk (ELitSym (sp-of t) name) rest
       TStr b -> POk (ELitStr (sp-of t) (bytes-to-string b)) rest
       TChar n -> case char-from-code n of
         Some c -> POk (ELitChar (sp-of t) (char-string c)) rest
@@ -3191,6 +3199,8 @@ module Bootstrap.Parse where
     TVar s -> True
     TCon s -> True
     TInt s -> True
+    TTickName name -> True
+    TTickType name -> True
     TWord w -> string-compare w "refined" == 0
     TPunct p ->
       string-compare p "(" == 0 || string-compare p "[" == 0 || string-compare p "\\" == 0
@@ -3229,6 +3239,8 @@ module Bootstrap.Parse where
         if string-compare s "refined" == 0 then parse-refined-type (sp-of t) rest src
         else type-name-atom (sp-of t) rest (Cons s Nil)
       TCon s -> type-name-atom (sp-of t) rest (Cons s Nil)
+      TTickName name -> POk (TUnmodeled (sp-of t) "type-level symbols are deferred") rest
+      TTickType name -> POk (TUnmodeled (sp-of t) "a type name quote belongs in a staging or macro name position; type-level symbols are deferred") rest
       TInt s -> POk (TIndex (sp-of t) s) rest
       TOp op ->
         if string-compare op "-" == 0 then

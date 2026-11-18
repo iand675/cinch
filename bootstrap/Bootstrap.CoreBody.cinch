@@ -294,6 +294,7 @@ module Bootstrap.CoreBody where
     CPInt s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "int-pattern" [doc, JStr text], t1)
     CPString s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "string-pattern" [doc, JStr text], t1)
     CPChar s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "char-pattern" [doc, JStr text], t1)
+    CPSymbol s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "symbol-pattern" [doc, JStr text], t1)
     CPTuple s ty fields ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (fieldsDoc, t2) = dense-pattern dense fields t1 in
@@ -343,6 +344,7 @@ module Bootstrap.CoreBody where
     CInt s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "int" [doc, JStr text], t1)
     CString s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "string" [doc, JStr text], t1)
     CChar s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "char" [doc, JStr text], t1)
+    CSymbol s ty text -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "symbol" [doc, JStr text], t1)
     CUnit s ty -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "unit" [doc], t1)
     CApply s ty function argument ->
       let (doc, t1) = dense-type-doc dense ty table in
@@ -880,6 +882,12 @@ module Bootstrap.CoreBody where
             (Some ty, Some text) -> Some (CPChar dense-zero ty text)
             other -> None)
         other -> None)
+      else if dense-same tag "symbol-pattern" then (case rest of
+        JArr typeDoc (JArr textDoc JArrEnd) ->
+          (case (dense-type-of types typeDoc, dense-text textDoc) of
+            (Some ty, Some text) -> Some (CPSymbol dense-zero ty text)
+            other -> None)
+        other -> None)
       else if dense-same tag "tuple-pattern" then (case rest of
         JArr typeDoc (JArr fieldsDoc JArrEnd) ->
           (case (dense-type-of types typeDoc, dense-pattern-of types fieldsDoc) of
@@ -974,6 +982,12 @@ module Bootstrap.CoreBody where
       JArr typeDoc (JArr textDoc JArrEnd) ->
         (case (dense-type-of types typeDoc, dense-text textDoc) of
           (Some ty, Some text) -> Some (CChar dense-zero ty text)
+          other -> None)
+      other -> None)
+    else if dense-same tag "symbol" then (case rest of
+      JArr typeDoc (JArr textDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-text textDoc) of
+          (Some ty, Some text) -> Some (CSymbol dense-zero ty text)
           other -> None)
       other -> None)
     else if dense-same tag "unit" then (case rest of
