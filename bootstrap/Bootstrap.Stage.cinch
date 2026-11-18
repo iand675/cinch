@@ -4,7 +4,7 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
@@ -623,6 +623,72 @@ module Bootstrap.Stage where
                       Err errors -> Err errors
                       Ok (expanded, remaining) -> Ok (ETemplateScope site home expanded, remaining)
 
+  -- Name arguments reify a single token at the call site. Syntax arguments
+  -- preserve their token trees until a template splices them.
+  data MacroOperands where
+    MacroOperands :: List (String, String) -> List (String, List LToken) -> MacroOperands
+  bind-operands :: Span -> List (String, String) -> List (List LToken) -> Result (List Diagnostic) MacroOperands
+  bind-operands site params groups = case (params, groups) of
+    (Nil, Nil) -> Ok (MacroOperands Nil Nil)
+    (Cons (param, sort) rest, Cons tokens more) -> (case bind-operands site rest more of
+      Err errors -> Err errors
+      Ok (MacroOperands names syntax) -> if same sort "Name" then
+        (case macro-name-argument site tokens of
+          Err errors -> Err errors
+          Ok spelling -> Ok (MacroOperands (Cons (param, spelling) names) syntax))
+        else Ok (MacroOperands names (Cons (param, tokens) syntax)))
+    other -> expand-error site "macro token-tree arity mismatch"
+
+  data ReifiedName where
+    NameValue :: String -> ReifiedName
+    SymbolValue :: String -> ReifiedName
+  reified-spelling :: ReifiedName -> String
+  reified-spelling value = case value of NameValue name -> name; SymbolValue name -> name
+  name-operand :: String -> List (String, String) -> Option ReifiedName
+  name-operand param locals = case locals of
+    Nil -> None
+    Cons (name, spelling) rest -> if same name param then Some (NameValue spelling) else name-operand param rest
+
+  reify-name :: MacroSite -> MacroOperands -> Expr -> Nat -> Result (List Diagnostic) (Option ReifiedName)
+  reify-name scope operands expr fuel = if fuel == 0 then expand-error (expr-span expr) "macro expansion exhausted its work budget" else
+    case (scope, operands) of
+      (MkMacroSite owner fix modules namespaces parent, MacroOperands locals syntax) -> (case expr of
+        EVar site name -> Ok (name-operand name locals)
+        ELitSym site name -> Ok (Some (SymbolValue name))
+        EApp site (EVar op-site op) argument | (same op "name-to-sym" || same op "sym-to-name") && stage-operation-available namespaces owner op ->
+          (case reify-name scope operands argument (fuel - 1) of
+            Err errors -> Err errors
+            Ok result -> (case (op, result) of
+              (member, Some (NameValue spelling)) | same member "name-to-sym" -> Ok (Some (SymbolValue spelling))
+              (member, Some (SymbolValue spelling)) | same member "sym-to-name" -> Ok (Some (NameValue spelling))
+              other -> expand-error site ("invalid stage operand for " <> op)))
+        EMacroCall site path tokens -> (case lookup-macro namespaces owner path of
+          None -> expand-error site ("macro is not in scope: " <> path)
+          Some (home, name) -> case macro-module home modules of
+            None -> expand-error site ("unavailable macro module " <> home)
+            Some definition -> case name-macro name (module-decls definition) of
+              None -> Ok None
+              Some (params, body) -> case bind-operands site params (macro-argument-groups tokens (list-length params)) of
+                Err errors -> Err errors
+                Ok args -> let nested = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
+                  (case reify-name nested args body (fuel - 1) of
+                    Ok (Some (NameValue spelling)) -> Ok (Some (NameValue spelling))
+                    Err errors -> Err errors
+                    other -> expand-error site "macro declared to return Name produced a different value"))
+        other -> Ok None)
+
+  reify-term-splice :: MacroSite -> MacroOperands -> Nat -> Span -> Expr -> Result (List Diagnostic) (Option Expr)
+  reify-term-splice scope operands fuel site expression = case reify-name scope operands expression fuel of
+    Ok (Some value) -> Ok (Some (ELitSym site (reified-spelling value)))
+    Ok None -> Ok None
+    Err errors -> Err errors
+
+  reify-declaration-name :: MacroSite -> MacroOperands -> List (String, Fix) -> Nat -> Span -> Expr -> Result (List Diagnostic) String
+  reify-declaration-name scope operands fix fuel site expression = case reify-name scope operands expression fuel of
+    Ok (Some value) -> Ok (reified-spelling value)
+    Err errors -> Err errors
+    Ok None -> (case operands of MacroOperands names syntax -> declaration-spelling site expression syntax fix)
+
   expand-declaration-call :: MacroSite -> Span -> String -> List LToken -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else case caller of
     MkMacroSite owner fix modules names parent -> (case lookup-macro names owner path of
@@ -634,28 +700,30 @@ module Bootstrap.Stage where
           Some (params, template) -> let groups = macro-argument-groups tokens (list-length params) in
             if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
               let scope = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
-              (case fill-declarations scope fix (zip-parameters params groups) (decls-of template) (fuel - 1) of
+              (case bind-operands site params groups of
                 Err errors -> Err errors
-                Ok (decls, remaining) -> Ok ([DGeneratedGroup site home (decl-spine site decls)], remaining)))
+                Ok operands -> case fill-declarations scope fix operands (decls-of template) (fuel - 1) of
+                  Err errors -> Err errors
+                  Ok (decls, remaining) -> Ok ([DGeneratedGroup site home (decl-spine site decls)], remaining)))
 
-  fill-declarations :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  fill-declarations scope fix groups declarations fuel = case declarations of
+  fill-declarations :: MacroSite -> List (String, Fix) -> MacroOperands -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  fill-declarations scope fix operands declarations fuel = case declarations of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> (case fill-declaration scope fix groups first fuel of
+    Cons first rest -> (case fill-declaration scope fix operands first fuel of
       Err errors -> Err errors
-      Ok (declared, remaining) -> case fill-declarations scope fix groups rest remaining of
+      Ok (declared, remaining) -> case fill-declarations scope fix operands rest remaining of
         Err errors -> Err errors
         Ok (tail, done) -> Ok (Cons declared tail, done))
 
-  fill-declaration :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
-  fill-declaration scope fix groups declaration fuel = case declaration of
-    DNamedDeclaration site hole body -> (case declaration-spelling site hole groups fix of
+  fill-declaration :: MacroSite -> List (String, Fix) -> MacroOperands -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  fill-declaration scope fix operands declaration fuel = case declaration of
+    DNamedDeclaration site hole body -> (case reify-declaration-name scope operands fix fuel site hole of
       Err errors -> Err errors
       Ok spelling -> case body of
         DSig at name ty -> Ok (DSig at spelling ty, fuel)
-        DFun at name clauses -> fill-declaration scope fix groups (DFun at spelling clauses) fuel
+        DFun at name clauses -> fill-declaration scope fix operands (DFun at spelling clauses) fuel
         other -> expand-error site "a name splice names a value declaration")
-    DFun site name clauses -> (case fill-declared-clauses scope fix groups clauses fuel of
+    DFun site name clauses -> (case fill-declared-clauses scope fix operands clauses fuel of
       Err errors -> Err errors
       Ok (expanded, remaining) -> Ok (DFun site name expanded, remaining))
     DSig site name ty -> Ok (declaration, fuel)
@@ -663,19 +731,23 @@ module Bootstrap.Stage where
     DRecord site name params fields -> Ok (declaration, fuel)
     other -> expand-error (decl-span declaration) "unsupported declaration in a quoted group"
 
-  fill-declared-clauses :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
-  fill-declared-clauses scope fix groups clauses fuel = if fuel > macro-budget then expand-error (Span 0 0 1 1) "macro expansion exhausted its work budget" else case clauses of
+  fill-declared-clauses :: MacroSite -> List (String, Fix) -> MacroOperands -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  fill-declared-clauses scope fix operands clauses fuel = if fuel > macro-budget then expand-error (Span 0 0 1 1) "macro expansion exhausted its work budget" else case clauses of
     Nil -> Ok (Nil, fuel)
     Cons (patterns, rhs) rest -> let site = expr-span rhs in
       (case hygienic-term (ELam site patterns rhs) (macro-budget - fuel) of
-        (ELam at ps body, serial) -> if serial > macro-budget then expand-error site "macro expansion exhausted its work budget" else (case macro-fill-splices body groups fix of
+        (ELam at ps body, serial) -> if serial > macro-budget then expand-error site "macro expansion exhausted its work budget" else (case fill-declaration-term scope operands fix (macro-budget - serial) body of
           Err errors -> Err errors
           Ok filled -> case expand-term scope filled (macro-budget - serial) of
             Err errors -> Err errors
-            Ok (expanded, remaining) -> case fill-declared-clauses scope fix groups rest remaining of
+            Ok (expanded, remaining) -> case fill-declared-clauses scope fix operands rest remaining of
               Err errors -> Err errors
               Ok (more, done) -> Ok (Cons (ps, expanded) more, done))
         other -> expand-error site "invalid quoted equation")
+
+  fill-declaration-term :: MacroSite -> MacroOperands -> List (String, Fix) -> Nat -> Expr -> Result (List Diagnostic) Expr
+  fill-declaration-term scope operands fix fuel body = case operands of
+    MacroOperands names syntax -> fill-splices-with (reify-term-splice scope operands fuel) body syntax fix
 
   zip-parameters :: List String -> List (List LToken) -> List (String, List LToken)
   zip-parameters names groups = case (names, groups) of

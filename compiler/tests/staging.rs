@@ -259,6 +259,23 @@ fn macro_name_members_and_sym_reification_round_trip() {
     assert_eq!(code, 0);
 }
 
+/// A Name parameter must receive a single name even if the generated body ignores it.
+#[test]
+fn declaration_macro_checks_unused_name_operands() {
+    let source = r#"module Main where
+  macro answer :: Name -> Declarations
+  macro answer nm = quoteDecls where
+    value :: Int
+    value = 42
+  generate do
+    emit (answer!(1 + 2))
+  main :: Int
+  main = value
+"#;
+    let err = run_err(source);
+    assert!(err.contains("single name"), "{err}");
+}
+
 /// A name splice names a generated declaration: outside a `quoteDecls`
 /// template there is nothing to generate, so it is refused by name.
 #[test]

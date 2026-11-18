@@ -14,14 +14,14 @@ module Bootstrap.Expand where
   import Bootstrap.Ast
   import Bootstrap.Parse (Ps, POk, PBad, Fix, parse-tree-term)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
-  import Text.Lex (Span, span-start, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord)
+  import Text.Lex (Span, span-start, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord, TTickName, TTickType)
   import Text.Show (nat-to-string)
   import Data.String (empty-string, string-to-bytes)
   import Algebra.Semigroup
 
   export term-has-macro-call, decl-has-macro-call, clauses-have-macro-call
   export hygienic-term, closed-code-template
-  export fill-splices
+  export fill-splices, fill-splices-with, macro-name-argument, name-macro
   export declaration-spelling, declaration-macro, macro-parameters, template-of, syntax-template-of
   export expand-error
 
@@ -147,25 +147,37 @@ module Bootstrap.Expand where
     Cons (DMacro site (DSig at declared ty)) rest -> if same declared name then Some ty else macro-signature name rest
     Cons other rest -> macro-signature name rest
 
-  declaration-parameters :: TypeExpr -> List Pat -> Option (List String)
-  declaration-parameters ty patterns = case (ty, patterns) of
-    (TFun site (TName at domain) tail, Cons (PVar arg param) rest) | same domain "Syntax" -> (case declaration-parameters tail rest of
-      Some names -> if syntax-input param names then None else Some (Cons param names)
+  stage-parameters :: String -> TypeExpr -> List Pat -> Option (List (String, String))
+  stage-parameters expected ty patterns = case (ty, patterns) of
+    (TFun site (TName at domain) tail, Cons (PVar arg param) rest) | same domain "Syntax" || same domain "Name" -> (case stage-parameters expected tail rest of
+      Some names -> if syntax-input param (map (\entry -> case entry of (name, sort) -> name) names) then None else Some (Cons (param, domain) names)
       None -> None)
-    (TName at result, Nil) | same result "Declarations" -> Some Nil
+    (TName at result, Nil) | same result expected -> Some Nil
     other -> None
 
-  declaration-macro :: String -> List Decl -> Option (List String, Decl)
+  declaration-macro :: String -> List Decl -> Option (List (String, String), Decl)
   declaration-macro name declarations = case macro-signature name declarations of
     Some ty -> declaration-template name ty declarations
     None -> None
 
-  declaration-template :: String -> TypeExpr -> List Decl -> Option (List String, Decl)
+  declaration-template :: String -> TypeExpr -> List Decl -> Option (List (String, String), Decl)
   declaration-template name ty declarations = case declarations of
-    Cons (DDeclarationMacro site declared patterns template) rest | same declared name -> (case declaration-parameters ty patterns of
+    Cons (DDeclarationMacro site declared patterns template) rest | same declared name -> (case stage-parameters "Declarations" ty patterns of
       Some params -> Some (params, template)
       None -> None)
     Cons other rest -> declaration-template name ty rest
+    Nil -> None
+
+  name-macro :: String -> List Decl -> Option (List (String, String), Expr)
+  name-macro name declarations = case macro-signature name declarations of
+    Some ty -> name-macro-body name ty declarations
+    None -> None
+  name-macro-body :: String -> TypeExpr -> List Decl -> Option (List (String, String), Expr)
+  name-macro-body name ty declarations = case declarations of
+    Cons (DMacro site (DFun at declared [(patterns, rhs)])) rest | same name declared -> (case stage-parameters "Name" ty patterns of
+      Some params -> Some (params, rhs)
+      None -> None)
+    Cons other rest -> name-macro-body name ty rest
     Nil -> None
 
   macro-body :: String -> (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
@@ -510,9 +522,18 @@ module Bootstrap.Expand where
   -- is never read as a term, so an ignored parameter costs nothing. Every
   -- other splice is left in place for the stage evaluator.
   fill-splices :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
-  fill-splices e groups fix = case fill-walk e groups fix of
-    Err errors -> Err errors
-    Ok (filled, leftover) -> Ok filled
+  fill-splices e groups fix = fill-splices-with (\site expression -> Ok None) e groups fix
+
+  macro-name-argument :: Span -> List LToken -> Result (List Diagnostic) String
+  macro-name-argument site tokens = case tokens of
+    [token] -> (case lt-token token of
+      TVar name -> Ok name
+      TCon name -> Ok name
+      TOp name -> Ok name
+      TTickName name -> Ok name
+      TTickType name -> Ok name
+      other -> expand-error site "a Name argument requires a single name")
+    other -> expand-error site "a Name argument requires a single name"
 
   binding-spelling :: Span -> BindingSpelling -> List (String, List LToken) -> Result (List Diagnostic) BindingSpelling
   binding-spelling site origin groups = case origin of
@@ -534,115 +555,118 @@ module Bootstrap.Expand where
     ELitSym at name -> Ok name
     other -> expand-error site "a name splice must name one declaration"
 
-  fill-walk :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
-  fill-walk e groups fix = case e of
+  fill-splices-with :: (Span -> Expr -> Result (List Diagnostic) (Option Expr)) -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
+  fill-splices-with reify e groups fix = case e of
     ESyntaxReference s key param -> (case binding-spelling s param groups of
-      Ok name -> Ok (ESyntaxReference s key name, groups)
+      Ok name -> Ok (ESyntaxReference s key name)
       Err errors -> Err errors)
     ESyntaxCaptureUnder s key param (EVar site operand) -> (case binding-spelling s param groups of
       Err errors -> Err errors
       Ok name -> case take-group operand groups of
         None -> expand-error site "Syntax.captureUnder requires a syntax argument"
         Some tokens -> case parse-group-term tokens fix of
-          Ok term -> Ok (ESyntaxCaptureUnder s key name term, groups)
+          Ok term -> Ok (ESyntaxCaptureUnder s key name term)
           Err errors -> Err errors)
-    ESplice s expression -> case expression of
-      EDefinitionName at home parameter -> (case take-group parameter groups of
-        Some [token] -> (case lt-token token of
-          TVar name -> Ok (EDefinitionName s home name, groups)
-          TCon name -> Ok (EDefinitionName s home name, groups)
-          other -> expand-error s "Syntax.definition requires a Name argument")
-        other -> expand-error s "Syntax.definition requires a single name")
-      EVar at name -> case take-group name groups of
-        Some tokens -> case parse-group-term tokens fix of
-          Err errors -> Err errors
-          Ok term -> Ok (EArgumentScope s term, groups)
-        None -> Ok (e, groups)
-      other -> Ok (e, groups)
-    ECon s name args -> fill-node (ECon s name) args groups fix
-    ERecord s name fields -> fill-node (ERecord s name) fields groups fix
-    EProject s value name -> case fill-walk value groups fix of
+    ESplice s expression -> (case reify s expression of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EProject s filled name, more)
-    ETuple s xs -> fill-node (ETuple s) xs groups fix
-    EList s xs -> fill-node (EList s) xs groups fix
-    ENeg s x -> case fill-walk x groups fix of
+      Ok (Some value) -> Ok value
+      Ok None -> fill-syntax-splice s expression groups fix)
+    ECon s name args -> fill-node reify (ECon s name) args groups fix
+    ERecord s name fields -> fill-node reify (ERecord s name) fields groups fix
+    EProject s value name -> case fill-splices-with reify value groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (ENeg s filled, more)
-    ELam s ps body -> case fill-walk body groups fix of
+      Ok filled -> Ok (EProject s filled name)
+    ETuple s xs -> fill-node reify (ETuple s) xs groups fix
+    EList s xs -> fill-node reify (EList s) xs groups fix
+    ENeg s x -> case fill-splices-with reify x groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (ELam s ps filled, more)
-    ELetScope s body -> case fill-walk body groups fix of
+      Ok filled -> Ok (ENeg s filled)
+    ELam s ps body -> case fill-splices-with reify body groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (ELetScope s filled, more)
-    ELocalSignature s name ty rest -> case fill-walk rest groups fix of
+      Ok filled -> Ok (ELam s ps filled)
+    ELetScope s body -> case fill-splices-with reify body groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (ELocalSignature s name ty filled, more)
-    EAnn s x ty -> case fill-walk x groups fix of
+      Ok filled -> Ok (ELetScope s filled)
+    ELocalSignature s name ty rest -> case fill-splices-with reify rest groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EAnn s filled ty, more)
-    EForall s vs body -> case fill-walk body groups fix of
+      Ok filled -> Ok (ELocalSignature s name ty filled)
+    EAnn s x ty -> case fill-splices-with reify x groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EForall s vs filled, more)
-    EUsing s bounds body -> case fill-walk body groups fix of
+      Ok filled -> Ok (EAnn s filled ty)
+    EForall s vs body -> case fill-splices-with reify body groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EUsing s bounds filled, more)
-    EBind s name rhs -> case fill-walk rhs groups fix of
+      Ok filled -> Ok (EForall s vs filled)
+    EUsing s bounds body -> case fill-splices-with reify body groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EBind s name filled, more)
-    EDoLet s simple group -> case fill-walk group groups fix of
+      Ok filled -> Ok (EUsing s bounds filled)
+    EBind s name rhs -> case fill-splices-with reify rhs groups fix of
+      Err errors -> Err errors
+      Ok filled -> Ok (EBind s name filled)
+    EDoLet s simple group -> case fill-splices-with reify group groups fix of
       Err problem -> Err problem
-      Ok (filled, more) -> Ok (EDoLet s simple filled, more)
-    EDo s stmts -> case fill-walk stmts groups fix of
+      Ok filled -> Ok (EDoLet s simple filled)
+    EDo s stmts -> case fill-splices-with reify stmts groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EDo s filled, more)
-    EHandler s label clauses -> case fill-walk clauses groups fix of
+      Ok filled -> Ok (EDo s filled)
+    EHandler s label clauses -> case fill-splices-with reify clauses groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EHandler s label filled, more)
-    EQuote s body -> case fill-walk body groups fix of
+      Ok filled -> Ok (EHandler s label filled)
+    EQuote s body -> case fill-splices-with reify body groups fix of
       Err errors -> Err errors
-      Ok (filled, more) -> Ok (EQuote s filled, more)
-    ESupplied s f a -> fill-two (\x y -> ESupplied s x y) f a groups fix
-    EApp s f a -> fill-two (\x y -> EApp s x y) f a groups fix
-    EBin s op l r -> fill-two (\x y -> EBin s op x y) l r groups fix
-    ERecordField s label value rest -> fill-two (\x y -> ERecordField s label x y) value rest groups fix
-    ELocalStrict s p value rest -> fill-two (\x y -> ELocalStrict s p x y) value rest groups fix
-    ELocalMemo s name value rest -> fill-two (\x y -> ELocalMemo s name x y) value rest groups fix
-    EGuarded s guard body -> fill-two (\x y -> EGuarded s x y) guard body groups fix
-    EHandle s body h -> fill-two (\x y -> EHandle s x y) body h groups fix
-    EHandlerClause s name pats continuation body rest -> fill-two (\x y -> EHandlerClause s name pats continuation x y) body rest groups fix
-    EWith s bs body -> fill-two (\x y -> EWith s x y) bs body groups fix
-    EArg s x rest -> fill-two (\x y -> EArg s x y) x rest groups fix
-    EBinding s name rhs rest -> fill-two (\x y -> EBinding s name x y) rhs rest groups fix
-    EAlt s p body rest -> fill-two (\x y -> EAlt s p x y) body rest groups fix
-    EIf s c t f -> case fill-walk c groups fix of
+      Ok filled -> Ok (EQuote s filled)
+    ESupplied s f a -> fill-two reify (\x y -> ESupplied s x y) f a groups fix
+    EApp s f a -> fill-two reify (\x y -> EApp s x y) f a groups fix
+    EBin s op l r -> fill-two reify (\x y -> EBin s op x y) l r groups fix
+    ERecordField s label value rest -> fill-two reify (\x y -> ERecordField s label x y) value rest groups fix
+    ELocalStrict s p value rest -> fill-two reify (\x y -> ELocalStrict s p x y) value rest groups fix
+    ELocalMemo s name value rest -> fill-two reify (\x y -> ELocalMemo s name x y) value rest groups fix
+    EGuarded s guard body -> fill-two reify (\x y -> EGuarded s x y) guard body groups fix
+    EHandle s body h -> fill-two reify (\x y -> EHandle s x y) body h groups fix
+    EHandlerClause s name pats continuation body rest -> fill-two reify (\x y -> EHandlerClause s name pats continuation x y) body rest groups fix
+    EWith s bs body -> fill-two reify (\x y -> EWith s x y) bs body groups fix
+    EArg s x rest -> fill-two reify (\x y -> EArg s x y) x rest groups fix
+    EBinding s name rhs rest -> fill-two reify (\x y -> EBinding s name x y) rhs rest groups fix
+    EAlt s p body rest -> fill-two reify (\x y -> EAlt s p x y) body rest groups fix
+    EIf s c t f -> case fill-splices-with reify c groups fix of
       Err errors -> Err errors
-      Ok (filled-c, a) -> case fill-walk t a fix of
+      Ok filled-c -> case fill-splices-with reify t groups fix of
         Err errors -> Err errors
-        Ok (filled-t, b) -> case fill-walk f b fix of
+        Ok filled-t -> case fill-splices-with reify f groups fix of
           Err errors -> Err errors
-          Ok (filled-f, after) -> Ok (EIf s filled-c filled-t filled-f, after)
-    ECase s scrut alts -> fill-two (\x y -> ECase s x y) scrut alts groups fix
-    ELocalGroup s bs body -> fill-two (\x y -> ELocalGroup s x y) bs body groups fix
-    ELetRec s bs body -> fill-two (\x y -> ELetRec s x y) bs body groups fix
-    ELet s bs body -> fill-two (\x y -> ELet s x y) bs body groups fix
-    other -> Ok (e, groups)
+          Ok filled-f -> Ok (EIf s filled-c filled-t filled-f)
+    ECase s scrut alts -> fill-two reify (\x y -> ECase s x y) scrut alts groups fix
+    ELocalGroup s bs body -> fill-two reify (\x y -> ELocalGroup s x y) bs body groups fix
+    ELetRec s bs body -> fill-two reify (\x y -> ELetRec s x y) bs body groups fix
+    ELet s bs body -> fill-two reify (\x y -> ELet s x y) bs body groups fix
+    other -> Ok e
 
-  fill-node :: (Expr -> Expr) -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
-  fill-node build spine groups fix = case fill-walk spine groups fix of
+  fill-node :: (Span -> Expr -> Result (List Diagnostic) (Option Expr)) -> (Expr -> Expr) -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
+  fill-node reify build spine groups fix = case fill-splices-with reify spine groups fix of
     Err errors -> Err errors
-    Ok (filled, more) -> Ok (build filled, more)
+    Ok filled -> Ok (build filled)
 
-  fill-two :: (Expr -> Expr -> Expr) -> Expr -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
-  fill-two build first second groups fix = case fill-walk first groups fix of
+  fill-two :: (Span -> Expr -> Result (List Diagnostic) (Option Expr)) -> (Expr -> Expr -> Expr) -> Expr -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
+  fill-two reify build first second groups fix = case fill-splices-with reify first groups fix of
     Err errors -> Err errors
-    Ok (filled-first, more) -> case fill-walk second more fix of
+    Ok filled-first -> case fill-splices-with reify second groups fix of
       Err errors -> Err errors
-      Ok (filled-second, after) -> Ok (build filled-first filled-second, after)
+      Ok filled-second -> Ok (build filled-first filled-second)
 
-  -- Taking a group consumes it: one parameter fills one splice, so a
-  -- second `$(p)` of the same parameter is the template's mistake rather
-  -- than a silent duplication of the caller's tree.
+  fill-syntax-splice :: Span -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
+  fill-syntax-splice s expression groups fix = case expression of
+    EDefinitionName at home parameter -> (case take-group parameter groups of
+      Some [token] -> (case lt-token token of
+        TVar name -> Ok (EDefinitionName s home name)
+        TCon name -> Ok (EDefinitionName s home name)
+        other -> expand-error s "Syntax.definition requires a Name argument")
+      other -> expand-error s "Syntax.definition requires a single name")
+    EVar at name -> case take-group name groups of
+      Some tokens -> case parse-group-term tokens fix of
+        Err errors -> Err errors
+        Ok term -> Ok (EArgumentScope s term)
+      None -> Ok (ESplice s expression)
+    other -> Ok (ESplice s expression)
+
   take-group :: String -> List (String, List LToken) -> Option (List LToken)
   take-group name groups = case groups of
     Nil -> None
