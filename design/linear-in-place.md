@@ -366,7 +366,7 @@ would have needed a lock bump for `compiler/runtime/src` and
 | `<>` append | already reuses | section 3.1, 2,008 blocks for 2,000 cells |
 | `map` | already reuses | section 3.1, 1,008 blocks for 1,000 cells |
 | `concat` (`join-lists`) | already reuses | nested `<>` reuses every spine: 1,508 for 1,500 |
-| `reverse` with an accumulator | declined | the `Cons` is a call argument, not on the spine (section 3.3); lane `dasl-inplace-reverse` owns it |
+| `reverse` with an accumulator | **now reuses** | was declined (the `Cons` is a call argument); fixed by the argument search in section 11, 1,133 to 1,008 blocks |
 | `sort` | not a reuse pair | merge sort's intermediates are a different shape; 16,804 blocks is the algorithm |
 | `filter` | no sites | 2 call sites in the whole compiler; not worth a mechanism |
 | `Data.HashMap` / `Data.Set` insertion | out of scope for reuse as shaped | path copying is `design/reclamation.md`'s stated next target, not this lane's |
@@ -460,12 +460,12 @@ The measured binary is `build/bootstrap/stage3/cinch`, sha256 `5031a3a42f7929e7`
    case in `design/ownership-and-usage.md` section 7), not where it might
    permit an optimization.
 
-3. **The next win is in the pass, not the language.** Two extensions would
-   collect the measured blockers: reuse through a branch whose alternatives all
-   allocate the same shape (4,609 opportunities, 77.8%), and reuse across a
-   call whose argument is the allocation (1,314, 22.2%, which is `reverse`).
-   Both are `compiler/src/rc.rs` work, and lane `dasl-inplace-reverse` is on the
-   second one.
+3. **The next win is in the pass, not the language, and section 11 takes it.**
+   The two extensions this predicted are implemented: the call-argument search
+   (which fixed `reverse`) and the per-arm branch expansion. They collect 773
+   of the 5,923 opportunities. What remains is the `incompatible` proof doing
+   its job, plus selective callee specialisation (section 11.5), which is not
+   built.
 
 4. **The one language feature that would help is `Unique`, not `%1`.** It is
    the only addition that lets a proven-unique value skip the runtime count
@@ -648,4 +648,33 @@ this lane.
 
 **Needed.** `compiler/src/rc.rs` changed, so the stage0 seed and the library
 provider both need re-pinning. `runtime_abi` did not move.
+
+
+### Recovery branch census before the release-head repair
+
+Same tool, same 44 modules (`tooling/reuse_census.py`):
+
+| Outcome | Before | After | Change |
+| --- | --- | --- | --- |
+| reused | 2,064 | 2,837 | +773 (+37.5%) |
+| opportunity | 5,923 | 5,539 | -384 |
+| no allocation | 8,364 | 8,471 | +107 |
+| incompatible | 1,904 | 1,927 | +23 |
+| total releases | 18,255 | 18,774 | +519 |
+
+By blocker class on the remaining opportunities:
+
+| Blocker | Before | After |
+| --- | --- | --- |
+| `case` | 3,412 | 3,279 |
+| `app` | 1,314 | 1,244 |
+| `if` | 1,197 | 1,000 |
+| `release` (nested) | 0 | 16 |
+
+The release total grew because a duplicated pair is more `Release` nodes than
+the one it replaced, which is the code growth the expansion costs. The
+opportunity count fell less than the reuse count rose because the extra
+releases introduce new sites, some of which are themselves opportunities: the
+per-arm structure moves allocations onto arms' spines, which creates arms
+that now have a reachable allocation but no pair yet.
 
