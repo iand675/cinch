@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
+  "description": "ABI 10 integrated compiler, runtime and standard library snapshot.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+  "revision": "1f4cc50aee56c4b9f1f65e191f87e8bbcd9387ef",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
+  "source_sha256": "9eb8b9c1d8849bf4cf26374064c2f0dca0450ab39842f993c6c3d9b8835681be"
 }

@@ -15,8 +15,6 @@
 -- IR module, executable and report. Arguments are never split on whitespace.
 
 module Bootstrap.Pipeline where
-  export compile-source-with-manifest-mode
-  export compile-source-mode
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
   import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface, checked-elaboration)
