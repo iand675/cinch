@@ -135,10 +135,10 @@ module Bootstrap.Expand where
     other -> Cons "#pattern" Nil
 
   template-of :: String -> List Decl -> Option Expr
-  template-of name declarations = syntax-template-of (\op -> False) name declarations
+  template-of name declarations = syntax-template-of "" (\op -> False) name declarations
 
-  syntax-template-of :: (String -> Bool) -> String -> List Decl -> Option Expr
-  syntax-template-of available name declarations = macro-body available name (macro-signature name declarations) declarations
+  syntax-template-of :: String -> (String -> Bool) -> String -> List Decl -> Option Expr
+  syntax-template-of home available name declarations = macro-body home available name (macro-signature name declarations) declarations
 
   macro-signature :: String -> List Decl -> Option TypeExpr
   macro-signature name declarations = case declarations of
@@ -146,18 +146,19 @@ module Bootstrap.Expand where
     Cons (DMacro site (DSig at declared ty)) rest -> if same declared name then Some ty else macro-signature name rest
     Cons other rest -> macro-signature name rest
 
-  macro-body :: (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
-  macro-body available name declared-type declarations = case declarations of
+  macro-body :: String -> (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
+  macro-body home available name declared-type declarations = case declarations of
     Nil -> None
     Cons (DMacro site (DFun at defined [(patterns, rhs)])) rest -> if same defined name then
-      let inputs = (case declared-type of Some ty -> syntax-inputs ty patterns; None -> Nil) in
-      (case (code-template available inputs rhs, declared-type) of
+      let inputs = (case declared-type of Some ty -> syntax-inputs "Syntax" ty patterns; None -> Nil) in
+      let names = (case declared-type of Some ty -> syntax-inputs "Name" ty patterns; None -> Nil) in
+      (case (code-template home available names inputs rhs, declared-type) of
         (Some body, Some ty) -> (case fixed-code-carrier ty of
           Some carrier -> Some (EAnn (expr-span body) body carrier)
           None -> Some body)
         (result, other) -> result)
-      else macro-body available name declared-type rest
-    Cons other rest -> macro-body available name declared-type rest
+      else macro-body home available name declared-type rest
+    Cons other rest -> macro-body home available name declared-type rest
 
   -- A monomorphic quotation carries its declared type into ordinary checking
   -- in the defining scope. Explicitly quantified macros are instantiated at
@@ -168,13 +169,13 @@ module Bootstrap.Expand where
     TApp at (TName head name) (TArg slot carrier (TArgsEnd end)) | same name "Code" -> Some carrier
     other -> None
 
-  syntax-inputs :: TypeExpr -> List Pat -> List String
-  syntax-inputs ty patterns = case ty of
-    TForall at binders body -> syntax-inputs body patterns
+  syntax-inputs :: String -> TypeExpr -> List Pat -> List String
+  syntax-inputs wanted ty patterns = case ty of
+    TForall at binders body -> syntax-inputs wanted body patterns
     TFun at domain result -> (case patterns of
       Nil -> Nil
-      Cons pattern rest -> let more = syntax-inputs result rest in case (domain, pattern) of
-        (TName s sort, PVar site param) | same sort "Syntax" -> Cons param more
+      Cons pattern rest -> let more = syntax-inputs wanted result rest in case (domain, pattern) of
+        (TName s sort, PVar site param) | same sort wanted -> Cons param more
         other -> more)
     other -> Nil
 
@@ -185,14 +186,16 @@ module Bootstrap.Expand where
 
   -- These stage operations construct scoped code directly. Their result is
   -- an ordinary term which the resolver and type checker visit at insertion.
-  code-template :: (String -> Bool) -> List String -> Expr -> Option Expr
-  code-template available inputs rhs = case rhs of
+  code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
+  code-template home available names inputs rhs = case rhs of
     EQuote at body -> Some body
     EMacroCall at path tokens -> Some rhs
+    EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
+      Some (ESplice at (EDefinitionName sp home param))
     EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
       Some (ESplice at (EVar arg param))
     EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
-      (case (code-template available inputs function, code-template available inputs argument) of
+      (case (code-template home available names inputs function, code-template home available names inputs argument) of
         (Some head, Some value) -> Some (EApp at head value)
         other -> None)
     other -> None
@@ -433,6 +436,12 @@ module Bootstrap.Expand where
   fill-walk :: Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) (Expr, List (String, List LToken))
   fill-walk e groups fix = case e of
     ESplice s expression -> case expression of
+      EDefinitionName at home parameter -> (case take-group parameter groups of
+        Some [token] -> (case lt-token token of
+          TVar name -> Ok (EDefinitionName s home name, groups)
+          TCon name -> Ok (EDefinitionName s home name, groups)
+          other -> expand-error s "Syntax.definition requires a Name argument")
+        other -> expand-error s "Syntax.definition requires a single name")
       EVar at name -> case take-group name groups of
         Some tokens -> case parse-group-term tokens fix of
           Err errors -> Err errors

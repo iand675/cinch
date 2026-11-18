@@ -8,7 +8,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
   import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
@@ -940,6 +940,13 @@ module Bootstrap.Resolve where
     -- its free names resolve where the template is written (decision D43).
     EQuote s body -> case rename-expr visible locals body of
       (renamed, errors) -> (EQuote s renamed, errors)
+    -- A Name describes a spelling. Only the enclosing template's lexical
+    -- table can turn it into a definition, including privately owned names.
+    EDefinitionName s home spelling -> (case visible of
+      MkVisible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
+        Some binding | not (macro-binding binding) -> (EVar s (binding-symbol binding), Nil)
+        other -> (e, fail s (cat ["name `", spelling, "` is not bound in captured source scope ", home])))
+      other -> (e, fail s "macro definition reference outside its expansion"))
     ETemplateScope s home body -> (case visible of
       MkVisible lexical homes caller -> case find-home home homes of
         Some definition -> rename-expr (MkVisible definition homes (CallerScope lexical locals caller)) Nil body
@@ -1240,17 +1247,10 @@ module Bootstrap.Resolve where
   resolve-program :: Program -> (Program, List Diagnostic)
   resolve-program p = resolve-program-with p Nil
 
-  imported-bindings :: LoadedInterface -> List (String, String, String) -> List Binding -> List Binding
-  imported-bindings i exports seen = case exports of
-    Nil -> reverse seen
-    Cons (name, kind, identity) rest -> case lookup-binding name seen of
-      None -> imported-bindings i rest (Cons (MkBinding name (loaded-module i) (public-global i name)) seen)
-      Some prior -> imported-bindings i rest seen
-
   interface-scopes :: List LoadedInterface -> List Scoped
   interface-scopes interfaces = case interfaces of
     Nil -> Nil
-    Cons i rest -> Cons (MkScoped (loaded-module i) (imported-bindings i (loaded-exports i) Nil)
+    Cons i rest -> Cons (MkScoped (loaded-module i) (map (\name -> MkBinding name (loaded-module i) (public-global i name)) (loaded-names i))
       (interface-declarations i)) (interface-scopes rest)
 
   export-references :: List Scoped -> List String

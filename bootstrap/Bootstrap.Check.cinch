@@ -478,6 +478,7 @@ module Bootstrap.Check where
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
     EQuote s body -> (TyHole, fail s "a quotation requires the typed checker")
     ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
+    EDefinitionName s home name -> (TyHole, fail s "unresolved macro definition reference reached checking")
     ETemplateScope s home body -> (TyHole, fail s "unresolved macro scope reached type checking")
     EArgumentScope s body -> (TyHole, fail s "unresolved macro scope reached type checking")
     EMacroCall s path tokens -> (TyHole, fail s "a macro invocation requires compile-time expansion")

@@ -601,7 +601,7 @@ module Bootstrap.Stage where
         None -> expand-error site (cat ["`", path, "` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)"])
         Some (home, name) -> case macro-module home modules of
           None -> expand-error site (cat ["unavailable macro module ", home])
-          Some definition -> let declarations = module-decls definition in case syntax-template-of (stage-operation-available names home) name declarations of
+          Some definition -> let declarations = module-decls definition in case syntax-template-of home (stage-operation-available names home) name declarations of
             None -> expand-error site (cat ["macro `", path, "` has no quotation template; only a `[| ... |]` macro body expands in this rung"])
             Some template -> let parameters = macro-parameters name declarations in
               let groups = macro-argument-groups tokens (list-length parameters) in

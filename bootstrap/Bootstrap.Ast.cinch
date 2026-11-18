@@ -320,6 +320,7 @@ module Bootstrap.Ast where
     -- Internal boundaries for resolving hygienic expansion. The parser
     -- cannot construct either boundary from a user's term.
     ETemplateScope :: Span -> String -> Expr -> Expr
+    EDefinitionName :: Span -> String -> String -> Expr
     EArgumentScope :: Span -> Expr -> Expr
     EMacroCall :: Span -> String -> List LToken -> Expr
     EUnmodeled :: Span -> String -> Expr
@@ -408,6 +409,7 @@ module Bootstrap.Ast where
     EAltsEnd s -> s
     EQuote s body -> s
     ESplice s expression -> s
+    EDefinitionName s owner name -> s
     ETemplateScope s owner body -> s
     EArgumentScope s body -> s
     EMacroCall s path tokens -> s
@@ -809,6 +811,7 @@ module Bootstrap.Ast where
     -- A macro call models its own form completely: the argument is a
     -- token tree the expander consumes, not an expression this rung owes
     -- a model of.
+    EDefinitionName s owner name -> 0
     ETemplateScope s owner body -> expr-unmodeled-count body
     EArgumentScope s body -> expr-unmodeled-count body
     EMacroCall s path tokens -> 0
@@ -1041,6 +1044,7 @@ module Bootstrap.Ast where
     -- A macro call's identity is its name and its argument's token
     -- spellings: two calls are the same source when both agree, which is
     -- what the default-clause and interface identity comparisons need.
+    EDefinitionName sp owner name -> JArr (JStr "EDefinitionName") (JArr (JStr owner) (JArr (JStr name) JArrEnd))
     ETemplateScope sp owner body -> JArr (JStr "ETemplateScope") (JArr (JStr owner) (JArr (source-identity-expr body) JArrEnd))
     EArgumentScope sp body -> JArr (JStr "EArgumentScope") (JArr (source-identity-expr body) JArrEnd)
     EMacroCall part0 part1 part2 -> JArr (JStr "EMacroCall") (JArr (JStr part1) (JArr (source-identity-tokens part2) JArrEnd))

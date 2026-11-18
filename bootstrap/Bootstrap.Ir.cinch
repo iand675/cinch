@@ -772,6 +772,7 @@ module Bootstrap.Ir where
     EAltsEnd s -> "alternative spine end"
     EQuote s body -> "quotation"
     ESplice s expression -> "quotation splice"
+    EDefinitionName s home name -> "unresolved macro definition reference"
     ETemplateScope s home body -> "unresolved macro scope"
     EArgumentScope s body -> "unresolved macro scope"
     EMacroCall s path tokens -> "macro invocation"
