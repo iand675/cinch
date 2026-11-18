@@ -44,7 +44,7 @@ module Bootstrap.Target where
   export TargetProfile, MkTargetProfile
   export profile-name, profile-triple, profile-os, profile-arch, profile-libc, profile-word-size, profile-endian
   export supported-targets, profile-of-triple, host-profile, target-profile
-  export target-triple-of, unsupported-target
+  export target-triple-of, unsupported-target, target-ir-header
   export WhenAtom, MkWhenAtom, atom-negated, atom-kind, atom-value
   export lower-atom, atom-holds, atom-render, atom-actual, atoms-contradict
   export condition-holds, condition-render, condition-describe, overlap-reason
@@ -80,6 +80,18 @@ module Bootstrap.Target where
 
   profile-endian :: TargetProfile -> String
   profile-endian p = case p of MkTargetProfile name triple os arch libc bits endian -> endian
+
+  -- LLVM layouts for the triples accepted by profile-of-triple.
+  target-ir-header :: TargetProfile -> String
+  target-ir-header profile = string-concat-all ["target triple = \"", profile-triple profile, "\"\ntarget datalayout = \"", target-layout (profile-arch profile) (profile-os profile), "\"\n"]
+  target-layout :: String -> String -> String
+  target-layout machine system =
+    if string-compare machine "wasm32" == 0 then "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20"
+    else if string-compare machine "aarch64" == 0 then
+      (if string-compare system "darwin" == 0 then "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-n32:64-S128"
+       else "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128")
+    else if string-compare system "darwin" == 0 then "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+    else "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 
   -- The triples this compiler emits for, in the seed's order. `check` and
   -- `emit-ir` work for every one of them on any host; `build` additionally

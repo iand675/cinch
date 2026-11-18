@@ -72,9 +72,11 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     // Renaming `native()` instead would invalidate every recorded manifest
     // and cached artifact that keyed on `native64`.
     let foreign_triple = *triple != TargetProfile::native().triple;
+    let core_wasm = host.artifact == cinch::core::ArtifactProfile::CoreWasm
+        && *name == TargetProfile::wasm32(host.artifact).name;
     let mut lacking = Vec::new();
     for (field, same) in [
-        ("name", !foreign_triple || *name == host.name),
+        ("name", !foreign_triple || *name == host.name || core_wasm),
         ("triple", *triple == host.triple),
         ("os", *os == host.os),
         ("arch", *arch == host.arch),
@@ -229,9 +231,9 @@ fn sources(root: &Path, dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), Stri
 
 // Inventory headers only to choose source inputs. Program parsing, checking,
 // diagnostics and code generation remain the selected compiler's work.
-fn reachable_sources(files: &[PathBuf], entry: &Path) -> Vec<PathBuf> {
+fn reachable_sources(files: &[PathBuf], entry: &Path, profile: &TargetProfile) -> Vec<PathBuf> {
     let headers = files.iter().map(|path| {
-        std::fs::read_to_string(path).ok().and_then(|text| cinch::driver::scan_file(&text, &path.display().to_string()).ok())
+        std::fs::read_to_string(path).ok().and_then(|text| cinch::driver::scan_file_for(&text, &path.display().to_string(), profile).ok())
     }).collect::<Vec<_>>();
     let mut providers = HashMap::<&str, Vec<usize>>::new();
     for (index, header) in headers.iter().enumerate() {
@@ -328,12 +330,33 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
 
 /// [`drive`] with the profile flags and program words of `request`.
 pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, request: &Request) -> Result<i32, String> {
+    if let Some((interfaces, configuration)) = target_inputs(request, frontend)? {
+        let target = Frontend { compiler: frontend.compiler.clone(), interfaces };
+        return drive_request(&target, mode, dir, entry, out, Some(configuration), request);
+    }
     let objects = if mode == Mode::EmitObject {
         std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from)
     } else {
         None
     };
     drive_request(frontend, mode, dir, entry, out, objects, request)
+}
+
+fn target_inputs(request: &Request, frontend: &Frontend) -> Result<Option<(PathBuf, PathBuf)>, String> {
+    let Some(flag) = request.flags.windows(2).find(|pair| pair[0] == "--target") else { return Ok(None) };
+    let Some(helper) = std::env::var_os("CINCH_TEST_TARGET_INPUTS") else { return Ok(None) };
+    if std::env::var_os("CINCH_TEST_COMPILER").as_deref() != Some(frontend.compiler.as_os_str()) {
+        return Ok(None);
+    }
+    let output = std::process::Command::new(helper).args(["--test-target-inputs", &flag[1]])
+        .output().map_err(|err| format!("prepare target inputs: {err}"))?;
+    if !output.status.success() {
+        return Err(format!("prepare target inputs: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    let json = parse_json(std::str::from_utf8(&output.stdout).map_err(|err| err.to_string())?)?;
+    let path = |key| json.get(key).and_then(Json::as_str).map(PathBuf::from)
+        .ok_or_else(|| format!("missing target library {key}"));
+    Ok(Some((path("interfaces")?, path("objects")?)))
 }
 
 fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>, request: &Request) -> Result<i32, String> {
@@ -345,7 +368,8 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     if !entry.starts_with(&dir) { return Err("external test entry leaves its project".into()) }
     let mut files = Vec::new(); sources(&dir, &dir, &mut files)?; files.sort();
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
-    let files = reachable_sources(&files, &entry);
+    let triple = request.flags.windows(2).find(|words| words[0] == "--target").map(|words| words[1].as_str());
+    let files = reachable_sources(&files, &entry, &implemented_profile(triple)?);
     let invocation_id = next_invocation_id();
     let work = dir.join(".cinch-self-tests").join(&invocation_id);
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;

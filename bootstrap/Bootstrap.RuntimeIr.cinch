@@ -25,6 +25,7 @@ module Bootstrap.RuntimeIr where
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
   export emit-runtime-program-mode, emit-runtime-program-with-object-mode, emit-runtime-program-counting-mode
+  export emit-runtime-program-for-target, emit-runtime-library-artifact-for-target
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export emit-runtime-library-with-object-mode
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
@@ -85,7 +86,7 @@ module Bootstrap.RuntimeIr where
   data BindingIndex where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> String -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -137,19 +138,19 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim parallel-prefix -> bindings
   program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> plans
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim parallel-prefix -> plans
   -- The foreign plan of the first binding named `name`, if that binding is foreign.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups reclaim parallel-prefix -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   index-bindings :: List CheckedBinding -> BindingIndex
@@ -161,30 +162,30 @@ module Bootstrap.RuntimeIr where
       (plans, names) -> let plan = checked-foreign-plan binding in
         ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim parallel-prefix -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim parallel-prefix -> groups
   -- Whether this emission counts references (`--no-reclaim` and
   -- `CINCH_RECLAIM=0` select the other arm): the one switch every
   -- ownership operation reads, so a leak-baseline build emits none of
   -- them and every block it allocates stays live until exit.
   program-reclaim :: ProgramInfo -> Bool
-  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> reclaim
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim parallel-prefix ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim parallel-prefix
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -4266,12 +4267,11 @@ module Bootstrap.RuntimeIr where
   -- duplicates one reference per invocation, marking at publication.
   -- Every class here is an immediate baked into the body, so the emission
   -- depends only on the checked program, never on a schedule.
-  -- The pooled entries. The cooperative (Wasm) backend's sequential
-  -- readings exist in the runtime (`cinch_coop_par_*`) but the self-hosted
-  -- compiler emits one native profile, so it names the pooled entries; the
-  -- artifact profile is the driver's, not this emitter's.
-  par-entry :: String -> String
-  par-entry base = cat ["@cinch_", base]
+  par-prefix :: ProgramInfo -> String
+  par-prefix info = case info of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> parallel-prefix
+  par-entry :: Writer -> String -> String
+  par-entry w base = cat [par-prefix (writer-program w), base]
   -- The two result words are owned by the caller, and the pair takes the
   -- two component classes' exact pointer map, so no mask and no shaped-join
   -- limit apply (section 4.3).
@@ -4284,7 +4284,7 @@ module Bootstrap.RuntimeIr where
         let (two, out-word) = fresh one "%v" in
         let pointed = line two (cat ["  ", out, " = alloca [2 x i64]"])
         in let addressed = line pointed (cat ["  ", out-word, " = ptrtoint ptr ", out, " to i64"])
-        in case call addressed (par-entry "par_both") [f-word, g-word, out-word] of
+        in case call addressed (par-entry w "par_both") [f-word, g-word, out-word] of
           (called, _) ->
             -- The callbacks are borrowed: the caller keeps them alive across
             -- the call and drops them afterwards (section 3.3).
@@ -4311,7 +4311,7 @@ module Bootstrap.RuntimeIr where
         None -> unsupported ready sp "parTabulate result needs its checked element representation"
         Some class ->
           case call ready "@cinch_nat_to_len" [count-word] of
-            (converted, length) -> case call converted (par-entry "par_tabulate") [length, closure, nat-to-string class] of
+            (converted, length) -> case call converted (par-entry w "par_tabulate") [length, closure, nat-to-string class] of
               -- The callback is borrowed and dropped after the call.
               (called, built) -> (count-op False (core-type count) count-word (count-op False (core-type callback) closure called), built)
   -- `parMap`'s array primitive: the elaboration has already put
@@ -4321,7 +4321,7 @@ module Bootstrap.RuntimeIr where
   par-map definitions locals w sp ty callback array = case expressions definitions locals w [callback, array] of
     (ready, Cons closure (Cons input Nil)) -> case array-element-class (writer-context w) ty of
       None -> unsupported ready sp "parMap result needs its checked element representation"
-      Some class -> case call ready (par-entry "par_map_array") [closure, input, nat-to-string class] of
+      Some class -> case call ready (par-entry w "par_map_array") [closure, input, nat-to-string class] of
         -- Both the callback and the input array are borrowed; the caller
         -- drops them after the call, and owns the result.
         (called, mapped) -> (count-op False (core-type callback) closure (count-op False (core-type array) input called), mapped)
@@ -4332,7 +4332,7 @@ module Bootstrap.RuntimeIr where
   par-workers :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
   par-workers definitions locals w sp count = case expression definitions locals w count of
     (counted, count-word) -> case call counted "@cinch_nat_to_len" [count-word] of
-      (converted, workers) -> case call converted (par-entry "par_set_workers") [workers] of
+      (converted, workers) -> case call converted (par-entry w "par_set_workers") [workers] of
         (called, ignored) -> (count-op False (core-type count) count-word called, "0")
   -- The element class of an `Array a` result, as the scan code the array
   -- constructors take.
@@ -4829,8 +4829,12 @@ module Bootstrap.RuntimeIr where
   -- only when the program contains a parallel primitive, so a program that
   -- uses none emits the same IR bytes as before the builtins existed
   -- (design/parallel-evaluation.md section 4.2).
-  par-declarations :: String
-  par-declarations = "declare i64 @cinch_par_both(i64, i64, i64)\ndeclare i64 @cinch_par_tabulate(i64, i64, i64)\ndeclare i64 @cinch_par_map_array(i64, i64, i64)\ndeclare i64 @cinch_par_set_workers(i64)\n"
+  par-declarations :: String -> String
+  par-declarations prefix = cat
+    ["declare i64 ", prefix, "par_both(i64, i64, i64)\n",
+     "declare i64 ", prefix, "par_tabulate(i64, i64, i64)\n",
+     "declare i64 ", prefix, "par_map_array(i64, i64, i64)\n",
+     "declare i64 ", prefix, "par_set_workers(i64)\n"]
   par-used :: List CoreDefinition -> Bool
   par-used definitions = case definitions of
     Nil -> False
@@ -4848,8 +4852,8 @@ module Bootstrap.RuntimeIr where
   children-par-used terms = case terms of Nil -> False; Cons first rest -> term-par-used first || children-par-used rest
   par-operation :: String -> Bool
   par-operation op = same op "par-both" || same op "par-tabulate" || same op "par-map" || same op "par-workers"
-  par-preamble :: List CoreDefinition -> String
-  par-preamble definitions = if par-used definitions then par-declarations else ""
+  par-preamble :: ProgramInfo -> List CoreDefinition -> String
+  par-preamble info definitions = if par-used definitions then par-declarations (par-prefix info) else ""
   -- The module prelude. Debug counting swaps only the two count helpers,
   -- so every other declaration and every call site is the same bytes. An
   -- emission that does not reclaim emits neither helper, because no body
@@ -5114,10 +5118,10 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True "@cinch_" in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -5212,7 +5216,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True "@cinch_" in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -5329,15 +5333,19 @@ module Bootstrap.RuntimeIr where
   -- carries the object's facts.
   emit-runtime-library-artifact :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact artifact inlining checked provider roots =
+    emit-runtime-library-artifact-for-target "" False artifact inlining checked provider roots
+  emit-runtime-library-artifact-for-target :: String -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact-for-target header cooperative artifact inlining checked provider roots =
+    let parallel-prefix = if cooperative then "@cinch_coop_" else "@cinch_" in
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True parallel-prefix in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [declarations, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code] in
+          let ir = cat [header, declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code] in
           Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
@@ -5356,10 +5364,14 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program-counting debug reclaim checked provider = emit-runtime-program-counting-mode False debug reclaim checked provider
   emit-runtime-program-counting-mode :: Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-counting-mode inlining debug reclaim checked provider =
+    emit-runtime-program-for-target "" False inlining debug reclaim checked provider
+  emit-runtime-program-for-target :: String -> Bool -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-for-target header cooperative inlining debug reclaim checked provider =
+    let parallel-prefix = if cooperative then "@cinch_coop_" else "@cinch_" in
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty reclaim in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty reclaim parallel-prefix in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
@@ -5369,5 +5381,5 @@ module Bootstrap.RuntimeIr where
         Some mode -> let plan = inline-plan inlining definitions info in
           let settled = settled-workers-with-plan plan definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug reclaim, par-preamble definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
+            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry, builder-run code, entry mode reclaim])
             Writer next globals code errors layouts datas -> Err errors

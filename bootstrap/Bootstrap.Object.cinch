@@ -317,7 +317,7 @@ module Bootstrap.Object where
   parse-runtime-object :: String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
   parse-runtime-object expected-triple interfaces code doc =
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
-      (JNum 1, JNum actual-abi, JNum 64, JStr endian, JBool True, JStr actual, JBool True) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual
+      (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool True, JStr actual, JBool True) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual && bits == (if same actual "wasm32-unknown-unknown" then 32 else 64)
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else

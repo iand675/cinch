@@ -24,7 +24,7 @@ module Bootstrap.Export where
   import Text.Lex (bytes-slice)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export export-interfaces, interface-hash, build-manifest
+  export export-interfaces, interface-hash, build-manifest, build-profile-manifest
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
@@ -926,9 +926,13 @@ module Bootstrap.Export where
 
   build-manifest :: String -> Json -> List LoadedInterface -> List (String, Json) -> Json
   build-manifest entry provider interfaces rows =
-    let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
     let target-facts = JObj "triple" (field "target" provider)
           (JObj "word_size" (field "word_size" provider) (JObj "endian" (field "endian" provider) JObjEnd)) in
+    build-profile-manifest entry target-facts interfaces rows
+
+  build-profile-manifest :: String -> Json -> List LoadedInterface -> List (String, Json) -> Json
+  build-profile-manifest entry target-facts interfaces rows =
+    let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
     let trust = JObj "primitives" (build-assumptions "primitives" contracts)
           (JObj "foreign" (build-assumptions "foreign" contracts)
             (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in

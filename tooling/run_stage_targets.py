@@ -29,7 +29,7 @@ def setup(stage, out, tree):
     wrapper = out / 'frontend.py'
     write_wrapper(wrapper, compiler, objects, provider['runtime'])
     env = {k: v for k, v in bootstrap.environment().items() if not k.startswith('CINCH_TEST_')}
-    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
+    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(provider['runtime']),
                CINCH_TEST_LIBRARY_OBJECT=str(provider['object']),
                CINCH_TEST_SOURCE_ROOT=str(tree / 'compiler'), PYTHONDONTWRITEBYTECODE='1')

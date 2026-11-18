@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import json
 import os
 from pathlib import Path
 import shutil
@@ -106,12 +108,59 @@ def stage3_artifacts():
     return compiler, manifest, objects, runtime, hashes
 
 
+def test_target_inputs(directory, objects, triple):
+    """Build only the base library for the requested target using its pinned producer."""
+    from bootstrap_objects import ENTRY, admitted_interfaces
+
+    supported = {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
+                 "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"}
+    if triple not in supported:
+        raise ValueError(f"unsupported target {triple!r}")
+    configuration = bootstrap.read_json(Path(objects))
+    pinned = bootstrap.runtime_provider()
+    if (pinned["identity"].get("kind") == "current-base-artifact"
+            or configuration != pinned["configuration"]):
+        raise ValueError("cross compilation requires a pinned base library producer")
+    native = pinned["object"].parent
+    producer = native / "cinch"
+    roots = bootstrap.ROOT / "bootstrap/library-object-roots.json"
+    output = Path(directory) / "target-libraries" / configuration["object_sha256"] / triple
+    project = output / "library"
+    project.mkdir(parents=True, exist_ok=True)
+    manifest, config = output / "interfaces.json", output / "objects.json"
+    with (output / ".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not config.exists():
+            source = project / "CinchBaseObject.cinch"
+            source.write_bytes(ENTRY)
+            code = bootstrap.run([producer, "emit-object", source, "--target", triple,
+                                  "--object-roots", roots, "-o", output / "library.o"],
+                                 project, output / "build.log")
+            if code:
+                raise ValueError(f"building {triple} base library failed: {output / 'build.log'}")
+            metadata = output / "library.abi.json"
+            document = bootstrap.read_json(metadata)
+            if document.get("target") != triple:
+                raise ValueError("base library producer emitted a different target")
+            host_modules = bootstrap.read_json(native / "interfaces.json")["interfaces"]
+            package = {"modules": [{"name": row[0]} for row in host_modules]}
+            bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
+            library = output / "library.o"
+            bootstrap.write_json(config, dict(schema=1, target=triple, object=str(library),
+                                              metadata=str(metadata), object_sha256=bootstrap.file_hash(library),
+                                              metadata_sha256=bootstrap.file_hash(metadata)))
+    print(json.dumps({"interfaces": str(manifest), "objects": str(config)}))
+    return 0
+
+
 def write_wrapper(wrapper, compiler, objects, runtime):
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
-        "from verify_stage3 import compile_client\n"
+        "from verify_stage3 import compile_client, test_target_inputs\n"
         f"compiler={str(compiler)!r}\n"
+        "if len(sys.argv) == 3 and sys.argv[1] == '--test-target-inputs':\n"
+        f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2]))\n"
         f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:]))\n"
     )
     wrapper.chmod(0o755)
@@ -156,7 +205,7 @@ def verify(evidence, cargo_target):
     write_wrapper(wrapper, compiler, objects, runtime)
     hashes[wrapper] = bootstrap.file_hash(wrapper)
     env = {name: value for name, value in bootstrap.environment().items() if not name.startswith("CINCH_TEST_")}
-    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
+    env.update(CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
                CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "compiler"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")
     report = {
