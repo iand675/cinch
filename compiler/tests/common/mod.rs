@@ -210,12 +210,17 @@ pub fn drive_with(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Op
 /// The selected compiler receives the profile as flags, or the selector
 /// names the profile fields it lacks.
 pub fn drive_with_profile(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>, profile: &TargetProfile) -> Result<i32, String> {
+    drive_with_profile_opts(mode, stage, dir, entry, out, profile, &DriverOptions::default())
+}
+
+/// Drive the selected frontend with both a checked profile and linker options.
+pub fn drive_with_profile_opts(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>, profile: &TargetProfile, opts: &DriverOptions) -> Result<i32, String> {
     if let Some(frontend) = external_frontend::configured()? {
-        let request = external_frontend::profile_request(mode, stage, profile)?;
+        let request = external_frontend::profile_options_request(mode, stage, profile, opts)?;
         return external_frontend::drive_profile(&frontend, mode, dir, entry, out, &request);
     }
-    let (path, profile) = (dir.join(entry), profile.clone());
-    on_driver_thread(move || cinch::driver::driver_with_profile(mode, stage, &path, out.as_deref(), &profile))
+    let (path, profile, opts) = (dir.join(entry), profile.clone(), opts.clone());
+    on_driver_thread(move || cinch::driver::driver_with_profile_opts(mode, stage, &path, out.as_deref(), &profile, &opts))
 }
 
 /// [`drive`] with explicit driver options (target triple, object roots,

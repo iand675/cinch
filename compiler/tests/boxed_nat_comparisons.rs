@@ -1,5 +1,7 @@
 //! Optimized comparisons must read boxed naturals before their owners are released.
 
+mod common;
+
 /// Public arithmetic produces fresh boxed operands from a runtime byte count.
 const SOURCE: &str = r#"-- | Compare independently allocated mathematical naturals.
 module Main where
@@ -34,22 +36,20 @@ fn boxed_comparisons_precede_owned_operand_release() {
             let entry = project.path().join("Main.cinch");
             let executable = project.path().join("consumer");
             std::fs::write(&entry, SOURCE).unwrap();
-            let output = executable.clone();
-            std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || {
-                let profile = cinch::core::TargetProfile {
-                    reclaim: true,
-                    rc_debug: checked_counts,
-                    ..cinch::core::TargetProfile::native()
-                };
-                cinch::driver::driver_with_profile_opts(
-                    cinch::driver::Mode::Build,
-                    cinch::check::StageMode::Refresh,
-                    &entry,
-                    Some(&output),
-                    &profile,
-                    &cinch::driver::DriverOptions { opt_level: Some(level), ..Default::default() },
-                )
-            }).unwrap().join().unwrap().unwrap();
+            let profile = cinch::core::TargetProfile {
+                reclaim: true,
+                rc_debug: checked_counts,
+                ..cinch::core::TargetProfile::native()
+            };
+            common::drive_with_profile_opts(
+                cinch::driver::Mode::Build,
+                cinch::check::StageMode::Refresh,
+                project.path(),
+                "Main.cinch",
+                Some(executable.clone()),
+                &profile,
+                &cinch::driver::DriverOptions { opt_level: Some(level), ..Default::default() },
+            ).expect("build the comparison program");
             for poisoned in [false, true] {
                 for input in ["", "x", "xx", "sixteen-byte-key"] {
                     let result = std::process::Command::new(&executable).arg(input)

@@ -127,6 +127,23 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     Ok(Request { flags, program_args: Vec::new(), link })
 }
 
+pub fn profile_options_request(mode: Mode, stage: StageMode, profile: &TargetProfile, opts: &DriverOptions) -> Result<Request, String> {
+    let mut request = profile_request(mode, stage, profile)?;
+    let options = options_request(mode, opts)?;
+    if opts.target.as_ref().is_some_and(|target| target != &profile.triple) {
+        return Err("driver target disagrees with the explicit target profile".into());
+    }
+    if let Some(mut link) = options.link {
+        link.target = Some(profile.triple.clone());
+        request.link = Some(link);
+    }
+    if opts.no_reclaim && profile.reclaim {
+        request.flags.push("--no-reclaim".into());
+    }
+    request.program_args = options.program_args;
+    Ok(request)
+}
+
 /// The request for a compile under driver `opts`, or the options the
 /// selected compiler cannot honour. Never a Native fallback.
 pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, String> {
