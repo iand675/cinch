@@ -1,0 +1,165 @@
+-- | Independent exact-offer fixture outputs with controlled physical progress and separate malformed reports.
+-- This module is test support only: no formatter, library output prediction or storage interface is implemented here.
+module Fixture.Tabwriter.Protocol where
+  import Effect.Tabwriter
+  import Effect.Tabwriter.Internal.Cell as Cell
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Data.Machine
+
+  export Spy, SpyPolicy, Policy, SpyFailure, Failure, spy-new, spy-capability, spy-matches
+  export ExpectedOffer, ExpectedFailure, NoFailure, ShortFailure, SinkFailure
+  export error-equals, outcome-equals
+
+  -- | One deterministic original error injection and its independently bounded physical prefix.
+  data SpyFailure where
+    -- | Call ordinal, optional physical prefix cap, original error code and empty-offer failure switch.
+    Failure :: Nat -> Option Nat -> String -> Bool -> SpyFailure
+
+  -- | Physical prefix limit, injected failure, optional malformed report and bounded observer limits.
+  data SpyPolicy where
+    -- | These controls describe only an underlying output, never a tabular layout expectation.
+    Policy :: Option Nat -> Option SpyFailure -> Option (Nat, Int) -> Nat -> Nat -> SpyPolicy
+
+  -- | One actual output offer retained independently of parser state.
+  data ActualOffer where
+    -- | Private offered bytes, reported count, physical accepted bytes and original error code.
+    ActualOffer :: Bytes -> Int -> Nat -> Option String -> ActualOffer
+
+  -- | One literal independent SDK output observation used only by the generated consumer.
+  data ExpectedOffer where
+    -- | Exact raw offer, signed report, physical prefix and optional original error code.
+    ExpectedOffer :: Bytes -> Int -> Nat -> Option String -> ExpectedOffer
+
+  -- | Public formatter failures retain their family separately from arbitrary original errors.
+  data ExpectedFailure where
+    -- | The public operation returned no failure.
+    NoFailure :: ExpectedFailure
+    -- | The underlying report differed from the offered size without an original error.
+    ShortFailure :: ExpectedFailure
+    -- | Preserve one literal independent original error code.
+    SinkFailure :: String -> ExpectedFailure
+
+  -- | Cumulative callback observations, physically accepted byte pieces and exact next ordinal.
+  data SpyState where
+    -- | Logs are reversed for constant-time appends; no field reaches library writer state.
+    SpyState :: Nat -> Nat -> List ActualOffer -> List Bytes -> SpyState
+
+  -- | Test-owned observation state and fixed policy, deliberately separate from the advanced output closure.
+  data Spy (r :: Region) where
+    -- | Only this fixture can access observation storage; actual writer state remains opaque.
+    ObservedSpy :: SpyPolicy -> Cell.TabCellRef r SpyState -> Spy r
+
+  -- | Construct a new independent observer with no output calls or accepted bytes.
+  spy-new :: forall (r :: Region). SpyPolicy ->{IO r} Spy r
+  spy-new policy = let storage = Cell.cell-new (SpyState 0 0 Nil Nil) in ObservedSpy policy storage
+
+  -- | Copy exactly the proved physical prefix without relying on a potentially malformed reported count.
+  prefix-copy :: using (count <= bytes-len raw) => (raw :: Bytes) -> (count :: Nat) -> Bytes
+  prefix-copy raw count =
+    let output = bytes-new count in
+    let copied = bytes-copy-range output raw 0 0 count in output
+
+  -- | Test an explicit injection point while preserving the original callback's opaque error code.
+  selected-failure :: Option SpyFailure -> Nat -> Nat -> (Option Nat, Option String)
+  selected-failure failure call wanted = case failure of
+    None -> (None, None)
+    Some (Failure at prefix code empty) ->
+      if (at > 0 && call == at) || (empty && wanted == 0) then (prefix, Some code) else (None, None)
+
+  -- | Return one controlled exact output result and an advanced capability carrying the next private ordinal.
+  spy-step :: forall (r :: Region). Spy r -> Nat -> Bytes ->{IO r} (Int, Option String, TabOutput r String)
+  spy-step spy epoch raw = case spy of
+    ObservedSpy policy storage -> case policy of
+      Policy maximum failure override offer-limit byte-limit -> case Cell.cell-read storage of
+        SpyState calls bytes offers pieces ->
+          let call = calls + 1 in
+          let wanted = bytes-len raw in
+          let capped = case maximum of
+                None -> wanted
+                Some limit -> if limit < wanted then limit else wanted in
+          let (prefix, original) = selected-failure failure call wanted in
+          let accepted = case prefix of
+                None -> capped
+                Some limit -> if limit < capped then limit else capped in
+          let limited = call > offer-limit || bytes + accepted > byte-limit in
+          let available = if bytes <= byte-limit then byte-limit - bytes else 0 in
+          let physical = if limited && available < accepted then available else accepted in
+          let error = if epoch /= calls then Some "capability-not-advanced"
+                else if limited then Some "observer-limit" else original in
+          let reported = case override of
+                None -> nat-to-int physical
+                Some (at, count) -> if at == 0 || at == call then count else nat-to-int physical in
+          if physical <= wanted then
+            let copied = prefix-copy raw physical in
+            let row = ActualOffer raw reported physical error in
+            let total = bytes + physical in
+            let recorded = Cell.cell-write storage (SpyState call total (Cons row offers) (Cons copied pieces)) in
+            (reported, error, spy-output spy call)
+          else (0, Some "invalid-fixture-physical-count", spy-output spy call)
+
+  -- | Construct the next underlying capability without relabeling an earlier epoch.
+  spy-output :: forall (r :: Region). Spy r -> Nat -> TabOutput r String
+  spy-output spy epoch = tab-output (\raw -> spy-step spy epoch raw)
+
+  -- | Obtain the current underlying capability, including after an initializer reuses an existing observer.
+  spy-capability :: forall (r :: Region). Spy r ->{IO r} TabOutput r String
+  spy-capability spy = case spy of
+    ObservedSpy policy storage -> case Cell.cell-read storage of
+      SpyState calls bytes offers pieces -> spy-output spy calls
+
+  -- | Compare literal original error codes without formatting, normalizing or replacing their bytes.
+  same-error :: Option String -> Option String -> Bool
+  same-error actual expected = case actual of
+    None -> case expected of
+      None -> True
+      Some _ -> False
+    Some first -> case expected of
+      None -> False
+      Some second -> eq-i64 (string-compare first second) 0
+
+  -- | Compare every retained offered buffer and all signed report/physical/error observations.
+  same-offers :: List ActualOffer -> List ExpectedOffer -> Bool
+  same-offers actual expected = case actual of
+    Nil -> case expected of
+      Nil -> True
+      Cons _ _ -> False
+    Cons row rest -> case expected of
+      Nil -> False
+      Cons next tail -> case row of
+        ActualOffer raw reported physical error -> case next of
+          ExpectedOffer wanted count accepted failure ->
+            eq-i64 (bytes-compare raw wanted) 0 && reported == count && physical == accepted &&
+              same-error error failure && same-offers rest tail
+
+  -- | Compare the complete cumulative offer history and physically accepted bytes after one public operation.
+  spy-matches :: forall (r :: Region). Spy r -> List ExpectedOffer -> Bytes ->{IO r} Bool
+  spy-matches spy expected wanted = case spy of
+    ObservedSpy policy storage -> case Cell.cell-read storage of
+      SpyState calls bytes offers pieces ->
+        let output = bytes-concat (reverse pieces) in
+        same-offers (reverse offers) expected && eq-i64 (bytes-compare output wanted) 0
+
+  -- | Compare public failure families while leaving checked native-only refusal cases to their separate controls.
+  error-equals :: Option (TabWriteError String) -> ExpectedFailure -> Bool
+  error-equals actual expected = case actual of
+    None -> case expected of
+      NoFailure -> True
+      _ -> False
+    Some (TabOutputFailure original) -> case expected of
+      SinkFailure code -> eq-i64 (string-compare original code) 0
+      _ -> False
+    Some (TabShortWrite wanted reported) -> case expected of
+      ShortFailure -> True
+      _ -> False
+    _ -> False
+
+  -- | Compare the exact consumed-input count and the independently observed public failure family.
+  outcome-equals :: TabWriteOutcome String -> Nat -> ExpectedFailure -> Bool
+  outcome-equals actual count error = tab-write-consumed actual == count && error-equals (tab-write-error actual) error

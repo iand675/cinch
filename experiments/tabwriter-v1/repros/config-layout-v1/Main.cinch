@@ -1,0 +1,73 @@
+-- | Exercise checked dimensions and every flag observation before the formatter is admitted.
+module Main where
+  import Text.Tabwriter.Config
+  import Data.Bool
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+
+  -- | Observe all original dimensions, arbitrary byte255 and unknown requested bits.
+  configuration-observations :: Bool
+  configuration-observations = case tab-config 7 4 2 255 9223372036854775871 of
+    Err _ -> False
+    Ok config -> tab-config-min-width config == 7 && tab-config-tab-width config == 4 &&
+      tab-config-padding config == 2 && eq-u8 (tab-config-pad-byte config) 255 &&
+      eq-u64 (tab-config-flags config) 9223372036854775871 &&
+      tab-config-filter-html config && tab-config-strip-escape config &&
+      tab-config-align-right config && tab-config-discard-empty-columns config &&
+      tab-config-indent config && tab-config-debug config
+
+  -- | A tab padding byte overrides right alignment without erasing the requested bit.
+  alignment-observations :: Bool
+  alignment-observations = case tab-config 0 0 0 9 4 of
+    Err _ -> False
+    Ok config -> not (tab-config-align-right config) && eq-u64 (tab-config-flags config) 4 &&
+      tab-config-tab-width config == 0 && not (tab-config-filter-html config)
+
+  -- | The maximum signed64-bit dimensions are accepted without arithmetic or allocation.
+  maximum-observations :: Bool
+  maximum-observations = case tab-config 9223372036854775807 9223372036854775807 9223372036854775807 128 0 of
+    Err _ -> False
+    Ok config -> tab-config-min-width config == 9223372036854775807 &&
+      tab-config-tab-width config == 9223372036854775807 && tab-config-padding config == 9223372036854775807
+
+  -- | Negative dimensions retain their exact identity and original value.
+  negative-observations :: Bool
+  negative-observations =
+    let first = case tab-config (0 - 1) 0 0 32 0 of
+          Err (TabConfigNegative TabMinimumWidth value) -> value == (0 - 1)
+          _ -> False in
+    let second = case tab-config 0 (0 - 2) 0 32 0 of
+          Err (TabConfigNegative TabTabWidth value) -> value == (0 - 2)
+          _ -> False in
+    let third = case tab-config 0 0 (0 - 3) 32 0 of
+          Err (TabConfigNegative TabPadding value) -> value == (0 - 3)
+          _ -> False in
+    first && second && third
+
+  -- | Values above the machine interval are refused before constructing a configuration.
+  oversized-observations :: Bool
+  oversized-observations =
+    let first = case tab-config 9223372036854775808 0 0 32 0 of
+          Err (TabConfigTooLarge TabMinimumWidth value) -> value == 9223372036854775808
+          _ -> False in
+    let second = case tab-config 0 9223372036854775808 0 32 0 of
+          Err (TabConfigTooLarge TabTabWidth value) -> value == 9223372036854775808
+          _ -> False in
+    let third = case tab-config 0 0 9223372036854775808 32 0 of
+          Err (TabConfigTooLarge TabPadding value) -> value == 9223372036854775808
+          _ -> False in
+    first && second && third
+
+  -- | Return a distinct group index if an observation changes.
+  main :: Int
+  main = if configuration-observations then
+    if alignment-observations then
+      if maximum-observations then
+        if negative-observations then
+          if oversized-observations then 0 else 5
+        else 4
+      else 3
+    else 2
+    else 1

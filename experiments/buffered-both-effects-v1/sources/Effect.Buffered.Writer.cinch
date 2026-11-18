@@ -1,0 +1,338 @@
+-- | Buffered byte output with sticky failures, exact partial progress and independently owned reservations.
+-- Buffered input is snapshotted into immutable chunk spines. Flushes join once,
+-- retain an unwritten suffix on failure, and never expose private buffer storage.
+module Effect.Buffered.Writer where
+  import Effect.Buffered.Core
+  import Effect.Io
+  import Effect.Stream
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Utf8 as Utf8
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export BufferedWriter, BufferSpace
+  export buffered-writer, buffered-writer-sized, buffered-writer-from-stream, buffered-writer-from-stream-sized
+  export buffered-writer-size, buffered-writer-buffered, buffered-writer-available
+  export buffered-writer-reset, buffered-writer-reset-self, buffered-writer-rebuffer, buffered-writer-as-sink
+  export buffered-write, buffered-write-byte, buffered-write-rune, buffered-write-char, buffered-write-text, buffered-write-text-bytes
+  export buffered-flush, buffered-read-from, buffered-flush-through, buffered-writer-sink, buffered-writer-finish
+  export buffered-writer-space, buffer-space-capacity, buffer-space-length, buffer-space-append, buffer-space-reserve, buffer-space-bytes, buffered-write-space
+
+  -- | An advanced buffered output with immutable private pending chunks and sticky failure state.
+  data BufferedWriter r where
+    -- | Capacity, reversed owned chunks, buffered length, sink and retained write failure.
+    BufferedOutput :: Nat -> List Bytes -> Nat -> BufferSink r -> Option BufferError -> BufferedWriter r
+
+  -- | A fresh bounded reservation snapshots appended bytes independently of any writer's private buffer.
+  data BufferSpace where
+    -- | Advertised capacity, reversed immutable pieces and used length.
+    Space :: Nat -> List Bytes -> Nat -> BufferSpace
+
+  -- | Copy a checked caller interval before retaining or offering it to a callback.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Buffer a raw sink using the default 4096-byte capacity.
+  buffered-writer :: forall r. BufferSink r -> BufferedWriter r
+  buffered-writer sink = BufferedOutput 4096 Nil 0 sink None
+
+  -- | Select any positive capacity; zero and negative requests select the default 4096 bytes.
+  buffered-writer-sized :: forall r. Int -> BufferSink r -> BufferedWriter r
+  buffered-writer-sized requested sink = if requested > 0 then BufferedOutput (nat-from-int requested) Nil 0 sink None else buffered-writer sink
+
+  -- | Buffer a stream sink while preserving its original failure and short-count event semantics.
+  buffered-writer-from-stream :: forall r. using (io :: Io r) => ByteWriter r -> BufferedWriter r
+  buffered-writer-from-stream sink = buffered-writer (buffer-sink-from-stream sink)
+
+  -- | Select explicit output capacity while adapting an existing stream sink.
+  buffered-writer-from-stream-sized :: forall r. using (io :: Io r) => Int -> ByteWriter r -> BufferedWriter r
+  buffered-writer-from-stream-sized requested sink = buffered-writer-sized requested (buffer-sink-from-stream sink)
+
+  -- | Observe the fixed output buffer capacity without invoking a sink.
+  buffered-writer-size :: forall r. BufferedWriter r -> Nat
+  buffered-writer-size writer = case writer of BufferedOutput capacity pieces used sink error -> capacity
+
+  -- | Observe pending bytes that still require a successful flush.
+  buffered-writer-buffered :: forall r. BufferedWriter r -> Nat
+  buffered-writer-buffered writer = case writer of BufferedOutput capacity pieces used sink error -> used
+
+  -- | Observe remaining private buffer capacity, excluding bytes already accepted into the buffer.
+  buffered-writer-available :: forall r. BufferedWriter r -> Nat
+  buffered-writer-available writer = case writer of BufferedOutput capacity pieces used sink error -> if used <= capacity then capacity - used else 0
+
+  -- | Replace the underlying sink, discard pending data and clear sticky failure while retaining capacity.
+  buffered-writer-reset :: forall r. BufferedWriter r -> BufferSink r -> BufferedWriter r
+  buffered-writer-reset writer sink = case writer of BufferedOutput capacity pieces used old error -> BufferedOutput capacity Nil 0 sink None
+
+  -- | Resetting a buffered output to itself is an explicit no-op.
+  buffered-writer-reset-self :: forall r. BufferedWriter r -> BufferedWriter r
+  buffered-writer-reset-self writer = writer
+
+  -- | Snapshot a caller prefix into a private immutable chunk without repeatedly copying prior buffered data.
+  retain :: forall r. BufferedWriter r -> Bytes -> BufferedWriter r
+  retain writer input = case writer of
+    BufferedOutput capacity pieces used sink error -> let count = bytes-len input in
+      if count > 0 && used + count <= capacity then BufferedOutput capacity (Cons (part input 0 count) pieces) (used + count) sink error else writer
+
+  -- | Store a sticky write failure without changing buffered bytes or the authoritative sink continuation.
+  fail-writer :: forall r. BufferedWriter r -> BufferError -> BufferedWriter r
+  fail-writer writer failure = case writer of BufferedOutput capacity pieces used sink error -> BufferedOutput capacity pieces used sink (Some failure)
+
+  -- | Offer all pending bytes once, converting unexplained short writes into sticky BufferShortWrite failures.
+  -- A partial failure retains exactly the unaccepted suffix in fresh private storage.
+  buffered-flush :: forall r. using (io :: Io r) => BufferedWriter r ->{IO r} (Option BufferError, BufferedWriter r)
+  buffered-flush writer = case writer of
+    BufferedOutput capacity pieces used sink error -> case error of
+      Some failure -> (error, writer)
+      None -> if used == 0 then (None, writer)
+        else let payload = bytes-concat (reverse pieces) in
+          let offer = part payload 0 used in
+          case buffer-sink-write sink offer of
+            (event, next-sink) -> case event of
+              WriteEvent actual status -> case buffer-write-accepted used event of
+                Err failure -> let next = BufferedOutput capacity pieces used next-sink (Some failure) in (Some failure, next)
+                Ok accepted -> if accepted <= used && used <= bytes-len payload then
+                  let failure = case status of
+                        Some found -> Some found
+                        None -> if accepted < used then Some (BufferShortWrite used accepted) else None in
+                  let remaining = used - accepted in
+                  let tail = if remaining > 0 then Cons (part payload accepted remaining) Nil else Nil in
+                  (failure, BufferedOutput capacity tail remaining next-sink failure)
+                  else let failure = BufferInvalidWriteCount used actual in
+                    (Some failure, BufferedOutput capacity pieces used next-sink (Some failure))
+
+  -- | Return the caller's accepted byte total with a new sticky error and unchanged private pending bytes.
+  write-failure :: forall r. BufferedWriter r -> Nat -> BufferError -> (WriteEvent, BufferedWriter r)
+  write-failure writer count failure = (WriteEvent (nat-to-int count) (Some failure), fail-writer writer failure)
+
+  -- | Process a caller span with direct large writes only for the raw-byte path.
+  write-from :: forall r. using (io :: Io r) => BufferedWriter r -> Bytes -> Nat -> Nat -> Bool ->{IO r} (WriteEvent, BufferedWriter r)
+  write-from writer input at done direct = case writer of
+    BufferedOutput capacity pieces used sink error -> case error of
+      Some failure -> (WriteEvent (nat-to-int done) error, writer)
+      None -> if at <= bytes-len input then
+        let remaining = bytes-len input - at in let available = buffered-writer-available writer in
+        if remaining <= available then
+          let next = retain writer (part input at remaining) in (WriteEvent (nat-to-int (done + remaining)) None, next)
+        else if used == 0 && (direct || buffer-sink-has-text sink) then
+          let payload = part input at remaining in
+          case offer-direct sink payload direct of
+            (event, next-sink) -> case event of
+              WriteEvent actual status -> case buffer-write-accepted remaining event of
+                Err failure -> write-failure (BufferedOutput capacity pieces used next-sink None) done failure
+                Ok accepted -> let next = BufferedOutput capacity pieces used next-sink status in
+                  case status of
+                    Some failure -> (WriteEvent (nat-to-int (done + accepted)) status, next)
+                    None -> if accepted > 0 then write-from next input (at + accepted) (done + accepted) direct
+                      else write-failure next done (BufferShortWrite remaining 0)
+        else let full = retain writer (part input at available) in
+          case buffered-flush full of
+            (Some failure, next) -> (WriteEvent (nat-to-int (done + available)) (Some failure), next)
+            (None, next) -> write-from next input (at + available) (done + available) direct
+        else write-failure writer done (BufferCustomError "invalid caller write interval")
+
+  -- | Write arbitrary bytes, directly forwarding a large input when the buffer is empty and retaining smaller suffixes.
+  buffered-write :: forall r. using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write writer input = write-from writer input 0 0 True
+
+  -- | Write arbitrary text bytes through fixed-buffer string semantics without requiring UTF-8 validity.
+  buffered-write-text-bytes :: forall r. using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write-text-bytes writer input = write-from writer input 0 0 False
+
+  -- | Write a valid immutable string and report accepted encoded bytes, preserving sticky write failure semantics.
+  buffered-write-text :: forall r. using (io :: Io r) => BufferedWriter r -> String ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write-text writer input = buffered-write-text-bytes writer (string-to-bytes input)
+
+  -- | Buffer one byte, flushing a full buffer first; a preceding sticky error accepts no byte.
+  buffered-write-byte :: forall r. using (io :: Io r) => BufferedWriter r -> U8 ->{IO r} (Option BufferError, BufferedWriter r)
+  buffered-write-byte writer value = case writer of
+    BufferedOutput capacity pieces used sink error -> case error of
+      Some failure -> (error, writer)
+      None -> if buffered-writer-available writer == 0 then
+        case buffered-flush writer of
+          (Some failure, next) -> (Some failure, next)
+          (None, next) -> buffered-write-byte next value
+        else let payload = bytes-new 1 in let written = bytes-set payload 0 (u8-to-nat value) in (None, retain writer payload)
+
+  -- | Write one non-ASCII scalar after reserving four bytes or falling back to the small-buffer text path.
+  write-nonascii :: forall r. using (io :: Io r) => BufferedWriter r -> I32 ->{IO r} (WriteEvent, BufferedWriter r)
+  write-nonascii writer value = case writer of
+    BufferedOutput capacity pieces used sink error -> case error of
+      Some failure -> (WriteEvent 0 error, writer)
+      None -> if buffered-writer-available writer < 4 then
+        case buffered-flush writer of
+          (Some failure, next) -> (WriteEvent 0 (Some failure), next)
+          (None, next) -> let payload = Utf8.utf8-encode-rune value in
+            if buffered-writer-available next < 4 then buffered-write-text-bytes next payload
+            else (WriteEvent (nat-to-int (bytes-len payload)) None, retain next payload)
+        else let payload = Utf8.utf8-encode-rune value in (WriteEvent (nat-to-int (bytes-len payload)) None, retain writer payload)
+
+  -- | Write a numeric Unicode scalar; invalid, negative and surrogate values encode one replacement scalar.
+  buffered-write-rune :: forall r. using (io :: Io r) => BufferedWriter r -> I32 ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write-rune writer value = if ge-i32 value 0 && lt-i32 value 128 then
+    let byte = wrapping-i32-to-u8 value in
+    case buffered-write-byte writer byte of
+      (None, next) -> (WriteEvent 1 None, next)
+      (Some failure, next) -> (WriteEvent 0 (Some failure), next)
+    else write-nonascii writer value
+
+  -- | Write a scalar character using its exact shortest UTF-8 encoding.
+  buffered-write-char :: forall r. using (io :: Io r) => BufferedWriter r -> Char ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write-char writer value = let code = char-to-u32 value in let scalar = wrapping-u32-to-i32 code in buffered-write-rune writer scalar
+
+  -- | Obtain a fresh empty bounded reservation advertising the writer's currently unused capacity.
+  buffered-writer-space :: forall r. BufferedWriter r -> BufferSpace
+  buffered-writer-space writer = Space (buffered-writer-available writer) Nil 0
+
+  -- | Observe a reservation's advertised capacity, independent of later writer changes.
+  buffer-space-capacity :: BufferSpace -> Nat
+  buffer-space-capacity space = case space of Space capacity pieces used -> capacity
+
+  -- | Observe the exact byte length appended to a reservation so far.
+  buffer-space-length :: BufferSpace -> Nat
+  buffer-space-length space = case space of Space capacity pieces used -> used
+
+  -- | Snapshot bytes into a reservation, refusing capacity overflow without changing either prior value or caller bytes.
+  buffer-space-append :: BufferSpace -> Bytes -> Result BufferError BufferSpace
+  buffer-space-append space input = case space of
+    Space capacity pieces used -> let count = bytes-len input in
+      if used + count <= capacity then Ok (Space capacity (Cons (part input 0 count) pieces) (used + count))
+      else Err (BufferFull capacity (nat-to-int (used + count)))
+
+  -- | Produce fresh mutable bytes from a reservation; mutation cannot affect earlier observations or its stored pieces.
+  buffer-space-bytes :: BufferSpace -> Bytes
+  buffer-space-bytes space = case space of Space capacity pieces used -> bytes-concat (reverse pieces)
+
+  -- | Commit a reservation through the ordinary checked writer, even if another write advanced the original writer meanwhile.
+  buffered-write-space :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSpace ->{IO r} (WriteEvent, BufferedWriter r)
+  buffered-write-space writer space = buffered-write writer (buffer-space-bytes space)
+
+  -- | Forward a buffered writer as a raw sink with both direct-read and arbitrary-byte text-write capabilities.
+  buffered-writer-as-sink :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSink r
+  buffered-writer-as-sink writer = let plain = buffer-sink (\input -> case buffered-write writer input of
+    (event, next) -> (event, buffered-writer-as-sink next)) in
+    let transfer = buffer-sink-with-transfer plain (\read -> writer-transfer writer read) in
+    let text = buffer-sink-with-text transfer (\input -> writer-text-step writer input) in
+    buffer-sink-with-flush text (\unit -> writer-flush-step writer)
+
+  -- | Preserve fixed-buffer text semantics and both optional capabilities when an outer writer delegates a text operation.
+  writer-text-step :: forall r. using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  writer-text-step writer input = case buffered-write-text-bytes writer input of
+    (event, next) -> (event, buffered-writer-as-sink next)
+
+  -- | Wrap an effectful read operation supplied by a transfer without hiding its continuation cell.
+  callback-source :: forall r. using (io :: Io r) => (Nat ->{IO r, Mut r} ReadEvent) -> BufferSource r
+  callback-source read = buffer-source-with-mutation (\wanted -> let event = read wanted in (event, callback-source read))
+
+  -- | Preserve the advanced writer across a delegated transfer whose read callback may remain retained.
+  writer-transfer :: forall r. using (io :: Io r) => BufferedWriter r -> (Nat ->{IO r, Mut r} ReadEvent) ->{IO r, Mut r} (TransferEvent, BufferSink r)
+  writer-transfer writer read = case buffered-read-from writer (callback-source read) of
+    (event, next, source) -> (event, buffered-writer-as-sink next)
+
+  -- | Reuse a sufficiently large writer; otherwise add an independent outer buffer around its advancing sink.
+  buffered-writer-rebuffer :: forall r. using (io :: Io r) => Int -> BufferedWriter r -> BufferedWriter r
+  buffered-writer-rebuffer requested writer = if requested <= nat-to-int (buffered-writer-size writer) then writer
+    else buffered-writer-sized requested (buffered-writer-as-sink writer)
+
+  -- | Retry at most 100 empty source reads while preserving every authoritative continuation and validating all signed counts.
+  read-source :: forall r. using (io :: Io r) => BufferSource r -> Nat -> Nat ->{IO r, Mut r} (ReadEvent, BufferSource r)
+  read-source source wanted attempts = case buffer-source-read source wanted of
+    (event, next) -> case buffer-read-accepted wanted event of
+      Err failure -> (ReadEvent 0 (bytes-new 0) (Some failure), next)
+      Ok count -> case event of
+        ReadEvent actual payload status -> if count > 0 then (event, next)
+          else case status of
+            Some failure -> (event, next)
+            None -> if attempts < 99 then read-source next wanted (attempts + 1)
+              else (ReadEvent 0 (bytes-new 0) (Some BufferNoProgress), next)
+
+  -- | Read one source event into private chunks and preserve partial progress independently of source failure.
+  read-from-step :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSource r -> I64 ->{IO r, Mut r} (TransferEvent, BufferedWriter r, BufferSource r)
+  read-from-step writer source total = let available = buffered-writer-available writer in
+    case read-source source available 0 of
+      (event, next-source) -> case event of
+        ReadEvent actual payload status -> case buffer-read-accepted available event of
+          Err failure -> (TransferEvent total (Some failure), writer, next-source)
+          Ok count -> if count <= 9223372036854775807 then
+            let next = retain writer (part payload 0 count) in let accepted = nat-to-i64 count in let sum = wrapping-add-i64 total accepted in
+            case status of
+              None -> read-from-loop next next-source sum
+              Some BufferEnd -> if buffered-writer-available next == 0 then
+                case buffered-flush next of (failure, final) -> (TransferEvent sum failure, final, next-source)
+                else (TransferEvent sum None, next, next-source)
+              Some failure -> (TransferEvent sum status, next, next-source)
+            else (TransferEvent total (Some (BufferInvalidReadCount available actual (bytes-len payload))), writer, next-source)
+
+  -- | Delegate to an underlying direct-read sink only with an empty buffer; otherwise fill and flush in order.
+  read-from-loop :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSource r -> I64 ->{IO r, Mut r} (TransferEvent, BufferedWriter r, BufferSource r)
+  read-from-loop writer source total = if buffered-writer-available writer == 0 then
+    case buffered-flush writer of
+      (Some failure, next) -> (TransferEvent total (Some failure), next, source)
+      (None, next) -> read-from-loop next source total
+    else case writer of
+      BufferedOutput capacity pieces used sink error ->
+        if used == 0 && buffer-sink-has-transfer sink then
+          case buffer-sink-transfer sink source of
+            (Some event, next-source, next-sink) -> case event of
+              TransferEvent count status -> (TransferEvent (wrapping-add-i64 total count) status, BufferedOutput capacity pieces used next-sink status, next-source)
+            (None, next-source, next-sink) -> read-from-step (BufferedOutput capacity pieces used next-sink None) next-source total
+        else read-from-step writer source total
+
+  -- | Buffer a complete source, dispatching an underlying sink's optional direct-read capability only after pending output is flushed.
+  -- End-of-input succeeds and flushes an exactly full final buffer; a partially full
+  -- final buffer remains pending. Source failures retain their accepted prefix without becoming sticky sink failures.
+  buffered-read-from :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSource r ->{IO r, Mut r} (TransferEvent, BufferedWriter r, BufferSource r)
+  buffered-read-from writer source = case writer of
+    BufferedOutput capacity pieces used sink error -> case error of
+      Some failure -> (TransferEvent 0 error, writer, source)
+      None -> read-from-loop writer source 0
+
+  -- | Select the advertised large-write operation without confusing raw bytes with a valid-text conversion.
+  offer-direct :: forall r. using (io :: Io r) => BufferSink r -> Bytes -> Bool ->{IO r} (WriteEvent, BufferSink r)
+  offer-direct sink payload raw = if raw then buffer-sink-write sink payload
+    else case buffer-sink-write-text sink payload of
+      (Some event, next) -> (event, next)
+      (None, next) -> (WriteEvent 0 (Some (BufferCustomError "text write capability disappeared")), next)
+
+  -- | Increase a fresh reservation's advertised capacity without copying earlier immutable pieces or affecting its originating writer.
+  -- This is explicit growth for callers that need to append beyond the writer's originally available capacity.
+  buffer-space-reserve :: BufferSpace -> Nat -> BufferSpace
+  buffer-space-reserve space requested = case space of
+    Space capacity pieces used -> if requested > capacity then Space requested pieces used else space
+
+  -- | Observe the authoritative underlying sink after applying the buffered writer's returned advanced handle.
+  -- This exposes transport capabilities, never private buffered bytes or storage.
+  buffered-writer-sink :: forall r. BufferedWriter r -> BufferSink r
+  buffered-writer-sink writer = case writer of BufferedOutput capacity pieces used sink error -> sink
+
+  -- | Flush this buffer and then any optional underlying flush capability, retaining advanced handles and failures at every layer.
+  -- Ordinary buffered-flush remains a single-layer operation. This explicit
+  -- operation drains nested buffered-writer adapters all the way to their transport.
+  buffered-flush-through :: forall r. using (io :: Io r) => BufferedWriter r ->{IO r} (Option BufferError, BufferedWriter r)
+  buffered-flush-through writer = case buffered-flush writer of
+    (Some failure, next) -> (Some failure, next)
+    (None, next) -> case next of
+      BufferedOutput capacity pieces used sink error -> case buffer-sink-flush sink of
+        (None, advanced) -> (None, BufferedOutput capacity pieces used advanced error)
+        (Some None, advanced) -> (None, BufferedOutput capacity pieces used advanced error)
+        (Some (Some failure), advanced) -> (Some failure, BufferedOutput capacity pieces used advanced (Some failure))
+
+  -- | Finish buffered output through owned sink layers and return their advanced transport capability without private buffer exposure.
+  buffered-writer-finish :: forall r. using (io :: Io r) => BufferedWriter r ->{IO r} (Option BufferError, BufferSink r)
+  buffered-writer-finish writer = case buffered-flush-through writer of
+    (status, next) -> (status, buffered-writer-sink next)
+
+  -- | Advertise deep flushing on a raw sink adapter while preserving ordinary single-layer flush as its separate writer operation.
+  writer-flush-step :: forall r. using (io :: Io r) => BufferedWriter r ->{IO r} (Option BufferError, BufferSink r)
+  writer-flush-step writer = case buffered-flush-through writer of
+    (status, next) -> (status, buffered-writer-as-sink next)

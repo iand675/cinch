@@ -1,0 +1,376 @@
+-- | Independent split/scanner observations preserve malformed bytes and absent versus empty tokens.
+module Main where
+  import Effect.Scanner
+  import Effect.Scanner.Split
+  import Effect.Buffered.Core
+  import Effect.Buffered.Internal.Cell as Cell
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Compare arbitrary bytes without applying a text conversion.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Decode one generator-owned lowercase hexadecimal digit.
+  hex-digit :: Nat -> Nat
+  hex-digit value = if value >= 97 then value - 87 else if value >= 48 then value - 48 else 0
+
+  -- | Fill exact byte pairs from an ASCII hexadecimal fixture, with both intervals checked.
+  unhex-from :: Bytes -> Bytes -> Nat -> Unit
+  unhex-from input output at = if at < bytes-len output && at * 2 + 1 < bytes-len input then
+    let high = hex-digit (bytes-get input (at * 2)) in let low = hex-digit (bytes-get input (at * 2 + 1)) in
+    let value = high * 16 + low in
+    if value <= 255 then let written = bytes-set output at value in unhex-from input output (at + 1) else ()
+    else ()
+
+  -- | Reconstruct an arbitrary byte fixture without a deeply nested numeric constructor list.
+  unhex :: String -> Bytes
+  unhex text = let input = string-to-bytes text in let output = bytes-new (u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) / 2) in
+    let written = unhex-from input output 0 in output
+
+  -- | Copy one checked raw source interval into a fresh event.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Preserve actual source request widths in initialized private I/O storage.
+  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r
+  source input at chunk together empties calls logging fast = let plain = buffer-source (\wanted -> source-read input at chunk together empties calls logging fast wanted) in
+    if fast then buffer-source-with-transfer plain (\write -> source-transfer input at chunk together empties calls logging write) else plain
+
+  -- | Advance the immutable transport cursor and distinguish transient emptiness from end-of-input.
+  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)
+  source-read input at chunk together empties calls logging fast wanted =
+    let logged = if logging then Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) else () in
+    if empties > 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together (empties - 1) calls logging fast)
+    else if wanted == 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together 0 calls logging fast)
+    else if at < bytes-len input then
+      let remaining = bytes-len input - at in let limited = if remaining < wanted then remaining else wanted in
+      let count = if chunk > 0 && chunk < limited then chunk else limited in
+      let status = if together && at + count == bytes-len input then Some BufferEnd else None in
+      (ReadEvent (nat-to-int count) (part input at count) status, source input (at + count) chunk together 0 calls logging fast)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source input at chunk together 0 calls logging fast)
+
+  -- | Expose a direct source transfer whose request log remains distinguishable from ordinary reads.
+  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)
+  source-transfer input at chunk together empties calls logging write =
+    let logged = if logging then Cell.cell-write calls (Cons (-1) (Cell.cell-read calls)) else () in
+    let remaining = if at <= bytes-len input then bytes-len input - at else 0 in
+    let payload = part input at remaining in
+    case write payload of
+      event -> case buffer-write-accepted remaining event of
+        Err failure -> (TransferEvent 0 (Some failure), source input at chunk together empties calls logging True)
+        Ok accepted -> case event of
+          WriteEvent actual status -> if accepted <= 9223372036854775807 then
+            (TransferEvent (nat-to-i64 accepted) status, source input (at + accepted) chunk together empties calls logging True)
+            else (TransferEvent 0 (Some (BufferInvalidWriteCount remaining actual)), source input at chunk together empties calls logging True)
+
+  -- | Produce an independently configured invalid source count without inventing initialized payload bytes.
+  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r
+  fault-source fault calls = buffer-source (\wanted -> let logged = Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) in
+    let actual = if fault < 0 then (-1) else nat-to-int wanted + 1 in
+    (ReadEvent actual (bytes-new 0) None, fault-source fault calls))
+
+  -- | Compare complete callback histories rather than only the final byte result.
+  same-calls :: List Int -> List Int -> Bool
+  same-calls first second = case first of
+    Nil -> case second of Nil -> True; other -> False
+    Cons value rest -> case second of
+      Cons expected tail -> value == expected && same-calls rest tail
+      Nil -> False
+
+
+  -- | Normalize every failure to exit1 after printing its full independent observation index.
+  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int
+  report-failure index = let printed = ioWrite (string-to-bytes (string-concat (int-to-string index) "\n")) in 1
+
+  -- | Keep byte reconstruction opaque to compile-time evaluation so public splitter calls execute at runtime.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Normalize structural scanner failures independently of their native presentation strings.
+  error-code :: Option ScanError -> Nat
+  error-code error = case error of
+    None -> 0
+    Some ScanTooLong -> 1
+    Some (ScanNegativeAdvance count) -> 2
+    Some (ScanAdvanceTooFar count available) -> 3
+    Some (ScanBadReadCount wanted actual supplied) -> 4
+    Some ScanNoProgress -> 5
+    Some (ScanEmptyTokens count) -> 6
+    Some (ScanEmptyTokensAfter count prior) -> 6
+    other -> 99
+
+  -- | Compare optional tokens, preserving Some empty independently of None.
+  same-token :: Option Bytes -> Option Bytes -> Bool
+  same-token actual expected = case actual of
+    None -> case expected of None -> True; other -> False
+    Some payload -> case expected of None -> False; Some wanted -> same payload wanted
+
+  -- | Select actual built-in functions or explicit adversarial pure split callbacks.
+  splitter :: Nat -> ScanSplit
+  splitter kind = if kind == 0 then scan-split scan-bytes
+    else if kind == 1 then scan-split scan-lines
+    else if kind == 2 then scan-split scan-runes
+    else if kind == 3 then scan-split scan-words
+    else if kind == 4 then scan-split (\input terminal -> ScanStep (-1) None None)
+    else if kind == 5 then scan-split (\input terminal -> ScanStep (nat-to-int (bytes-len input + 1)) None None)
+    else if kind == 6 then scan-split (\input terminal -> ScanStep 0 None (Some ScanFinalToken))
+    else if kind == 7 then scan-split (\input terminal -> ScanStep 0 (Some (bytes-new 0)) (Some ScanFinalToken))
+    else scan-split (\input terminal -> ScanStep 0 (Some (bytes-new 0)) None)
+
+  -- | One scanner observation may repeat, keeping a long nonprogress sequence shallow in the source AST.
+  data ScanCheck where
+    -- | Repetitions, more-token result, optional raw bytes, error family and UTF-8 text validity.
+    ScanCheck :: Nat -> Bool -> Option Bytes -> Nat -> Bool -> ScanCheck
+
+  -- | Compare scanner state through public observations after each authoritative advanced scan.
+  scan-checks :: forall r. using (io :: Io r) => Scanner r -> List ScanCheck -> Nat ->{IO r} Int
+  scan-checks current rows index = case rows of
+    Nil -> 0
+    Cons row rest -> case row of
+      ScanCheck repeated more token error valid-text -> if repeated > 0 then
+        case scanner-next current of
+          (actual, next) -> let text-valid = case scanner-text next of None -> False; Some text -> True in
+            if actual == more && same-token (scanner-token next) token && error-code (scanner-error next) == error && text-valid == valid-text then
+              if repeated > 1 then scan-checks next (Cons (ScanCheck (repeated - 1) more token error valid-text) rest) (index + 1)
+              else scan-checks next rest (index + 1)
+            else nat-to-int index
+        else scan-checks current rest index
+
+  -- | Independent full scanner trace 0 with explicit terminal-empty-token refusal adaptation.
+  batchcase0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase0 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 998
+      Ok buffered -> case scanner-split buffered (splitter 0) of
+        Err failure -> 999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 1
+
+  -- | Independent full scanner trace 1 with explicit terminal-empty-token refusal adaptation.
+  batchcase1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase1 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 True 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 1998
+      Ok buffered -> case scanner-split buffered (splitter 0) of
+        Err failure -> 1999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 1001
+
+  -- | Independent full scanner trace 12 with explicit terminal-empty-token refusal adaptation.
+  batchcase2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase2 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 12998
+      Ok buffered -> case scanner-split buffered (splitter 1) of
+        Err failure -> 12999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 12001
+
+  -- | Independent full scanner trace 13 with explicit terminal-empty-token refusal adaptation.
+  batchcase3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase3 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 True 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 13998
+      Ok buffered -> case scanner-split buffered (splitter 1) of
+        Err failure -> 13999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 13001
+
+  -- | Independent full scanner trace 24 with explicit terminal-empty-token refusal adaptation.
+  batchcase4 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase4 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 24998
+      Ok buffered -> case scanner-split buffered (splitter 2) of
+        Err failure -> 24999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 24001
+
+  -- | Independent full scanner trace 25 with explicit terminal-empty-token refusal adaptation.
+  batchcase5 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase5 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 True 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 25998
+      Ok buffered -> case scanner-split buffered (splitter 2) of
+        Err failure -> 25999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 25001
+
+  -- | Independent full scanner trace 36 with explicit terminal-empty-token refusal adaptation.
+  batchcase6 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase6 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 36998
+      Ok buffered -> case scanner-split buffered (splitter 3) of
+        Err failure -> 36999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 36001
+
+  -- | Independent full scanner trace 37 with explicit terminal-empty-token refusal adaptation.
+  batchcase7 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase7 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 True 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 37998
+      Ok buffered -> case scanner-split buffered (splitter 3) of
+        Err failure -> 37999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 37001
+
+  -- | Independent full scanner trace 48 with explicit terminal-empty-token refusal adaptation.
+  batchcase8 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase8 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 48998
+      Ok buffered -> case scanner-split buffered (splitter 4) of
+        Err failure -> 48999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 2 True)
+        ] 48001
+
+  -- | Independent full scanner trace 60 with explicit terminal-empty-token refusal adaptation.
+  batchcase9 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase9 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 60998
+      Ok buffered -> case scanner-split buffered (splitter 5) of
+        Err failure -> 60999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 3 True)
+        ] 60001
+
+  -- | Independent full scanner trace 72 with explicit terminal-empty-token refusal adaptation.
+  batchcase10 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase10 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 72998
+      Ok buffered -> case scanner-split buffered (splitter 6) of
+        Err failure -> 72999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 False None 0 True)
+        ] 72001
+
+  -- | Independent full scanner trace 84 with explicit terminal-empty-token refusal adaptation.
+  batchcase11 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase11 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 84998
+      Ok buffered -> case scanner-split buffered (splitter 7) of
+        Err failure -> 84999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 True (Some (unhex "")) 0 True),
+          (ScanCheck 1 False (Some (unhex "")) 0 True)
+        ] 84001
+
+  -- | Independent full scanner trace 96 with explicit terminal-empty-token refusal adaptation.
+  batchcase12 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase12 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 False 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 96998
+      Ok buffered -> case scanner-split buffered (splitter 8) of
+        Err failure -> 96999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 100 True (Some (unhex "")) 0 True),
+          (ScanCheck 1 False (Some (unhex "")) 6 True)
+        ] 96001
+
+  -- | Independent full scanner trace 97 with explicit terminal-empty-token refusal adaptation.
+  batchcase13 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase13 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "") 0 1 True 0 calls False False) in
+    case scanner-buffer-size raw 2 32 of
+      Err failure -> 97998
+      Ok buffered -> case scanner-split buffered (splitter 8) of
+        Err failure -> 97999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 100 True (Some (unhex "")) 0 True),
+          (ScanCheck 1 False (Some (unhex "")) 6 True)
+        ] 97001
+
+  -- | Independent full scanner trace 108 with explicit terminal-empty-token refusal adaptation.
+  batchcase14 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase14 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "787878787878787878787878787878") 0 4096 False 0 calls False False) in
+    case scanner-buffer-size raw 0 65536 of
+      Err failure -> 108998
+      Ok buffered -> case scanner-split buffered (splitter 1) of
+        Err failure -> 108999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 True (Some (unhex "787878787878787878787878787878")) 0 True),
+          (ScanCheck 1 False None 0 True)
+        ] 108001
+
+  -- | Independent full scanner trace 109 with explicit terminal-empty-token refusal adaptation.
+  batchcase15 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  batchcase15 unit = let calls = Cell.cell-new Nil in
+    let raw = scanner (source (unhex "787878787878787878787878787878") 0 4096 True 0 calls False False) in
+    case scanner-buffer-size raw 0 65536 of
+      Err failure -> 109998
+      Ok buffered -> case scanner-split buffered (splitter 1) of
+        Err failure -> 109999
+        Ok configured -> scan-checks configured [
+          (ScanCheck 1 True (Some (unhex "787878787878787878787878787878")) 0 True),
+          (ScanCheck 1 False None 0 True)
+        ] 109001
+
+  -- | Run independent observations 1 through 16 without a deep generated let spine.
+  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-group0 unit =
+    let result0 = batchcase0 () in if not (result0 == 0) then result0
+    else let result1 = batchcase1 () in if not (result1 == 0) then result1
+    else let result2 = batchcase2 () in if not (result2 == 0) then result2
+    else let result3 = batchcase3 () in if not (result3 == 0) then result3
+    else let result4 = batchcase4 () in if not (result4 == 0) then result4
+    else let result5 = batchcase5 () in if not (result5 == 0) then result5
+    else let result6 = batchcase6 () in if not (result6 == 0) then result6
+    else let result7 = batchcase7 () in if not (result7 == 0) then result7
+    else let result8 = batchcase8 () in if not (result8 == 0) then result8
+    else let result9 = batchcase9 () in if not (result9 == 0) then result9
+    else let result10 = batchcase10 () in if not (result10 == 0) then result10
+    else let result11 = batchcase11 () in if not (result11 == 0) then result11
+    else let result12 = batchcase12 () in if not (result12 == 0) then result12
+    else let result13 = batchcase13 () in if not (result13 == 0) then result13
+    else let result14 = batchcase14 () in if not (result14 == 0) then result14
+    else let result15 = batchcase15 () in if not (result15 == 0) then result15
+    else 0
+
+  -- | Print the full first mismatch and normalize every failing process exit.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let result0 = run-group0 () in if not (result0 == 0) then report-failure result0
+    else 0

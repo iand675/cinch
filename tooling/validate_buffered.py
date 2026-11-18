@@ -26,13 +26,15 @@ def host_stack() -> None:
     resource.setrlimit(resource.RLIMIT_STACK,(64*1024*1024,resource.getrlimit(resource.RLIMIT_STACK)[1]))
 
 
-def closure(project: Path, main: Path, embedded: set[str]) -> list[Path]:
-    """Resolve source-distributed modules without shadowing an embedded base-family module."""
+def closure(project: Path, main: Path, embedded: set[str], source_overrides: Path | None = None) -> list[Path]:
+    """Resolve maintained or explicit candidate modules without shadowing an embedded base-family module."""
+    overrides={path.name[:-6]:path for path in source_overrides.glob('*.cinch')} if source_overrides else {}
+    if set(overrides)&embedded:raise ValueError('candidate may not override embedded base-family source')
     pending=re.findall(r'^\s*import\s+([\w.]+)',main.read_text(),re.M);found=set();paths=[]
     while pending:
         name=pending.pop()
         if name in embedded or name in found:continue
-        found.add(name);source=ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')
+        found.add(name);source=overrides.get(name,ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch'))
         target=project/(name+'.cinch');target.write_bytes(source.read_bytes());paths.append(target)
         pending.extend(re.findall(r'^\s*import\s+([\w.]+)',target.read_text(),re.M))
     if any((project/(name+'.cinch')).exists() for name in embedded):raise ValueError('embedded source shadow')
@@ -51,6 +53,7 @@ def main() -> None:
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--compile-only',action='store_true')
+    parser.add_argument('--source-check',action='store_true',help='Check the complete source closure without linking or executing a consumer')
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     native=args.native_snapshot.resolve();rust=args.rust_snapshot.resolve()
     interfaces=native/'base-interfaces.json';objects_path=native/'objects.json'
@@ -67,13 +70,14 @@ def main() -> None:
     else:
         compiler=native/'cinch';runtime=native/'libcinchruntime.a';provenance_path=native/'snapshot.json'
         provenance=json.loads(provenance_path.read_text())
+        if digest(compiler)!=provenance['compiler_sha256'] or digest(runtime)!=provenance['runtime_sha256']:raise ValueError('Native snapshot/compiler/runtime mismatch')
         if digest(runtime)!=provider['runtime']['sha256']:raise ValueError('Native provider/runtime mismatch')
         string_epoch='combined e5; explicit admitted interfaces/object; no source shadow'
     artifacts=args.artifacts.resolve();artifacts.mkdir(parents=True,exist_ok=True)
     project=artifacts/'project';project.mkdir(parents=True,exist_ok=True)
     source=project/'Main.cinch';source.write_bytes(args.source.read_bytes());paths=closure(project,source,embedded)
     ir=artifacts/'consumer.ll';exe=artifacts/'consumer'
-    if args.frontend=='rust':command=[str(compiler),'emit-ir',str(source),'-o',str(ir),'--rc-debug']
+    if args.frontend=='rust':command=([str(compiler),'check',str(source)] if args.source_check else [str(compiler),'emit-ir',str(source),'-o',str(ir),'--rc-debug'])
     else:
         bundle=artifacts/'bundle.cinch';bundle.write_text('\n\n'.join(path.read_text() for path in sorted(paths)))
         command=[str(compiler),'--emit-ir','--rc-debug','--interfaces',str(interfaces),'--objects',str(objects_path),str(bundle),str(ir)]
@@ -81,6 +85,11 @@ def main() -> None:
     (artifacts/'compile.stdout').write_text(result.stdout);(artifacts/'compile.stderr').write_text(result.stderr)
     if result.returncode:
         diagnostic=ir.with_name(ir.name+'.diagnostics');raise RuntimeError((diagnostic.read_text() if diagnostic.exists() else result.stdout)+'\n'+result.stderr)
+    if args.source_check:
+        identity={'phase':'complete source declaration/type/proof check; no link or consumer execution','frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'string_epoch':string_epoch,'sources':{path.name:digest(path) for path in paths},'source_sha256':digest(args.source),'source_shadow_used':False,'interfaces_sha256':digest(interfaces),'objects_sha256':digest(objects_path),'provider_sha256':digest(provider_path),'command':command,'compiler_host_stack_mib':64,'seconds':time.monotonic()-started,'cpu':args.cpu,'all_passed':True}
+        if ir.exists():identity['discarded_entry_ir_sha256']=digest(ir)
+        args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(identity,indent=2)+'\n')
+        print('Buffered '+args.frontend+' complete source closure checked; no link or execution',flush=True);return
     link=['clang','-O'+args.opt_level,str(ir)]
     if args.frontend=='native':link.append(objects['object'])
     link +=[str(runtime),'-ldl','-lpthread','-lm','-o',str(exe)]
@@ -92,12 +101,12 @@ def main() -> None:
     (artifacts/'build-identity.json').write_text(json.dumps(identity,indent=2)+'\n')
     if args.compile_only:print('Buffered '+args.frontend+' consumer compiled',flush=True);return
     for poisoned in [False,True]:
-        env={**os.environ,'CINCH_RC_DEBUG':'1' if poisoned else '0','CINCH_LEAK_CHECK':'1','CINCH_HEAP_LIMIT':'256M' if poisoned else '32M','CINCH_STACK_SIZE':'8M'}
+        env={**os.environ,'CINCH_RC_DEBUG':'1' if poisoned else '0','CINCH_LEAK_CHECK':'1','CINCH_ALLOC_STATS':'1','CINCH_HEAP_LIMIT':'256M' if poisoned else '32M','CINCH_STACK_SIZE':'8M'}
         result=subprocess.run([str(exe)],capture_output=True,text=True,env=env)
         (artifacts/('poison' if poisoned else 'normal')).with_suffix('.stdout').write_text(result.stdout)
         (artifacts/('poison' if poisoned else 'normal')).with_suffix('.stderr').write_text(result.stderr)
         if result.returncode or 'leaked=0' not in result.stderr:raise RuntimeError(f'poisoned={poisoned}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
-        identity['runs'].append({'poisoned':poisoned,'heap':env['CINCH_HEAP_LIMIT'],'stack':'8M','stderr':result.stderr})
+        identity['runs'].append({'poisoned':poisoned,'heap':env['CINCH_HEAP_LIMIT'],'stack':'8M','allocation_statistics':True,'stderr':result.stderr})
     identity['all_passed']=True;args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(identity,indent=2)+'\n')
     print('Buffered '+args.frontend+' passed normal/poison with zero leaks',flush=True)
 

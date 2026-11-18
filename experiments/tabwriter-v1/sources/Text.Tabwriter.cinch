@@ -1,0 +1,85 @@
+-- | Byte-preserving aligned tabular formatting with elastic tab-terminated columns.
+-- Scalar encodings count as one width unit, malformed bytes progress individually, tags and entities
+-- have optional special widths, and escaped controls remain literal. Final text is not an aligned column.
+module Text.Tabwriter where
+  import Text.Tabwriter.Config
+  import Text.Tabwriter.Internal.Parse
+  import Text.Tabwriter.Internal.Layout
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export TabConfig, TabConfigError, TabDimension, TabMinimumWidth, TabTabWidth, TabPadding
+  export TabConfigNegative, TabConfigTooLarge, tab-config
+  export tab-config-min-width, tab-config-tab-width, tab-config-padding, tab-config-pad-byte, tab-config-flags
+  export tab-filter-html, tab-strip-escape, tab-align-right, tab-discard-empty-columns, tab-indent, tab-debug, tab-escape-byte
+  export tab-config-filter-html, tab-config-strip-escape, tab-config-align-right, tab-config-discard-empty-columns, tab-config-indent, tab-config-debug
+  export TabLayoutError, TabLayoutOverflow, TabPaddingWidth
+  export TabTextError, TabTextLayout, TabTextInvalidOutput
+  export tab-format-bytes, tab-format-offers, tab-format-string
+
+  -- | A valid-text convenience refusal retains either layout metadata or the complete arbitrary-byte output.
+  data TabTextError where
+    -- | Preserve the exact checked layout refusal without manufacturing partial text.
+    TabTextLayout :: TabLayoutError -> TabTextError
+    -- | Preserve fresh lossless output bytes when arbitrary padding or escape delimiters make them non-UTF-8.
+    TabTextInvalidOutput :: Bytes -> TabTextError
+
+  -- | Collect exact fresh output calls with an ordinary loop; the compact layout retains no offered mutable aliases.
+  collect-layout :: TabLayout -> List Bytes -> Result TabLayoutError (List Bytes)
+  collect-layout layout reversed = case tab-layout-next layout of
+    TabLayoutDone -> Ok reversed
+    TabLayoutRefused error -> Err error
+    TabOffer raw next path -> collect-layout next (Cons raw reversed)
+
+  -- | Finish one automatic output section, then continue from its exact consumed-input checkpoint.
+  format-from :: TabParser -> TabInput -> Nat -> List Bytes -> Result TabLayoutError (List Bytes)
+  format-from parser input at reversed =
+    let parsed = tab-parse parser input at in
+    let updated = tab-parse-parser parsed in
+    if tab-parse-flush parsed then
+      let layout = tab-layout updated Nil in
+      case collect-layout layout reversed of
+        Err error -> Err error
+        Ok output ->
+          let config = tab-parser-config updated in
+          let following = if tab-parse-section parsed && tab-config-debug config then
+                Cons (bytes-from-list [45, 45, 45, 10]) output else output in
+          let cleared = tab-parser-clear updated in
+          let consumed = tab-parse-consumed parsed in format-from cleared input consumed following
+    else
+      let layout = tab-layout updated Nil in
+      case collect-layout layout reversed of
+        Err error -> Err error
+        Ok output -> Ok (reverse output)
+
+  -- | Format a complete arbitrary byte input and return exact fresh output offers, including empty offers.
+  -- Each result buffer is independent of caller input and of other offers; no UTF-8 repair is implicit.
+  -- This complete-input convenience operation performs one final flush after automatic section boundaries.
+  tab-format-offers :: TabConfig -> Bytes -> Result TabLayoutError (List Bytes)
+  tab-format-offers config raw =
+    let input = tab-input raw in
+    let initial = tab-parser config in format-from initial input 0 Nil
+
+  -- | Format complete arbitrary input into one unconditionally fresh byte buffer, including empty input.
+  -- Checked coordinate refusals retain their exact mathematical values; raw byte contents are never discarded.
+  tab-format-bytes :: TabConfig -> Bytes -> Result TabLayoutError Bytes
+  tab-format-bytes config raw = case tab-format-offers config raw of
+    Err error -> Err error
+    Ok offers -> Ok (bytes-concat offers)
+
+  -- | Format valid input text and construct valid output text only after complete UTF-8 validation and copying.
+  -- Invalid output remains available as owned raw bytes in the error; no byte is discarded or replaced.
+  tab-format-string :: TabConfig -> String -> Result TabTextError String
+  tab-format-string config text =
+    let raw = string-to-bytes text in
+    case tab-format-bytes config raw of
+      Err error -> Err (TabTextLayout error)
+      Ok output -> case string-from-bytes output of
+        None -> Err (TabTextInvalidOutput output)
+        Some valid -> Ok valid

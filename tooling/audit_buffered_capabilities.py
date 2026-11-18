@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit every pinned buffered-I/O declaration and its concrete planned operation route."""
+"""Audit every pinned buffered-I/O declaration and its concrete source operation route."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -12,17 +12,17 @@ ROOT=Path(__file__).resolve().parents[1]
 READER={
     'Buffered':['buffered-reader-buffered'], 'Discard':['buffered-discard'],
     'Peek':['buffered-peek'], 'Read':['buffered-read','buffered-read-into'],
-    'ReadByte':['buffered-read-byte'], 'ReadBytes':['buffered-read-delimited'],
+    'ReadByte':['buffered-read-byte'], 'ReadBytes':['buffered-read-bytes'],
     'ReadLine':['buffered-read-line'], 'ReadRune':['buffered-read-rune'],
     'ReadSlice':['buffered-read-slice'],
-    'ReadString':['buffered-read-delimited','buffer-read-text'],
+    'ReadString':['buffered-read-string','TextEvent'],
     'Reset':['buffered-reader-reset','buffered-reader-reset-self'],
     'Size':['buffered-reader-size'], 'UnreadByte':['buffered-unread-byte'],
     'UnreadRune':['buffered-unread-rune'], 'WriteTo':['buffered-write-to'],
 }
 WRITER={
     'Available':['buffered-writer-available'],
-    'AvailableBuffer':['buffered-writer-space','buffer-space-append','buffer-space-bytes','buffered-write-space'],
+    'AvailableBuffer':['buffered-writer-space','buffer-space-capacity','buffer-space-append','buffer-space-reserve','buffer-space-bytes','buffered-write-space'],
     'Buffered':['buffered-writer-buffered'], 'Flush':['buffered-flush'],
     'ReadFrom':['buffered-read-from'], 'Reset':['buffered-writer-reset','buffered-writer-reset-self'],
     'Size':['buffered-writer-size'], 'Write':['buffered-write'],
@@ -67,10 +67,10 @@ def route(row: str) -> dict:
         name=match[1]
         factories={
             'NewReadWriter':['Effect.Buffered.buffered-read-writer'],
-            'NewReader':['Effect.Buffered.Reader.buffered-reader','Effect.Buffered.Reader.buffered-reader-from-stream'],
+            'NewReader':['Effect.Buffered.Reader.buffered-reader','Effect.Buffered.Reader.buffered-reader-from-stream','Effect.Buffered.Reader.buffered-reader-rebuffer'],
             'NewReaderSize':['Effect.Buffered.Reader.buffered-reader-sized','Effect.Buffered.Reader.buffered-reader-from-stream-sized','Effect.Buffered.Reader.buffered-reader-rebuffer'],
             'NewScanner':['Effect.Scanner.scanner','Effect.Scanner.scanner-from-stream'],
-            'NewWriter':['Effect.Buffered.Writer.buffered-writer','Effect.Buffered.Writer.buffered-writer-from-stream'],
+            'NewWriter':['Effect.Buffered.Writer.buffered-writer','Effect.Buffered.Writer.buffered-writer-from-stream','Effect.Buffered.Writer.buffered-writer-rebuffer'],
             'NewWriterSize':['Effect.Buffered.Writer.buffered-writer-sized','Effect.Buffered.Writer.buffered-writer-from-stream-sized','Effect.Buffered.Writer.buffered-writer-rebuffer'],
             'ScanBytes':['Effect.Scanner.Split.scan-bytes'], 'ScanLines':['Effect.Scanner.Split.scan-lines'],
             'ScanRunes':['Effect.Scanner.Split.scan-runes'], 'ScanWords':['Effect.Scanner.Split.scan-words'],
@@ -112,14 +112,18 @@ def main() -> None:
     for row in actual:
         mapped=route(row);present={symbol:implemented(symbol) for symbol in mapped['capabilities']}
         rows.append({'declaration':row,**mapped,'source_declarations_present':present,'status':'implemented; validation pending' if all(present.values()) else 'in progress'})
-    result={'pinned_sdk':'go1.27.4','package':'bufio','declaration_count':len(rows),'status':'full80 capability implementation in progress; no exclusions','rows':rows,'policies':[
+    result={'pinned_sdk':'go1.27.4','package':'bufio','declaration_count':len(rows),'status':'all80 operation routes source-declared and both-front proof checked; full runtime/performance/retention qualification remains in progress; no exclusions','rows':rows,'policies':[
         'Raw source/sink events preserve signed counts, byte prefixes and simultaneous error; existing stream adapters retain their narrower Result contracts.',
-        'Optional direct transfer callbacks preserve dispatch and advanced handles through private managed IO continuation cells; no negative recursive data types or checker exceptions.',
+        'Optional direct transfer and raw-text sink callbacks preserve dispatch and advanced handles through private managed IO continuation cells; no negative recursive data types or checker exceptions.',
         'Buffered storage is private. Externally mutable observations are fresh; callback input snapshots cannot mutate retained state.',
         'ReadWriter promoted operations route through concrete component getters and setters, preserving the other component.',
-        'AvailableBuffer is an owned bounded append builder/reservation; it exposes capacity and a fresh used prefix without private backing aliases.',
-        'Byte data is primary. Text conversions explicitly validate UTF8 or replace invalid bytes; invalid input is never silently converted to an empty String.',
+        'AvailableBuffer is an owned bounded append builder/reservation; it exposes capacity and a fresh used prefix without private backing aliases. Explicit reserve supports growth beyond the originally advertised capacity.',
+        'Byte data is primary. Reader TextEvent retains raw bytes, optional validated text and independent source error. Scanner raw optional token preserves absence versus empty; text validates UTF8. Invalid data is never silently converted to empty String.',
         'Scanner distinguishes absent and empty tokens, final-token termination, signed advance errors, source count errors and checked nonprogress/configuration refusals.',
+        'Ordinary buffered-flush drains exactly one owned layer; buffered-flush-through and buffered-writer-finish explicitly advance and flush nested owned layers.',
+        'Arbitrary cross-retained transfer callbacks currently form a strong reference cycle under ordinary ARC. Package promotion is held; the separate test-only cycle prototype has not changed runtime behavior.',
+        'The invalid zero-progress sink fixture uses an explicit observer watchdog. A named checked short-write refusal is an adaptation, not a claim that the reference call terminated.',
+        'Malformed signed source/sink counts produce named checked refusals without trusting an oversized payload or mutating outside valid bounds. Empty nonterminal direct byte/rune splits safely request more input despite violating the reference scanner invocation protocol.',
     ],'reference_sources':{name:hashlib.sha256((args.sdk/'src/bufio'/name).read_bytes()).hexdigest() for name in ['bufio.go','scan.go']}}
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2)+'\n')
     print('Mapped all',len(rows),'pinned buffered-I/O records; implemented-source progress remains explicit')

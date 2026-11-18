@@ -1,0 +1,41 @@
+-- | Exercise iterative layout, exact empty offers and arbitrary output bytes through public complete-input APIs.
+module Main where
+  import Text.Tabwriter
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  -- | Compare complete output bytes without repairing malformed input or padding.
+  output-equals :: TabConfig -> Bytes -> Bytes -> Bool
+  output-equals config raw expected = case tab-format-bytes config raw of
+    Err _ -> False
+    Ok output -> eq-i64 (bytes-compare output expected) 0
+
+  -- | An empty initialized formatter makes the final observable empty output call.
+  empty-offer :: TabConfig -> Bool
+  empty-offer config = case tab-format-offers config (bytes-new 0) of
+    Ok (Cons raw Nil) -> bytes-len raw == 0
+    _ -> False
+
+  -- | Raw byte padding and malformed source bytes remain byte-preserving output data.
+  arbitrary-padding :: Bool
+  arbitrary-padding = case tab-config 0 4 1 255 0 of
+    Err _ -> False
+    Ok config -> output-equals config (bytes-from-list [128, 9, 88, 10]) (bytes-from-list [128, 255, 88, 10])
+
+  -- | Return a distinct group index for the initial public layout pipelines.
+  main :: Int
+  main = case tab-config 0 4 1 32 0 of
+    Err _ -> 1
+    Ok config -> if output-equals config (string-to-bytes "a\tX\nlong\tY\n") (string-to-bytes "a    X\nlong Y\n") then
+      if output-equals config (string-to-bytes "a\t") (string-to-bytes "a") then
+        if empty-offer config then
+          if arbitrary-padding then 0 else 5
+        else 4
+      else 3
+      else 2

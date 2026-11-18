@@ -1,0 +1,17 @@
+# Captured protocol and first checked source
+
+The independent pinned SDK observer captured **612 cases, 1,506 public operations and 6,756 underlying output offers**, including 806 empty offers. All 256 padding bytes, all 64 known flag combinations, unknown flag bits, chunk boundaries, HTML/escape segments, constructor/reset aliases and failure/replay cases remain literal in the fixture. There are ten actual method panics, three constructor panics and 56 returned errors. These observations are inputs for the formatter implementation, not a claim that it passes them yet.
+
+The initial observer build succeeded, but its `-trimpath` invocation populated 40,883,633 bytes of shared SDK cache, exceeding the 30 MiB growth budget. That failed resource receipt remains unchanged. A separate capture epoch reused the exact successful executable without rebuilding; its new files total 853,666 bytes. The maintained runner now monitors artifact and cache growth during a phase as well as at phase boundaries. No fixture output was predicted by the candidate.
+
+The first independent Cinch source is `Text.Tabwriter.Config`: checked signed dimensions, named coordinate errors, arbitrary padding bytes, original flags and effective flag observations. Source/type/proof checking and O2 execution passed on the explicit 330/d91 compiler/runtime pair in normal 32 MiB and poisoned 256 MiB heaps, both with an 8 MiB managed stack and zero live/leaked objects. All 29 declarations including constructors have canonical docs. One earlier source-layout failure is preserved separately. This proves configuration behavior only; the byte layout and streaming implementations are still open.
+
+## Consequences for the streaming implementation
+
+- A signed negative or overlong output count with no original error produces the ordinary short-write family. Comparison with the offered length is sufficient; the implementation must never index or subtract by that reported value. An original output error wins when both are present.
+- A failed automatic flush during `Write` retains parsed input and the active layout width path. A later flush can replay cells that were already physically accepted. An explicitly requested `Flush` resets even when the output fails. The native state model must preserve this difference and the exact consumed-input checkpoint.
+- Empty output calls are observable, including the final outstanding empty cell and zero padding. Replacing exact offers with a write-all loop changes the protocol.
+- Maximum nonnegative dimensions can overflow the SDK's machine calculations. The fixture preserves actual slice-bounds/internal panics. Other huge-output cases end at the observer's explicitly labeled limit. Native layout arithmetic must have a named checked refusal; none of these observations establishes unbounded successful output.
+- An uninitialized zero receiver accepts an empty write/flush but is outside the documented initialized writer contract. The native opaque factory always constructs initialized state. `Init` aliases and old handles after a distinct new factory remain covered.
+
+The SDK-free `verify_reference.py` checks fixture integrity and every partial receipt while explicitly requiring formatter, streaming, performance and production gates to remain open. The full nineteen-record map remains in `capability-plan.json`; historical duplicate constant records do not create additional APIs.

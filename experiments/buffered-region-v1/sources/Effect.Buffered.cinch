@@ -1,0 +1,35 @@
+-- | Buffered input and output components with explicit independent advanced handles.
+-- Reading and writing preserve each other's state. Apply a component operation,
+-- then install its returned component to continue through the combined handle.
+module Effect.Buffered where
+  import Effect.Buffered.Reader
+  import Effect.Buffered.Writer
+
+  export BufferedReadWriter, buffered-read-writer
+  export buffered-read-writer-reader, buffered-read-writer-writer
+  export buffered-read-writer-with-reader, buffered-read-writer-with-writer
+
+  -- | A paired reader and writer over the same I/O region, with no implicit flushing or read-ahead coupling.
+  data BufferedReadWriter (r :: Region) where
+    -- | Private independent components retain their own underlying source and sink continuations.
+    ReadWrite :: BufferedReader r -> BufferedWriter r -> BufferedReadWriter r
+
+  -- | Pair existing buffered components without reading, writing or flushing either one.
+  buffered-read-writer :: forall (r :: Region). BufferedReader r -> BufferedWriter r -> BufferedReadWriter r
+  buffered-read-writer reader writer = ReadWrite reader writer
+
+  -- | Observe the current reader component; continue with the advanced reader returned by its next operation.
+  buffered-read-writer-reader :: forall (r :: Region). BufferedReadWriter r -> BufferedReader r
+  buffered-read-writer-reader pair = case pair of ReadWrite reader writer -> reader
+
+  -- | Observe the current writer component without performing I/O or implicitly flushing buffered bytes.
+  buffered-read-writer-writer :: forall (r :: Region). BufferedReadWriter r -> BufferedWriter r
+  buffered-read-writer-writer pair = case pair of ReadWrite reader writer -> writer
+
+  -- | Install an advanced reader while preserving the independently advancing writer.
+  buffered-read-writer-with-reader :: forall (r :: Region). BufferedReadWriter r -> BufferedReader r -> BufferedReadWriter r
+  buffered-read-writer-with-reader pair next = case pair of ReadWrite reader writer -> ReadWrite next writer
+
+  -- | Install an advanced writer while preserving unread input, source errors and reader history.
+  buffered-read-writer-with-writer :: forall (r :: Region). BufferedReadWriter r -> BufferedWriter r -> BufferedReadWriter r
+  buffered-read-writer-with-writer pair next = case pair of ReadWrite reader writer -> ReadWrite reader next

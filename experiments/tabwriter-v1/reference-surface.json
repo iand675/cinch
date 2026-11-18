@@ -1,0 +1,24 @@
+{
+  "package": "text/tabwriter",
+  "declarations": [
+    "const AlignRight = 4",
+    "const AlignRight uint",
+    "const Debug = 32",
+    "const Debug uint",
+    "const DiscardEmptyColumns = 8",
+    "const DiscardEmptyColumns uint",
+    "const Escape = 255",
+    "const Escape ideal-char",
+    "const FilterHTML = 1",
+    "const FilterHTML uint",
+    "const StripEscape = 2",
+    "const StripEscape uint",
+    "const TabIndent = 16",
+    "const TabIndent uint",
+    "func NewWriter(io.Writer, int, int, int, uint8, uint) *Writer",
+    "method (*Writer) Flush() error",
+    "method (*Writer) Init(io.Writer, int, int, int, uint8, uint) *Writer",
+    "method (*Writer) Write([]uint8) (int, error)",
+    "type Writer struct"
+  ]
+}

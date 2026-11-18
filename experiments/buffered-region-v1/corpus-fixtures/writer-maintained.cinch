@@ -1,0 +1,457 @@
+-- | Independent buffered-writer histories retain exact partial counts, sticky errors, bytes and callback widths.
+module Main where
+  import Effect.Buffered
+  import Effect.Scanner
+  import Effect.Buffered.Writer
+  import Effect.Buffered.Core
+  import Effect.Buffered.Internal.Cell as Cell
+  import Effect.Io
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bool
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | A writer operation and its independently observed complete state.
+  data Check where
+    -- | Operation, argument, input, accepted count, error, buffered, available, reservation capacity, output and calls.
+    Check :: Nat -> Int -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Bytes -> List Int -> Check
+
+  -- | Operation-local progress, failure and initial reservation capacity.
+  data Observation where
+    -- | Accepted bytes, error family and advertised reservation capacity.
+    Observed :: Nat -> Nat -> Nat -> Observation
+
+  -- | Compare arbitrary bytes without applying a text conversion.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Decode one generator-owned lowercase hexadecimal digit.
+  hex-digit :: Nat -> Nat
+  hex-digit value = if value >= 97 then value - 87 else if value >= 48 then value - 48 else 0
+
+  -- | Fill exact byte pairs from an ASCII hexadecimal fixture, with both intervals checked.
+  unhex-from :: Bytes -> Bytes -> Nat -> Unit
+  unhex-from input output at = if at < bytes-len output && at * 2 + 1 < bytes-len input then
+    let high = hex-digit (bytes-get input (at * 2)) in let low = hex-digit (bytes-get input (at * 2 + 1)) in
+    let value = high * 16 + low in
+    if value <= 255 then let written = bytes-set output at value in unhex-from input output (at + 1) else ()
+    else ()
+
+  -- | Reconstruct an arbitrary byte fixture without a deeply nested numeric constructor list.
+  unhex :: String -> Bytes
+  unhex text = let input = string-to-bytes text in let output = bytes-new (string-byte-length text / 2) in
+    let written = unhex-from input output 0 in output
+
+  -- | Copy one checked raw source interval into a fresh event.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Preserve actual source request widths in initialized private I/O storage.
+  source :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r
+  source input at chunk together empties calls logging fast = let plain = buffer-source (\wanted -> source-read input at chunk together empties calls logging fast wanted) in
+    if fast then buffer-source-with-transfer plain (\write -> source-transfer input at chunk together empties calls logging write) else plain
+
+  -- | Advance the immutable transport cursor and distinguish transient emptiness from end-of-input.
+  source-read :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)
+  source-read input at chunk together empties calls logging fast wanted =
+    let logged = if logging then Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) else () in
+    if empties > 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together (empties - 1) calls logging fast)
+    else if wanted == 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together 0 calls logging fast)
+    else if at < bytes-len input then
+      let remaining = bytes-len input - at in let limited = if remaining < wanted then remaining else wanted in
+      let count = if chunk > 0 && chunk < limited then chunk else limited in
+      let status = if together && at + count == bytes-len input then Some BufferEnd else None in
+      (ReadEvent (nat-to-int count) (part input at count) status, source input (at + count) chunk together 0 calls logging fast)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source input at chunk together 0 calls logging fast)
+
+  -- | Expose a direct source transfer whose request log remains distinguishable from ordinary reads.
+  source-transfer :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)
+  source-transfer input at chunk together empties calls logging write =
+    let logged = if logging then Cell.cell-write calls (Cons (-1) (Cell.cell-read calls)) else () in
+    let remaining = if at <= bytes-len input then bytes-len input - at else 0 in
+    let payload = part input at remaining in
+    case write payload of
+      event -> case buffer-write-accepted remaining event of
+        Err failure -> (TransferEvent 0 (Some failure), source input at chunk together empties calls logging True)
+        Ok accepted -> case event of
+          WriteEvent actual status -> if accepted <= 9223372036854775807 then
+            (TransferEvent (nat-to-i64 accepted) status, source input (at + accepted) chunk together empties calls logging True)
+            else (TransferEvent 0 (Some (BufferInvalidWriteCount remaining actual)), source input at chunk together empties calls logging True)
+
+  -- | Produce an independently configured invalid source count without inventing initialized payload bytes.
+  fault-source :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r
+  fault-source fault calls = buffer-source (\wanted -> let logged = Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) in
+    let actual = if fault < 0 then (-1) else nat-to-int wanted + 1 in
+    (ReadEvent actual (bytes-new 0) None, fault-source fault calls))
+
+  -- | Compare complete callback histories rather than only the final byte result.
+  same-calls :: List Int -> List Int -> Bool
+  same-calls first second = case first of
+    Nil -> case second of Nil -> True; other -> False
+    Cons value rest -> case second of
+      Cons expected tail -> value == expected && same-calls rest tail
+      Nil -> False
+
+  -- | Widen an exact conversion result to its ordinary nonnegative carrier.
+  natural :: Nat -> Nat
+  natural value = value
+
+
+  -- | Normalize only relevant structured sink errors; custom diagnostic text is retained by the production value.
+  error-code :: Option BufferError -> Nat
+  error-code status = case status of
+    None -> 0
+    Some BufferEnd -> 1
+    Some (BufferShortWrite wanted actual) -> 7
+    Some (BufferCustomError message) -> 8
+    Some (BufferInvalidWriteCount wanted actual) -> 9
+    other -> 99
+
+  -- | Construct a sink over explicit mutable transport state, so reset can reuse the same underlying transport.
+  sink :: forall (r :: Region). using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> BufferSink r
+  sink output calls budget limit = buffer-sink (\input -> sink-write output calls budget limit input)
+
+  -- | Accept a bounded prefix with an independently recorded callback width and optional simultaneous budget failure.
+  sink-write :: forall (r :: Region). using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  sink-write output calls budget limit input =
+    let logged = Cell.cell-write calls (Cons (nat-to-int (bytes-len input)) (Cell.cell-read calls)) in
+    let remaining = Cell.cell-read budget in let size = bytes-len input in
+    let limited = if 0 <= limit && limit < nat-to-int size then natural (nat-from-int limit) else size in
+    let count = if 0 <= remaining && remaining < nat-to-int limited then natural (nat-from-int remaining) else limited in
+    let saved = Cell.cell-write output (Cons (part input 0 count) (Cell.cell-read output)) in
+    let spent = if 0 <= remaining then Cell.cell-write budget (remaining - nat-to-int count) else () in
+    let status = if 0 <= remaining && count < size then Some (BufferCustomError "fixture-sink") else None in
+    (WriteEvent (nat-to-int count) status, sink output calls budget limit)
+
+  -- | Report a deliberately invalid signed count without mutating any output bytes.
+  fault-sink :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSink r
+  fault-sink fault calls = buffer-sink (\input -> let logged = Cell.cell-write calls (Cons (nat-to-int (bytes-len input)) (Cell.cell-read calls)) in
+    let actual = if fault < 0 then (-1) else nat-to-int (bytes-len input) + 1 in
+    (WriteEvent actual None, fault-sink fault calls))
+
+  -- | Retain a reported write count independently of the error accompanying that accepted prefix.
+  write-observation :: WriteEvent -> Observation
+  write-observation event = case event of
+    WriteEvent actual status -> if 0 <= actual then Observed (nat-from-int actual) (error-code status) 0 else Observed 0 99 0
+
+  -- | Convert a fixture's signed rune into its explicit32-bit numeric input without requiring scalar validity.
+  rune-code :: Int -> I32
+  rune-code argument = case checked-int-to-i64 argument of Some value -> wrapping-i64-to-i32 value; None -> (-1)
+
+  -- | Run an available-buffer append with explicit reservation growth before ordinary checked commit.
+  write-space :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (Observation, BufferedWriter r)
+  write-space writer input = let initial = buffered-writer-space writer in let capacity = buffer-space-capacity initial in
+    let space = buffer-space-reserve initial (bytes-len input) in
+    case buffer-space-append space input of
+      Err failure -> (Observed 0 99 capacity, writer)
+      Ok appended -> case buffered-write-space writer appended of
+        (event, next) -> case write-observation event of Observed count error ignored -> (Observed count error capacity, next)
+
+  -- | Invoke one public writer operation and preserve its authoritative advanced handle.
+  action :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> Nat -> Int -> Bytes -> BufferSink r -> Cell.IoCell r (List Int) ->{IO r, Mut r} (Observation, BufferedWriter r)
+  action writer op argument input original calls = if op <= 2 then (Observed 0 0 0, writer)
+    else if op == 3 then case buffered-write writer input of (event, next) -> (write-observation event, next)
+    else if op == 4 then case buffered-write-text-bytes writer input of (event, next) -> (write-observation event, next)
+    else if op == 5 then
+      let value = wrapping-i32-to-u8 (rune-code argument) in
+      case buffered-write-byte writer value of
+        (None, next) -> (Observed 1 0 0, next)
+        (status, next) -> (Observed 0 (error-code status) 0, next)
+    else if op == 6 then case buffered-write-rune writer (rune-code argument) of (event, next) -> (write-observation event, next)
+    else if op == 7 then case buffered-flush writer of (status, next) -> (Observed 0 (error-code status) 0, next)
+    else if op == 8 then write-space writer input
+    else if op == 9 then
+      case buffered-read-from writer (source input 0 0 False 0 calls False False) of
+        (TransferEvent count status, next, advanced) -> if 0 <= count then (Observed (nat-from-i64 count) (error-code status) 0, next) else (Observed 0 99 0, next)
+    else if op == 10 then (Observed 0 0 0, buffered-writer-reset-self writer)
+    else if op == 11 then (Observed 0 0 0, buffered-writer-reset writer original)
+    else (Observed 0 99 0, writer)
+
+  -- | Compare each operation's progress, buffered suffix, output bytes and complete callback widths.
+  checks :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> BufferSink r -> Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> List Check -> Nat ->{IO r, Mut r} Int
+  checks writer original output calls rows index = case rows of
+    Nil -> 0
+    Cons row rest -> case row of
+      Check op argument input count error buffered available capacity expected requests ->
+        let cleared = Cell.cell-write calls Nil in
+        case action writer op argument input original calls of
+          (Observed actual actual-error actual-capacity, next) ->
+            if actual == count && actual-error == error && actual-capacity == capacity
+              && buffered-writer-buffered next == buffered && buffered-writer-available next == available
+              && same (bytes-concat (reverse (Cell.cell-read output))) expected
+              && same-calls (reverse (Cell.cell-read calls)) requests then checks next original output calls rest (index + 1)
+            else nat-to-int index
+
+  -- | Print the full observation index and normalize every failure to a nonzero process status without byte truncation.
+  report-failure :: forall (r :: Region). using (io :: Io r) => Int ->{IO r} Int
+  report-failure index = let printed = ioWrite (string-to-bytes (string-concat (int-to-string index) "\n")) in 1
+
+  -- | Independent full writer history 0 with its own transport budget and output.
+  tracecase0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase0 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized (-1) original in
+    if buffered-writer-size writer == 4096 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 4094 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 4093 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 4091 4093 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 4089 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 4085 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 4082 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 17 4079 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 0 0 4096 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [17]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 60 4036 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") []),
+      (Check 9 0 (unhex "726561646572") 6 0 66 4030 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") []),
+      (Check 7 0 (unhex "") 0 0 0 4096 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [66]),
+      (Check 10 0 (unhex "") 0 0 0 4096 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 4096 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 4094 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 4096 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 1 else 99
+
+  -- | Independent full writer history 1 with its own transport budget and output.
+  tracecase1 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase1 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new (0 :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized (-1) original in
+    if buffered-writer-size writer == 4096 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 4094 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 4093 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 4091 4093 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 4089 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 4085 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 4082 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 17 4079 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 8 17 4079 0 (unhex "") [17]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 0 8 17 4079 0 (unhex "") []),
+      (Check 9 0 (unhex "726561646572") 0 8 17 4079 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 8 17 4079 0 (unhex "") []),
+      (Check 10 0 (unhex "") 0 0 17 4079 0 (unhex "") []),
+      (Check 11 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 3 0 (unhex "5152") 2 0 2 4094 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 8 2 4094 0 (unhex "") [2])
+    ] 101 else 199
+
+  -- | Independent full writer history 2 with its own transport budget and output.
+  tracecase2 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase2 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new (1 :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized (-1) original in
+    if buffered-writer-size writer == 4096 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 4094 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 4093 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 4091 4093 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 4089 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 4085 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 4082 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 17 4079 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 8 16 4080 0 (unhex "41") [17]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 0 8 16 4080 0 (unhex "41") []),
+      (Check 9 0 (unhex "726561646572") 0 8 16 4080 0 (unhex "41") []),
+      (Check 7 0 (unhex "") 0 8 16 4080 0 (unhex "41") []),
+      (Check 10 0 (unhex "") 0 0 16 4080 0 (unhex "41") []),
+      (Check 11 0 (unhex "") 0 0 0 4096 0 (unhex "41") []),
+      (Check 3 0 (unhex "5152") 2 0 2 4094 0 (unhex "41") []),
+      (Check 7 0 (unhex "") 0 8 2 4094 0 (unhex "41") [2])
+    ] 201 else 299
+
+  -- | Independent full writer history 10 with its own transport budget and output.
+  tracecase3 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase3 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget 1 in let writer = buffered-writer-sized (-1) original in
+    if buffered-writer-size writer == 4096 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 4096 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 4094 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 4093 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 4091 4093 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 4089 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 4085 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 4082 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 17 4079 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 7 16 4080 0 (unhex "41") [17]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 0 7 16 4080 0 (unhex "41") []),
+      (Check 9 0 (unhex "726561646572") 0 7 16 4080 0 (unhex "41") []),
+      (Check 7 0 (unhex "") 0 7 16 4080 0 (unhex "41") []),
+      (Check 10 0 (unhex "") 0 0 16 4080 0 (unhex "41") []),
+      (Check 11 0 (unhex "") 0 0 0 4096 0 (unhex "41") []),
+      (Check 3 0 (unhex "5152") 2 0 2 4094 0 (unhex "41") []),
+      (Check 7 0 (unhex "") 0 7 1 4095 0 (unhex "4151") [2])
+    ] 301 else 399
+
+  -- | Independent full writer history 40 with its own transport budget and output.
+  tracecase4 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase4 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 1 original in
+    if buffered-writer-size writer == 1 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 1 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 1 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 0 1 0 (unhex "4142") [2]),
+      (Check 5 0 (unhex "") 1 0 1 0 0 (unhex "4142") []),
+      (Check 8 0 (unhex "4344") 2 0 0 1 0 (unhex "4142004344") [1,2]),
+      (Check 4 0 (unhex "ff80") 2 0 1 0 0 (unhex "4142004344ff") [1]),
+      (Check 6 127757 (unhex "") 4 0 1 0 0 (unhex "4142004344ff80f09f8c") [1,1,1,1]),
+      (Check 6 55296 (unhex "") 3 0 1 0 0 (unhex "4142004344ff80f09f8c8defbf") [1,1,1]),
+      (Check 6 (-1) (unhex "") 3 0 1 0 0 (unhex "4142004344ff80f09f8c8defbfbdefbf") [1,1,1]),
+      (Check 7 0 (unhex "") 0 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [1]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [1,1,1,1,1,1]),
+      (Check 7 0 (unhex "") 0 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 10 0 (unhex "") 0 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2]),
+      (Check 7 0 (unhex "") 0 0 0 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [])
+    ] 401 else 499
+
+  -- | Independent full writer history 60 with its own transport budget and output.
+  tracecase5 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase5 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 2 original in
+    if buffered-writer-size writer == 2 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 2 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 2 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 0 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 1 1 0 (unhex "4142") [2]),
+      (Check 8 0 (unhex "4344") 2 0 1 1 1 (unhex "41420043") [2]),
+      (Check 4 0 (unhex "ff80") 2 0 1 1 0 (unhex "4142004344ff") [2]),
+      (Check 6 127757 (unhex "") 4 0 2 0 0 (unhex "4142004344ff80f09f") [1,2]),
+      (Check 6 55296 (unhex "") 3 0 1 1 0 (unhex "4142004344ff80f09f8c8defbf") [2,2]),
+      (Check 6 (-1) (unhex "") 3 0 1 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbf") [1,2]),
+      (Check 7 0 (unhex "") 0 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [1]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [2,2,2]),
+      (Check 7 0 (unhex "") 0 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 10 0 (unhex "") 0 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 0 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 2 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 501 else 599
+
+  -- | Independent full writer history 80 with its own transport budget and output.
+  tracecase6 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase6 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 3 original in
+    if buffered-writer-size writer == 3 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 3 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 3 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 1 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 0 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 2 1 0 (unhex "414200") [3]),
+      (Check 4 0 (unhex "ff80") 2 0 1 2 0 (unhex "4142004344ff") [3]),
+      (Check 6 127757 (unhex "") 4 0 1 2 0 (unhex "4142004344ff80f09f8c") [1,3]),
+      (Check 6 55296 (unhex "") 3 0 3 0 0 (unhex "4142004344ff80f09f8c8d") [1]),
+      (Check 6 (-1) (unhex "") 3 0 3 0 0 (unhex "4142004344ff80f09f8c8defbfbd") [3]),
+      (Check 7 0 (unhex "") 0 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [3]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [3,3]),
+      (Check 7 0 (unhex "") 0 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 10 0 (unhex "") 0 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 1 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 3 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 601 else 699
+
+  -- | Independent full writer history 100 with its own transport budget and output.
+  tracecase7 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase7 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 16 original in
+    if buffered-writer-size writer == 16 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 16 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 16 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 14 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 13 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 11 13 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 9 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 5 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 2 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 3 13 0 (unhex "4142004344ff80f09f8c8defbfbd") [14]),
+      (Check 7 0 (unhex "") 0 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [3]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 6 10 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") []),
+      (Check 7 0 (unhex "") 0 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [6]),
+      (Check 10 0 (unhex "") 0 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 14 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 16 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 701 else 799
+
+  -- | Independent full writer history 120 with its own transport budget and output.
+  tracecase8 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase8 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 17 original in
+    if buffered-writer-size writer == 17 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 17 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 17 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 15 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 14 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 12 14 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 10 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 6 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 3 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 3 14 0 (unhex "4142004344ff80f09f8c8defbfbd") [14]),
+      (Check 7 0 (unhex "") 0 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [3]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 6 11 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") []),
+      (Check 7 0 (unhex "") 0 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [6]),
+      (Check 10 0 (unhex "") 0 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 15 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 17 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 801 else 899
+
+  -- | Independent full writer history 140 with its own transport budget and output.
+  tracecase9 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  tracecase9 unit = let output = Cell.cell-new Nil in let calls = Cell.cell-new Nil in let budget = Cell.cell-new ((-1) :: Int) in
+    let original = sink output calls budget (-1) in let writer = buffered-writer-sized 32 original in
+    if buffered-writer-size writer == 32 then checks writer original output calls [
+      (Check 0 0 (unhex "") 0 0 0 32 0 (unhex "") []),
+      (Check 2 0 (unhex "") 0 0 0 32 0 (unhex "") []),
+      (Check 3 0 (unhex "4142") 2 0 2 30 0 (unhex "") []),
+      (Check 5 0 (unhex "") 1 0 3 29 0 (unhex "") []),
+      (Check 8 0 (unhex "4344") 2 0 5 27 29 (unhex "") []),
+      (Check 4 0 (unhex "ff80") 2 0 7 25 0 (unhex "") []),
+      (Check 6 127757 (unhex "") 4 0 11 21 0 (unhex "") []),
+      (Check 6 55296 (unhex "") 3 0 14 18 0 (unhex "") []),
+      (Check 6 (-1) (unhex "") 3 0 17 15 0 (unhex "") []),
+      (Check 7 0 (unhex "") 0 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd") [17]),
+      (Check 3 0 (unhex "78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") 60 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") [60]),
+      (Check 9 0 (unhex "726561646572") 6 0 6 26 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a") []),
+      (Check 7 0 (unhex "") 0 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") [6]),
+      (Check 10 0 (unhex "") 0 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 11 0 (unhex "") 0 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 3 0 (unhex "5152") 2 0 2 30 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a726561646572") []),
+      (Check 7 0 (unhex "") 0 0 0 32 0 (unhex "4142004344ff80f09f8c8defbfbdefbfbd78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a78797a7265616465725152") [2])
+    ] 901 else 999
+
+  -- | Run independent observations 1 through 10 without a deep generated let spine.
+  run-group0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int
+  run-group0 unit =
+    let result0 = tracecase0 () in if not (result0 == 0) then result0
+    else let result1 = tracecase1 () in if not (result1 == 0) then result1
+    else let result2 = tracecase2 () in if not (result2 == 0) then result2
+    else let result3 = tracecase3 () in if not (result3 == 0) then result3
+    else let result4 = tracecase4 () in if not (result4 == 0) then result4
+    else let result5 = tracecase5 () in if not (result5 == 0) then result5
+    else let result6 = tracecase6 () in if not (result6 == 0) then result6
+    else let result7 = tracecase7 () in if not (result7 == 0) then result7
+    else let result8 = tracecase8 () in if not (result8 == 0) then result8
+    else let result9 = tracecase9 () in if not (result9 == 0) then result9
+    else 0
+
+  -- | Print the full first mismatch and normalize every failing process exit.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    let result0 = run-group0 () in if not (result0 == 0) then report-failure result0
+    else 0

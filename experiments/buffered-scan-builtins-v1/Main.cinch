@@ -1,0 +1,101 @@
+-- | Differential span, malformed-byte and owner-isolation controls for trusted built-in split capabilities.
+module Main where
+  import Effect.Scanner
+  import Effect.Scanner.Split
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+  -- | Snapshot a checked logical span for the independently retained direct splitter path.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start end = if start <= end && end <= bytes-len input then
+    let output = bytes-new (end - start) in let copied = bytes-copy-range output input 0 start (end - start) in output
+    else bytes-new 0
+
+  -- | Compare optional owned payloads without collapsing absent and empty tokens.
+  same-token :: Option Bytes -> Option Bytes -> Bool
+  same-token first second = case first of
+    None -> case second of None -> True; other -> False
+    Some payload -> case second of Some other -> eq-i64 (bytes-compare payload other) 0; other -> False
+
+  -- | Preserve absent errors independently of named structured failures.
+  same-error :: Option ScanError -> Option ScanError -> Bool
+  same-error first second = case first of
+    None -> case second of None -> True; other -> False
+    Some cause -> case second of Some expected -> scan-error-message cause == scan-error-message expected; other -> False
+
+  -- | Compare structured splitter outcomes through their signed advance, exact token and named error observations.
+  same-step :: ScanStep -> ScanStep -> Bool
+  same-step first second = case first of
+    ScanStep advance token error -> case second of
+      ScanStep other payload failure -> advance == other && same-token token payload && same-error error failure
+
+  -- | Compare each new capability against the unchanged direct splitter over the exact independent slice.
+  modes :: Bytes -> Nat -> Nat -> Bool -> Bool
+  modes owner start end terminal = let snapshot = part owner start end in
+    same-step (scan-apply-between scan-byte-split owner start end terminal) (scan-bytes snapshot terminal) &&
+    same-step (scan-apply-between scan-rune-split owner start end terminal) (scan-runes snapshot terminal) &&
+    same-step (scan-apply-between scan-line-split owner start end terminal) (scan-lines snapshot terminal) &&
+    same-step (scan-apply-between scan-word-split owner start end terminal) (scan-words snapshot terminal)
+
+  -- | Enumerate every terminal and nonterminal endpoint for one starting offset, including empty spans.
+  ends :: Bytes -> Nat -> Nat -> Bool
+  ends owner start end = if end <= bytes-len owner then
+    if modes owner start end False && modes owner start end True then ends owner start (end + 1) else False
+    else True
+
+  -- | Enumerate every absolute start without inspecting bytes before it or after each independent endpoint.
+  starts :: Bytes -> Nat -> Bool
+  starts owner at = if at <= bytes-len owner then
+    if ends owner at at then starts owner (at + 1) else False
+    else True
+
+  -- | Place every byte value between framing, UTF-8 and delimiter fringes in a runtime-written owner.
+  byte-values :: Nat -> Bool
+  byte-values value = if value < 256 then
+    let owner = bytes-new 9 in let a = bytes-set owner 0 10 in let b = bytes-set owner 1 value in
+    let c = bytes-set owner 2 13 in let d = bytes-set owner 3 195 in let e = bytes-set owner 4 169 in
+    let f = bytes-set owner 5 226 in let g = bytes-set owner 6 130 in let h = bytes-set owner 7 172 in let i = bytes-set owner 8 10 in
+    if starts owner 0 then byte-values (value + 1) else False
+    else True
+
+  -- | Exercise a custom callback that mutates its input and returns the same mutable owner as its token.
+  mutating-custom :: Bytes -> Bool -> ScanStep
+  mutating-custom input terminal = if bytes-len input > 0 then
+    let changed = bytes-set input 0 90 in ScanStep 1 (Some input) None
+    else ScanStep 0 None None
+
+  -- | Custom callback isolation remains unchanged while trusted built-ins return independently mutable output owners.
+  owners :: Bool
+  owners = let input = string-to-bytes "xxA\nyy" in if 2 < bytes-len input then
+    case scan-apply-between scan-line-split input 2 4 True of
+      ScanStep advance (Some token) None ->
+        let changed = bytes-set input 2 66 in
+        if advance == 2 && eq-i64 (bytes-compare token (string-to-bytes "A")) 0 && bytes-len token > 0 then
+          let edited = bytes-set token 0 67 in
+          if bytes-get input 2 == 66 then
+            case scan-apply-between (scan-split mutating-custom) input 2 4 True of
+              ScanStep count (Some custom) None -> count == 1 && bytes-get input 2 == 66 && eq-i64 (bytes-compare custom (string-to-bytes "Z\n")) 0
+              other -> False
+          else False
+        else False
+      other -> False
+    else False
+
+  -- | Invalid bounds retain the named checked refusal, including huge natural values and reversed intervals.
+  refused :: ScanStep -> Bool
+  refused step = case step of ScanStep advance None (Some (ScanCustomError message)) -> advance == 0 && message == "invalid split input interval"; other -> False
+
+  -- | Unicode spaces, scalar fringes, arbitrary bytes and ownership observations are executable rather than table placeholders.
+  main :: Int
+  main = if not (byte-values 0) then 1
+    else if not (starts (string-to-bytes "\t é　😀\r\nz end") 0) then 2
+    else if not owners then 3
+    else let input = string-to-bytes "abc" in
+      if not (refused (scan-apply-between scan-rune-split input 2 1 True)) then 4
+      else if not (refused (scan-apply-between scan-word-split input 0 1000000000000000000000000 False)) then 5
+      else 0

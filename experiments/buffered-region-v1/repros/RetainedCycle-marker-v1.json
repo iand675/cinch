@@ -1,0 +1,15 @@
+{
+  "scope": "Exact fixture-only type failure; no runtime or library verdict",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "8fc6288afbce6058a4bd0e08bd4c4ea3fae520ce12ab678d95bbb7268443ba6c",
+  "original_report_sha256": "5520316b06cc2c286d6930e2e13d57ae7c73618914a0d77e7d13ed2b3a5996ce",
+  "command": [
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-cycle-source-v1/Main.cinch"
+  ],
+  "returncode": 1,
+  "diagnostic": "cinch: 71:15: pattern does not match type (Result StreamError Nat, ByteWriter r#1730) (in /workspace/dasl-stdlib-buffered-io/build/buffered-region-330-cycle-source-v1/Main.cinch)\n",
+  "fix": "Match (Result, advanced ByteWriter), the actual existing stream-write-all return type; no library or checker edit."
+}

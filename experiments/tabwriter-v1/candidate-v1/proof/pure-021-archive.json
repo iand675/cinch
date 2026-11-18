@@ -1,0 +1,46 @@
+{
+  "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+  "report": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-format-full-330-v1/tabwriter-format-021-runtime/report.json",
+  "report_sha256": "723193cbe96310ead5cc9ccbbb134829c515fd4b4c156c14891b5f77f62ef0cc",
+  "archive": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-format-full-330-v1/tabwriter-format-021-runtime/closed-success.tar.gz",
+  "compressed_sha256": "fc346640b4a5457157fe73ef0aa9bbda0e4ff1fcb2bacd8a2d9c548b2af0fddd",
+  "compressed_bytes": 2010924,
+  "decompressed_tar_sha256": "fa283cb55c56104ba8c69d1c01d186b37efd6c74a11fae7d9e0dab3f17c159a9",
+  "decompressed_tar_bytes": 7976960,
+  "entries": [
+    {
+      "path": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-format-full-330-v1/tabwriter-format-021-runtime/consumer",
+      "member": "consumer",
+      "report_hash_field": "executable_sha256",
+      "sha256": "98dcfa2186aedd0a3cc379503a830899323f0730d14c592478789aebb0178604",
+      "bytes": 6280784,
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794925408641090291,
+      "device": 27,
+      "inode": 1325210
+    },
+    {
+      "path": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-format-full-330-v1/tabwriter-format-021-runtime/consumer.ll",
+      "member": "consumer.ll",
+      "report_hash_field": "llvm_sha256",
+      "sha256": "6179e335ac98ca2538970941ad24fa7b5e35716e1f7479882feb2d8b7ccbe73f",
+      "bytes": 1684891,
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794925404272290266,
+      "device": 27,
+      "inode": 1325207
+    }
+  ],
+  "originals_removed": true,
+  "resource_policy": {
+    "start_free_mib": 300,
+    "reserve_mib": 250,
+    "free_at_start_bytes": 365293568,
+    "explicit_scope": "Root SUCCESS-ARCHIVE-ONLY exception for completed batch021 ELF/IR; no source/runtime/SDK guard change"
+  },
+  "net_logical_recovered_bytes": 5954751
+}

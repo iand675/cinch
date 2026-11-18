@@ -1,0 +1,71 @@
+{
+  "scope": "Freeze and source-check only the tabwriter candidate closure on the explicitly qualified Region compiler.",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "compiler_source": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+  "provenance_sha256": "c303ec5ab34c80e19c19e659fa34ee35d1d5b73d0e2d9e81a1c9d990c7712251",
+  "main_sha256": "99d489ca8be16a218ba4c0fe2a14eeb827349e0d497715bb25f4731a0a161210",
+  "embedded_family_sha256": "7dbf2f6c367b379615e42def4c006fad9f05ec4c752105e07377afd77df5a6cc",
+  "sources": {
+    "Text.Tabwriter": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Text.Tabwriter.cinch",
+      "sha256": "d836db5b5c4322c24e2867fd4779cb96540afac5b0eab5328e2b0738135a6992"
+    },
+    "Text.Tabwriter.Config": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Text.Tabwriter.Config.cinch",
+      "sha256": "9020b996bf0cdce7c9444558fe2b15bbffee0344715758f2f04d46f4ce8afd08"
+    },
+    "Text.Tabwriter.Internal.Parse": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Text.Tabwriter.Internal.Parse.cinch",
+      "sha256": "33ab3faca02b5d65e3199b2fd8d15e058f3093c47fefebc084b40364ea9ca934"
+    },
+    "Data.Bytes.Build": {
+      "path": "/workspace/dasl-stdlib-buffered-io/compiler/prelude/Data/Bytes/Build.cinch",
+      "sha256": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9"
+    },
+    "Data.Bytes.Utf8": {
+      "path": "/workspace/dasl-stdlib-buffered-io/compiler/prelude/Data/Bytes/Utf8.cinch",
+      "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+    },
+    "Data.Bytes.Word": {
+      "path": "/workspace/dasl-stdlib-buffered-io/compiler/prelude/Data/Bytes/Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+    },
+    "Text.Tabwriter.Internal.Layout": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Text.Tabwriter.Internal.Layout.cinch",
+      "sha256": "873660c8291326bccbe75adccdbcb67536139ad95e2531394f00cc9fe2fa64f8"
+    },
+    "Effect.Tabwriter": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Effect.Tabwriter.cinch",
+      "sha256": "6c0470b5ec5b9651e5056c2499fe17b9a49c898b5030e612ab322dfc738afd7b"
+    },
+    "Effect.Tabwriter.Internal.Cell": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Effect.Tabwriter.Internal.Cell.cinch",
+      "sha256": "7df62f7ffc3826fbfcb8e8021fddf084eb30627f643be140f1067cbd64ea6b97"
+    },
+    "Fixture.Tabwriter.Protocol": {
+      "path": "/workspace/dasl-stdlib-buffered-io/experiments/tabwriter-v1/sources/Fixture.Tabwriter.Protocol.cinch",
+      "sha256": "d7af0019742b1e827284b5b6939fa08a231ddcdb7673753dcbf6449da7bc0289"
+    }
+  },
+  "command": [
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-buffered-io/build/tabwriter-adaptation-source-v1/Main.cinch"
+  ],
+  "source_only": true,
+  "production_adopted": false,
+  "runtime_claim": false,
+  "cpu": 2,
+  "start_guard_bytes": 367001600,
+  "reserve_bytes": 262144000,
+  "cap_bytes": 5242880,
+  "returncode": 1,
+  "interrupted_reason": null,
+  "seconds": 0.10283087799325585,
+  "source_gate_passed": false,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr": "cinch: /workspace/dasl-stdlib-buffered-io/build/tabwriter-adaptation-source-v1/Main.cinch: 96:72: unknown escape sequence\n",
+  "artifact_bytes": 122099,
+  "genuine_interfaces": {}
+}

@@ -1,24 +1,72 @@
-//! Buffered raw events and managed continuation proxies; full reader/writer/scanner coverage grows here.
+//! Buffered raw events, independent operation traces and ownership controls.
+//! Arbitrary cross-retained callback cycles remain an explicit runtime review gate.
 mod common;
 use cinch::driver::Mode;
+
+/// Exact source-distributed closure; embedded base-family definitions are never shadowed.
+const SOURCES: [(&str, &str); 14] = [
+    (
+        "Effect.Buffered",
+        include_str!("../prelude/Effect/Buffered.cinch"),
+    ),
+    (
+        "Effect.Buffered.Core",
+        include_str!("../prelude/Effect/Buffered/Core.cinch"),
+    ),
+    (
+        "Effect.Buffered.Internal.Cell",
+        include_str!("../prelude/Effect/Buffered/Internal/Cell.cinch"),
+    ),
+    (
+        "Effect.Buffered.Internal.Scan",
+        include_str!("../prelude/Effect/Buffered/Internal/Scan.cinch"),
+    ),
+    (
+        "Effect.Buffered.Reader",
+        include_str!("../prelude/Effect/Buffered/Reader.cinch"),
+    ),
+    (
+        "Effect.Buffered.Writer",
+        include_str!("../prelude/Effect/Buffered/Writer.cinch"),
+    ),
+    (
+        "Effect.Scanner",
+        include_str!("../prelude/Effect/Scanner.cinch"),
+    ),
+    (
+        "Effect.Scanner.Split",
+        include_str!("../prelude/Effect/Scanner/Split.cinch"),
+    ),
+    (
+        "Effect.Stream",
+        include_str!("../prelude/Effect/Stream.cinch"),
+    ),
+    (
+        "Data.Bytes.Build",
+        include_str!("../prelude/Data/Bytes/Build.cinch"),
+    ),
+    (
+        "Data.Bytes.Utf8",
+        include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+    ),
+    (
+        "Data.Bytes.Word",
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+    ),
+    (
+        "Data.Unicode.Kernel",
+        include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+    ),
+    (
+        "Data.Unicode.Tables",
+        include_str!("../prelude/Data/Unicode/Tables.cinch"),
+    ),
+];
 
 /// Copy only source-distributed dependencies, preserving the compiler's embedded base family.
 fn project() -> tempfile::TempDir {
     let directory = tempfile::tempdir().unwrap();
-    for (name, source) in [
-        (
-            "Effect.Buffered.Core",
-            include_str!("../prelude/Effect/Buffered/Core.cinch"),
-        ),
-        (
-            "Effect.Buffered.Internal.Cell",
-            include_str!("../prelude/Effect/Buffered/Internal/Cell.cinch"),
-        ),
-        (
-            "Effect.Stream",
-            include_str!("../prelude/Effect/Stream.cinch"),
-        ),
-    ] {
+    for (name, source) in SOURCES {
         std::fs::write(directory.path().join(format!("{name}.cinch")), source).unwrap();
     }
     directory
@@ -110,17 +158,10 @@ fn buffered_continuation_cells_require_io_and_hide_storage() {
 
 /// Every owned declaration and constructor uses canonical documentation independent of another language.
 #[test]
-fn buffered_core_declarations_have_canonical_documentation() {
-    for (name, source) in [
-        (
-            "Effect.Buffered.Core",
-            include_str!("../prelude/Effect/Buffered/Core.cinch"),
-        ),
-        (
-            "Effect.Buffered.Internal.Cell",
-            include_str!("../prelude/Effect/Buffered/Internal/Cell.cinch"),
-        ),
-    ] {
+fn buffered_family_declarations_have_canonical_documentation() {
+    for (name, source) in SOURCES.into_iter().filter(|(name, _)| {
+        name.starts_with("Effect.Buffered") || name.starts_with("Effect.Scanner")
+    }) {
         let parsed = cinch::cinchdoc::parse_source(source, Some(name), name, None, false).unwrap();
         assert!(parsed.doc.is_some());
         assert!(parsed.diagnostics.is_empty());
@@ -134,4 +175,72 @@ fn buffered_core_declarations_have_canonical_documentation() {
             assert!(!text.contains("golang") && !text.contains("go's") && !text.contains("go "));
         }
     }
+}
+
+/// Execute an independent maintained consumer with the same fixed ownership and memory profiles as the core gate.
+fn run_family_fixture(source: &str) {
+    let directory = project();
+    std::fs::write(directory.path().join("Main.cinch"), source).unwrap();
+    let executable = directory.path().join("consumer");
+    let profile = cinch::core::TargetProfile {
+        reclaim: true,
+        rc_debug: true,
+        ..cinch::core::TargetProfile::native()
+    };
+    common::drive_with_profile(
+        Mode::Build,
+        cinch::check::StageMode::Refresh,
+        directory.path(),
+        "Main.cinch",
+        Some(executable.clone()),
+        &profile,
+    )
+    .unwrap();
+    for poisoned in [false, true] {
+        let output = std::process::Command::new(&executable)
+            .env("CINCH_RC_DEBUG", if poisoned { "1" } else { "0" })
+            .env("CINCH_LEAK_CHECK", "1")
+            .env("CINCH_HEAP_LIMIT", if poisoned { "256M" } else { "32M" })
+            .env("CINCH_STACK_SIZE", "8M")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "poisoned={poisoned}: {}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stderr).contains("live=0 immortal=0 leaked=0"));
+    }
+}
+
+/// Independent reader histories preserve bytes, decoded widths, unread permissions and actual transport request sizes.
+#[test]
+fn buffered_reader_independent_operation_histories() {
+    run_family_fixture(include_str!("fixtures/buffered-reader-traces.cinch"));
+}
+
+/// Independent writer histories preserve accepted prefixes, sticky failures, reservations and exact sink offers.
+#[test]
+fn buffered_writer_independent_operation_histories() {
+    run_family_fixture(include_str!("fixtures/buffered-writer-traces.cinch"));
+}
+
+/// Scanner histories preserve absence versus empty tokens, final states and malformed split progress.
+#[test]
+fn buffered_scanner_independent_operation_histories() {
+    run_family_fixture(include_str!("fixtures/buffered-scanner-traces.cinch"));
+}
+
+/// Every built-in splitter processes independent malformed, Unicode and delimiter boundary observations.
+#[test]
+fn buffered_splitters_independent_byte_and_unicode_observations() {
+    run_family_fixture(include_str!("fixtures/buffered-split-traces.cinch"));
+}
+
+/// Public layered pipelines retain fresh output owners and distinguish one-layer flush from explicit deep finish.
+#[test]
+fn buffered_layered_pipeline_ownership_and_flush_routes() {
+    run_family_fixture(include_str!("fixtures/buffered-layer-controls.cinch"));
 }
