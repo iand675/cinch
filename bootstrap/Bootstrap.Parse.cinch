@@ -35,11 +35,12 @@ module Bootstrap.Parse where
   import Bootstrap.Report
   import Text.Lex (Span, span-start, span-end, span-line, span-col,
                    Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPrimFrag,
-                   TPunct, TEOF, LToken, lt-span, lt-virtual, lt-token,
+                   TPunct, TAttr, TEOF, LToken, lt-span, lt-virtual, lt-token,
                    Lexed, LexedTokens, LexedFail, LexErrorKind, lex-error-message,
                    lex-source, bytes-slice)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, Bundle,
                      ParseError, EFail)
+  import Text.Scan (string-index-of, string-take, string-drop, string-strip)
   import Data.Bool
   import Data.Bytes
   import Data.Char
@@ -754,9 +755,53 @@ module Bootstrap.Parse where
         if string-compare p ";" == 0 then decls-loop rest src fix acc
         else if string-compare p "}" == 0 then POk (reverse acc) rest
         else decl-step toks src fix acc
+      TAttr text -> (case inline-attribute text of
+        Some (family, hint) -> inline-decl (sp-of t) family hint rest src fix acc
+        None -> decl-step toks src fix acc)
       TEOF -> POk (reverse acc) toks
       _ -> decl-step toks src fix acc
     Nil -> POk (reverse acc) Nil
+
+  inline-attribute :: String -> Option (String, Result String String)
+  inline-attribute text =
+    let end = string-length text in
+    let open = (case string-index-of "(" text of Some pos -> pos; None -> end) in
+    let family = string-take open text in
+    let arg = if open + 2 <= end then string-strip (string-take (end - open - 2) (string-drop (open + 1) text)) else "" in
+    if string-compare family "noinline" == 0 then
+      Some (family, if open == end then Ok "noinline" else Err "`#[noinline]` takes no arguments")
+    else if string-compare family "inline" == 0 then
+      Some (family, if open == end then Ok "inlinehint" else if string-compare arg "always" == 0 then Ok "alwaysinline"
+        else if string-compare arg "never" == 0 then Ok "noinline" else Err "`#[inline]` expects always or never")
+    else None
+
+  previous-inline :: String -> List Decl -> Bool
+  previous-inline name declarations = case declarations of
+    Nil -> False
+    Cons (DInlineHint sp prior hint) rest -> string-compare name prior == 0 || previous-inline name rest
+    Cons other rest -> previous-inline name rest
+
+  inline-subject :: Decl -> Option String
+  inline-subject d = case d of
+    DSig sp name ty -> Some name
+    DFun sp name clauses -> Some name
+    other -> None
+
+  inline-decl :: Span -> String -> Result String String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  inline-decl site family hint toks src fix acc = case toks of
+    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then inline-decl site family hint rest src fix acc else
+      (case lt-token t of
+        TAttr text -> (case inline-attribute text of
+          Some (next, value) -> let duplicate = if string-compare family next == 0 then "two `" <> family <> "` attributes" else "one function carries one inline hint" in
+            inline-decl site next (Err duplicate) rest src fix acc
+          None -> decls-loop toks src fix (Cons (DInlineHint site "" (Err "expected a function declaration after an inline hint")) acc))
+        other -> (case parse-decl-recover toks src fix of
+          POk d tail -> (case inline-subject d of
+            Some name -> let result = if previous-inline name acc then Err "one function carries one inline hint" else hint in
+              decls-loop tail src fix (Cons d (Cons (DInlineHint site name result) acc))
+            None -> decls-loop tail src fix (Cons d (Cons (DInlineHint site "" (Err "inline is a hint on a function declaration")) acc)))
+          PBad -> PBad))
+    Nil -> PBad
 
   decl-step :: List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
   decl-step toks src fix acc = case parse-decl-recover toks src fix of

@@ -540,6 +540,7 @@ module Bootstrap.Ast where
     -- same wrapper around the `DImport`, so one pruning pass handles both.
     -- Where a clause does not hold the name is absent from the interface,
     -- from the module's exports and from code generation.
+    DInlineHint :: Span -> String -> Result String String -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
@@ -590,6 +591,7 @@ module Bootstrap.Ast where
     DContract s kind name subject clauses -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
+    DInlineHint s name hint -> s
     DUnmodeled s text -> s
 
   -- A declaration's name, where it has one a consumer registers.
@@ -618,6 +620,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> Some name
     DDecl s x rest -> None
     DDeclsEnd s -> None
+    DInlineHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DCorec s body -> decl-name body
@@ -645,6 +648,12 @@ module Bootstrap.Ast where
     MkModule s name decls -> name
 
   -- The module's declarations, flattened out of its spine.
+  declaration-inline-hints :: List Decl -> List (String, String)
+  declaration-inline-hints ds = case ds of
+    Nil -> Nil
+    Cons (DInlineHint sp name (Ok hint)) rest -> Cons (name, hint) (declaration-inline-hints rest)
+    Cons other rest -> declaration-inline-hints rest
+
   module-decls :: Module -> List Decl
   module-decls m = case m of
     MkModule s name decls -> decls-of decls
@@ -847,6 +856,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> type-unmodeled-count ty + prim-bodies-unmodeled bodies
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
+    DInlineHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body

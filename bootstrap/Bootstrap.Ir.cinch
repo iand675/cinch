@@ -347,11 +347,12 @@ module Bootstrap.Ir where
     else if string-length b == 0 then a
     else cat [a, ", ", b]
 
-  gen-define-clause :: Gen -> String -> List Pat -> Expr -> Gen
-  gen-define-clause g name pats body =
+  gen-define-clause :: Gen -> List (String, String) -> String -> List Pat -> Expr -> Gen
+  gen-define-clause g hints name pats body =
     let (g1, header, prologue, env) = gen-params g pats in
     let g2 = with-env env g1 in
-    let g3 = gen-line g2 (cat ["define i64 @", llvm-name name, "(", header, ") {"]) in
+    let hint = (case env-lookup name hints of Some attribute -> cat [" ", attribute]; None -> "") in
+    let g3 = gen-line g2 (cat ["define i64 @", llvm-name name, "(", header, ")", hint, " {"]) in
     let g4 = gen-line g3 "entry:" in
     let g5 = gen-text g4 prologue in
     let (g6, rv) = gen-expr g5 body in
@@ -370,24 +371,21 @@ module Bootstrap.Ir where
     let g5 = gen-line g4 "  ret i32 %exit" in
     gen-line g5 "}"
 
-  gen-fun-clause :: Gen -> String -> List Pat -> Expr -> Gen
-  gen-fun-clause g name pats body = gen-define-clause g name pats body
-
-  gen-decl :: Gen -> Decl -> Gen
-  gen-decl g d = case d of
+  gen-decl :: List (String, String) -> Gen -> Decl -> Gen
+  gen-decl hints g d = case d of
     DFun s name clauses -> case clauses of
       Nil -> g
       Cons c rest -> case c of
-        (pats, body) -> gen-fun-clause (reset-gen g) name pats body
+        (pats, body) -> gen-define-clause (reset-gen g) hints name pats body
     other -> g
 
-  gen-decls :: Gen -> List Decl -> Gen
-  gen-decls g ds = case ds of
+  gen-decls :: List (String, String) -> Gen -> List Decl -> Gen
+  gen-decls hints g ds = case ds of
     Nil -> g
-    Cons d rest -> gen-decls (gen-decl g d) rest
+    Cons d rest -> gen-decls hints (gen-decl hints g d) rest
 
   gen-module :: Gen -> Module -> Gen
-  gen-module g m = gen-decls g (module-decls m)
+  gen-module g m = let ds = module-decls m in gen-decls (declaration-inline-hints ds) g ds
 
   gen-modules :: Gen -> List Module -> Gen
   gen-modules g ms = case ms of
@@ -560,6 +558,7 @@ module Bootstrap.Ir where
     DGenerate s actions -> Cons (diag s "a generate block requires compile-time expansion") Nil
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
+    DInlineHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration lowers as the declaration it wraps;
     -- pruning already removed the ones this target does not satisfy.

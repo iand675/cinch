@@ -670,6 +670,7 @@ module Bootstrap.Eval where
     DGenerate s actions -> Cons (MkDiagnostic rung s "a generate block requires compile-time expansion") Nil
     -- A contract declares no value the interpreter binds, so it needs no
     -- evaluation. It is checked where its definition is elaborated.
+    DInlineHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration is whatever it wraps: pruning already
     -- dropped the ones the active profile does not select.
