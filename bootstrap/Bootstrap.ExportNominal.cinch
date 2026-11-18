@@ -5,6 +5,7 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Type
   import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
   import Bootstrap.ExportType (export-global, export-parameters)
+  import Bootstrap.Usage (usage-fields-json)
   import Bootstrap.Load (LoadedInterface, loaded-contract)
   import Bootstrap.Nominal (kernel-type-name, interface-global, global-data-core-list)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
@@ -46,7 +47,7 @@ module Bootstrap.ExportNominal where
     (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
       (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
         (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
-          (JObj "refinement" JNull JObjEnd))))))
+          (JObj "refinement" JNull (case usage-fields-json declaration of Some fields -> JObj "usage" fields JObjEnd; None -> JObjEnd)))))))
     (Err error, other, more) -> Err error
     (other, Err error, more) -> Err error
     (other, more, Err error) -> Err error

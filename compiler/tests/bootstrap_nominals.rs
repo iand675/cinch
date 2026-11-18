@@ -80,7 +80,7 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
         let mut iface = Iface::new(module, "");
         let nominals = if nominal {
             iface.imports.push(IfaceRef { module: "A".into(), iface_hash: a.iface_hash() });
-            vec![NominalContract { refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
+            vec![NominalContract { usage: None, refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
         } else { vec![] };
         iface.exports.values.push(ValueExport { total_body: None, keyed_ordering: None,
             name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), arity: 1,
@@ -101,13 +101,14 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
         let identity = format!("{module}.Box");
         let symbol = format!("{module}.Pack");
         iface.exports.types.push(TypeExport {
+            ownership: None,
             name: "Box".into(), identity: identity.clone(),
             params: parameters.iter().map(|p| p.name.clone()).collect(), parameters: parameters.clone(),
             kind: "data".into(), fields: vec![], refinement: None,
             ctors: vec![CtorExport {
                 name: "Pack".into(), symbol: symbol.clone(), tag: 0,
                 scheme: format!("forall (a :: Type). {body}"), fields: vec!["a".into()], erased: vec![false],
-                resolved: Some(ResolvedScheme { measures: vec![], scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { refinement: None,
+                resolved: Some(ResolvedScheme { measures: vec![], scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { usage: None, refinement: None,
                     identity, kind: "data".into(), parameters, constructors: Some(vec![symbol]),
                 }] }),
             }],

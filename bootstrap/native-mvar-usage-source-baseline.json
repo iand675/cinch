@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "status": "unqualified source baseline only; not an integration commit or producer/family claim",
+  "rust_base": "94a1ee8b, source2a plus reviewed MVar rows/source-effect fixes",
+  "native_origin": "exact staged Root copies including reviewed portable-row guard and opaque transfer refusal; not relabeled as original6bca",
+  "native_files": [
+    {
+      "path": "bootstrap/Bootstrap.Infer.cinch",
+      "sha256": "ec65f6d76a94b7845b09c1c235099edb3d1147cdb7551b78994f19f848321726",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Infer.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Typing.cinch",
+      "sha256": "052d61073cd2a00e8f1908c0cc7a54a1bfa2b8c5021aa44fc72c10280a3dc98b",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Typing.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Nominal.cinch",
+      "sha256": "0a43f19e0189e52a0d999fa4bfd3b35e9fc3be22ce9f7c66211dd861f5cddbed",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Nominal.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.ExportNominal.cinch",
+      "sha256": "0343a532664878f372ff36fed4d3a9681efe81778fb501bc5938fe07605013c3",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.ExportNominal.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Export.cinch",
+      "sha256": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Export.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Load.cinch",
+      "sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Load.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Contracts.cinch",
+      "sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Contracts.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Builtin.cinch",
+      "sha256": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Builtin.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.ExportType.cinch",
+      "sha256": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.ExportType.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Foreign.cinch",
+      "sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Foreign.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Object.cinch",
+      "sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Object.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Resolve.cinch",
+      "sha256": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.Resolve.cinch"
+    },
+    {
+      "path": "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "sha256": "595caf0d1a6d49d43093c3caa8a50d2afc0769a7f800460d828e6936fd9a8f19",
+      "origin": "/workspace/dasl-stdlib-io/bootstrap/Bootstrap.RuntimeIr.cinch"
+    }
+  ]
+}

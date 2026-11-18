@@ -1,0 +1,511 @@
+{
+  "scope": "Compare sealed public color control code without building or executing a program.",
+  "runner_sha256": "b7926d0efb60097916144fd32bc325c99f45e42becbf093801cdca777ca4b6b5",
+  "inputs": [
+    {
+      "folder": "build/image-color/bench-3dae-simd-v2",
+      "report_sha256": "d85d4877988e77905959153841d4c65673a6d988add31855c07215c14ca8343b",
+      "executable_sha256": "c9f9835f1893204dd301cb573e2173d76e5f4f0eaba622167b535d6a3dfbd706",
+      "assembly_sha256": "213e4bccb320f559852e626e69885149410cabb6507eb97767d29be8e444f510",
+      "llvm_sha256": "dadf5646b9300b96eed1bebfe6981905a65ddb5a662715a663b109ed2b91b102"
+    },
+    {
+      "folder": "build/image-color/bench-3dae-scalar-v1",
+      "report_sha256": "557c18a39ad0f918beb711532695b1a3bb5dc38ba4efe9cd2e57f25705025826",
+      "executable_sha256": "92d5ac254d3abbf8d1df7347db8fd3edeb602a890100384a7d80f2fe55eb766f",
+      "assembly_sha256": "6d047939d5c5502f9b7eb53d0d16619422ef039ea38142088a62fa96ebe2f550",
+      "llvm_sha256": "e9e740da0d32dfa30709da8a86edb0b2f55bc8355d4b13f0d66bcb9306cf065c"
+    }
+  ],
+  "common_definitions": 206,
+  "changed_ir_definitions": [
+    "Image.Color.distance4.llvm",
+    "Image.Color.expand8.llvm",
+    "Image.Color.premultiply.llvm",
+    "Image.Color.unpremultiply.llvm"
+  ],
+  "selected_functions": [
+    {
+      "symbol": "Main.measure",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        1922,
+        1922
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "88",
+          "8"
+        ],
+        [
+          "88",
+          "8"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "6c3ac925450ade2f26db9f071d2ad76fdc349ba836eda7f1c56f894b0b4f1bbe",
+        "6c3ac925450ade2f26db9f071d2ad76fdc349ba836eda7f1c56f894b0b4f1bbe"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Cons@O",
+        "Data.String.StrBuf",
+        "Data.String.string-concat#cc",
+        "Effect.Clock.raw-monotonic-ns",
+        "Image.Color.CallbackModel",
+        "Image.Color.Palette",
+        "Image.Color.PaletteModel",
+        "Image.Color.StoredColor",
+        "Image.Color.color-convert#cc",
+        "Image.Color.color-white#cc",
+        "Main.option-hash",
+        "Main.palette-items",
+        "Main.pixel",
+        "Main.pixels",
+        "Main.repeat",
+        "Main.retained",
+        "Text.Show.int-to-string",
+        "Text.Show.nat-digit-count",
+        "Text.Show.nat-digits-into",
+        "Text.Show.wrap-bytes",
+        "cinch.prim.bitOrU64",
+        "cinch.prim.eqI64",
+        "cinch.prim.geI64",
+        "cinch.prim.leI64",
+        "cinch.prim.ltI64",
+        "cinch.prim.u16ToU64",
+        "cinch.prim.wrappingAddI64",
+        "cinch.prim.wrappingShlU64",
+        "cinch.runtime.bytesCopy",
+        "cinch.runtime.bytesLen",
+        "cinch.runtime.bytesNew",
+        "cinch.runtime.intFromI64",
+        "cinch.runtime.ioWrite",
+        "cinch.runtime.natCmp",
+        "cinch.runtime.natFromI64",
+        "cinch.runtime.natRem",
+        "cinch.runtime.natSub",
+        "cinch.runtime.natToI64"
+      ]
+    },
+    {
+      "symbol": "Main.repeat",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        516,
+        516
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "40"
+        ],
+        [
+          "40"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "8fe84e00043e2a17716b17c95dd532f5acc8514576e75f32b99bfd083920aea6",
+        "8fe84e00043e2a17716b17c95dd532f5acc8514576e75f32b99bfd083920aea6"
+      ],
+      "direct_ir_callees": [
+        "Main.batch",
+        "Main.operation",
+        "cinch.prim.geI64",
+        "cinch.prim.gtI64",
+        "cinch.prim.wrappingSubI64"
+      ]
+    },
+    {
+      "symbol": "Main.batch",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        301,
+        301
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "24"
+        ],
+        [
+          "24"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "64228427cc19a06174f1d2fda72ec9ef78aa954fdc3c0195b2d33b7ae82cfec8",
+        "64228427cc19a06174f1d2fda72ec9ef78aa954fdc3c0195b2d33b7ae82cfec8"
+      ],
+      "direct_ir_callees": [
+        "Main.operation",
+        "cinch.prim.geI64"
+      ]
+    },
+    {
+      "symbol": "Main.operation",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        906,
+        906
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "56",
+          "8",
+          "8"
+        ],
+        [
+          "56",
+          "8",
+          "8"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "b5c7e014ed11ef15ff1651daf68e996a0885f98fca86e0d974479b04c1dce0a4",
+        "b5c7e014ed11ef15ff1651daf68e996a0885f98fca86e0d974479b04c1dce0a4"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.StandardModel",
+        "Image.Color.StoredColor",
+        "Image.Color.color-alpha16-model#cc",
+        "Image.Color.color-cmyk#cc",
+        "Image.Color.color-cmyk-components",
+        "Image.Color.color-cmyk-to-rgb#cc",
+        "Image.Color.color-convert#cc",
+        "Image.Color.color-gray16-model#cc",
+        "Image.Color.color-nrgba8-model#cc",
+        "Image.Color.color-palette-convert",
+        "Image.Color.color-palette-index",
+        "Image.Color.color-rgb-to-cmyk",
+        "Image.Color.color-rgba",
+        "Image.Color.color-rgba8#cc",
+        "Image.Color.color-rgba8-components",
+        "Image.Color.color-ycbcr-components",
+        "Image.Color.color-ycbcr-to-rgb#cc",
+        "Image.Color.convert-standard",
+        "Image.Color.rgb-ycbcr",
+        "Main.color-hash",
+        "Main.fields",
+        "Main.operation.shared0",
+        "Main.option-hash",
+        "Main.raw-hash",
+        "Tuple.4@RRRR",
+        "cinch.prim.bitAndI64",
+        "cinch.prim.bitOrU64",
+        "cinch.prim.eqI64",
+        "cinch.prim.geI64",
+        "cinch.prim.leI64",
+        "cinch.prim.u32ToI64",
+        "cinch.prim.u8ToU64",
+        "cinch.prim.wrappingAddI64",
+        "cinch.prim.wrappingMulI64",
+        "cinch.prim.wrappingShlU64",
+        "cinch.prim.wrappingShrU64",
+        "cinch.prim.wrappingU64ToU8",
+        "cinch.runtime.natCmp",
+        "cinch.runtime.natToI64"
+      ]
+    },
+    {
+      "symbol": "Main.color-hash",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        155,
+        155
+      ],
+      "stack_subtractions_bytes": [
+        [],
+        []
+      ],
+      "normalized_assembly_sha256": [
+        "230a03099519a1e0f1f10ca4391262f8e70f7fea6cb2d046166361045f32d461",
+        "230a03099519a1e0f1f10ca4391262f8e70f7fea6cb2d046166361045f32d461"
+      ],
+      "direct_ir_callees": [
+        "Image.Color.color-rgba",
+        "Main.fields",
+        "Main.raw-hash",
+        "cinch.prim.u32ToI64"
+      ]
+    },
+    {
+      "symbol": "Main.raw-hash",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        1913,
+        1913
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "24"
+        ],
+        [
+          "24"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "692f1c036f30f2f8ecf758608d23e2f0a31be28ac7aa51e5a5f57c0a5f48c900",
+        "692f1c036f30f2f8ecf758608d23e2f0a31be28ac7aa51e5a5f57c0a5f48c900"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.color-alpha16-components",
+        "Image.Color.color-alpha8-components",
+        "Image.Color.color-cmyk-components",
+        "Image.Color.color-gray16-components",
+        "Image.Color.color-gray8-components",
+        "Image.Color.color-nrgba16-components",
+        "Image.Color.color-rgba",
+        "Image.Color.color-ycbcr-components",
+        "Image.Color.color-ycbcra-components",
+        "Main.fields",
+        "Tuple.4@RRRR",
+        "cinch.prim.bitAndI64",
+        "cinch.prim.u16ToI64",
+        "cinch.prim.u32ToI64",
+        "cinch.prim.u8ToI64",
+        "cinch.prim.wrappingAddI64",
+        "cinch.prim.wrappingMulI64",
+        "cinch.prim.wrappingShrU64",
+        "cinch.prim.wrappingU64ToU16",
+        "cinch.prim.wrappingU64ToU8"
+      ]
+    },
+    {
+      "symbol": "Image.Color.rgba-word#cc",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": false,
+      "assembly_lines": [
+        322,
+        336
+      ],
+      "stack_subtractions_bytes": [
+        [],
+        []
+      ],
+      "normalized_assembly_sha256": [
+        "dbde04c0430dfcffee9688af2e0b51ec897f271379c1f8cc7e6e1f596c09928a",
+        "a7659734aed26abb80ebb4bdafa15f3f442ec984398cb9cc508eb082287328c4"
+      ],
+      "direct_ir_callees": [
+        "Image.Color.cmyk16",
+        "Image.Color.expand8",
+        "Image.Color.premultiply",
+        "Image.Color.ycbcr16",
+        "cinch.prim.bitOrU64",
+        "cinch.prim.u16ToU64",
+        "cinch.prim.u8ToU16",
+        "cinch.prim.wrappingMulU16",
+        "cinch.prim.wrappingShlU64",
+        "cinch.prim.wrappingShrU64",
+        "cinch.prim.wrappingU64ToU16",
+        "cinch.prim.wrappingU64ToU8"
+      ]
+    },
+    {
+      "symbol": "Image.Color.convert-standard",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": false,
+      "assembly_lines": [
+        1448,
+        1261
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "24"
+        ],
+        [
+          "24"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "917dae68911fb90cb931dc95010d8fa6555435e49b7cb0a0d210f9892343fa2d",
+        "8ac5b749d6437ccc25606597440af293c803315391ef0462056310954fc98b3d"
+      ],
+      "direct_ir_callees": [
+        "Image.Color.StoredColor",
+        "Image.Color.cmyk16",
+        "Image.Color.convert-standard.shared0",
+        "Image.Color.expand8",
+        "Image.Color.gray-sum",
+        "Image.Color.narrow8",
+        "Image.Color.premultiply",
+        "Image.Color.rgb-cmyk",
+        "Image.Color.rgb-ycbcr",
+        "Image.Color.unpremultiply",
+        "Image.Color.ycbcr16",
+        "cinch.prim.bitOrU64",
+        "cinch.prim.eqU16",
+        "cinch.prim.u16ToU64",
+        "cinch.prim.u8ToU16",
+        "cinch.prim.u8ToU64",
+        "cinch.prim.wrappingMulU16",
+        "cinch.prim.wrappingShlU64",
+        "cinch.prim.wrappingShrU16",
+        "cinch.prim.wrappingShrU32",
+        "cinch.prim.wrappingShrU64",
+        "cinch.prim.wrappingU16ToU8",
+        "cinch.prim.wrappingU32ToU16",
+        "cinch.prim.wrappingU32ToU8",
+        "cinch.prim.wrappingU64ToU16",
+        "cinch.prim.wrappingU64ToU8"
+      ]
+    },
+    {
+      "symbol": "Image.Color.color-convert#cc",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        349,
+        349
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "16",
+          "8",
+          "8"
+        ],
+        [
+          "16",
+          "8",
+          "8"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "441765f6b8f563c604aba2ac8a436b183765b28db58a50f1684f37ce0999126f",
+        "441765f6b8f563c604aba2ac8a436b183765b28db58a50f1684f37ce0999126f"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.convert-standard",
+        "Image.Color.nearest#cc",
+        "Image.Color.rgba-word#cc"
+      ]
+    },
+    {
+      "symbol": "Image.Color.color-palette-convert",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": true,
+      "assembly_lines": [
+        257,
+        257
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "8",
+          "8"
+        ],
+        [
+          "8",
+          "8"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "ffc4030cf1a818245844470d2e6291f80ba9ed4bae78285292c1d0489b3f2cc6",
+        "ffc4030cf1a818245844470d2e6291f80ba9ed4bae78285292c1d0489b3f2cc6"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.nearest#cc",
+        "Image.Color.rgba-word#cc"
+      ]
+    },
+    {
+      "symbol": "Image.Color.nearest#cc",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": false,
+      "assembly_lines": [
+        606,
+        566
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "24"
+        ],
+        [
+          "40"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "b15a68664ccaa36766496a430c0212c5634f61aaad8b53e1b5107318dfe2be2d",
+        "fca7ae4e6cf0be1d15c6a1bbc5ab9af68130638d1095eb4fb6e0f8afffa9a2ee"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.cmyk16",
+        "Image.Color.distance4",
+        "Image.Color.expand8",
+        "Image.Color.nearest.shared0#cc",
+        "Image.Color.premultiply",
+        "Image.Color.ycbcr16",
+        "Tuple.2@TO",
+        "cinch.prim.bitOrU64",
+        "cinch.prim.eqU32",
+        "cinch.prim.ltU32",
+        "cinch.prim.u16ToU64",
+        "cinch.prim.u8ToU16",
+        "cinch.prim.wrappingMulU16",
+        "cinch.prim.wrappingShlU64",
+        "cinch.prim.wrappingShrU64",
+        "cinch.prim.wrappingU64ToU16",
+        "cinch.prim.wrappingU64ToU8",
+        "cinch.runtime.natAdd"
+      ]
+    },
+    {
+      "symbol": "Image.Color.nearest.shared0#cc",
+      "normalized_ir_equal": true,
+      "normalized_assembly_equal": false,
+      "assembly_lines": [
+        357,
+        369
+      ],
+      "stack_subtractions_bytes": [
+        [
+          "24",
+          "8"
+        ],
+        [
+          "40",
+          "8"
+        ]
+      ],
+      "normalized_assembly_sha256": [
+        "419bd24afe7a968e6812ae649d9a158284d076758113e9c8adf50b8d78b0aedf",
+        "9de09ec517d7673bc512a54300157438c4763dc6bfe463bc145804628e9cbcc8"
+      ],
+      "direct_ir_callees": [
+        "Data.Core.Some@O",
+        "Image.Color.distance4",
+        "Image.Color.nearest#cc",
+        "Image.Color.rgba-word#cc",
+        "Tuple.2@TO",
+        "cinch.prim.eqU32",
+        "cinch.prim.ltU32",
+        "cinch.runtime.natAdd"
+      ]
+    }
+  ],
+  "stored_rgba16_path_equal": true,
+  "stored_rgba16_normalized_path_sha256": "04a849e25a4961fa42137696b2118ba2f9895da0eea01fc9d5251cf9ea0b1ad4",
+  "stored_rgba16_normalized_path": "\"Image.Color.rgba-word#cc\":\npushq\t%rbp\nmovq\t%rsp, %rbp\npushq\t%rbx\npushq\t%rax\nmovq\t-8(%rdi), %rax\nshrq\t$40, %rax\nmovzbl\t%al, %eax\ncmpq\t$255, %rax\njne\t.LBB_2\nmovq\t-16(%rdi), %rax\nmovq\t(%rax), %rax\n.LBB_2:\ncmpq\t$1, %rax\nje\t.LBB_11\ntestq\t%rax, %rax\njne\t.LBB_9\nmovq\t(%rdi), %rdx\nmovq\t8(%rdi), %rax\nmovq\t-8(%rdx), %rcx\nshrq\t$40, %rcx\nmovzbl\t%cl, %ecx\ncmpq\t$255, %rcx\njne\t.LBB_6\nmovq\t-16(%rdx), %rcx\nmovq\t(%rcx), %rcx\n.LBB_6:\ncmpq\t$11, %rcx\nja\t.LBB_9\nleaq\t.LJTI129_0(%rip), %rdx\nmovslq\t(%rdx,%rcx,4), %rcx\naddq\t%rdx, %rcx\njmpq\t*%rcx\naddq\t$8, %rsp\npopq\t%rbx\npopq\t%rbp\nretq\t$8",
+  "observations": [
+    "The complete Main clock/repeat/batch/operation/raw/canonical hashing instructions compare equal after comment/local-label normalization.",
+    "Stored RGBA16 dispatch goes directly to the same common return; no changed numeric kernel executes on that canonical observation path.",
+    "YCbCr16 workload constructs NYCbCrA and therefore executes the changed premultiply body after unchanged y-dependent conversion.",
+    "Nearest lookup inlines carrier dispatch and distance arithmetic. Its SIMD stack subtraction is24 bytes versus scalar40; this fact alone does not predict elapsed time.",
+    "PaletteModel reaches the same nearest worker through color-convert; direct palette-convert and model dispatch are distinct public paths.",
+    "Both sources allocate an optional (Nat,Color) tuple on every improved nearest choice and advance a Nat index; source and IR expose these sites, not their dynamic counts.",
+    "Typed component observers and canonical output tuples add public-pipeline allocation work shared by both variants."
+  ],
+  "limits": [
+    "No compiler, program, allocation-counter or elapsed measurement is executed by this review.",
+    "Identical executed instructions do not prove identical placement, cache behavior, branch state or scheduling.",
+    "The retained RGBA control regression prevents treating the first short timing window as isolated arithmetic attribution.",
+    "Allocation counts and longer paired control confirmation remain separate future evidence; no source optimization or SDK parity is claimed."
+  ]
+}

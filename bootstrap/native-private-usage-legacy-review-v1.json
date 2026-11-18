@@ -1,0 +1,18 @@
+{
+  "base_sha256": "a9b3d3740d30591b78e8a1e45582ed2fccee366e3186ca8bb937bab138ebe7b6",
+  "patch_bytes": 4802,
+  "patch_sha256": "2e19a7c3340259775051e5cfe7d902ad6f7414f02844d33ac494946d841f04b0",
+  "production_changes": false,
+  "remaining_boundary": "Existing None/other task-transfer-safe no-borrow fallback is not a universal proof for arbitrary opaque or abstract forms; not changed by this proposal.",
+  "runtime_or_producer_adoption": false,
+  "schema": 1,
+  "scope": "genuine proof Nat required0/Bytes4; optional facts omitted Nat4 availability gap/Bytes4; header-only defining/reexport plus value-result-only abstract-data recovery; ownedBytes0",
+  "static_trace": [
+    "DExternal type with kind=data -> checked-data-declaration -> CoreData Nil",
+    "resolved value nominal kind=data -> nominal-runtime-data -> CoreData Nil",
+    "no UsageShape -> Share false; Nil task-usage-transfer false"
+  ],
+  "status": "unapplied test-only proposal; no actual Native verdict yet",
+  "target_file": "compiler/tests/interface_mvar_contracts.rs",
+  "target_sha256": "2e5aaf003ac4e333e8fe4d54a739f72c4c81990a4cef0f52c4de7d332f6a782b"
+}

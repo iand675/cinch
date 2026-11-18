@@ -1,0 +1,279 @@
+{
+  "scope": "Dependency-minimal isolated palette source/SDK-free runtime CI proposal; no production prelude, shared inventory, provider or Native selection",
+  "root_prerequisite": "Root15a6f22f imported isolated Color151b; verify exact dependency below rather than using an embedded or substituted module",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "required_imports": [
+    {
+      "from": "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch",
+      "to": "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch",
+      "bytes": 17082,
+      "sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/consumer.cinch",
+      "to": "experiments/image-color-palette-v1/consumer.cinch",
+      "bytes": 7532,
+      "sha256": "31397fcdca1f04670831a9e588054e65e7521fdbbd1e6abb0a92c12ed35c14ae"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/vectors.json",
+      "to": "experiments/image-color-palette-v1/vectors.json",
+      "bytes": 578006,
+      "sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310"
+    },
+    {
+      "from": "tooling/check_color_palette.py",
+      "to": "tooling/check_color_palette.py",
+      "bytes": 6647,
+      "sha256": "c9040c8ddc99b14d7451e64de454cc8823dd72a2dbd8f45e396ad80d71808770"
+    },
+    {
+      "from": "tooling/check_color_palette_ci.py",
+      "to": "tooling/check_color_palette_ci.py",
+      "bytes": 3559,
+      "sha256": "5be92fd87367cbe66ebc6625be4c66779cec4993653122ec879225bbb46ccb5a"
+    },
+    {
+      "from": "tooling/prepare_color_palette_fixtures.py",
+      "to": "tooling/prepare_color_palette_fixtures.py",
+      "bytes": 4165,
+      "sha256": "c014c809c0b9d137221037839b00ccb5c6db40d96d3f7f23c21dd885f17ea763"
+    },
+    {
+      "from": "compiler/tests/lib_image_color_palette.rs",
+      "to": "compiler/tests/lib_image_color_palette.rs",
+      "bytes": 5171,
+      "sha256": "fef35c59a082b0bab9453ede1517559dc4671c17fea54727251b393e3987dafb"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
+      "to": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
+      "bytes": 1561,
+      "sha256": "c5eb611fbd8f71107fe2032742a5b7c059cf364a6aa480fdadf45f9b5947b3f0"
+    }
+  ],
+  "qualification_receipts": [
+    {
+      "from": "experiments/image-color-palette-v1/README.md",
+      "to": "experiments/image-color-palette-v1/README.md",
+      "bytes": 5345,
+      "sha256": "21c59d8368129385d0d85cbfde501bf0ed8f297c239e38a2dfb11338969b0cde"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/operation-map.json",
+      "to": "experiments/image-color-palette-v1/operation-map.json",
+      "bytes": 3611,
+      "sha256": "a8b526958af977b4a956355554a977b979869137f6aaccb30c5a4cc30733b1f0"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/sdk-surface.json",
+      "to": "experiments/image-color-palette-v1/sdk-surface.json",
+      "bytes": 127,
+      "sha256": "a222fe5efd8e53468e4e3c5a3c3e86bd2d4ff416ccc31f3ecec553a0b9a78eb7"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/canonical-docs.json",
+      "to": "experiments/image-color-palette-v1/canonical-docs.json",
+      "bytes": 557,
+      "sha256": "d0bd3974291d0e155b828e242061fc1a120d2c69dd5fba75fccc7ac45904a985"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/defining-contracts.json",
+      "to": "experiments/image-color-palette-v1/defining-contracts.json",
+      "bytes": 1870,
+      "sha256": "97f27050e0f14a8edb4f11a9009b3779d961734d9efe31f8b0ce03382b96c118"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/source-gate.json",
+      "to": "experiments/image-color-palette-v1/source-gate.json",
+      "bytes": 8436,
+      "sha256": "969d63c75e3d4a60d4e3ed51f2d6d627f44a2c39a2f1d02fcfe292d94dbde678"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/source-generation.json",
+      "to": "experiments/image-color-palette-v1/source-generation.json",
+      "bytes": 666,
+      "sha256": "e71305993791a612915f78eb88928909cb185e05f7a80558eca7a6e577033950"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/source-failures.json",
+      "to": "experiments/image-color-palette-v1/source-failures.json",
+      "bytes": 1857,
+      "sha256": "23f91ca6d841c35811eee93822ed03e16060ab1fa767d461a4e524a72c1299b5"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/consumer-source-gate.json",
+      "to": "experiments/image-color-palette-v1/consumer-source-gate.json",
+      "bytes": 8445,
+      "sha256": "8df02727e6bcb53b90018065dac14594f90cab02dc47abeb1e5e14ee4d54f53b"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/sdk-generation.json",
+      "to": "experiments/image-color-palette-v1/sdk-generation.json",
+      "bytes": 1699,
+      "sha256": "f35afa5f5a714984967f07b9de30802e67627d3e81a817fec5d6d602ab20c78f"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/scalar-validation.json",
+      "to": "experiments/image-color-palette-v1/scalar-validation.json",
+      "bytes": 555,
+      "sha256": "5f27a2c371b3f04fd87006b31ddd6ab8402918aa44ae802b41c7dfc882de7e82"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/runtime-o2.json",
+      "to": "experiments/image-color-palette-v1/runtime-o2.json",
+      "bytes": 11544,
+      "sha256": "c91c0b37c83b24248e4330be37ffeae62a0ed7e5ece6e338989d452a2e79b1ca"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/runtime-o0.json",
+      "to": "experiments/image-color-palette-v1/runtime-o0.json",
+      "bytes": 3461,
+      "sha256": "539ac96da5447fb513d8bb4ff72ccbc930926d11e26f50337344fda8249d570b"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/code-inspection.json",
+      "to": "experiments/image-color-palette-v1/code-inspection.json",
+      "bytes": 254505,
+      "sha256": "ec5d36bb63546fb6a8431a1996392a0ec158ac33ec4813c44c5bc56a506b975b"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/performance-plan.json",
+      "to": "experiments/image-color-palette-v1/performance-plan.json",
+      "bytes": 4219,
+      "sha256": "9f84444e15eb39443fd2eb631e4960e2ed997100e40b857dd5a3d45be2399235"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable-gate.json",
+      "to": "experiments/image-color-palette-v1/portable-gate.json",
+      "bytes": 35644,
+      "sha256": "4ebc671a3f611d5a87e627e4c23a5ef8f894661dc828e248b7a0445b03c5b5d6"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/functional-artifact-archives.json",
+      "to": "experiments/image-color-palette-v1/functional-artifact-archives.json",
+      "bytes": 3758,
+      "sha256": "7242534d4b1100c487921418aa9101c32c3ee67a13694443053d6c585150ba0c"
+    }
+  ],
+  "optional_reproduction_imports": [
+    {
+      "from": "experiments/image-color-palette-v1/reference.go",
+      "to": "experiments/image-color-palette-v1/reference.go",
+      "bytes": 2813,
+      "sha256": "16a822d23eb6728854cc02dfc69a4cc4fbfb8a5ad83d5eea3821f9ac8f024d73"
+    },
+    {
+      "from": "tooling/prepare_color_palette_source.py",
+      "to": "tooling/prepare_color_palette_source.py",
+      "bytes": 4117,
+      "sha256": "5878294aba0d7328c2ef9ed56ceedc664cebcf28c3022546a9fa9879b5941da3"
+    },
+    {
+      "from": "tooling/capture_color_palette_reference.py",
+      "to": "tooling/capture_color_palette_reference.py",
+      "bytes": 4239,
+      "sha256": "66c8243116afa4a22c89f79bcfb11671c635f51eebb80aaf61766111dbaa0d77"
+    },
+    {
+      "from": "tooling/validate_color_palette_reference.py",
+      "to": "tooling/validate_color_palette_reference.py",
+      "bytes": 4149,
+      "sha256": "6bd738b17759617fd245b03f2882a3c2055bdbc47c01eafa7222382263063e8c"
+    },
+    {
+      "from": "tooling/check_color_palette_source.py",
+      "to": "tooling/check_color_palette_source.py",
+      "bytes": 4671,
+      "sha256": "0ed5e039de7e8022247d779f421e406f2853d7df4d5fef55b293d537c9d4f1b7"
+    },
+    {
+      "from": "tooling/relink_color_palette.py",
+      "to": "tooling/relink_color_palette.py",
+      "bytes": 5762,
+      "sha256": "17123d833a05d9caf5b47d1144d34b5de02ea626042e4320d60e61ddfbd9febe"
+    },
+    {
+      "from": "tooling/inspect_color_palette_code.py",
+      "to": "tooling/inspect_color_palette_code.py",
+      "bytes": 4890,
+      "sha256": "dba9396017e2bb45135000db9a35f83e9aa4d2a9985f34f0ebd60fc4d2c4ee6c"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable.cinch",
+      "to": "experiments/image-color-palette-v1/portable.cinch",
+      "bytes": 1965,
+      "sha256": "8ebad653a4b142ed87fd68c9a8eab544a8a6a7f5469915715907c94556538227"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable-seed.c",
+      "to": "experiments/image-color-palette-v1/portable-seed.c",
+      "bytes": 173,
+      "sha256": "b064839d7530cb49f7b501647f03a2e29b36a489d8896ec511f202d5e1d5618f"
+    },
+    {
+      "from": "tooling/check_color_palette_portable.py",
+      "to": "tooling/check_color_palette_portable.py",
+      "bytes": 9541,
+      "sha256": "ae88b805f5a9740de1e2938b32e99290b0eab508bf7f7401e647c3bce6640bd1"
+    }
+  ],
+  "existing_root_dependencies": [
+    {
+      "path": "experiments/image-color-v1/sources/Image.Color.cinch",
+      "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707"
+    },
+    {
+      "path": "tooling/check_compare.py",
+      "required_helpers": [
+        "digest",
+        "initialize_runtime"
+      ]
+    },
+    {
+      "path": "tooling/bench_stdlib.py",
+      "required_helpers": [
+        "source_closure"
+      ]
+    },
+    {
+      "path": "tooling/inspect_color_code.py",
+      "required_for_optional_code_reproduction": [
+        "definitions",
+        "path_to"
+      ]
+    },
+    {
+      "path": "experiments/image-color-v1/kernel-gate.json",
+      "sha256": "816ba311a9ed22ec33e435a0badeabbdf3a6e7db94a48a3675247cc3227baaed",
+      "scope": "Existing Color151b independent51M actual-body proof, required only for optional code reproduction"
+    }
+  ],
+  "standalone_compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "standalone_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "parent_target": {
+    "name": "lib_image_color_palette",
+    "sdk_required": false,
+    "current_rust_only": true,
+    "host_stack": "64MiB",
+    "profiles": [
+      "32MiB normal/8MiB",
+      "256MiB poison/8MiB"
+    ],
+    "pending_execution_by_root": true
+  },
+  "pending": [
+    "Parent maintained Cargo gate",
+    "Current Native qualification",
+    "Public pipeline performance",
+    "Production selection/shared inventory/docs"
+  ],
+  "exclusions": [
+    "All Color151b/Multipart/QP source or sealed benchmark mutation",
+    "All frozen/provider/runtime/ELF/LLVM/defining-cache copies",
+    "All failure artifacts, kept plain in their original projects",
+    "All recovery state and unrelated old WIP"
+  ],
+  "reference_data_attribution": "REFERENCE-LICENSE accompanies the exact extracted numeric table order, including imports that omit the SDK reproduction tool.",
+  "functional_artifact_restoration": "Three closed prior runtime ELF/IR outputs have verified gzip recovery records; restore and verify their full bytes before replaying original artifact inspections. No missing input may be silently skipped. Current portable objects/IR and all source/CIF/provider/benchmark inputs stay plain."
+}

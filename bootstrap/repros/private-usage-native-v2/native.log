@@ -1,0 +1,13 @@
+
+running 8 tests
+test source_absent_legacy_private_fields_remain_conservative ... ok
+test source_absent_mvar_handles_do_not_invent_payload_sharing ... ok
+test source_absent_mvar_header_proofs_do_not_depend_on_method_imports ... ok
+test source_absent_mvar_intrinsics_reject_contradictory_authority ... ok
+test source_absent_mvar_operations_keep_complete_effects ... ok
+test source_absent_private_usage_headers_reject_contradictory_defining_authority ... ok
+test source_absent_private_usage_proofs_reject_unsupported_carriers_and_results ... ok
+test source_absent_unresolved_mvar_rows_do_not_invent_portable_authority ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 304.13s
+

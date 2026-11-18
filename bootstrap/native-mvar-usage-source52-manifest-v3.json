@@ -1,0 +1,280 @@
+{
+  "collection_algorithm": "commit-owned collect_compiler_sources inputs; actual unchanged collector execution is reverified during source snapshot preparation",
+  "collector_sha256": "57e6616ad246a28a2d5f0cd75d4abf1c49ebf18390902508a0edddb9c81e4424",
+  "compiler_adoption": false,
+  "historical_v1_failure_preserved": "build/usage-source-preflight-v1; c54a/commit16e Infer6320 multiline let grouping",
+  "library_lock_sha256": "0bbc5e19169716e68b3611cc1d8082bb2e0b29dbdc73168ac484ff504fffdfc4",
+  "old_source51_untouched": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+  "pins_changed": false,
+  "provider_adoption": false,
+  "runtime_abi": 10,
+  "schema": 1,
+  "seed_build": false,
+  "source52_sha256": "c069ebcd4b61a9d7255f0bb98a6fc98c0a67acfc113fdc1b40e6740c47073079",
+  "source_bytes": 3254451,
+  "source_claims": {
+    "Bootstrap.Ast.cinch": {
+      "bytes": 63990,
+      "origin": "bootstrap/Bootstrap.Ast.cinch",
+      "sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455"
+    },
+    "Bootstrap.BodyContract.cinch": {
+      "bytes": 24750,
+      "origin": "bootstrap/Bootstrap.BodyContract.cinch",
+      "sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4"
+    },
+    "Bootstrap.Builtin.cinch": {
+      "bytes": 39545,
+      "origin": "bootstrap/Bootstrap.Builtin.cinch",
+      "sha256": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e"
+    },
+    "Bootstrap.Check.cinch": {
+      "bytes": 49257,
+      "origin": "bootstrap/Bootstrap.Check.cinch",
+      "sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32"
+    },
+    "Bootstrap.Contracts.cinch": {
+      "bytes": 24097,
+      "origin": "bootstrap/Bootstrap.Contracts.cinch",
+      "sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac"
+    },
+    "Bootstrap.Core.cinch": {
+      "bytes": 286217,
+      "origin": "bootstrap/Bootstrap.Core.cinch",
+      "sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4"
+    },
+    "Bootstrap.CoreBody.cinch": {
+      "bytes": 65321,
+      "origin": "bootstrap/Bootstrap.CoreBody.cinch",
+      "sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da"
+    },
+    "Bootstrap.Dictionary.cinch": {
+      "bytes": 28950,
+      "origin": "bootstrap/Bootstrap.Dictionary.cinch",
+      "sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6"
+    },
+    "Bootstrap.Driver.cinch": {
+      "bytes": 10198,
+      "origin": "bootstrap/Bootstrap.Driver.cinch",
+      "sha256": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533"
+    },
+    "Bootstrap.Eval.cinch": {
+      "bytes": 35302,
+      "origin": "bootstrap/Bootstrap.Eval.cinch",
+      "sha256": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967"
+    },
+    "Bootstrap.Expand.cinch": {
+      "bytes": 26322,
+      "origin": "bootstrap/Bootstrap.Expand.cinch",
+      "sha256": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a"
+    },
+    "Bootstrap.Export.cinch": {
+      "bytes": 76405,
+      "origin": "bootstrap/Bootstrap.Export.cinch",
+      "sha256": "5cb2a42c59b3479c6957b530594146e7f918ac5ddf0028893a8390d481ed3b6b"
+    },
+    "Bootstrap.ExportNominal.cinch": {
+      "bytes": 25824,
+      "origin": "bootstrap/Bootstrap.ExportNominal.cinch",
+      "sha256": "07f8736ddef0aaa013396bfc7d11f6491ace52c2d94de7f02fe8237b76bf83e2"
+    },
+    "Bootstrap.ExportType.cinch": {
+      "bytes": 37498,
+      "origin": "bootstrap/Bootstrap.ExportType.cinch",
+      "sha256": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f"
+    },
+    "Bootstrap.Foreign.cinch": {
+      "bytes": 32318,
+      "origin": "bootstrap/Bootstrap.Foreign.cinch",
+      "sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1"
+    },
+    "Bootstrap.Global.cinch": {
+      "bytes": 34903,
+      "origin": "bootstrap/Bootstrap.Global.cinch",
+      "sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0"
+    },
+    "Bootstrap.Guarded.cinch": {
+      "bytes": 11703,
+      "origin": "bootstrap/Bootstrap.Guarded.cinch",
+      "sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98"
+    },
+    "Bootstrap.Index.cinch": {
+      "bytes": 11760,
+      "origin": "bootstrap/Bootstrap.Index.cinch",
+      "sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f"
+    },
+    "Bootstrap.Infer.cinch": {
+      "bytes": 690246,
+      "origin": "bootstrap/Bootstrap.Infer.cinch",
+      "sha256": "b17c87f7508d41bca193712111574b875b8ad98535cd15a68b131294cb242bbc"
+    },
+    "Bootstrap.Inputs.cinch": {
+      "bytes": 4064,
+      "origin": "bootstrap/Bootstrap.Inputs.cinch",
+      "sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194"
+    },
+    "Bootstrap.Instance.cinch": {
+      "bytes": 41994,
+      "origin": "bootstrap/Bootstrap.Instance.cinch",
+      "sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314"
+    },
+    "Bootstrap.Interface.cinch": {
+      "bytes": 30041,
+      "origin": "bootstrap/Bootstrap.Interface.cinch",
+      "sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032"
+    },
+    "Bootstrap.Ir.cinch": {
+      "bytes": 35738,
+      "origin": "bootstrap/Bootstrap.Ir.cinch",
+      "sha256": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984"
+    },
+    "Bootstrap.Kinds.cinch": {
+      "bytes": 17208,
+      "origin": "bootstrap/Bootstrap.Kinds.cinch",
+      "sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e"
+    },
+    "Bootstrap.Load.cinch": {
+      "bytes": 75483,
+      "origin": "bootstrap/Bootstrap.Load.cinch",
+      "sha256": "a74f583c81b103410a40db260f3ef9436deffb82596604e8ec918913da300bbd"
+    },
+    "Bootstrap.Manifest.cinch": {
+      "bytes": 13295,
+      "origin": "bootstrap/Bootstrap.Manifest.cinch",
+      "sha256": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac"
+    },
+    "Bootstrap.Nominal.cinch": {
+      "bytes": 33178,
+      "origin": "bootstrap/Bootstrap.Nominal.cinch",
+      "sha256": "56912af721a64c763d5d82ffb90eb4f13e9ae5d74c1f5898875422e3812a9de0"
+    },
+    "Bootstrap.Object.cinch": {
+      "bytes": 28087,
+      "origin": "bootstrap/Bootstrap.Object.cinch",
+      "sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a"
+    },
+    "Bootstrap.Parse.cinch": {
+      "bytes": 152627,
+      "origin": "bootstrap/Bootstrap.Parse.cinch",
+      "sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1"
+    },
+    "Bootstrap.Pipeline.cinch": {
+      "bytes": 49462,
+      "origin": "bootstrap/Bootstrap.Pipeline.cinch",
+      "sha256": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c"
+    },
+    "Bootstrap.Proof.cinch": {
+      "bytes": 23773,
+      "origin": "bootstrap/Bootstrap.Proof.cinch",
+      "sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3"
+    },
+    "Bootstrap.Report.cinch": {
+      "bytes": 6089,
+      "origin": "bootstrap/Bootstrap.Report.cinch",
+      "sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7"
+    },
+    "Bootstrap.Resolve.cinch": {
+      "bytes": 86398,
+      "origin": "bootstrap/Bootstrap.Resolve.cinch",
+      "sha256": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd"
+    },
+    "Bootstrap.RuntimeAbi.cinch": {
+      "bytes": 311,
+      "origin": "tooling/bootstrap.py::runtime_abi_source(unchanged bootstrap/library-provider.lock.json.runtime_abi)",
+      "sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e"
+    },
+    "Bootstrap.RuntimeIr.cinch": {
+      "bytes": 422233,
+      "origin": "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "sha256": "595caf0d1a6d49d43093c3caa8a50d2afc0769a7f800460d828e6936fd9a8f19"
+    },
+    "Bootstrap.Stage.cinch": {
+      "bytes": 37440,
+      "origin": "bootstrap/Bootstrap.Stage.cinch",
+      "sha256": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61"
+    },
+    "Bootstrap.StageEval.cinch": {
+      "bytes": 14646,
+      "origin": "bootstrap/Bootstrap.StageEval.cinch",
+      "sha256": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef"
+    },
+    "Bootstrap.Temporal.cinch": {
+      "bytes": 11479,
+      "origin": "bootstrap/Bootstrap.Temporal.cinch",
+      "sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca"
+    },
+    "Bootstrap.TemporalCheck.cinch": {
+      "bytes": 46853,
+      "origin": "bootstrap/Bootstrap.TemporalCheck.cinch",
+      "sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c"
+    },
+    "Bootstrap.Test.cinch": {
+      "bytes": 8025,
+      "origin": "bootstrap/Bootstrap.Test.cinch",
+      "sha256": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4"
+    },
+    "Bootstrap.Total.cinch": {
+      "bytes": 21969,
+      "origin": "bootstrap/Bootstrap.Total.cinch",
+      "sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317"
+    },
+    "Bootstrap.TotalSemantics.cinch": {
+      "bytes": 17744,
+      "origin": "bootstrap/Bootstrap.TotalSemantics.cinch",
+      "sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de"
+    },
+    "Bootstrap.Type.cinch": {
+      "bytes": 157373,
+      "origin": "bootstrap/Bootstrap.Type.cinch",
+      "sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79"
+    },
+    "Bootstrap.Typing.cinch": {
+      "bytes": 135171,
+      "origin": "bootstrap/Bootstrap.Typing.cinch",
+      "sha256": "b078231860c3c3896e151990605731f21a13abf4ffc25bd23e322c2233467d8b"
+    },
+    "Bootstrap.Usage.cinch": {
+      "bytes": 27252,
+      "origin": "bootstrap/Bootstrap.Usage.cinch",
+      "sha256": "9218cdbdb025d33afb3952b592d9f886567553ac61ba79176ae9266a100ab8e6"
+    },
+    "Data.Array.cinch": {
+      "bytes": 1709,
+      "origin": "compiler/prelude/Data/Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+    },
+    "Main.cinch": {
+      "bytes": 11193,
+      "origin": "bootstrap/programs/Run.Pipeline.cinch + unmodified collect_compiler_sources import-list generation",
+      "sha256": "0309c15c31843fd23579cf02c51da79af6399a2a258fe4a66d1fb8a4545950f1"
+    },
+    "Text.Builder.cinch": {
+      "bytes": 9283,
+      "origin": "compiler/prelude/Text/Builder.cinch",
+      "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b"
+    },
+    "Text.Json.cinch": {
+      "bytes": 46627,
+      "origin": "compiler/prelude/Text/Json.cinch",
+      "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c"
+    },
+    "Text.Lex.cinch": {
+      "bytes": 69708,
+      "origin": "compiler/prelude/Text/Lex.cinch",
+      "sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032"
+    },
+    "Text.Parse.cinch": {
+      "bytes": 25320,
+      "origin": "compiler/prelude/Text/Parse.cinch",
+      "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b"
+    },
+    "Text.Scan.cinch": {
+      "bytes": 18072,
+      "origin": "compiler/prelude/Text/Scan.cinch",
+      "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    }
+  },
+  "source_module_count": 52,
+  "source_revision": "9e67eb32c5a9f4ade0fe5ac6c9295ea3eb6b578d",
+  "status": "prepared source inputs; no source verdict or producer qualification yet"
+}

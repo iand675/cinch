@@ -1,0 +1,57 @@
+{
+  "scope": "Static operation-level mapping and isolated factory design; no source implementation or qualification claimed",
+  "sdk": {
+    "path": "/tmp/cinch-go-current/go/bin/go",
+    "sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "version": "go1.27.4",
+    "actual_source": "/tmp/cinch-go-current/go/src/image/color/palette/palette.go",
+    "actual_source_sha256": "c7dd8cc133ec8e96305984edac778777fb2ad7fa7c23c08ac70b4470f9faa9ad"
+  },
+  "records": [
+    {
+      "declaration": "var Plan9 []color.Color",
+      "actual_entries": 256,
+      "cinch_module": "Image.Color.Palette",
+      "operation": "color-palette-plan9",
+      "type": "Unit -> ColorPalette",
+      "mapping": "Fresh immutable palette value in exact published order, containing original RGBA8 representations with alpha255; no mutable global registry"
+    },
+    {
+      "declaration": "var WebSafe []color.Color",
+      "actual_entries": 216,
+      "cinch_module": "Image.Color.Palette",
+      "operation": "color-palette-web-safe",
+      "type": "Unit -> ColorPalette",
+      "mapping": "Fresh immutable palette value in exact published order, containing original RGBA8 representations with alpha255; no mutable global registry"
+    }
+  ],
+  "actual_table_entries_total": 472,
+  "count_correction": "Pinned SDK has256 Plan9 and216 WebSafe entries,472 total. No padding to512 or reordering is permitted.",
+  "dependency": {
+    "path": "experiments/image-color-v1/sources/Image.Color.cinch",
+    "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "preserve_immutable": true
+  },
+  "ownership": "Factories return immutable ColorPalette/List/Color values. Retained values from separate calls remain observable independently; callers create modified sequences explicitly. Hidden mutation of a process-global table is intentionally replaced by explicit values.",
+  "implementation_plan": [
+    "Two public factories and private canonical-documented fixed packed RGB tables; all colors are constructed through public color-rgba8 and color-palette.",
+    "Bounded groups of eight published-order color/list constructors avoid an intermediate packed-word list and a new runtime dependency.",
+    "Channel extraction/packing is bounded scalar work. The existing Color nearest-distance SIMD body remains the arithmetic kernel for public palette use; no artificial table-copy SIMD claim."
+  ],
+  "independent_fixture_plan": [
+    "Actual SDK generator captures all472 ordered rawRGBA8/canonicalRGBA values; an independent scalar parser and WebSafe grid/Plan9 generator audit must agree.",
+    "Capture512 deterministic adversarial query colors plus every exact table color through Index,Convert and Model, retaining first-tie semantics and original selected-color identity.",
+    "Retain both factory results and modified caller-owned list projections to prove immutable independence; validate empty/query/palette composition through current Color API."
+  ],
+  "gates_pending": [
+    "Actual existing SIMD-distance reachability and portable object composition",
+    "SDK-free maintained CI target and public full-output benchmark review",
+    "Separate Native epoch if explicitly authorized"
+  ],
+  "source_status": "Complete3dae/d91 source and runtime O2/exact-IR O0 qualified; all472entries/1024queries plus32owner rounds, normal/poison zero leaks; Native/portable/performance/parent CI separate",
+  "qualified_source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "qualified_runtime_receipts": [
+    "runtime-o2.json",
+    "runtime-o0.json"
+  ]
+}

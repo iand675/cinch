@@ -19,7 +19,8 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
-  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body)
+  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals)
+  import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
@@ -1965,9 +1966,10 @@ module Bootstrap.Infer where
       Some text -> if resolved-entry-valid metadata then
         (case collect-nominal-rows s (resolved-nominals metadata) kinds st of (ks, sk) -> collect-nominal-kinds rest ks sk)
         else collect-nominal-kinds rest kinds (add-error s "invalid resolved nominal contract" st)
-    Cons (DInterface sp name hash metadata) rest -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) kinds st of
-      (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
-        (closed, done) -> collect-nominal-kinds rest closed done
+    Cons (DInterface sp name hash metadata) rest -> case collect-nominal-rows sp (usage-json-rows (contract-nominals metadata)) kinds st of
+      (defined, prepared) -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) defined prepared of
+        (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
+          (closed, done) -> collect-nominal-kinds rest closed done
     Cons d rest -> collect-nominal-kinds rest kinds st
 
   -- A returned carrier may demand its complete public layout even when no
@@ -2093,9 +2095,78 @@ module Bootstrap.Infer where
       other -> False) || method-slot-in owner name slot rest
     other -> False
 
+  -- | Inspect actual kind carriers rather than granting effects from a display spelling.
+  imported-mvar-in-kind :: Kind -> Bool
+  imported-mvar-in-kind kind = case kind of
+    KFun domain result -> imported-mvar-in-kind domain || imported-mvar-in-kind result
+    KValue carrier -> imported-mvar-in-type carrier
+    other -> False
+
+  -- | Retain effects nested in the actual quantified kind carriers.
+  imported-mvar-in-quants :: List Quant -> Bool
+  imported-mvar-in-quants parameters = case parameters of
+    Nil -> False
+    Cons parameter rest -> imported-mvar-in-kind (quant-kind parameter) || imported-mvar-in-quants rest
+
+  -- | Require portable authority for every actual kernel MVar row, including latent callbacks.
+  imported-mvar-in-type :: UType -> Bool
+  imported-mvar-in-type ty = case ty of
+    UCon name kind -> (same name "#kernel.MVar" && kind-equal kind KEffect) || imported-mvar-in-kind kind
+    UBound id name kind -> imported-mvar-in-kind kind
+    URigid id name level kind -> imported-mvar-in-kind kind
+    UMeta id kind -> imported-mvar-in-kind kind
+    UCompare relation left right -> imported-mvar-in-type left || imported-mvar-in-type right
+    UPropAnd left right -> imported-mvar-in-type left || imported-mvar-in-type right
+    UPropOr left right -> imported-mvar-in-type left || imported-mvar-in-type right
+    UPropNot body -> imported-mvar-in-type body
+    UPropNonZero body -> imported-mvar-in-type body
+    UPropNonZeroPending body -> imported-mvar-in-type body
+    UPropNotNull body -> imported-mvar-in-type body
+    UPropAscii body -> imported-mvar-in-type body
+    UPropOrdered body -> imported-mvar-in-type body
+    URequire predicates body -> imported-mvar-in-type predicates || imported-mvar-in-type body
+    URefine id name carrier predicate -> imported-mvar-in-type carrier || imported-mvar-in-type predicate
+    URefineFormer name ids body -> imported-mvar-in-type body
+    UIndex carrier value -> imported-mvar-in-type carrier
+    UIndexForget body -> imported-mvar-in-type body
+    UIndexByteLength body -> imported-mvar-in-type body
+    UIndexBorrowRead body -> imported-mvar-in-type body
+    UIndexList element fields -> imported-mvar-in-type element || imported-mvar-in-type fields
+    UIndexCall function arguments -> imported-mvar-in-type arguments
+    UIndexPromote body -> imported-mvar-in-type body
+    UIndexMath operation left right -> imported-mvar-in-type left || imported-mvar-in-type right
+    UPi id name domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
+    UApp function argument -> imported-mvar-in-type function || imported-mvar-in-type argument
+    UFun domain result -> imported-mvar-in-type domain || imported-mvar-in-type result
+    UFunEff domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
+    UProofFun domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
+    UUsageArrow usage arrow -> imported-mvar-in-type arrow
+    URow labels -> imported-mvar-in-type labels
+    URowJoin left right -> imported-mvar-in-type left || imported-mvar-in-type right
+    UTuple fields -> imported-mvar-in-type fields
+    UForall parameters body -> imported-mvar-in-quants (quants-list parameters) || imported-mvar-in-type body
+    UArg first rest -> imported-mvar-in-type first || imported-mvar-in-type rest
+    other -> False
+
+  -- | Include latent class evidence when deciding whether a fallback scheme would create authority.
+  imported-mvar-in-requirements :: List Requirement -> Bool
+  imported-mvar-in-requirements requirements = case requirements of
+    Nil -> False
+    Cons requirement rest -> imported-mvar-in-type (requirement-type requirement) || imported-mvar-in-requirements rest
+
+  -- | Scan the complete checked fallback scheme without changing its types or effects.
+  imported-mvar-in-scheme :: Scheme -> Bool
+  imported-mvar-in-scheme scheme = imported-mvar-in-type (scheme-body scheme)
+    || imported-mvar-in-quants (scheme-params scheme)
+    || imported-mvar-in-requirements (scheme-requirements scheme)
+
+  -- | Retain genuine resolved contracts and refuse new MVar authority from an unresolved display.
   imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
   imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
-    None -> make-scheme True classes kinds Nil fallback st
+    None -> (case make-scheme True classes kinds Nil fallback st of
+      (scheme, checked) -> if imported-mvar-in-scheme scheme then
+        (mono UError, add-error sp "imported MVar effect needs a checked defining portable scheme" checked)
+        else (scheme, checked))
     Some text -> case parse-scheme "resolved-interface" (string-to-bytes text) of
       Parsed ty Nil -> case qualify-resolved metadata ty of
         (qualified, Nil) -> make-scheme False classes kinds Nil qualified st
@@ -6215,11 +6286,47 @@ module Bootstrap.Infer where
   -- | Project declared kind headers without serializing primitive payload authority.
   declared-kind-rows :: TypeContext -> List (String, Kind)
   declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> kinds
-  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
-  check-global-core kinds bindings instances datas definitions st =
+  -- | Register only proof-bearing data owners, leaving unrelated unused refinement and class elaboration unchanged.
+  usage-json-rows :: List Json -> Json
+  usage-json-rows rows = case rows of
+    Nil -> JArrEnd
+    Cons first rest -> if has-json-field "usage" first then JArr first (usage-json-rows rest) else usage-json-rows rest
+  -- | Merge duplicate defining proofs only when their decoded fields and parameter roles agree.
+  insert-usage :: UsageShape -> List UsageShape -> Result String (List UsageShape)
+  insert-usage shape rows = case rows of
+    Nil -> Ok [shape]
+    Cons first rest -> if same (usage-name shape) (usage-name first) then
+      (if usage-equal shape first then Ok rows else Err "conflicting checked private-field proofs")
+      else (case insert-usage shape rest of Ok more -> Ok (Cons first more); Err error -> Err error)
+  -- | Decode optional fields only after the whole supplied interface set has passed ordinary admission.
+  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> List UsageShape -> Store -> (List UsageShape, Store)
+  collect-usage-rows sp kinds rows shapes st = case rows of
+    Nil -> (shapes, st)
+    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest shapes st else
+      (case read-usage-shape kinds first of
+        Err error -> (shapes, add-error sp error st)
+        Ok shape -> (case insert-usage shape shapes of
+          Err error -> (shapes, add-error sp error st)
+          Ok more -> collect-usage-rows sp kinds rest more st))
+  -- | Recognize optional proof presence so malformed null rows cannot silently become absence.
+  has-json-field :: String -> Json -> Bool
+  has-json-field name row = case row of JObj key value rest -> same name key || has-json-field name rest; other -> False
+  -- | Retain header-only and resolved-use proofs independently of public method demand or declaration order.
+  collect-usage :: List Decl -> List (String, Kind) -> List UsageShape -> Store -> (List UsageShape, Store)
+  collect-usage declarations kinds shapes st = case declarations of
+    Nil -> (shapes, st)
+    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-nominals metadata) shapes st of
+      (more, checked) -> collect-usage rest kinds more checked)
+    Cons (DExternal sp name category syntax metadata) rest ->
+      let rows = (if same category "type" && has-json-field "ownership" metadata then [field "ownership" metadata] else Nil) <> json-rows (resolved-nominals metadata) in
+      (case collect-usage-rows sp kinds rows shapes st of (more, checked) -> collect-usage rest kinds more checked)
+    Cons other rest -> collect-usage rest kinds shapes st
+  -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
+  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
+  check-global-core kinds bindings instances datas definitions usage st =
     let rows = declared-kind-rows kinds in
     let globals = instance-globals instances (global-bindings (finish-bindings st bindings) Nil) in
-    case close-typing-context-with-definitions rows globals (context-effects kinds) datas definitions of
+    case close-typing-context-with-usage rows globals (context-effects kinds) datas definitions usage of
       Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
       None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows globals (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
@@ -7071,7 +7178,8 @@ module Bootstrap.Infer where
     let (declared-data, declared-store) = case store-errors rewritten of Nil -> checked-data classes linked-kinds env ds Nil rewritten; other -> (Nil, rewritten) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
-    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
+    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
+    let finished = case store-errors usage-store of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage usage-store); other -> usage-store in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
     MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites temporal-rows

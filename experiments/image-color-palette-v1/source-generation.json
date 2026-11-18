@@ -1,0 +1,13 @@
+{
+  "scope": "Prepare immutable fixed-palette factories from the exact pinned reference table entries.",
+  "sdk_source": "/tmp/cinch-go-current/go/src/image/color/palette/palette.go",
+  "sdk_source_sha256": "c7dd8cc133ec8e96305984edac778777fb2ad7fa7c23c08ac70b4470f9faa9ad",
+  "runner_sha256": "5878294aba0d7328c2ef9ed56ceedc664cebcf28c3022546a9fa9879b5941da3",
+  "output_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "table_counts": {
+    "Plan9": 256,
+    "WebSafe": 216
+  },
+  "total_entries": 472,
+  "scope_limit": "Exact static table extraction/generation only; source checking, independent vectors and runtime are separate."
+}

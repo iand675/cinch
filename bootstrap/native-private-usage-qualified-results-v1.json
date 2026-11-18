@@ -1,0 +1,276 @@
+{
+  "scope": "First-order private ownership facts and closed MVar rows; checked source/public headers, Native importer and legacy refusal controls. Full52 Native provider/exporter/fixed-point/runtime family admission remains open.",
+  "rust_producer_sha256": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "global_source52_sha256": "4eff89639337c80964431969e41f3ffa351d28ff5c9f988e6781c864c5cb7dd5",
+  "native_supplied_bootstrap_modules": 32,
+  "native_compiler": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/mvar-contract-checker",
+  "native_compiler_sha256": "70f6150d9f3f7f4ba784c81011063ee01ce374620706f64bbdd558b986dbef80",
+  "native_compiler_llvm": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/mvar-contract-checker.ll",
+  "native_compiler_llvm_sha256": "53f38c5419d0d2debab3ef96ef89cca0d1b8bc651f972f4ae25c7605e9eda4e3",
+  "native_shared_compiler_inputs_remain_plain": true,
+  "sources": [
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Ast.cinch",
+      "sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "bytes": 63990,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.BodyContract.cinch",
+      "sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "bytes": 24750,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Builtin.cinch",
+      "sha256": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
+      "bytes": 39545,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Check.cinch",
+      "sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "bytes": 49257,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Contracts.cinch",
+      "sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "bytes": 24097,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Core.cinch",
+      "sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4",
+      "bytes": 286217,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.CoreBody.cinch",
+      "sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+      "bytes": 65321,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Dictionary.cinch",
+      "sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "bytes": 28950,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.ExportType.cinch",
+      "sha256": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f",
+      "bytes": 37498,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Foreign.cinch",
+      "sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1",
+      "bytes": 32318,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Global.cinch",
+      "sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "bytes": 34903,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Guarded.cinch",
+      "sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "bytes": 11703,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Index.cinch",
+      "sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "bytes": 11760,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Infer.cinch",
+      "sha256": "b17c87f7508d41bca193712111574b875b8ad98535cd15a68b131294cb242bbc",
+      "bytes": 690246,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Inputs.cinch",
+      "sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "bytes": 4064,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Instance.cinch",
+      "sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "bytes": 41994,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Interface.cinch",
+      "sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "bytes": 30041,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Kinds.cinch",
+      "sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "bytes": 17208,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Load.cinch",
+      "sha256": "a74f583c81b103410a40db260f3ef9436deffb82596604e8ec918913da300bbd",
+      "bytes": 75483,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Nominal.cinch",
+      "sha256": "56912af721a64c763d5d82ffb90eb4f13e9ae5d74c1f5898875422e3812a9de0",
+      "bytes": 33178,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Parse.cinch",
+      "sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "bytes": 152627,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Proof.cinch",
+      "sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "bytes": 23773,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Report.cinch",
+      "sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "bytes": 6089,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Resolve.cinch",
+      "sha256": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd",
+      "bytes": 86398,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.RuntimeAbi.cinch",
+      "sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "bytes": 311,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Temporal.cinch",
+      "sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "bytes": 11479,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.TemporalCheck.cinch",
+      "sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "bytes": 46853,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Total.cinch",
+      "sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "bytes": 21969,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.TotalSemantics.cinch",
+      "sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "bytes": 17744,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Type.cinch",
+      "sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+      "bytes": 157373,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Typing.cinch",
+      "sha256": "a10290cbda55356cde674d6d7ea962a30b8a36208a49709e1c8c7d09aee17d57",
+      "bytes": 135375,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Bootstrap.Usage.cinch",
+      "sha256": "ec17074ae4029f31c85940e62e2cc56d57dae1ab05e6d55978ec8e01f4f19f86",
+      "bytes": 28060,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Main.cinch",
+      "sha256": "2f2f45ad29e1abb8455b9d6f73970b176706ef42ffd645565e63043fe2240779",
+      "bytes": 2651,
+      "matches_source52_claim": false
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Text.Builder.cinch",
+      "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "bytes": 9283,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Text.Json.cinch",
+      "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "bytes": 46627,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Text.Lex.cinch",
+      "sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "bytes": 69708,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Text.Parse.cinch",
+      "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
+      "bytes": 25320,
+      "matches_source52_claim": true
+    },
+    {
+      "path": "/tmp/cinch_mvar_shared_cinch_boot_mvar_contract_shared_compiler_900411_1/Text.Scan.cinch",
+      "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+      "bytes": 18072,
+      "matches_source52_claim": true
+    }
+  ],
+  "gates": {
+    "release_units": {
+      "passed": 344,
+      "failed": 0,
+      "receipt": "bootstrap/repros/private-usage-host-v2/full-units-receipt.json",
+      "receipt_sha256": "df2fb3994ce45902e76e540cb7c28e622f832a741448eabe0ffa5bef351a013a"
+    },
+    "rust_source_and_profile_controls": {
+      "passed": 11,
+      "failed": 0,
+      "receipt": "bootstrap/repros/private-usage-producer-v1/source-controls-receipt.json",
+      "receipt_sha256": "5261d2a2237e7f540a071b14aac1587b2fc5f17de07df3155612ae30ba9be6b1"
+    },
+    "native_importer_controls": {
+      "passed": 8,
+      "failed": 0,
+      "receipt": "bootstrap/repros/private-usage-native-v2/receipt.json",
+      "receipt_sha256": "4730d98746a35df2eea20439553046b753d5ae3f6ab7e23a21c4a8f24e48671d"
+    }
+  },
+  "native_obligations_passed": [
+    "Kernel and public-wrapper Nat two-task sharing and single-task linear transfer",
+    "Kernel and public-wrapper Bytes sharing/transfer refusals; ordinary owned Bytes transfer positive",
+    "Header-only defining/reexport imports, both arrow forms, no method-order dependence",
+    "All private alternatives and explicit Region roles; private constructors remain unnameable",
+    "Malformed field grammar/results and contradictory owner/constructor/reexport authority refused",
+    "Legacy no-proof public data remains conservative; real-proof Nat availability stays required",
+    "All14 operation row/capability contracts and unresolved legacy row refusal"
+  ],
+  "open": [
+    "Recursive/other nominal field dependencies, callback fields and unsupported ownership tiers",
+    "Whole52 Native provider/exporter/fixed point and emitted word/runtime gates",
+    "MVar wide representation boundaries and broader stdlib Native/performance qualification"
+  ]
+}

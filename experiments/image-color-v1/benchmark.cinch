@@ -1,0 +1,233 @@
+-- | Measure complete public color/model/palette pipelines with retained-input observations.
+module Main where
+  import Image.Color
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Resolve a validated public workload before the measurement starts.
+  mode-code :: String -> I64
+  mode-code mode =
+    if mode == "rgba-control" then 0
+    else if mode == "premultiply" then 1
+    else if mode == "straight-model" then 2
+    else if mode == "gray-model" then 3
+    else if mode == "ycbcr16" then 4
+    else if mode == "rgb-ycbcr" then 5
+    else if mode == "ycbcr-rgb" then 6
+    else if mode == "rgb-cmyk" then 7
+    else if mode == "cmyk-rgb" then 8
+    else if mode == "custom-source" then 9
+    else if mode == "custom-model" then 10
+    else if mode == "alpha-model" then 11
+    else if mode == "palette-index-empty" then 12
+    else if mode == "palette-index-small" then 13
+    else if mode == "palette-index-256" then 14
+    else if mode == "palette-index-ties" then 15
+    else if mode == "palette-convert-empty" then 16
+    else if mode == "palette-convert-small" then 17
+    else if mode == "palette-convert-256" then 18
+    else if mode == "palette-convert-ties" then 19
+    else if mode == "palette-model-256" then 20
+    else -1
+
+  -- | Parse nonnegative harness sizes without moving parsing inside the clock.
+  decimal :: String -> Nat
+  decimal input = decimal-from (unpack input) 0
+
+  -- | Accumulate only validated decimal digits.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons char rest -> case digit-value char of None -> 0; Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Consume each bounded scalar in the same dependent scalar checksum as the reference.
+  word :: I64 -> I64 -> I64
+  word value scalar = bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 value 131) scalar) 2147483647
+
+  -- | Consume exactly four component slots, padding smaller representations with zero.
+  fields :: I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  fields value r g b a = word (word (word (word value r) g) b) a
+
+  -- | Consume every raw field and exact source identity before canonical observation.
+  raw-hash :: Color -> I64 -> I64
+  raw-hash value initial = case color-kind value of
+    Rgba8Kind -> case color-rgba8-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 0) (u8-to-i64 c0) (u8-to-i64 c1) (u8-to-i64 c2) (u8-to-i64 c3)
+    Rgba16Kind -> case color-rgba16-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 1) (u16-to-i64 c0) (u16-to-i64 c1) (u16-to-i64 c2) (u16-to-i64 c3)
+    Nrgba8Kind -> case color-nrgba8-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 2) (u8-to-i64 c0) (u8-to-i64 c1) (u8-to-i64 c2) (u8-to-i64 c3)
+    Nrgba16Kind -> case color-nrgba16-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 3) (u16-to-i64 c0) (u16-to-i64 c1) (u16-to-i64 c2) (u16-to-i64 c3)
+    Alpha8Kind -> case color-alpha8-components value of
+      None -> -1
+      Some c0 -> fields (word initial 4) (u8-to-i64 c0) 0 0 0
+    Alpha16Kind -> case color-alpha16-components value of
+      None -> -1
+      Some c0 -> fields (word initial 5) (u16-to-i64 c0) 0 0 0
+    Gray8Kind -> case color-gray8-components value of
+      None -> -1
+      Some c0 -> fields (word initial 6) (u8-to-i64 c0) 0 0 0
+    Gray16Kind -> case color-gray16-components value of
+      None -> -1
+      Some c0 -> fields (word initial 7) (u16-to-i64 c0) 0 0 0
+    YcbcrKind -> case color-ycbcr-components value of
+      None -> -1
+      Some (c0, c1, c2) -> fields (word initial 8) (u8-to-i64 c0) (u8-to-i64 c1) (u8-to-i64 c2) 0
+    YcbcraKind -> case color-ycbcra-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 9) (u8-to-i64 c0) (u8-to-i64 c1) (u8-to-i64 c2) (u8-to-i64 c3)
+    CmykKind -> case color-cmyk-components value of
+      None -> -1
+      Some (c0, c1, c2, c3) -> fields (word initial 10) (u8-to-i64 c0) (u8-to-i64 c1) (u8-to-i64 c2) (u8-to-i64 c3)
+    RgbaSourceKind -> case color-rgba value of
+      (r, g, b, a) -> fields (word initial 11) (u32-to-i64 r) (u32-to-i64 g) (u32-to-i64 b) (u32-to-i64 a)
+
+  -- | Observe all canonical channels as well as exact raw model fields.
+  color-hash :: Color -> I64 -> I64
+  color-hash value initial = let raw = raw-hash value initial in case color-rgba value of
+    (r, g, b, a) -> fields raw (u32-to-i64 r) (u32-to-i64 g) (u32-to-i64 b) (u32-to-i64 a)
+
+  -- | Keep absent conversion observable instead of inventing a placeholder color.
+  option-hash :: Option Color -> I64 -> I64
+  option-hash result initial = case result of None -> word initial 97; Some value -> color-hash value (word initial 98)
+
+  -- | Expand one deterministic integer to exact bounded raw pixel fields.
+  components :: I64 -> (U16, U16, U16, U16)
+  components index =
+    let r = bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 index 1103515245) 12345) 65535 in
+    let g = bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 r 97) 53) 65535 in
+    let b = bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 r 251) 101) 65535 in
+    let a = if eq-i64 (bit-and-i64 index 3) 0 then (0 :: I64) else if eq-i64 (bit-and-i64 index 3) 1 then 257 else if eq-i64 (bit-and-i64 index 3) 2 then 32768 else 65535 in
+    (wrapping-i64-to-u16 r, wrapping-i64-to-u16 g, wrapping-i64-to-u16 b, wrapping-i64-to-u16 a)
+
+  -- | Copy canonical premultiplied fields into the explicit stored representation before timing.
+  canonical :: Color -> Color
+  canonical value = case color-rgba value of
+    (r, g, b, a) -> color-rgba16 (wrapping-u32-to-u16 r) (wrapping-u32-to-u16 g) (wrapping-u32-to-u16 b) (wrapping-u32-to-u16 a)
+
+  -- | Observe retained immutable channel storage after the constructing scope returns.
+  source-fields :: List U16 -> (U16, U16, U16, U16)
+  source-fields values = case values of Cons r (Cons g (Cons b (Cons a tail))) -> (r, g, b, a); _ -> (0, 0, 0, 0)
+
+  -- | Retain actual managed input channels in the custom source capability.
+  custom-source :: Color -> Color
+  custom-source value = case color-rgba value of
+    (r, g, b, a) -> let values = Cons (wrapping-u32-to-u16 r) (Cons (wrapping-u32-to-u16 g) (Cons (wrapping-u32-to-u16 b) (Cons (wrapping-u32-to-u16 a) Nil))) in
+      color-source (\unit -> source-fields values)
+
+  -- | Prepare equivalent source representations and explicit alpha distributions outside timing.
+  pixel :: I64 -> I64 -> Color
+  pixel mode index = case components index of
+    (r, g, b, a) ->
+      let ordinary = color-nrgba16 r g b a in
+      if eq-i64 mode 1 || eq-i64 mode 10 then ordinary
+      else if eq-i64 mode 4 then color-ycbcra (wrapping-u16-to-u8 (wrapping-shr-u16 r 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 g 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 b 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 a 8))
+      else if eq-i64 mode 5 || eq-i64 mode 7 then color-rgba8 (wrapping-u16-to-u8 (wrapping-shr-u16 r 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 g 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 b 8)) 255
+      else if eq-i64 mode 6 then color-ycbcr (wrapping-u16-to-u8 (wrapping-shr-u16 r 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 g 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 b 8))
+      else if eq-i64 mode 8 then color-cmyk (wrapping-u16-to-u8 (wrapping-shr-u16 r 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 g 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 b 8)) (wrapping-i64-to-u8 (wrapping-mul-i64 index 17))
+      else if eq-i64 mode 9 then custom-source ordinary
+      else if eq-i64 mode 15 || eq-i64 mode 19 then color-rgba16 0 0 0 0
+      else canonical ordinary
+
+  -- | Construct the full immutable input list before the start clock.
+  pixels :: I64 -> I64 -> I64 -> List Color
+  pixels mode index end = if lt-i64 index end then Cons (pixel mode index) (pixels mode (wrapping-add-i64 index 1) end) else Nil
+
+  -- | Prepare a bounded mixed palette with the same deterministic source as the reference.
+  palette-items :: I64 -> I64 -> List Color
+  palette-items index end = if lt-i64 index end then Cons (pixel 0 index) (palette-items (wrapping-add-i64 index 1) end) else Nil
+
+  -- | Preserve empty palettes and deliberately different values whose truncated distance ties.
+  palette-for :: I64 -> ColorPalette
+  palette-for mode =
+    if lt-i64 mode 12 || eq-i64 mode 12 || eq-i64 mode 16 then color-palette Nil
+    else if eq-i64 mode 15 || eq-i64 mode 19 then color-palette (Cons (color-rgba16 1 1 1 1) (Cons (color-rgba16 0 0 0 0) Nil))
+    else color-palette (palette-items 0 (if eq-i64 mode 13 || eq-i64 mode 17 then 4 else 256))
+
+  -- | Retain a runtime-selected custom transformation with explicit absent zero-alpha results.
+  custom-model :: Bool -> ColorModel
+  custom-model rotate = color-model (\value -> case color-rgba value of
+    (r, g, b, a) -> if eq-u32 a 0 then None else Some (if rotate then color-rgba16 (wrapping-u32-to-u16 g) (wrapping-u32-to-u16 b) (wrapping-u32-to-u16 r) (wrapping-u32-to-u16 a) else color-rgba16 (wrapping-u32-to-u16 b) (wrapping-u32-to-u16 r) (wrapping-u32-to-u16 g) (wrapping-u32-to-u16 a)))
+
+  -- | Execute complete public conversions, nearest lookup or canonical observation without timed setup.
+  operation :: I64 -> ColorPalette -> ColorModel -> Color -> I64 -> I64
+  operation mode palette model input initial =
+    if eq-i64 mode 2 then option-hash (color-convert color-nrgba8-model input) initial
+    else if eq-i64 mode 3 then option-hash (color-convert color-gray16-model input) initial
+    else if eq-i64 mode 5 then case color-rgba8-components input of
+      None -> -1
+      Some (r, g, b, a) -> case color-rgb-to-ycbcr r g b of (y, cb, cr) -> color-hash (color-ycbcr y cb cr) initial
+    else if eq-i64 mode 6 then case color-ycbcr-components input of
+      None -> -1
+      Some (y, cb, cr) -> case color-ycbcr-to-rgb y cb cr of (r, g, b) -> color-hash (color-rgba8 r g b 255) initial
+    else if eq-i64 mode 7 then case color-rgba8-components input of
+      None -> -1
+      Some (r, g, b, a) -> case color-rgb-to-cmyk r g b of (c, m, y, k) -> color-hash (color-cmyk c m y k) initial
+    else if eq-i64 mode 8 then case color-cmyk-components input of
+      None -> -1
+      Some (c, m, y, k) -> case color-cmyk-to-rgb c m y k of (r, g, b) -> color-hash (color-rgba8 r g b 255) initial
+    else if eq-i64 mode 10 then option-hash (color-convert model input) initial
+    else if eq-i64 mode 11 then option-hash (color-convert color-alpha16-model input) initial
+    else if ge-i64 mode 12 && le-i64 mode 15 then
+      let index = color-palette-index palette input in
+      if index <= 9223372036854775807 then word initial (nat-to-i64 index) else -1
+    else if ge-i64 mode 16 && le-i64 mode 19 then option-hash (color-palette-convert palette input) initial
+    else if eq-i64 mode 20 then option-hash (color-convert model input) initial
+    else color-hash input initial
+
+  -- | Consume every prepared pixel and all output fields in original input order.
+  batch :: I64 -> ColorPalette -> ColorModel -> List Color -> I64 -> I64
+  batch mode palette model input initial = case input of
+    Nil -> initial
+    Cons value tail -> let next = operation mode palette model value initial in
+      if next >= 0 then batch mode palette model tail next else -1
+
+  -- | Repeat the identical complete pipeline without rebuilding its source or model context.
+  repeat :: I64 -> ColorPalette -> ColorModel -> List Color -> I64 -> I64 -> I64
+  repeat mode palette model input count initial = if count > 0 then
+    let next = batch mode palette model input initial in
+    if next >= 0 then repeat mode palette model input (wrapping-sub-i64 count 1) next else -1
+    else initial
+
+  -- | Traverse original colors after timing so all input and callback owners remain observable.
+  retained :: List Color -> I64 -> I64
+  retained input initial = case input of Nil -> initial; Cons value tail -> retained tail (color-hash value initial)
+
+  -- | Keep all setup and post-clock owner traversal outside the exact public pipeline interval.
+  measure :: forall (r :: Region). using (io :: Io r) => I64 -> Nat -> Nat ->{IO r} Int
+  measure mode size count = if size <= 65535 && count <= 9223372036854775807 then
+    let input = pixels mode 0 (nat-to-i64 size) in
+    let palette = palette-for mode in
+    let model = if eq-i64 mode 20 then color-palette-model palette else custom-model (nat-rem size 2 == 0) in
+    let iterations = nat-to-i64 count in
+    let start = clock-monotonic-ns () in
+    let result = repeat mode palette model input iterations 0 in
+    let end = clock-monotonic-ns () in
+    let kept = option-hash (color-convert model color-white) (retained (color-palette-colors palette) (retained input 0)) in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) (string-concat " " (string-concat (int-to-string (int-from-i64 kept)) "\n")))))) in
+    if result >= 0 then 0 else 3
+    else 2
+
+  -- | Accept one validated public mode, input pixel count and repetition count.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons count Nil))) -> let code = mode-code mode in
+      if code >= 0 then measure code (decimal size) (decimal count) else 2
+    _ -> 2

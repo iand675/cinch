@@ -1,0 +1,37 @@
+{
+  "adoption": false,
+  "baseline_source_snapshot": "5f549c7c284baf7f279baee0eb77e6cda0bcbc4a",
+  "expected_new_source_module_count": 52,
+  "integration": "Review changes after baseline5f; do not integrate the baseline snapshot itself or treat fb752 as a validated producer.",
+  "model_wip_checkpoint": "fb752c82ea605ca4574efe07f91b1a609561ebf9",
+  "pins_changed": false,
+  "previous_source51": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+  "provider_changes": false,
+  "required_public_nat_positive": "open until actual fresh Native importer gate",
+  "runtime_changes": false,
+  "schema": 1,
+  "scope": "private usage-only field metadata candidate; unqualified",
+  "source_hashes": {
+    "bootstrap/Bootstrap.Export.cinch": "5cb2a42c59b3479c6957b530594146e7f918ac5ddf0028893a8390d481ed3b6b",
+    "bootstrap/Bootstrap.ExportNominal.cinch": "07f8736ddef0aaa013396bfc7d11f6491ace52c2d94de7f02fe8237b76bf83e2",
+    "bootstrap/Bootstrap.Infer.cinch": "b17c87f7508d41bca193712111574b875b8ad98535cd15a68b131294cb242bbc",
+    "bootstrap/Bootstrap.Load.cinch": "a74f583c81b103410a40db260f3ef9436deffb82596604e8ec918913da300bbd",
+    "bootstrap/Bootstrap.Nominal.cinch": "56912af721a64c763d5d82ffb90eb4f13e9ae5d74c1f5898875422e3812a9de0",
+    "bootstrap/Bootstrap.Typing.cinch": "a10290cbda55356cde674d6d7ea962a30b8a36208a49709e1c8c7d09aee17d57",
+    "bootstrap/Bootstrap.Usage.cinch": "ec17074ae4029f31c85940e62e2cc56d57dae1ab05e6d55978ec8e01f4f19f86",
+    "compiler/src/check_decls.rs": "539e17176cdeee0d5ab21c1636979d955a450354d307787559289ae07b08d41f",
+    "compiler/src/check_interface.rs": "48fd280c6a2ae718a4144c391eb43a08b95cd8314abb3f898a844df71deec38d",
+    "compiler/src/interface.rs": "208bc79781dbe0e5ae8aa7cdb75f62e33f37db4af5180f2ce58a8cf7ea1b0bd6",
+    "compiler/tests/common/mod.rs": "1246faf0971de03f8ab17dc874d7a16f247cee94de93c82902db2c4fb6b04f52",
+    "compiler/tests/fixtures/mvar-interface-contracts.cinch": "c88b7f4c15a338ca0a0f40d9d83ee72f4f1178b7ef660281d973a9f71cf54b28",
+    "compiler/tests/interface_mvar_contracts.rs": "5387b21fea5bfcd6ee8e0958975b37de1aa26fd1a2b34b7ba546452c08a0347d"
+  },
+  "verification": {
+    "diff_whitespace": "passed",
+    "native_importer": "not run",
+    "runtime": "not run",
+    "rust_typecheck": "not run for new proof producer; current C2 checks the Cinch source only",
+    "rustfmt_syntax_only": "current five Rust files parsed; no rewrite or typecheck",
+    "source_preflight": "PASS exact Source52 4eff8963/commit4e98b05c on qualified C2/d91 in41.0836s; all prior5 epochs remain plain"
+  }
+}

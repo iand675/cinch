@@ -59,7 +59,7 @@ A shared single-place variable whose operations preserve stored-value ownership.
 
 ## `mvar-is-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>)</code></pre>
 
 Return an instantaneous empty-state observation. The result does not reserve space or a value.
 
@@ -69,7 +69,7 @@ Return an instantaneous empty-state observation. The result does not reserve spa
 
 ## `mvar-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>))</code></pre>
 
 Create a full shared variable containing the supplied value.
 
@@ -79,7 +79,7 @@ Create a full shared variable containing the supplied value.
 
 ## `mvar-new-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>))</code></pre>
 
 Create an empty shared variable; a take or read waits until a value arrives.
 
@@ -89,7 +89,7 @@ Create an empty shared variable; a take or read waits until a value arrives.
 
 ## `mvar-put`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 Wait until space is available and store the supplied value. Registered putters are served in FIFO order.
 
@@ -99,7 +99,7 @@ Wait until space is available and store the supplied value. Registered putters a
 
 ## `mvar-put-or-cancel`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put-or-cancel</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>))</code></pre>
 
 Store the value and return True, or return False if cancellation wins before handoff. A committed put succeeds.
 
@@ -109,7 +109,7 @@ Store the value and return True, or return False if cancellation wins before han
 
 ## `mvar-read`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>)</code></pre>
 
 Wait until a value is available and return it without emptying the variable.
 
@@ -119,7 +119,7 @@ Wait until a value is available and return it without emptying the variable.
 
 ## `mvar-read-or-cancel`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read-or-cancel</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 Read a value without removal, or return None if cancellation wins before delivery. Immediate reads succeed despite prior cancellation.
 
@@ -129,7 +129,7 @@ Read a value without removal, or return None if cancellation wins before deliver
 
 ## `mvar-swap`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>))</code></pre>
 
 Wait until a value is available, replace it atomically, and return the previous value.
 
@@ -139,7 +139,7 @@ Wait until a value is available, replace it atomically, and return the previous 
 
 ## `mvar-swap-or-cancel`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap-or-cancel</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Exchange values or return None if cancellation wins before handoff. A committed exchange returns the previous value.
 
@@ -149,7 +149,7 @@ Exchange values or return None if cancellation wins before handoff. A committed 
 
 ## `mvar-take`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>)</code></pre>
 
 Wait until a value is available, remove it, and return it. Registered takers are served in FIFO order.
 
@@ -159,7 +159,7 @@ Wait until a value is available, remove it, and return it. Registered takers are
 
 ## `mvar-take-or-cancel`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take-or-cancel</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 Take a value or return None if cancellation wins before handoff. An already committed handoff succeeds.
 
@@ -169,7 +169,7 @@ Take a value or return None if cancellation wins before handoff. An already comm
 
 ## `mvar-try-put`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-put</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>))</code></pre>
 
 Store the value and return True when space is immediately available; otherwise return False without waiting.
 
@@ -179,7 +179,7 @@ Store the value and return True when space is immediately available; otherwise r
 
 ## `mvar-try-read`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 Return an immediately available value without removing it, or return None without waiting.
 
@@ -189,7 +189,7 @@ Return an immediately available value without removing it, or return None withou
 
 ## `mvar-try-take`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-take</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 Remove and return an immediately available value, or return None without waiting.
 

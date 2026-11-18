@@ -1,0 +1,220 @@
+{
+  "scope": "Exact isolated candidate import, no production registration or package-completion claim.",
+  "child_commit": "721f1237",
+  "literal_runtime": "153 inputs/10710 exact observations per optimization/612 total zero-leak profiles acrossO0/O2; C2/D91",
+  "callback_runtime": "First8 inputs/120 exact endpoint observations/16 O0profiles; broader callback gates open.",
+  "source": "experiments/suffixarray-v1/src/Data.Index.SuffixArray.cinch",
+  "root_parent_pending": true,
+  "files": [
+    {
+      "path": "experiments/suffixarray-v1/README.md",
+      "sha256": "72b9fe9ce8c7dae921f865d71554000c389fc826b75c6d760e06964006fe002d"
+    },
+    {
+      "path": "experiments/suffixarray-v1/archive_functional.py",
+      "sha256": "d463df107d4ba665e28b7a98cb282ae7f0512acd2e2d2addf41058f6110720f0"
+    },
+    {
+      "path": "experiments/suffixarray-v1/callback-first-unit-receipt.json",
+      "sha256": "59cfaf64a06d542bb151d190b18ab52bb3b405e46215aa45114477fbb717017f"
+    },
+    {
+      "path": "experiments/suffixarray-v1/callback-progress.json",
+      "sha256": "880e56b3b0edaff0cfae7776329dfee0dd4fa19415c42bee21e5d64f8f931b91"
+    },
+    {
+      "path": "experiments/suffixarray-v1/callback_consumers.py",
+      "sha256": "877a528a3b5824cca1e9ebfd226a7e6195fb9c68639e148fb3ebc56979ba754d"
+    },
+    {
+      "path": "experiments/suffixarray-v1/cases.json",
+      "sha256": "1b2aacd4bf86934073bbf46c7bbceeebd0a45ec6f4efe530c964d1ca61a14f9b"
+    },
+    {
+      "path": "experiments/suffixarray-v1/check_source.py",
+      "sha256": "371f625d48148ded3dc55d439032c39b20ff84d5696d10f27529abeb5b40c2bb"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumer-controls.cinch",
+      "sha256": "7fb3447275fc5fbb7b033467237b9e1d954ed33684e138875f890af555aa8104"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumer-source.cinch",
+      "sha256": "907388c5d71043add311803a05fa5ba23534158b60cd4f33ae41fbc8b7cb094d"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0000.cinch",
+      "sha256": "6286922f76b0684384ede7b6f253a8b05c1dce9b033f254912b83d47b3f6e43f"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0008.cinch",
+      "sha256": "c81043dc6fcc8831fef62f0a74cac73fe483f8a693431b8aadf256f3e42a4020"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0016.cinch",
+      "sha256": "b3fde8ee95ebb300d07c508549f70a02eb1281dc39219b77001d465dffb3aee4"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0024.cinch",
+      "sha256": "6a1ae877de6dad167973ddffdb24a450f5033ce4636314d450c30de3badd8e9a"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0032.cinch",
+      "sha256": "126a0164960360f9d25c5773dbebe63b9007e92ba159e2ffd2ad3535bdbd5104"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0040.cinch",
+      "sha256": "12441f1f3864ee815435f18ff5b2110bacdbc4e07d93b6e85042b39fffb4e112"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0048.cinch",
+      "sha256": "7b3baf3ca1fa1f235a98961beed12285bf989e9389563c84a7c6820aa9a3ed1e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0056.cinch",
+      "sha256": "80a5a680913668eb2ebbe1fc8624b7af7ad45ac2fcf17ca1bb91dca8542b886a"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0064.cinch",
+      "sha256": "a7acd62d802a2905796021e26cbd3f6ac341d250cff39fbdaea05cb8e6f66c08"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0072.cinch",
+      "sha256": "c9940a4a28f98052e47fb265ca4d30f85509f757eab1d9a12555406c4c545c7e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0080.cinch",
+      "sha256": "4462ec0ce7cd11f98e0c1bbb32e99180ca2a0874b009c717b58561727d013645"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0088.cinch",
+      "sha256": "cc82bd24b5e552bf634b9ce435dbe0e052bae954931cc6fe4d49d3b1bb9c55d0"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0096.cinch",
+      "sha256": "6518f0f4174ee9be61f8f63e2898b8cc5612ca77d5cd69354722996917c2fc34"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0104.cinch",
+      "sha256": "1beab2cd17ba0fda89f870fcd184f8f1d6e245168b6db66075d50dd7f39ae038"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0112.cinch",
+      "sha256": "d70b774600cd403c6f355637a042310c2b11fed618ac19aaf2ae2cb22d74e04f"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0120.cinch",
+      "sha256": "232199273ce123de4edf4ea0c31579bf60ffa2efb91e475f310a55b15ff11349"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0128.cinch",
+      "sha256": "2e3b732f303ed74dff7bd5b6ebebfa5539f4c1c96b3074cfd717fe2bd8766206"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0136.cinch",
+      "sha256": "066b9f054ae963346f8bed224d8e020b7bd5b51b6aa973ec274b2479ae0957c7"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0144.cinch",
+      "sha256": "4c050a531c482e999d072813d5139c2494314b36a9392291e1e42011b8bf792e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/consumers/literals-0152.cinch",
+      "sha256": "8610a64710b73d03de39aedffcc071789f6a97e47665d1baa4acc89975274745"
+    },
+    {
+      "path": "experiments/suffixarray-v1/extend_success_sharing.py",
+      "sha256": "a7af802aeb688aec99748b9f78a10941743a20d6a78746d06d393846e658817e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/extend_success_sharing_v1.py",
+      "sha256": "76f3c822a8b04f371237b98503a56c96d5200eb1bebaf06c7867716f3862dc5e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/generate.py",
+      "sha256": "069da04d8ee160b2e9394b29dd13a11723e4c86fe9f2d9e968eb99e706f63100"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-o0-receipt.json",
+      "sha256": "2b6e18dac3a3677f508650535fcaa03cb93c8c0b68ba1ce0300980030c770bf0"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-o2-first-four-receipt.json",
+      "sha256": "a8275f5a2e1f6a7339949d0ede9fa999707a3ed00af080c1df77cfbe17bdaa78"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-o2-progress.json",
+      "sha256": "d867591bd0563255174d927e81b0b0d950e6c4d5b514a00d4d34074ab5b00ff0"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-o2-receipt.json",
+      "sha256": "e68002ff5d998b5074891f7087f0d331ac4b70ae4fb58af0e4f40415ee51a950"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-progress.json",
+      "sha256": "459103644aaf6ca91e5ccb4c9d132b8ec1698dc00d30e43580cdfa5b1b0110b2"
+    },
+    {
+      "path": "experiments/suffixarray-v1/literal-unit-0048.json",
+      "sha256": "ea8574296585f8011f79c6e429cf6326894143c20536789ef1676574e7e915d2"
+    },
+    {
+      "path": "experiments/suffixarray-v1/oracle.go",
+      "sha256": "32d09cb6bf269ae011f1812f11e0181a40e6294c4e69c70b04863978d5ebdca9"
+    },
+    {
+      "path": "experiments/suffixarray-v1/prepare_callbacks.py",
+      "sha256": "a493ffb432282794586438bf7ad8ebaa6f70a40c0073af020b13ddab30e6024f"
+    },
+    {
+      "path": "experiments/suffixarray-v1/prepare_groups.py",
+      "sha256": "8ac9f3254cc73c528bd30e3d0b74b97c6bcdd2538b85238ee3eea1cf7128d3c0"
+    },
+    {
+      "path": "experiments/suffixarray-v1/prepared-callbacks.json",
+      "sha256": "ef3434a1f646b3269ca1227db4767d4e63bca36ee67b1295cb15c6dba3b6408f"
+    },
+    {
+      "path": "experiments/suffixarray-v1/prepared-groups.json",
+      "sha256": "94d2c5ce29410ea7fa3877e5721559d370cc4c9a7e28e3387e4582ff82e1822e"
+    },
+    {
+      "path": "experiments/suffixarray-v1/qualification.json",
+      "sha256": "5905d7ae84d07b4346ae7be79891647c9040860b3632c95ebb86761d012a8e9b"
+    },
+    {
+      "path": "experiments/suffixarray-v1/share_success_inputs.py",
+      "sha256": "f7b0bccc549ec022008dbf6d8c613ce1b3eae328f4246c79c9d5dc1778ab3f78"
+    },
+    {
+      "path": "experiments/suffixarray-v1/source-interface-sharing-receipt.json",
+      "sha256": "b60b6de50fbd7e56cf7860137e9c2a451d678d66201dfd24106e016e335d2ac5"
+    },
+    {
+      "path": "experiments/suffixarray-v1/source-interface-sharing-review.md",
+      "sha256": "136cbc022191f41d58bbc59c2681fe42929c5fda32a08cae2842c9debcfc2cb5"
+    },
+    {
+      "path": "experiments/suffixarray-v1/src/Data.Index.SuffixArray.cinch",
+      "sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "experiments/suffixarray-v1/surface.json",
+      "sha256": "0adae7ec5d190cfa6d18092b73a7bf76ba446d5d7662321d28e78685ca853427"
+    },
+    {
+      "path": "experiments/suffixarray-v1/validate_controls.py",
+      "sha256": "4748b2005df6d80a3b981681339e026eeae3484704ff99d9ff7bfcad5859264d"
+    },
+    {
+      "path": "experiments/suffixarray-v1/validate_literals.py",
+      "sha256": "ae37448c491945e037621a173d3408baa3227daa472e60de453474b99d62ceb5"
+    },
+    {
+      "path": "experiments/suffixarray-v1/vectors.json",
+      "sha256": "9eeff6e14c5ca60315782cd75aa15e1a32cdfb57019f35ef04ab1533e8988de6"
+    }
+  ],
+  "root_source_qualification": "bootstrap/stdlib-suffixarray-root-source-v1.json",
+  "root_runtime_pending": true
+}

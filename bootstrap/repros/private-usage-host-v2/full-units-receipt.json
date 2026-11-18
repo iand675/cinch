@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--lib",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 114.02949554199586,
+  "test_binary_sha256_before": "fc6b3dce4a3e6fd419b032f3595805ed4b66e9aa36472db8ac48500cbc283d15",
+  "test_binary_sha256_after": "fc6b3dce4a3e6fd419b032f3595805ed4b66e9aa36472db8ac48500cbc283d15",
+  "source_import_manifest_sha256": "aa21b9554f64a6a4471cb18ab1c170227f39eaad5558077e821734e484bd3d29",
+  "end_free_bytes": 294932480
+}

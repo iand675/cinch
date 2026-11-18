@@ -1,0 +1,55 @@
+-- | Reexport real single-place-variable contracts without changing their defining owner.
+module MVarFacade where
+  import MVarOwner
+  export MVar, mvar-new, mvar-new-empty, mvar-take, mvar-put, mvar-read, mvar-swap
+  export mvar-try-take, mvar-try-put, mvar-try-read, mvar-is-empty
+  export mvar-take-or-cancel, mvar-put-or-cancel, mvar-read-or-cancel, mvar-swap-or-cancel
+
+-- | Exercise canonical identities inside closed higher-order and capability-bearing contracts.
+module MVarRows where
+  import MVarOwner
+  export renamed-cancel, callback, open-row, pure-unit
+  -- | Keep the caller's actual runtime identity and its cancellation capability.
+  renamed-cancel :: forall (identity :: Region) item. using (io :: Io identity) => MVar item ->{Diverge, Cancel identity, MVar} Option item
+  renamed-cancel value = mvar-read-or-cancel value
+  -- | Preserve a latent kernel row in an ordinary callback parameter.
+  callback :: forall a. MVar a -> (a ->{MVar, Diverge} a) ->{MVar, Diverge} a
+  callback cell step = step (mvar-read cell)
+  -- | A pure builtin-only function remains compatible with legacy display-scheme import.
+  pure-unit :: Unit -> Unit
+  pure-unit value = value
+  -- | An open row deliberately remains outside closed contract transport.
+  open-row :: forall a e. MVar a -> (a ->{|e} a) ->{MVar, Diverge | e} a
+  open-row cell step = step (mvar-read cell)
+
+-- | A declaration-owned effect keeps its identity even when its spelling matches a kernel row.
+module UserMVar where
+  export signal
+  effect MVar where
+    -- | This operation belongs to UserMVar.MVar, not the kernel effect.
+    signal :: Unit ->{MVar} Unit
+
+-- | Keep complete private alternatives available only to structural usage checking.
+module HiddenUsage where
+  export Handle, RegionHandle
+  -- | Both private alternatives participate in structural task sharing.
+  data Handle a where
+    -- | This alternative alone would permit a shareable payload.
+    Shared :: MVarCell a -> Handle a
+    -- | This alternative prevents sharing even when the other field is Nat.
+    Buffered :: Bytes -> Handle a
+  -- | An explicit nominal Region role remains available to the private first-order field reader.
+  data RegionHandle (r :: Region) a where
+    -- | Preserve the actual immutable borrow carrier and its declared lifetime role.
+    GuardedRef :: Ref r a -> RegionHandle r a
+
+-- | Produce contracts without executing any synchronization operation.
+module Main where
+  import MVarFacade
+  import MVarRows
+  import UserMVar as User
+  import KernelMVar
+  import HiddenUsage
+  -- | Contract production has a deterministic pure entry.
+  main :: Int
+  main = 0

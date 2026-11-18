@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "status": "Required kernel/private-wrapper task obligations passed on fresh checked Rust producer and actual Native importer; full family admission remains separate",
+  "cases": [
+    {
+      "carrier": "MVarCell Nat",
+      "defining_shape": "sealed kernel",
+      "required_exit": 0,
+      "observed_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged"
+    },
+    {
+      "carrier": "MVarCell Bytes",
+      "defining_shape": "sealed kernel",
+      "required_exit": 4,
+      "observed_exit": 4,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged"
+    },
+    {
+      "carrier": "MVarOwner.MVar Nat",
+      "defining_shape": "source-known private MkMVar field",
+      "required_exit": 0,
+      "observed_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged"
+    },
+    {
+      "carrier": "MVarOwner.MVar Bytes",
+      "defining_shape": "source-known private MkMVar field",
+      "required_exit": 4,
+      "observed_exit": 4,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged"
+    },
+    {
+      "carrier": "MVarOwner.MVar Nat",
+      "defining_shape": "source-absent public data header with checked private fields",
+      "required_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "legacy_without_private_fields_expectation": 4,
+      "observed_exit": 0
+    },
+    {
+      "carrier": "MVarOwner.MVar Bytes",
+      "defining_shape": "source-absent public data header with checked private fields",
+      "required_exit": 4,
+      "observed_exit": 4,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged"
+    },
+    {
+      "carrier": "MVarCell Nat",
+      "defining_shape": "sealed kernel",
+      "usage": "single-task linear %1 capture",
+      "required_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "observed_exit": 0
+    },
+    {
+      "carrier": "MVarCell Bytes",
+      "defining_shape": "sealed kernel",
+      "usage": "single-task linear %1 capture",
+      "required_exit": 4,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "observed_exit": 4
+    },
+    {
+      "carrier": "MVarOwner.MVar Nat",
+      "defining_shape": "source-absent public data with hidden fields",
+      "usage": "single-task linear %1 capture",
+      "required_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "observed_exit": 0
+    },
+    {
+      "carrier": "MVarOwner.MVar Bytes",
+      "defining_shape": "source-absent public data with hidden fields",
+      "usage": "single-task linear %1 capture",
+      "required_exit": 4,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "observed_exit": 4
+    },
+    {
+      "carrier": "Bytes",
+      "defining_shape": "ordinary owned buffer transfer control",
+      "usage": "single-task linear %1 capture",
+      "required_exit": 0,
+      "admission": "Passed scoped source/private-field task checks; representation/runtime-family scope unchanged",
+      "observed_exit": 0
+    }
+  ],
+  "constraints": "Do not add Share or Copy requirements to ordinary local MVar operations; prove task sharing or transfer at the actual boundary.",
+  "authority": "No constructor fields, source hashes, interface hashes or representation classes may be fabricated to make the positive case pass.",
+  "qualification": "bootstrap/native-private-usage-qualified-results-v1.json"
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "Actual fresh Native checker construction and8 source-absent controls; no family/provider promotion from this gate alone.",
+  "previous_attempt": "../private-usage-native-v1: directory guard refused before project/build; corrected launch cwd only",
+  "cwd": "/workspace/dasl-stdlib-io/compiler",
+  "command": [
+    "bash",
+    "-c",
+    "source /workspace/.tools/cinch-env.sh\nulimit -s 65536\nexport RUST_MIN_STACK=67108864 RUST_TEST_THREADS=1 CINCH_HEAP_LIMIT=2G\nexec taskset -c 3 \"$1\" source_absent --test-threads=1 --nocapture",
+    "native-private-usage",
+    "/workspace/dasl-stdlib-io/compiler/target/release/build/cinch/270f87c85652a2f3/out/interface_mvar_contracts-270f87c85652a2f3"
+  ],
+  "rust_producer_sha256": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51",
+  "test_executable_sha256": "1253101d1e9da038228c274faa12fb7b71bc333ec7e49426f5d40994e2a88dfa",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source52_sha256": "4eff89639337c80964431969e41f3ffa351d28ff5c9f988e6781c864c5cb7dd5",
+  "initial_free_bytes": 594264064,
+  "reserve_bytes": 262144000,
+  "soft_pause_below_bytes": 283115520,
+  "active_timeout_seconds": 900,
+  "status": "passed",
+  "pauses": [],
+  "process_group": 900411,
+  "exit_code": 0,
+  "guard_reason": null,
+  "wall_seconds": 304.17021413100883,
+  "active_seconds": 304.1702150120109,
+  "minimum_free_bytes": 318922752,
+  "end_free_bytes": 363483136,
+  "rust_producer_sha256_after": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51"
+}

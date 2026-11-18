@@ -1,0 +1,42 @@
+{
+  "scope": "Current Rust parent palette documentation and SDK-free runtime integration; retained complete project, no Native/foreign execution/performance claim.",
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--test",
+    "lib_image_color_palette",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/dasl-stdlib-io/compiler",
+  "initial_free_bytes": 688570368,
+  "reserve_bytes": 262144000,
+  "soft_pause_below_bytes": 283115520,
+  "fresh_output_cap_bytes": 167772160,
+  "runtime_sha256_before": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "frozen_producer_sha256_before": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51",
+  "inputs": {
+    "compiler/tests/lib_image_color_palette.rs": "e0fe7acd468a0beb50a2c856f524dc876146b7c0824458681495db31ddb0c183",
+    "compiler/prelude/Effect/Random.cinch": "75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216",
+    "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+    "experiments/image-color-v1/sources/Image.Color.cinch": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "tooling/check_color_palette_ci.py": "5be92fd87367cbe66ebc6625be4c66779cec4993653122ec879225bbb46ccb5a",
+    "tooling/check_color_palette.py": "c9040c8ddc99b14d7451e64de454cc8823dd72a2dbd8f45e396ad80d71808770",
+    "tooling/check_compare.py": "2cc7faf4fd24a0ee8af0bb85a9b46dc289cc0aa969181927213dea0721d474af"
+  },
+  "status": "passed",
+  "pauses": [],
+  "process_group": 914541,
+  "exit_code": 0,
+  "guard_reason": null,
+  "wall_seconds": 209.59210615602206,
+  "paused_seconds": 0,
+  "minimum_free_bytes": 550408192,
+  "maximum_new_output_bytes": 69365226,
+  "end_free_bytes": 550391808,
+  "runtime_sha256_after": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "frozen_producer_sha256_after": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51",
+  "inputs_unchanged": true
+}

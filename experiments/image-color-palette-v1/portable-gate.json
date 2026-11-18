@@ -1,0 +1,457 @@
+{
+  "scope": "Compile the complete public palette closure and supplied foreign seed into real target objects.",
+  "runner_sha256": "ae88b805f5a9740de1e2938b32e99290b0eab508bf7f7401e647c3bce6640bd1",
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "host_runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+  "host_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "color_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "probe_sha256": "8ebad653a4b142ed87fd68c9a8eab544a8a6a7f5469915715907c94556538227",
+  "seed_sha256": "b064839d7530cb49f7b501647f03a2e29b36a489d8896ec511f202d5e1d5618f",
+  "compiler_host_stack_bytes": 67108864,
+  "cpu_affinity": [
+    1
+  ],
+  "initial_free_bytes": 391385088,
+  "targets": [
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "ir_sha256": "4230797642bdc7dd12055522356e56fe983b270fe4793b4a98bd50969977a4f1",
+      "object_sha256": "463722234bd460a9040462146099184e89048c960ab4f10e4ac18a36c7110bcc",
+      "seed_object_sha256": "3ffd3784cedb8bb81a0e101284b0fcc80a11dc7fe2daef19edc7bdfc72cf2a38",
+      "object_header": {
+        "format": "ELF64",
+        "endian": "little",
+        "machine": 62,
+        "type": "relocatable"
+      },
+      "seed_object_header": {
+        "format": "ELF64",
+        "endian": "little",
+        "machine": 62,
+        "type": "relocatable"
+      },
+      "actual_public_paths": {
+        "Image.Color.Palette.plan9-colors": [
+          "Main.main",
+          "Image.Color.Palette.plan9-colors"
+        ],
+        "Image.Color.Palette.web-safe-colors": [
+          "Main.main",
+          "Image.Color.Palette.web-safe-colors"
+        ],
+        "Image.Color.distance4.llvm": [
+          "Main.main",
+          "Image.Color.nearest#cc",
+          "Image.Color.distance4",
+          "Image.Color.distance4.llvm"
+        ],
+        "Image.Color.expand8.llvm": [
+          "Main.main",
+          "Image.Color.expand8",
+          "Image.Color.expand8.llvm"
+        ]
+      },
+      "nearest_host_body": "\"Image.Color.nearest#cc\":               # @\"Image.Color.nearest#cc\"\n\t.cfi_startproc\n# %bb.0:                                # %entry\n\tpushq\t%rbp\n\t.cfi_def_cfa_offset 16\n\t.cfi_offset %rbp, -16\n\tmovq\t%rsp, %rbp\n\t.cfi_def_cfa_register %rbp\n\tpushq\t%r15\n\tpushq\t%r14\n\tpushq\t%r13\n\tpushq\t%r12\n\tpushq\t%rbx\n\tsubq\t$24, %rsp\n\t.cfi_offset %rbx, -56\n\t.cfi_offset %r12, -48\n\t.cfi_offset %r13, -40\n\t.cfi_offset %r14, -32\n\t.cfi_offset %r15, -24\n\tmovq\t-8(%rdi), %rax\n\tshrq\t$40, %rax\n\tmovzbl\t%al, %eax\n\tcmpq\t$255, %rax\n\tjne\t.LBB43_2\n# %bb.1:                                # %bb2\n\tmovq\t-16(%rdi), %rax\n\tmovq\t(%rax), %rax\n.LBB43_2:                               # %bb4\n\ttestq\t%rax, %rax\n\tje\t.LBB43_6\n# %bb.3:                                # %bb4\n\tcmpq\t$1, %rax\n\tjne\t.LBB43_4\n# %bb.17:                               # %bb6\n\tmovq\t(%rdi), %r15\n\tmovq\t8(%rdi), %r10\n\tmovq\t-8(%r15), %rax\n\tshrq\t$40, %rax\n\tmovzbl\t%al, %eax\n\tcmpq\t$255, %rax\n\tjne\t.LBB43_19\n# %bb.18:                               # %bb9\n\tmovq\t-16(%r15), %rax\n\tmovq\t(%rax), %rax\n.LBB43_19:                              # %bb11\n\tcmpq\t$1, %rax\n\tje\t.LBB43_37\n# %bb.20:                               # %bb11\n\ttestq\t%rax, %rax\n\tjne\t.LBB43_4\n# %bb.21:                               # %bb12\n\tmovq\t(%r15), %r9\n\tmovq\t8(%r15), %rax\n\tmovq\t-8(%r9), %rdi\n\tshrq\t$40, %rdi\n\tmovzbl\t%dil, %edi\n\tcmpq\t$255, %rdi\n\tjne\t.LBB43_23\n# %bb.22:                               # %bb15\n\tmovq\t-16(%r9), %rdi\n\tmovq\t(%rdi), %rdi\n.LBB43_23:                              # %bb17\n\tcmpq\t$11, %rdi\n\tja\t.LBB43_4\n# %bb.24:                               # %bb17\n\tmovq\t%r10, -56(%rbp)                 # 8-byte Spill\n\tleaq\t.LJTI43_0(%rip), %r9\n\tmovslq\t(%r9,%rdi,4), %rdi\n\taddq\t%r9, %rdi\n\tjmpq\t*%rdi\n.LBB43_25:                              # %bb18\n\tmovd\t%eax, %xmm0\n\tpxor\t%xmm1, %xmm1\n\tpunpcklbw\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3],xmm0[4],xmm1[4],xmm0[5],xmm1[5],xmm0[6],xmm1[6],xmm0[7],xmm1[7]\n\tpmullw\t.LCPI43_1(%rip), %xmm0          # [257,257,257,257,u,u,u,u]\n\tmovq\t%xmm0, %rax\n\tjmp\t.LBB43_43\n.LBB43_4:\n\txorl\t%r8d, %r8d\n\tjmp\t.LBB43_5\n.LBB43_6:                               # %bb5\n\ttestq\t%rdx, %rdx\n\tsete\t%al\n\tmovl\t%edx, %ecx\n\torb\t%al, %cl\n\ttestb\t$1, %cl\n\tjne\t.LBB43_5\n# %bb.7:                                # %bb0.i60\n\tmovq\t-8(%rdx), %rcx\n\tmovq\t%rcx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-536870913(%rax), %rsi\n\tmovabsq\t$9223372035244163071, %rdi      # imm = 0x7FFFFFFF9FFFFFFF\n\tcmpq\t%rdi, %rsi\n\tjae\t.LBB43_9\n# %bb.8:                                # %bb2.i\n\tdecq\t%rcx\n\tmovq\t%rcx, -8(%rdx)\n\tjmp\t.LBB43_5\n.LBB43_37:                              # %bb13\n\tmovq\t%r10, -56(%rbp)                 # 8-byte Spill\n\tmovl\t%ecx, -48(%rbp)                 # 4-byte Spill\n\tmovq\t%r8, %r12\n\tmovq\t%rsi, %r13\n\tmovq\t%rdx, %r14\n\tmovq\t%r15, %rbx\n\tmovq\t(%r15), %r15\n\ttestq\t%r15, %r15\n\tje\t.LBB43_42\n# %bb.38:                               # %bb0.i150\n\tmovabsq\t$9223372035244163071, %rcx      # imm = 0x7FFFFFFF9FFFFFFF\n\tmovq\t-8(%r15), %rdx\n\tmovq\t%rdx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-1(%rax), %rsi\n\tleaq\t536870912(%rcx), %rdi\n\tcmpq\t%rdi, %rsi\n\tjae\t.LBB43_40\n# %bb.39:                               # %bb2.i162\n\tincq\t%rdx\n\tmovq\t%rdx, -8(%r15)\n\tjmp\t.LBB43_42\n.LBB43_9:                               # %bb3.i65\n\tmovabsq\t$9223372035781033983, %rcx      # imm = 0x7FFFFFFFBFFFFFFF\n\tcmpq\t%rcx, %rax\n\tjg\t.LBB43_13\n# %bb.10:                               # %bb3.i65\n\ttestq\t%rax, %rax\n\tje\t.LBB43_5\n# %bb.11:                               # %bb3.i65\n\tmovq\t%r8, %rbx\n\tcmpq\t$536870912, %rax                # imm = 0x20000000\n\tjne\t.LBB43_16\n# %bb.12:                               # %bb5.i\n\tmovq\t%rdx, %rdi\n\tcallq\tcinch_drop_slow@PLT\n\tmovq\t%rbx, %r8\n\tjmp\t.LBB43_5\n.LBB43_13:                              # %bb3.i65\n\tmovq\t%r8, %rbx\n\tmovabsq\t$9223372035781033984, %rcx      # imm = 0x7FFFFFFFC0000000\n\tcmpq\t%rcx, %rax\n\tje\t.LBB43_15\n# %bb.14:                               # %bb3.i65\n\tmovabsq\t$9223372036317904896, %rcx      # imm = 0x7FFFFFFFE0000000\n\tcmpq\t%rcx, %rax\n\tjne\t.LBB43_16\n.LBB43_15:                              # %bb6.i\n\tmovq\t%rdx, %rdi\n\tcallq\tcinch_frame_release@PLT\n\tmovq\t%rbx, %r8\n\tjmp\t.LBB43_5\n.LBB43_40:                              # %bb3.i156\n\taddq\t$536870913, %rcx                # imm = 0x20000001\n\tcmpq\t%rcx, %rax\n\tsetge\t%cl\n\ttestq\t%rax, %rax\n\tsete\t%al\n\torb\t%cl, %al\n\tjne\t.LBB43_42\n# %bb.41:                               # %bb4.i161\n\tmovq\t%r15, %rdi\n\tcallq\tcinch_dup_mt@PLT\n.LBB43_42:                              # %cinch.rc.dup.obj.exit\n\tmovq\t$0, -64(%rbp)\n\tleaq\t-64(%rbp), %rdx\n\tmovl\t$1, %esi\n\tmovq\t%r15, %rdi\n\tcallq\t*(%r15)\n\tmovq\t%r14, %rdx\n\tmovq\t%r13, %rsi\n\tmovq\t%r12, %r8\n\tmovl\t-48(%rbp), %ecx                 # 4-byte Reload\n\tmovq\t%rbx, %r15\n.LBB43_43:                              # %bb7\n\tmovq\t%rsi, %xmm0\n\tmovq\t%rax, %xmm1\n\tpxor\t%xmm2, %xmm2\n\tpunpcklwd\t%xmm2, %xmm0            # xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1],xmm0[2],xmm2[2],xmm0[3],xmm2[3]\n\tpunpcklwd\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1],xmm1[2],xmm2[2],xmm1[3],xmm2[3]\n\tpsubd\t%xmm1, %xmm0\n\tpshufd\t$245, %xmm0, %xmm1              # xmm1 = xmm0[1,1,3,3]\n\tpmuludq\t%xmm0, %xmm0\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tpmuludq\t%xmm1, %xmm1\n\tpshufd\t$232, %xmm1, %xmm1              # xmm1 = xmm1[0,2,2,3]\n\tpunpckldq\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]\n\tpsrld\t$2, %xmm0\n\tpshufd\t$238, %xmm0, %xmm1              # xmm1 = xmm0[2,3,2,3]\n\tpaddd\t%xmm0, %xmm1\n\tpshufd\t$85, %xmm1, %xmm0               # xmm0 = xmm1[1,1,1,1]\n\tpaddd\t%xmm1, %xmm0\n\tmovd\t%xmm0, %ebx\n\tcmpl\t%ecx, %ebx\n\tjae\t.LBB43_73\n# %bb.44:                               # %bb30\n\tmovabsq\t$9223372035244163071, %r13      # imm = 0x7FFFFFFF9FFFFFFF\n\ttestq\t%r8, %r8\n\tje\t.LBB43_56\n# %bb.45:                               # %bb0.i169\n\tmovq\t-8(%r8), %rcx\n\tmovq\t%rcx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-536870913(%rax), %rdi\n\tcmpq\t%r13, %rdi\n\tjae\t.LBB43_47\n# %bb.46:                               # %bb2.i180\n\tdecq\t%rcx\n\tmovq\t%rcx, -8(%r8)\n\tjmp\t.LBB43_56\n.LBB43_73:                              # %bb31\n\tmovq\t%rsi, %r14\n\ttestb\t$1, %dl\n\tje\t.LBB43_76\n# %bb.74:                               # %bb0.i\n\tmovq\t%rdx, %rax\n\tshrq\t%rax\n\tincq\t%rax\n\tjs\t.LBB43_76\n# %bb.75:                               # %cinch.runtime.natAdd.exit.thread\n\tleaq\t1(,%rax,2), %r15\n\tjmp\t.LBB43_88\n.LBB43_76:                              # %cinch.runtime.natAdd.exit\n\tmovl\t%ecx, %ebx\n\tmovq\t%r8, %r12\n\tmovl\t$3, %esi\n\tmovq\t%rdx, %rdi\n\tmovq\t%rdx, %r15\n\tcallq\tcinch_nat_add@PLT\n\tmovq\t%r15, %rdi\n\tmovq\t%rax, %r15\n\ttestq\t%rdi, %rdi\n\tsete\t%al\n\tmovl\t%edi, %ecx\n\torb\t%al, %cl\n\ttestb\t$1, %cl\n\tje\t.LBB43_77\n.LBB43_87:                              # %cinch.rc.drop.tobj.exit243\n\tmovq\t%r12, %r8\n\tmovl\t%ebx, %ecx\n\tjmp\t.LBB43_88\n.LBB43_77:                              # %bb0.i230\n\tmovq\t-8(%rdi), %rdx\n\tmovq\t%rdx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-536870913(%rax), %rcx\n\tmovabsq\t$9223372035244163071, %rsi      # imm = 0x7FFFFFFF9FFFFFFF\n\tcmpq\t%rsi, %rcx\n\tmovq\t%r12, %r8\n\tmovl\t%ebx, %ecx\n\tjae\t.LBB43_79\n# %bb.78:                               # %bb2.i241\n\tdecq\t%rdx\n\tmovq\t%rdx, -8(%rdi)\n.LBB43_88:                              # %cinch.rc.drop.tobj.exit243\n\tmovl\t%ecx, %ecx\n\tmovq\t-56(%rbp), %rdi                 # 8-byte Reload\n\tmovq\t%r8, %rsi\n\tmovq\t%r14, %rdx\n\tmovq\t%r15, %r8\n\tjmp\t.LBB43_89\n.LBB43_47:                              # %bb3.i175\n\tmovabsq\t$9223372035781033983, %rcx      # imm = 0x7FFFFFFFBFFFFFFF\n\tcmpq\t%rcx, %rax\n\tjg\t.LBB43_51\n# %bb.48:                               # %bb3.i175\n\ttestq\t%rax, %rax\n\tje\t.LBB43_56\n# %bb.49:                               # %bb3.i175\n\tmovq\t%r15, %r12\n\tmovq\t%rsi, %r14\n\tmovq\t%rdx, %r15\n\tcmpq\t$536870912, %rax                # imm = 0x20000000\n\tjne\t.LBB43_54\n# %bb.50:                               # %bb5.i178\n\tmovq\t%r8, %rdi\n\tcallq\tcinch_drop_slow@PLT\n\tjmp\t.LBB43_55\n.LBB43_79:                              # %bb3.i236\n\tmovabsq\t$9223372035781033983, %rdx      # imm = 0x7FFFFFFFBFFFFFFF\n\tcmpq\t%rdx, %rax\n\tjg\t.LBB43_83\n# %bb.80:                               # %bb3.i236\n\ttestq\t%rax, %rax\n\tje\t.LBB43_88\n# %bb.81:                               # %bb3.i236\n\tcmpq\t$536870912, %rax                # imm = 0x20000000\n\tjne\t.LBB43_86\n# %bb.82:                               # %bb5.i239\n\tcallq\tcinch_drop_slow@PLT\n\tjmp\t.LBB43_87\n.LBB43_51:                              # %bb3.i175\n\tmovq\t%r15, %r12\n\tmovq\t%rsi, %r14\n\tmovq\t%rdx, %r15\n\tmovabsq\t$9223372035781033984, %rcx      # imm = 0x7FFFFFFFC0000000\n\tcmpq\t%rcx, %rax\n\tje\t.LBB43_53\n# %bb.52:                               # %bb3.i175\n\tmovabsq\t$9223372036317904896, %rcx      # imm = 0x7FFFFFFFE0000000\n\tcmpq\t%rcx, %rax\n\tjne\t.LBB43_54\n.LBB43_53:                              # %bb6.i176\n\tmovq\t%r8, %rdi\n\tcallq\tcinch_frame_release@PLT\n\tjmp\t.LBB43_55\n.LBB43_16:                              # %bb4.i\n\tmovq\t%rdx, %rdi\n\tcallq\tcinch_drop_mt@PLT\n\tmovq\t%rbx, %r8\n\tjmp\t.LBB43_5\n.LBB43_83:                              # %bb3.i236\n\tmovabsq\t$9223372035781033984, %rcx      # imm = 0x7FFFFFFFC0000000\n\tcmpq\t%rcx, %rax\n\tje\t.LBB43_85\n# %bb.84:                               # %bb3.i236\n\tmovabsq\t$9223372036317904896, %rcx      # imm = 0x7FFFFFFFE0000000\n\tcmpq\t%rcx, %rax\n\tjne\t.LBB43_86\n.LBB43_85:                              # %bb6.i237\n\tcallq\tcinch_frame_release@PLT\n\tjmp\t.LBB43_87\n.LBB43_29:                              # %bb23\n\tmovzwl\t%ax, %edi\n\tmovabsq\t$281479271743489, %rax          # imm = 0x1000100010001\n\timulq\t%rdi, %rax\n\tjmp\t.LBB43_43\n.LBB43_36:                              # %bb28\n\tmovq\t%rax, %rdi\n\tmovq\t%rdx, %rbx\n\tmovq\t%r15, %r13\n\tmovq\t%rsi, %r15\n\tmovq\t%r8, %r14\n\tmovl\t%ecx, %r12d\n\tcallq\tImage.Color.cmyk16@PLT\n\tjmp\t.LBB43_34\n.LBB43_28:                              # %bb22\n\tmovzbl\t%al, %edi\n\tmovabsq\t$72340172838076673, %rax        # imm = 0x101010101010101\n\timulq\t%rdi, %rax\n\tjmp\t.LBB43_43\n.LBB43_33:                              # %bb26\n\tmovq\t%rax, %rdi\n\tmovq\t%rdx, %rbx\n\tmovq\t%r15, %r13\n\tmovq\t%rsi, %r15\n\tmovq\t%r8, %r14\n\tmovl\t%ecx, %r12d\n\tcallq\tImage.Color.ycbcr16@PLT\n.LBB43_34:                              # %bb7\n\tmovl\t%r12d, %ecx\n\tmovq\t%r14, %r8\n\tmovq\t%r15, %rsi\n\tmovq\t%r13, %r15\n\tmovq\t%rbx, %rdx\n\tjmp\t.LBB43_43\n.LBB43_26:                              # %bb20\n\tmovd\t%eax, %xmm0\n\tpxor\t%xmm1, %xmm1\n\tpunpcklbw\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3],xmm0[4],xmm1[4],xmm0[5],xmm1[5],xmm0[6],xmm1[6],xmm0[7],xmm1[7]\n\tpmullw\t.LCPI43_1(%rip), %xmm0          # [257,257,257,257,u,u,u,u]\n\tmovq\t%xmm0, %rdi\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\tandq\t%rdi, %rax\n\tshrq\t$48, %rdi\n\tmovd\t%edi, %xmm1\n\tpshuflw\t$0, %xmm1, %xmm1                # xmm1 = xmm1[0,0,0,0,4,5,6,7]\n\tmovdqa\t%xmm1, %xmm2\n\tpmulhuw\t%xmm0, %xmm2\n\tpmullw\t%xmm1, %xmm0\n\tpunpcklwd\t%xmm2, %xmm0            # xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1],xmm0[2],xmm2[2],xmm0[3],xmm2[3]\n\tmovdqa\t.LCPI43_0(%rip), %xmm1          # xmm1 = [2147516417,2147516417,2147516417,2147516417]\n\tpshufd\t$245, %xmm0, %xmm2              # xmm2 = xmm0[1,1,3,3]\n\tpmuludq\t%xmm1, %xmm0\n\tpshufd\t$237, %xmm0, %xmm0              # xmm0 = xmm0[1,3,2,3]\n\tpmuludq\t%xmm1, %xmm2\n\tpshufd\t$237, %xmm2, %xmm1              # xmm1 = xmm2[1,3,2,3]\n\tpunpckldq\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]\n\tpsrld\t$15, %xmm0\n\tpshuflw\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3,4,5,6,7]\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tmovq\t%xmm0, %rdi\n\tmovabsq\t$281474976710655, %r9           # imm = 0xFFFFFFFFFFFF\n\tandq\t%rdi, %r9\n\torq\t%r9, %rax\n\tjmp\t.LBB43_43\n.LBB43_27:                              # %bb21\n\tmovq\t%rax, %xmm0\n\tmovabsq\t$-281474976710656, %rdi         # imm = 0xFFFF000000000000\n\tandq\t%rax, %rdi\n\tshrq\t$48, %rax\n\tmovd\t%eax, %xmm1\n\tpshuflw\t$0, %xmm1, %xmm1                # xmm1 = xmm1[0,0,0,0,4,5,6,7]\n\tmovdqa\t%xmm1, %xmm2\n\tpmulhuw\t%xmm0, %xmm2\n\tpmullw\t%xmm0, %xmm1\n\tpunpcklwd\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1],xmm1[2],xmm2[2],xmm1[3],xmm2[3]\n\tmovdqa\t.LCPI43_0(%rip), %xmm0          # xmm0 = [2147516417,2147516417,2147516417,2147516417]\n\tpshufd\t$245, %xmm1, %xmm2              # xmm2 = xmm1[1,1,3,3]\n\tpmuludq\t%xmm0, %xmm1\n\tpshufd\t$237, %xmm1, %xmm1              # xmm1 = xmm1[1,3,2,3]\n\tpmuludq\t%xmm0, %xmm2\n\tpshufd\t$237, %xmm2, %xmm0              # xmm0 = xmm2[1,3,2,3]\n\tpunpckldq\t%xmm0, %xmm1            # xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1]\n\tpsrld\t$15, %xmm1\n\tpshuflw\t$232, %xmm1, %xmm0              # xmm0 = xmm1[0,2,2,3,4,5,6,7]\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tmovq\t%xmm0, %rax\n\tmovabsq\t$281474976710655, %r9           # imm = 0xFFFFFFFFFFFF\n\tandq\t%rax, %r9\n\torq\t%r9, %rdi\n\tmovq\t%rdi, %rax\n\tjmp\t.LBB43_43\n.LBB43_30:                              # %bb24\n\tmovzbl\t%al, %eax\n\tmovabsq\t$1103823438081, %rdi            # imm = 0x10101010101\n\tjmp\t.LBB43_31\n.LBB43_35:                              # %bb27\n\tmovq\t%rax, %rdi\n\tmovq\t%rdx, %rbx\n\tmovq\t%r15, -48(%rbp)                 # 8-byte Spill\n\tmovq\t%rsi, %r15\n\tmovq\t%r8, %r14\n\tmovl\t%ecx, %r12d\n\tmovq\t%rax, %r13\n\tcallq\tImage.Color.ycbcr16@PLT\n\tmovl\t%r12d, %ecx\n\tmovq\t%r14, %r8\n\tmovq\t%r15, %rsi\n\tmovq\t-48(%rbp), %r15                 # 8-byte Reload\n\tmovq\t%rbx, %rdx\n\tshrl\t$24, %r13d\n\tmovabsq\t$72339069014638592, %rdi        # imm = 0x101000000000000\n\timulq\t%r13, %rdi\n\tmovabsq\t$281474976710655, %r9           # imm = 0xFFFFFFFFFFFF\n\tandq\t%r9, %rax\n\torq\t%rdi, %rax\n\tmovq\t%rax, %xmm0\n\tmovq\t%rdi, %rax\n\tshrq\t$48, %rax\n\tmovd\t%eax, %xmm1\n\tpshuflw\t$0, %xmm1, %xmm1                # xmm1 = xmm1[0,0,0,0,4,5,6,7]\n\tmovdqa\t%xmm1, %xmm2\n\tpmulhuw\t%xmm0, %xmm2\n\tpmullw\t%xmm0, %xmm1\n\tpunpcklwd\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1],xmm1[2],xmm2[2],xmm1[3],xmm2[3]\n\tmovdqa\t.LCPI43_0(%rip), %xmm0          # xmm0 = [2147516417,2147516417,2147516417,2147516417]\n\tpshufd\t$245, %xmm1, %xmm2              # xmm2 = xmm1[1,1,3,3]\n\tpmuludq\t%xmm0, %xmm1\n\tpshufd\t$237, %xmm1, %xmm1              # xmm1 = xmm1[1,3,2,3]\n\tpmuludq\t%xmm0, %xmm2\n\tpshufd\t$237, %xmm2, %xmm0              # xmm0 = xmm2[1,3,2,3]\n\tpunpckldq\t%xmm0, %xmm1            # xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1]\n\tpsrld\t$15, %xmm1\n\tpshuflw\t$232, %xmm1, %xmm0              # xmm0 = xmm1[0,2,2,3,4,5,6,7]\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tmovq\t%xmm0, %rax\n\tandq\t%r9, %rax\n\torq\t%rdi, %rax\n\tjmp\t.LBB43_43\n.LBB43_32:                              # %bb25\n\tmovzwl\t%ax, %eax\n\tmovabsq\t$4295032833, %rdi               # imm = 0x100010001\n.LBB43_31:                              # %bb7\n\timulq\t%rax, %rdi\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\torq\t%rdi, %rax\n\tjmp\t.LBB43_43\n.LBB43_54:                              # %bb4.i179\n\tmovq\t%r8, %rdi\n\tcallq\tcinch_drop_mt@PLT\n.LBB43_55:                              # %cinch.rc.drop.obj.exit\n\tmovq\t%r15, %rdx\n\tmovq\t%r14, %rsi\n\tmovq\t%r12, %r15\n.LBB43_56:                              # %cinch.rc.drop.obj.exit\n\ttestl\t%ebx, %ebx\n\tje\t.LBB43_57\n# %bb.63:                               # %bb33\n\tmovq\t%r15, %r14\n\tmovq\t%rsi, -48(%rbp)                 # 8-byte Spill\n\ttestb\t$1, %dl\n\tje\t.LBB43_66\n# %bb.64:                               # %bb0.i46\n\tmovq\t%rdx, %rax\n\tshrq\t%rax\n\tincq\t%rax\n\tjs\t.LBB43_66\n# %bb.65:                               # %bb3.i50\n\tmovq\t%rdx, %r15\n\tleaq\t1(,%rax,2), %r12\n\tjmp\t.LBB43_67\n.LBB43_66:                              # %bb1.i54\n\tmovl\t$3, %esi\n\tmovq\t%rdx, %r15\n\tmovq\t%rdx, %rdi\n\tcallq\tcinch_nat_add@PLT\n\tmovq\t%rax, %r12\n.LBB43_67:                              # %cinch.runtime.natAdd.exit56\n\ttestq\t%r14, %r14\n\tje\t.LBB43_72\n# %bb.68:                               # %bb0.i206\n\tmovq\t-8(%r14), %rcx\n\tmovq\t%rcx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-1(%rax), %rdx\n\tleaq\t536870912(%r13), %rsi\n\tcmpq\t%rsi, %rdx\n\tjae\t.LBB43_70\n# %bb.69:                               # %bb2.i218\n\tincq\t%rcx\n\tmovq\t%rcx, -8(%r14)\n\tjmp\t.LBB43_72\n.LBB43_57:                              # %bb32\n\tmovq\t%rdx, %r14\n\ttestq\t%r15, %r15\n\tje\t.LBB43_62\n# %bb.58:                               # %bb0.i185\n\tmovq\t-8(%r15), %rcx\n\tmovq\t%rcx, %rax\n\tshlq\t$29, %rax\n\tleaq\t-1(%rax), %rdx\n\tleaq\t536870912(%r13), %rsi\n\tcmpq\t%rsi, %rdx\n\tjae\t.LBB43_60\n# %bb.59:                               # %bb2.i197\n\tincq\t%rcx\n\tmovq\t%rcx, -8(%r15)\n\tjmp\t.LBB43_62\n.LBB43_70:                              # %bb3.i212\n\taddq\t$536870913, %r13                # imm = 0x20000001\n\tcmpq\t%r13, %rax\n\tsetge\t%cl\n\ttestq\t%rax, %rax\n\tsete\t%al\n\torb\t%cl, %al\n\tjne\t.LBB43_72\n# %bb.71:                               # %bb4.i217\n\tmovq\t%r14, %rdi\n\tcallq\tcinch_dup_mt@PLT\n.LBB43_72:                              # %cinch.rc.dup.obj.exit220\n\tmovl\t%ebx, %r13d\n\tmovl\t$16, %edi\n\tmovl\t$768, %esi                      # imm = 0x300\n\tcallq\tcinch_alloc_ctor@PLT\n\tmovq\t%rax, %rbx\n\tmovq\t%r15, (%rax)\n\tmovq\t%r14, 8(%rax)\n\tmovl\t$8, %edi\n\tmovl\t$257, %esi                      # imm = 0x101\n\tcallq\tcinch_alloc_ctor@PLT\n\tmovq\t%rbx, (%rax)\n\tmovq\t-56(%rbp), %rdi                 # 8-byte Reload\n\tmovq\t%rax, %rsi\n\tmovq\t-48(%rbp), %rdx                 # 8-byte Reload\n\tmovq\t%r13, %rcx\n\tmovq\t%r12, %r8\n.LBB43_89:                              # %cinch.rc.drop.tobj.exit243\n\taddq\t$24, %rsp\n\tpopq\t%rbx\n\tpopq\t%r12\n\tpopq\t%r13\n\tpopq\t%r14\n\tpopq\t%r15\n\tpopq\t%rbp\n\t.cfi_def_cfa %rsp, 8\n\tjmp\t\"Image.Color.nearest.shared0#cc\"@PLT # TAILCALL\n.LBB43_60:                              # %bb3.i191\n\t.cfi_def_cfa %rbp, 16\n\taddq\t$536870913, %r13                # imm = 0x20000001\n\tcmpq\t%r13, %rax\n\tsetge\t%cl\n\ttestq\t%rax, %rax\n\tsete\t%al\n\torb\t%cl, %al\n\tjne\t.LBB43_62\n# %bb.61:                               # %bb4.i196\n\tmovq\t%r15, %rdi\n\tcallq\tcinch_dup_mt@PLT\n.LBB43_62:                              # %cinch.rc.dup.obj.exit199\n\tmovl\t$16, %edi\n\tmovl\t$768, %esi                      # imm = 0x300\n\tcallq\tcinch_alloc_ctor@PLT\n\tmovq\t%rax, %rbx\n\tmovq\t%r14, (%rax)\n\tmovq\t%r15, 8(%rax)\n\tmovl\t$8, %edi\n\tmovl\t$257, %esi                      # imm = 0x101\n\tcallq\tcinch_alloc_ctor@PLT\n\tmovq\t%rax, %r8\n\tmovq\t%rbx, (%rax)\n.LBB43_5:                               # %common.ret\n\tmovq\t%r8, %rax\n\taddq\t$24, %rsp\n\tpopq\t%rbx\n\tpopq\t%r12\n\tpopq\t%r13\n\tpopq\t%r14\n\tpopq\t%r15\n\tpopq\t%rbp\n\t.cfi_def_cfa %rsp, 8\n\tretq\t$8\n.LBB43_86:                              # %bb4.i240\n\t.cfi_def_cfa %rbp, 16\n\tcallq\tcinch_drop_mt@PLT\n\tjmp\t.LBB43_87\n",
+      "actual_integer_vector_instructions": [
+        "paddd",
+        "pmulhuw",
+        "pmullw",
+        "pmuludq",
+        "psrld",
+        "psubd",
+        "punpcklbw",
+        "punpckldq",
+        "punpcklwd"
+      ]
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "ir_sha256": "2fa403e1584920f36c4d59f4e6dea71195daa6bd4d00654391261fc81c9180a7",
+      "object_sha256": "83bc655d3dba84f23d4a44357a8948d2d1aaab073b62f259275457ed718fde1a",
+      "seed_object_sha256": "5b8d78383084185a1cbe421e3597018fd5707f9d4057e784b76fe7bc3469ef34",
+      "object_header": {
+        "format": "ELF64",
+        "endian": "little",
+        "machine": 183,
+        "type": "relocatable"
+      },
+      "seed_object_header": {
+        "format": "ELF64",
+        "endian": "little",
+        "machine": 183,
+        "type": "relocatable"
+      },
+      "actual_public_paths": {
+        "Image.Color.Palette.plan9-colors": [
+          "Main.main",
+          "Image.Color.Palette.plan9-colors"
+        ],
+        "Image.Color.Palette.web-safe-colors": [
+          "Main.main",
+          "Image.Color.Palette.web-safe-colors"
+        ],
+        "Image.Color.distance4.llvm": [
+          "Main.main",
+          "Image.Color.nearest#cc",
+          "Image.Color.distance4",
+          "Image.Color.distance4.llvm"
+        ],
+        "Image.Color.expand8.llvm": [
+          "Main.main",
+          "Image.Color.expand8",
+          "Image.Color.expand8.llvm"
+        ]
+      }
+    },
+    {
+      "target": "wasm32-unknown-unknown",
+      "ir_sha256": "b8e3303d1aef003f1392f41dfd8cd543689c9872e3154ab9e0a6aa8bb2fe43b2",
+      "object_sha256": "d0ce7c5657124b11e7cc117180d49a9e319033e8dd8311628636f710e3ccb9a7",
+      "seed_object_sha256": "8568b4cfdeac6069a25db50b5bbe362bd02ea62283908eb6292e4120d2e39996",
+      "object_header": {
+        "format": "wasm",
+        "version": 1
+      },
+      "seed_object_header": {
+        "format": "wasm",
+        "version": 1
+      },
+      "actual_public_paths": {
+        "Image.Color.Palette.plan9-colors": [
+          "Main.main",
+          "Image.Color.Palette.plan9-colors"
+        ],
+        "Image.Color.Palette.web-safe-colors": [
+          "Main.main",
+          "Image.Color.Palette.web-safe-colors"
+        ],
+        "Image.Color.distance4.llvm": [
+          "Main.main",
+          "Image.Color.nearest",
+          "Image.Color.distance4",
+          "Image.Color.distance4.llvm"
+        ],
+        "Image.Color.expand8.llvm": [
+          "Main.main",
+          "Image.Color.expand8",
+          "Image.Color.expand8.llvm"
+        ]
+      }
+    }
+  ],
+  "commands": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/Main.cinch",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/Main.cinch",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.ll"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "-ffreestanding",
+        "-fno-builtin",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/seed.c",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/seed.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "-S",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.s"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.ll",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/seed.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O0"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O0"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O0"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe.ll",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/seed.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O2"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O2"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host/probe-O2"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/host",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/Main.cinch",
+        "--target",
+        "aarch64-unknown-linux-gnu"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/Main.cinch",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/probe.ll"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=aarch64-unknown-linux-gnu",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/probe.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/probe.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=aarch64-unknown-linux-gnu",
+        "-ffreestanding",
+        "-fno-builtin",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/seed.c",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64/seed.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/aarch64",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/Main.cinch",
+        "--target",
+        "wasm32-unknown-unknown"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/Main.cinch",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/probe.ll"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=wasm32-unknown-unknown",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/probe.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/probe.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=wasm32-unknown-unknown",
+        "-ffreestanding",
+        "-fno-builtin",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/seed.c",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32/seed.o"
+      ],
+      "cwd": "/workspace/dasl-stdlib-multipart/build/image-color-palette/portable-3dae-v1/wasm32",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "profiles": [
+    {
+      "opt": 0,
+      "poison": "0",
+      "heap": "32M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 0,
+      "poison": "1",
+      "heap": "256M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 2,
+      "poison": "0",
+      "heap": "32M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 2,
+      "poison": "1",
+      "heap": "256M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "foreign_execution_claim": false,
+  "source_closure_sha256": {
+    "Image.Color": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "Image.Color.Palette": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+  },
+  "final_free_bytes": 356278272,
+  "output_bytes": 20103070,
+  "status": "passed"
+}

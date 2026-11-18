@@ -388,7 +388,8 @@ module Bootstrap.Export where
         Ok (JObj "name" (JStr name)
         (JObj "identity" (field "identity" nominal) (JObj "kind" (JStr kind)
           (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
-            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull JObjEnd))))))))
+            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull
+              (case field "usage" nominal of JArr first rest -> JObj "ownership" nominal JObjEnd; other -> JObjEnd)))))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   constructor-present :: String -> List CoreData -> Bool

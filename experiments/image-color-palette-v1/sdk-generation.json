@@ -1,0 +1,48 @@
+{
+  "scope": "Capture exact installed fixed-palette tables and public operations in a bounded standalone SDK unit.",
+  "runner_sha256": "66c8243116afa4a22c89f79bcfb11671c635f51eebb80aaf61766111dbaa0d77",
+  "source_sha256": "16a822d23eb6728854cc02dfc69a4cc4fbfb8a5ad83d5eea3821f9ac8f024d73",
+  "sdk": "/tmp/cinch-go-current/go/bin/go",
+  "sdk_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "cpu_affinity": [
+    1
+  ],
+  "initial_free_bytes": 777695232,
+  "sdk_sources": {
+    "image/color/palette/palette.go": "c7dd8cc133ec8e96305984edac778777fb2ad7fa7c23c08ac70b4470f9faa9ad",
+    "image/color/color.go": "03511ed250d0b4dd20605d5dc3465164e559033a6ff7e5cd8ac89d2e19c3ab6c"
+  },
+  "commands": [
+    {
+      "command": [
+        "/tmp/cinch-go-current/go/bin/go",
+        "build",
+        "-trimpath",
+        "-p=1",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/sdk-v1/reference",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/sdk-v1/reference.go"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/sdk-v1/reference"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    }
+  ],
+  "cinch_runtime_claim": false,
+  "elapsed_claim": false,
+  "final_free_bytes": 772964352,
+  "output_bytes": 4512542,
+  "status": "passed",
+  "vectors_sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310",
+  "executable_sha256": "de3b682bcd83aa47825b7a67db51c1b1c5a17c3fd19b028be59514dc456f6259",
+  "sdk_version": "go1.27.4",
+  "exact_table_entries": 472,
+  "palette_use_queries": 1024
+}

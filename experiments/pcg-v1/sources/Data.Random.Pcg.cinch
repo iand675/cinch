@@ -1,0 +1,117 @@
+-- | Reproducible 128-bit congruential state with a 64-bit DXSM output permutation.
+-- States are immutable values: retaining a state preserves an independent replay
+-- point. Each draw returns its successor explicitly, without ambient state or IO.
+-- This generator supports simulation and sampling; use Effect.Random for secrets.
+-- Encoded states contain the four bytes `pcg:` followed by two big-endian words.
+module Data.Random.Pcg where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+
+  export PcgState, PcgError, InvalidPcgEncoding
+  export pcg-seeded, pcg-next, pcg-encode, pcg-append, pcg-decode
+
+  -- | An immutable full-period 128-bit congruential generator state.
+  data PcgState where
+    -- | Hide the arithmetic representation while preserving immutable replay.
+    PcgState :: U128 -> PcgState
+
+  -- | A state snapshot has an invalid width or identifying prefix.
+  data PcgError where
+    -- | State snapshots must contain exactly twenty bytes beginning with `pcg:`.
+    InvalidPcgEncoding :: PcgError
+
+  -- | Initialize the state from its high and low 64-bit seed words.
+  -- Both zero seeds are valid. Reusing the same pair reproduces the full sequence.
+  pcg-seeded :: U64 -> U64 -> PcgState
+  pcg-seeded high low = PcgState (join-words high low)
+
+  -- | Return the next 64-bit output and its immutable successor state.
+  -- The congruential transition happens before the DXSM output permutation.
+  pcg-next :: PcgState -> (U64, PcgState)
+  pcg-next state = case state of
+    PcgState word -> let next = step-word word in (permute-word next, PcgState next)
+
+  -- | Encode the complete replay state into a fresh owned twenty-byte buffer.
+  pcg-encode :: PcgState -> Bytes
+  pcg-encode state = case state of
+    PcgState word -> let out = bytes-new 20 in
+      if 20 <= bytes-len out then
+        let p0 = bytes-set out 0 112 in
+        let p1 = bytes-set out 1 99 in
+        let p2 = bytes-set out 2 103 in
+        let p3 = bytes-set out 3 58 in
+        let high = bytes-write-le64 out 4 (swap-bytes-u64 (high-word word)) in
+        let low = bytes-write-le64 out 12 (swap-bytes-u64 (low-word word)) in out
+      else out
+
+  -- | Append a state snapshot to a copied prefix, preserving both input aliases.
+  pcg-append :: Bytes -> PcgState -> Bytes
+  pcg-append prefix state = bytes-concat (Cons prefix (Cons (pcg-encode state) Nil))
+
+  -- | Decode an exact snapshot without retaining mutable input storage.
+  -- Invalid input returns a named error; existing states remain unchanged.
+  pcg-decode :: Bytes -> Result PcgError PcgState
+  pcg-decode input = if bytes-len input == 20 then
+    if bytes-get input 0 == 112 && bytes-get input 1 == 99
+      && bytes-get input 2 == 103 && bytes-get input 3 == 58 then
+      let high = swap-bytes-u64 (bytes-read-le64 input 4) in
+      let low = swap-bytes-u64 (bytes-read-le64 input 12) in
+      Ok (pcg-seeded high low)
+    else Err InvalidPcgEncoding
+    else Err InvalidPcgEncoding
+
+  -- | Join machine words without intermediate boxed mathematical integers.
+  prim join-words :: U64 -> U64 -> U128 where
+    llvm {
+      %high = zext i64 %0 to i128
+      %low = zext i64 %1 to i128
+      %shifted = shl i128 %high, 64
+      %state = or i128 %shifted, %low
+      ret i128 %state
+    }
+
+  -- | Advance the full-width state modulo two to the power of 128.
+  -- LLVM lowers the wide multiply into the target's machine-word product/carry
+  -- sequence. Consecutive states depend on one another and cannot be reordered.
+  prim step-word :: U128 -> U128 where
+    llvm {
+      %product = mul i128 %0, 47026247687942121848144207491837523525
+      %next = add i128 %product, 117397592171526113268558934119004209487
+      ret i128 %next
+    }
+
+  -- | Apply the packed double-xorshift-multiply permutation to one advanced state.
+  prim permute-word :: U128 -> U64 where
+    llvm {
+      %upper = lshr i128 %0, 64
+      %high = trunc i128 %upper to i64
+      %low = trunc i128 %0 to i64
+      %shift32 = lshr i64 %high, 32
+      %xor32 = xor i64 %high, %shift32
+      %mixed = mul i64 %xor32, 15750249268501108917
+      %shift48 = lshr i64 %mixed, 48
+      %xor48 = xor i64 %mixed, %shift48
+      %odd = or i64 %low, 1
+      %output = mul i64 %xor48, %odd
+      ret i64 %output
+    }
+
+  -- | Extract the high state word for portable snapshot encoding.
+  prim high-word :: U128 -> U64 where
+    llvm {
+      %upper = lshr i128 %0, 64
+      %high = trunc i128 %upper to i64
+      ret i64 %high
+    }
+
+  -- | Extract the low state word for portable snapshot encoding.
+  prim low-word :: U128 -> U64 where
+    llvm {
+      %low = trunc i128 %0 to i64
+      ret i64 %low
+    }

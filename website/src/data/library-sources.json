@@ -933,7 +933,7 @@
     {
       "module": "Effect.Random",
       "path": "compiler/prelude/Effect/Random.cinch",
-      "sha256": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+      "sha256": "75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216",
       "embedded": false,
       "values": 6,
       "public_methods": 0

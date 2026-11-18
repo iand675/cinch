@@ -1264,10 +1264,26 @@
     },
     {
       "reference_package": "image/color/palette",
-      "status": "unreviewed",
+      "status": "partial",
       "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 2
+      "remaining": [
+        "Production module selection and generated reference",
+        "Matched factory/read/nearest/model pipeline benchmarks",
+        "Full current Native qualification"
+      ],
+      "reference_declarations": 2,
+      "candidate_modules": [
+        {
+          "module": "Image.Color.Palette",
+          "path": "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch",
+          "availability": "Isolated immutable fixed-table factories; absent from production prelude."
+        }
+      ],
+      "capability_mapping": "experiments/image-color-palette-v1/integration-files.json",
+      "tests": [
+        "lib_image_color_palette"
+      ],
+      "review": "Both public fixed-table declarations have explicit immutable fresh-factory adaptations: Plan9 256 entries and WebSafe216. All472 entries and1024 independent queries plus32 retained-factory rounds pass O0/O2 normal/poison; portable source/IR/objects pass without foreign execution. Root current ffb5/BDF maintained parent passes2/2. No package completion or production selection."
     },
     {
       "reference_package": "image/draw",
@@ -1299,10 +1315,25 @@
     },
     {
       "reference_package": "index/suffixarray",
-      "status": "unreviewed",
+      "status": "partial",
       "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 7
+      "remaining": [
+        "Versioned index persistence and stream Read/Write adapters",
+        "General raw-byte regular-expression integration or explicit reviewed capability adaptation",
+        "Complete callback/owner/error/IO+Mut qualification beyond first unit",
+        "Public pipeline benchmarks and code-generation review",
+        "Portable/current Native qualification and production registration"
+      ],
+      "reference_declarations": 7,
+      "candidate_modules": [
+        {
+          "module": "Data.Index.SuffixArray",
+          "path": "experiments/suffixarray-v1/src/Data.Index.SuffixArray.cinch",
+          "availability": "Isolated immutable index with literal lookup and explicit effect-preserving search callback; absent from production prelude."
+        }
+      ],
+      "capability_mapping": "experiments/suffixarray-v1/surface.json",
+      "review": "All7 reference records mapped, with unimplemented persistence explicit. Literal lookup passes all153 inputs/10710 distinct checks perO0/O2 on exactC2/D91,612 normal/poison runs with zero leaks. First callback unit passes8 inputs/120 endpoint observations/16 O0profiles. Source input snapshots and copied observations preserve ownership; prefix-doubling construction hasO(NlogN) complexity. Wider callback/owner/effect and persistence surface remains open; no completion claim."
     },
     {
       "reference_package": "io",
@@ -1475,8 +1506,22 @@
       "cinch_modules": [
         "Effect.Random"
       ],
-      "remaining": [],
-      "reference_declarations": 60
+      "remaining": [
+        "Generic explicit sources and state capabilities",
+        "ChaCha8 source and persistence",
+        "Bounded and scalar distributions, normal/exponential/Zipf samplers",
+        "Permutations/shuffling and concurrent adaptations",
+        "Public benchmarks/portable/Native qualification and production registration"
+      ],
+      "reference_declarations": 60,
+      "candidate_modules": [
+        {
+          "module": "Data.Random.Pcg",
+          "path": "experiments/pcg-v1/sources/Data.Random.Pcg.cinch",
+          "availability": "Isolated immutable PCG state/draw/snapshot candidate; absent from production prelude."
+        }
+      ],
+      "review": "The cryptographic Effect.Random module alone does not implement seeded deterministic generators. The isolated PCG candidate passes2048 independent words plus state snapshots/appends and alias/refusal controls atO0/O2 across4 zero-leak memory profiles. Generic source/distribution/permutation/other-generator surface remains open."
     },
     {
       "reference_package": "mime",

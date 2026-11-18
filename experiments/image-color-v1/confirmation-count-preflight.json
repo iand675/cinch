@@ -1,0 +1,394 @@
+{
+  "scope": "Check sealed color benchmark allocation counts or longer-count fingerprints without timing claims.",
+  "runner_sha256": "facbbcc9ebb0091cf53b1d57c8a1673c0dec504a10435e04e69c309578d15b95",
+  "allocation_counters": false,
+  "elapsed_values_are_not_measurements": true,
+  "cpu_affinity": [
+    1
+  ],
+  "initial_free_bytes": 430514176,
+  "resource_policy": {
+    "start_mib": 350,
+    "reserve_mib": 250,
+    "new_report_cap_mib": 5
+  },
+  "input_receipts": [
+    {
+      "path": "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/report.json",
+      "sha256": "d85d4877988e77905959153841d4c65673a6d988add31855c07215c14ca8343b",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "executable_sha256": "c9f9835f1893204dd301cb573e2173d76e5f4f0eaba622167b535d6a3dfbd706"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/report.json",
+      "sha256": "557c18a39ad0f918beb711532695b1a3bb5dc38ba4efe9cd2e57f25705025826",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "executable_sha256": "92d5ac254d3abbf8d1df7347db8fd3edeb602a890100384a7d80f2fe55eb766f"
+    }
+  ],
+  "observations": [
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "reference",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/reference",
+        "rgba-control",
+        "256",
+        "5000"
+      ],
+      "stdout": "25502267 806403136 1645608959\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "simd",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "rgba-control",
+        "256",
+        "5000"
+      ],
+      "stdout": "104293616 806403136 1645608959\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "scalar",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "rgba-control",
+        "256",
+        "5000"
+      ],
+      "stdout": "89406896 806403136 1645608959\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "simd",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "rgba-control",
+        "256",
+        "5000"
+      ],
+      "stdout": "503941440 806403136 1645608959\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "scalar",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "rgba-control",
+        "256",
+        "5000"
+      ],
+      "stdout": "140529666 806403136 1645608959\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "reference",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/reference",
+        "ycbcr16",
+        "256",
+        "5000"
+      ],
+      "stdout": "23839799 1254838952 2049868324\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "simd",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "ycbcr16",
+        "256",
+        "5000"
+      ],
+      "stdout": "80675481 1254838952 2049868324\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "scalar",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "ycbcr16",
+        "256",
+        "5000"
+      ],
+      "stdout": "80385664 1254838952 2049868324\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "simd",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "ycbcr16",
+        "256",
+        "5000"
+      ],
+      "stdout": "118182816 1254838952 2049868324\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "program": "scalar",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "ycbcr16",
+        "256",
+        "5000"
+      ],
+      "stdout": "127875177 1254838952 2049868324\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "reference",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/reference",
+        "palette-model-256",
+        "256",
+        "100"
+      ],
+      "stdout": "10079714 887238304 297010157\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "simd",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "palette-model-256",
+        "256",
+        "100"
+      ],
+      "stdout": "21428749 887238304 297010157\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "scalar",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "palette-model-256",
+        "256",
+        "100"
+      ],
+      "stdout": "23779849 887238304 297010157\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "simd",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "palette-model-256",
+        "256",
+        "100"
+      ],
+      "stdout": "24987717 887238304 297010157\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "scalar",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "palette-model-256",
+        "256",
+        "100"
+      ],
+      "stdout": "27336814 887238304 297010157\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "reference",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/reference",
+        "palette-index-256",
+        "256",
+        "100"
+      ],
+      "stdout": "9524008 935077888 576160071\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "simd",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "palette-index-256",
+        "256",
+        "100"
+      ],
+      "stdout": "19560347 935077888 576160071\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "scalar",
+      "poison": false,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "palette-index-256",
+        "256",
+        "100"
+      ],
+      "stdout": "21367227 935077888 576160071\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "simd",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-simd-v2/bench",
+        "palette-index-256",
+        "256",
+        "100"
+      ],
+      "stdout": "22643207 935077888 576160071\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "program": "scalar",
+      "poison": true,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/bench-3dae-scalar-v1/bench",
+        "palette-index-256",
+        "256",
+        "100"
+      ],
+      "stdout": "24772133 935077888 576160071\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    }
+  ],
+  "summary": [
+    {
+      "mode": "rgba-control",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "output_and_retained_checksums": [
+        806403136,
+        1645608959
+      ]
+    },
+    {
+      "mode": "ycbcr16",
+      "input_pixels": 256,
+      "iterations": 5000,
+      "output_and_retained_checksums": [
+        1254838952,
+        2049868324
+      ]
+    },
+    {
+      "mode": "palette-model-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "output_and_retained_checksums": [
+        887238304,
+        297010157
+      ]
+    },
+    {
+      "mode": "palette-index-256",
+      "input_pixels": 256,
+      "iterations": 100,
+      "output_and_retained_checksums": [
+        935077888,
+        576160071
+      ]
+    }
+  ],
+  "status": "passed",
+  "final_free_bytes": 430501888,
+  "input_receipts_unchanged": true
+}

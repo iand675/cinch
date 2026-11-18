@@ -1,0 +1,25 @@
+{
+  "scope": "Necessary host private-usage model gate using existing repository release configuration; dedicated128MiB output allowance, unchanged350MiB initial/250MiB reserve.",
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--lib",
+    "private_usage_contract_round_trips_without_public_constructors",
+    "--",
+    "--nocapture"
+  ],
+  "source_import_manifest_sha256": "aa21b9554f64a6a4471cb18ab1c170227f39eaad5558077e821734e484bd3d29",
+  "previous_attempt": "../private-usage-host-v1; redundant profile override caused dependency rebuild/output guard, all evidence retained",
+  "start_free_bytes": 546041856,
+  "output_cap_bytes": 134217728,
+  "reserve_bytes": 262144000,
+  "timeout_seconds": 600,
+  "status": "passed",
+  "exit_code": 0,
+  "guard_reason": null,
+  "elapsed_seconds": 211.91496589701273,
+  "peak_new_or_replaced_allocated_bytes": 77426688,
+  "minimum_free_bytes": 393945088,
+  "end_free_bytes": 392589312
+}

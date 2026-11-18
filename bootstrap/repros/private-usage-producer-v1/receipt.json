@@ -1,0 +1,23 @@
+{
+  "scope": "Fresh normal host producer and actual MVar integration harness compile, no Native importer run yet. Existing repository Cargo configuration; dedicated160MiB output allowance,350MiBinitial/250MiBreserve.",
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--test",
+    "interface_mvar_contracts",
+    "--no-run"
+  ],
+  "initial_free_bytes": 517431296,
+  "source_manifest_sha256": "aa21b9554f64a6a4471cb18ab1c170227f39eaad5558077e821734e484bd3d29",
+  "legacy_test_overlay_sha256": "2e19a7c3340259775051e5cfe7d902ad6f7414f02844d33ac494946d841f04b0",
+  "output_cap_bytes": 167772160,
+  "timeout_seconds": 900,
+  "status": "passed",
+  "exit_code": 0,
+  "guard_reason": null,
+  "elapsed_seconds": 207.96391817802214,
+  "peak_new_or_replaced_allocated_bytes": 71438336,
+  "minimum_free_bytes": 515604480,
+  "end_free_bytes": 515579904
+}

@@ -1,0 +1,119 @@
+-- | Check every fixed-table entry, nearest use and escaped immutable owner against independent data.
+module Main where
+  import Image.Color
+  import Image.Color.Palette
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Read one exact table or query count from the committed independent fixture.
+  foreign import ccall "fixed_palette_count" raw-count :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Read literal fields without moving caller effects into a pure color callback.
+  foreign import ccall "fixed_palette_field" raw-field :: forall (r :: Region). I64 -> I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Keep owner-stress construction out of compile-time constant evaluation.
+  foreign import ccall "fixed_palette_owner_count" raw-owner-count :: forall (r :: Region). I32 ->{IO r} I64
+
+  -- | Preserve coordinates of the first unexpected public observation.
+  foreign import ccall "fixed_palette_failure" raw-failure :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I32
+
+  -- | Compare an unbounded public index only after proving the fixed-width observation is representable.
+  index-match :: Nat -> I64 -> Bool
+  index-match index expected = if index <= 9223372036854775807 then eq-i64 (nat-to-i64 index) expected else False
+
+  -- | Observe exact raw byte representation and source model identity.
+  raw-match :: Color -> (I64, I64, I64, I64) -> Bool
+  raw-match value expected = case expected of
+    (er, eg, eb, ea) -> case color-rgba8-components value of
+      None -> False
+      Some (r, g, b, a) -> eq-i64 (u8-to-i64 r) er && eq-i64 (u8-to-i64 g) eg && eq-i64 (u8-to-i64 b) eb && eq-i64 (u8-to-i64 a) ea
+
+  -- | Observe every canonical channel without narrowing the public output.
+  rgba-match :: Color -> (I64, I64, I64, I64) -> Bool
+  rgba-match value expected = case expected of
+    (er, eg, eb, ea) -> case color-rgba value of
+      (r, g, b, a) -> eq-i64 (u32-to-i64 r) er && eq-i64 (u32-to-i64 g) eg && eq-i64 (u32-to-i64 b) eb && eq-i64 (u32-to-i64 a) ea
+
+  -- | Read raw/canonical expectations before performing pure public value comparisons.
+  value-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> Color ->{IO r} Bool
+  value-match table group row offset value =
+    let er = raw-field table group row offset in
+    let eg = raw-field table group row (wrapping-add-i64 offset 1) in
+    let eb = raw-field table group row (wrapping-add-i64 offset 2) in
+    let ea = raw-field table group row (wrapping-add-i64 offset 3) in
+    let cr = raw-field table group row (wrapping-add-i64 offset 4) in
+    let cg = raw-field table group row (wrapping-add-i64 offset 5) in
+    let cb = raw-field table group row (wrapping-add-i64 offset 6) in
+    let ca = raw-field table group row (wrapping-add-i64 offset 7) in
+    raw-match value (er, eg, eb, ea) && rgba-match value (cr, cg, cb, ca)
+
+  -- | Require present selected results while preserving absence as an actual failure.
+  optional-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> Option Color ->{IO r} Bool
+  optional-match table group row offset result = case result of
+    None -> False
+    Some value -> value-match table group row offset value
+
+  -- | Report a mismatch through the caller effect instead of manufacturing an expected value.
+  failed :: forall (r :: Region). using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} Bool
+  failed table group row = eq-i32 (raw-failure table group row) 1
+
+  -- | Traverse original table order and compare every raw/canonical and exact-choice observation.
+  entries-match :: forall (r :: Region). using (io :: Io r) => I64 -> ColorPalette -> ColorModel -> List Color -> I64 -> I64 ->{IO r} Bool
+  entries-match table palette model entries row total = case entries of
+    Nil -> eq-i64 row total
+    Cons value rest -> if lt-i64 row total then
+      if value-match table 0 row 0 value && index-match (color-palette-index palette value) row && optional-match table 0 row 0 (color-palette-convert palette value) && optional-match table 0 row 0 (color-convert model value) then
+        entries-match table palette model rest (wrapping-add-i64 row 1) total
+      else failed table 0 row
+      else failed table 0 row
+
+  -- | Construct the exact full-width query from independent data before any pure lookup.
+  query-value :: forall (r :: Region). using (io :: Io r) => I64 -> I64 ->{IO r} Color
+  query-value table row =
+    let r = wrapping-i64-to-u16 (raw-field table 1 row 0) in
+    let g = wrapping-i64-to-u16 (raw-field table 1 row 1) in
+    let b = wrapping-i64-to-u16 (raw-field table 1 row 2) in
+    let a = wrapping-i64-to-u16 (raw-field table 1 row 3) in
+    color-rgba16 r g b a
+
+  -- | Check first-nearest selection and both public conversion paths for all adversarial queries.
+  queries-match :: forall (r :: Region). using (io :: Io r) => I64 -> ColorPalette -> ColorModel -> I64 -> I64 ->{IO r} Bool
+  queries-match table palette model row total = if lt-i64 row total then
+    let query = query-value table row in
+    let expected = raw-field table 1 row 4 in
+    if index-match (color-palette-index palette query) expected && optional-match table 1 row 5 (color-palette-convert palette query) && optional-match table 1 row 13 (color-convert model query) then
+      queries-match table palette model (wrapping-add-i64 row 1) total
+    else failed table 1 row
+    else True
+
+  -- | Return aliases, a caller-derived sequence and a model after factory frames have exited.
+  held-values :: ColorPalette -> (ColorPalette, ColorPalette, ColorPalette, ColorModel)
+  held-values palette = (palette, palette, color-palette (Cons color-transparent (color-palette-colors palette)), color-palette-model palette)
+
+  -- | Observe retained original aliases after deriving a different immutable caller-owned sequence.
+  owner-match :: ColorPalette -> Nat -> Bool
+  owner-match palette count = case held-values palette of
+    (original, alias, changed, model) ->
+      let first = case color-palette-colors original of Nil -> False; Cons value rest -> raw-match value (0, 0, 0, 255) in
+      let selected = case color-convert model color-black of None -> False; Some value -> raw-match value (0, 0, 0, 255) in
+      first && selected && list-length (color-palette-colors original) == count && list-length (color-palette-colors alias) == count && list-length (color-palette-colors changed) == count + 1 && color-palette-index changed color-transparent == 0
+
+  -- | Rebuild both immutable values repeatedly with runtime-opaque control and bounded runtime stack.
+  owners-match :: I64 -> Bool
+  owners-match count = if gt-i64 count 0 then
+    if owner-match (color-palette-plan9 ()) 256 && owner-match (color-palette-web-safe ()) 216 then owners-match (wrapping-sub-i64 count 1) else False
+    else True
+
+  -- | Execute every ordered entry, independent query and retained factory-owner observation.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let plan9 = color-palette-plan9 () in
+    let web = color-palette-web-safe () in
+    let plan9-model = color-palette-model plan9 in
+    let web-model = color-palette-model web in
+    if entries-match 0 plan9 plan9-model (color-palette-colors plan9) 0 (raw-count 0 0) && entries-match 1 web web-model (color-palette-colors web) 0 (raw-count 1 0) then
+      if queries-match 0 plan9 plan9-model 0 (raw-count 0 1) && queries-match 1 web web-model 0 (raw-count 1 1) then (if owners-match (raw-owner-count 0) then 0 else 3) else 2
+    else 1

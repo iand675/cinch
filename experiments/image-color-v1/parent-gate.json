@@ -1,0 +1,14 @@
+{
+  "scope": "Parent-reported maintained Rust-only experiment gate, distinct from standalone frozen source/compiler receipts.",
+  "root_commit": "15a6f22f",
+  "target": "lib_image_color",
+  "tests_passed": 2,
+  "tests_total": 2,
+  "seconds": 5.45,
+  "compiler_label": "C2",
+  "runtime_label": "d91",
+  "full_compiler_sha_not_supplied_in_parent_message": true,
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "production_selected": false,
+  "full_native_claim": false
+}

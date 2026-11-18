@@ -1,0 +1,442 @@
+-- | Checked defining field facts for task properties, separate from runtime constructor authority.
+module Bootstrap.Usage where
+  import Bootstrap.Ast
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Kinds (scheme-well-formed, empty-type-scope)
+  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Load (nominal-owner)
+  import Bootstrap.Nominal (interface-global, nominal-entry-valid)
+  import Bootstrap.Builtin (mvar-type-name)
+  import Bootstrap.ExportType (export-global, export-parameters)
+  import Data.Json
+  import Text.Parse (ParseOutcome, Parsed)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export UsageShape, usage-name, usage-fields-for, read-usage-shape, usage-fields-json
+  export usage-equal, usage-shape-closed, usage-constructor-agrees
+
+  -- | A validated field table supplies no source constructor names, descriptors, tags or bodies.
+  data UsageShape where
+    -- | Keep actual parameter roles and the conjunction of every defining constructor's fields.
+    CheckedUsageShape :: String -> List Quant -> List (String, List UType) -> UsageShape
+
+  -- | Read the exact checked nominal owner used only by the task-property table.
+  usage-name :: UsageShape -> String
+  usage-name shape = case shape of CheckedUsageShape owner parameters fields -> owner
+
+  -- | Compare scalar identity spellings without assigning semantic authority to a display name.
+  same :: String -> String -> Bool
+  same first second = string-compare first second == 0
+
+  -- | Read a structural JSON member while preserving missing values as absence.
+  field :: String -> Json -> Json
+  field name row = case row of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+
+  -- | Recognize the closed scalar field vocabulary whose runtime carrier is compiler-owned.
+  scalar :: String -> Bool
+  scalar name = any-name name ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
+
+  -- | Test membership in the actual complete defining identity set.
+  any-name :: String -> List String -> Bool
+  any-name name names = case names of Nil -> False; Cons first rest -> same name first || any-name name rest
+
+  -- | Read only Type and Region binders in the initial first-order field tier.
+  parameters :: Json -> Nat -> Result String (List Quant)
+  parameters rows index = case rows of
+    JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
+      (JStr name, JStr role, JBool automatic) -> if string-length name == 0 then Err "empty ownership parameter" else
+        (case parameters rest (index + 1) of
+          Err error -> Err error
+          Ok more -> if any-name name (quant-names more) then Err "duplicate ownership parameter" else
+            if same role "Type" then Ok (Cons (MkQuant index name KType automatic) more)
+            else if same role "Region" then Ok (Cons (MkQuant index name KRegion automatic) more)
+            else Err "ownership fields require closed Type/Region parameters")
+      other -> Err "invalid ownership parameter"
+    JArrEnd -> Ok Nil
+    other -> Err "invalid ownership parameter table"
+
+  -- | Preserve definition-site binder names in canonical field syntax.
+  quant-names :: List Quant -> List String
+  quant-names rows = case rows of Nil -> Nil; Cons first rest -> Cons (quant-name first) (quant-names rest)
+
+  -- | Find a parameter without inferring a role from a consumer's field use.
+  parameter :: String -> List Quant -> Option Quant
+  parameter name rows = case rows of Nil -> None; Cons first rest -> if same name (quant-name first) then Some first else parameter name rest
+
+  -- | Parse field syntax under the exact defining binders, retaining lexical binder validation.
+  parameter-prefix :: List Quant -> String
+  parameter-prefix rows = case rows of
+    Nil -> ""
+    other -> string-concat-all ["forall ", parameter-words rows, ". "]
+
+  -- | Preserve implicitness and roles when constructing the parser's binder environment.
+  parameter-words :: List Quant -> String
+  parameter-words rows = case rows of
+    Nil -> ""
+    Cons first rest -> string-concat-all [if quant-implicit first then "{" else "(", quant-name first, " :: ", kind-text (quant-kind first), if quant-implicit first then "}" else ")", (case rest of Nil -> ""; other -> " "), parameter-words rest]
+
+  -- | Remove only the generated outer binder group, never a field's own unsupported forall.
+  field-syntax :: List Quant -> String -> Result String TypeExpr
+  field-syntax params spelling = case parse-scheme "ownership-field" (string-to-bytes (string-concat (parameter-prefix params) spelling)) of
+    Parsed syntax Nil -> (case params of
+      Nil -> Ok syntax
+      other -> (case syntax of
+        TForall sp binders body -> if binding-syntax-matches params binders then Ok body else Err "ownership field changed its defining binders"
+        other -> Err "ownership field lost its defining binders"))
+    other -> Err "invalid ownership field syntax"
+
+  -- | Verify the generated lexical binder group exactly, including roles, names, arity and implicitness.
+  binding-syntax-matches :: List Quant -> TypeExpr -> Bool
+  binding-syntax-matches params syntax = case (params, syntax) of
+    (Nil, TQuantifiersEnd sp) -> True
+    (Cons first rest, TQuantifier sp name automatic (TName at role) more) -> same name (quant-name first)
+      && automatic == quant-implicit first && same role (kind-text (quant-kind first)) && binding-syntax-matches rest more
+    other -> False
+
+  -- | Decode only closed first-order fields with actual kernel carrier kinds.
+  field-type :: List Quant -> TypeExpr -> Option UType
+  field-type params syntax = case syntax of
+    TName sp name -> (case parameter name params of
+      Some bound -> if kind-equal (quant-kind bound) KType then Some (UBound (quant-id bound) (quant-name bound) KType) else None
+      None -> if scalar name then Some (UCon name KType) else None)
+    TTuple sp fields -> (case field-types params fields of Some values -> Some (UTuple values); None -> None)
+    TApp sp (TName at name) (TArg arg value (TArgsEnd end)) ->
+      if mvar-type-name name then (case field-type params value of
+        Some carrier -> Some (UApp (UCon "MVarCell" (KFun KType KType)) carrier)
+        None -> None) else None
+    TApp sp (TName at name) (TArg arg (TName rt region) (TArg vt value (TArgsEnd end))) ->
+      if same name "Ref" || same name "Mut" then (case (parameter region params, field-type params value) of
+        (Some bound, Some carrier) -> if kind-equal (quant-kind bound) KRegion then
+          Some (UApp (UApp (UCon name borrow-constructor-kind) (UBound (quant-id bound) (quant-name bound) KRegion)) carrier) else None
+        other -> None) else None
+    other -> None
+
+  -- | Decode every tuple member; an unsupported member never becomes an empty successful shape.
+  field-types :: List Quant -> TypeExpr -> Option UType
+  field-types params fields = case fields of
+    TArgsEnd sp -> Some UEnd
+    TArg sp first rest -> (case (field-type params first, field-types params rest) of
+      (Some value, Some more) -> Some (UArg value more)
+      other -> None)
+    other -> None
+
+  -- | Require a constructor result to apply its actual owner to exactly the defining parameters.
+  result-matches :: String -> List Quant -> TypeExpr -> Bool
+  result-matches owner params syntax = case (syntax, params) of
+    (TName sp name, Nil) -> same name owner
+    (TApp sp (TName at name) arguments, Cons first rest) -> same name owner && result-arguments params arguments
+    other -> False
+
+  -- | Refuse changed argument order, role witnesses and constructor-local result indices.
+  result-arguments :: List Quant -> TypeExpr -> Bool
+  result-arguments params arguments = case (params, arguments) of
+    (Nil, TArgsEnd sp) -> True
+    (Cons first rest, TArg sp (TName at name) more) -> same name (quant-name first) && result-arguments rest more
+    other -> False
+
+  -- | Read the complete nonempty defining constructor identities without creating source bindings.
+  constructor-identities :: String -> Json -> List String -> Result String (List String)
+  constructor-identities owner rows seen = case rows of
+    JArr (JStr name) rest -> if not (same (nominal-owner name) (nominal-owner owner)) || any-name name seen then Err "invalid ownership constructor identity" else
+      (case constructor-identities owner rest (Cons name seen) of Err error -> Err error; Ok more -> Ok (Cons name more))
+    JArrEnd -> Ok Nil
+    other -> Err "invalid defining ownership constructor set"
+
+  -- | Parse all actual fields without invoking general type inference or accepting source aliases.
+  decoded-fields :: List Quant -> Json -> Result String (List UType)
+  decoded-fields params rows = case rows of
+    JArr (JStr spelling) rest -> (case field-syntax params spelling of
+      Err error -> Err error
+      Ok syntax -> (case (field-type params syntax, decoded-fields params rest) of
+        (Some ty, Ok more) -> Ok (Cons ty more)
+        (None, other) -> Err "unsupported first-order ownership field"
+        (other, Err error) -> Err error))
+    JArrEnd -> Ok Nil
+    other -> Err "invalid ownership fields"
+
+  -- | Validate exact constructor coverage and result ownership before retaining any field facts.
+  decoded-constructors :: String -> List Quant -> List String -> Json -> List String -> Result String (List (String, List UType))
+  decoded-constructors owner params expected rows seen = case rows of
+    JArr row rest -> (case (field "identity" row, field "result" row) of
+      (JStr identity, JStr result) -> if not (any-name identity expected) || any-name identity seen then Err "ownership constructor coverage disagrees" else
+        (case field-syntax params result of
+          Err error -> Err error
+          Ok result-type -> if not (result-matches owner params result-type) then Err "ownership constructor returns a different owner or parameters" else
+            (case (decoded-fields params (field "fields" row), decoded-constructors owner params expected rest (Cons identity seen)) of
+              (Ok first, Ok more) -> Ok (Cons (interface-global identity, first) more)
+              (Err error, other) -> Err error
+              (other, Err error) -> Err error))
+      other -> Err "invalid ownership constructor row")
+    JArrEnd -> if list-length expected == list-length seen then Ok Nil else Err "ownership proof omits a defining constructor"
+    other -> Err "invalid ownership constructor table"
+
+  -- | Admit a usage-only table from a genuine closed nominal contract, never an opaque header.
+  read-usage-shape :: List (String, Kind) -> Json -> Result String UsageShape
+  read-usage-shape kinds row = if not (nominal-entry-valid row) then Err "invalid defining ownership metadata" else
+    decode-usage-shape kinds row
+
+  -- | Decode the supported first-order tier after complete structural metadata validation.
+  decode-usage-shape :: List (String, Kind) -> Json -> Result String UsageShape
+  decode-usage-shape kinds row = case (field "identity" row, field "kind" row, parameters (field "parameters" row) 0) of
+    (JStr owner, JStr variety, Ok params) -> if not (same variety "data") then Err "ownership fields require a data declaration" else
+      (case constructor-identities owner (field "constructors" row) Nil of
+        Err error -> Err error
+        Ok Nil -> Err "ownership fields require a nonempty constructor set"
+        Ok expected -> (case declared-owner-kind (interface-global owner) (kind-arrow params) kinds of
+          False -> Err "ownership owner kind disagrees with its defining header"
+          True -> (case decoded-constructors owner params expected (field "usage" row) Nil of
+            Err error -> Err error
+            Ok fields -> Ok (CheckedUsageShape (interface-global owner) params fields))))
+    (other, other-kind, Err error) -> Err error
+    other -> Err "invalid defining ownership contract"
+
+  -- | Compare the full defining kind before field instantiation, including erased Region roles.
+  declared-owner-kind :: String -> Kind -> List (String, Kind) -> Bool
+  declared-owner-kind owner expected kinds = case kinds of
+    Nil -> False
+    Cons (name, actual) rest -> if same name owner then kind-equal actual expected else declared-owner-kind owner expected rest
+
+  -- | Build a nominal's full kind from its declared parameter sequence.
+  kind-arrow :: List Quant -> Kind
+  kind-arrow params = case params of Nil -> KType; Cons first rest -> KFun (quant-kind first) (kind-arrow rest)
+
+  -- | Bind actual type arguments only when every declared role and arity agrees.
+  actual-pairs :: List Quant -> List UType -> Option (List (Nat, UType))
+  actual-pairs params actuals = case (params, actuals) of
+    (Nil, Nil) -> Some Nil
+    (Cons first rest, Cons value more) -> if kind-equal (quant-kind first) (type-kind value) then
+      (case actual-pairs rest more of Some pairs -> Some (Cons (quant-id first, value) pairs); None -> None) else None
+    other -> None
+
+  -- | Instantiate checked private fields solely for structural task-property and provenance walks.
+  usage-fields-for :: UsageShape -> List UType -> Option (List UType)
+  usage-fields-for shape actuals = case shape of
+    CheckedUsageShape owner params fields -> (case actual-pairs params actuals of
+      Some pairs -> Some (instantiate-fields pairs (all-fields fields))
+      None -> None)
+
+  -- | Preserve every field while substituting definition-site binders with checked actual arguments.
+  instantiate-fields :: List (Nat, UType) -> List UType -> List UType
+  instantiate-fields pairs fields = case fields of Nil -> Nil; Cons first rest -> Cons (substitute-bound pairs first) (instantiate-fields pairs rest)
+
+  -- | Recheck field scope and owner roles whenever a later Core typing context is closed.
+  usage-shape-closed :: List (String, Kind) -> UsageShape -> Bool
+  usage-shape-closed kinds shape = case shape of
+    CheckedUsageShape owner params fields -> declared-owner-kind owner (kind-arrow params) kinds && closed-fields kinds params (all-fields fields)
+
+  -- | Validate every field as a scheme under the complete definition-site Type and Region scope.
+  closed-fields :: List (String, Kind) -> List Quant -> List UType -> Bool
+  closed-fields kinds params fields = case fields of
+    Nil -> True
+    Cons first rest -> scheme-well-formed kinds empty-type-scope (MkScheme params first) && closed-fields kinds params rest
+
+  -- | Compare decoded duplicate proofs semantically, after the loader checks their defining bytes.
+  usage-equal :: UsageShape -> UsageShape -> Bool
+  usage-equal first second = case (first, second) of
+    (CheckedUsageShape a params fields, CheckedUsageShape b other more) -> same a b && same-parameters params other && same-constructors fields more
+
+  -- | Preserve every defining parameter role and implicitness when merging proof occurrences.
+  same-parameters :: List Quant -> List Quant -> Bool
+  same-parameters first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> quant-id a == quant-id b && kind-equal (quant-kind a) (quant-kind b)
+      && quant-implicit a == quant-implicit b && same-parameters rest more
+    other -> False
+
+  -- | Preserve complete constructor alternatives internally without creating source bindings or runtime tags.
+  all-fields :: List (String, List UType) -> List UType
+  all-fields rows = case rows of Nil -> Nil; Cons (name, fields) rest -> fields <> all-fields rest
+
+  -- | Compare every defining alternative, including private zero-field constructors.
+  same-constructors :: List (String, List UType) -> List (String, List UType) -> Bool
+  same-constructors first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons (a, fields) rest, Cons (b, more) remaining) -> same a b && same-fields fields more && same-constructors rest remaining
+    other -> False
+
+  -- | Check a selected real constructor against its usage-only facts without creating a callable declaration.
+  usage-constructor-agrees :: UsageShape -> String -> Scheme -> Option Bool
+  usage-constructor-agrees shape name scheme = case export-global name of
+    Err error -> None
+    Ok identity -> (case shape of
+      CheckedUsageShape owner params constructors -> (case constructor-fields-for (interface-global identity) constructors of
+        None -> None
+        Some expected -> Some (case scheme-requirements scheme of
+          Cons first rest -> False
+          Nil -> (case constructor-pairs (scheme-params scheme) params (scheme-body scheme) of
+            None -> False
+            Some pairs -> (case actual-constructor-fields owner params (substitute-bound pairs (scheme-body scheme)) of
+              Some actual -> same-fields expected actual
+              None -> False)))))
+
+  -- | Find only the defining identity of an already admitted constructor occurrence.
+  constructor-fields-for :: String -> List (String, List UType) -> Option (List UType)
+  constructor-fields-for name rows = case rows of
+    Nil -> None
+    Cons (identity, fields) rest -> if same name identity then Some fields else constructor-fields-for name rest
+
+  -- | Read ordinary actual constructor fields and verify the final owner with lexical binders preserved.
+  actual-constructor-fields :: String -> List Quant -> UType -> Option (List UType)
+  actual-constructor-fields owner params ty = case ty of
+    UFun field rest -> (case actual-constructor-fields owner params rest of Some fields -> Some (Cons field fields); None -> None)
+    UPi id name field (URow UEnd) rest -> (case actual-constructor-fields owner params rest of Some fields -> Some (Cons field fields); None -> None)
+    other -> if checked-result owner params (canonical-result-head ty) then Some Nil else None
+
+  -- | Normalize only a checked result's defining identity, leaving all arguments and roles unchanged.
+  canonical-result-head :: UType -> UType
+  canonical-result-head ty = case ty of
+    UApp first last -> UApp (canonical-result-head first) last
+    UCon name kind -> (case export-global name of Ok identity -> UCon (interface-global identity) kind; Err error -> ty)
+    other -> ty
+
+  -- | Compare closed first-order field types without inferring metas or trusting rendered spellings.
+  same-fields :: List UType -> List UType -> Bool
+  same-fields first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> let state = empty-store "private field agreement" in
+      valid-type a && valid-type b && (case (free-metas state a, free-metas state b) of
+        (Nil, Nil) -> (case store-errors (unify (Span 0 0 1 1) a b state) of
+          Nil -> same-fields rest more
+          other -> False)
+        other -> False)
+    other -> False
+
+  -- | Align constructor binders from their actual regular result, retaining roles and lexical identities.
+  constructor-pairs :: List Quant -> List Quant -> UType -> Option (List (Nat, UType))
+  constructor-pairs actual declared body = if list-length actual /= list-length declared then None else
+    (case result-actuals (constructor-result-type body) Nil of
+      Some arguments -> result-binding-pairs declared arguments actual Nil
+      None -> None)
+
+  -- | Skip only ordinary pure runtime fields; constrained, erased or effectful arrows have no proof.
+  constructor-result-type :: UType -> UType
+  constructor-result-type ty = case ty of
+    UFun field rest -> constructor-result-type rest
+    UPi id name field (URow UEnd) rest -> constructor-result-type rest
+    other -> ty
+
+  -- | Preserve the checked nominal result's exact application order before assigning any binder names.
+  result-actuals :: UType -> List UType -> Option (List UType)
+  result-actuals ty arguments = case ty of
+    UApp first last -> result-actuals first (Cons last arguments)
+    UCon name kind -> Some arguments
+    other -> None
+
+  -- | Find a quantified binder by its actual identity rather than its source spelling or position.
+  quantified-id :: Nat -> List Quant -> Option Quant
+  quantified-id id rows = case rows of Nil -> None; Cons first rest -> if id == quant-id first then Some first else quantified-id id rest
+
+  -- | Check binder uniqueness, complete coverage and every declared role before substituting field types.
+  result-binding-pairs :: List Quant -> List UType -> List Quant -> List Nat -> Option (List (Nat, UType))
+  result-binding-pairs declared arguments actual seen = case (declared, arguments) of
+    (Nil, Nil) -> Some Nil
+    (Cons wanted more, Cons (UBound id name role) rest) -> if nat-member id seen then None else
+      (case quantified-id id actual of
+        Some bound -> if kind-equal role (quant-kind wanted) && kind-equal role (quant-kind bound)
+            && quant-implicit wanted == quant-implicit bound then
+          (case result-binding-pairs more rest actual (Cons id seen) of
+            Some pairs -> Some (Cons (id, UBound (quant-id wanted) (quant-name wanted) (quant-kind wanted)) pairs)
+            None -> None) else None
+        None -> None)
+    other -> None
+
+  -- | Refuse duplicated constructor-result binders even when their printed names or kinds happen to agree.
+  nat-member :: Nat -> List Nat -> Bool
+  nat-member id rows = case rows of Nil -> False; Cons first rest -> id == first || nat-member id rest
+
+  -- | Resolve a checked parameter by binder identity, retaining the exporter's canonical source spelling.
+  bound-name :: Nat -> Kind -> List Quant -> List (String, String, Bool) -> Option String
+  bound-name id role params names = case (params, names) of
+    (Cons first rest, Cons (name, kind, automatic) more) -> if id == quant-id first then
+      (if kind-equal role (quant-kind first) then Some name else None) else bound-name id role rest more
+    other -> None
+
+  -- | Print only the same closed first-order carriers accepted by the ownership reader.
+  checked-field :: List Quant -> List (String, String, Bool) -> UType -> Option String
+  checked-field params names ty = case ty of
+    UCon name KType -> if scalar name then Some name else None
+    UBound id name KType -> bound-name id KType params names
+    UTuple fields -> (case checked-tuple params names fields of Some text -> Some (string-concat-all ["(", text, ")"]); None -> None)
+    UApp (UCon name kind) carrier -> if mvar-type-name name && kind-equal kind (KFun KType KType) then
+      (case checked-field params names carrier of Some value -> Some (string-concat-all ["(MVarCell ", value, ")"]); None -> None) else None
+    UApp (UApp (UCon name kind) (UBound id region KRegion)) carrier ->
+      if (same name "Ref" || same name "Mut") && kind-equal kind borrow-constructor-kind then
+        (case (bound-name id KRegion params names, checked-field params names carrier) of
+          (Some region, Some value) -> Some (string-concat-all ["(", name, " ", region, " ", value, ")"])
+          other -> None) else None
+    other -> None
+
+  -- | Preserve every tuple component; callbacks, hidden indices and unsupported fields yield no proof.
+  checked-tuple :: List Quant -> List (String, String, Bool) -> UType -> Option String
+  checked-tuple params names fields = case fields of
+    UEnd -> Some ""
+    UArg first rest -> (case (checked-field params names first, checked-tuple params names rest) of
+      (Some value, Some more) -> Some (string-concat-all [value, (case rest of UEnd -> ""; other -> ", "), more])
+      other -> None)
+    other -> None
+
+  -- | Require the exact result owner and definition-site argument identities after binder substitution.
+  checked-result :: String -> List Quant -> UType -> Bool
+  checked-result owner params ty = case params of
+    Nil -> (case ty of UCon name kind -> same owner name && kind-equal kind KType; other -> False)
+    other -> checked-result-spine owner params ty Nil
+
+  -- | Compare a nominal result's complete application spine without accepting indices or existentials.
+  checked-result-spine :: String -> List Quant -> UType -> List UType -> Bool
+  checked-result-spine owner params ty arguments = case ty of
+    UApp first last -> checked-result-spine owner params first (Cons last arguments)
+    UCon name kind -> same owner name && kind-equal kind (kind-arrow params) && checked-result-arguments params arguments
+    other -> False
+
+  -- | Preserve parameter order and nominal roles in constructor result witnesses.
+  checked-result-arguments :: List Quant -> List UType -> Bool
+  checked-result-arguments params arguments = case (params, arguments) of
+    (Nil, Nil) -> True
+    (Cons first rest, Cons (UBound id name kind) more) -> id == quant-id first && kind-equal kind (quant-kind first) && checked-result-arguments rest more
+    other -> False
+
+  -- | Export all ordinary fields and refuse constrained, erased, dependent or effectful constructor arrows.
+  checked-fields :: String -> List Quant -> List (String, String, Bool) -> UType -> Option Json
+  checked-fields owner params names ty = case ty of
+    UFun first rest -> (case (checked-field params names first, checked-fields owner params names rest) of
+      (Some field, Some more) -> Some (JArr (JStr field) more)
+      other -> None)
+    UPi id name first (URow UEnd) rest -> (case (checked-field params names first, checked-fields owner params names rest) of
+      (Some field, Some more) -> Some (JArr (JStr field) more)
+      other -> None)
+    other -> if checked-result owner params ty then Some JArrEnd else None
+
+  -- | Print the actual complete nominal result using the same defining parameter names as its header.
+  result-text :: String -> List (String, String, Bool) -> String
+  result-text owner params = case params of Nil -> owner; other -> string-concat-all ["(", owner, result-words params, ")"]
+
+  -- | Preserve every defining parameter in a result witness without materializing a value argument.
+  result-words :: List (String, String, Bool) -> String
+  result-words params = case params of Nil -> ""; Cons (name, kind, automatic) rest -> string-concat-all [" ", name, result-words rest]
+
+  -- | Emit one usage-only row per actual constructor; one unsupported constructor suppresses the entire proof.
+  checked-constructors :: String -> String -> List Quant -> List (String, String, Bool) -> List CoreConstructor -> Option Json
+  checked-constructors owner identity params names constructors = case constructors of
+    Nil -> Some JArrEnd
+    Cons first rest -> let scheme = core-constructor-scheme first in
+      (case scheme-requirements scheme of
+        Cons requirement more -> None
+        Nil -> (case (constructor-pairs (scheme-params scheme) params (scheme-body scheme), export-global (core-constructor-name first), checked-constructors owner identity params names rest) of
+          (Some pairs, Ok name, Some more) -> if not (same (nominal-owner name) (nominal-owner identity)) then None else
+            (case checked-fields owner params names (substitute-bound pairs (scheme-body scheme)) of
+              Some fields -> Some (JArr (JObj "identity" (JStr name) (JObj "fields" fields (JObj "result" (JStr (result-text identity names)) JObjEnd))) more)
+              None -> None)
+          other -> None))
+
+  -- | Derive optional ownership facts only from a complete checked source datatype, never an opaque import.
+  usage-fields-json :: CoreData -> Option Json
+  usage-fields-json declaration = case (core-data-constructors declaration, export-global (core-data-name declaration), export-parameters (core-data-params declaration)) of
+    (Cons first rest, Ok identity, Ok names) -> if valid-roles names then
+      checked-constructors (core-data-name declaration) identity (core-data-params declaration) names (Cons first rest) else None
+    other -> None
+
+  -- | Keep the first proof tier restricted to explicitly representable Type and Region parameters.
+  valid-roles :: List (String, String, Bool) -> Bool
+  valid-roles params = case params of Nil -> True; Cons (name, role, automatic) rest -> (same role "Type" || same role "Region") && valid-roles rest

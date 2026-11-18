@@ -1,0 +1,1662 @@
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -388,7 +388,8 @@
+         Ok (JObj "name" (JStr name)
+         (JObj "identity" (field "identity" nominal) (JObj "kind" (JStr kind)
+           (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
+-            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull JObjEnd))))))))
++            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull
++              (case field "usage" nominal of JArr first rest -> JObj "ownership" nominal JObjEnd; other -> JObjEnd)))))))))
+       (Err error, other) -> Err error
+       (other, Err error) -> Err error
+   constructor-present :: String -> List CoreData -> Bool
+--- a/bootstrap/Bootstrap.ExportNominal.cinch
++++ b/bootstrap/Bootstrap.ExportNominal.cinch
+@@ -5,6 +5,7 @@
+   import Bootstrap.Type
+   import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
+   import Bootstrap.ExportType (export-global, export-parameters)
++  import Bootstrap.Usage (usage-fields-json)
+   import Bootstrap.Load (LoadedInterface, loaded-contract)
+   import Bootstrap.Nominal (kernel-type-name, interface-global, global-data-core-list)
+   import Bootstrap.Instance (CoreClass, class-name, class-params)
+@@ -46,7 +47,7 @@
+     (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
+       (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
+         (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
+-          (JObj "refinement" JNull JObjEnd))))))
++          (JObj "refinement" JNull (case usage-fields-json declaration of Some fields -> JObj "usage" fields JObjEnd; None -> JObjEnd)))))))
+     (Err error, other, more) -> Err error
+     (other, Err error, more) -> Err error
+     (other, more, Err error) -> Err error
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -19,7 +19,8 @@
+   import Bootstrap.Instance
+   import Bootstrap.Global
+   import Bootstrap.Contracts (declaration-references, expr-references)
+-  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body)
++  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals)
++  import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
+   import Text.Json (canonical-bytes)
+   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
+   import Bootstrap.Typing
+@@ -1965,9 +1966,10 @@
+       Some text -> if resolved-entry-valid metadata then
+         (case collect-nominal-rows s (resolved-nominals metadata) kinds st of (ks, sk) -> collect-nominal-kinds rest ks sk)
+         else collect-nominal-kinds rest kinds (add-error s "invalid resolved nominal contract" st)
+-    Cons (DInterface sp name hash metadata) rest -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) kinds st of
+-      (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
+-        (closed, done) -> collect-nominal-kinds rest closed done
++    Cons (DInterface sp name hash metadata) rest -> case collect-nominal-rows sp (usage-json-rows (contract-nominals metadata)) kinds st of
++      (defined, prepared) -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) defined prepared of
++        (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
++          (closed, done) -> collect-nominal-kinds rest closed done
+     Cons d rest -> collect-nominal-kinds rest kinds st
+ 
+   -- A returned carrier may demand its complete public layout even when no
+@@ -6284,11 +6286,47 @@
+   -- | Project declared kind headers without serializing primitive payload authority.
+   declared-kind-rows :: TypeContext -> List (String, Kind)
+   declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> kinds
+-  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
+-  check-global-core kinds bindings instances datas definitions st =
++  -- | Register only proof-bearing data owners, leaving unrelated unused refinement and class elaboration unchanged.
++  usage-json-rows :: List Json -> Json
++  usage-json-rows rows = case rows of
++    Nil -> JArrEnd
++    Cons first rest -> if has-json-field "usage" first then JArr first (usage-json-rows rest) else usage-json-rows rest
++  -- | Merge duplicate defining proofs only when their decoded fields and parameter roles agree.
++  insert-usage :: UsageShape -> List UsageShape -> Result String (List UsageShape)
++  insert-usage shape rows = case rows of
++    Nil -> Ok [shape]
++    Cons first rest -> if same (usage-name shape) (usage-name first) then
++      (if usage-equal shape first then Ok rows else Err "conflicting checked private-field proofs")
++      else (case insert-usage shape rest of Ok more -> Ok (Cons first more); Err error -> Err error)
++  -- | Decode optional fields only after the whole supplied interface set has passed ordinary admission.
++  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> List UsageShape -> Store -> (List UsageShape, Store)
++  collect-usage-rows sp kinds rows shapes st = case rows of
++    Nil -> (shapes, st)
++    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest shapes st else
++      (case read-usage-shape kinds first of
++        Err error -> (shapes, add-error sp error st)
++        Ok shape -> (case insert-usage shape shapes of
++          Err error -> (shapes, add-error sp error st)
++          Ok more -> collect-usage-rows sp kinds rest more st))
++  -- | Recognize optional proof presence so malformed null rows cannot silently become absence.
++  has-json-field :: String -> Json -> Bool
++  has-json-field name row = case row of JObj key value rest -> same name key || has-json-field name rest; other -> False
++  -- | Retain header-only and resolved-use proofs independently of public method demand or declaration order.
++  collect-usage :: List Decl -> List (String, Kind) -> List UsageShape -> Store -> (List UsageShape, Store)
++  collect-usage declarations kinds shapes st = case declarations of
++    Nil -> (shapes, st)
++    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-nominals metadata) shapes st of
++      (more, checked) -> collect-usage rest kinds more checked)
++    Cons (DExternal sp name category syntax metadata) rest ->
++      let rows = (if same category "type" && has-json-field "ownership" metadata then [field "ownership" metadata] else Nil) <> json-rows (resolved-nominals metadata) in
++      (case collect-usage-rows sp kinds rows shapes st of (more, checked) -> collect-usage rest kinds more checked)
++    Cons other rest -> collect-usage rest kinds shapes st
++  -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
++  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
++  check-global-core kinds bindings instances datas definitions usage st =
+     let rows = declared-kind-rows kinds in
+     let globals = instance-globals instances (global-bindings (finish-bindings st bindings) Nil) in
+-    case close-typing-context-with-definitions rows globals (context-effects kinds) datas definitions of
++    case close-typing-context-with-usage rows globals (context-effects kinds) datas definitions usage of
+       Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
+       None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows globals (context-effects kinds) datas definitions)) st
+   -- Reuse the schemes registered and checked above. Re-reading a surface
+@@ -7140,7 +7178,8 @@
+     let (declared-data, declared-store) = case store-errors rewritten of Nil -> checked-data classes linked-kinds env ds Nil rewritten; other -> (Nil, rewritten) in
+     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
+     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
+-    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
++    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
++    let finished = case store-errors usage-store of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage usage-store); other -> usage-store in
+     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
+     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
+     MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites temporal-rows
+--- a/bootstrap/Bootstrap.Load.cinch
++++ b/bootstrap/Bootstrap.Load.cinch
+@@ -15,7 +15,7 @@
+   import Bootstrap.Total
+   import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
+   import Bootstrap.Parse (parse-scheme)
+-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures)
++  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
+   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
+   import Data.Json
+   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+@@ -36,6 +36,7 @@
+   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
+   export load-checked-body-interface-set-from-documents
+   export check-interface-set, interface-set-members
++  export contract-nominals
+   export interface-set-body, interface-set-has-body
+ 
+   data ImportedValue where
+@@ -485,6 +486,7 @@
+       && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
+       && parameters-valid (field "parameters" row) (field "params" row) Nil
+       && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
++      && ownership-header-valid row
+       && (if same kind "codata" then
+         (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
+         else not (same kind "record") || record-contract-valid row)
+@@ -497,6 +499,28 @@
+       && types-valid rest (Cons name seen)
+     JArrEnd -> True
+     other -> False
++
++  -- | Match an optional private-field proof to the actual public owner, roles and exposed constructors.
++  ownership-header-valid :: Json -> Bool
++  ownership-header-valid row = if not (has-field "ownership" row) then True else
++    let definition = field "ownership" row in
++    member (text (field "kind" row)) ["data", "record"] && nominal-entry-valid definition
++      && same (text (field "kind" definition)) "data" && has-field "usage" definition
++      && same (text (field "identity" row)) (text (field "identity" definition))
++      && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
++      && bytes-compare (canonical-bytes (field "params" row)) (canonical-bytes (field "params" definition)) == 0
++      && ownership-public-constructors (field "ctors" row) (field "constructors" definition)
++
++  -- | Require every public constructor to belong to the complete checked family without exposing private names.
++  ownership-public-constructors :: Json -> Json -> Bool
++  ownership-public-constructors rows names = case rows of
++    JArr row rest -> ownership-constructor-present (text (field "symbol" row)) names && ownership-public-constructors rest names
++    JArrEnd -> True
++    other -> False
++
++  -- | Compare exact defining identities in the usage contract, never display names or tags.
++  ownership-constructor-present :: String -> Json -> Bool
++  ownership-constructor-present name rows = case rows of JArr (JStr first) rest -> same name first || ownership-constructor-present name rest; other -> False
+ 
+   method-default-valid :: Json -> Bool
+   method-default-valid row = case row of
+@@ -985,10 +1009,20 @@
+     JArr row rest -> conditional-method-nominals (field "method_contracts" row) <> conditional-instance-nominals rest
+     other -> Nil
+   interface-nominals :: LoadedInterface -> List Json
+-  interface-nominals i = let exports = field "exports" (loaded-contract i) in
++  interface-nominals i = contract-nominals (loaded-contract i)
++  -- | Project only recognized contract positions, excluding arbitrary body, layout and diagnostic JSON.
++  contract-nominals :: Json -> List Json
++  contract-nominals document = let exports = field "exports" document in
+     exported-nominals (field "values" exports) <> constructor-nominals (field "types" exports)
++      <> ownership-nominals (field "types" exports)
+       <> method-nominals (field "signatures" exports)
+       <> exported-nominals (field "instances" exports) <> conditional-instance-nominals (field "instances" exports)
++
++  -- | Include header-only ownership proofs in the same closed defining-contract comparison as all value uses.
++  ownership-nominals :: Json -> List Json
++  ownership-nominals rows = case rows of
++    JArr row rest -> (if has-field "ownership" row then [field "ownership" row] else Nil) <> ownership-nominals rest
++    other -> Nil
+   dependency-names :: List (String, String) -> List String
+   dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
+   reachable-modules :: List String -> InterfaceIndex -> List String -> List String
+--- a/bootstrap/Bootstrap.Nominal.cinch
++++ b/bootstrap/Bootstrap.Nominal.cinch
+@@ -15,6 +15,7 @@
+   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
+   export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
+   export stage-quotation-module, stage-code-type-name, global-stage-code
++  export nominal-entry-valid
+ 
+   same :: String -> String -> Bool
+   same a b = string-compare a b == 0
+@@ -222,12 +223,49 @@
+     && not (parameter-has-name (text (field "binder" template)) (field "parameters" row))
+   null-field :: String -> Json -> Bool
+   null-field name row = present name row && (case field name row of JNull -> True; other -> False)
++  -- | Test exact defining constructor membership without introducing source-visible names.
++  usage-member :: String -> Json -> Bool
++  usage-member name rows = case rows of JArr (JStr first) rest -> same name first || usage-member name rest; other -> False
++  -- | Reject executable or layout metadata in the dedicated usage-only constructor rows.
++  usage-keys :: Json -> List String -> Bool
++  usage-keys row seen = case row of
++    JObj key value rest -> has key ["identity", "fields", "result"] && not (has key seen) && usage-keys rest (Cons key seen)
++    JObjEnd -> list-length seen == 3
++    other -> False
++  -- | Validate complete constructor coverage before a later typed field decoder can use the proof.
++  usage-rows-valid :: Json -> Json -> List String -> Bool
++  usage-rows-valid rows constructors seen = case rows of
++    JArr row rest -> let identity = text (field "identity" row) in
++      usage-keys row Nil && usage-member identity constructors && not (has identity seen)
++      && nonempty (field "result" row) && usage-strings (field "fields" row)
++      && usage-rows-valid rest constructors (Cons identity seen)
++    JArrEnd -> usage-coverage constructors seen
++    other -> False
++  -- | Keep field syntax nonempty; its carrier grammar is checked independently after kind admission.
++  usage-strings :: Json -> Bool
++  usage-strings rows = case rows of JArr first rest -> nonempty first && usage-strings rest; JArrEnd -> True; other -> False
++  -- | Require every defining constructor, including private constructors, exactly once.
++  usage-coverage :: Json -> List String -> Bool
++  usage-coverage rows seen = case rows of JArr (JStr first) rest -> has first seen && usage-coverage rest seen; JArrEnd -> True; other -> False
++  -- | Keep a proof-bearing nominal limited to its complete defining identity and usage-only schema.
++  usage-contract-keys :: Json -> List String -> Bool
++  usage-contract-keys row seen = case row of
++    JObj key value rest -> has key ["identity", "kind", "params", "parameters", "constructors", "refinement", "usage"]
++      && not (has key seen) && usage-contract-keys rest (Cons key seen)
++    JObjEnd -> list-length seen == 7
++    other -> False
++  -- | Absence preserves old metadata; a present proof must cover a nonempty data family completely.
++  usage-valid :: Json -> Bool
++  usage-valid row = if not (present "usage" row) then True else
++    usage-contract-keys row Nil && same (text (field "kind" row)) "data" && (case field "constructors" row of
++      JArr first rest -> usage-rows-valid (field "usage" row) (JArr first rest) Nil
++      other -> False)
+   valid-nominal-body :: Json -> Bool
+   valid-nominal-body row = let kind = text (field "kind" row) in
+-    if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
++    usage-valid row && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
+     else null-field "refinement" row &&
+       (if same kind "data" then unique-strings (field "constructors" row) Nil
+-       else (same kind "opaque" || same kind "signature") && null-field "constructors" row)
++       else (same kind "opaque" || same kind "signature") && null-field "constructors" row))
+   valid-nominals :: Json -> List String -> Bool
+   valid-nominals rows seen = case rows of
+     JArr row rest -> let identity = text (field "identity" row) in
+@@ -237,6 +275,9 @@
+       && valid-nominals rest (Cons identity seen)
+     JArrEnd -> True
+     other -> False
++  -- | Validate a standalone defining contract with the same rules as occurrence-resolved nominal rows.
++  nominal-entry-valid :: Json -> Bool
++  nominal-entry-valid row = valid-nominals (JArr row JArrEnd) Nil
+   resolved-entry-valid :: Json -> Bool
+   resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
+     JNull -> True
+--- a/bootstrap/Bootstrap.Typing.cinch
++++ b/bootstrap/Bootstrap.Typing.cinch
+@@ -3,6 +3,7 @@
+ -- Numeric reflection authority, totality and usage still need their own checks.
+ module Bootstrap.Typing where
+   import Bootstrap.Type
++  import Bootstrap.Usage (UsageShape, usage-name, usage-fields-for, usage-shape-closed, usage-constructor-agrees)
+   import Bootstrap.Index
+   import Bootstrap.Core
+   import Bootstrap.Global
+@@ -22,24 +23,27 @@
+   export context-body-context, close-typing-context-with-definitions, closure-refusal
+   export task-source-forwarder, task-forwarder-type
+   export task-free, task-pattern-ids
++  export close-typing-context-with-usage
++  -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
+   data TypingContext where
+-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> TypingContext
++    -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
++    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> TypingContext
+   context-data :: TypingContext -> List CoreData
+-  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders -> datas
++  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> datas
+   context-declarations :: TypingContext -> List CoreGlobal
+-  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-declarations globals
++  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-declarations globals
+   context-effects :: TypingContext -> List CoreEffect
+-  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders -> effects
++  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> effects
+   context-bodies :: TypingContext -> List BodyBinding
+-  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-bodies globals
++  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-bodies globals
+   context-body-context :: TypingContext -> BodyBindings
+-  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-body-context globals
++  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-body-context globals
+   context-guarded-bodies :: TypingContext -> List GuardedBinding
+-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-guarded-bodies globals
++  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-guarded-bodies globals
+   context-kinds :: TypingContext -> List (String, Kind)
+-  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders -> kinds
++  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> kinds
+   context-task-forwarder :: TypingContext -> String -> Bool
+-  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders -> has name forwarders
++  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> has name forwarders
+   same :: String -> String -> Bool
+   same a b = string-compare a b == 0
+   poly-rigid-pairs :: List Quant -> List Nat -> List (Nat, UType)
+@@ -113,10 +117,70 @@
+   close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
+   close-typing-context-with-data kinds declarations effects datas = close-typing-context-with-definitions kinds declarations effects datas Nil
+   close-typing-context-with-definitions :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> Option TypingContext
+-  close-typing-context-with-definitions kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
+-    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
+-      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions)); None -> None)
++  close-typing-context-with-definitions kinds declarations effects datas definitions = close-typing-context-with-usage kinds declarations effects datas definitions Nil
++  -- | Preserve validated usage-only fields through the final independent Core, task and provenance checks.
++  close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
++  close-typing-context-with-usage kinds declarations effects datas definitions usage = let all = kernel-effect-kinds <> kinds in
++    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
++        && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
++      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage); None -> None)
+     else None
++  -- | Require unique owners and recheck every field's scope without adding runtime data or constructors.
++  usage-context-closed :: List (String, Kind) -> List UsageShape -> List String -> Bool
++  usage-context-closed kinds rows seen = case rows of
++    Nil -> True
++    Cons first rest -> not (has (usage-name first) seen) && usage-shape-closed kinds first
++      && usage-context-closed kinds rest (Cons (usage-name first) seen)
++  -- | Check actual constructor schemes independently whenever a Core context receives optional private facts.
++  usage-scheme-agrees :: List UsageShape -> String -> Scheme -> Bool
++  usage-scheme-agrees rows name scheme = case rows of
++    Nil -> True
++    Cons first rest -> (case usage-constructor-agrees first name scheme of
++      Some valid -> valid && usage-scheme-agrees rest name scheme
++      None -> usage-scheme-agrees rest name scheme)
++  -- | Keep selected global constructors authoritative even when their family remains abstract at runtime.
++  usage-global-agrees :: List UsageShape -> CoreGlobal -> Bool
++  usage-global-agrees rows declaration = case declaration of
++    GlobalValue name role scheme -> not (same role "constructor") || usage-scheme-agrees rows name scheme
++    GlobalBody actual body -> usage-global-agrees rows actual
++    GlobalGuardedBody actual body -> usage-global-agrees rows actual
++    other -> True
++  -- | Recheck constructor agreement on every later context closure without inspecting executable bodies.
++  usage-globals-closed :: List UsageShape -> List CoreGlobal -> Bool
++  usage-globals-closed rows declarations = case rows of Nil -> True; other -> (case declarations of
++    Nil -> True
++    Cons first rest -> usage-global-agrees rows first && usage-globals-closed rows rest)
++  -- | Compare available real data constructors too, including public constructors not selected as globals.
++  usage-data-closed :: List UsageShape -> List CoreData -> Bool
++  usage-data-closed rows declarations = case rows of Nil -> True; other -> (case declarations of
++    Nil -> True
++    Cons first rest -> usage-constructors-closed rows (core-data-constructors first) && usage-data-closed rows rest)
++  -- | No proof may contradict actual constructor fields supplied by a source or complete public data table.
++  usage-constructors-closed :: List UsageShape -> List CoreConstructor -> Bool
++  usage-constructors-closed rows constructors = case constructors of
++    Nil -> True
++    Cons first rest -> usage-scheme-agrees rows (core-constructor-name first) (core-constructor-scheme first) && usage-constructors-closed rows rest
++  -- | Obtain only the structural field table; source-visible constructor and runtime contexts stay separate.
++  context-usage :: TypingContext -> List UsageShape
++  context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> usage
++  -- | Instantiate a validated defining proof, failing closed when either the owner or roles are unavailable.
++  task-usage-fields :: TypingContext -> String -> List UType -> Option (List UType)
++  task-usage-fields context owner actuals = usage-field-lookup owner actuals (context-usage context)
++  -- | Find an exact nominal identity in the usage table, never a display-name or constructor-tag substitute.
++  usage-field-lookup :: String -> List UType -> List UsageShape -> Option (List UType)
++  usage-field-lookup owner actuals rows = case rows of
++    Nil -> None
++    Cons first rest -> if same owner (usage-name first) then usage-fields-for first actuals else usage-field-lookup owner actuals rest
++  -- | Run the existing structural property walk over imported fields under the actual type arguments.
++  task-usage-property :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Bool
++  task-usage-property context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
++    Some fields -> task-types-property context sharing seen fuel fields
++    None -> False
++  -- | Retain the same transfer walk for hidden fields; mutable cells still require a shareable payload.
++  task-usage-transfer :: TypingContext -> String -> List UType -> List UType -> Nat -> Bool
++  task-usage-transfer context owner actuals seen fuel = case task-usage-fields context owner actuals of
++    Some fields -> task-transfer-types context seen fuel Nil fields
++    None -> False
+ 
+   -- The closure above folds four unrelated clauses into one `None`, so the
+   -- refusal names nothing. This reports the first clause that refused, in the
+@@ -459,11 +523,16 @@
+   copyable-data context seen fuel ty = if task-seen-type ty seen then True else case task-type-spine ty Nil of
+     (UCon name kind, args) -> (case task-data name (context-data context) of
+       Some d -> (case core-data-constructors d of
+-        Nil -> False
++        Nil -> copyable-usage context name args (Cons ty seen) fuel
+         constructors -> list-length args == list-length (core-data-params d)
+           && copyable-constructors context (Cons ty seen) fuel (task-actuals (core-data-params d) args) constructors)
+-      None -> False)
+-    other -> False
++      None -> copyable-usage context name args (Cons ty seen) fuel)
++    other -> False
++  -- | Apply the ordinary Copy walk to hidden fields without making their constructors callable.
++  copyable-usage :: TypingContext -> String -> List UType -> List UType -> Nat -> Bool
++  copyable-usage context owner args seen fuel = case task-usage-fields context owner args of
++    Some fields -> copyable-fields context seen fuel Nil fields
++    None -> False
+   copyable-constructors :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
+   copyable-constructors context seen fuel pairs constructors = case constructors of
+     Nil -> True
+@@ -560,9 +629,10 @@
+   task-data-property context sharing seen fuel ty = if fuel == 0 then False else if task-seen-type ty seen then True else case task-type-spine ty Nil of
+     (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-property context True seen (fuel - 1) args else
+       (case task-data name (context-data context) of
+-        None -> False
+-        Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of Nil -> False; other -> True)
+-          && task-constructors-property context sharing (Cons ty seen) (fuel - 1) (task-actuals (core-data-params d) args) (core-data-constructors d))
++        None -> task-usage-property context name args sharing (Cons ty seen) (fuel - 1)
++        Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
++          Nil -> task-usage-property context name args sharing (Cons ty seen) (fuel - 1)
++          constructors -> task-constructors-property context sharing (Cons ty seen) (fuel - 1) (task-actuals (core-data-params d) args) constructors))
+     other -> False
+   task-constructors-property :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
+   task-constructors-property context sharing seen fuel pairs ctors = case ctors of
+@@ -1049,9 +1119,11 @@
+               (UCon name kind, args) -> if mvar-type-name name then task-types-property context True Nil remaining args else if array-type-name name then task-transfer-types context seen remaining Nil args else
+                 (case task-data name (context-data context) of
+                   Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
+-                    Nil -> False
++                    Nil -> task-usage-transfer context name args (Cons base seen) remaining
+                     fields -> task-transfer-constructors context (Cons base seen) remaining (task-actuals (core-data-params d) args) fields)
+-                  None -> (case borrow-regions base of Nil -> True; other -> False))
++                  None -> (case task-usage-fields context name args of
++                    Some fields -> task-transfer-types context (Cons base seen) remaining Nil fields
++                    None -> (case borrow-regions base of Nil -> True; other -> False)))
+               other -> (case borrow-regions base of Nil -> True; other -> False))))
+   task-transfer-types :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List UType -> Bool
+   task-transfer-types context seen fuel pairs types = case types of
+@@ -1651,7 +1723,7 @@
+     Nil -> True
+     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
+   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
+-  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders -> global-definition-closed globals definition)
++  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage -> global-definition-closed globals definition)
+     && core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
+     && task-definition-safe context definition
+     && (case openings-scope context empty-type-scope (core-openings definition) of
+--- /dev/null
++++ b/bootstrap/Bootstrap.Usage.cinch
+@@ -0,0 +1,442 @@
++-- | Checked defining field facts for task properties, separate from runtime constructor authority.
++module Bootstrap.Usage where
++  import Bootstrap.Ast
++  import Bootstrap.Type
++  import Bootstrap.Core
++  import Bootstrap.Kinds (scheme-well-formed, empty-type-scope)
++  import Bootstrap.Parse (parse-scheme)
++  import Bootstrap.Load (nominal-owner)
++  import Bootstrap.Nominal (interface-global, nominal-entry-valid)
++  import Bootstrap.Builtin (mvar-type-name)
++  import Bootstrap.ExportType (export-global, export-parameters)
++  import Data.Json
++  import Text.Parse (ParseOutcome, Parsed)
++  import Text.Lex (Span)
++  import Algebra.Semigroup
++
++  export UsageShape, usage-name, usage-fields-for, read-usage-shape, usage-fields-json
++  export usage-equal, usage-shape-closed, usage-constructor-agrees
++
++  -- | A validated field table supplies no source constructor names, descriptors, tags or bodies.
++  data UsageShape where
++    -- | Keep actual parameter roles and the conjunction of every defining constructor's fields.
++    CheckedUsageShape :: String -> List Quant -> List (String, List UType) -> UsageShape
++
++  -- | Read the exact checked nominal owner used only by the task-property table.
++  usage-name :: UsageShape -> String
++  usage-name shape = case shape of CheckedUsageShape owner parameters fields -> owner
++
++  -- | Compare scalar identity spellings without assigning semantic authority to a display name.
++  same :: String -> String -> Bool
++  same first second = string-compare first second == 0
++
++  -- | Read a structural JSON member while preserving missing values as absence.
++  field :: String -> Json -> Json
++  field name row = case row of JObj key value rest -> if same name key then value else field name rest; other -> JNull
++
++  -- | Recognize the closed scalar field vocabulary whose runtime carrier is compiler-owned.
++  scalar :: String -> Bool
++  scalar name = any-name name ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
++
++  -- | Test membership in the actual complete defining identity set.
++  any-name :: String -> List String -> Bool
++  any-name name names = case names of Nil -> False; Cons first rest -> same name first || any-name name rest
++
++  -- | Read only Type and Region binders in the initial first-order field tier.
++  parameters :: Json -> Nat -> Result String (List Quant)
++  parameters rows index = case rows of
++    JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
++      (JStr name, JStr role, JBool automatic) -> if string-length name == 0 then Err "empty ownership parameter" else
++        (case parameters rest (index + 1) of
++          Err error -> Err error
++          Ok more -> if any-name name (quant-names more) then Err "duplicate ownership parameter" else
++            if same role "Type" then Ok (Cons (MkQuant index name KType automatic) more)
++            else if same role "Region" then Ok (Cons (MkQuant index name KRegion automatic) more)
++            else Err "ownership fields require closed Type/Region parameters")
++      other -> Err "invalid ownership parameter"
++    JArrEnd -> Ok Nil
++    other -> Err "invalid ownership parameter table"
++
++  -- | Preserve definition-site binder names in canonical field syntax.
++  quant-names :: List Quant -> List String
++  quant-names rows = case rows of Nil -> Nil; Cons first rest -> Cons (quant-name first) (quant-names rest)
++
++  -- | Find a parameter without inferring a role from a consumer's field use.
++  parameter :: String -> List Quant -> Option Quant
++  parameter name rows = case rows of Nil -> None; Cons first rest -> if same name (quant-name first) then Some first else parameter name rest
++
++  -- | Parse field syntax under the exact defining binders, retaining lexical binder validation.
++  parameter-prefix :: List Quant -> String
++  parameter-prefix rows = case rows of
++    Nil -> ""
++    other -> string-concat-all ["forall ", parameter-words rows, ". "]
++
++  -- | Preserve implicitness and roles when constructing the parser's binder environment.
++  parameter-words :: List Quant -> String
++  parameter-words rows = case rows of
++    Nil -> ""
++    Cons first rest -> string-concat-all [if quant-implicit first then "{" else "(", quant-name first, " :: ", kind-text (quant-kind first), if quant-implicit first then "}" else ")", (case rest of Nil -> ""; other -> " "), parameter-words rest]
++
++  -- | Remove only the generated outer binder group, never a field's own unsupported forall.
++  field-syntax :: List Quant -> String -> Result String TypeExpr
++  field-syntax params spelling = case parse-scheme "ownership-field" (string-to-bytes (string-concat (parameter-prefix params) spelling)) of
++    Parsed syntax Nil -> (case params of
++      Nil -> Ok syntax
++      other -> (case syntax of
++        TForall sp binders body -> if binding-syntax-matches params binders then Ok body else Err "ownership field changed its defining binders"
++        other -> Err "ownership field lost its defining binders"))
++    other -> Err "invalid ownership field syntax"
++
++  -- | Verify the generated lexical binder group exactly, including roles, names, arity and implicitness.
++  binding-syntax-matches :: List Quant -> TypeExpr -> Bool
++  binding-syntax-matches params syntax = case (params, syntax) of
++    (Nil, TQuantifiersEnd sp) -> True
++    (Cons first rest, TQuantifier sp name automatic (TName at role) more) -> same name (quant-name first)
++      && automatic == quant-implicit first && same role (kind-text (quant-kind first)) && binding-syntax-matches rest more
++    other -> False
++
++  -- | Decode only closed first-order fields with actual kernel carrier kinds.
++  field-type :: List Quant -> TypeExpr -> Option UType
++  field-type params syntax = case syntax of
++    TName sp name -> (case parameter name params of
++      Some bound -> if kind-equal (quant-kind bound) KType then Some (UBound (quant-id bound) (quant-name bound) KType) else None
++      None -> if scalar name then Some (UCon name KType) else None)
++    TTuple sp fields -> (case field-types params fields of Some values -> Some (UTuple values); None -> None)
++    TApp sp (TName at name) (TArg arg value (TArgsEnd end)) ->
++      if mvar-type-name name then (case field-type params value of
++        Some carrier -> Some (UApp (UCon "MVarCell" (KFun KType KType)) carrier)
++        None -> None) else None
++    TApp sp (TName at name) (TArg arg (TName rt region) (TArg vt value (TArgsEnd end))) ->
++      if same name "Ref" || same name "Mut" then (case (parameter region params, field-type params value) of
++        (Some bound, Some carrier) -> if kind-equal (quant-kind bound) KRegion then
++          Some (UApp (UApp (UCon name borrow-constructor-kind) (UBound (quant-id bound) (quant-name bound) KRegion)) carrier) else None
++        other -> None) else None
++    other -> None
++
++  -- | Decode every tuple member; an unsupported member never becomes an empty successful shape.
++  field-types :: List Quant -> TypeExpr -> Option UType
++  field-types params fields = case fields of
++    TArgsEnd sp -> Some UEnd
++    TArg sp first rest -> (case (field-type params first, field-types params rest) of
++      (Some value, Some more) -> Some (UArg value more)
++      other -> None)
++    other -> None
++
++  -- | Require a constructor result to apply its actual owner to exactly the defining parameters.
++  result-matches :: String -> List Quant -> TypeExpr -> Bool
++  result-matches owner params syntax = case (syntax, params) of
++    (TName sp name, Nil) -> same name owner
++    (TApp sp (TName at name) arguments, Cons first rest) -> same name owner && result-arguments params arguments
++    other -> False
++
++  -- | Refuse changed argument order, role witnesses and constructor-local result indices.
++  result-arguments :: List Quant -> TypeExpr -> Bool
++  result-arguments params arguments = case (params, arguments) of
++    (Nil, TArgsEnd sp) -> True
++    (Cons first rest, TArg sp (TName at name) more) -> same name (quant-name first) && result-arguments rest more
++    other -> False
++
++  -- | Read the complete nonempty defining constructor identities without creating source bindings.
++  constructor-identities :: String -> Json -> List String -> Result String (List String)
++  constructor-identities owner rows seen = case rows of
++    JArr (JStr name) rest -> if not (same (nominal-owner name) (nominal-owner owner)) || any-name name seen then Err "invalid ownership constructor identity" else
++      (case constructor-identities owner rest (Cons name seen) of Err error -> Err error; Ok more -> Ok (Cons name more))
++    JArrEnd -> Ok Nil
++    other -> Err "invalid defining ownership constructor set"
++
++  -- | Parse all actual fields without invoking general type inference or accepting source aliases.
++  decoded-fields :: List Quant -> Json -> Result String (List UType)
++  decoded-fields params rows = case rows of
++    JArr (JStr spelling) rest -> (case field-syntax params spelling of
++      Err error -> Err error
++      Ok syntax -> (case (field-type params syntax, decoded-fields params rest) of
++        (Some ty, Ok more) -> Ok (Cons ty more)
++        (None, other) -> Err "unsupported first-order ownership field"
++        (other, Err error) -> Err error))
++    JArrEnd -> Ok Nil
++    other -> Err "invalid ownership fields"
++
++  -- | Validate exact constructor coverage and result ownership before retaining any field facts.
++  decoded-constructors :: String -> List Quant -> List String -> Json -> List String -> Result String (List (String, List UType))
++  decoded-constructors owner params expected rows seen = case rows of
++    JArr row rest -> (case (field "identity" row, field "result" row) of
++      (JStr identity, JStr result) -> if not (any-name identity expected) || any-name identity seen then Err "ownership constructor coverage disagrees" else
++        (case field-syntax params result of
++          Err error -> Err error
++          Ok result-type -> if not (result-matches owner params result-type) then Err "ownership constructor returns a different owner or parameters" else
++            (case (decoded-fields params (field "fields" row), decoded-constructors owner params expected rest (Cons identity seen)) of
++              (Ok first, Ok more) -> Ok (Cons (interface-global identity, first) more)
++              (Err error, other) -> Err error
++              (other, Err error) -> Err error))
++      other -> Err "invalid ownership constructor row")
++    JArrEnd -> if list-length expected == list-length seen then Ok Nil else Err "ownership proof omits a defining constructor"
++    other -> Err "invalid ownership constructor table"
++
++  -- | Admit a usage-only table from a genuine closed nominal contract, never an opaque header.
++  read-usage-shape :: List (String, Kind) -> Json -> Result String UsageShape
++  read-usage-shape kinds row = if not (nominal-entry-valid row) then Err "invalid defining ownership metadata" else
++    decode-usage-shape kinds row
++
++  -- | Decode the supported first-order tier after complete structural metadata validation.
++  decode-usage-shape :: List (String, Kind) -> Json -> Result String UsageShape
++  decode-usage-shape kinds row = case (field "identity" row, field "kind" row, parameters (field "parameters" row) 0) of
++    (JStr owner, JStr variety, Ok params) -> if not (same variety "data") then Err "ownership fields require a data declaration" else
++      (case constructor-identities owner (field "constructors" row) Nil of
++        Err error -> Err error
++        Ok Nil -> Err "ownership fields require a nonempty constructor set"
++        Ok expected -> (case declared-owner-kind (interface-global owner) (kind-arrow params) kinds of
++          False -> Err "ownership owner kind disagrees with its defining header"
++          True -> (case decoded-constructors owner params expected (field "usage" row) Nil of
++            Err error -> Err error
++            Ok fields -> Ok (CheckedUsageShape (interface-global owner) params fields))))
++    (other, other-kind, Err error) -> Err error
++    other -> Err "invalid defining ownership contract"
++
++  -- | Compare the full defining kind before field instantiation, including erased Region roles.
++  declared-owner-kind :: String -> Kind -> List (String, Kind) -> Bool
++  declared-owner-kind owner expected kinds = case kinds of
++    Nil -> False
++    Cons (name, actual) rest -> if same name owner then kind-equal actual expected else declared-owner-kind owner expected rest
++
++  -- | Build a nominal's full kind from its declared parameter sequence.
++  kind-arrow :: List Quant -> Kind
++  kind-arrow params = case params of Nil -> KType; Cons first rest -> KFun (quant-kind first) (kind-arrow rest)
++
++  -- | Bind actual type arguments only when every declared role and arity agrees.
++  actual-pairs :: List Quant -> List UType -> Option (List (Nat, UType))
++  actual-pairs params actuals = case (params, actuals) of
++    (Nil, Nil) -> Some Nil
++    (Cons first rest, Cons value more) -> if kind-equal (quant-kind first) (type-kind value) then
++      (case actual-pairs rest more of Some pairs -> Some (Cons (quant-id first, value) pairs); None -> None) else None
++    other -> None
++
++  -- | Instantiate checked private fields solely for structural task-property and provenance walks.
++  usage-fields-for :: UsageShape -> List UType -> Option (List UType)
++  usage-fields-for shape actuals = case shape of
++    CheckedUsageShape owner params fields -> (case actual-pairs params actuals of
++      Some pairs -> Some (instantiate-fields pairs (all-fields fields))
++      None -> None)
++
++  -- | Preserve every field while substituting definition-site binders with checked actual arguments.
++  instantiate-fields :: List (Nat, UType) -> List UType -> List UType
++  instantiate-fields pairs fields = case fields of Nil -> Nil; Cons first rest -> Cons (substitute-bound pairs first) (instantiate-fields pairs rest)
++
++  -- | Recheck field scope and owner roles whenever a later Core typing context is closed.
++  usage-shape-closed :: List (String, Kind) -> UsageShape -> Bool
++  usage-shape-closed kinds shape = case shape of
++    CheckedUsageShape owner params fields -> declared-owner-kind owner (kind-arrow params) kinds && closed-fields kinds params (all-fields fields)
++
++  -- | Validate every field as a scheme under the complete definition-site Type and Region scope.
++  closed-fields :: List (String, Kind) -> List Quant -> List UType -> Bool
++  closed-fields kinds params fields = case fields of
++    Nil -> True
++    Cons first rest -> scheme-well-formed kinds empty-type-scope (MkScheme params first) && closed-fields kinds params rest
++
++  -- | Compare decoded duplicate proofs semantically, after the loader checks their defining bytes.
++  usage-equal :: UsageShape -> UsageShape -> Bool
++  usage-equal first second = case (first, second) of
++    (CheckedUsageShape a params fields, CheckedUsageShape b other more) -> same a b && same-parameters params other && same-constructors fields more
++
++  -- | Preserve every defining parameter role and implicitness when merging proof occurrences.
++  same-parameters :: List Quant -> List Quant -> Bool
++  same-parameters first second = case (first, second) of
++    (Nil, Nil) -> True
++    (Cons a rest, Cons b more) -> quant-id a == quant-id b && kind-equal (quant-kind a) (quant-kind b)
++      && quant-implicit a == quant-implicit b && same-parameters rest more
++    other -> False
++
++  -- | Preserve complete constructor alternatives internally without creating source bindings or runtime tags.
++  all-fields :: List (String, List UType) -> List UType
++  all-fields rows = case rows of Nil -> Nil; Cons (name, fields) rest -> fields <> all-fields rest
++
++  -- | Compare every defining alternative, including private zero-field constructors.
++  same-constructors :: List (String, List UType) -> List (String, List UType) -> Bool
++  same-constructors first second = case (first, second) of
++    (Nil, Nil) -> True
++    (Cons (a, fields) rest, Cons (b, more) remaining) -> same a b && same-fields fields more && same-constructors rest remaining
++    other -> False
++
++  -- | Check a selected real constructor against its usage-only facts without creating a callable declaration.
++  usage-constructor-agrees :: UsageShape -> String -> Scheme -> Option Bool
++  usage-constructor-agrees shape name scheme = case export-global name of
++    Err error -> None
++    Ok identity -> (case shape of
++      CheckedUsageShape owner params constructors -> (case constructor-fields-for (interface-global identity) constructors of
++        None -> None
++        Some expected -> Some (case scheme-requirements scheme of
++          Cons first rest -> False
++          Nil -> (case constructor-pairs (scheme-params scheme) params (scheme-body scheme) of
++            None -> False
++            Some pairs -> (case actual-constructor-fields owner params (substitute-bound pairs (scheme-body scheme)) of
++              Some actual -> same-fields expected actual
++              None -> False)))))
++
++  -- | Find only the defining identity of an already admitted constructor occurrence.
++  constructor-fields-for :: String -> List (String, List UType) -> Option (List UType)
++  constructor-fields-for name rows = case rows of
++    Nil -> None
++    Cons (identity, fields) rest -> if same name identity then Some fields else constructor-fields-for name rest
++
++  -- | Read ordinary actual constructor fields and verify the final owner with lexical binders preserved.
++  actual-constructor-fields :: String -> List Quant -> UType -> Option (List UType)
++  actual-constructor-fields owner params ty = case ty of
++    UFun field rest -> (case actual-constructor-fields owner params rest of Some fields -> Some (Cons field fields); None -> None)
++    UPi id name field (URow UEnd) rest -> (case actual-constructor-fields owner params rest of Some fields -> Some (Cons field fields); None -> None)
++    other -> if checked-result owner params (canonical-result-head ty) then Some Nil else None
++
++  -- | Normalize only a checked result's defining identity, leaving all arguments and roles unchanged.
++  canonical-result-head :: UType -> UType
++  canonical-result-head ty = case ty of
++    UApp first last -> UApp (canonical-result-head first) last
++    UCon name kind -> (case export-global name of Ok identity -> UCon (interface-global identity) kind; Err error -> ty)
++    other -> ty
++
++  -- | Compare closed first-order field types without inferring metas or trusting rendered spellings.
++  same-fields :: List UType -> List UType -> Bool
++  same-fields first second = case (first, second) of
++    (Nil, Nil) -> True
++    (Cons a rest, Cons b more) -> let state = empty-store "private field agreement" in
++      valid-type a && valid-type b && (case (free-metas state a, free-metas state b) of
++        (Nil, Nil) -> (case store-errors (unify (Span 0 0 1 1) a b state) of
++          Nil -> same-fields rest more
++          other -> False)
++        other -> False)
++    other -> False
++
++  -- | Align constructor binders from their actual regular result, retaining roles and lexical identities.
++  constructor-pairs :: List Quant -> List Quant -> UType -> Option (List (Nat, UType))
++  constructor-pairs actual declared body = if list-length actual /= list-length declared then None else
++    (case result-actuals (constructor-result-type body) Nil of
++      Some arguments -> result-binding-pairs declared arguments actual Nil
++      None -> None)
++
++  -- | Skip only ordinary pure runtime fields; constrained, erased or effectful arrows have no proof.
++  constructor-result-type :: UType -> UType
++  constructor-result-type ty = case ty of
++    UFun field rest -> constructor-result-type rest
++    UPi id name field (URow UEnd) rest -> constructor-result-type rest
++    other -> ty
++
++  -- | Preserve the checked nominal result's exact application order before assigning any binder names.
++  result-actuals :: UType -> List UType -> Option (List UType)
++  result-actuals ty arguments = case ty of
++    UApp first last -> result-actuals first (Cons last arguments)
++    UCon name kind -> Some arguments
++    other -> None
++
++  -- | Find a quantified binder by its actual identity rather than its source spelling or position.
++  quantified-id :: Nat -> List Quant -> Option Quant
++  quantified-id id rows = case rows of Nil -> None; Cons first rest -> if id == quant-id first then Some first else quantified-id id rest
++
++  -- | Check binder uniqueness, complete coverage and every declared role before substituting field types.
++  result-binding-pairs :: List Quant -> List UType -> List Quant -> List Nat -> Option (List (Nat, UType))
++  result-binding-pairs declared arguments actual seen = case (declared, arguments) of
++    (Nil, Nil) -> Some Nil
++    (Cons wanted more, Cons (UBound id name role) rest) -> if nat-member id seen then None else
++      (case quantified-id id actual of
++        Some bound -> if kind-equal role (quant-kind wanted) && kind-equal role (quant-kind bound)
++            && quant-implicit wanted == quant-implicit bound then
++          (case result-binding-pairs more rest actual (Cons id seen) of
++            Some pairs -> Some (Cons (id, UBound (quant-id wanted) (quant-name wanted) (quant-kind wanted)) pairs)
++            None -> None) else None
++        None -> None)
++    other -> None
++
++  -- | Refuse duplicated constructor-result binders even when their printed names or kinds happen to agree.
++  nat-member :: Nat -> List Nat -> Bool
++  nat-member id rows = case rows of Nil -> False; Cons first rest -> id == first || nat-member id rest
++
++  -- | Resolve a checked parameter by binder identity, retaining the exporter's canonical source spelling.
++  bound-name :: Nat -> Kind -> List Quant -> List (String, String, Bool) -> Option String
++  bound-name id role params names = case (params, names) of
++    (Cons first rest, Cons (name, kind, automatic) more) -> if id == quant-id first then
++      (if kind-equal role (quant-kind first) then Some name else None) else bound-name id role rest more
++    other -> None
++
++  -- | Print only the same closed first-order carriers accepted by the ownership reader.
++  checked-field :: List Quant -> List (String, String, Bool) -> UType -> Option String
++  checked-field params names ty = case ty of
++    UCon name KType -> if scalar name then Some name else None
++    UBound id name KType -> bound-name id KType params names
++    UTuple fields -> (case checked-tuple params names fields of Some text -> Some (string-concat-all ["(", text, ")"]); None -> None)
++    UApp (UCon name kind) carrier -> if mvar-type-name name && kind-equal kind (KFun KType KType) then
++      (case checked-field params names carrier of Some value -> Some (string-concat-all ["(MVarCell ", value, ")"]); None -> None) else None
++    UApp (UApp (UCon name kind) (UBound id region KRegion)) carrier ->
++      if (same name "Ref" || same name "Mut") && kind-equal kind borrow-constructor-kind then
++        (case (bound-name id KRegion params names, checked-field params names carrier) of
++          (Some region, Some value) -> Some (string-concat-all ["(", name, " ", region, " ", value, ")"])
++          other -> None) else None
++    other -> None
++
++  -- | Preserve every tuple component; callbacks, hidden indices and unsupported fields yield no proof.
++  checked-tuple :: List Quant -> List (String, String, Bool) -> UType -> Option String
++  checked-tuple params names fields = case fields of
++    UEnd -> Some ""
++    UArg first rest -> (case (checked-field params names first, checked-tuple params names rest) of
++      (Some value, Some more) -> Some (string-concat-all [value, (case rest of UEnd -> ""; other -> ", "), more])
++      other -> None)
++    other -> None
++
++  -- | Require the exact result owner and definition-site argument identities after binder substitution.
++  checked-result :: String -> List Quant -> UType -> Bool
++  checked-result owner params ty = case params of
++    Nil -> (case ty of UCon name kind -> same owner name && kind-equal kind KType; other -> False)
++    other -> checked-result-spine owner params ty Nil
++
++  -- | Compare a nominal result's complete application spine without accepting indices or existentials.
++  checked-result-spine :: String -> List Quant -> UType -> List UType -> Bool
++  checked-result-spine owner params ty arguments = case ty of
++    UApp first last -> checked-result-spine owner params first (Cons last arguments)
++    UCon name kind -> same owner name && kind-equal kind (kind-arrow params) && checked-result-arguments params arguments
++    other -> False
++
++  -- | Preserve parameter order and nominal roles in constructor result witnesses.
++  checked-result-arguments :: List Quant -> List UType -> Bool
++  checked-result-arguments params arguments = case (params, arguments) of
++    (Nil, Nil) -> True
++    (Cons first rest, Cons (UBound id name kind) more) -> id == quant-id first && kind-equal kind (quant-kind first) && checked-result-arguments rest more
++    other -> False
++
++  -- | Export all ordinary fields and refuse constrained, erased, dependent or effectful constructor arrows.
++  checked-fields :: String -> List Quant -> List (String, String, Bool) -> UType -> Option Json
++  checked-fields owner params names ty = case ty of
++    UFun first rest -> (case (checked-field params names first, checked-fields owner params names rest) of
++      (Some field, Some more) -> Some (JArr (JStr field) more)
++      other -> None)
++    UPi id name first (URow UEnd) rest -> (case (checked-field params names first, checked-fields owner params names rest) of
++      (Some field, Some more) -> Some (JArr (JStr field) more)
++      other -> None)
++    other -> if checked-result owner params ty then Some JArrEnd else None
++
++  -- | Print the actual complete nominal result using the same defining parameter names as its header.
++  result-text :: String -> List (String, String, Bool) -> String
++  result-text owner params = case params of Nil -> owner; other -> string-concat-all ["(", owner, result-words params, ")"]
++
++  -- | Preserve every defining parameter in a result witness without materializing a value argument.
++  result-words :: List (String, String, Bool) -> String
++  result-words params = case params of Nil -> ""; Cons (name, kind, automatic) rest -> string-concat-all [" ", name, result-words rest]
++
++  -- | Emit one usage-only row per actual constructor; one unsupported constructor suppresses the entire proof.
++  checked-constructors :: String -> String -> List Quant -> List (String, String, Bool) -> List CoreConstructor -> Option Json
++  checked-constructors owner identity params names constructors = case constructors of
++    Nil -> Some JArrEnd
++    Cons first rest -> let scheme = core-constructor-scheme first in
++      (case scheme-requirements scheme of
++        Cons requirement more -> None
++        Nil -> (case (constructor-pairs (scheme-params scheme) params (scheme-body scheme), export-global (core-constructor-name first), checked-constructors owner identity params names rest) of
++          (Some pairs, Ok name, Some more) -> if not (same (nominal-owner name) (nominal-owner identity)) then None else
++            (case checked-fields owner params names (substitute-bound pairs (scheme-body scheme)) of
++              Some fields -> Some (JArr (JObj "identity" (JStr name) (JObj "fields" fields (JObj "result" (JStr (result-text identity names)) JObjEnd))) more)
++              None -> None)
++          other -> None))
++
++  -- | Derive optional ownership facts only from a complete checked source datatype, never an opaque import.
++  usage-fields-json :: CoreData -> Option Json
++  usage-fields-json declaration = case (core-data-constructors declaration, export-global (core-data-name declaration), export-parameters (core-data-params declaration)) of
++    (Cons first rest, Ok identity, Ok names) -> if valid-roles names then
++      checked-constructors (core-data-name declaration) identity (core-data-params declaration) names (Cons first rest) else None
++    other -> None
++
++  -- | Keep the first proof tier restricted to explicitly representable Type and Region parameters.
++  valid-roles :: List (String, String, Bool) -> Bool
++  valid-roles params = case params of Nil -> True; Cons (name, role, automatic) rest -> (same role "Type" || same role "Region") && valid-roles rest
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -17708,7 +17708,7 @@
+                     name: local.clone(),
+                     identity: format!("{}.{}", d.module, d.name),
+                     params,
+-                    parameters,
++                    parameters: parameters.clone(),
+                     kind: if t.refine.is_some() {
+                         "refinement".to_string()
+                     } else if t.opaque {
+@@ -17723,6 +17723,7 @@
+                         "data".to_string()
+                     },
+                     ctors,
++                    ownership: self.interface_usage_nominal(&t, &parameters),
+                     fields: t.fields.clone().unwrap_or_default(),
+                     refinement: self.resolved_list_refinement(&t).or_else(|| t.refine.as_ref().map(|r| RefinementExport {
+                         binder: r.binder.clone(),
+--- a/compiler/src/check_interface.rs
++++ b/compiler/src/check_interface.rs
+@@ -767,6 +767,68 @@
+         })
+     }
+ 
++    /// Print a first-order ownership field from checked types and actual nominal parameter roles.
++    fn interface_usage_field(&self, ty: &Ty, parameters: &[crate::interface::ParameterExport]) -> Option<String> {
++        let region = |name: &str| parameters.iter().any(|p| p.name == name && p.kind == "Region");
++        match ty {
++            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => Some(ty.to_string()),
++            Ty::Param(name) if parameters.iter().any(|p| p.name == name.as_str() && p.kind == "Type") => Some(name.to_string()),
++            Ty::Tuple(fields) => Some(format!("({})", fields.iter().map(|field| self.interface_usage_field(field, parameters))
++                .collect::<Option<Vec<_>>>()?.join(", "))),
++            // Adt carries the checked defining identity here. Registration reserves this
++            // kernel head; a qualified source nominal never acquires its bare identity.
++            Ty::Adt(name, arguments) if name.as_str() == "MVarCell" && arguments.len() == 1 =>
++                Some(format!("(MVarCell {})", self.interface_usage_field(&arguments[0], parameters)?)),
++            Ty::Ref(name, carrier) | Ty::Mut(name, carrier) if region(name.as_str()) =>
++                Some(format!("({} {name} {})", if matches!(ty, Ty::Ref(..)) { "Ref" } else { "Mut" },
++                    self.interface_usage_field(carrier, parameters)?)),
++            _ => None,
++        }
++    }
++
++    /// Retain actual complete private fields solely for structural task-property checking.
++    fn interface_usage_nominal(
++        &self, info: &TypeKind, parameters: &[crate::interface::ParameterExport],
++    ) -> Option<crate::interface::NominalContract> {
++        if !info.data_family || info.opaque || info.refine.is_some() || info.ctors.is_empty()
++            || self.codata_types.contains(&(info.module.clone(), info.name.clone()))
++            || parameters.len() != info.param_kinds.len()
++            || parameters.iter().any(|p| !matches!(p.kind.as_str(), "Type" | "Region")) {
++            return None;
++        }
++        let arguments: Vec<_> = parameters.iter().map(|p| if p.kind == "Region" {
++            Ty::Region(p.name.as_str().into())
++        } else { Ty::Param(p.name.as_str().into()) }).collect();
++        let owner = format!("{}.{}", info.module, info.name);
++        let result = if parameters.is_empty() { owner.clone() } else {
++            format!("({owner} {})", parameters.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(" "))
++        };
++        let mut usage = Vec::new();
++        for (name, _) in &info.ctors {
++            let constructor = self.ctor_of_type(info, name).ok()?;
++            let scheme = &constructor.scheme;
++            if !scheme.ctx.is_empty() || !scheme.obligs.is_empty() || !scheme.evidence_params.is_empty()
++                || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty() || !scheme.prop_params.is_empty()
++                || !scheme.row_params.is_empty() || !scheme.con_params.is_empty() {
++                return None;
++            }
++            let parts = self.ctor_parts(&constructor, &arguments).ok()?;
++            if !parts.local_idx.is_empty() || parts.res_args != arguments || parts.fields.iter().any(|(_, _, erased)| *erased) {
++                return None;
++            }
++            let fields = parts.fields.iter().map(|(_, ty, _)| self.interface_usage_field(ty, parameters))
++                .collect::<Option<Vec<_>>>()?;
++            usage.push(crate::interface::ConstructorUsage {
++                identity: format!("{}.{}", info.module, name), fields, result: result.clone(),
++            });
++        }
++        Some(crate::interface::NominalContract {
++            identity: owner, kind: "data".into(), parameters: parameters.to_vec(),
++            constructors: Some(info.ctors.iter().map(|(name, _)| format!("{}.{}", info.module, name)).collect()),
++            refinement: None, usage: Some(usage),
++        })
++    }
++
+     fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
+         let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
+         // Identities were captured by checked definition-site conversion.
+@@ -807,8 +869,9 @@
+             let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()));
+             let params = info.refine.as_ref().map(|r| r.params.as_slice()).unwrap_or(&[]);
+             let parameters = self.interface_parameters(module, name, params, &info.param_kinds);
++            let usage = self.interface_usage_nominal(info, &parameters).and_then(|proof| proof.usage);
+             nominals.push(crate::interface::NominalContract {
+-                refinement,
++                refinement, usage,
+                 identity: format!("{module}.{name}"),
+                 kind: if refined { "refinement" } else if signature { "signature" } else if info.opaque { "opaque" } else { "data" }.to_string(),
+                 parameters,
+--- a/compiler/src/interface.rs
++++ b/compiler/src/interface.rs
+@@ -365,9 +365,22 @@
+     /// This grants no source names or field access. Opaque types and
+     /// signature dictionary types use None.
+     pub constructors: Option<Vec<String>>,
++    /// Complete checked private fields for ownership reasoning only; grants no constructor or body authority.
++    pub usage: Option<Vec<ConstructorUsage>>,
+     /// The checked defining template for a refinement, including private
+     /// refinements mentioned by an exported value. It grants no source names.
+     pub refinement: Option<RefinementExport>,
++}
++
++/// One actual defining constructor's closed first-order fields, with no tag or callable ABI.
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct ConstructorUsage {
++    /// Defining identity used for coverage checks, never a source name or runtime tag grant.
++    pub identity: String,
++    /// Complete first-order fields under the nominal's declared parameter roles.
++    pub fields: Vec<String>,
++    /// Exact defining result owner applied to its parameters in declaration order.
++    pub result: String,
+ }
+ 
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+@@ -379,6 +392,8 @@
+     /// `data`, `record`, `refinement`, or `opaque`.
+     pub kind: String,
+     pub ctors: Vec<CtorExport>,
++    /// Defining private field proof for task properties; it does not extend the public constructor table.
++    pub ownership: Option<NominalContract>,
+     /// Record field names in declaration order.
+     pub fields: Vec<String>,
+     pub refinement: Option<RefinementExport>,
+@@ -856,7 +871,7 @@
+             (
+                 "types",
+                 JsonValue::arr(&types, |t| {
+-                    JsonValue::obj([
++                    let mut value = JsonValue::obj([
+                         ("name", (&t.name).into()),
+                         ("identity", (&t.identity).into()),
+                         ("params", (&t.params).into()),
+@@ -884,7 +899,11 @@
+                             }),
+                         ),
+                         ("fields", (&t.fields).into()),
+-                    ])
++                    ]);
++                    if let (JsonValue::Obj(row), Some(contract)) = (&mut value, &t.ownership) {
++                        row.insert("ownership".into(), nominal_contract_json(contract));
++                    }
++                    value
+                 }),
+             ),
+             (
+@@ -1215,6 +1234,7 @@
+                 parameters: field_parameters(o)?,
+                 kind: field_str(o, "kind")?,
+                 ctors,
++                ownership: o.get("ownership").map(|row| row.as_object().and_then(field_nominal_contract)).transpose()?,
+                 fields: field_list(o, "fields")?,
+                 refinement: match o.get("refinement") {
+                     Some(JsonValue::Null) => None,
+@@ -1229,6 +1249,13 @@
+                     None => return Err(ParseError("refinement".into())),
+                 },
+             };
++            if let Some(proof) = &exported.ownership {
++                if !matches!(exported.kind.as_str(), "data" | "record") || proof.kind != "data"
++                    || proof.identity != exported.identity || proof.parameters != exported.parameters || proof.usage.is_none()
++                    || !exported.ctors.iter().all(|constructor| proof.constructors.as_ref().is_some_and(|all| all.contains(&constructor.symbol))) {
++                    return Err(ParseError("public type and private ownership contract disagree".into()));
++                }
++            }
+             if (exported.kind == "refinement") != exported.refinement.is_some() {
+                 return Err(ParseError("a refinement type must publish its definition".into()));
+             }
+@@ -1908,6 +1935,29 @@
+     Ok(GuardedNatBody { parameters, root })
+ }
+ 
++/// Serialize optional private ownership fields without changing legacy nominal bytes when absent.
++fn nominal_contract_json(n: &NominalContract) -> JsonValue {
++    let mut value = JsonValue::obj([
++        ("identity", (&n.identity).into()),
++        ("kind", (&n.kind).into()),
++        ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
++        ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
++            ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
++        ]))),
++        ("constructors", n.constructors.clone().into()),
++        ("refinement", n.refinement.as_ref().map_or(JsonValue::Null, |r| JsonValue::obj([
++            ("binder", (&r.binder).into()), ("carrier", (&r.carrier).into()), ("predicate", (&r.predicate).into()),
++        ]))),
++    ]);
++    if let (JsonValue::Obj(row), Some(constructors)) = (&mut value, &n.usage) {
++        row.insert("usage".into(), JsonValue::arr(constructors, |constructor| JsonValue::obj([
++            ("identity", (&constructor.identity).into()), ("fields", (&constructor.fields).into()),
++            ("result", (&constructor.result).into()),
++        ])));
++    }
++    value
++}
++
+ fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
+     let Some(scheme) = scheme else { return JsonValue::Null };
+     let mut nominals = scheme.nominals.clone();
+@@ -1919,44 +1969,51 @@
+             ("resolved", resolved_scheme_json(Some(&m.resolved))),
+             ("total_body", parse_json(&m.total_body.to_json()).expect("checked measure graph JSON")),
+         ]))),
+-        ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
+-            ("identity", (&n.identity).into()),
+-            ("kind", (&n.kind).into()),
+-            ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
+-            ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
+-                ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
+-            ]))),
+-            ("constructors", n.constructors.clone().into()),
+-            ("refinement", match &n.refinement {
+-                None => JsonValue::Null,
+-                Some(r) => JsonValue::obj([
+-                    ("binder", (&r.binder).into()),
+-                    ("carrier", (&r.carrier).into()),
+-                    ("predicate", (&r.predicate).into()),
+-                ]),
+-            }),
+-        ]))),
++        ("nominals", JsonValue::arr(&nominals, nominal_contract_json)),
+     ])
+ }
+ 
+-fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
+-    field_resolved_scheme_depth(o, 0)
+-}
+-fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
+-    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
+-    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
+-    if matches!(value, JsonValue::Null) { return Ok(None) }
+-    let value = value.as_object()?;
+-    let scheme = field_str(value, "scheme")?;
+-    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
+-    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
+-    let mut nominals: Vec<NominalContract> = Vec::new();
+-    for row in rows {
+-        let row = row.as_object()?;
++/// Validate complete private constructor coverage without treating fields as callable declarations.
++fn field_constructor_usage(
++    row: &BTreeMap<String, JsonValue>, owner: &str, kind: &str, constructors: &Option<Vec<String>>,
++) -> Result<Option<Vec<ConstructorUsage>>, ParseError> {
++    let Some(value) = row.get("usage") else { return Ok(None) };
++    if row.len() != 7 || row.keys().any(|key| !matches!(key.as_str(),
++        "identity" | "kind" | "params" | "parameters" | "constructors" | "refinement" | "usage")) {
++        return Err(ParseError("private ownership contract contains unsupported metadata".into()));
++    }
++    let Some(expected) = constructors.as_ref().filter(|rows| kind == "data" && !rows.is_empty()) else {
++        return Err(ParseError("private ownership fields require a complete nonempty data constructor set".into()));
++    };
++    let home = owner.rsplit_once('.').map(|(home, _)| home).ok_or_else(|| ParseError("private ownership owner".into()))?;
++    let mut fields = Vec::new();
++    for value in value.as_array()? {
++        let value = value.as_object()?;
++        if value.len() != 3 || value.keys().any(|key| !matches!(key.as_str(), "identity" | "fields" | "result")) {
++            return Err(ParseError("private ownership fields contain non-usage metadata".into()));
++        }
++        let identity = field_str(value, "identity")?;
++        let result = field_str(value, "result")?;
++        let arguments = field_list(value, "fields")?;
++        if !expected.contains(&identity) || identity.rsplit_once('.').map(|(owner, _)| owner) != Some(home)
++            || fields.iter().any(|prior: &ConstructorUsage| prior.identity == identity)
++            || result.is_empty() || arguments.iter().any(String::is_empty) {
++            return Err(ParseError("invalid defining private constructor fields".into()));
++        }
++        fields.push(ConstructorUsage { identity, fields: arguments, result });
++    }
++    if fields.len() != expected.len() {
++        return Err(ParseError("private ownership field table omits a defining constructor".into()));
++    }
++    Ok(Some(fields))
++}
++
++/// Read a defining nominal contract; semantic field qualification belongs to the actual checker.
++fn field_nominal_contract(row: &BTreeMap<String, JsonValue>) -> Result<NominalContract, ParseError> {
+         let identity = field_str(row, "identity")?;
+         let kind = field_str(row, "kind")?;
+         let parameters = field_parameters(row)?;
+-        if identity.is_empty() || nominals.iter().any(|n| n.identity == identity)
++        if identity.is_empty()
+             || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement")
+             || field_list(row, "params")? != parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
+             return Err(ParseError("invalid resolved nominal contract".into()));
+@@ -1989,7 +2046,28 @@
+             }
+             _ => return Err(ParseError("inconsistent defining refinement payload".into())),
+         };
+-        nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
++        let usage = field_constructor_usage(row, &identity, &kind, &constructors)?;
++        Ok(NominalContract { identity, kind, parameters, constructors, refinement, usage })
++}
++
++fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
++    field_resolved_scheme_depth(o, 0)
++}
++fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
++    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
++    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
++    if matches!(value, JsonValue::Null) { return Ok(None) }
++    let value = value.as_object()?;
++    let scheme = field_str(value, "scheme")?;
++    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
++    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
++    let mut nominals: Vec<NominalContract> = Vec::new();
++    for row in rows {
++        let nominal = field_nominal_contract(row.as_object()?)?;
++        if nominals.iter().any(|n| n.identity == nominal.identity) {
++            return Err(ParseError("duplicate resolved nominal contract".into()));
++        }
++        nominals.push(nominal);
+     }
+     let mut measures: Vec<MeasureContract> = Vec::new();
+     if let Some(rows) = value.get("measures") {
+@@ -2337,6 +2415,7 @@
+             arity: 3,
+         });
+         f.exports.types.push(TypeExport {
++            ownership: None,
+             name: "Tree".into(),
+             identity: "Main.Tree".into(),
+             params: vec!["a".into()],
+@@ -2512,6 +2591,44 @@
+         assert_eq!(f, back);
+     }
+ 
++    /// Optional field evidence retains complete constructor coverage without changing public visibility.
++    #[test]
++    fn private_usage_contract_round_trips_without_public_constructors() {
++        let mut iface = Iface::new("Cells", "checked-source");
++        let parameters = vec![ParameterExport { name: "a".into(), kind: "Type".into(), implicit: false }];
++        let proof = NominalContract {
++            identity: "Cells.Cell".into(), kind: "data".into(), parameters: parameters.clone(),
++            constructors: Some(vec!["Cells.PrivateCell".into()]), refinement: None,
++            usage: Some(vec![ConstructorUsage {
++                identity: "Cells.PrivateCell".into(), fields: vec!["(MVarCell a)".into()], result: "(Cells.Cell a)".into(),
++            }]),
++        };
++        iface.exports.types.push(TypeExport {
++            name: "Cell".into(), identity: proof.identity.clone(), params: vec!["a".into()], parameters,
++            kind: "data".into(), ctors: vec![], ownership: Some(proof), fields: vec![], refinement: None,
++        });
++        let text = iface.to_json();
++        let decoded = Iface::from_json(&text).expect("complete private field proof");
++        assert_eq!(decoded, iface);
++        assert!(decoded.exports.types[0].ctors.is_empty(), "proofs grant no constructor names or tags");
++        let contract = decoded.exports.types[0].ownership.as_ref().unwrap();
++        assert_eq!(contract.usage.as_ref().unwrap()[0].fields, ["(MVarCell a)"]);
++        let legacy = sample().to_json();
++        assert!(!legacy.contains("\"ownership\"") && !legacy.contains("\"usage\""));
++        assert_eq!(Iface::from_json(&legacy).unwrap().to_json(), legacy);
++
++        for invalid in [
++            text.replace("\"ownership\":{", "\"ownership\":{\"body\":{},"),
++            text.replace("\"usage\":[{", "\"usage\":[{\"tag\":0,"),
++            text.replace("\"usage\":[{", "\"usage\":[{\"body\":{},"),
++            text.replace("\"constructors\":[\"Cells.PrivateCell\"]", "\"constructors\":[\"Cells.PrivateCell\",\"Cells.Missing\"]"),
++            text.replace("\"identity\":\"Cells.PrivateCell\"", "\"identity\":\"Other.PrivateCell\""),
++        ] {
++            assert_ne!(invalid, text);
++            assert!(Iface::from_json(&invalid).is_err(), "invalid usage authority: {invalid}");
++        }
++    }
++
+     #[test]
+     fn rejects_wrong_schema() {
+         let text = sample().to_json();
+--- a/compiler/tests/bootstrap_load.rs
++++ b/compiler/tests/bootstrap_load.rs
+@@ -147,7 +147,7 @@
+     let cycle = vec![row(&dir, "cycle-a.cinchif", &cycle_a), row(&dir, "cycle-b.cinchif", &cycle_b)];
+     let nominal_value = |symbol: &str, identity: &str, constructors: Vec<String>| ValueExport { total_body: None, keyed_ordering: None,
+         name: symbol.into(), symbol: format!("Origin.{symbol}"), scheme: "Hidden".into(), arity: 0,
+-        resolved: Some(ResolvedScheme { measures: vec![], scheme: identity.into(), nominals: vec![NominalContract { refinement: None,
++        resolved: Some(ResolvedScheme { measures: vec![], scheme: identity.into(), nominals: vec![NominalContract { usage: None, refinement: None,
+             identity: identity.into(), kind: "data".into(), parameters: vec![], constructors: Some(constructors),
+         }] }),
+     };
+--- a/compiler/tests/bootstrap_nominals.rs
++++ b/compiler/tests/bootstrap_nominals.rs
+@@ -80,7 +80,7 @@
+         let mut iface = Iface::new(module, "");
+         let nominals = if nominal {
+             iface.imports.push(IfaceRef { module: "A".into(), iface_hash: a.iface_hash() });
+-            vec![NominalContract { refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
++            vec![NominalContract { usage: None, refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
+         } else { vec![] };
+         iface.exports.values.push(ValueExport { total_body: None, keyed_ordering: None,
+             name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), arity: 1,
+@@ -101,13 +101,14 @@
+         let identity = format!("{module}.Box");
+         let symbol = format!("{module}.Pack");
+         iface.exports.types.push(TypeExport {
++            ownership: None,
+             name: "Box".into(), identity: identity.clone(),
+             params: parameters.iter().map(|p| p.name.clone()).collect(), parameters: parameters.clone(),
+             kind: "data".into(), fields: vec![], refinement: None,
+             ctors: vec![CtorExport {
+                 name: "Pack".into(), symbol: symbol.clone(), tag: 0,
+                 scheme: format!("forall (a :: Type). {body}"), fields: vec!["a".into()], erased: vec![false],
+-                resolved: Some(ResolvedScheme { measures: vec![], scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { refinement: None,
++                resolved: Some(ResolvedScheme { measures: vec![], scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { usage: None, refinement: None,
+                     identity, kind: "data".into(), parameters, constructors: Some(vec![symbol]),
+                 }] }),
+             }],
+--- a/compiler/tests/common/mod.rs
++++ b/compiler/tests/common/mod.rs
+@@ -116,6 +116,10 @@
+         std::fs::write(dir.join("Bootstrap.Object.cinch"), include_str!("../../../bootstrap/Bootstrap.Object.cinch"))
+             .expect("checked runtime object dependency");
+     }
++    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Usage.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Export.cinch" | "Bootstrap.ExportNominal.cinch" | "Bootstrap.Pipeline.cinch")) {
++        std::fs::write(dir.join("Bootstrap.Usage.cinch"), include_str!("../../../bootstrap/Bootstrap.Usage.cinch"))
++            .expect("checked usage-only private field dependency");
++    }
+     std::fs::write(dir.join("Bootstrap.RuntimeAbi.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeAbi.cinch"))
+         .expect("exact runtime ABI dependency");
+     if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {
+--- a/compiler/tests/fixtures/mvar-interface-contracts.cinch
++++ b/compiler/tests/fixtures/mvar-interface-contracts.cinch
+@@ -29,12 +29,27 @@
+     -- | This operation belongs to UserMVar.MVar, not the kernel effect.
+     signal :: Unit ->{MVar} Unit
+ 
++-- | Keep complete private alternatives available only to structural usage checking.
++module HiddenUsage where
++  export Handle, RegionHandle
++  -- | Both private alternatives participate in structural task sharing.
++  data Handle a where
++    -- | This alternative alone would permit a shareable payload.
++    Shared :: MVarCell a -> Handle a
++    -- | This alternative prevents sharing even when the other field is Nat.
++    Buffered :: Bytes -> Handle a
++  -- | An explicit nominal Region role remains available to the private first-order field reader.
++  data RegionHandle (r :: Region) a where
++    -- | Preserve the actual immutable borrow carrier and its declared lifetime role.
++    GuardedRef :: Ref r a -> RegionHandle r a
++
+ -- | Produce contracts without executing any synchronization operation.
+ module Main where
+   import MVarFacade
+   import MVarRows
+   import UserMVar as User
+   import KernelMVar
++  import HiddenUsage
+   -- | Contract production has a deterministic pure entry.
+   main :: Int
+   main = 0
+--- a/compiler/tests/interface_mvar_contracts.rs
++++ b/compiler/tests/interface_mvar_contracts.rs
+@@ -126,6 +126,26 @@
+         .iter()
+         .find(|row| row.module == "MVarFacade")
+         .unwrap();
++    let public_type = owner
++        .exports
++        .types
++        .iter()
++        .find(|row| row.name == "MVar")
++        .unwrap();
++    let reexported_type = facade
++        .exports
++        .types
++        .iter()
++        .find(|row| row.name == "MVar")
++        .unwrap();
++    assert!(public_type.ctors.is_empty() && reexported_type.ctors.is_empty());
++    let proof = public_type
++        .ownership
++        .as_ref()
++        .expect("checked private fields survive a header-only import");
++    assert_eq!(reexported_type.ownership.as_ref(), Some(proof));
++    assert_eq!(proof.constructors.as_deref().unwrap(), ["MVarOwner.MkMVar"]);
++    assert_eq!(proof.usage.as_ref().unwrap()[0].fields, ["(MVarCell a)"]);
+     assert_eq!(owner.exports.values.len(), 14);
+     for operation in cinch::mvar::MVarOp::ALL {
+         let external = format!("cinch.runtime.{}", operation.name());
+@@ -236,6 +256,29 @@
+         assert_eq!(Iface::from_json(&interface.to_json()).unwrap(), *interface);
+     }
+     common::cleanup(&dir);
++}
++
++/// Genuine source declarations cannot replace the kernel or scalar identities used by private-field export.
++#[test]
++fn private_usage_fields_keep_reserved_kernel_and_scalar_identity() {
++    for (head, parameters, result) in [
++        ("MVarCell", "a", "MVarCell a"),
++        ("U64", "", "U64"),
++        ("I128", "", "I128"),
++        ("U128", "", "U128"),
++        ("Char", "", "Char"),
++    ] {
++        let source = format!("-- | A source declaration cannot acquire a compiler-owned field identity.\nmodule Main where\n  -- | This mutable payload must never be classified as a kernel cell or raw scalar.\n  data {head} {parameters} where\n    -- | Refuse the declaration before any private field proof can be exported.\n    Counterfeit :: Bytes -> {result}\n  -- | No intrinsic or task executes in a source-identity refusal.\n  main :: Int\n  main = 0\n");
++        let directory = ProjectEvidence(common::project(
++            "usage_reserved_identity",
++            &[("Main.cinch", &source)],
++        ));
++        let outcome = common::check(&directory, "Main.cinch");
++        std::fs::write(directory.join("source-check.txt"), format!("{outcome:?}")).unwrap();
++        let error = outcome.expect_err("source cannot redefine a sealed kernel or scalar head");
++        assert!(error.contains("builtin"), "{head}: {error}");
++        common::cleanup(&directory);
++    }
+ }
+ 
+ /// Retain a complete manifest of genuine or deliberately contradictory test contracts.
+@@ -647,12 +690,12 @@
+     let (directory, executable) = native_checker();
+     manifest(&directory, &interfaces);
+     std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut sharing_outcomes = Vec::new();
+     for (carrier, read, payload, expected) in [
+         ("MVarCell", "cell-read", "Nat", 0),
+         ("MVarCell", "cell-read", "Bytes", 4),
+-        // Public opaque nominals currently lack the private field types needed for this proof.
+-        // Nat success remains a mandatory full-feature admission gate, not supplied by row transport.
+-        ("Cells.MVar", "Cells.mvar-read", "Nat", 4),
++        // Genuine private-field facts must prove the public wrapper without revealing its constructor.
++        ("Cells.MVar", "Cells.mvar-read", "Nat", 0),
+         ("Cells.MVar", "Cells.mvar-read", "Bytes", 4),
+     ] {
+         let observe = if payload == "Bytes" {
+@@ -667,13 +710,7 @@
+             "import KernelMVar\n  import MVarFacade as Cells",
+             &declaration,
+         );
+-        assert_eq!(status, expected, "{carrier} {payload}: {report}");
+-        if expected == 4 {
+-            assert!(
+-                report.contains("shar") || report.contains("task") || report.contains("transfer"),
+-                "{report}"
+-            );
+-        }
++        sharing_outcomes.push((format!("{carrier} {payload}"), expected, status, report));
+     }
+     // A single linear handle can still refer to a cell aliased outside this function.
+     // Check Transfer independently: the two-task Share controls above cannot establish it.
+@@ -704,7 +741,16 @@
+         );
+         transfer_outcomes.push((label, required, status, report));
+     }
+-    // Preserve all five actual importer outcomes before asserting either availability or safety.
++    // Preserve both capture forms before asserting either availability or safety.
++    for (label, required, status, report) in sharing_outcomes {
++        assert_eq!(status, required, "shared capture {label}: {report}");
++        if required == 4 {
++            assert!(
++                report.contains("shar") || report.contains("task") || report.contains("transfer"),
++                "{report}"
++            );
++        }
++    }
+     for (label, required, status, report) in transfer_outcomes {
+         assert_eq!(status, required, "single-task %1 capture {label}: {report}");
+         if required == 4 {
+@@ -713,6 +759,205 @@
+                 "{report}"
+             );
+         }
++    }
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Header-only imports retain structural usage facts independently of public method selection and order.
++#[test]
++fn source_absent_mvar_header_proofs_do_not_depend_on_method_imports() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    manifest(&directory, &interfaces);
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut outcomes = Vec::new();
++    for owner in ["MVarOwner", "MVarFacade"] {
++        for (payload, required) in [("Nat", 0), ("Bytes", 4)] {
++            for usage in ["->", "%1 ->"] {
++                let declarations = format!("-- | Observe a strict handle without importing any cell operation.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  -- | The exact nominal header must suffice for both shared and one-shot task captures.\n  work :: forall (r :: Region). using (io :: Io r) => Cell {payload} {usage}{{Async r, Cancel r, Diverge}} Result LoadError Nat\n  work cell = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe cell))\n    joinAllOrCancel scope task");
++                let (status, report) = consumer(
++                    &directory,
++                    &executable,
++                    &format!("import {owner} (MVar as Cell)"),
++                    &declarations,
++                );
++                outcomes.push((
++                    format!("{owner}/{payload}/{usage}"),
++                    required,
++                    status,
++                    report,
++                ));
++            }
++        }
++    }
++    // Private field evidence must not turn the representation constructor into a public source name.
++    let (status, report) = consumer(
++        &directory,
++        &executable,
++        "import MVarFacade as Cells",
++        "forge :: MVarCell Nat -> Cells.MVar Nat\n  forge cell = Cells.MkMVar cell",
++    );
++    assert_ne!(
++        status, 0,
++        "private constructor became source-visible: {report}"
++    );
++    for (label, required, status, report) in outcomes {
++        assert_eq!(status, required, "header-only {label}: {report}");
++    }
++    let (status, report) = consumer(&directory, &executable, "import HiddenUsage (Handle)",
++        "-- | Check every private alternative, including the one not storing the apparent Nat payload.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  work :: forall (r :: Region). using (io :: Io r) => Handle Nat ->{Async r, Cancel r, Diverge} Result LoadError Nat\n  work value = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe value))\n    joinAllOrCancel scope task");
++    assert_eq!(
++        status, 4,
++        "a private Bytes alternative must participate in the complete proof: {report}"
++    );
++    let (status, report) = consumer(&directory, &executable, "import HiddenUsage (RegionHandle)",
++        "-- | Reconstruct exact header roles and private borrow-field scope without creating a source constructor.\n  keep :: forall (r :: Region) a. RegionHandle r a -> RegionHandle r a\n  keep value = value");
++    assert_eq!(
++        status, 0,
++        "explicit Region field proof must retain its owner and bound carrier roles: {report}"
++    );
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Change only the ownership syntax in every occurrence while preserving real source-produced owners.
++fn change_usage_contract(value: &mut serde_json::Value, fault: &str) {
++    match value {
++        serde_json::Value::Object(row) => {
++            if row.get("identity").and_then(|v| v.as_str()) == Some("MVarOwner.MVar")
++                && row.contains_key("usage")
++            {
++                let usage = row.get_mut("usage").unwrap().as_array_mut().unwrap();
++                assert_eq!(
++                    usage.len(),
++                    1,
++                    "actual checked wrapper has exactly one private constructor"
++                );
++                match fault {
++                    "callback" => usage[0]["fields"] = serde_json::json!(["(Nat -> Nat)"]),
++                    "nested-forall" => usage[0]["fields"] = serde_json::json!(["forall a. a -> a"]),
++                    "unknown-owner" => {
++                        usage[0]["fields"] = serde_json::json!(["(Other.MVarCell a)"])
++                    }
++                    "wrong-result" => usage[0]["result"] = serde_json::json!("(Other.Hidden a)"),
++                    "missing-result-argument" => {
++                        usage[0]["result"] = serde_json::json!("MVarOwner.MVar")
++                    }
++                    _ => unreachable!(),
++                }
++            }
++            for value in row.values_mut() {
++                change_usage_contract(value, fault);
++            }
++        }
++        serde_json::Value::Array(rows) => {
++            for value in rows {
++                change_usage_contract(value, fault);
++            }
++        }
++        _ => {}
++    }
++}
++
++/// Structurally valid metadata cannot supply task evidence through unsupported fields or a different result owner.
++#[test]
++fn source_absent_private_usage_proofs_reject_unsupported_carriers_and_results() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let declaration = "-- | The actual importer must validate the proof before any task can use it.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  work :: forall (r :: Region). using (io :: Io r) => Cell Nat ->{Async r, Cancel r, Diverge} Result LoadError Nat\n  work cell = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe cell))\n    joinAllOrCancel scope task";
++    let mut outcomes = Vec::new();
++    for fault in [
++        "callback",
++        "nested-forall",
++        "unknown-owner",
++        "wrong-result",
++        "missing-result-argument",
++    ] {
++        let mut changed: Vec<Iface> = interfaces
++            .iter()
++            .map(|interface| {
++                let mut value: serde_json::Value =
++                    serde_json::from_str(&interface.to_json()).unwrap();
++                change_usage_contract(&mut value, fault);
++                Iface::from_json(&value.to_string())
++                    .expect("fault is structural JSON, not an envelope parse error")
++            })
++            .collect();
++        rehash(&mut changed);
++        manifest(&directory, &changed);
++        let (status, report) = consumer(
++            &directory,
++            &executable,
++            "import MVarFacade (MVar as Cell)",
++            declaration,
++        );
++        outcomes.push((fault, status, report));
++    }
++    // Preserve all five independent semantic refusals before asserting them.
++    for (fault, status, report) in outcomes {
++        assert_eq!(
++            status, 4,
++            "unsupported private-field proof {fault}: {report}"
++        );
++    }
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Reexports cannot replace defining fields or alter the header roles that those fields quantify over.
++#[test]
++fn source_absent_private_usage_headers_reject_contradictory_defining_authority() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut outcomes = Vec::new();
++    for fault in [
++        "field-contradiction",
++        "missing-constructor",
++        "duplicate-constructor",
++        "wrong-owner",
++        "wrong-role",
++    ] {
++        let mut changed = interfaces.clone();
++        let facade = changed
++            .iter_mut()
++            .find(|row| row.module == "MVarFacade")
++            .unwrap();
++        let proof = facade
++            .exports
++            .types
++            .iter_mut()
++            .find(|row| row.name == "MVar")
++            .unwrap()
++            .ownership
++            .as_mut()
++            .expect("genuine reexport retains the defining usage proof");
++        match fault {
++            "field-contradiction" => {
++                proof.usage.as_mut().unwrap()[0].fields = vec!["(MVarCell Bytes)".into()]
++            }
++            "missing-constructor" => proof.usage.as_mut().unwrap().clear(),
++            "duplicate-constructor" => {
++                let row = proof.usage.as_ref().unwrap()[0].clone();
++                proof.usage.as_mut().unwrap().push(row);
++            }
++            "wrong-owner" => proof.identity = "Other.Cell".into(),
++            "wrong-role" => proof.parameters[0].kind = "Region".into(),
++            _ => unreachable!(),
++        }
++        rehash(&mut changed);
++        manifest(&directory, &changed);
++        let (status, report) = consumer(&directory, &executable, "import MVarFacade (MVar as Cell)",
++            "-- | Header admission must fail even without executing or importing a cell operation.\n  identity :: Cell Nat -> Cell Nat\n  identity value = value");
++        outcomes.push((fault, status, report));
++    }
++    for (fault, status, report) in outcomes {
++        assert_eq!(
++            status, 90,
++            "contradictory defining usage authority {fault}: {report}"
++        );
+     }
+     common::cleanup(&directory);
+     common::cleanup(&source);

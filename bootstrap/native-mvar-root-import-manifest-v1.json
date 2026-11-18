@@ -1,0 +1,557 @@
+{
+  "exclusions": [
+    "bootstrap/stage0.lock.json",
+    "bootstrap/library-provider.lock.json",
+    "bootstrap/library-object-roots.json",
+    "tooling snapshot scripts",
+    "all compiler/prelude sources",
+    "all Rust runtime or LLVM emitter code",
+    "all frozen artifacts and provider manifests"
+  ],
+  "native_candidate_commit": "95792ff39788b14e1d9a4945eca081905da27cc0",
+  "open_obligations": [
+    "source-absent opaque public MVar Nat task sharing remains unavailable until genuine payload proof transport",
+    "I128/U128 MVar payload explicitly refused until a complete boxed-wide bridge is independently validated",
+    "open effect rows remain unsupported by resolved transport",
+    "all Native MVar runtime/emission/interface and new66-family gates remain pending; source fixed point alone is insufficient"
+  ],
+  "paired_rust_transport": {
+    "base_commit": "2a558db0daf89cdffffe61adca0cc7f4083a3b9a",
+    "evidence_and_refinement_followup": "cb921c5704fe108be7760cb01417befba7e1abd3",
+    "files": [
+      "compiler/src/check_interface.rs",
+      "compiler/tests/interface_mvar_contracts.rs",
+      "compiler/tests/fixtures/mvar-interface-contracts.cinch",
+      "compiler/tests/fixtures/mvar-source-absent-ownership-obligations.json"
+    ],
+    "production_commit": "959f2643",
+    "status": "untyped and unexecuted; source-absent tests require the complete Native source patch first",
+    "workspace": "/workspace/dasl-stdlib-mvar-transport"
+  },
+  "prerequisites": {
+    "curated_features": [
+      "checked imported scalar contracts and existing ABI bridges",
+      "once-used saturated foreign argument aliases with evaluation-order guards",
+      "optional-body authority projection verifies every row/hash before whole-interface closure exclusion"
+    ],
+    "curated_seven_files_commit": "a6bb3d5ac75e7f7c4902597d43bae5ce0cd443aa",
+    "mvar_parser_layout_fix": "95792ff3",
+    "mvar_source_commit": "1d4415dd",
+    "root_roles_and_runtime": "already inherited by Root820d; no primitive/header/ownership table restamping",
+    "source_parser_production_unchanged": "bootstrap/Bootstrap.Parse.cinch; repair changes RuntimeIr source grouping only"
+  },
+  "production_patch": {
+    "bytes": 77495,
+    "check_command": "git apply --unidiff-zero --check bootstrap/proposals/native-mvar-root820d-production-v1.patch",
+    "files": [
+      "bootstrap/Bootstrap.Builtin.cinch",
+      "bootstrap/Bootstrap.Export.cinch",
+      "bootstrap/Bootstrap.ExportNominal.cinch",
+      "bootstrap/Bootstrap.ExportType.cinch",
+      "bootstrap/Bootstrap.Foreign.cinch",
+      "bootstrap/Bootstrap.Infer.cinch",
+      "bootstrap/Bootstrap.Load.cinch",
+      "bootstrap/Bootstrap.Nominal.cinch",
+      "bootstrap/Bootstrap.Object.cinch",
+      "bootstrap/Bootstrap.Resolve.cinch",
+      "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "bootstrap/Bootstrap.Typing.cinch"
+    ],
+    "format": "zero-context git patch; verify all listed base SHA values before git apply --unidiff-zero",
+    "path": "bootstrap/proposals/native-mvar-root820d-production-v1.patch",
+    "sha256": "6c1860138131cf7e2c275d4dc24d75ca44652292e77e008ba33b2f8941e9fd0d",
+    "static_replay": "Passed: apply --check and apply to a fresh exact820d twelve-file source copy, then all12 candidate SHA values matched; no compiler/build/admission."
+  },
+  "relevant_test_sources": [
+    {
+      "path": "compiler/tests/fixtures/native-mvar-contract-vectors.json",
+      "scope": "36 prepared compiler contract/authority/ownership/refusal controls; actual Native execution pending",
+      "sha256": "2e8f6ccc311974c137a12151c0e19920a847c6d4e56c667438233ed5a2279f56"
+    },
+    {
+      "path": "compiler/tests/fixtures/native-mvar-word-runtime.cinch",
+      "scope": "all14 operations; corrected public Io/Cancel scope independently source-preflighted089/d91 only",
+      "sha256": "67b2b16a15a5b264c8a1cf3f01e31e0062aab2e211fc01cf5917cc9957d7e017"
+    },
+    {
+      "path": "bootstrap/programs/Run.ImportedPreconditions.cinch",
+      "scope": "unchanged actual source-absent checker program used by paired integration target",
+      "sha256": "2f2f45ad29e1abb8455b9d6f73970b176706ef42ffd645565e63043fe2240779"
+    }
+  ],
+  "root_base_commit": "820d234b784f459eaf8e99dc82871105c8731086",
+  "schema": 1,
+  "source_files": [
+    {
+      "base_sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "candidate_sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Ast.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Ast.cinch",
+      "source_check_file_sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455"
+    },
+    {
+      "base_sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "candidate_sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.BodyContract.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.BodyContract.cinch",
+      "source_check_file_sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4"
+    },
+    {
+      "base_sha256": "6f998282d3a7a743acf69538de0a815e6bdb6b224f4110719651e744a9357f98",
+      "candidate_sha256": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Builtin.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Builtin.cinch",
+      "source_check_file_sha256": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e"
+    },
+    {
+      "base_sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "candidate_sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Check.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Check.cinch",
+      "source_check_file_sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32"
+    },
+    {
+      "base_sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "candidate_sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Contracts.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Contracts.cinch",
+      "source_check_file_sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac"
+    },
+    {
+      "base_sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4",
+      "candidate_sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Core.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Core.cinch",
+      "source_check_file_sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4"
+    },
+    {
+      "base_sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+      "candidate_sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.CoreBody.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.CoreBody.cinch",
+      "source_check_file_sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da"
+    },
+    {
+      "base_sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "candidate_sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Dictionary.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Dictionary.cinch",
+      "source_check_file_sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6"
+    },
+    {
+      "base_sha256": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "candidate_sha256": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Driver.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Driver.cinch",
+      "source_check_file_sha256": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533"
+    },
+    {
+      "base_sha256": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+      "candidate_sha256": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Eval.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Eval.cinch",
+      "source_check_file_sha256": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967"
+    },
+    {
+      "base_sha256": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+      "candidate_sha256": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Expand.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Expand.cinch",
+      "source_check_file_sha256": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a"
+    },
+    {
+      "base_sha256": "dbe7a43bf3c9b9a2afdd64e3dad8c7a9395e38b61ac5ac3b4ccc161eca2e0cdc",
+      "candidate_sha256": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Export.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Export.cinch",
+      "source_check_file_sha256": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571"
+    },
+    {
+      "base_sha256": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a",
+      "candidate_sha256": "0343a532664878f372ff36fed4d3a9681efe81778fb501bc5938fe07605013c3",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.ExportNominal.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.ExportNominal.cinch",
+      "source_check_file_sha256": "0343a532664878f372ff36fed4d3a9681efe81778fb501bc5938fe07605013c3"
+    },
+    {
+      "base_sha256": "2000f8c730cf0860425a8ba229da51cc8e80968950d862759de97f8b43ba0363",
+      "candidate_sha256": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.ExportType.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.ExportType.cinch",
+      "source_check_file_sha256": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f"
+    },
+    {
+      "base_sha256": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+      "candidate_sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Foreign.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Foreign.cinch",
+      "source_check_file_sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1"
+    },
+    {
+      "base_sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "candidate_sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Global.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Global.cinch",
+      "source_check_file_sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0"
+    },
+    {
+      "base_sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "candidate_sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Guarded.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Guarded.cinch",
+      "source_check_file_sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98"
+    },
+    {
+      "base_sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "candidate_sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Index.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Index.cinch",
+      "source_check_file_sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f"
+    },
+    {
+      "base_sha256": "3deece3536175594d2dfb92a5705b47668c3f1f5c02baf60c4cd5a057dd57161",
+      "candidate_sha256": "ded87f51dacf38de6011cd34e74a37f67cf769b0e292bfa8a7194d832ca88c94",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Infer.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Infer.cinch",
+      "source_check_file_sha256": "ded87f51dacf38de6011cd34e74a37f67cf769b0e292bfa8a7194d832ca88c94"
+    },
+    {
+      "base_sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "candidate_sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Inputs.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Inputs.cinch",
+      "source_check_file_sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194"
+    },
+    {
+      "base_sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "candidate_sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Instance.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Instance.cinch",
+      "source_check_file_sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314"
+    },
+    {
+      "base_sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "candidate_sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Interface.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Interface.cinch",
+      "source_check_file_sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032"
+    },
+    {
+      "base_sha256": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+      "candidate_sha256": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Ir.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Ir.cinch",
+      "source_check_file_sha256": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984"
+    },
+    {
+      "base_sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "candidate_sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Kinds.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Kinds.cinch",
+      "source_check_file_sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e"
+    },
+    {
+      "base_sha256": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+      "candidate_sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Load.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Load.cinch",
+      "source_check_file_sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209"
+    },
+    {
+      "base_sha256": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+      "candidate_sha256": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Manifest.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Manifest.cinch",
+      "source_check_file_sha256": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac"
+    },
+    {
+      "base_sha256": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+      "candidate_sha256": "0a43f19e0189e52a0d999fa4bfd3b35e9fc3be22ce9f7c66211dd861f5cddbed",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Nominal.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Nominal.cinch",
+      "source_check_file_sha256": "0a43f19e0189e52a0d999fa4bfd3b35e9fc3be22ce9f7c66211dd861f5cddbed"
+    },
+    {
+      "base_sha256": "17a0e96300ad6110b748aab156c9651608877264f8bde042d5e27c0f08ed7168",
+      "candidate_sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Object.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Object.cinch",
+      "source_check_file_sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a"
+    },
+    {
+      "base_sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "candidate_sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Parse.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Parse.cinch",
+      "source_check_file_sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1"
+    },
+    {
+      "base_sha256": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+      "candidate_sha256": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Pipeline.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Pipeline.cinch",
+      "source_check_file_sha256": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c"
+    },
+    {
+      "base_sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "candidate_sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Proof.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Proof.cinch",
+      "source_check_file_sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3"
+    },
+    {
+      "base_sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "candidate_sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Report.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Report.cinch",
+      "source_check_file_sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7"
+    },
+    {
+      "base_sha256": "8178ecb7bfe8c806bf926166cccc86358577e8d901a30817c7f9e36bc7ba01c9",
+      "candidate_sha256": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Resolve.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Resolve.cinch",
+      "source_check_file_sha256": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd"
+    },
+    {
+      "base_sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "candidate_sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.RuntimeAbi.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.RuntimeAbi.cinch",
+      "source_check_file_sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e"
+    },
+    {
+      "base_sha256": "b599bb58d3cde4beb608bbe044ced9ec12facd98889ac71910953604f88e26b5",
+      "candidate_sha256": "595caf0d1a6d49d43093c3caa8a50d2afc0769a7f800460d828e6936fd9a8f19",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.RuntimeIr.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.RuntimeIr.cinch",
+      "source_check_file_sha256": "595caf0d1a6d49d43093c3caa8a50d2afc0769a7f800460d828e6936fd9a8f19"
+    },
+    {
+      "base_sha256": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+      "candidate_sha256": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Stage.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Stage.cinch",
+      "source_check_file_sha256": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61"
+    },
+    {
+      "base_sha256": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+      "candidate_sha256": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.StageEval.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.StageEval.cinch",
+      "source_check_file_sha256": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef"
+    },
+    {
+      "base_sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "candidate_sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Temporal.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Temporal.cinch",
+      "source_check_file_sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca"
+    },
+    {
+      "base_sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "candidate_sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.TemporalCheck.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.TemporalCheck.cinch",
+      "source_check_file_sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c"
+    },
+    {
+      "base_sha256": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+      "candidate_sha256": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Test.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Test.cinch",
+      "source_check_file_sha256": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4"
+    },
+    {
+      "base_sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "candidate_sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Total.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Total.cinch",
+      "source_check_file_sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317"
+    },
+    {
+      "base_sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "candidate_sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.TotalSemantics.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.TotalSemantics.cinch",
+      "source_check_file_sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de"
+    },
+    {
+      "base_sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+      "candidate_sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Type.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/Bootstrap.Type.cinch",
+      "source_check_file_sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79"
+    },
+    {
+      "base_sha256": "21731df552664ab330689e857afea2b17af4794fa78f739b022bdb65dd270393",
+      "candidate_sha256": "c35066a2f6dc3bfdc82daa1dd7ec6d8ee8426ea7c8eb84819d62d6547d15c7c7",
+      "generated_forced_imports_only": false,
+      "module_file": "Bootstrap.Typing.cinch",
+      "production_changed": true,
+      "production_path": "bootstrap/Bootstrap.Typing.cinch",
+      "source_check_file_sha256": "c35066a2f6dc3bfdc82daa1dd7ec6d8ee8426ea7c8eb84819d62d6547d15c7c7"
+    },
+    {
+      "base_sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "candidate_sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "generated_forced_imports_only": false,
+      "module_file": "Data.Array.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Data/Array.cinch",
+      "source_check_file_sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+    },
+    {
+      "base_sha256": "686dd5c33049bfa40425404105db701be57b44d1477bdf149b25f362326523b9",
+      "candidate_sha256": "686dd5c33049bfa40425404105db701be57b44d1477bdf149b25f362326523b9",
+      "generated_forced_imports_only": true,
+      "module_file": "Main.cinch",
+      "production_changed": false,
+      "production_path": "bootstrap/programs/Run.Pipeline.cinch",
+      "source_check_file_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc"
+    },
+    {
+      "base_sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "candidate_sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "generated_forced_imports_only": false,
+      "module_file": "Text.Builder.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Text/Builder.cinch",
+      "source_check_file_sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b"
+    },
+    {
+      "base_sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "candidate_sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "generated_forced_imports_only": false,
+      "module_file": "Text.Json.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Text/Json.cinch",
+      "source_check_file_sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c"
+    },
+    {
+      "base_sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "candidate_sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "generated_forced_imports_only": false,
+      "module_file": "Text.Lex.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Text/Lex.cinch",
+      "source_check_file_sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032"
+    },
+    {
+      "base_sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
+      "candidate_sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
+      "generated_forced_imports_only": false,
+      "module_file": "Text.Parse.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Text/Parse.cinch",
+      "source_check_file_sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b"
+    },
+    {
+      "base_sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+      "candidate_sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+      "generated_forced_imports_only": false,
+      "module_file": "Text.Scan.cinch",
+      "production_changed": false,
+      "production_path": "compiler/prelude/Text/Scan.cinch",
+      "source_check_file_sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    }
+  ],
+  "source_gate": {
+    "compiler_sha256": "08929f8db0ff3d6be9e50b3c066f9cdc269deaa923b14ada8607dd3e5ee667bc",
+    "compiler_source_revision": "2a558db0",
+    "elapsed_seconds": 37.046832855,
+    "genuine_interfaces": 117,
+    "mode": "default release source check",
+    "result": "passed",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "scope": "Checks this compiler source; does not execute its MVar checker/emitter"
+  },
+  "status": "source-only import proposal; no Native emitter/runtime or family admission",
+  "typed_source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465"
+}

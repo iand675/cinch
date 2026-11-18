@@ -17,7 +17,7 @@ module Main where
     Some actual -> False
 
   -- | Exercise all fourteen operations only in states where blocking operations can finish.
-  words :: Unit ->{MVar, Diverge} Bool
+  words :: forall r. using (io :: Io r) => Unit ->{MVar, Cancel r, Diverge} Bool
   words unit =
     let cell = mvar-new (0 :: I64) in
     let first = mvar-read cell in
@@ -69,5 +69,5 @@ module Main where
       Some actual -> let removed = mvar-take cell in not empty
 
   -- | Name the first failed word or ownership observation through a stable exit code.
-  main :: Unit ->{MVar, Diverge} Int
-  main unit = if words () then (if bytes-len (retained-bytes ()) == 3 then (if counted-naturals () then (if full-unit () then 0 else 4) else 3) else 2) else 1
+  main :: Unit ->{MVar, Cancel r, Diverge} Int
+  main unit = with (io = newIO ()) in if words () then (if bytes-len (retained-bytes ()) == 3 then (if counted-naturals () then (if full-unit () then 0 else 4) else 3) else 2) else 1

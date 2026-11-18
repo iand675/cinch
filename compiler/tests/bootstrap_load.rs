@@ -147,7 +147,7 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let cycle = vec![row(&dir, "cycle-a.cinchif", &cycle_a), row(&dir, "cycle-b.cinchif", &cycle_b)];
     let nominal_value = |symbol: &str, identity: &str, constructors: Vec<String>| ValueExport { total_body: None, keyed_ordering: None,
         name: symbol.into(), symbol: format!("Origin.{symbol}"), scheme: "Hidden".into(), arity: 0,
-        resolved: Some(ResolvedScheme { measures: vec![], scheme: identity.into(), nominals: vec![NominalContract { refinement: None,
+        resolved: Some(ResolvedScheme { measures: vec![], scheme: identity.into(), nominals: vec![NominalContract { usage: None, refinement: None,
             identity: identity.into(), kind: "data".into(), parameters: vec![], constructors: Some(constructors),
         }] }),
     };

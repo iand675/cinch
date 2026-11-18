@@ -1,0 +1,66 @@
+
+running 8 tests
+test source_absent_legacy_private_fields_remain_conservative ... 
+thread 'source_absent_legacy_private_fields_remain_conservative' (900323) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test source_absent_mvar_handles_do_not_invent_payload_sharing ... 
+thread 'source_absent_mvar_handles_do_not_invent_payload_sharing' (900324) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_mvar_header_proofs_do_not_depend_on_method_imports ... 
+thread 'source_absent_mvar_header_proofs_do_not_depend_on_method_imports' (900325) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_mvar_intrinsics_reject_contradictory_authority ... 
+thread 'source_absent_mvar_intrinsics_reject_contradictory_authority' (900326) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_mvar_operations_keep_complete_effects ... 
+thread 'source_absent_mvar_operations_keep_complete_effects' (900327) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_private_usage_headers_reject_contradictory_defining_authority ... 
+thread 'source_absent_private_usage_headers_reject_contradictory_defining_authority' (900328) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_private_usage_proofs_reject_unsupported_carriers_and_results ... 
+thread 'source_absent_private_usage_proofs_reject_unsupported_carriers_and_results' (900329) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+test source_absent_unresolved_mvar_rows_do_not_invent_portable_authority ... 
+thread 'source_absent_unresolved_mvar_rows_do_not_invent_portable_authority' (900330) panicked at tests/common/mod.rs:56:5:
+assertion `left == right` failed: cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot
+  left: "/workspace/dasl-stdlib-io/compiler"
+ right: "/workspace/dasl-stdlib-io"
+FAILED
+
+failures:
+
+failures:
+    source_absent_legacy_private_fields_remain_conservative
+    source_absent_mvar_handles_do_not_invent_payload_sharing
+    source_absent_mvar_header_proofs_do_not_depend_on_method_imports
+    source_absent_mvar_intrinsics_reject_contradictory_authority
+    source_absent_mvar_operations_keep_complete_effects
+    source_absent_private_usage_headers_reject_contradictory_defining_authority
+    source_absent_private_usage_proofs_reject_unsupported_carriers_and_results
+    source_absent_unresolved_mvar_rows_do_not_invent_portable_authority
+
+test result: FAILED. 0 passed; 8 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
