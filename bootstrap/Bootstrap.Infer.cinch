@@ -1125,7 +1125,7 @@ module Bootstrap.Infer where
         (value, checked) -> checked-typed-source-index sp (UIndexMath "-" (UIndex (normalize checked ty) (IInteger 0)) value) checked)
       else bad sp "unchecked unary operation in index" st
     CApply source ty (CApply partial function method first) second ->
-      case scoped-numeric-method-operation (proof-context env st) (map-term-types (normalize st) method) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
+      case numeric-operands env method first second st of
         Some op -> case reify-argument sp env first st of
           (left, sl) -> case reify-argument sp env second sl of
             (right, sr) -> checked-typed-source-index sp (UIndexMath op left right) sr
@@ -1797,7 +1797,7 @@ module Bootstrap.Infer where
   check-mvar-kernel-scheme sp actual wanted st =
     if not (array-quantifiers-match (scheme-params actual) (scheme-params wanted))
       || list-length (scheme-requirements actual) /= 0 || not (scheme-equivalent actual wanted) then
-      add-error sp "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects" st
+      add-error sp ("MVar intrinsic requires its exact checked polymorphic kernel scheme and effects: " <> display-type-text (scheme-body wanted)) st
     else st
 
   -- | Match both the resolved value contract and its defining foreign row against one canonical plan.
@@ -8819,6 +8819,52 @@ module Bootstrap.Infer where
       (Some callee, checked) -> apply-scoped-argument classes sp env callee value checked
       (None, checked) -> apply-scoped-argument classes sp env fun value checked)
     other -> (CError sp, st)
+  -- A numeric method with a checked total body may perform its pure first
+  -- application after both operands have been evaluated. Keep the actual
+  -- method visible to the proof checker and name the refined value before
+  -- forgetting its predicate, just as an explicit source let would.
+  arithmetic-projection :: CoreTerm -> Bool
+  arithmetic-projection term = case term of
+    CLet sp ty id name sc rhs body -> arithmetic-projection body
+    CForget sp carrier (CLocal at ty id name actuals) -> False
+    CForget sp carrier value -> comparison-refinement (core-type value)
+    other -> False
+  projected-operand :: Span -> List CheckedBinding -> CoreTerm -> (List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)) -> Store -> (CoreTerm, Store)
+  projected-operand sp env term finish st = case term of
+    CLet at ty id name sc rhs body ->
+      let bound = proof-let-env env (MkLocalBinding name sc id (store-level st)) id sc rhs st in
+      case projected-operand sp bound body finish st of
+        (result, done) -> (CLet at (core-type result) id name sc rhs result, done)
+    CForget at carrier value -> (case fresh-id st of
+      (id, next) -> let sc = mono (core-type value) in
+        let name = "#arithmetic-result" in
+        let bound = proof-let-env env (MkLocalBinding name sc id (store-level next)) id sc value next in
+        case finish bound (CForget at carrier (CLocal at (core-type value) id name Nil)) next of
+          (result, done) -> (CLet at (core-type result) id name sc value result, done))
+    other -> finish env term st
+  numeric-operands :: List CheckedBinding -> CoreTerm -> CoreTerm -> CoreTerm -> Store -> Option String
+  numeric-operands env method left right st = case method of
+    CMethod sp ty name owner slot actuals evidence -> numeric-method-for-types (proof-context env st)
+      (map-term-types (normalize st) method) (normalize st (core-type left)) (normalize st (core-type right))
+    other -> None
+  checked-arithmetic-application :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> Option (CoreTerm, Store)
+  checked-arithmetic-application classes sp env fun right st = case fun of
+    CMethod at ty name owner slot actuals evidence -> if not (arithmetic-projection right) then None else
+      (case numeric-operands env fun right right st of
+        None -> None
+        Some op -> Some (projected-operand sp env right (\bound operand ready -> apply-checked-runtime classes sp bound fun operand ready) st))
+    CApply at ty method first -> if not (arithmetic-projection right) then None else
+      (case numeric-operands env method first right st of
+        None -> None
+        Some op -> Some (projected-operand sp env first (\outer left ready ->
+          case fresh-id ready of
+            (id, next) -> let sc = mono (core-type left) in
+              let name = "#arithmetic-left" in
+              let bound = proof-let-env outer (MkLocalBinding name sc id (store-level next)) id sc left next in
+              let prefix = CApply at ty method (CLocal at (core-type left) id name Nil) in
+              case projected-operand sp bound right (\inner operand prepared -> apply-checked-runtime classes sp inner prefix operand prepared) next of
+                (result, done) -> (CLet at (core-type result) id name sc left result, done)) st))
+    other -> None
   -- An argument can retain private witness lets in its result contract.
   -- Evaluate the function first, then open those existing strict scopes
   -- around the call. The actual result is checked while its witnesses
@@ -8826,16 +8872,20 @@ module Bootstrap.Infer where
   apply-scoped-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-scoped-argument classes sp env fun value st =
     if erased-value-arrow (normalize st (core-type fun)) then apply-checked-erased-value classes sp env fun value st
-    else case value of
-      CLet source ty id display sc rhs body -> case fresh-id st of
-        (function-id, next) ->
-          let name = "#argument-function" in
-          let scheme = mono (core-type fun) in
-          let binding = MkLocalBinding name scheme function-id (store-level next) in
-          let bound = proof-let-env env binding function-id scheme fun next in
-          case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
-            (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
-      other -> apply-checked-runtime classes sp env fun value st
+    else case checked-arithmetic-application classes sp env fun value st of
+      Some result -> result
+      None -> apply-ordinary-scoped-argument classes sp env fun value st
+  apply-ordinary-scoped-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-ordinary-scoped-argument classes sp env fun value st = case value of
+    CLet source ty id display sc rhs body -> case fresh-id st of
+      (function-id, next) ->
+        let name = "#argument-function" in
+        let scheme = mono (core-type fun) in
+        let binding = MkLocalBinding name scheme function-id (store-level next) in
+        let bound = proof-let-env env binding function-id scheme fun next in
+        case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
+          (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
+    other -> apply-checked-runtime classes sp env fun value st
   apply-argument-lets :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-argument-lets classes sp env fun value st = case value of
     CLet source ty id display sc rhs body ->

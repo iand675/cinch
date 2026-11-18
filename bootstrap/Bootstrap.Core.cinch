@@ -47,7 +47,7 @@ module Bootstrap.Core where
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
-  export scoped-numeric-method-operation
+  export scoped-numeric-method-operation, numeric-method-for-types
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
   export scoped-refinement-predicate
   export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
@@ -566,7 +566,9 @@ module Bootstrap.Core where
     CIf sp ty condition yes no -> resume-uses choose id condition + choose (resume-uses choose id yes) (resume-uses choose id no)
     CCase sp ty value alts -> resume-uses choose id value + resume-uses choose id alts
     CAlternative sp pattern body (CAlternativesEnd end) -> resume-uses choose id body
-    CAlternative sp pattern body rest -> choose (resume-alternative-uses choose id body rest) (resume-uses choose id rest)
+    CAlternative sp pattern body rest -> let later = resume-uses choose id rest in
+      let matched = resume-alternative-uses choose id body later in
+      if resume-pattern-total pattern then matched else choose matched later
     CArgument sp first rest -> resume-uses choose id first + resume-uses choose id rest
     CTuple sp ty fields -> resume-uses choose id fields
     CPolyIntro sp ty poly-ids fields -> resume-uses choose id fields
@@ -597,16 +599,26 @@ module Bootstrap.Core where
   -- A failed guard continues to later alternatives. Calls performed by
   -- the guard therefore add to calls in the later branch, rather than
   -- being counted as mutually exclusive with that branch.
-  resume-alternative-uses :: (Nat -> Nat -> Nat) -> Nat -> CoreTerm -> CoreTerm -> Nat
-  resume-alternative-uses choose id body rest = case body of
-    CGuard sp ty condition value -> resume-uses choose id condition + choose (resume-uses choose id value) (resume-uses choose id rest)
-    CLet sp ty key name sc rhs value -> resume-uses choose id rhs + resume-alternative-uses choose id value rest
-    CRequire sp ty value -> resume-alternative-uses choose id value rest
-    CDischarge sp ty evidence value -> resume-alternative-uses choose id value rest
-    CProved sp ty evidence value -> resume-alternative-uses choose id value rest
-    CRefine sp ty evidence value -> resume-alternative-uses choose id value rest
-    CForget sp ty value -> resume-alternative-uses choose id value rest
-    other -> choose (resume-uses choose id body) (resume-uses choose id rest)
+  resume-pattern-total :: CorePattern -> Bool
+  resume-pattern-total pat = case pat of
+    CPVar sp ty id name -> True
+    CPWild sp ty -> True
+    CPAs sp ty id name inner -> resume-pattern-total inner
+    other -> False
+  resume-alternative-uses :: (Nat -> Nat -> Nat) -> Nat -> CoreTerm -> Nat -> Nat
+  resume-alternative-uses choose id body later = case body of
+    CGuard sp ty condition value -> resume-uses choose id condition + choose (resume-uses choose id value) later
+    CLet sp ty key name sc rhs value -> resume-uses choose id rhs + resume-alternative-uses choose id value later
+    CMemoScope sp ty region value -> resume-alternative-uses choose id value later
+    CRecursiveValues sp ty region members value -> recursive-resume-uses choose id members + resume-alternative-uses choose id value later
+    CRecursiveFunctions sp ty members value -> recursive-resume-uses choose id members + resume-alternative-uses choose id value later
+    CRefineProof sp ty witness value -> resume-uses choose id witness + resume-alternative-uses choose id value later
+    CRequire sp ty value -> resume-alternative-uses choose id value later
+    CDischarge sp ty evidence value -> resume-alternative-uses choose id value later
+    CProved sp ty evidence value -> resume-alternative-uses choose id value later
+    CRefine sp ty evidence value -> resume-alternative-uses choose id value later
+    CForget sp ty value -> resume-alternative-uses choose id value later
+    other -> resume-uses choose id body
   handler-resumption-safe :: UType -> CoreTerm -> Bool
   handler-resumption-safe operation closure = handler-resumption-count False operation closure
   resume-min :: Nat -> Nat -> Nat
@@ -2259,7 +2271,7 @@ module Bootstrap.Core where
       None -> None
     CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then
       (case body of
-        CPrimitive at out op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+        CPrimitive at out op (CArgument a first (CArgument b second (CArgumentsEnd end))) | string-compare op "-" == 0 ->
           (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (AMinus x y); other -> None)
         other -> None) else None
     other -> None
@@ -3233,21 +3245,23 @@ module Bootstrap.Core where
         proof-expected gamma (scoped-core-equation-facts gamma earlier patterns) result body
       None -> False) && proof-equations scope expected (extend-equation-prefix patterns body earlier) rest
 
-  selected-method-function :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option TotalFunction
+  selected-method-function :: ProofScope -> CoreTerm -> UType -> UType -> Option TotalFunction
   selected-method-function gamma method first second = case method of
     CMethod sp ty name owner slot actuals [CEInstance at factory dictionary Nil (CEArgumentsEnd end)] -> (case selected-method-body dictionary slot (scope-bodies gamma) of
       Some binding -> if not (method-selection-matches dictionary slot name owner actuals factory binding && binding-matches (binding-name binding) "external" (mono ty) binding) then None else
         (case ty of
-          UFun domain (UFun next result) -> if contract-equal domain (core-type first) && contract-equal next (core-type second) then Some (binding-function binding) else None
+          UFun domain (UFun next result) -> if contract-equal domain first && contract-equal next second then Some (binding-function binding) else None
           other -> None)
       None -> None)
     other -> None
   scoped-numeric-method-comparison :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
-  scoped-numeric-method-comparison gamma method first second = case selected-method-function gamma method first second of
+  scoped-numeric-method-comparison gamma method first second = case selected-method-function gamma method (core-type first) (core-type second) of
     Some function -> (case total-numeric-comparison function of Some relation -> comparison-name relation; None -> None)
     None -> None
   scoped-numeric-method-operation :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option String
-  scoped-numeric-method-operation gamma method first second = case selected-method-function gamma method first second of
+  scoped-numeric-method-operation gamma method first second = numeric-method-for-types gamma method (core-type first) (core-type second)
+  numeric-method-for-types :: ProofScope -> CoreTerm -> UType -> UType -> Option String
+  numeric-method-for-types gamma method first second = case selected-method-function gamma method first second of
     Some function -> total-numeric-operation function
     None -> None
   -- A type-only caller has no selected implementation body to inspect.

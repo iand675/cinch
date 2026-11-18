@@ -6,7 +6,7 @@ module Main where
   import Bootstrap.Infer
   import Bootstrap.Core
   import Bootstrap.Type
-  import Bootstrap.Proof (PFalsehood)
+  import Bootstrap.Proof (PFalsehood, PCompare, Equal, AMinus, AInteger, proposition-equal)
   import Bootstrap.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
@@ -52,7 +52,14 @@ module Main where
           let no-machine-subtraction = case prove-subtraction machine-gamma Nil machine machine of None -> True; Some evidence -> False in
           let machine-sum = CPrimitive s (UCon "I64" KType) "+" (CArgument s machine (CArgument s (CInt s (UCon "I64" KType) "1") (CArgumentsEnd s))) in
           let no-wrapping-fact = case core-condition machine-gamma Nil (CPrimitive s boolean ">" (CArgument s machine-sum (CArgument s machine (CArgumentsEnd s)))) of None -> True; Some p -> False in
-          closed && wrong-goal && wrong-branch && outside && missing && forged-false && machine-comparison && no-machine-subtraction && no-wrapping-fact
+          let two = CInt s nat "2" in
+          let division = CPrimitive s nat "/" (CArgument s first (CArgument s two (CArgumentsEnd s))) in
+          let division-honest = case scoped-prove-division (make-proof-scope gamma Nil) Nil first two of
+                None -> False
+                Some certificate -> (case core-let-fact gamma Nil (nonce + 3) (mono nat) (CProved s nat certificate division) of
+                  None -> True
+                  Some fact -> not (proposition-equal fact (PCompare Equal (proof-variable (nonce + 3)) (AMinus (proof-variable first-id) (AInteger 2))))) in
+          division-honest && closed && wrong-goal && wrong-branch && outside && missing && forged-false && machine-comparison && no-machine-subtraction && no-wrapping-fact
   certificates :: CoreTerm -> Nat
   certificates term = case term of
     CProved s ty evidence body -> 1 + certificates body

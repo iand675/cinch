@@ -8,6 +8,7 @@ module Bootstrap.ExportType where
   import Bootstrap.Index
   import Bootstrap.Total (total-identity, total-source-projection)
   import Data.String
+  import Text.Scan (string-starts-with, string-drop)
   import Text.Show (nat-to-string, int-to-string)
 
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
@@ -43,7 +44,7 @@ module Bootstrap.ExportType where
   export-global :: String -> Result String String
   -- Resolve reserves the unencoded runtime entry spelling for Main.main.
   -- Interfaces still record its defining source identity, like every value.
-  export-global name = if same name "#kernel.MVar" then Ok "MVar" else if same name "#kernel.ForeignIO" then Ok "IO" else if same name "main" then Ok "Main.main" else case unpack name of
+  export-global name = if string-starts-with "#effect." name then export-global (string-drop 8 name) else if same name "#kernel.MVar" then Ok "MVar" else if same name "#kernel.ForeignIO" then Ok "IO" else if same name "main" then Ok "Main.main" else case unpack name of
     Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then decode rest
       else if char-code dot == 46 && char-code prefix == 109 then
         (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))

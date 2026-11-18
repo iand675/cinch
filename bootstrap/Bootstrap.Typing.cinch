@@ -112,17 +112,6 @@ module Bootstrap.Typing where
         && effect-kind-declared name (core-effect-kind declaration) kinds
         && operations-registered (core-effect-operations declaration) globals
         && effects-registered kinds globals (Cons name seen) rest
-  -- Source effects inhabit the same global label namespace. A declaration
-  -- such as effect Fail supplies its own kind and checked operations.
-  undeclared-kernel-kinds :: List (String, Kind) -> List CoreEffect -> List (String, Kind)
-  undeclared-kernel-kinds kernels effects = case effects of
-    Nil -> kernels
-    other -> (case kernels of
-      Nil -> Nil
-      Cons (name, kind) rest -> let more = undeclared-kernel-kinds rest effects in
-        (case effect-for-label (UCon name kind) effects of
-          Some declaration -> if kind-equal kind (core-effect-kind declaration) then more else Cons (name, kind) more
-          None -> Cons (name, kind) more))
   close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
   close-typing-context-with-effects kinds declarations effects = close-typing-context-with-data kinds declarations effects Nil
   close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
@@ -142,7 +131,7 @@ module Bootstrap.Typing where
             other -> more)
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
-  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = undeclared-kernel-kinds kernel-effect-kinds effects <> kinds in
+  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
     let all = declared <> constructor-index-kinds datas in
     if nominal-kinds-closed declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
         && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
@@ -212,7 +201,7 @@ module Bootstrap.Typing where
   -- `False` and need different fixes. The checking form stays the one every
   -- caller uses; this one only shapes a message.
   closure-refusal :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> String
-  closure-refusal kinds declarations effects datas definitions = let declared = undeclared-kernel-kinds kernel-effect-kinds effects <> kinds in
+  closure-refusal kinds declarations effects datas definitions = let declared = kernel-effect-kinds <> kinds in
     let all = declared <> constructor-index-kinds datas in
     if not (nominal-kinds-closed declared) then "the nominal kind table is not closed"
     else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))

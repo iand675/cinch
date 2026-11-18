@@ -176,14 +176,17 @@ module Bootstrap.Resolve where
   add-own home name entries = case lookup-binding name entries of
     Some b -> entries
     None -> Cons (MkBinding name home (global-name home name)) entries
-  -- A source effect is its own identity: the spelling is unique in the
-  -- program, so a label resolves by its bare name in every module, the
-  -- same global effect namespace the native frontend holds. Qualifying it
-  -- here would hide an effect a module does not select.
+  -- Source declarations with a kernel spelling have a separate, module-owned
+  -- identity. Other source effects preserve the language's global namespace.
+  source-effect-name :: String -> String -> String
+  source-effect-name home name =
+    if has-name name ["MVar", "IO", "Mut", "Async", "Cancel", "Eval", "Foreign", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"] then
+      "#effect." <> global-name home name
+    else name
   add-own-effect :: String -> String -> List Binding -> List Binding
   add-own-effect home name entries = case lookup-binding name entries of
     Some b -> entries
-    None -> Cons (MkBinding name home name) entries
+    None -> Cons (MkBinding name home (source-effect-name home name)) entries
 
   -- A class member is visible under its label whether it is still in source
   -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
@@ -582,7 +585,7 @@ module Bootstrap.Resolve where
   -- An actual source-effect binding retains its own identity and cannot authorize an intrinsic.
   rename-mvar-effects :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-mvar-effects visible locals labels = case labels of
-    TArg sp (TName at name) rest -> TArg sp (if same name "MVar" && not (case visible-lookup name visible of Some binding -> same (binding-symbol binding) "MVar"; None -> False) then TName at "#kernel.MVar" else rename-type visible locals (TName at name)) (rename-mvar-effects visible locals rest)
+    TArg sp (TName at name) rest -> TArg sp (if same name "MVar" && not (case visible-lookup name visible of Some binding -> string-starts-with "#effect." (binding-symbol binding); None -> False) then TName at "#kernel.MVar" else rename-type visible locals (TName at name)) (rename-mvar-effects visible locals rest)
     TArg sp label rest -> TArg sp (rename-type visible locals label) (rename-mvar-effects visible locals rest)
     other -> rename-type visible locals labels
 
@@ -1028,7 +1031,7 @@ module Bootstrap.Resolve where
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
       (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder
         (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
-    DEffect s name params ops -> (Cons (DEffect s name (rename-params visible Nil params)
+    DEffect s name params ops -> (Cons (DEffect s (source-effect-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
     DInstance s only name params class-app members -> if structural-class-head class-app then
         (Nil, fail s "Copy and Share are compiler-known classes and take no source instance")

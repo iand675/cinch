@@ -61,6 +61,17 @@ module Main where
 }
 
 #[test]
+fn addition_preserves_a_refined_operand_in_either_position() {
+    for expression in ["65 + nat-rem n 10", "nat-rem n 10 + 65"] {
+        let source = format!(
+            "module Main where\n  digit :: Nat -> InRange 0 74 Nat\n  digit n = {expression}\n  main :: Int\n  main = if digit 19 == 74 then 0 else 1\n"
+        );
+        expect_run(expression, &source, 0);
+        expect_err(expression, &source.replace("0 74 Nat", "0 73 Nat"), &["73"]);
+    }
+}
+
+#[test]
 fn the_mask_bounds_its_result() {
     expect_run(
         "mask",

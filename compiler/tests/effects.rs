@@ -275,6 +275,31 @@ module Main where
     );
 }
 
+#[test]
+fn a_case_resumes_exactly_once_on_every_returning_branch() {
+    let alternatives = (0..32).map(|i| format!("{i} -> k {i}")).collect::<Vec<_>>().join("; ");
+    let source = format!(
+        r#"
+module Main where
+  effect Pick where
+    pick :: Int ->{{Pick}} Int
+
+  consume :: Int %1 -> Int
+  consume x = x
+
+  run :: Int %1 -> Int
+  run lin = handle pick 99 + consume lin with (handler Pick where
+    return x -> x
+    pick u resume k -> case u of {{ {alternatives}; _ -> k 1 }})
+
+  main :: Int
+  main = run 5
+"#
+    );
+    expect_ok("resume-case", &source, 6);
+    expect_err("resume-case-drops", &source.replace("_ -> k 1", "_ -> 99"), "must be used exactly once");
+}
+
 // ---------------------------------------------------------------- capabilities
 
 #[test]
