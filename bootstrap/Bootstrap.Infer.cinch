@@ -42,7 +42,7 @@ module Bootstrap.Infer where
   import Bootstrap.TemporalCheck (Parameter, parameter-name, parameter-id, parameter-type, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
 
   export needs-inference, infer-program, elaborate-program
-  export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
+  export Elaboration, elaboration-errors, elaboration-bindings, elaboration-method-scope, elaboration-contexts, elaboration-core, elaboration-law-observations
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export guarded-members, source-method-symbol, source-conditional-head
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
@@ -263,6 +263,9 @@ module Bootstrap.Infer where
   elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
   elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> bindings; other -> Nil
+  elaboration-method-scope :: Elaboration -> ProofScope
+  elaboration-method-scope result = let env = elaboration-bindings result in
+    with-guarded-bindings (env-guarded-bindings env) (with-checked-body-bindings (env-body-context env) (make-proof-scope Nil Nil))
   elaboration-contexts :: Elaboration -> List Json
   elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites temporal -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
@@ -7073,7 +7076,7 @@ module Bootstrap.Infer where
               (case source-instance-fields sp classes kinds families env all description name factory members-list (class-methods description) prepared of
                 (fields, done) -> let constructor = MkCoreInstance sp name flag factory fields in
                   let retained = case find-class owner descriptions of Some prior -> descriptions; None -> Cons description descriptions in
-                  let verified = if instance-closed (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
+                  let verified = if instance-contracts-closed (env-body-context env) (env-guarded-bindings env) (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
                   (case checked-source-instances-with rows classes kinds families env all rest retained verified of
                     (more, others, final) -> (more, Cons constructor others, final)))
             (None, failed) -> checked-source-instances-with rows classes kinds families env all rest descriptions failed)

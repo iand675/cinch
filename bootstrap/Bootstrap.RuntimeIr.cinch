@@ -2471,8 +2471,6 @@ module Bootstrap.RuntimeIr where
   field-named name fields = case fields of Nil -> None; Cons first rest -> if same name (core-name (dictionary-field-definition first)) then Some first else field-named name rest
   field-owner :: String -> List CoreInstance -> Option CoreInstance
   field-owner name instances = case instances of Nil -> None; Cons first rest -> case field-named name (instance-fields first) of Some field -> Some first; None -> field-owner name rest
-  field-at :: Nat -> List CoreDictionaryField -> Option CoreDictionaryField
-  field-at slot fields = case fields of Nil -> None; Cons first rest -> if dictionary-field-slot first == slot then Some first else field-at slot rest
   take-givens :: Nat -> List CoreGiven -> List CoreGiven
   take-givens count givens = if count == 0 then Nil else case givens of Nil -> Nil; Cons first rest -> Cons first (take-givens (count - 1) rest)
   drop-givens :: Nat -> List CoreGiven -> List CoreGiven

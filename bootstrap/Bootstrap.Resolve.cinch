@@ -18,7 +18,7 @@ module Bootstrap.Resolve where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
-  export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available
+  export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle
   export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.

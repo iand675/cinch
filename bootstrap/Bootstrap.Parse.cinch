@@ -1249,7 +1249,11 @@ module Bootstrap.Parse where
   parse-stage-action :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-stage-action toks src fix = case toks of
     Cons keyword rest -> if stage-word-t (lt-token keyword) "emit" then parse-stage-emit (sp-of keyword) rest src fix
-      else if is-word-t (lt-token keyword) "if" then parse-stage-branch (sp-of keyword) rest src fix else PBad
+      else if is-word-t (lt-token keyword) "if" then parse-stage-branch (sp-of keyword) rest src fix
+      else if is-word-t (lt-token keyword) "let" then (case parse-do-statement toks src fix of
+        POk (EDoLet site simple group) remaining -> POk (DStageLet site group) remaining
+        other -> PBad)
+      else PBad
     Nil -> PBad
 
   parse-stage-emit :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl

@@ -6,12 +6,13 @@ module Bootstrap.Stage where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
-  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
+  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle)
   import Bootstrap.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
   import Bootstrap.StageEval
   import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
   import Bootstrap.Type (Scheme, UType, UApp, UCon, scheme-body)
   import Algebra.Semigroup
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Int (int-neg)
   import Data.List (list-length)
   import Text.Lex (Span, span-start, span-end, LToken)
@@ -176,6 +177,7 @@ module Bootstrap.Stage where
 
   action-probes :: Decl -> Result (List Diagnostic) (List Decl)
   action-probes action = case action of
+    DStageLet site group -> Ok (probe site (TName site "Unit") (ELocalGroup site group (EUnit site)))
     DStageEmitValue site value -> Ok Nil
     DEmitMacro site path tokens -> Ok Nil
     DStageEmit site template -> template-probes (decls-of template)
@@ -189,9 +191,16 @@ module Bootstrap.Stage where
   generator-probes declarations = case declarations of
     Nil -> Ok Nil
     Cons first rest -> case (action-probes first, generator-probes rest) of
-      (Ok local, Ok more) -> Ok (local <> more)
+      (Ok local, Ok more) -> (case first of
+        DStageLet site group -> Ok (local <> map (scope-probe site group) more)
+        other -> Ok (local <> more))
       (Err errors, other) -> Err errors
       (other, Err errors) -> Err errors
+
+  scope-probe :: Span -> Expr -> Decl -> Decl
+  scope-probe site bindings declaration = case declaration of
+    DFun at name [(Nil, expression)] -> DFun at name [(Nil, ELocalGroup site bindings expression)]
+    other -> declaration
 
   runtime-value-names :: List Decl -> List String
   runtime-value-names declarations = case declarations of
@@ -476,6 +485,10 @@ module Bootstrap.Stage where
 
   expand-action :: MacroSite -> CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-action context checked owner scope action fuel = case action of
+    DStageLet site group -> (case evaluate-probe checked owner site fuel of
+      Ok (StageUnit, remaining) -> Ok (Nil, remaining)
+      Err errors -> Err errors
+      other -> stage-error site "checked generator binding did not produce Unit")
     DStageEmitValue site value -> emit-stage-value checked scope site value fuel
     DEmitMacro site path tokens -> expand-declaration-call context site path tokens fuel
     DStageEmit site template -> expand-template checked owner (scope-with-template (decls-of template) scope) fuel
@@ -792,6 +805,101 @@ module Bootstrap.Stage where
         Err errors -> Err errors
         Ok (more, done) -> Ok (local <> more, done)
 
+  -- Diagnose a failure to resolve the stage program using the source
+  -- declarations that produce its missing names. Only a path returning
+  -- to a stage definition or generator is a staging cycle. An ordinary
+  -- recursive component along the path can still refer to a generated value.
+  dependency-terms :: Bool -> Expr -> List String -> Result (List Diagnostic) (Expr, List String)
+  dependency-terms active term names = case term of
+    EVar site name | active -> Ok (term, Cons name names)
+    EBin site op left right | active -> walk-children (dependency-terms True) term (Cons op names)
+    EQuote site body -> dependency-terms False body names
+    ESplice site body -> dependency-terms True body names
+    other -> walk-children (dependency-terms active) term names
+
+  clause-dependencies :: Bool -> List (List Pat, Expr) -> List String -> List String
+  clause-dependencies active clauses names = case clauses of
+    Nil -> names
+    Cons (patterns, body) rest -> let (renamed, after) = hygienic-term (ELam (expr-span body) patterns body) 0 in
+      (case dependency-terms active renamed names of
+        Ok (term, found) -> clause-dependencies active rest found
+        Err errors -> clause-dependencies active rest names)
+
+  template-equations :: List Decl -> List Expr
+  template-equations declarations = case declarations of
+    Nil -> Nil
+    Cons (DFun site name clauses) rest -> map (\entry -> case entry of (ps, body) -> EQuote site (ELam site ps body)) clauses <> template-equations rest
+    Cons other rest -> template-equations rest
+
+  generator-expression :: Span -> List Decl -> Expr
+  generator-expression site actions = case actions of
+    Nil -> EUnit site
+    Cons action rest -> let tail = generator-expression site rest in (case action of
+      DStageLet at group -> ELocalGroup at group tail
+      DStageEmitValue at value -> ETuple at (expr-spine at [value, tail])
+      DStageEmit at declarations -> ETuple at (expr-spine at (Cons tail (template-equations (decls-of declarations))))
+      DStageBranch at condition yes no -> ETuple at (expr-spine at [condition, generator-expression at [yes], generator-expression at [no], tail])
+      other -> tail)
+
+  generator-name :: Span -> String
+  generator-name site = "#generate-" <> nat-to-string (span-start site)
+
+  data StageDependencies where
+    StageDependencies :: HashMap String (String, List String) -> List (String, Span) -> StageDependencies
+
+  dependency-node :: String -> String -> String -> List String -> StageDependencies -> StageDependencies
+  dependency-node owner key label dependencies graph = case graph of
+    StageDependencies nodes roots -> let row = (label, dependencies) in
+      StageDependencies (hash-map-insert (cat [owner, ".", key]) row (hash-map-insert key row nodes)) roots
+
+  generator-outputs :: String -> String -> List Decl -> StageDependencies -> StageDependencies
+  generator-outputs owner key actions graph = case actions of
+    Nil -> graph
+    Cons action rest -> let more = generator-outputs owner key rest graph in (case action of
+      DStageBranch at guard yes no -> generator-outputs owner key [yes, no] more
+      DStageEmit at ds -> fold-generated owner key (decls-of ds) more
+      other -> more)
+
+  fold-generated :: String -> String -> List Decl -> StageDependencies -> StageDependencies
+  fold-generated owner key declarations graph = case declarations of
+    Nil -> graph
+    Cons (DFun at name clauses) rest -> fold-generated owner key rest (dependency-node owner name (cat ["`", name, "`"]) [key] graph)
+    Cons other rest -> fold-generated owner key rest graph
+
+  stage-dependency-graph :: String -> List Decl -> StageDependencies
+  stage-dependency-graph owner declarations = case declarations of
+    Nil -> StageDependencies hash-map-empty Nil
+    Cons declaration rest -> let more = stage-dependency-graph owner rest in (case declaration of
+      DFun site name clauses -> dependency-node owner name (cat ["`", name, "`"]) (clause-dependencies True clauses Nil) more
+      DStage at (DFun site name clauses) -> (case dependency-node owner name (cat ["stage `", name, "`"]) (clause-dependencies True clauses Nil) more of
+        StageDependencies nodes roots -> StageDependencies nodes (Cons (name, at) roots))
+      DGenerate site ds -> let key = generator-name site in let actions = decls-of ds in
+        (case dependency-node owner key ("generate block at " <> render-position site)
+                (clause-dependencies True [(Nil, generator-expression site actions)] Nil) (generator-outputs owner key actions more) of
+          StageDependencies nodes roots -> StageDependencies nodes (Cons (key, site) roots))
+      other -> more)
+
+  cycle-edges :: HashMap String (String, List String) -> String -> List String -> List String -> HashMap String Unit -> (Option (List String), HashMap String Unit)
+  cycle-edges nodes start path edges seen = case edges of
+    Nil -> (None, seen)
+    Cons name rest -> (case hash-map-lookup name nodes of
+      None -> cycle-edges nodes start path rest seen
+      Some (label, deps) -> if same start label && list-length path > 1 then (Some (reverse (Cons label path)), seen)
+        else (case hash-map-lookup label seen of
+          Some unit -> cycle-edges nodes start path rest seen
+          None -> (case cycle-edges nodes start (Cons label path) deps (hash-map-insert label () seen) of
+            (Some chain, done) -> (Some chain, done)
+            (None, done) -> cycle-edges nodes start path rest done)))
+
+  staged-cycle :: StageDependencies -> List Diagnostic
+  staged-cycle graph = case graph of
+    StageDependencies nodes Nil -> Nil
+    StageDependencies nodes (Cons (name, site) rest) -> (case hash-map-lookup name nodes of
+      Some (label, dependencies) -> (case cycle-edges nodes label [label] dependencies (hash-map-insert label () hash-map-empty) of
+        (Some chain, seen) -> [MkDiagnostic "bootstrap.stage" site ("stage dependency cycle: " <> render-cycle chain)]
+        (None, seen) -> staged-cycle (StageDependencies nodes rest))
+      None -> staged-cycle (StageDependencies nodes rest))
+
   expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, Nat)
   expand-module resolve program headers names current fuel =
     let declarations = module-decls current in
@@ -806,7 +914,9 @@ module Bootstrap.Stage where
           (resolved, Nil) -> case check-and-retain resolved of
             Err errors -> Err errors
             Ok checked -> finish (Some checked)
-          (resolved, errors) -> Err errors
+          (resolved, errors) -> (case staged-cycle (stage-dependency-graph owner declarations) of
+            Nil -> Err errors
+            cycle -> Err cycle)
 
   expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, Nat)
   expand-modules resolve program headers names modules fuel = case modules of

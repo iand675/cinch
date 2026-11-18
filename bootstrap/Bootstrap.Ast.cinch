@@ -567,6 +567,7 @@ module Bootstrap.Ast where
     DMacro :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
     DGenerate :: Span -> Decl -> Decl
+    DStageLet :: Span -> Expr -> Decl
     DStageEmitValue :: Span -> Expr -> Decl
     DStageEmit :: Span -> Decl -> Decl
     DStageBranch :: Span -> Expr -> Decl -> Decl -> Decl
@@ -637,6 +638,7 @@ module Bootstrap.Ast where
     DGeneratedGroup s home macro-name template -> s
     DStage s body -> s
     DGenerate s actions -> s
+    DStageLet s bindings -> s
     DStageEmitValue s value -> s
     DStageEmit s template -> s
     DStageBranch s condition yes no -> s
@@ -691,6 +693,7 @@ module Bootstrap.Ast where
     DGeneratedGroup s home macro-name template -> None
     DStage s body -> None
     DGenerate s actions -> None
+    DStageLet s bindings -> None
     DStageEmitValue s value -> None
     DStageEmit s template -> None
     DStageBranch s condition yes no -> None
@@ -946,6 +949,7 @@ module Bootstrap.Ast where
     DGeneratedGroup s home macro-name template -> decl-unmodeled-count template
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
+    DStageLet s bindings -> expr-unmodeled-count bindings
     DStageEmitValue s value -> expr-unmodeled-count value
     DStageEmit s template -> decl-unmodeled-count template
     DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no

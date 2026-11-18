@@ -488,6 +488,25 @@ fn secret_cannot_be_embedded() {
 
 // ------------------------------------------------------------- scheduling
 
+#[test]
+fn generator_lets_scope_checked_values_over_later_actions() {
+    let program = r#"module Main where
+  step :: Int
+  step = 9
+  generate do
+    let step = (40 :: Int)
+    let result = step + 2
+    emit (quoteDecls where { answer :: Int; answer = $(quoteInt result) })
+  main :: Int
+  main = if step == 9 then answer else 0
+"#;
+    assert_eq!(run(program).unwrap(), 42);
+    let error = run_err(&program.replace("step + 2", "step + True"));
+    assert!(error.contains("Int") && error.contains("Bool"), "{error}");
+    let error = run_err(&program.replace("then answer", "then result"));
+    assert!(error.contains("result"), "{error}");
+}
+
 /// A cyclic stage dependency is rejected with the cycle shown: compiling
 /// `f` needs the generated `n`, and executing the generator needs `f`.
 #[test]

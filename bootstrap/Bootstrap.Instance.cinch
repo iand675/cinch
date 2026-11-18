@@ -7,7 +7,8 @@ module Bootstrap.Instance where
   import Text.Json (canonical-bytes)
   import Data.Bytes (bytes-compare)
   import Bootstrap.Core
-  import Bootstrap.BodyContract (BodyBindings, body-binding, body-bindings-members, binding-function, binding-matches, binding-name, selected-method-body, method-selection-matches)
+  import Bootstrap.Guarded (GuardedBinding)
+  import Bootstrap.BodyContract (BodyBindings, empty-body-bindings, body-binding, body-bindings-members, binding-function, binding-matches, binding-name, selected-method-body, method-selection-matches)
   import Bootstrap.Builtin (u32-wrapping-operation)
   import Bootstrap.Total (TotalFunction, total-decimal-value, total-result)
   import Bootstrap.TotalSemantics (total-boolean-reading, total-numeric-reading, arithmetic-constant)
@@ -25,7 +26,7 @@ module Bootstrap.Instance where
   export class-method-name, class-method-slot, class-method-scheme, class-method-equation, class-closed
   export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
   export instance-name, instance-implicit, instance-scheme, instance-fields
-  export dictionary-field-slot, dictionary-field-definition, instance-closed
+  export dictionary-field-slot, dictionary-field-definition, field-at, find-instance, instance-closed, instance-contracts-closed
   export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
   export dictionary-method-symbol, scheme-equivalent
   export FiniteLawSamples, FiniteLawCounterexample, FiniteLawUnavailable, sample-finite-law
@@ -134,6 +135,8 @@ module Bootstrap.Instance where
   instance-scheme node = case node of MkCoreInstance s name flag sc fields -> sc
   instance-fields :: CoreInstance -> List CoreDictionaryField
   instance-fields node = case node of MkCoreInstance s name flag sc fields -> fields
+  field-at :: Nat -> List CoreDictionaryField -> Option CoreDictionaryField
+  field-at slot fields = case fields of Nil -> None; Cons first rest -> if dictionary-field-slot first == slot then Some first else field-at slot rest
   dictionary-field-slot :: CoreDictionaryField -> Nat
   dictionary-field-slot field = case field of MkCoreDictionaryField s slot definition -> slot
   dictionary-field-definition :: CoreDictionaryField -> CoreDefinition
@@ -291,25 +294,27 @@ module Bootstrap.Instance where
       <> [MkRequirement "#instance-self" (scheme-body factory)] <> scheme-requirements member) (scheme-body member)
   dictionary-method-symbol :: String -> Nat -> String
   dictionary-method-symbol owner slot = string-concat-all ["#instance-method:", owner, ":", int-to-string (nat-to-int slot)]
-  fields-closed :: CoreClass -> Scheme -> String -> List CoreClassMethod -> List CoreDictionaryField -> Bool
-  fields-closed description factory symbol members fields = case (members, fields) of
+  fields-closed :: BodyBindings -> List GuardedBinding -> CoreClass -> Scheme -> String -> List CoreClassMethod -> List CoreDictionaryField -> Bool
+  fields-closed bodies guards description factory symbol members fields = case (members, fields) of
     (Nil, Nil) -> True
     (Cons member rest, Cons field more) -> case specialize-method description factory member of
       Some expected -> let definition = dictionary-field-definition field in
         dictionary-field-slot field == class-method-slot member
           && same (core-name definition) (dictionary-method-symbol symbol (class-method-slot member))
           && scheme-equivalent (implementation-scheme factory expected) (core-scheme definition)
-          && core-definition-closed definition && core-definition-result-types definition
-          && fields-closed description factory symbol rest more
+          && core-definition-checked-contracts-closed bodies guards definition && core-definition-result-types definition
+          && fields-closed bodies guards description factory symbol rest more
       None -> False
     other -> False
   target-owner :: UType -> Option String
   target-owner ty = case ty of UCon name kind -> Some name; UApp f x -> target-owner f; other -> None
   instance-closed :: CoreClassContext -> CoreInstance -> Bool
-  instance-closed context node = let factory = instance-scheme node in
+  instance-closed = instance-contracts-closed empty-body-bindings Nil
+  instance-contracts-closed :: BodyBindings -> List GuardedBinding -> CoreClassContext -> CoreInstance -> Bool
+  instance-contracts-closed bodies guards context node = let factory = instance-scheme node in
     class-context-closed context && signature-requirements (context-class-kinds context) (scheme-requirements factory) && string-length (instance-name node) > 0 && contract-scheme-closed factory && (case target-owner (scheme-body factory) of
       Some owner -> (case find-class owner (context-classes context) of
-        Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed description factory (instance-name node) (class-methods description) (instance-fields node)
+        Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed bodies guards description factory (instance-name node) (class-methods description) (instance-fields node)
         None -> False)
       None -> False)
 
@@ -480,16 +485,16 @@ module Bootstrap.Instance where
       SampleUnsupported -> (None, fuel - 1)
     other -> (None, fuel - 1)
 
-  sample-instance :: String -> List CoreInstance -> Option CoreInstance
-  sample-instance identity instances = case instances of
+  find-instance :: String -> List CoreInstance -> Option CoreInstance
+  find-instance identity instances = case instances of
     Nil -> None
-    Cons first rest -> if same identity (instance-name first) then Some first else sample-instance identity rest
+    Cons first rest -> if same identity (instance-name first) then Some first else find-instance identity rest
 
   sample-evidence :: LawEnvironment -> CoreInstance -> String -> CoreEvidence -> Option CoreInstance
   sample-evidence env dictionary self evidence = case evidence of
     CEGiven sp subject symbol -> if same symbol self then Some dictionary else None
     CEInstance sp subject identity actuals (CEArgumentsEnd end) ->
-      (case env of MkLawEnvironment instances bodies definitions -> sample-instance identity instances)
+      (case env of MkLawEnvironment instances bodies definitions -> find-instance identity instances)
     other -> None
 
   scalar-sample-argument :: LawValue -> Option Arithmetic
