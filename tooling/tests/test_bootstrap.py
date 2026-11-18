@@ -525,6 +525,7 @@ class BootstrapContract(unittest.TestCase):
                     bootstrap.check_changed_source()
                 self.assertEqual(build.call_args.args[0], directory / "stage2" / "cinch")
                 self.assertEqual(build.call_args.args[3], 2)
+                self.assertEqual(build.call_args.kwargs["opt_level"], 0)
             self.assertFalse((product / "probe" / "checked.json").exists())
 
 

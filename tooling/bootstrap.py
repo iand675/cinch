@@ -690,7 +690,7 @@ def link_directory(ir: Path) -> Path:
 
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None,
-               pgo_enabled: bool | None = None) -> Path:
+               pgo_enabled: bool | None = None, opt_level: int = 2) -> Path:
     provider = runtime_provider()
     base = provider["interfaces"]
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
@@ -704,6 +704,10 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
               "interface_output": "checked-schema10",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
+    # Normal stages keep the existing -O2 cache identity. A one-shot
+    # behavioral probe records its different clang setting explicitly.
+    if opt_level != 2:
+        inputs["clang_opt_level"] = opt_level
     guided = PGO if pgo_enabled is None else pgo_enabled
     cached_profile = pgo_profile("cinch", sources) if guided else None
     if cached_profile is not None:
@@ -760,7 +764,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         shard_objects = object_paths(directory, JOBS) if JOBS > 1 else None
 
         def link(output: Path, flags: tuple[str, ...], sharded: bool = True) -> int:
-            """Compile the emitted IR at -O2 and link it into output.
+            """Compile the emitted IR and link it into output.
 
             The instrumented training link is never sharded: a profile
             counter block per translation unit makes a sharded
@@ -769,7 +773,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
             whose speed does not matter is built the way that works.
             """
             if sharded and JOBS > 1:
-                failure, shard_log = compile_shards(shards, shard_objects, clang, 2, JOBS,
+                failure, shard_log = compile_shards(shards, shard_objects, clang, opt_level, JOBS,
                                                     directory, environment(), flags)
                 with log.open("ab") as stream:
                     stream.write(shard_log.encode())
@@ -777,7 +781,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                     return failure
                 command = [clang, *shard_objects, provider["object"], runtime, "-o", output, *flags]
             else:
-                command = [clang, "-O2", "-Wno-override-module", *flags, link_ir,
+                command = [clang, f"-O{opt_level}", "-Wno-override-module", *flags, link_ir,
                            provider["object"], runtime, "-o", output]
             if HOST["system"] == "Linux":
                 command.extend(["-ldl", "-lpthread", "-lm"])
@@ -987,9 +991,9 @@ def check_changed_source() -> None:
         raise BootstrapError("update the changed-source probe for Bootstrap.Check's diagnostic label")
     files[name] = files[name].replace(marker, changed_marker)
     directory = BUILD / "changed-source" / "stage2"
-    # The probe exists to show a changed diagnostic, not to be fast, and its
-    # changed source digest could not match the chain's profile anyway.
-    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2, pgo_enabled=False)
+    # This executable runs once on a two-line refusal. It still compiles the
+    # complete changed source with Stage2 and links its actual emitted IR.
+    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2, pgo_enabled=False, opt_level=0)
     case = directory / "probe"
     case.mkdir(exist_ok=True)
     evidence = case / "checked.json"
