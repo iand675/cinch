@@ -3025,6 +3025,8 @@ module Bootstrap.Infer where
   kernel-canonical-type syntax = case syntax of
     TName sp name -> if same name "List" || same name "Option" || same name "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
     TForall sp qs body -> TForall sp qs (kernel-canonical-type body)
+    TUsing sp bounds body -> TUsing sp (kernel-canonical-type bounds) (kernel-canonical-type body)
+    TBound sp name ty rest -> TBound sp name (kernel-canonical-type ty) (kernel-canonical-type rest)
     TFun sp domain result -> TFun sp (kernel-canonical-type domain) (kernel-canonical-type result)
     TFunEff sp domain row result -> TFunEff sp (kernel-canonical-type domain) (kernel-mvar-row row) (kernel-canonical-type result)
     TApp sp head args -> TApp sp (kernel-canonical-type head) (kernel-canonical-arguments args)
