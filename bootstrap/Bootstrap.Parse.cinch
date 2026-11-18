@@ -794,7 +794,7 @@ module Bootstrap.Parse where
         Some args | has-unboxed-item (string-split-on "," args) -> unboxed-decl (sp-of t) rest src fix
           (Cons (DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") acc)
         other -> (case inline-attribute text of
-          Some (family, hint) -> inline-decl (sp-of t) family hint rest src fix acc
+          Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] rest src fix acc
           None -> decl-step toks src fix acc))
       TEOF -> POk (reverse acc) toks
       _ -> decl-step toks src fix acc
@@ -835,13 +835,51 @@ module Bootstrap.Parse where
     else if string-compare family "inline" == 0 then
       Some (family, if open == end then Ok "inlinehint" else if string-compare arg "always" == 0 then Ok "alwaysinline"
         else if string-compare arg "never" == 0 then Ok "noinline" else Err "`#[inline]` expects always or never")
+    else if string-compare family "cold" == 0 then
+      Some (family, if open == end then Ok "cold" else Err "`#[cold]` takes no arguments")
+    else if string-compare family "unroll" == 0 then Some (family, parsed-unroll arg)
+    else if string-compare (string-strip text) "unroll disable" == 0 then Some ("unroll", Ok "0")
     else None
 
-  previous-inline :: String -> List Decl -> Bool
-  previous-inline name declarations = case declarations of
+  unroll-count :: List Char -> Nat -> Result String String
+  unroll-count digits n = case digits of
+    Nil -> Ok (nat-to-string n)
+    Cons ch rest -> let code = char-code ch in
+      if code < 48 || code > 57 then Err "expected a natural number of iterations or `disable` (`#[unroll(4)]`)"
+      else let next = n * 10 + (code - 48) in
+        if next > 2147483647 then Err "`#[unroll]` takes a count of at most 2147483647"
+        else unroll-count rest next
+  parsed-unroll :: String -> Result String String
+  parsed-unroll arg = if string-compare arg "disable" == 0 then Ok "0" else
+    case (if string-length arg == 0 then Err "" else unroll-count (unpack arg) 0) of
+      Ok count -> Ok count
+      Err reason -> Err ("`" <> arg <> "` is not an unroll hint: expected a natural number of iterations or `disable` (`#[unroll(4)]`). " <> reason)
+  hint-family :: String -> String
+  hint-family family = if string-compare family "noinline" == 0 then "inline" else family
+  prior-function-hint :: String -> String -> List Decl -> Bool
+  prior-function-hint name family ds = case ds of
     Nil -> False
-    Cons (DInlineHint sp prior hint) rest -> string-compare name prior == 0 || previous-inline name rest
-    Cons other rest -> previous-inline name rest
+    Cons (DUnrollHint sp owner hint) rest -> (string-compare name owner == 0 && string-compare family "unroll" == 0) || prior-function-hint name family rest
+    Cons (DInlineHint sp owner hint) rest ->
+      let category = (case hint of Ok value | string-compare value "cold" == 0 -> "cold"; other -> "inline") in
+      (string-compare name owner == 0 && string-compare family category == 0) || prior-function-hint name family rest
+    Cons other rest -> prior-function-hint name family rest
+  repeated-hint :: String -> List (Span, String, Result String String) -> Option String
+  repeated-hint name hints = case hints of
+    Nil -> None
+    Cons (sp, prior, hint) rest -> if string-compare (hint-family name) (hint-family prior) == 0 then Some prior else repeated-hint name rest
+  attach-hints :: String -> List (Span, String, Result String String) -> List Decl -> List Decl
+  attach-hints name hints prior = case hints of
+    Nil -> prior
+    Cons (sp, family, value) rest -> let category = hint-family family in
+      let hint = (case repeated-hint family rest of
+        Some earlier -> if string-compare earlier family == 0 then Err ("two `" <> family <> "` attributes on one construct") else Err "one function carries one inline hint"
+        None -> if prior-function-hint name category prior then
+          (if string-compare category "unroll" == 0 then Err "function carries two unroll hints: one hint family"
+           else if string-compare category "cold" == 0 then Err "two `cold` attributes on one construct" else Err "one function carries one inline hint")
+          else value) in
+      Cons (if string-compare family "unroll" == 0 then DUnrollHint sp name hint else DInlineHint sp name hint)
+        (attach-hints name rest prior)
 
   inline-subject :: Decl -> Option String
   inline-subject d = case d of
@@ -849,19 +887,17 @@ module Bootstrap.Parse where
     DFun sp name clauses -> Some name
     other -> None
 
-  inline-decl :: Span -> String -> Result String String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
-  inline-decl site family hint toks src fix acc = case toks of
-    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then inline-decl site family hint rest src fix acc else
+  function-hint-decl :: List (Span, String, Result String String) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  function-hint-decl hints toks src fix acc = case toks of
+    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then function-hint-decl hints rest src fix acc else
       (case lt-token t of
         TAttr text -> (case inline-attribute text of
-          Some (next, value) -> let duplicate = if string-compare family next == 0 then "two `" <> family <> "` attributes" else "one function carries one inline hint" in
-            inline-decl site next (Err duplicate) rest src fix acc
-          None -> decls-loop toks src fix (Cons (DInlineHint site "" (Err "expected a function declaration after an inline hint")) acc))
+          Some (family, value) -> function-hint-decl (Cons (sp-of t, family, value) hints) rest src fix acc
+          None -> decls-loop toks src fix (Cons (DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) acc))
         other -> (case parse-decl-recover toks src fix of
           POk d tail -> (case inline-subject d of
-            Some name -> let result = if previous-inline name acc then Err "one function carries one inline hint" else hint in
-              decls-loop tail src fix (Cons d (Cons (DInlineHint site name result) acc))
-            None -> decls-loop tail src fix (Cons d (Cons (DInlineHint site "" (Err "inline is a hint on a function declaration")) acc)))
+            Some name -> decls-loop tail src fix (Cons d (attach-hints name hints acc))
+            None -> decls-loop tail src fix (Cons d (Cons (DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) acc)))
           PBad -> PBad))
     Nil -> PBad
 

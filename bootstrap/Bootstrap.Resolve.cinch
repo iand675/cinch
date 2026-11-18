@@ -1160,6 +1160,9 @@ module Bootstrap.Resolve where
     DInlineHint s name hint -> (case hint of
       Err message -> (Nil, fail s message)
       Ok value -> ([DInlineHint s (global-name home name) hint], Nil))
+    DUnrollHint s name hint -> (case hint of
+      Err message -> (Nil, fail s message)
+      Ok value -> ([DUnrollHint s (global-name home name) hint], Nil))
     DUnmodeled s text -> (Cons d Nil, fail s (string-concat "the parser cannot model this declaration: " text))
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 

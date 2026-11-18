@@ -686,6 +686,7 @@ module Bootstrap.Eval where
     DUnboxed s name label -> Nil
     DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> Nil
+    DUnrollHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration is whatever it wraps: pruning already
     -- dropped the ones the active profile does not select.

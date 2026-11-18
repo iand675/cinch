@@ -11,8 +11,7 @@
 
 mod common;
 
-use cinch::driver::check_sources;
-use common::source_frontend::run_source;
+use common::source_frontend::{check_sources, emit_ir, run_source};
 
 /// A definition whose self tail call becomes a loop, plus a `main` that
 /// reaches it (code generation emits the units the entry point reaches).
@@ -42,6 +41,7 @@ fn straight(attr: &str) -> String {
     format!(
         "\
 module Main where
+  #[noinline]
   {attr}
   double :: Nat -> Nat
   double x = x + x
@@ -55,16 +55,22 @@ module Main where
 
 /// The IR of one checked source.
 fn ir_of(name: &str, src: &str) -> String {
-    let program = check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    emit_ir(src).unwrap_or_else(|error| panic!("{name}: emit failed: {error}"))
 }
 
 /// The body of one unit's `define` (its lines between `{` and `}`).
 fn body_of(ir: &str, unit: &str) -> String {
-    let quoted = format!("@\"{unit}\"(");
+    // Stage 3 puts the loop in a private tail worker behind the source entry.
+    let tail = format!("@\"cinch.typed.m.{unit}#tail\"(");
+    let ordinary = format!("@\"cinch.typed.m.{unit}\"(");
+    let native = format!("@\"{unit}\"(");
+    let quoted = [&tail, &ordinary, &native]
+        .into_iter()
+        .find(|name| ir.lines().any(|line| line.starts_with("define ") && line.contains(name.as_str())))
+        .unwrap_or_else(|| panic!("{unit}: no definition in {ir}"));
     let mut lines = ir.lines();
     while let Some(l) = lines.next() {
-        if l.starts_with("define ") && l.contains(&quoted) {
+        if l.starts_with("define ") && l.contains(quoted.as_str()) {
             let mut body = String::new();
             for l in lines.by_ref() {
                 if l == "}" {
@@ -217,4 +223,18 @@ fn the_hint_never_changes_the_result() {
         let hinted = run_source(&tail(attr)).unwrap_or_else(|e| panic!("{attr}: {e}"));
         assert_eq!(hinted, plain, "{attr} changed the exit status");
     }
+}
+
+#[test]
+fn hinted_tail_loop_transfers_shared_heap_arguments_before_dropping_the_frame() {
+    let src = r#"module Main where
+  #[unroll(2)]
+  rotate :: Nat -> List Nat -> List Nat -> Nat
+  rotate n xs ys = if n == 0 then
+    case ys of Cons value _ -> value; Nil -> 0
+    else rotate (n - 1) (Cons n ys) xs
+  main :: Int
+  main = if rotate 4 (Cons 11 Nil) (Cons 22 Nil) == 2 then 0 else 1
+"#;
+    assert_eq!(run_source(src).expect("run a hinted loop with live heap arguments"), 0);
 }

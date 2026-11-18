@@ -1003,6 +1003,7 @@ module Bootstrap.Check where
     DUnboxed s name label -> Nil
     DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
+    DUnrollHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 
   check-decls :: List Top -> List Decl -> List Diagnostic

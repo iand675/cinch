@@ -543,11 +543,31 @@ module Main where
 /// Resolve attributes on the named definition rather than accepting a hint
 /// contributed by an unrelated intrinsic wrapper in the same module.
 fn definition_attributes<'a>(ir: &'a str, name: &str) -> &'a str {
-    let marker = format!("@\"{name}\"(");
-    let header = ir.lines().find(|line| line.starts_with("define ") && line.contains(&marker)).unwrap();
-    let group = header.split_whitespace().find(|word| word.starts_with('#')).unwrap();
-    let prefix = format!("attributes {group} = ");
-    ir.lines().find_map(|line| line.strip_prefix(&prefix)).unwrap()
+    let typed_name = if name == "Main.main" {
+        "cinch.typed.main".to_string()
+    } else {
+        format!("cinch.typed.m.{name}")
+    };
+    let markers = [format!("@\"{name}\"("), format!("@\"{typed_name}\"(")];
+    let header = ir.lines().find(|line| {
+        line.starts_with("define ") && markers.iter().any(|marker| line.contains(marker))
+    }).unwrap_or_else(|| panic!("missing LLVM definition for {name}"));
+    header_attributes(ir, header)
+}
+
+fn header_attributes<'a>(ir: &'a str, header: &'a str) -> &'a str {
+    let suffix = header.rsplit_once(')').expect("LLVM parameter list").1;
+    if let Some(group) = suffix.split_whitespace().find(|word| word.starts_with('#')) {
+        let prefix = format!("attributes {group} = ");
+        return ir.lines().find_map(|line| line.strip_prefix(&prefix))
+            .unwrap_or_else(|| panic!("missing LLVM attribute group {group}"));
+    }
+    suffix.trim_end_matches('{').trim()
+}
+
+fn escaped_llvm_symbol(name: &str) -> String {
+    let spelling: String = name.bytes().map(|b| format!("\\{b:02X}")).collect();
+    format!("@\"{spelling}\"(")
 }
 
 /// An opaque foreign implementation may call back through the current unit.
@@ -566,7 +586,18 @@ module Main where
   main :: Unit ->{IO r} Int
   main unit = let observed = forward 0 in 0
 "#);
-    for name in ["Main.callback", "Main.forward", "Main.main"] {
+    // The bootstrap frontend calls the foreign declaration directly. In that
+    // form the reentry contract belongs to the external symbol itself.
+    if ir.contains("@\"Main.callback\"(") {
+        assert!(!definition_attributes(&ir, "Main.callback").contains("norecurse"));
+    } else {
+        let symbol = escaped_llvm_symbol("opaque_reentry");
+        let decl = ir.lines().find(|l| l.starts_with("declare ") && l.contains(&symbol))
+            .expect("opaque foreign declaration");
+        assert!(!header_attributes(&ir, decl).contains("norecurse"));
+        assert!(ir.lines().any(|line| line.contains("call i64 ") && line.contains(&symbol)));
+    }
+    for name in ["Main.forward", "Main.main"] {
         assert!(!definition_attributes(&ir, name).contains("norecurse"), "{name}: opaque reentry was excluded\n{ir}");
     }
 }
@@ -600,20 +631,14 @@ module Main where
   e x = x
 
   main :: Int
-  main = if a 1 == 1 then 0 else 1
+  main = if a (b (c (d (e 1)))) == 1 then 0 else 1
 "#,
     );
     assert!(definition_attributes(&ir, "Main.a").contains("inlinehint"), "{ir}");
     assert!(definition_attributes(&ir, "Main.b").contains("alwaysinline"), "{ir}");
-    // The group carries the hint alongside the unit's LLVM contract
-    // attributes (the contract surface), so the check is the hint's
-    // presence in the attribute vocabulary.
-    assert!(definition_attributes(&ir, "Main.c").contains("noinline"), "{ir}");
-    assert!(definition_attributes(&ir, "Main.d").contains("noinline"), "{ir}");
-    // `#[noinline]` and `#[inline(never)]` are the same hint: both
-    // definitions take the `noinline` attribute group.
-    assert!(ir.contains("@\"Main.c\"(i64 %p0) #"), "{ir}");
-    assert!(ir.contains("@\"Main.d\"(i64 %p0) #"), "{ir}");
+    for name in ["Main.c", "Main.d"] {
+        assert!(definition_attributes(&ir, name).contains("noinline"), "{name}");
+    }
     assert!(definition_attributes(&ir, "Main.e").contains("cold"), "{ir}");
 }
 
@@ -626,6 +651,32 @@ module Main where
   main :: Int
   main = if nat-from-i64 0 + 1 == 1 then 0 else 1
 "#);
+    // Under separate compilation the client calls the object's exported
+    // addition method, which in turn calls the tagged primitive wrapper.
+    let ir = if common::external_frontend::configured().unwrap().is_some() {
+        use serde_json::Value;
+        use sha2::{Digest, Sha256};
+        use std::{fs, path::Path};
+
+        let addition = "Data.Nat.Add_Nat.+";
+        assert!(ir.lines().any(|l| l.contains("call i64 ") && l.contains(&escaped_llvm_symbol(addition))));
+        let configuration = std::env::var_os("CINCH_TEST_OBJECTS").expect("selected library object");
+        let config: Value = serde_json::from_slice(&fs::read(configuration).unwrap()).unwrap();
+        let metadata = Path::new(config["metadata"].as_str().unwrap());
+        let metadata_bytes = fs::read(metadata).unwrap();
+        assert_eq!(config["metadata_sha256"], format!("{:x}", Sha256::digest(&metadata_bytes)));
+        let abi: Value = serde_json::from_slice(&metadata_bytes).unwrap();
+        let object = Path::new(config["object"].as_str().unwrap());
+        assert_eq!(config["object_sha256"], format!("{:x}", Sha256::digest(fs::read(object).unwrap())));
+        let provider = fs::read_to_string(object.with_extension("ll")).unwrap();
+        assert_eq!(abi["ir_content_hash"], cinch::interface::content_hash(&provider));
+        let method = provider.split_once(&format!("define i64 @\"{addition}\"(")).unwrap().1
+            .split_once("\n}").unwrap().0;
+        assert!(method.lines().any(|l| l.contains("call i64 @\"cinch.runtime.natAdd\"(")));
+        provider
+    } else {
+        ir
+    };
     for name in ["natAdd", "natSub", "natCmp", "natFromI64", "natToI64", "bytesLen", "bytesGet", "bytesSet", "bytesCopy"] {
         assert!(definition_attributes(&ir, &format!("cinch.runtime.{name}")).contains("alwaysinline"), "{name}");
     }

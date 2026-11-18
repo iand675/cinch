@@ -585,6 +585,7 @@ module Bootstrap.Ast where
     DUnboxed :: Span -> String -> List String -> Decl
     DUnpackFields :: Span -> String -> List (String, Bool) -> Decl
     DInlineHint :: Span -> String -> Result String String -> Decl
+    DUnrollHint :: Span -> String -> Result String String -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
@@ -643,6 +644,7 @@ module Bootstrap.Ast where
     DUnboxed s name label -> s
     DUnpackFields s name fields -> s
     DInlineHint s name hint -> s
+    DUnrollHint s name hint -> s
     DUnmodeled s text -> s
 
   -- A declaration's name, where it has one a consumer registers.
@@ -674,6 +676,7 @@ module Bootstrap.Ast where
     DUnboxed s name label -> None
     DUnpackFields s name fields -> None
     DInlineHint s name hint -> None
+    DUnrollHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DCorec s body -> decl-name body
@@ -927,6 +930,7 @@ module Bootstrap.Ast where
     DUnboxed s name label -> 0
     DUnpackFields s name fields -> 0
     DInlineHint s name hint -> 0
+    DUnrollHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body

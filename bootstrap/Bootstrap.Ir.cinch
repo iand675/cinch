@@ -347,11 +347,17 @@ module Bootstrap.Ir where
     else if string-length b == 0 then a
     else cat [a, ", ", b]
 
+  function-attributes :: String -> List (String, String) -> String
+  function-attributes name hints = case hints of
+    Nil -> ""
+    Cons (owner, attribute) rest -> if string-compare owner name == 0 then cat [" ", attribute, function-attributes name rest]
+      else function-attributes name rest
+
   gen-define-clause :: Gen -> List (String, String) -> String -> List Pat -> Expr -> Gen
   gen-define-clause g hints name pats body =
     let (g1, header, prologue, env) = gen-params g pats in
     let g2 = with-env env g1 in
-    let hint = (case env-lookup name hints of Some attribute -> cat [" ", attribute]; None -> "") in
+    let hint = function-attributes name hints in
     let g3 = gen-line g2 (cat ["define i64 @", llvm-name name, "(", header, ")", hint, " {"]) in
     let g4 = gen-line g3 "entry:" in
     let g5 = gen-text g4 prologue in
@@ -562,6 +568,7 @@ module Bootstrap.Ir where
     DUnboxed s name label -> Nil
     DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> Nil
+    DUnrollHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration lowers as the declaration it wraps;
     -- pruning already removed the ones this target does not satisfy.

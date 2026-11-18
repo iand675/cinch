@@ -2856,6 +2856,7 @@ module Bootstrap.Infer where
       DUnboxed s name label -> register all rows classes kinds rest env st
       DUnpackFields s name fields -> register all rows classes kinds rest env st
       DInlineHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
+      DUnrollHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
       DContract s keyword name subject clauses -> register all rows classes kinds rest env st
       other -> register all rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
   storage-observation-body :: Nat -> UType -> Option UType

@@ -3,7 +3,7 @@
 -- calls transfer arguments to the callee. Mathematical numbers remain
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Bootstrap.RuntimeIr where
-  import Bootstrap.Ast (Module, program-modules, module-decls, declaration-inline-hints)
+  import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, scalar-intrinsic-scheme)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
@@ -58,7 +58,7 @@ module Bootstrap.RuntimeIr where
 
   data TailContext where
     LocalTail :: List RecursiveWorker -> List Local -> Nat -> TailContext
-    GlobalTail :: Nat -> Nat -> TailContext
+    GlobalTail :: Nat -> Nat -> Option (String, String) -> TailContext
 
   data Demand where
     Demand :: String -> List Nat -> Demand
@@ -86,8 +86,10 @@ module Bootstrap.RuntimeIr where
   -- classification asks whether a foreign ABI passes the type opaquely,
   -- and every call asks whether its target is foreign. The map keeps the
   -- first binding of each name, as a scan in binding order would.
+  data FunctionHints where
+    FunctionHints :: String -> Bool -> Option String -> FunctionHints
   data BindingIndex where
-    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String String) -> BindingIndex
+    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String FunctionHints) -> BindingIndex
   -- Keep declaration order for emitted layouts. The indexes are lookup-only,
   -- so their iteration order cannot affect the output.
   data DataIndex where
@@ -191,24 +193,31 @@ module Bootstrap.RuntimeIr where
   index-bindings checked =
     let bindings = elaboration-bindings (checked-elaboration checked) in
     case foreign-index bindings of
-      (plans, names) -> case collect-inline-hints (program-modules (checked-surface checked)) of
-        Nil -> BindingIndex bindings plans names None
-        hints -> BindingIndex bindings plans names (Some (index-inline-hints hints hash-map-empty))
-  collect-inline-hints :: List Module -> List (String, String)
-  collect-inline-hints modules = case modules of
-    Nil -> Nil
-    Cons m rest -> declaration-inline-hints (module-decls m) <> collect-inline-hints rest
-  index-inline-hints :: List (String, String) -> HashMap String String -> HashMap String String
-  index-inline-hints rows hints = case rows of
+      (plans, names) -> BindingIndex bindings plans names (collect-function-hints (program-modules (checked-surface checked)) None)
+  collect-function-hints :: List Module -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
+  collect-function-hints modules hints = case modules of
     Nil -> hints
-    Cons (name, hint) rest -> index-inline-hints rest (hash-map-insert name hint hints)
+    Cons m rest -> collect-function-hints rest (index-function-hints (module-decls m) hints)
+  lookup-hints :: String -> HashMap String FunctionHints -> FunctionHints
+  lookup-hints name hints = case hash-map-lookup name hints of Some attributes -> attributes; None -> FunctionHints "" False None
+  index-function-hints :: List Decl -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
+  index-function-hints ds hints = case ds of
+    Nil -> hints
+    Cons (DInlineHint sp name (Ok hint)) rest -> let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
+      FunctionHints inline cold loop -> let updated = if same hint "cold" then FunctionHints inline True loop else FunctionHints hint cold loop in
+        index-function-hints rest (Some (hash-map-insert name updated table)))
+    Cons (DUnrollHint sp name (Ok count)) rest -> let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
+      FunctionHints inline cold loop -> index-function-hints rest (Some (hash-map-insert name (FunctionHints inline cold (Some count)) table)))
+    Cons other rest -> index-function-hints rest hints
+  function-hints :: ProgramInfo -> String -> FunctionHints
+  function-hints info name = case info of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints)) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
+    other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
-  function-hint info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints)) versions provider exposed effects tail-groups reclaim wasm32 ->
-      case hash-map-lookup name hints of Some hint -> hint; None -> ""
-    other -> ""
+  function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
   llvm-hint :: Writer -> String -> String
-  llvm-hint w name = let hint = function-hint (writer-program w) name in if same hint "" then "" else " " <> hint
+  llvm-hint w name = case function-hints (writer-program w) name of
+    FunctionHints inline cold loop -> (if same inline "" then "" else " " <> inline) <> (if cold then " cold" else "")
   foreign-index :: List CheckedBinding -> (List ForeignPlan, HashMap String (Option ForeignPlan))
   foreign-index bindings = case bindings of
     Nil -> (Nil, hash-map-empty)
@@ -4769,19 +4778,22 @@ module Bootstrap.RuntimeIr where
   -- A direct call transfers its new arguments and captures before it
   -- releases this frame's roots. LLVM requires the following ret.
   transfer-tail-call :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List CoreTerm -> Writer
-  transfer-tail-call definitions locals roots saved width w callee args = transfer-tail-prefix definitions locals roots saved width w callee Nil args
+  transfer-tail-call definitions locals roots saved width w callee args = transfer-tail-prefix definitions locals roots saved width w callee Nil args None
 
   -- | Transfer checked evidence before positional arguments, retaining all values
   -- until this frame's roots have been released. Captures remain the local worker prefix.
-  transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Writer
-  transfer-tail-prefix definitions locals roots saved width w callee prefix args = case expressions definitions locals w args of
+  transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Option (String, String) -> Writer
+  transfer-tail-prefix definitions locals roots saved width w callee prefix args loop = case expressions definitions locals w args of
     (evaluated, values) -> case capture-values saved evaluated of
       (copied, captures) ->
         let count = list-length prefix + list-length values in
         if count <= width then
           let passed = captures <> prefix <> values <> padding-words (width - count) in
-          let (ready, result) = fresh (drop-locals roots copied) "%v" in
-          line (line ready (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result])
+          let ready = drop-locals roots copied in
+          (case loop of
+            Some (self, metadata) | same self callee -> line (store-loop-arguments passed 0 ready) ("  br label %self.loop, !llvm.loop " <> metadata)
+            other -> let (next, result) = fresh ready "%v" in
+              line (line next (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result]))
         else refuse copied (Span 0 0 1 1) "tail call exceeds its checked worker width"
 
   -- Only source workers in the same direct tail cycle share a prototype.
@@ -4849,10 +4861,10 @@ module Bootstrap.RuntimeIr where
       LocalTail group saved width -> case recursive-call group term of
         Some (callee, args) -> transfer-tail-call definitions locals roots saved width w callee args
         None -> tail-return definitions locals roots w failed term
-      GlobalTail group width -> case global-tail-call definitions group w term of
+      GlobalTail group width loop -> case global-tail-call definitions group w term of
         Some (name, classes, evidence, args) ->
           (case evidences definitions locals (demand-worker name classes w) evidence of
-            (ready, prefix) -> transfer-tail-prefix definitions locals roots Nil width ready (tail-worker-name (specialized-name name classes)) prefix args)
+            (ready, prefix) -> transfer-tail-prefix definitions locals roots Nil width ready (tail-worker-name (specialized-name name classes)) prefix args loop)
         None -> tail-return definitions locals roots w failed term
 
   tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
@@ -4927,8 +4939,26 @@ module Bootstrap.RuntimeIr where
           tail-chain definitions locals roots context (line done (cat [failed, ":"])) ty value rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
 
-  start-tail-worker :: String -> String -> Nat -> Nat -> Writer -> Writer
-  start-tail-worker hint name arity width w =
+  -- The back edge stores all evaluated arguments after releasing the old
+  -- frame's roots. Entry allocas are promotable to SSA loop phis by LLVM.
+  allocate-loop-arguments :: List String -> Writer -> Writer
+  allocate-loop-arguments words w = case words of
+    Nil -> w
+    Cons arg rest -> allocate-loop-arguments rest (line (line w ("  " <> arg <> ".slot = alloca i64")) ("  store i64 " <> arg <> ".initial, ptr " <> arg <> ".slot"))
+  load-loop-arguments :: List String -> Writer -> Writer
+  load-loop-arguments words w = case words of
+    Nil -> w
+    Cons arg rest -> load-loop-arguments rest (line w ("  " <> arg <> " = load i64, ptr " <> arg <> ".slot"))
+  store-loop-arguments :: List String -> Nat -> Writer -> Writer
+  store-loop-arguments words index w = case words of
+    Nil -> w
+    Cons arg rest -> store-loop-arguments rest (index + 1) (line w (cat ["  store i64 ", arg, ", ptr %arg", nat-to-string index, ".slot"]))
+  loop-metadata :: String -> Writer -> (Writer, String)
+  loop-metadata count w = let (one, node) = fresh w "!" in let (two, property) = fresh one "!" in
+    let value = if same count "0" then "llvm.loop.unroll.disable\"}" else "llvm.loop.unroll.count\", i32 " <> count <> "}" in
+    (global (global two (cat [node, " = distinct !{", node, ", ", property, "}"])) (cat [property, " = !{!\"", value]), node)
+  start-tail-worker :: String -> String -> Nat -> Nat -> Bool -> Writer -> Writer
+  start-tail-worker hint name arity width loop w =
     if arity <= width then
       let entry = value-parameters arity 0 in
       let callee = tail-worker-name name in
@@ -4937,7 +4967,9 @@ module Bootstrap.RuntimeIr where
       case call wrapper (symbol callee) (entry <> padding-words (width - arity)) of
         (called, result) ->
           let wrapped = line (line called (cat ["  ret i64 ", result])) "}" in
-          line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words widened), ")", hint, worker-open w])) "entry:"
+          let parameters = if loop then map (\word -> word <> ".initial") widened else widened in
+          let started = line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words parameters), ")", hint, worker-open w])) "entry:" in
+          if loop then load-loop-arguments widened (line (line (allocate-loop-arguments widened started) "  br label %self.loop") "self.loop:") else started
     else refuse w (Span 0 0 1 1) "tail wrapper exceeds its checked worker width"
 
   global-tail-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> TailContext -> List CoreClause -> Writer -> Writer
@@ -4953,8 +4985,16 @@ module Bootstrap.RuntimeIr where
   global-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> List Local -> Writer -> Nat -> Nat -> Nat -> Writer
   global-tail-worker definitions d classes prefix roots w group width arity =
     let offset = list-length (runtime-givens w d) in
-    let started = start-tail-worker (llvm-hint w (core-name d)) (specialized-name (core-name d) classes) (offset + arity) width w in
-    line (global-tail-clauses definitions prefix roots offset (GlobalTail group width) (core-clauses d) started) "}"
+    let name = specialized-name (core-name d) classes in
+    let (prepared, loop) = (case function-hints (writer-program w) (core-name d) of
+      FunctionHints inline cold (Some count) ->
+        let self = core-name d in let arities = hash-map-insert self (offset + arity) hash-map-empty in
+        if exposed-worker self (source-tail-clauses arities (core-clauses d)) then
+          (case loop-metadata count w of (next, metadata) -> (next, Some (tail-worker-name name, metadata)))
+        else (w, None)
+      other -> (w, None)) in
+    let started = start-tail-worker (llvm-hint w (core-name d)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
+    line (global-tail-clauses definitions prefix roots offset (GlobalTail group width loop) (core-clauses d) started) "}"
 
   recursive-worker :: List CoreDefinition -> RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Writer -> Writer
   recursive-worker definitions member group bounds rigids saved w = case member of
@@ -4968,7 +5008,7 @@ module Bootstrap.RuntimeIr where
       let width = recursive-width group in
       let prefix = captured-bindings saved 0 in
       if not (word-type (writer-context scoped) (core-type body)) then refuse scoped sp "recursive worker result needs a runtime representation" else
-        let (started, failed) = fresh (start-tail-worker "" name (offset + arity) (offset + width) scoped) "tailmiss" in
+        let (started, failed) = fresh (start-tail-worker "" name (offset + arity) (offset + width) False scoped) "tailmiss" in
         (case match-clause patterns body prefix offset failed started of
           (matched, bindings, rebuilt) -> case recursive-locals sp captures prefix group rebuilt matched of
             (ready, siblings) ->
