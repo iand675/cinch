@@ -1,0 +1,30 @@
+{
+  "bytes_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+  "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "compiler_source_sha256": "684ae3e12d52784ff61abe1dd74bd90ae70394db74b9d07c1c4f64add29b131f",
+  "config_directory": "/workspace/dasl-stdlib-merged-family/build/merged-provider-v2-config",
+  "emitted_oo_unit": {
+    "arity": 1,
+    "closure_entry": "Data.HashMap.hash-map-to-list@OO.object-closure",
+    "lent": [
+      true
+    ],
+    "lent_entry": "Data.HashMap.hash-map-to-list@OO#tail",
+    "lent_width": 1,
+    "params": [
+      "O"
+    ],
+    "result": "O",
+    "symbol": "Data.HashMap.hash-map-to-list@OO"
+  },
+  "interfaces_sha256": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+  "metadata_sha256": "107b207a85770ec20b819a2af968d9ecf5e29dc29de9993c789bf3e2cdbb7a5a",
+  "object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "objects_sha256": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+  "provider_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+  "receipt_path": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/provider.json",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_shadow_used": false,
+  "status": "strict admission passed; full family gate pending",
+  "string_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+}

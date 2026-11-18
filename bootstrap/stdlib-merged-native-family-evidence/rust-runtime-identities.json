@@ -1,0 +1,19 @@
+{
+  "driver_build_runtime": {
+    "path": "/workspace/dasl-stdlib-merged-family/compiler/runtime/target/release/libcinchruntime.a",
+    "sha256": "1ead46b54091b6cb7f8e36bd3daed7990f160eff8c91ac77f3b604a490f30d20",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8",
+    "runtime_abi": 10,
+    "selection": "driver ensure_runtime host release archive in this worktree"
+  },
+  "explicit_provider_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "rust_field_runtime_selection": {
+    "construction_buffer_join_scalar": "driver_build_runtime",
+    "utf8_text": "explicit_provider_runtime"
+  },
+  "no_archive_substitution": true
+}

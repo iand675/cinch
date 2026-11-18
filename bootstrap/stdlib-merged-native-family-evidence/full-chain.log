@@ -1,0 +1,26 @@
+stage0: verified cached seed
+stage0: fib smoke passed
+stage0: precedence smoke passed
+stage0: refusal smoke passed
+stage0: verified cached seed
+stage1: built /workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage1/cinch
+stage1: fib smoke passed
+stage1: precedence smoke passed
+stage1: refusal smoke passed
+stage0: verified cached seed
+stage1: verified cached compiler
+stage2: built /workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/cinch
+stage2: fib smoke passed
+stage2: precedence smoke passed
+stage2: refusal smoke passed
+stage0: verified cached seed
+stage1: verified cached compiler
+stage2: verified cached compiler
+stage3: built /workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage3/cinch
+stage3: fib smoke passed
+stage3: precedence smoke passed
+stage3: refusal smoke passed
+bootstrap: self-built compiler checks its entry using emitted compiler interfaces
+stage2: built /workspace/dasl-stdlib-merged-family/build/merged-bootstrap/changed-source/stage2/cinch
+bootstrap: changed compiler source rebuilt and changed executable behavior
+bootstrap: stages 2 and 3 reached a fixed point

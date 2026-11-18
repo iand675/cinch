@@ -1,0 +1,94 @@
+[
+  {
+    "target": "lib_buffer_construction",
+    "command": [
+      "taskset",
+      "-c",
+      "4",
+      "cargo",
+      "test",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "compiler/Cargo.toml",
+      "--target-dir",
+      "build/merged-producer-cargo",
+      "--test",
+      "lib_buffer_construction"
+    ],
+    "start_unix": 1794860362.5247703,
+    "status": "passed",
+    "cargo_cache": "own fresh producer release cache, codegen-units1, incremental disabled",
+    "exit": 0,
+    "end_unix": 1794861719.216588
+  },
+  {
+    "target": "lib_string_join",
+    "command": [
+      "taskset",
+      "-c",
+      "4",
+      "cargo",
+      "test",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "compiler/Cargo.toml",
+      "--target-dir",
+      "build/merged-producer-cargo",
+      "--test",
+      "lib_string_join"
+    ],
+    "start_unix": 1794862392.085697,
+    "status": "passed",
+    "cargo_cache": "own fresh producer release cache, codegen-units1, incremental disabled",
+    "exit": 0,
+    "end_unix": 1794862400.2477224
+  },
+  {
+    "target": "lib_utf8_text",
+    "command": [
+      "taskset",
+      "-c",
+      "4",
+      "cargo",
+      "test",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "compiler/Cargo.toml",
+      "--target-dir",
+      "build/merged-producer-cargo",
+      "--test",
+      "lib_utf8_text"
+    ],
+    "start_unix": 1794862400.2481658,
+    "status": "passed",
+    "cargo_cache": "own fresh producer release cache, codegen-units1, incremental disabled",
+    "exit": 0,
+    "end_unix": 1794862406.445883
+  },
+  {
+    "target": "lib_string_scalars",
+    "command": [
+      "taskset",
+      "-c",
+      "1",
+      "cargo",
+      "test",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "compiler/Cargo.toml",
+      "--target-dir",
+      "build/merged-producer-cargo",
+      "--test",
+      "lib_string_scalars"
+    ],
+    "start_unix": 1794862647.0498962,
+    "status": "passed",
+    "cargo_cache": "own fresh producer release cache, codegen-units1, incremental disabled",
+    "exit": 0,
+    "end_unix": 1794862669.4140167
+  }
+]

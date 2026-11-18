@@ -1,0 +1,10 @@
+{
+  "base_revision": "93a09a7901d0cb4ebf65aa31e9c2bd1b334e189d",
+  "bytes_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+  "compiler_source_sha256": "f8118e4c2a673ff8945dd42a01b0bfe6569e16ced5959c1cc409d5dae84847ec",
+  "full_chain_status": "pending",
+  "requested_hashmap_variant": "Data.HashMap.hash-map-to-list@OO",
+  "roots_sha256": "022d612a452e8f18985a1932197b8eaef051be852546ea0ff36f82d4c796d162",
+  "source_files": 51,
+  "string_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+}

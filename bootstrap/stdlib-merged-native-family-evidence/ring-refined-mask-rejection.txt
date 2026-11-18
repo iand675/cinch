@@ -1,0 +1,1 @@
+bootstrap.check:1:1: imported scalar intrinsic disagrees with its defining ABI

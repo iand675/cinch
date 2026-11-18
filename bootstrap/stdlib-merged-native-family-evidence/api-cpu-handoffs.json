@@ -1,0 +1,61 @@
+[
+  {
+    "action": "pause Cargo parent at test-only dependency boundary",
+    "pid": 507761,
+    "unix": 1794860460.9497983,
+    "cpu": 4,
+    "note": "Current compiler child may finish; parent cannot launch another dependency until explicitly resumed."
+  },
+  {
+    "action": "pause own Rust compiler child for CPU4 handoff",
+    "pid": 509681,
+    "unix": 1794860489.147646,
+    "cpu": 4,
+    "note": "Integration-test dependency feature unification rebuilds the production crate; exact in-progress process retained for later resume."
+  },
+  {
+    "action": "resume exact Cargo parent and Rust compiler child after peer handoff",
+    "pids": [
+      507761,
+      509681
+    ],
+    "unix": 1794860851.484682,
+    "cpu": 4
+  },
+  {
+    "action": "pause exact Cargo/Rust compiler for next peer boundary",
+    "pids": [
+      507761,
+      509681
+    ],
+    "unix": 1794860944.6102855,
+    "cpu": 4
+  },
+  {
+    "action": "resume exact E5 Cargo target after LinkedList source boundary",
+    "pids": [
+      507761,
+      509681
+    ],
+    "unix": 1794861429.2137766,
+    "cpu": 4
+  },
+  {
+    "action": "pause exact E5 compile at agreed Split handoff",
+    "pids": [
+      507761,
+      509681
+    ],
+    "unix": 1794861495.0568519,
+    "cpu": 4
+  },
+  {
+    "action": "resume exact E5 compile after exclusive CPU0 budget release",
+    "pids": [
+      507761,
+      509681
+    ],
+    "unix": 1794861639.4671931,
+    "cpu": 4
+  }
+]

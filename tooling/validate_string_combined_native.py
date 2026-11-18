@@ -7,13 +7,25 @@ import json
 import os
 from pathlib import Path
 import shutil
+import resource
+
+import bootstrap
+import bootstrap_objects
 
 from bench_stdlib import source_closure
 from validate_buffer_construction import checks as buffer_checks
 from validate_string_join import checks as join_checks
+from validate_string_scalars import checks as scalar_checks, consumer as scalar_consumer
 from validate_string_construction import digest, run, source_hash
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def compiler_stack() -> None:
+    """Set the compiler main-thread limit independently of each consumer's bounded stack."""
+    _, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    amount = 64 * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_STACK, (amount if hard == resource.RLIM_INFINITY else min(amount, hard), hard))
 
 
 def consumer(expressions: list[str], extra: str) -> str:
@@ -55,14 +67,19 @@ def main() -> None:
     parser.add_argument('--provider', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--groups', nargs='+', choices=['packed', 'buffers', 'regression', 'buffer-owners', 'joins', 'join-owners'],
-                        default=['packed', 'buffers', 'regression', 'buffer-owners', 'joins', 'join-owners'])
+    parser.add_argument('--groups', nargs='+', choices=['packed', 'buffers', 'regression', 'buffer-owners', 'joins', 'join-owners', 'texts', 'edges', 'aggregates', 'raw', 'scalar-owners'],
+                        default=['packed', 'buffers', 'regression', 'buffer-owners', 'joins', 'join-owners', 'texts', 'edges', 'aggregates', 'raw', 'scalar-owners'])
+    parser.add_argument('--compiler-stack-size', choices=['64M', '1G'], default='1G',
+                        help='Native compiler program-thread stack; consumer runs retain their fixed eight-MiB stack')
     args = parser.parse_args()
     fixture_path = ROOT / 'compiler/tests/fixtures/buffer-construction-vectors.json'
     fixture = json.loads(fixture_path.read_text())
     join_path = ROOT / 'compiler/tests/fixtures/string-join-vectors.json'
     join_fixture = json.loads(join_path.read_text())
+    admitted = bootstrap_objects.artifact_provider(bootstrap, args.provider / 'provider.json')
     configuration = json.loads(args.objects.read_text())
+    if configuration != admitted['configuration'] or json.loads(args.interfaces.read_text()) != admitted['interfaces']:
+        raise bootstrap.BootstrapError('client manifests differ from the admitted provider')
     obj = Path(configuration['object'])
     assert digest(obj) == configuration['object_sha256']
     runtime = args.provider / 'libcinchruntime.a'
@@ -73,7 +90,10 @@ def main() -> None:
               'interfaces_sha256': digest(args.interfaces), 'objects_sha256': digest(args.objects),
               'epoch_receipts': receipts(args.interfaces, args.provider),
               'constructor_fixture_sha256': digest(fixture_path), 'join_fixture_sha256': digest(join_path),
-              'compiler_main_thread_stack_bytes': 67108864, 'program_stack_bytes': 8388608, 'results': []}
+              'compiler_main_thread_stack_bytes': 67108864, 'compiler_runtime_stack_bytes': 67108864 if args.compiler_stack_size == '64M' else 1073741824, 'program_stack_bytes': 8388608, 'results': []}
+    scalar_path = ROOT / 'compiler/tests/fixtures/string-scalar-vectors.json'
+    scalar_fixture = json.loads(scalar_path.read_text())
+    report['scalar_fixture_sha256'] = digest(scalar_path)
     extra_buffer = (ROOT / 'compiler/tests/fixtures/buffer-construction-consumer.cinchpart').read_text()
     extra_join = (ROOT / 'compiler/tests/fixtures/string-join-consumer.cinchpart').read_text()
     for group in args.groups:
@@ -87,11 +107,16 @@ def main() -> None:
             expressions = ['buffer-owners-case ()']
         elif group == 'joins':
             expressions = join_checks(join_fixture['joins'])
-        else:
+        elif group == 'join-owners':
             expressions = ['join-owners-case ()']
+        elif group == 'scalar-owners':
+            expressions = ['scalar-owners-case ()']
+        else:
+            expressions = scalar_checks(group, scalar_fixture[group])
         work = args.artifacts / group
         work.mkdir(parents=True, exist_ok=True)
-        text = consumer(expressions, extra_join if group in ['joins', 'join-owners'] else extra_buffer)
+        is_scalar = group in ['texts', 'edges', 'aggregates', 'raw', 'scalar-owners']
+        text = scalar_consumer(expressions) if is_scalar else consumer(expressions, extra_join if group in ['joins', 'join-owners'] else extra_buffer)
         entry = work / 'Main.cinch'
         entry.write_text(text)
         dependencies = source_closure(text)
@@ -105,7 +130,7 @@ def main() -> None:
         command = [str(args.compiler.resolve()), '--emit-ir', '--rc-debug', '--interfaces', str(args.interfaces.resolve()),
                    '--objects', str(args.objects.resolve()), str(bundle.resolve()), str(ir)]
         try:
-            build = run(command)
+            build = run(command, env={**os.environ, 'CINCH_STACK_SIZE': args.compiler_stack_size}, preexec_fn=compiler_stack)
         except RuntimeError as error:
             diagnostics = ir.with_suffix('.ll.diagnostics')
             raise RuntimeError(str(error) + '\n' + (diagnostics.read_text() if diagnostics.exists() else '')) from error
@@ -123,7 +148,8 @@ def main() -> None:
             for debug in [False, True]:
                 for batch in range(len(expressions)):
                     for repetition in range(10 if group.endswith('owners') else 1):
-                        observation = run([str(exe), str(batch)], env={**os.environ, 'CINCH_RC_DEBUG': str(int(debug)),
+                        arguments = [str(batch // 64), str(batch % 64)] if is_scalar else [str(batch)]
+                        observation = run([str(exe), *arguments], env={**os.environ, 'CINCH_RC_DEBUG': str(int(debug)),
                                           'CINCH_HEAP_LIMIT': '256M' if debug else '32M', 'CINCH_STACK_SIZE': '8M',
                                           'CINCH_LEAK_CHECK': '1'})
                         assert 'leaked=0' in observation.stderr, observation.stderr
@@ -133,6 +159,9 @@ def main() -> None:
         report['results'].append(result)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + '\n')
+    bootstrap_objects.artifact_provider(bootstrap, args.provider / 'provider.json')
+    report['status'] = 'passed'
+    args.output.write_text(json.dumps(report, indent=2) + '\n')
 
 
 if __name__ == '__main__':

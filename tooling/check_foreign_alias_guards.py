@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 
 import bootstrap
+import bootstrap_objects
 
 MAIN = '''-- | Execute private guarded-alias refusal and typing observations.
 module Main where
@@ -26,11 +27,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--producer', type=Path, required=True)
     parser.add_argument('--runtime', type=Path, required=True)
+    parser.add_argument('--frontend', choices=['rust', 'native'], default='rust',
+                        help='CLI protocol used by the exact producer under test')
+    parser.add_argument('--library-artifact', type=Path,
+                        help='required matched provider receipt for the Native producer')
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
+    provider = None
+    if args.frontend == 'native':
+        if args.library_artifact is None:
+            parser.error('the Native protocol requires --library-artifact')
+        provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
+        if bootstrap.file_hash(args.runtime) != bootstrap.file_hash(provider['runtime']):
+            raise bootstrap.BootstrapError('private guard runtime differs from the admitted provider')
     files = bootstrap.collect_compiler_sources()
     production_hash = bootstrap.source_hash(files)
     implementation = files['Bootstrap.RuntimeIr.cinch']
@@ -43,10 +55,18 @@ def main() -> None:
               'production_runtime_ir_sha256': bootstrap.digest(implementation), 'test_only_suffix_sha256': bootstrap.digest(suffix),
               'test_source_sha256': bootstrap.source_hash(files), 'bundle_sha256': bootstrap.file_hash(source),
               'producer_sha256': bootstrap.file_hash(args.producer), 'runtime_sha256': bootstrap.file_hash(args.runtime),
-              'compiler_host_opt_level': 0, 'observations': 20, 'steps': [], 'runs': []}
+              'producer_frontend': args.frontend, 'provider': provider['identity'] if provider else None,
+              'probe_link_opt_level': 0, 'observations': 20, 'steps': [], 'runs': []}
     bootstrap.write_json(args.output, report)
-    for name, command in [('emit', [str(args.producer.resolve()), 'emit-ir', str(source), '-o', str(ir)]),
-                          ('link', ['clang', '-O0', '-Wno-override-module', str(ir), str(args.runtime.resolve()), '-o', str(executable), '-ldl', '-lpthread', '-lm'])]:
+    emit = [str(args.producer.resolve()), 'emit-ir', str(source), '-o', str(ir)]
+    if provider is not None:
+        manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
+        bootstrap.write_json(manifest, provider['interfaces'])
+        bootstrap.write_json(objects, provider['configuration'])
+        emit = [str(args.producer.resolve()), '--emit-ir', '--interfaces', str(manifest),
+                '--objects', str(objects), str(source), str(ir)]
+    for name, command in [('emit', emit),
+                          ('link', ['clang', '-O0', '-Wno-override-module', str(ir), *([str(provider['object'])] if provider else []), str(args.runtime.resolve()), '-o', str(executable), '-ldl', '-lpthread', '-lm'])]:
         with (args.artifacts / (name + '.log')).open('w') as log:
             run = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, env=bootstrap.environment())
         report['steps'].append({'name': name, 'command': command, 'exit': run.returncode})
@@ -66,6 +86,8 @@ def main() -> None:
             report['status'] = 'failed'
             bootstrap.write_json(args.output, report)
             raise bootstrap.BootstrapError('private alias guard observations failed')
+    if provider is not None:
+        bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
     report['status'] = 'passed'
     bootstrap.write_json(args.output, report)
     print('20 private alias guards passed normal and poisoned profiles.', flush=True)

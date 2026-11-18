@@ -1,0 +1,122 @@
+{
+  "frontend": "rust",
+  "provisional_combined_gate": false,
+  "source_shadow_used": false,
+  "opt_level": "2",
+  "compiler": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+  "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "producer": {
+    "builder_script_sha256": "9110fe3326a2b0af9d6adf26d4c0fd0df11c33328bb0d87bde885bec2d27d9f5",
+    "commands": [
+      {
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--release",
+          "--bin",
+          "cinch",
+          "--target-dir",
+          "/workspace/dasl-stdlib-merged-family/build/merged-producer-cargo"
+        ],
+        "cwd": "/workspace/dasl-stdlib-merged-family/compiler",
+        "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/compiler-build.log"
+      },
+      {
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--release",
+          "--manifest-path",
+          "/workspace/dasl-stdlib-merged-family/compiler/runtime/Cargo.toml",
+          "--target-dir",
+          "/workspace/dasl-stdlib-merged-family/build/merged-producer-cargo/runtime"
+        ],
+        "cwd": "/workspace/dasl-stdlib-merged-family/compiler",
+        "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/runtime-build.log"
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+          "emit-object",
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library/CinchBaseObject.cinch",
+          "--object-roots",
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/roots.json",
+          "--opt-level",
+          "2",
+          "-o",
+          "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o"
+        ],
+        "cwd": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library",
+        "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/object-build.log"
+      }
+    ],
+    "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+    "mode": "fresh-embedded",
+    "source_sha256": "684ae3e12d52784ff61abe1dd74bd90ae70394db74b9d07c1c4f64add29b131f"
+  },
+  "runtime": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/libcinchruntime.a",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "provider_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+  "interfaces_sha256": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+  "objects_sha256": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+  "object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "metadata_sha256": "107b207a85770ec20b819a2af968d9ecf5e29dc29de9993c789bf3e2cdbb7a5a",
+  "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+  "string_source_hash": "416560347689830784",
+  "string_interface_hash": "14621555996612796731",
+  "string_interface_sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+  "sources": {
+    "Text.Utf8.cinch": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
+    "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Main.cinch": "843d9d373ba510a2d9047af8f881e6dd01e8ad6a0a83ba14ca606a08ca216a73"
+  },
+  "fixture_sha256": "843d9d373ba510a2d9047af8f881e6dd01e8ad6a0a83ba14ca606a08ca216a73",
+  "llvm_sha256": "51c2715d860dbe9ff991661d026250681f0fb1af4e1b4345f40dd6dc9f1c923b",
+  "executable_sha256": "197c3abaa245e0bfea003ed967a02d88882a10701095e98e7c034a1368c5f243",
+  "compile_command": [
+    "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+    "emit-ir",
+    "/workspace/dasl-stdlib-merged-family/build/merged-fresh-rust-utf8-text-controls-o2/project/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-merged-family/build/merged-fresh-rust-utf8-text-controls-o2/consumer.ll",
+    "--rc-debug"
+  ],
+  "link_command": [
+    "clang",
+    "-O2",
+    "/workspace/dasl-stdlib-merged-family/build/merged-fresh-rust-utf8-text-controls-o2/consumer.ll",
+    "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-merged-family/build/merged-fresh-rust-utf8-text-controls-o2/consumer"
+  ],
+  "compiler_host_stack_mib": 64,
+  "compile_seconds": 0.7036899300001096,
+  "cpu": 4,
+  "complete_domain": false,
+  "consumer_kind": "controls",
+  "runs": [
+    {
+      "group": [],
+      "poisoned": false,
+      "heap": "32M",
+      "stack": "8M",
+      "seconds": 0.001811681009712629,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "group": [],
+      "poisoned": true,
+      "heap": "256M",
+      "stack": "8M",
+      "seconds": 0.0014557209942722693,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "all_passed": true
+}

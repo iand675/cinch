@@ -1,0 +1,753 @@
+{
+  "abi_probes": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concrete-string/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concrete-string/probe.ll"
+      ],
+      "compile_exit": 0,
+      "diagnostics": "",
+      "entry_sha256": "a269a999cde4770cc6a63e5233820bf319b3290d92e5c89da9f9896cdba791b0",
+      "executable_sha256": "cf026c2c660631abfc018b7cc44943c34b297f7335cc3f8f3d8e558a0567327f",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concrete-string/probe.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concrete-string/probe",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "1f8d09412acc28d06cbea86fcbb3602f484b53056717212a7ad4ea9c49a96415",
+      "name": "concrete-string",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/list-string-O/Main.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/list-string-O/probe.ll"
+      ],
+      "compile_exit": 0,
+      "diagnostics": "",
+      "entry_sha256": "99694a0b84fe45137acca3e657588480961165d008a2e699e1c01fbba51bf535",
+      "executable_sha256": "a9206904f5c2564dfc540c1d4492623e565e928bbf78cdc182dfe2d7d410b85d",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/list-string-O/probe.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/list-string-O/probe",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "dd4f2038cd219848416cbabb0d3d53fe59f0a91a04f1539d249452d1e78db206",
+      "name": "list-string-O",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "base_object_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "consumer_opt_level": 0,
+  "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+  "provider": {
+    "artifacts": {
+      "base/Algebra/Arithmetic.cinch": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
+      "base/Algebra/Bits.cinch": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
+      "base/Algebra/Group.cinch": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c",
+      "base/Algebra/Monoid.cinch": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591",
+      "base/Algebra/Semigroup.cinch": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+      "base/Algebra/Semiring.cinch": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03",
+      "base/Category/Alternative.cinch": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
+      "base/Category/Applicative.cinch": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+      "base/Category/Foldable.cinch": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab",
+      "base/Category/Functor.cinch": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
+      "base/Category/Monad.cinch": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
+      "base/Category/Traversable.cinch": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad",
+      "base/Data/Ascii.cinch": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
+      "base/Data/Bool.cinch": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
+      "base/Data/Bytes.cinch": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "base/Data/Char.cinch": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
+      "base/Data/Compose.cinch": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
+      "base/Data/Const.cinch": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
+      "base/Data/Core.cinch": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "base/Data/Enum.cinch": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
+      "base/Data/FromList.cinch": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
+      "base/Data/FromMap.cinch": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
+      "base/Data/Hash.cinch": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "base/Data/HashMap.cinch": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "base/Data/Identity.cinch": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
+      "base/Data/Int.cinch": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "base/Data/Json.cinch": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+      "base/Data/List.cinch": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
+      "base/Data/Machine.cinch": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "base/Data/Map.cinch": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "base/Data/Nat.cinch": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "base/Data/NonEmpty.cinch": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900",
+      "base/Data/NonZero.cinch": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b",
+      "base/Data/Option.cinch": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
+      "base/Data/Ordering.cinch": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
+      "base/Data/Path.cinch": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
+      "base/Data/Producer.cinch": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
+      "base/Data/Result.cinch": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "base/Data/Set.cinch": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",
+      "base/Data/Sorted.cinch": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611",
+      "base/Data/String.cinch": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "base/Data/Sym.cinch": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73",
+      "base/Data/Target.cinch": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
+      "base/Data/Wide.cinch": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
+      "base/Effect/Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+      "base/Effect/Concurrent.cinch": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
+      "base/Effect/Fs.cinch": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f",
+      "base/Effect/Io.cinch": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
+      "base/Effect/Process.cinch": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+      "base/Effect/Sequencing.cinch": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255",
+      "base/Effect/Stm.cinch": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810",
+      "base/Effect/Stm/TBQueue.cinch": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
+      "base/Effect/Stm/TMVar.cinch": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4",
+      "base/Effect/Stm/TQueue.cinch": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2",
+      "base/Effect/Stm/TSem.cinch": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d",
+      "base/Function/Combinators.cinch": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
+      "base/Prelude.cinch": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
+      "base/Prim/Sys.cinch": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
+      "base/Prim/Sys/Darwin.cinch": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e",
+      "base/Prim/Sys/Linux.cinch": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd",
+      "base/Prim/Sys/Portable.cinch": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
+      "base/Relation/Eq.cinch": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
+      "base/Relation/Ord.cinch": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
+      "base/Text/Codec.cinch": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+      "base/Text/Show.cinch": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7",
+      "base/cinch-base.cinchpkg": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+      "cinch": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+      "compiler-build.log": "fc0909a5a2e1c641ad6cb44e372e137d8685cba98d8c90984365d5db467bb5d4",
+      "interfaces.json": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+      "libcinchruntime.a": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "library.abi.json": "107b207a85770ec20b819a2af968d9ecf5e29dc29de9993c789bf3e2cdbb7a5a",
+      "library.ll": "f8966e047f21c604ed4bfde909d5e7539a21446b6dd0080775b97a9ffa106f6c",
+      "library.o": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+      "library/CinchBaseObject.cinch": "23215412e39760ba86797417470208af9ce3be32c3ba7741d0afc36b09279868",
+      "library/build/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "library/build/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "library/build/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "library/build/Algebra.Monoid.cinchif": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "library/build/Algebra.Semigroup.cinchif": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "library/build/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "library/build/Category.Alternative.cinchif": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "library/build/Category.Applicative.cinchif": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "library/build/Category.Foldable.cinchif": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "library/build/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "library/build/Category.Monad.cinchif": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "library/build/Category.Traversable.cinchif": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "library/build/CinchBaseObject.cinchif": "d853ad8a43555506765689a200fdc5a430b8523ab60ff911e119da0acf651527",
+      "library/build/Data.Ascii.cinchif": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+      "library/build/Data.Bool.cinchif": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+      "library/build/Data.Bytes.cinchif": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+      "library/build/Data.Char.cinchif": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+      "library/build/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "library/build/Data.Const.cinchif": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "library/build/Data.Core.cinchif": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "library/build/Data.Enum.cinchif": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+      "library/build/Data.FromList.cinchif": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "library/build/Data.FromMap.cinchif": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+      "library/build/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "library/build/Data.HashMap.cinchif": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+      "library/build/Data.Identity.cinchif": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "library/build/Data.Int.cinchif": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "library/build/Data.Json.cinchif": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+      "library/build/Data.List.cinchif": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+      "library/build/Data.Machine.cinchif": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+      "library/build/Data.Map.cinchif": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+      "library/build/Data.Nat.cinchif": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "library/build/Data.NonEmpty.cinchif": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "library/build/Data.NonZero.cinchif": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "library/build/Data.Option.cinchif": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "library/build/Data.Ordering.cinchif": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "library/build/Data.Path.cinchif": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+      "library/build/Data.Producer.cinchif": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "library/build/Data.Result.cinchif": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "library/build/Data.Set.cinchif": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "library/build/Data.Sorted.cinchif": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "library/build/Data.String.cinchif": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+      "library/build/Data.Sym.cinchif": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+      "library/build/Data.Target.cinchif": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "library/build/Data.Wide.cinchif": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+      "library/build/Effect.Clock.cinchif": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "library/build/Effect.Concurrent.cinchif": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "library/build/Effect.Fs.cinchif": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+      "library/build/Effect.Io.cinchif": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+      "library/build/Effect.Process.cinchif": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+      "library/build/Effect.Sequencing.cinchif": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "library/build/Effect.Stm.TBQueue.cinchif": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+      "library/build/Effect.Stm.TMVar.cinchif": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+      "library/build/Effect.Stm.TQueue.cinchif": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+      "library/build/Effect.Stm.TSem.cinchif": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+      "library/build/Effect.Stm.cinchif": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+      "library/build/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "library/build/Prelude.cinchif": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+      "library/build/Prim.Sys.Darwin.cinchif": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+      "library/build/Prim.Sys.Linux.cinchif": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+      "library/build/Prim.Sys.Portable.cinchif": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+      "library/build/Prim.Sys.cinchif": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+      "library/build/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "library/build/Relation.Ord.cinchif": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "library/build/Text.Codec.cinchif": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+      "library/build/Text.Show.cinchif": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+      "object-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "roots.json": "022d612a452e8f18985a1932197b8eaef051be852546ea0ff36f82d4c796d162",
+      "runtime-build.log": "21ecaf30cde4941c652af52340bf1b69d525672896e43ebb91923494d631b201"
+    },
+    "host": {
+      "machine": "x86_64",
+      "system": "Linux"
+    },
+    "kind": "current-base-artifact",
+    "producer": {
+      "builder_script_sha256": "9110fe3326a2b0af9d6adf26d4c0fd0df11c33328bb0d87bde885bec2d27d9f5",
+      "commands": [
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--bin",
+            "cinch",
+            "--target-dir",
+            "/workspace/dasl-stdlib-merged-family/build/merged-producer-cargo"
+          ],
+          "cwd": "/workspace/dasl-stdlib-merged-family/compiler",
+          "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/compiler-build.log"
+        },
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            "/workspace/dasl-stdlib-merged-family/compiler/runtime/Cargo.toml",
+            "--target-dir",
+            "/workspace/dasl-stdlib-merged-family/build/merged-producer-cargo/runtime"
+          ],
+          "cwd": "/workspace/dasl-stdlib-merged-family/compiler",
+          "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/runtime-build.log"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+            "emit-object",
+            "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library/CinchBaseObject.cinch",
+            "--object-roots",
+            "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/roots.json",
+            "--opt-level",
+            "2",
+            "-o",
+            "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o"
+          ],
+          "cwd": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library",
+          "log": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/object-build.log"
+        }
+      ],
+      "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+      "mode": "fresh-embedded",
+      "source_sha256": "684ae3e12d52784ff61abe1dd74bd90ae70394db74b9d07c1c4f64add29b131f"
+    },
+    "receipt_sha256": "86ed12cbac0dab4c66fb12e86d16cf6e4e630da12c9d4355247b61b1d0c4c6b6",
+    "roots_sha256": "022d612a452e8f18985a1932197b8eaef051be852546ea0ff36f82d4c796d162",
+    "runtime": {
+      "runtime_abi": 10,
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "sources": {
+      "Algebra.Arithmetic": {
+        "path": "base/Algebra/Arithmetic.cinch",
+        "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0"
+      },
+      "Algebra.Bits": {
+        "path": "base/Algebra/Bits.cinch",
+        "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712"
+      },
+      "Algebra.Group": {
+        "path": "base/Algebra/Group.cinch",
+        "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c"
+      },
+      "Algebra.Monoid": {
+        "path": "base/Algebra/Monoid.cinch",
+        "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591"
+      },
+      "Algebra.Semigroup": {
+        "path": "base/Algebra/Semigroup.cinch",
+        "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+      },
+      "Algebra.Semiring": {
+        "path": "base/Algebra/Semiring.cinch",
+        "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03"
+      },
+      "Category.Alternative": {
+        "path": "base/Category/Alternative.cinch",
+        "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc"
+      },
+      "Category.Applicative": {
+        "path": "base/Category/Applicative.cinch",
+        "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a"
+      },
+      "Category.Foldable": {
+        "path": "base/Category/Foldable.cinch",
+        "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab"
+      },
+      "Category.Functor": {
+        "path": "base/Category/Functor.cinch",
+        "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1"
+      },
+      "Category.Monad": {
+        "path": "base/Category/Monad.cinch",
+        "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f"
+      },
+      "Category.Traversable": {
+        "path": "base/Category/Traversable.cinch",
+        "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad"
+      },
+      "Data.Ascii": {
+        "path": "base/Data/Ascii.cinch",
+        "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2"
+      },
+      "Data.Bool": {
+        "path": "base/Data/Bool.cinch",
+        "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5"
+      },
+      "Data.Bytes": {
+        "path": "base/Data/Bytes.cinch",
+        "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "Data.Char": {
+        "path": "base/Data/Char.cinch",
+        "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb"
+      },
+      "Data.Compose": {
+        "path": "base/Data/Compose.cinch",
+        "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80"
+      },
+      "Data.Const": {
+        "path": "base/Data/Const.cinch",
+        "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c"
+      },
+      "Data.Core": {
+        "path": "base/Data/Core.cinch",
+        "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+      },
+      "Data.Enum": {
+        "path": "base/Data/Enum.cinch",
+        "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8"
+      },
+      "Data.FromList": {
+        "path": "base/Data/FromList.cinch",
+        "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8"
+      },
+      "Data.FromMap": {
+        "path": "base/Data/FromMap.cinch",
+        "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf"
+      },
+      "Data.Hash": {
+        "path": "base/Data/Hash.cinch",
+        "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00"
+      },
+      "Data.HashMap": {
+        "path": "base/Data/HashMap.cinch",
+        "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565"
+      },
+      "Data.Identity": {
+        "path": "base/Data/Identity.cinch",
+        "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9"
+      },
+      "Data.Int": {
+        "path": "base/Data/Int.cinch",
+        "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea"
+      },
+      "Data.Json": {
+        "path": "base/Data/Json.cinch",
+        "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b"
+      },
+      "Data.List": {
+        "path": "base/Data/List.cinch",
+        "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d"
+      },
+      "Data.Machine": {
+        "path": "base/Data/Machine.cinch",
+        "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032"
+      },
+      "Data.Map": {
+        "path": "base/Data/Map.cinch",
+        "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32"
+      },
+      "Data.Nat": {
+        "path": "base/Data/Nat.cinch",
+        "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b"
+      },
+      "Data.NonEmpty": {
+        "path": "base/Data/NonEmpty.cinch",
+        "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900"
+      },
+      "Data.NonZero": {
+        "path": "base/Data/NonZero.cinch",
+        "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b"
+      },
+      "Data.Option": {
+        "path": "base/Data/Option.cinch",
+        "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01"
+      },
+      "Data.Ordering": {
+        "path": "base/Data/Ordering.cinch",
+        "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+      },
+      "Data.Path": {
+        "path": "base/Data/Path.cinch",
+        "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772"
+      },
+      "Data.Producer": {
+        "path": "base/Data/Producer.cinch",
+        "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f"
+      },
+      "Data.Result": {
+        "path": "base/Data/Result.cinch",
+        "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d"
+      },
+      "Data.Set": {
+        "path": "base/Data/Set.cinch",
+        "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64"
+      },
+      "Data.Sorted": {
+        "path": "base/Data/Sorted.cinch",
+        "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611"
+      },
+      "Data.String": {
+        "path": "base/Data/String.cinch",
+        "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "Data.Sym": {
+        "path": "base/Data/Sym.cinch",
+        "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73"
+      },
+      "Data.Target": {
+        "path": "base/Data/Target.cinch",
+        "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e"
+      },
+      "Data.Wide": {
+        "path": "base/Data/Wide.cinch",
+        "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133"
+      },
+      "Effect.Clock": {
+        "path": "base/Effect/Clock.cinch",
+        "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62"
+      },
+      "Effect.Concurrent": {
+        "path": "base/Effect/Concurrent.cinch",
+        "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a"
+      },
+      "Effect.Fs": {
+        "path": "base/Effect/Fs.cinch",
+        "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f"
+      },
+      "Effect.Io": {
+        "path": "base/Effect/Io.cinch",
+        "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804"
+      },
+      "Effect.Process": {
+        "path": "base/Effect/Process.cinch",
+        "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60"
+      },
+      "Effect.Sequencing": {
+        "path": "base/Effect/Sequencing.cinch",
+        "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255"
+      },
+      "Effect.Stm": {
+        "path": "base/Effect/Stm.cinch",
+        "sha256": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810"
+      },
+      "Effect.Stm.TBQueue": {
+        "path": "base/Effect/Stm/TBQueue.cinch",
+        "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe"
+      },
+      "Effect.Stm.TMVar": {
+        "path": "base/Effect/Stm/TMVar.cinch",
+        "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4"
+      },
+      "Effect.Stm.TQueue": {
+        "path": "base/Effect/Stm/TQueue.cinch",
+        "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2"
+      },
+      "Effect.Stm.TSem": {
+        "path": "base/Effect/Stm/TSem.cinch",
+        "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d"
+      },
+      "Function.Combinators": {
+        "path": "base/Function/Combinators.cinch",
+        "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef"
+      },
+      "Prelude": {
+        "path": "base/Prelude.cinch",
+        "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7"
+      },
+      "Prim.Sys": {
+        "path": "base/Prim/Sys.cinch",
+        "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d"
+      },
+      "Prim.Sys.Darwin": {
+        "path": "base/Prim/Sys/Darwin.cinch",
+        "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e"
+      },
+      "Prim.Sys.Linux": {
+        "path": "base/Prim/Sys/Linux.cinch",
+        "sha256": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd"
+      },
+      "Prim.Sys.Portable": {
+        "path": "base/Prim/Sys/Portable.cinch",
+        "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c"
+      },
+      "Relation.Eq": {
+        "path": "base/Relation/Eq.cinch",
+        "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c"
+      },
+      "Relation.Ord": {
+        "path": "base/Relation/Ord.cinch",
+        "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd"
+      },
+      "Text.Codec": {
+        "path": "base/Text/Codec.cinch",
+        "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29"
+      },
+      "Text.Show": {
+        "path": "base/Text/Show.cinch",
+        "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7"
+      }
+    }
+  },
+  "results": [
+    {
+      "cases": 297,
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir-with-interfaces",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/repeats/Bundle.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/repeats/consumer.ll"
+      ],
+      "entry_sha256": "fc0a78c1867aec0f9ee91c24b49315e903e3393542e9f5a45a2dea00fc303a05",
+      "executable_sha256": "9e882ea8f28fa39030837d43c217716110dbc14afc47bf818d052168ea10a243",
+      "group": "repeats",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/repeats/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/repeats/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "dd004ed976ec791b5ac18b10356474d464671ad38c6c31c92bd242ca1220455c",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ]
+    },
+    {
+      "cases": 101,
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir-with-interfaces",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concats/Bundle.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concats/consumer.ll"
+      ],
+      "entry_sha256": "d413ef8d9888c8d22a19804449f4b86df727faa317df6d06fda0c372dc07e68e",
+      "executable_sha256": "df9b15c02de458a3a9991f4488a86fe7a850c8cb3834bef390d5e17d0e053d45",
+      "group": "concats",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concats/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/concats/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "d965aa1abd30c655acb7a9582cab7644b8324f481b8ea9033b56c6ebe9895a48",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ]
+    },
+    {
+      "cases": 2,
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir-with-interfaces",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/regression/Bundle.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/regression/consumer.ll"
+      ],
+      "entry_sha256": "2c4fc0cfee4750ec0b8860a4644b4fdbcca3a86d35ab957e506cf49c05e23740",
+      "executable_sha256": "0691600c3baf6538ce7432f6c8037c89908372cf5c36ce59fbd05bdbd7180c68",
+      "group": "regression",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/regression/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/regression/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "2ddda6b18ac78083bef2694f510dac760c8887d2f0ec34b9beefeec3da92fcdc",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ]
+    },
+    {
+      "cases": 1,
+      "compile_command": [
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch",
+        "--emit-ir-with-interfaces",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/objects.json",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/owners/Bundle.cinch",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/owners/consumer.ll"
+      ],
+      "entry_sha256": "c462108cbef258f0294d10e33a4c18d52546b1730e9dd5a9035898c0ab2e06df",
+      "executable_sha256": "12116283735117b57c36ca4b986add699827e52c8104962c45b49a1a86702a23",
+      "group": "owners",
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/owners/consumer.ll",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/provider/libcinchruntime.a",
+        "-O0",
+        "-o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-final-construction-o0/owners/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "llvm_sha256": "f706c72ef190f707059b89254bf4fe6a4d6da199670d8a3e484d5457431b2fe0",
+      "runs": [
+        {
+          "debug": false,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        },
+        {
+          "debug": true,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+          "stdout": ""
+        }
+      ]
+    }
+  ],
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_shadow_used": false,
+  "status": "passed"
+}

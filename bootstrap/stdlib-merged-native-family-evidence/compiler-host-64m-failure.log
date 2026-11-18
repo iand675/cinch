@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "/workspace/dasl-stdlib-merged-family/tooling/validate_string_combined_native.py", line 131, in main
+    build = run(command, env={**os.environ, 'CINCH_STACK_SIZE': '64M'}, preexec_fn=compiler_stack)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/dasl-stdlib-merged-family/tooling/validate_string_construction.py", line 77, in run
+    if result.returncode: raise RuntimeError(f'{command}\n{result.stdout}\n{result.stderr}')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: ['/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch', '--emit-ir', '--rc-debug', '--interfaces', '/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/base-interfaces.json', '--objects', '/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/objects.json', '/workspace/dasl-stdlib-merged-family/build/merged-final-fields-texts/texts/Bundle.cinch', '/workspace/dasl-stdlib-merged-family/build/merged-final-fields-texts/texts/consumer.ll']
+
+cinch: exhausted: stack
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/dasl-stdlib-merged-family/tooling/validate_string_combined_native.py", line 166, in <module>
+    main()
+  File "/workspace/dasl-stdlib-merged-family/tooling/validate_string_combined_native.py", line 134, in main
+    raise RuntimeError(str(error) + '\n' + (diagnostics.read_text() if diagnostics.exists() else '')) from error
+RuntimeError: ['/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/cinch', '--emit-ir', '--rc-debug', '--interfaces', '/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/base-interfaces.json', '--objects', '/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/objects.json', '/workspace/dasl-stdlib-merged-family/build/merged-final-fields-texts/texts/Bundle.cinch', '/workspace/dasl-stdlib-merged-family/build/merged-final-fields-texts/texts/consumer.ll']
+
+cinch: exhausted: stack
+
+

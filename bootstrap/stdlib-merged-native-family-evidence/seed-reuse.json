@@ -1,0 +1,35 @@
+{
+  "reused_inputs_only": [
+    "stage0",
+    "seed-sources"
+  ],
+  "source": "/workspace/dasl-stdlib-string-combined/build/combined-bootstrap",
+  "stage0_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+  "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+  "seed_snapshot": "fc9fa8f2bb83081f1e4be5e4d6873a7dba6f855c12b9905e3244d1c8e0e7b01a",
+  "stage0_record": {
+    "artifacts": {},
+    "executable_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+    "exit_code": 0,
+    "inputs": {
+      "host": {
+        "machine": "x86_64",
+        "system": "Linux"
+      },
+      "protocol": 4,
+      "seed": {
+        "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+      }
+    },
+    "log": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage0/build.log",
+    "status": "built"
+  },
+  "fresh_stage1_required": true,
+  "compiler_source_sha256": "f8118e4c2a673ff8945dd42a01b0bfe6569e16ced5959c1cc409d5dae84847ec"
+}

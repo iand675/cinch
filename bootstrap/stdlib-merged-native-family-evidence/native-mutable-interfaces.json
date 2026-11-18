@@ -1,0 +1,57 @@
+{
+  "description": "Validate source-owned phantom kinds through a genuine interface-only client.",
+  "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+  "manifest_sha256": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+  "cpu_affinity": [
+    1
+  ],
+  "producer": {
+    "source_sha256": "38be394fade56bd8e853f75f2db8b3751c8945826ead7222b9d12f8197e2ff07",
+    "contract_sha256": "458aea5d619ed3a9e7068153a6a1b4a393c2d82f2dc91ec6a09090645c77a02e",
+    "interface_hash": "12325531347075447172",
+    "parameter_kinds": {
+      "Ordinary": [
+        "Type"
+      ],
+      "Vector": [
+        "Region",
+        "Type"
+      ]
+    }
+  },
+  "clients": [
+    {
+      "name": "region-roundtrip",
+      "source_sha256": "be568a9c837866ba5b7094683636c100da5980b4c309213e9cd0e85b50942a09",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "leaked": 0
+    },
+    {
+      "name": "region-cannot-be-type",
+      "source_sha256": "8955667f060511f312c202912096e0b40a92af85c728dbbe3865d737d2f562db",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:5:10: kind mismatch in type inference\n",
+      "leaked": 0
+    },
+    {
+      "name": "ordinary-cannot-be-region",
+      "source_sha256": "38722ba95e8a96929cce99f41210b03b75936835f63f546a73d30a85910b9205",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:5:20: kind mismatch in type inference\n",
+      "leaked": 0
+    },
+    {
+      "name": "imported-allocation-monomorphic",
+      "source_sha256": "71dfe6190af113a9e9a59d98a48b14fa6074d7635ca2f35ea24c6408b82ee18f",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:6:106: type mismatch: expected Int, found Bool\n",
+      "leaked": 0
+    }
+  ],
+  "producer_source_removed_before_clients": true
+}
