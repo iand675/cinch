@@ -1,0 +1,20 @@
+{
+  "scope": "Independent byte-field reference preparation only; no Cinch runtime qualification",
+  "sdk_version": "go1.27.4",
+  "rows": 1266,
+  "effect_controls": 8,
+  "fixture_bytes": 704429,
+  "fixture_sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+  "generators": {
+    "tooling/go_byte_fields_vectors.go": "7d2937cf3512563a6a0845761329953a4981127eacd6801f4df28c22b12b8369",
+    "tooling/generate_byte_fields_vectors.py": "68a54bcb7ace672401047e215a7db6d23f813e4935dd61f9192fda971ef9f4de"
+  },
+  "reference_sdk_sources": {
+    "bytes/bytes.go": "e0695206833688b57e9d26014dcd28e3379fc09aafb4c702a82b90563cc11b23",
+    "bytes/iter.go": "628f8dc51af2c70325050c0125340ec01c6a7da84c53f2f5ae3ec040c7e5fc6f"
+  },
+  "independent_check": "Strict scalar decoder with one malformed byte progress; explicit 25-scalar White_Space set; complete output bytes, bounded capacities, callback order, early stop, replay and eight mutable callback traces all agree",
+  "validated_command": "python3 tooling/generate_byte_fields_vectors.py --go /tmp/cinch-go-current/go/bin/go",
+  "receipt": "build/byte-fields-contract-positive/results.json",
+  "cinch_runtime_validation": "pending; source/API/worker changes remain separate uncommitted work"
+}
