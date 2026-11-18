@@ -1038,3 +1038,30 @@ module Main where
   main = readItems (itemsOf (make 37))
 "#, 37, 0);
 }
+
+#[test]
+fn returning_a_matched_parameter_keeps_its_aliases_live() {
+    expect_leaked("returned-parameter", r#"
+module Main where
+  import Data.List
+  #[noinline]
+  original :: List Nat -> List Nat
+  original xs = xs
+
+  #[noinline]
+  choose :: List Nat -> List Nat
+  choose xs = case xs of
+    Cons n tail | n == 0 -> tail
+    Cons n tail -> xs
+    Nil -> xs
+
+  main :: Int
+  main =
+    let xs = Cons (9 :: Nat) Nil in
+    let ys = original xs in
+    let zs = choose (Cons (0 :: Nat) ys) in
+    case (choose xs, zs) of
+      (Cons a Nil, Cons b Nil) -> if a == 9 && b == 9 then 0 else 1
+      _ -> 2
+"#, 0, 0);
+}

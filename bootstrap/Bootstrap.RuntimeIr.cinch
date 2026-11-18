@@ -4637,21 +4637,30 @@ module Bootstrap.RuntimeIr where
       other -> case take-parameter-root returned rest of
         Some remaining -> Some (Cons root remaining)
         None -> None
-  projection-return :: List Local -> List Local -> CoreTerm -> Option (String, List Local)
-  projection-return locals roots body = case body of
-    CForget at ty (CLocal sp original id name Nil) -> (case local id locals of
+  parameter-value :: List Local -> List Local -> CoreTerm -> Option (String, List Local)
+  parameter-value locals roots term = case term of
+    CForget at ty input -> parameter-value locals roots input
+    CLocal sp ty id name Nil -> (case local id locals of
       Some (declared, word) -> (case take-parameter-root word roots of
         Some remaining -> Some (word, remaining)
         None -> None)
       None -> None)
     other -> None
+
+  -- A returned parameter and a case in return position each consume one
+  -- owner. The case holds it until the selected arm has evaluated.
   worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
-  worker-result definitions locals roots w failed body = case projection-return locals roots body of
-    -- The returning argument already owns a reference. Move that
-    -- reference to the result and release the other parameters.
-    Some (word, remaining) -> (drop-locals remaining w, word)
-    None -> case guarded-expression definitions locals w failed body of
-      (done, word) -> (drop-locals roots done, word)
+  worker-result definitions locals roots w failed body = case body of
+    CCase sp ty scrutinee alternatives -> (case parameter-value locals roots scrutinee of
+      Some (word, remaining) -> (case case-value definitions locals w (core-type scrutinee) word alternatives of
+        (done, result) -> (drop-locals remaining done, result))
+      None -> ordinary-worker-result definitions locals roots w failed body)
+    other -> case parameter-value locals roots body of
+      Some (word, remaining) -> (drop-locals remaining w, word)
+      None -> ordinary-worker-result definitions locals roots w failed body
+  ordinary-worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
+  ordinary-worker-result definitions locals roots w failed body = case guarded-expression definitions locals w failed body of
+    (done, word) -> (drop-locals roots done, word)
   worker-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> List CoreClause -> Writer -> Writer
   worker-clauses definitions prefix roots offset clauses w = case clauses of
     Nil -> line w "  unreachable"
@@ -4827,8 +4836,10 @@ module Bootstrap.RuntimeIr where
         let selected = continue-if one condition otherwise in
         let first = tail-result definitions locals roots context selected failed yes in
         tail-result definitions locals roots context (line first (cat [otherwise, ":"])) failed no
-    CCase sp ty value alternatives -> case expression definitions locals w value of
-      (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word alternatives
+    CCase sp ty value alternatives -> case parameter-value locals roots value of
+      Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word alternatives
+      None -> case expression definitions locals w value of
+        (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word alternatives
     CGuard sp ty condition body -> if core-alternative-covers term then
       tail-result definitions locals roots context w failed body
       else (case expression definitions locals w condition of
@@ -4854,7 +4865,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> tail-result definitions locals roots context w failed body
     CRefineProof sp ty witness body -> tail-result definitions locals roots context w failed body
     CDischarge sp ty evidence body -> tail-result definitions locals roots context w failed body
-    CForget sp ty body -> case projection-return locals roots term of
+    CForget sp ty body -> case parameter-value locals roots term of
       Some (word, remaining) -> line (drop-locals remaining w) (cat ["  ret i64 ", word])
       None -> tail-result definitions locals roots context w failed body
     other -> case context of
@@ -4920,7 +4931,7 @@ module Bootstrap.RuntimeIr where
       let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
       case match-fields fields pointer 0 missed cell of
         (bound, bindings) -> let owned = Cons (Discard ty value) roots in
-          tail-switch-arms definitions (bindings <> locals) roots context (tail-result definitions (bindings <> locals) owned context bound missed body) ty value base missed rest (index + 1) False
+          tail-switch-arms definitions locals roots context (tail-result definitions (bindings <> locals) owned context bound missed body) ty value base missed rest (index + 1) False
     other -> line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable"
   tail-switch-word :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> CoreTerm -> Nat -> Writer
   tail-switch-word definitions locals roots context w ty value base missed body rest index =
