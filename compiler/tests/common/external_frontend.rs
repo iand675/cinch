@@ -18,6 +18,7 @@ pub struct Frontend {
 #[derive(Clone, Debug, Default)]
 pub struct Request {
     pub diagnostics_only: bool,
+    pub discard_interfaces: bool,
     pub flags: Vec<String>,
     pub program_args: Vec<String>,
     link: Option<DriverOptions>,
@@ -454,7 +455,9 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     }
     let receipt = Json::obj(vec![("compiler", Json::Str(compiler.display().to_string())), ("interfaces", Json::Str(interfaces.display().to_string())), ("entry", Json::Str(entry.display().to_string())), ("mode", Json::Str(format!("{mode:?}"))), ("arguments", Json::Arr(args.iter().cloned().map(Json::Str).collect())), ("inputs", Json::Arr(inputs))]);
     std::fs::write(work.join("invocation.json"), receipt.to_text()).map_err(|e| e.to_string())?;
-    let output = std::process::Command::new(&compiler).args(&args).current_dir(&dir).output().map_err(|e| format!("invoke selected Cinch compiler (no Native fallback): {e}"))?;
+    let output = std::process::Command::new(&compiler).args(&args).current_dir(&dir)
+        .env("CINCH_TEST_DISCARD_INTERFACES", if request.discard_interfaces { "1" } else { "0" })
+        .output().map_err(|e| format!("invoke selected Cinch compiler (no Native fallback): {e}"))?;
     std::fs::write(work.join("compiler.stdout"), &output.stdout).map_err(|e| e.to_string())?;
     std::fs::write(work.join("compiler.stderr"), &output.stderr).map_err(|e| e.to_string())?;
     std::fs::write(work.join("compiler-status.txt"), format!("{:?}\n", output.status.code())).map_err(|e| e.to_string())?;

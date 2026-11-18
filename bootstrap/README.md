@@ -264,6 +264,7 @@ The driver also has separate frontend and build modes:
     cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
     cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
     cinch --emit-interfaces [--interfaces MANIFEST] SOURCE PREFIX
+    cinch --emit-ir-only --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT ABI INTERFACE_PREFIX

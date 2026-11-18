@@ -53,7 +53,8 @@ pub fn emit_ir(source: &str) -> Result<String, String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
             let ir = dir.join("program.ll");
-            external_frontend::drive(&frontend, Mode::EmitIr, dir, entry, Some(ir.clone()))?;
+            let request = external_frontend::Request { discard_interfaces: true, ..Default::default() };
+            external_frontend::drive_profile(&frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
             std::fs::read_to_string(&ir).map_err(|error| format!("{}: {error}", ir.display()))
         }),
         None => driver::check_sources(source, "<test>")
@@ -66,7 +67,8 @@ pub fn emit_ir_profile(source: &str, profile: &TargetProfile) -> Result<String, 
     match external_frontend::configured()? {
         Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
             let ir = dir.join("program.ll");
-            let request = external_frontend::profile_request(Mode::EmitIr, StageMode::Refresh, profile)?;
+            let mut request = external_frontend::profile_request(Mode::EmitIr, StageMode::Refresh, profile)?;
+            request.discard_interfaces = true;
             external_frontend::drive_profile(&frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
             std::fs::read_to_string(&ir).map_err(|error| format!("{}: {error}", ir.display()))
         }),
@@ -79,7 +81,8 @@ pub fn emit_ir_profile(source: &str, profile: &TargetProfile) -> Result<String, 
 pub fn run_source(source: &str) -> Result<i32, String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
-            external_frontend::drive(&frontend, Mode::Run, dir, entry, None)
+            let request = external_frontend::Request { discard_interfaces: true, ..Default::default() };
+            external_frontend::drive_profile(&frontend, Mode::Run, dir, entry, None, &request)
         }),
         None => driver::run_source(source).map_err(|error| error.to_string()),
     }
@@ -114,7 +117,8 @@ pub fn check_source_interfaces_profile(source: &str, name: &str, profile: &Targe
 pub fn run_source_profile(source: &str, profile: &TargetProfile) -> Result<i32, String> {
     match external_frontend::configured()? {
         Some(frontend) => {
-            let request = external_frontend::profile_request(Mode::Run, StageMode::Refresh, profile)?;
+            let mut request = external_frontend::profile_request(Mode::Run, StageMode::Refresh, profile)?;
+            request.discard_interfaces = true;
             source_project("Main.cinch", source, |dir, entry| {
                 external_frontend::drive_profile(&frontend, Mode::Run, dir, entry, None, &request)
             })
@@ -150,7 +154,8 @@ fn run_linked_source(
 ) -> Result<(i32, String), String> {
     source_project("Main.cinch", source, |dir, entry| {
         let ir = dir.join("program.ll");
-        external_frontend::drive(frontend, Mode::EmitIr, dir, entry, Some(ir.clone()))?;
+        let request = external_frontend::Request { discard_interfaces: true, ..Default::default() };
+        external_frontend::drive_profile(frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
         let program = dir.join("program");
         let mut linker = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()));
         linker.arg(&ir).arg(required_path("CINCH_TEST_LIBRARY_OBJECT")?).args(objects)

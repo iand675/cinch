@@ -21,8 +21,8 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode-at, compile-source-with-manifest-mode-at, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (run-source-with-object, compile-source-object, compile-source-library-object-at, report-target-refusal)
+  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode-at, compile-source-with-manifest-mode-at, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (run-source-with-object, compile-source-object-mode, compile-source-library-object-at, report-target-refusal)
   import Bootstrap.Target (target-profile)
   import Data.Path (path-from-string)
 
@@ -40,6 +40,8 @@ module Main where
         if selected then pipeline-bad-args else run-options BodiesOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--compile-only" == 0 then
         if selected then pipeline-bad-args else run-options CompileOnly manifest object-config wanted debug reclaim inlining True rest
+      else if string-compare flag "--emit-ir-only" == 0 then
+        if selected then pipeline-bad-args else run-options IrOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-ir" == 0 then
         if selected then pipeline-bad-args else run-options EmitOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-ir-with-interfaces" == 0 then
@@ -90,6 +92,9 @@ module Main where
           Err message -> report-target-refusal (path-from-string ir) message
           Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix
       other -> pipeline-bad-args
+    IrOnly -> case ws of
+      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      other -> pipeline-bad-args
     EmitOnly -> case ws of
       Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
@@ -115,8 +120,9 @@ module Main where
   run-source :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
   run-source mode manifest object-config wanted debug reclaim inlining source ir exe report = case object-config of
     Some configuration -> (case (mode, manifest) of
-      (EmitOnly, Some file) -> compile-source-object inlining debug reclaim wanted False file configuration source (path-from-string ir)
-      (EmitWithInterfaces, Some file) -> compile-source-object inlining debug reclaim wanted True file configuration source (path-from-string ir)
+      (IrOnly, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitOnly, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitWithInterfaces, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       other -> pipeline-bad-args)
     None -> if debug && emits-code mode then pipeline-bad-args else case manifest of
       None -> compile-source-mode-at inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)

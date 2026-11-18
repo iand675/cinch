@@ -33,11 +33,12 @@ def publish_interfaces(manifest, source, prefix):
 PROFILE_FLAGS = ("--rc-debug", "--no-reclaim")
 
 
-def compile_client(compiler, objects, runtime, args):
+def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     """Adapt the shared Rust test harness to the staged frontend and linker."""
     env = bootstrap.environment()
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
+    emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
     profile = [arg for arg in args if arg in PROFILE_FLAGS]
     args = [arg for arg in args if arg not in PROFILE_FLAGS]
     if args[0:1] == ["--interfaces"] and args[2:3] == ["--objects"] and args[4:5] == ["run"]:
@@ -48,11 +49,11 @@ def compile_client(compiler, objects, runtime, args):
         return subprocess.call([compiler, args[0], *profile, *args[1:]], env=env)
     if args[0:1] == ["--emit-ir"]:
         flags = [] if "--objects" in args else ["--objects", objects]
-        return subprocess.call([compiler, args[0], *profile, *flags, *args[1:]], env=env)
+        return subprocess.call([compiler, emit, *profile, *flags, *args[1:]], env=env)
     if len(args) != 7 or args[:2] != ["--compile-only", "--interfaces"]:
         return 1
     manifest, source, ir, exe, report = map(Path, args[2:])
-    mode = "--emit-ir-with-interfaces" if api else "--emit-ir"
+    mode = "--emit-ir-with-interfaces" if api else emit
     code = subprocess.call([compiler, mode, *profile, "--interfaces", manifest, "--objects", objects, source, ir], env=env)
     if code:
         return code
@@ -155,15 +156,20 @@ def test_target_inputs(directory, objects, triple):
     return 0
 
 
-def supports_check_types(compiler):
+def supports_source_mode(compiler, mode):
     # An older stage refuses the option (1). A supporting stage reaches the
     # source read (2). Probe once per runner, using no interface or source.
     with tempfile.TemporaryDirectory() as directory:
-        return subprocess.run([compiler, "--check-types", "missing.cinch", "unused.ll"],
+        return subprocess.run([compiler, mode, "missing.cinch", "unused.ll"],
                               cwd=directory, env=bootstrap.environment()).returncode == 2
 
 
+def supports_check_types(compiler):
+    return supports_source_mode(compiler, "--check-types")
+
+
 def write_wrapper(wrapper, compiler, objects, runtime):
+    ir_only = supports_source_mode(compiler, "--emit-ir-only")
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
@@ -171,7 +177,7 @@ def write_wrapper(wrapper, compiler, objects, runtime):
         f"compiler={str(compiler)!r}\n"
         "if len(sys.argv) == 3 and sys.argv[1] == '--test-target-inputs':\n"
         f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2]))\n"
-        f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:]))\n"
+        f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], ir_only={ir_only!r}))\n"
     )
     wrapper.chmod(0o755)
 

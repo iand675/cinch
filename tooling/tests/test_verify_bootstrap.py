@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -170,7 +171,7 @@ class FrozenVerification(unittest.TestCase):
 
             with patch.object(verify.bootstrap, "ROOT", root), \
                     patch.object(verify_stage3, "stage3_artifacts", return_value=(compiler, manifest, objects, runtime, hashes)), \
-                    patch.object(verify_stage3, "supports_check_types", return_value=True), \
+                    patch.object(verify_stage3, "supports_source_mode", return_value=True), \
                     patch.object(verify_stage3.subprocess, "run", side_effect=cargo):
                 self.assertEqual(verify_stage3.verify(root / "missing", root / "cargo"), 1)
                 record_api = True
@@ -215,6 +216,23 @@ class FrozenVerification(unittest.TestCase):
                                         "--objects", str(objects), source, ir])
             self.assertEqual(link[:6], ["clang", ir, str(library), str(runtime), "-o", exe])
             self.assertEqual(report.read_text(), "clang-exit: 0\n")
+
+    def test_ir_only_requires_both_disposable_output_and_compiler_support(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = [root / name for name in ("interfaces", "source", "ir", "exe", "report")]
+            objects = root / "objects"
+            objects.write_text(json.dumps({"object": "library.o"}))
+            args = ["--compile-only", "--interfaces", *map(str, paths)]
+            for support, discard, expected in ((True, "1", "--emit-ir-only"),
+                                               (False, "1", "--emit-ir"), (True, "0", "--emit-ir")):
+                with self.subTest(support=support, discard=discard), \
+                        patch.dict(os.environ, {"CINCH_TEST_API_EMIT_INTERFACES": "0",
+                                                "CINCH_TEST_DISCARD_INTERFACES": discard}), \
+                        patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
+                    self.assertEqual(verify_stage3.compile_client("cinch", objects, "runtime.a", args,
+                                                                   ir_only=support), 0)
+                    self.assertEqual(run.call_args_list[0].args[0][1], expected)
 
     def test_stage3_adapter_publishes_the_emitted_manifest_under_its_entry(self):
         for link_code in (0, 2):
