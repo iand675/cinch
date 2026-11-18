@@ -1,0 +1,46 @@
+{
+  "status": "full-original-O0-O2-row-corpus-passed",
+  "full_family_admission": false,
+  "adoption_approved": false,
+  "performance_claim": false,
+  "cases_per_optimization": 8295,
+  "row_profiles_per_optimization": 1038,
+  "row_profiles_total": 2076,
+  "optimization_levels": [
+    0,
+    2
+  ],
+  "same_accepted_ir": true,
+  "llvm_sha256": "4af4355cef54f6bd453811dfebe2ea552da85332d64cea9e896444067cdf47db",
+  "O2_executable_sha256": "5f6ed169885f4f80c3c102aaad3001f0a623de39ff9a3e9a808272b0e18ecc7f",
+  "all_zero_leaks": true,
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "source_override": false,
+  "consumer_stack": "8M",
+  "ordinary_heap": "32M",
+  "poison_heap": "256M",
+  "prior_O0_and_public_evidence": "bootstrap/stdlib-producer-v4-focused-initial-results.json",
+  "retained_O2_evidence": "bootstrap/stdlib-producer-v4-original-O2-evidence.json",
+  "retained_O2_evidence_sha256": "4d02fbed1e14b52ac943949e41e0350136aaeb5c23ef2fa9c59efe3fc427ad9a",
+  "remaining": [
+    "deep/private protocol/O2 ownership scopes",
+    "fresh repaired Native compiler-family gate and final-stage clients"
+  ]
+}

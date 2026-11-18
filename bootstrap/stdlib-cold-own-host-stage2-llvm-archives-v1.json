@@ -1,0 +1,262 @@
+{
+  "status": "verified-complete",
+  "approved_inventory": "/workspace/dasl-stdlib-refined-mask/build/cold-own-llvm-candidates-v2.json",
+  "inventory_sha256": "4e69f68cba1ca757560635ee02dc166bed2f9fa4a5a5701589b5b513170e3d65",
+  "source_asm_stage3_frozen_provider_runtime_benchmark_active_inputs_unchanged": true,
+  "files": [
+    {
+      "role": "scoped-host",
+      "path": "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll",
+      "bytes": 238320320,
+      "sha256": "9efef5d6febf9901a1359d0f94df4ecbc4f5867a6a72df922cb4b4403753a0dd",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Relink the preserved scoped-call experimental host; source and ELF remain. No active or benchmark consumer uses this build input.",
+      "stage_receipt": null,
+      "matches_existing_stage_receipt": null,
+      "original_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll",
+      "original_bytes": 238320320,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "9efef5d6febf9901a1359d0f94df4ecbc4f5867a6a72df922cb4b4403753a0dd",
+      "archive_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 29119756,
+      "compressed_sha256": "009a0ce7907d75ff73cc92c1b42f8e3e5674cf1b0b5babeb064051df85579ada",
+      "verified_decompressed_bytes": 238320320,
+      "verified_decompressed_sha256": "9efef5d6febf9901a1359d0f94df4ecbc4f5867a6a72df922cb4b4403753a0dd",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-codegen/build/scoped-call-emitter/cinch.ll"
+        ]
+      ]
+    },
+    {
+      "role": "R5-host",
+      "path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll",
+      "bytes": 241028167,
+      "sha256": "2783eb095acf7d7db0ffe70e2096e058a8eaa2caf6f86ed78ab8da48e49d520b",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Relink the preserved R5 host if needed; measured compiler ELF and paired benchmark consumer IR/ASM remain untouched.",
+      "stage_receipt": null,
+      "matches_existing_stage_receipt": null,
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll",
+      "original_bytes": 241028167,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "2783eb095acf7d7db0ffe70e2096e058a8eaa2caf6f86ed78ab8da48e49d520b",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 29437948,
+      "compressed_sha256": "1fade805a4aad3505687a16d3e6b560c3510e0a92af37e53f47971b1803af1f7",
+      "verified_decompressed_bytes": 241028167,
+      "verified_decompressed_sha256": "2783eb095acf7d7db0ffe70e2096e058a8eaa2caf6f86ed78ab8da48e49d520b",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-experimental-emitter-r5/compiler.ll"
+        ]
+      ]
+    },
+    {
+      "role": "old-stage2-codegen",
+      "path": "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll",
+      "bytes": 45105788,
+      "sha256": "fc1df11013bad42908aaa8e3d5c2b8fa476844f9ef53567a2c98a299b626f5f5",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Restore before checking/reusing this historical Stage2 cache; current source requires a fresh Stage1 and fresh later stages. Frozen distribution/Stage3 files stay unchanged.",
+      "stage_receipt": "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/stage.json",
+      "matches_existing_stage_receipt": true,
+      "original_path": "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll",
+      "original_bytes": 45105788,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "fc1df11013bad42908aaa8e3d5c2b8fa476844f9ef53567a2c98a299b626f5f5",
+      "archive_path": "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 5677149,
+      "compressed_sha256": "e350b770dd426ba02e8858e815d7bfd24fe9784ed0c2242cc5e12d4ee1672dab",
+      "verified_decompressed_bytes": 45105788,
+      "verified_decompressed_sha256": "fc1df11013bad42908aaa8e3d5c2b8fa476844f9ef53567a2c98a299b626f5f5",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-codegen/build/bootstrap/stage2/compiler.ll"
+        ]
+      ]
+    },
+    {
+      "role": "old-stage2-char-contract",
+      "path": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll",
+      "bytes": 45114613,
+      "sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Restore before checking/reusing this historical Stage2 cache; current source requires a fresh Stage1 and fresh later stages. Frozen distribution/Stage3 files stay unchanged.",
+      "stage_receipt": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/stage.json",
+      "matches_existing_stage_receipt": true,
+      "original_path": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll",
+      "original_bytes": 45114613,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "archive_path": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 5674206,
+      "compressed_sha256": "082eb5313967fa6f67268a4ac8fd00e2525da1941cf1379acbc98883c51c7c24",
+      "verified_decompressed_bytes": 45114613,
+      "verified_decompressed_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/compiler.ll"
+        ]
+      ]
+    },
+    {
+      "role": "old-stage2-base-construction",
+      "path": "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll",
+      "bytes": 45114613,
+      "sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Restore before checking/reusing this historical Stage2 cache; current source requires a fresh Stage1 and fresh later stages. Frozen distribution/Stage3 files stay unchanged.",
+      "stage_receipt": "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/stage.json",
+      "matches_existing_stage_receipt": true,
+      "original_path": "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll",
+      "original_bytes": 45114613,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "archive_path": "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 5674206,
+      "compressed_sha256": "082eb5313967fa6f67268a4ac8fd00e2525da1941cf1379acbc98883c51c7c24",
+      "verified_decompressed_bytes": 45114613,
+      "verified_decompressed_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage2/compiler.ll"
+        ]
+      ]
+    },
+    {
+      "role": "old-stage2-mutable-family",
+      "path": "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll",
+      "bytes": 45238108,
+      "sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Restore before checking/reusing this historical Stage2 cache; current source requires a fresh Stage1 and fresh later stages. Frozen distribution/Stage3 files stay unchanged.",
+      "stage_receipt": "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/stage.json",
+      "matches_existing_stage_receipt": true,
+      "original_path": "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll",
+      "original_bytes": 45238108,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+      "archive_path": "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 5685177,
+      "compressed_sha256": "502a6e280dec1e30b11b43f9a302ed38813ac7d864ede21ba999fd98faa9baaf",
+      "verified_decompressed_bytes": 45238108,
+      "verified_decompressed_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-mutable-family/build/bootstrap/stage2/compiler.ll"
+        ]
+      ]
+    },
+    {
+      "role": "old-stage2-merged-family",
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll",
+      "bytes": 45657675,
+      "sha256": "b78ca6faefe22145742a43f4bc58ea4758261668b5ad81ee213177e78ed7561a",
+      "links": 1,
+      "active_open_inode": false,
+      "recovery_use": "Restore before checking/reusing this historical Stage2 cache; current source requires a fresh Stage1 and fresh later stages. Frozen distribution/Stage3 files stay unchanged.",
+      "stage_receipt": "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/stage.json",
+      "matches_existing_stage_receipt": true,
+      "original_path": "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll",
+      "original_bytes": 45657675,
+      "original_mode": "0o600",
+      "uncompressed_sha256": "b78ca6faefe22145742a43f4bc58ea4758261668b5ad81ee213177e78ed7561a",
+      "archive_path": "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+      "archive_bytes": 5741262,
+      "compressed_sha256": "14525a5e8bfb41fed687fb04beb7263746010494557cc4b3e5fb14eb0199ae2d",
+      "verified_decompressed_bytes": 45657675,
+      "verified_decompressed_sha256": "b78ca6faefe22145742a43f4bc58ea4758261668b5ad81ee213177e78ed7561a",
+      "raw_unlinked": true,
+      "restoration_required_before_historical_cache_or_host_relink_use": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll.cold-host-stage2-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll"
+        ],
+        [
+          "chmod",
+          "600",
+          "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap/stage2/compiler.ll"
+        ]
+      ]
+    }
+  ],
+  "seconds": 6.139891286002239,
+  "bytes_freed": 618569580
+}

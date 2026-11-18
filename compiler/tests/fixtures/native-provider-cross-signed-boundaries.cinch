@@ -1,0 +1,25 @@
+-- | Observe independent cross-signed conversion bounds through the public scalar APIs.
+module Main where
+  import Data.Machine
+  import Data.Option
+
+  -- | Observe a checked refusal without relying on a constructor's runtime representation.
+  refused :: forall a. Option a -> Bool
+  refused result = case result of None -> True; Some value -> False
+
+  -- | Encode each distinct failed mathematical boundary in its own observable result bit.
+  main :: Int
+  main =
+    let unsigned-high = refused (checked-u64-to-i64 18446744073709551615) in
+    let unsigned-clamped = eq-i64 (saturating-u64-to-i64 18446744073709551615) 9223372036854775807 in
+    let negative-refused = refused (checked-i64-to-u64 (-1)) in
+    let negative-clamped = eq-u64 (saturating-i64-to-u64 (-1)) 0 in
+    let signed-limit = (case checked-u64-to-i64 9223372036854775807 of
+      None -> False
+      Some value -> eq-i64 value 9223372036854775807) in
+    let unsigned-zero = (case checked-i64-to-u64 0 of
+      None -> False
+      Some value -> eq-u64 value 0) in
+    (if unsigned-high then 0 else 1) + (if unsigned-clamped then 0 else 2)
+      + (if negative-refused then 0 else 4) + (if negative-clamped then 0 else 8)
+      + (if signed-limit then 0 else 16) + (if unsigned-zero then 0 else 32)

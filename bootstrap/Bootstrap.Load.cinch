@@ -34,6 +34,7 @@ module Bootstrap.Load where
   export load-interface-from-document, load-interface-set-from-documents
   export loaded-entry, loaded-private-methods
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
+  export load-checked-body-interface-set-from-documents
   export check-interface-set, interface-set-members
   export interface-set-body, interface-set-has-body
 
@@ -122,6 +123,33 @@ module Bootstrap.Load where
   load-checked-interface-set-from-contracts inputs = case load-interface-set-from-contracts inputs of
     Err error -> Err error
     Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+
+  -- | Validate every document and its claimed identity before retaining optional
+  -- body authority from complete, unchanged dependency closures. Source-replaced
+  -- homes and every interface depending on them contribute no body authority.
+  -- The ordinary interface and artifact admission paths remain strict.
+  load-checked-body-interface-set-from-documents :: List (String, String, Json) -> Result String InterfaceSet
+  load-checked-body-interface-set-from-documents inputs = case read-document-set inputs Nil of
+    Err error -> Err error
+    Ok members -> check-interface-set (body-closed-interfaces members)
+
+  -- | Remove whole interfaces until every retained declared dependency has its
+  -- exact original identity. The final strict set check validates all retained
+  -- nominal, signature and executable-body contracts without editing their rows.
+  body-closed-interfaces :: List LoadedInterface -> List LoadedInterface
+  body-closed-interfaces members =
+    let retained = retain-body-closed-interfaces members (index-interfaces members) in
+    if list-length retained == list-length members then retained
+    else body-closed-interfaces retained
+
+  -- | Preserve an interface only when all of its declared imports are present
+  -- with matching hashes in this iteration's complete candidate set.
+  retain-body-closed-interfaces :: List LoadedInterface -> InterfaceIndex -> List LoadedInterface
+  retain-body-closed-interfaces members index = case members of
+    Nil -> Nil
+    Cons member rest -> case verify-refs (loaded-imports member) index of
+      Err error -> retain-body-closed-interfaces rest index
+      Ok unit -> Cons member (retain-body-closed-interfaces rest index)
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> name

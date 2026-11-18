@@ -1,0 +1,426 @@
+{
+  "status": "read-only inventory only; no archive or unlink authorized/executed",
+  "file_count": 22,
+  "original_bytes": 254800056,
+  "all_hashes_match_passed_qualified_receipts": true,
+  "files": [
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0000/consumer",
+      "bytes": 11585928,
+      "sha256": "b4823d14afe238253b0d85d1358d10ee8650d331b27046b56405ec209ac1f8ae",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 0,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1068176
+      ],
+      "link_count": 1,
+      "age_seconds": 22297.407913923264,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0064/consumer",
+      "bytes": 11586256,
+      "sha256": "b50c247bce8240d17df0d41569779a2bb4c571ffe19e18872317c05e768f8bbf",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 64,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1068181
+      ],
+      "link_count": 1,
+      "age_seconds": 22292.028526067734,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0128/consumer",
+      "bytes": 11586272,
+      "sha256": "ce7688dee2260fc53b211cb2e02f9341b358bf226a704bb567eee26eed56e236",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 128,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1068188
+      ],
+      "link_count": 1,
+      "age_seconds": 22286.347591876984,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0192/consumer",
+      "bytes": 11586560,
+      "sha256": "dd104b1e7d6aa2e30e569013e699275cc0eb846660f15699430bf8470f5d7bdb",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 192,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1068195
+      ],
+      "link_count": 1,
+      "age_seconds": 22280.124802350998,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0256/consumer",
+      "bytes": 11585752,
+      "sha256": "fa6fb8b3e317413dcb94eb470150934a93b214edfe1ef1df0245a245aa03d473",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 256,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1068203
+      ],
+      "link_count": 1,
+      "age_seconds": 22275.153052806854,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0320/consumer",
+      "bytes": 11586056,
+      "sha256": "eb2867d95785e0317506e8a8eac3df05bf5c894e05106ccb9c1ffab34a687759",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 320,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071758
+      ],
+      "link_count": 1,
+      "age_seconds": 22270.140376329422,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0384/consumer",
+      "bytes": 11586264,
+      "sha256": "210f37cf724dc9c8c78ad651b896fefd3142710a6ed92b56c061b2ba04069201",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 384,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071765
+      ],
+      "link_count": 1,
+      "age_seconds": 22264.39547276497,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0448/consumer",
+      "bytes": 11586488,
+      "sha256": "430a89c5fdd28825c3121085780d4dd9817fc1630b0aa0986737b2692b342661",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 448,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071772
+      ],
+      "link_count": 1,
+      "age_seconds": 22258.638136148453,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0512/consumer",
+      "bytes": 11586264,
+      "sha256": "6fa3bab3529e90557d4655506bf9cf3f075f45cdd0fe25acc022cf70d8d6c326",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 512,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071779
+      ],
+      "link_count": 1,
+      "age_seconds": 22252.645844221115,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0576/consumer",
+      "bytes": 11585944,
+      "sha256": "d83135786e40178fd87946b47e65a7a045178bb1873b92708ea3e8cf8c30d28f",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 576,
+      "cases": 64,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071786
+      ],
+      "link_count": 1,
+      "age_seconds": 22247.14899110794,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o0/batch-0640/consumer",
+      "bytes": 11581736,
+      "sha256": "0d04415bf05bed2f6d6c101a6e2f033e4e8520a4803a98f6b2e9857f3bff1cd2",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o0.json",
+      "receipt_sha256": "12f7f082dc08f8f7e28baedb65696b896ee2aa951a9f64d3c56ee2f1ce2dfa6f",
+      "first": 640,
+      "cases": 27,
+      "opt_level": 0,
+      "inode": [
+        27,
+        1071793
+      ],
+      "link_count": 1,
+      "age_seconds": 22242.33209323883,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0000/consumer",
+      "bytes": 11577648,
+      "sha256": "dce5eaa67cf1daf04bbbbe33566e57aa39143a004dfd1e781d6309c8d5070fe5",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 0,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072773
+      ],
+      "link_count": 1,
+      "age_seconds": 21873.00036740303,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0064/consumer",
+      "bytes": 11577976,
+      "sha256": "5d10195c0b54f49de03d0e12dacbe57f7fb8b4987f9ae340ba162d61b4a93644",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 64,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072780
+      ],
+      "link_count": 1,
+      "age_seconds": 21868.42663359642,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0128/consumer",
+      "bytes": 11577992,
+      "sha256": "8d098259f3fe86b88bf1fdc8db078967661543ea601dced4416ea3cfbfc66304",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 128,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072787
+      ],
+      "link_count": 1,
+      "age_seconds": 21863.257084846497,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0192/consumer",
+      "bytes": 11578280,
+      "sha256": "51bcfc54253e7f0ff0d218baa65653e2c53ea04e4de3d32ff5fcb9840e18cbdf",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 192,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072794
+      ],
+      "link_count": 1,
+      "age_seconds": 21857.472012519836,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0256/consumer",
+      "bytes": 11577472,
+      "sha256": "07205d8128996a615e6167e8f8257a81698ee14c21891281e06185a49f5c4a31",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 256,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072801
+      ],
+      "link_count": 1,
+      "age_seconds": 21852.254207849503,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0320/consumer",
+      "bytes": 11577776,
+      "sha256": "88eec413c08e035e5924328cfadd1fce505a35a5b65eb7e7257541fdd2ee2e41",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 320,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072808
+      ],
+      "link_count": 1,
+      "age_seconds": 21847.949664354324,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0384/consumer",
+      "bytes": 11577984,
+      "sha256": "51dba37fcf114d5c5d181ab4d62cc49cb94d5ce8eec2f35abe44b7ef7c2e9418",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 384,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072815
+      ],
+      "link_count": 1,
+      "age_seconds": 21843.212306261063,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0448/consumer",
+      "bytes": 11578208,
+      "sha256": "b676b6215595833205c4f4dfa9f7b27cb93201a9d9c085a34cb1a1ca05f8cf81",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 448,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072822
+      ],
+      "link_count": 1,
+      "age_seconds": 21838.586501598358,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0512/consumer",
+      "bytes": 11577984,
+      "sha256": "08089eb639c8df52a08924161f0efb7fe6e760bb557d0058c11213946ee9ad8d",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 512,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072829
+      ],
+      "link_count": 1,
+      "age_seconds": 21833.944897413254,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0576/consumer",
+      "bytes": 11577664,
+      "sha256": "4b75ca8f762a00c128d92d28ff0897c9fe7bbe76966428b3adc2a909e66f8c66",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 576,
+      "cases": 64,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072836
+      ],
+      "link_count": 1,
+      "age_seconds": 21828.750257730484,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-scalar-o2/batch-0640/consumer",
+      "bytes": 11577552,
+      "sha256": "51d6bda2337e916de720593325220357fa56606bcdcc413caf6e1ea11941ec1c",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-scalar-o2.json",
+      "receipt_sha256": "75c1eb7eaa87edeeef4e29f4846df1653314dec66d58b6ec566dda42d8170495",
+      "first": 640,
+      "cases": 27,
+      "opt_level": 2,
+      "inode": [
+        27,
+        1072843
+      ],
+      "link_count": 1,
+      "age_seconds": 21823.271993875504,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed667-case scalar compatibility batch; restore exact ELF only to replay historical7a3/V2 observation. Source,LLVM,ASM,receipts and frozen compiler/provider/runtime are separate and remain raw."
+    }
+  ]
+}

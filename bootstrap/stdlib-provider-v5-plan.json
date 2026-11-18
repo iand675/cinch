@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "status": "static plan only; no V5 artifact or compiler-family build launched",
+  "selected_producer": {
+    "status": "read-only committed-source comparison passed; snapshot builder not yet extended/admitted",
+    "snapshot": "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen",
+    "checkpoint": "e4a4d7c9d5aae6b14f24dc366fc52a4ef601095f",
+    "compiler_sha256": "b924bd00e9f9868dcd0d7ffc4844f8cfcd2379cb6a4915ade6f3f3974558bb3c",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "provenance_sha256": "e259c02244d331d5d38d9a72cf09a1fc17435d26e2fc44dbd7d454c4a8928ed9",
+    "source_envelope_sha256": "46756edd0b19b4a4276a564c2e52d3da151c240d9bcaf8070bfacf74ca7129b2",
+    "all_rust_source_claims_match_git": true,
+    "rust_claim_count": 63,
+    "embedded_sources": {
+      "Data.Core": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "Data.Ordering": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
+      "Relation.Eq": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
+      "Relation.Ord": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
+      "Algebra.Arithmetic": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
+      "Algebra.Bits": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
+      "Function.Combinators": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
+      "Data.Nat": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "Data.Int": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "Data.Option": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
+      "Data.Result": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "Data.List": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
+      "Data.Enum": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
+      "Data.Char": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
+      "Data.Bool": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
+      "Data.Machine": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "Data.Map": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "Data.Json": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+      "Data.Producer": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
+      "Data.Target": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
+      "Data.Path": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
+      "Effect.Sequencing": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255",
+      "Effect.Concurrent": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
+      "Effect.Clock": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+      "Prim.Sys.Darwin": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e",
+      "Prim.Sys.Linux": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd",
+      "Prim.Sys.Portable": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
+      "Prim.Sys": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
+      "Effect.Fs": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f",
+      "Effect.Process": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+      "Effect.Io": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
+      "Data.FromList": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
+      "Data.FromMap": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
+      "Text.Show": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7",
+      "Data.Sym": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73",
+      "Prelude": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
+      "Algebra.Semigroup": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+      "Algebra.Group": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c",
+      "Algebra.Semiring": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03",
+      "Algebra.Monoid": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591",
+      "Category.Functor": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
+      "Category.Applicative": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+      "Category.Monad": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
+      "Category.Alternative": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
+      "Category.Foldable": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab",
+      "Category.Traversable": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad",
+      "Data.Identity": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
+      "Data.Const": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
+      "Data.Compose": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
+      "Data.NonEmpty": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900",
+      "Data.Sorted": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611",
+      "Data.NonZero": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b",
+      "Data.Ascii": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
+      "Data.Set": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",
+      "Data.Wide": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
+      "Data.Hash": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "Text.Codec": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+      "Data.HashMap": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "Effect.Stm": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810",
+      "Effect.Stm.TMVar": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4",
+      "Effect.Stm.TQueue": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2",
+      "Effect.Stm.TBQueue": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
+      "Effect.Stm.TSem": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d"
+    },
+    "all_library_source_claims_match_git": true,
+    "library_claim_count": 188,
+    "rust_source_manifest_sha256": "05b5a4f821230868bb978a35af484d4529ea4cff071db7f4f4b64b12f37669ba",
+    "rust_manifest_format": "SHA256 of compact sorted JSON claim map",
+    "all65_embedded_sources_match_git_and_lane": true
+  },
+  "alternative_producer": {
+    "path": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "condition": "Explicit selection only after committed-source verification of its complete Rust claim map and all 65 embedded source bytes; no silent fallback or whole-binary equivalence claim."
+  },
+  "retained_v4": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4",
+    "receipt_sha256": "52f2478e8f10dfbb802fc38fe14a5a50aa11067094f9ce0e5e5ef5b75db6be25",
+    "immutable": true,
+    "producer": "37dc/b030",
+    "known_remaining_scope": "Old Rust emitter declares cinch_nat_cmp readnone; consumer-local Native header qualification does not repair provider-internal compilation."
+  },
+  "new_output": "/workspace/dasl-stdlib-source-body-closure/build/repaired-base-artifact-v5",
+  "pins_changed": false,
+  "existing_snapshot_builder": "tooling/build_base_artifact_from_snapshot.py",
+  "builder_prerequisite": {
+    "status": "Strict legacy/current schema support implemented;31 source/provenance controls passed. V5 object emission remains resource-held.",
+    "new_provenance_fields": [
+      "rust_source_sha256",
+      "rust_source_manifest_sha256",
+      "library_source_sha256"
+    ],
+    "strict_rules": [
+      "Keep the original trusted provenance unchanged and record its SHA.",
+      "Verify all provided source-claim maps against the exact committed epoch before copying or exclusion; reject conflicting, empty or malformed maps.",
+      "Validate the compact sorted Rust source-manifest SHA and every claimed Rust file hash.",
+      "Continue to support legacy source_sha256 receipts with the same strict checks.",
+      "Verify every supplied library_source_sha256 claim against the committed prelude file, not only the 65 selected package modules.",
+      "Check package identity and every one of 65 embedded source files against committed sources and the lane; no live-working-tree source substitution.",
+      "Retain compiler/runtime/host/target/word/endian/reclamation/descriptor/interface/object/hash admission; no hardlink or stale-cache shortcut."
+    ],
+    "negative_controls": [
+      "compiler digest",
+      "runtime digest",
+      "checkpoint",
+      "source-file claim",
+      "conflicting provenance claim maps",
+      "manifest digest",
+      "empty/malformed claim maps",
+      "changed embedded package/module"
+    ],
+    "gate_receipt": "bootstrap/stdlib-provider-snapshot-schema-results.json"
+  },
+  "actual_roots": {
+    "path": "/workspace/dasl-stdlib-source-body-closure/bootstrap/library-object-roots.json",
+    "sha256": "26f10692a0100f3037d687165ef25d6d08a88e683d3435f6a5651c6ca9d7db41",
+    "changes_from_v4": false,
+    "retained_observed_demands": [
+      "Data.HashMap.hash-map-to-list[OO]",
+      "Data.Producer.prod-fold[OOO]",
+      "Data.Producer.prod-fold[OOR]",
+      "Data.Producer.prod-take[OO]"
+    ],
+    "rule": "Root actual typed requests and verify emitted units/transitive specializations; never fabricate metadata."
+  },
+  "provider_internal_boxed_nat_probe": {
+    "source": "bootstrap/repros/provider-boxed-nat/provider-boxed-nat.c",
+    "source_sha256": "88f82f38f792321733bb6e498db75f3369d78546fcc0130b152403fd67c3fda4",
+    "represented_v4_entry": {
+      "arity": 2,
+      "closure_entry": "Data.Nat.nat-cmp.object-closure",
+      "params": [
+        "T",
+        "T"
+      ],
+      "result": "R",
+      "symbol": "Data.Nat.nat-cmp"
+    },
+    "entry_admission": "Require actual metadata arity 2, tagged64 owned operands[T,T], raw64 resultR, genuine defining Nat->Nat->I64 scheme and actual exported object symbol; check ownership/lent metadata and runtime ABI before linking.",
+    "mechanism": "C client allocates fresh boxed Nats with matched runtime and calls Data.Nat.nat-cmp from the actual admitted object. No consumer-local cmp, source shadow, private probe library function or additional root is introduced.",
+    "cases": 8,
+    "dimensions": [
+      "both immediates",
+      "fresh boxed first/second operand",
+      "fresh equal/different boxes",
+      "explicitly duplicated shared box",
+      "values beyond 2^64"
+    ],
+    "profiles": "C caller O0/O2, normal32M and poisoned256M, stack8M, independent case processes; exact -1/0/1 and zero leaks. Enable reclamation explicitly; represented worker consumes both references.",
+    "static_codegen_assertion": "Produced V5 library LLVM declaration of cinch_nat_cmp must not claim readnone or memory(none); inspect compare/release order in the actual object worker.",
+    "honest_before_evidence": "V4 library.ll119 has readnone. Current V4 object worker happens to compare before releasing; no invented old functional failure. Preserve the independently demonstrated old Rust consumer O2 use-after-release trace as the original bug evidence.",
+    "source_syntax_check": {
+      "compiler": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+      "flags": [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsyntax-only"
+      ],
+      "exit": 0,
+      "object_link_or_execution": false
+    }
+  },
+  "required_focused_gates": [
+    "Strict new V5 artifact admission, every actual retained root and all 65 source/interface/object identities.",
+    "Real provider-internal boxed Nat comparison probe.",
+    "Unchanged33 public scalar boundaries plus independent6 cross-signed boundaries atO0/O2 normal/poison with exact source/IR receipts.",
+    "667 wrapping/bit/compare/masked-shift/wrapping-cast observations and27 authority controls; retain scoped coverage limitations.",
+    "Refined mask alpha/normalization and contradictory bounds/effects/reexport authority controls.",
+    "Producer initial8295 rows O0/O2, original owners/deep/private protocol and3c00 public preflight against strict exact compiler/V5 tuple.",
+    "Fresh embedded/direct String398/deep/owners, pack/bytes276, joins450, scalar2846/raw-prefix aggregates and UTF8 facade804/controls at supported O0/O2; reuse existing runners with new producer/artifact identities."
+  ],
+  "later_native_family": {
+    "status": "not granted or built",
+    "candidate_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+    "baseline_source_sha256_preserved": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+    "rule": "After explicit curated source freeze and focused gates, use only certified old Stage0 seed/runtime as a labeled bridge; fresh current-source Stage1 then V5-linked Stage2/3 identical fixed point, interface-only/source-absent/entry/changed-source and full semantic matrix required."
+  },
+  "disk_budget": {
+    "previous_v4_retained_bytes": 128783605,
+    "previous_v4_components": {
+      "cinch": 58758712,
+      "libcinchruntime.a": 24618010,
+      "library.o": 8183656,
+      "library.ll": 31754189,
+      "library.abi.json": 2433810
+    },
+    "planned_v5_retained_bytes": 135000000,
+    "planned_v5_transient_budget_bytes": 167772160,
+    "required_free_for_200MiB_reserve_bytes": 377487360,
+    "current_budget_status": "held until Parent reviews and restores headroom; no object emission",
+    "stage1_transient_separate_bytes": [
+      471859200,
+      576716800
+    ]
+  }
+}

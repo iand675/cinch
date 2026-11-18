@@ -1,0 +1,16 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "4",
+    "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-v3/Bundle.cinch"
+  ],
+  "exit": 0,
+  "seconds": 13.047819867002545,
+  "stdout": "",
+  "stderr": "",
+  "status": "source-check-passed",
+  "bundle_sha256": "f2a1d90b074dd355cd2867c88f2cedcd88640300ecbd2b889f12516c27064169"
+}

@@ -1,0 +1,422 @@
+{
+  "schema": 1,
+  "status": "focused-loader-functional-gates-passed; actual modified Native compiler/family pending",
+  "publication_approved": false,
+  "full_native_family_admission": false,
+  "original_refined_mask_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+  "candidate_source": {
+    "compiler_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+    "source_files": 51,
+    "bundle_sha256": "16efead63cf658f6094812abbaa64b578544e3cd1bd21157e943aebef9ad85e8",
+    "load_sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209",
+    "infer_sha256": "c63dd2f724dbd1c662fbfb29d6db601ec5187896ba39bdb7b09aade39399f9eb",
+    "status": "prepared"
+  },
+  "changed_production_sources": [
+    "bootstrap/Bootstrap.Load.cinch",
+    "bootstrap/Bootstrap.Infer.cinch"
+  ],
+  "ordinary_interface_and_artifact_admission_changed": false,
+  "scope": "Optional imported executable proof-body authority only; full documents and claimed identities are checked before whole interfaces with missing/mismatched dependencies are excluded. The remaining set passes the original strict validator.",
+  "source_typing": {
+    "independent_complete_51": {
+      "command": [
+        "taskset",
+        "-c",
+        "2",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+        "check",
+        "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/Bundle.cinch"
+      ],
+      "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+      "producer_source_sha256": "684ae3e12d52784ff61abe1dd74bd90ae70394db74b9d07c1c4f64add29b131f",
+      "producer_paired_runtime": {
+        "runtime_abi": 10,
+        "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+      },
+      "provider_receipt_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+      "bundle_sha256": "16efead63cf658f6094812abbaa64b578544e3cd1bd21157e943aebef9ad85e8",
+      "compiler_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+      "status": "independent-source-check-passed",
+      "cpu": 2,
+      "deadline_seconds": 118,
+      "scope": "Independent source typing only; this producer is not equivalent to37dc/855 and does not qualify any new production or Native compiler family.",
+      "emitted_program_or_runtime_execution": false,
+      "exit": 0,
+      "seconds": 35.19670940600918,
+      "stdout": "",
+      "stderr": "",
+      "interface_retention": {
+        "recovery_index": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/interface-recovery-v1.json",
+        "recovery_index_sha256": "44e6c83a9706206e2ab7501c01077029c6c0836dcef6eb028bf238ce78171c97",
+        "raw_interface_count": 116,
+        "raw_interface_bytes": 3983532,
+        "manifest_archive_bytes": 213377,
+        "manifest_archive_sha256": "a329245b2ba670dde4595c4d9ba4a58edb4cee969ab3dcb871e45d635343f4e0",
+        "total_retained_interface_manifest_bytes": 4226192,
+        "manifest_raw_removed_after_verified_recovery_index": true
+      }
+    },
+    "focused_loader_15": {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-v3/Bundle.cinch"
+      ],
+      "exit": 0,
+      "seconds": 13.047819867002545,
+      "stdout": "",
+      "stderr": "",
+      "status": "source-check-passed",
+      "bundle_sha256": "f2a1d90b074dd355cd2867c88f2cedcd88640300ecbd2b889f12516c27064169"
+    },
+    "other_source_checker_limits": "Frozen37dc full51 checks reached28s and118s deadlines without a completed verdict; neither is a semantic refusal or pass."
+  },
+  "prepared_loader_tests": {
+    "source_module_count": 15,
+    "bundle_sha256": "68025538aed6eaea03e48c8a7c57d717508e1d5a34bdfccdaa49b8d7cccceafe",
+    "input_documents_sha256": {
+      "Algebra.Arithmetic": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "Algebra.Bits": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "Algebra.Group": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "Algebra.Monoid": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "Algebra.Semigroup": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "Algebra.Semiring": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "Category.Alternative": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+      "Category.Applicative": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+      "Category.Foldable": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+      "Category.Functor": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "Category.Monad": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+      "Category.Traversable": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+      "Data.Ascii": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+      "Data.Bool": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+      "Data.Bytes": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+      "Data.Char": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+      "Data.Compose": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "Data.Const": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+      "Data.Core": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "Data.Enum": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+      "Data.FromList": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+      "Data.FromMap": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+      "Data.Hash": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "Data.HashMap": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+      "Data.Identity": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+      "Data.Int": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+      "Data.Json": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+      "Data.List": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+      "Data.Machine": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+      "Data.Map": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+      "Data.Nat": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "Data.NonEmpty": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+      "Data.NonZero": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+      "Data.Option": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+      "Data.Ordering": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "Data.Path": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+      "Data.Producer": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+      "Data.Result": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+      "Data.Set": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+      "Data.Sorted": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+      "Data.String": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+      "Data.Sym": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+      "Data.Target": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+      "Data.Wide": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+      "Effect.Clock": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+      "Effect.Concurrent": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+      "Effect.Fs": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+      "Effect.Io": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+      "Effect.Process": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+      "Effect.Sequencing": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+      "Effect.Stm": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+      "Effect.Stm.TBQueue": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+      "Effect.Stm.TMVar": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+      "Effect.Stm.TQueue": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+      "Effect.Stm.TSem": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+      "Function.Combinators": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "Prelude": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+      "Prim.Sys": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+      "Prim.Sys.Darwin": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+      "Prim.Sys.Linux": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+      "Prim.Sys.Portable": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+      "Relation.Eq": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "Relation.Ord": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "Text.Codec": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+      "Text.Show": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
+    },
+    "damaged_documents_sha256": {
+      "forged-nat-body.cinchif": "ee89016dde966d27ca4b676582bd916eb82368e1f2a116e7081f35d776ad0bd4",
+      "forged-option-nominal.cinchif": "04853bcc39e1668a66e58c9cfa67144dd68a25396df315a2507d158b171cd3b7",
+      "stale-nat-dependency.cinchif": "a4d173ef6881dc30bec2194b09776047eac0fd14d554f71fd242b56d883ce072",
+      "malformed-machine-body.cinchif": "a091cd4ad29a5657c8d117be996a056dc268ef12e921b9fbd5888c3ebf2eb0e6"
+    },
+    "cases": [
+      {
+        "name": "intact",
+        "manifest_sha256": "499930998a1360081c46b7a62d9e1069b085b28980c5bfba1495f405847e0b15",
+        "expected": {
+          "expected_error": null,
+          "member_count": 65,
+          "present_members": [
+            "Data.Nat",
+            "Data.Machine",
+            "Prelude"
+          ],
+          "absent_members": [],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "source-overlays",
+        "manifest_sha256": "f122a47b2d990feefd29f62b8003110f988d1a3ee94052acd0387b73c53e5265",
+        "expected": {
+          "expected_error": null,
+          "member_count": 48,
+          "present_members": [
+            "Data.Nat",
+            "Data.Hash"
+          ],
+          "absent_members": [
+            "Data.Json",
+            "Text.Codec",
+            "Data.Bool",
+            "Data.Machine",
+            "Prelude"
+          ],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "shadowed-defining-home",
+        "manifest_sha256": "ed93884fd4030fa0ebfa3959a7f66b08cf59027b97d1592a8e79e6cdf605eacd",
+        "expected": {
+          "expected_error": null,
+          "member_count": null,
+          "present_members": [
+            "Data.Core"
+          ],
+          "absent_members": [
+            "Data.Nat"
+          ],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              null
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "shadowed-transitive-dependency",
+        "manifest_sha256": "99f4e97326b86fdf1c0aef370b8ac760dced47b5df32e88caab9d29c69c59245",
+        "expected": {
+          "expected_error": null,
+          "member_count": null,
+          "present_members": [
+            "Data.Core"
+          ],
+          "absent_members": [
+            "Data.Hash",
+            "Data.Nat"
+          ],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              null
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "mismatched-dependency",
+        "manifest_sha256": "99531a397abb0d0d1880054e7347ed8f5787316bbd921780b59ac800da9a00a3",
+        "expected": {
+          "expected_error": null,
+          "member_count": null,
+          "present_members": [
+            "Data.Core"
+          ],
+          "absent_members": [
+            "Data.Nat"
+          ],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              null
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "bad-hash-in-excluded-home",
+        "manifest_sha256": "13d9da49a263875181413ca74527e08fa7b42bdd59be7472fee4fdc64c1613f0",
+        "expected": {
+          "expected_error": "Data.Machine: interface contract identity mismatch",
+          "member_count": null,
+          "present_members": [],
+          "absent_members": [],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "bad-body-in-excluded-home",
+        "manifest_sha256": "95460ad0f2f2d6ba55bcbe7b2424094af631719cdcb91019de9e5a6fa7eb970e",
+        "expected": {
+          "expected_error": "Data.Machine: malformed interface contract envelope",
+          "member_count": null,
+          "present_members": [],
+          "absent_members": [],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "forged-body-dependency",
+        "manifest_sha256": "be8d6b084801cee146d6af2303ca2b1d69ecb441a4425dc4e45a9a51c153c8ed",
+        "expected": {
+          "expected_error": "Data.Nat: total body dependency is outside the checked module closure: Outside.evil",
+          "member_count": null,
+          "present_members": [],
+          "absent_members": [],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      },
+      {
+        "name": "conflicting-retained-nominal",
+        "manifest_sha256": "b9077c78c4213fa3b5df4049a2a97fbb2c0b45068d1009edc94d24d497394a72",
+        "expected": {
+          "expected_error": "Data.Option: conflicting defining nominal contracts: Data.Core.Option",
+          "member_count": null,
+          "present_members": [],
+          "absent_members": [],
+          "bodies": [
+            [
+              "Data.Nat.Add_Nat.+",
+              "NatAdd"
+            ]
+          ]
+        },
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
+      }
+    ],
+    "runtime_profiles_executed": 18
+  },
+  "remaining_gates": [
+    "Actual modified Native compiler exact Word baseline/source-overlay emission and negative source-shadow controls",
+    "Required full fresh Native compiler-family gates before adoption"
+  ],
+  "frozen_provider_runtime_and_original_stage1_plan_changed": false,
+  "focused_loader_runtime": {
+    "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+    "producer_provenance": {
+      "source_checkpoint": "b03018f7",
+      "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "scope": "Rust frontend after staged scalar repair; no Native-family adoption",
+      "rust_profile": {
+        "debug_assertions": true,
+        "debug_symbols": false,
+        "codegen_units": 1
+      },
+      "source_sha256": {
+        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "compiler/src/check_decls.rs": "d27d3ba9fd17b8f2183fbb3c9508625a12f45b1c2af42cb51dc90d0876b316a4"
+      },
+      "gates": "bootstrap/stdlib-staged-word-parent-results.json"
+    },
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+    "consumer_opt_level": 0,
+    "consumer_rc_debug_compiled": false,
+    "bundle_sha256": "68025538aed6eaea03e48c8a7c57d717508e1d5a34bdfccdaa49b8d7cccceafe",
+    "llvm_sha256": "46616cdaf4c3865194a89086d604c970a085d0514e3eb71be8f42362ed8320e4",
+    "executable_sha256": "0a4b1a8930b7626e25cb929b5c5d672afc9cbe7b27b8d5088ff357e43e5dec99",
+    "report_sha256": "82c74a024dc3592426261559604003c75862c5af01847b705e7b457a7ea0f390",
+    "cases": 9,
+    "normal_profiles": 9,
+    "poisoned_profiles": 9,
+    "all_zero_leaks": true,
+    "consumer_stack": "8M",
+    "normal_heap": "32M",
+    "poisoned_heap": "256M",
+    "steps": [
+      {
+        "name": "emit",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/Bundle.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer.ll"
+        ],
+        "exit": 0,
+        "seconds": 12.817908224998973
+      },
+      {
+        "name": "link",
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O0",
+          "-Wno-override-module",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer.ll",
+          "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/libcinchruntime.a",
+          "-ldl",
+          "-lpthread",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer"
+        ],
+        "exit": 0,
+        "seconds": 1.4146802670002216
+      }
+    ],
+    "negative_refusals": "Exact fully qualified diagnostic equality; no broad substring acceptance.",
+    "retained_output_bytes": 24122122
+  },
+  "retained_initial_test_failures": [
+    {
+      "report": "initial-runtime-r1-report.json",
+      "description": "The original synthetic Outside helper was unreachable, so the existing envelope check correctly refused it earlier than the test expected. Corrected fixture makes the actual root call the included helper; final exact outside-closure refusal passes."
+    },
+    {
+      "report": "initial-reachable-fixture-report.json",
+      "description": "The original harness reversed string-contains arguments; the actual nominal-contract refusal was correct. Final harness compares exact full diagnostics and all nine cases pass. Production compiler sources were unchanged during both test corrections."
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "status": "actual-Native-provider-boundaries-passed",
+  "native_family_admission": false,
+  "publication_approved": false,
+  "full_compiler_chain_run": false,
+  "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+  "compiler_host_opt_level": 0,
+  "compiler_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "provider_receipt_sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e",
+  "object_sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed",
+  "groups": [
+    {
+      "name": "public-full-width",
+      "observations": 33,
+      "source_sha256": "bff96c7ce95be3bd23032fe28ddc604f8d49e81aca1ad988003b211e69c1ca31",
+      "llvm_sha256": "003877d51845952db80c29918781dbeb86b40d5b75c01741071aabbd4cc2ebc4",
+      "runtime_processes": 4,
+      "all_exit_zero": true,
+      "all_leaked_zero": true,
+      "ordinary_provider_calls": {
+        "saturating-neg-u64": true
+      }
+    },
+    {
+      "name": "cross-signed",
+      "observations": 6,
+      "source_sha256": "960d1ebf2a2e214c4568dc2b1ff579b0ad0b0718cee6cfa88b3815f33f717014",
+      "llvm_sha256": "ca85fae24e39f5c99f25b24e9980e0457c0654622000e797eb9825edfb371b23",
+      "runtime_processes": 4,
+      "all_exit_zero": true,
+      "all_leaked_zero": true,
+      "ordinary_provider_calls": {
+        "checked-i64-to-u64": true,
+        "checked-u64-to-i64": true,
+        "saturating-i64-to-u64": true,
+        "saturating-u64-to-i64": true
+      }
+    }
+  ],
+  "consumer_optimizations": [
+    0,
+    2
+  ],
+  "consumer_stack": "8M",
+  "ordinary_heap": "32M",
+  "poison_heap": "256M",
+  "before_evidence": "bootstrap/stdlib-native-provider-boundary-results.json",
+  "retained_evidence": "bootstrap/stdlib-producer-v3-native-boundary-evidence.json",
+  "retained_evidence_sha256": "1b6830fbbcc4d4a86986fa957f1d8738cf6a270e4b684afaaf9220569353d564",
+  "scope": [
+    "Same experimental4a compiler as oldV2 before-evidence; compiler-host80bd and consumer-c4 remain separate roles with verified sourcea24a/ABI10 compatibility.",
+    "These observations exercise actual ordinary calls into the admitted repaired object; no source shadow or inline replacement of these operations occurred.",
+    "Public Producer consumers and a fresh complete self-built Native family remain separate pending gates."
+  ]
+}

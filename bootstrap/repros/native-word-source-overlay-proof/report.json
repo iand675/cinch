@@ -1,0 +1,101 @@
+{
+  "status": "observed",
+  "compiler": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "sources": [
+    {
+      "name": "word-only",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-only.cinch",
+      "source_sha256": "41c56354b242a022fb206ccb361211bf4390241aaf52a0f201bfc4ce5a468aa2",
+      "source_bytes": 4594
+    },
+    {
+      "name": "word-json-codec",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-json-codec.cinch",
+      "source_sha256": "36e5db761fe02f0c3edadd0c9afb8622826118ec6fbab88553d8499f1d3a15d0",
+      "source_bytes": 8327
+    }
+  ],
+  "results": [
+    {
+      "label": "overlay-check-only",
+      "mode": "--check",
+      "source_name": "word-json-codec",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-json-codec.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/overlay-check-only.ll"
+      ],
+      "exit": 0,
+      "seconds": 2.290445152000757,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "output_bytes": null,
+      "output_sha256": null
+    },
+    {
+      "label": "baseline-object-emit",
+      "mode": "--emit-ir",
+      "source_name": "word-only",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-only.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/baseline-object-emit.ll"
+      ],
+      "exit": 0,
+      "seconds": 3.9348416600114433,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "output_bytes": 9903,
+      "output_sha256": "4ad0dc83aa0489c40b5ae4ac8964fc04d7426b7bf2a9499eb539ece94e2b264d"
+    },
+    {
+      "label": "overlay-object-emit",
+      "mode": "--emit-ir",
+      "source_name": "word-json-codec",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-json-codec.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/overlay-object-emit.ll"
+      ],
+      "exit": 4,
+      "seconds": 3.393740989995422,
+      "diagnostics": "bootstrap.check:23:14: function precondition is not established at this call because the obligation `#dependent-argument < (Data.Bytes.bytes-len b)` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#dependent-argument < (Data.Bytes.bytes-len b)) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#dependent-argument < (Data.Bytes.bytes-len b)` is in scope here\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "output_bytes": 0,
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "llvm_output_cap_bytes": 2097152,
+  "mode": "bounded emit-only/check-only; no link or execution; original source declarations retained",
+  "seconds": 9.620241144992178
+}

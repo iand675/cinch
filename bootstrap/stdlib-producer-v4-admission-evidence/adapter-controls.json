@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "scope": "Exact V4 tuple/hash/dispatch preflight; compiler execution mocked, actual owner probe remains peer-owned",
+  "compiler_executed": false,
+  "raw_compiler": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+  "interfaces": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+  "objects": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+  "inherited_refusal_controls": "V3 adapter identical helperaa5510d7 refused wrong interfaces/objects/profile"
+}

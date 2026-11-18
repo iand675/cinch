@@ -1,0 +1,22 @@
+{
+  "status": "minimal compiler-checker regression reproduced; no production repair or full-family claim",
+  "original_json_bundle_sha256": "3097a1112332c57784f3072063c11b7f84c0b51b504bbecacd5dbd930b44ceec",
+  "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "provider_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "provider_metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d",
+  "compiler_host_runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "runtime_execution_performed": false,
+  "checker_probes": {
+    "literal_offsets": 4,
+    "nested_values": 4,
+    "exact_module_contexts": 4,
+    "object_path_comparisons": 3,
+    "negative_dependency_projection": 1
+  },
+  "observed_cause": "Source-home shadowing makes the retained imported interface set incomplete; strict body loading fails and Infer silently omits unrelated imported numeric body authority. Object emission then cannot reify pos+1. Check-only mode rebuilds source overlays first and succeeds.",
+  "repair_status": "open; only complete original hash-matching dependency closures may retain body authority; no contract relaxation",
+  "stage1_plan_or_source_changed": false
+}

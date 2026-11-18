@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "source_sha256": "c71d4f7c6d1cc71841de15c324d82a772da6c81b30b278458d4af883984df3de",
+  "command": [
+    "/workspace/dasl-stdlib-refined-mask/build/refined-mask-experimental-emitter-v2/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-collections/build/ring-merged-provisional-controls/control/Bundle.cinch",
+    "/workspace/dasl-stdlib-refined-mask/build/refined-mask-ring-functional-v2/consumer.ll"
+  ],
+  "compile_exit": 0,
+  "compile_seconds": 7.048357248306274,
+  "runs": [
+    {
+      "opt": 0,
+      "debug": false,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 0,
+      "debug": true,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 2,
+      "debug": false,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "opt": 2,
+      "debug": true,
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}

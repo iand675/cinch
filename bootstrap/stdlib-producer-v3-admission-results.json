@@ -1,0 +1,84 @@
+{
+  "status": "artifact-admitted-runtime-qualification-pending",
+  "native_family_admission": false,
+  "publication_approved": false,
+  "new_compiler_build_performed": false,
+  "producer_snapshot_reused": true,
+  "source_shadow_used": false,
+  "root_pins_changed": false,
+  "provider_receipt_sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e",
+  "artifact_directory": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3",
+  "producer_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "producer_source_checkpoint": "b03018f7f210a38a0b99fa07b7cb773ae417455f",
+  "producer_source_sha256": "2b2a62e5c8a49ad81b236352dde82e1fdf601d29b3f8df423fd44eb0d4181ac7",
+  "runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "actual_units_verified": [
+    "Data.Producer.prod-fold@OOO",
+    "Data.Producer.prod-fold@OOR",
+    "Data.HashMap.hash-map-to-list@OO"
+  ],
+  "actual_units_total": 2953,
+  "source_modules_verified": 65,
+  "object_sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed",
+  "metadata_sha256": "5ede65227bbc3958a507b2983bc4279753ef012ec1890e0566271dac1afcdd1a",
+  "interfaces_sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25",
+  "objects_configuration_sha256": "5b9e7cc6520fc5c8de33f2289acdf538b069933f7d1c00202d35b4de7f233b60",
+  "roots_sha256": "e568c90d5c5be199536b808a1952bc3ef5848b2f3cda8a33ee10883ccd19b069",
+  "abi": {
+    "runtime_abi": 10,
+    "target": "x86_64-unknown-linux-gnu",
+    "word_size": 64,
+    "endian": "little",
+    "reclaim": true,
+    "self_describing": true
+  },
+  "builder_script_sha256": "03a0fa9aa9459320d4d053e6702a120d7702c71025e3ca5f8881a4c0d00f4b4f",
+  "scope": [
+    "Qualified37dc/c4 Rust snapshot reused with exact gitb03018f7 committed source envelope; current parent Rust WIP was not used.",
+    "Only the two actually checked Producer representations were added; no fabricated units or source implementation overrides.",
+    "Existing strict artifact_provider validates actual object/LLVM/interface/source/root/runtime closure.",
+    "Native boundary runtime tests, public Split consumers and any fresh self-built Native family remain pending.",
+    "The separate3c00 driver provided actual Native-checked demand; its Rust semantic preflight remains pending."
+  ],
+  "evidence": [
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/00-repaired-base-artifact-v3-provider.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/provider.json",
+      "sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/01-build-provider-v3-snapshot-controls.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-snapshot-controls.json",
+      "sha256": "017b5912ebf979f7171702fbce68bf951c23e3b75abaf3b8423262788ca93782"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/02-provider-v3-actual-demands-report.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-actual-demands/report.json",
+      "sha256": "b64649fa420dea4164d44edad9ebdf3dc6425df95c1f3a7bc7889e939a05760c"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/03-provider-v3-compat-driver-demand-report.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-compat-driver-demand/report.json",
+      "sha256": "4f27f5a4ca78fa4ea9d1994bfd2c42c617c12462e2147992b8fb5bf95226165a"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/04-build-provider-v3-root-inventory.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-root-inventory.json",
+      "sha256": "6048e502fbec565a36951052f37f668ba00db0de39e8c6ba1f920227faa1c230"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/05-build-provider-v3-old-root-rejection.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-old-root-rejection.json",
+      "sha256": "dcc851b70ce53407b904ae5584dc1ffb35c80ae4acf75dbf31271b671aca9057"
+    },
+    {
+      "retained_path": "bootstrap/stdlib-producer-v3-admission-evidence/06-repaired-base-artifact-v3-source-proof.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/source-proof.json",
+      "sha256": "cb1d9faed7e73a8b4d3ec92b5c04554fe51641599447b5b67419bc660c0d73de"
+    }
+  ]
+}

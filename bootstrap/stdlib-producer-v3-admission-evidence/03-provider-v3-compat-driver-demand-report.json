@@ -1,0 +1,62 @@
+{
+  "status": "observed",
+  "scope": "Actual typed-demand inventory only; separate driver spelling, Rust semantic preflight pending",
+  "source_shadow_of_base": false,
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "0af743ecf75bec6f7e3c4e130ca3430872abf19a58b2c32671c7af06e0233d74",
+  "objects_sha256": "cc9903dcc4e6dd62ab85a2a109e58521dc0dcc7b2e1956fc101bc9292571acf2",
+  "source_sha256": "1a73cff87d53115dd979655200e35b1383bef7d6c4d1c9c88f58ffacc93368e0",
+  "inputs": [
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-bench-rust/packed/Data.Bytes.Split.cinch",
+      "sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-bench-rust/packed/Data.Bytes.Utf8.cinch",
+      "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-bench-rust/packed/Data.Bytes.View.cinch",
+      "sha256": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-bench-rust/packed/Data.Bytes.Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-bench-rust/packed/Text.Hex.cinch",
+      "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-byte-split/benchmarks/stdlib/byte-split-native-driver.cinch",
+      "sha256": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573"
+    }
+  ],
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-merged-family/build/merged-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-refined-mask/build/provider-v3-compat-driver-demand/Bundle.cinch",
+    "/workspace/dasl-stdlib-refined-mask/build/provider-v3-compat-driver-demand/consumer.ll"
+  ],
+  "exit": 5,
+  "diagnostics": "bootstrap.runtime-ir:2345:25: checked external variant is absent from the runtime object: i.Data$2eProducer$2eprod$2dfold [OOR]\nbootstrap.runtime-ir:2341:55: checked external variant is absent from the runtime object: i.Data$2eProducer$2eprod$2dfold [OOR]\nbootstrap.runtime-ir:2339:47: checked external variant is absent from the runtime object: i.Data$2eProducer$2eprod$2dfold [OOR]\n",
+  "requested_roots": {
+    "schema": 1,
+    "units": [
+      {
+        "symbol": "Data.Producer.prod-fold",
+        "classes": "OOR"
+      }
+    ],
+    "dictionaries": [],
+    "methods": []
+  }
+}

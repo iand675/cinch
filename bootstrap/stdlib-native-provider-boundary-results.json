@@ -1,0 +1,57 @@
+{
+  "status": "baseline-reproduced-and-qualified-Rust-control-passed",
+  "native_repair_claim": false,
+  "native_family_admission": false,
+  "source_shadow_used": false,
+  "native_host": "experimental O0 4a44146b; unchanged V2 object4d1e/runtime80bd",
+  "original_33_assertions": {
+    "all_four_Native_profiles_exit": 8,
+    "failed_observation": "saturating-neg-u64 MAX must return0"
+  },
+  "cross_signed_6_observations": {
+    "old_Native_failed_bits": 15,
+    "qualified_37dc_embedded_failed_bits": 0,
+    "bits": {
+      "1": "U64 MAX checked conversion to I64 must refuse",
+      "2": "U64 MAX saturating conversion to I64 must clamp to signed maximum",
+      "4": "I64 -1 checked conversion to U64 must refuse",
+      "8": "I64 -1 saturating conversion to U64 must clamp to0",
+      "16": "I64 maximum checked conversion from U64 must succeed",
+      "32": "I64 zero checked conversion to U64 must succeed"
+    }
+  },
+  "optimization_levels": [
+    0,
+    2
+  ],
+  "memory_profiles": [
+    "32M heap/8M stack ordinary",
+    "256M heap/8M stack poisoned"
+  ],
+  "all_processes_leaked": 0,
+  "ordinary_provider_calls_observed_in_Native_LLVM": {
+    "saturating-neg-u64": true,
+    "checked-u64-to-i64": true,
+    "saturating-u64-to-i64": true,
+    "checked-i64-to-u64": true,
+    "saturating-i64-to-u64": true
+  },
+  "static_lowering_audit": "Bootstrap.Builtin scalar-prefixes/scalar-wrapping-conversion exclude checked/saturating negation and conversion; RuntimeIr preserves ordinary external provider calls. The repaired actual V3 object must pass these same cases before any Native repair claim.",
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-native-provider-boundary-evidence/00-provider-v2-native-word-boundaries-before.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v2-native-word-boundaries-before/report.json",
+      "sha256": "649071c8b9f3072979e9b95d2baf4a2adfa51ee2b7145905590b72ee598633db"
+    },
+    {
+      "path": "bootstrap/stdlib-native-provider-boundary-evidence/01-provider-v2-native-cross-signed-before.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/provider-v2-native-cross-signed-before/report.json",
+      "sha256": "722f438214e260776e370875656b1e95c26c82683ec2f1c6b2655400a297dfa8"
+    },
+    {
+      "path": "bootstrap/stdlib-native-provider-boundary-evidence/02-producer37dc-cross-signed-control.json",
+      "original_path": "/workspace/dasl-stdlib-refined-mask/build/producer37dc-cross-signed-control/report.json",
+      "sha256": "4af2fe75cc7ab7ba353920a5f7b8b831e5761b3268c85c2f927163feafe2ad77"
+    }
+  ]
+}

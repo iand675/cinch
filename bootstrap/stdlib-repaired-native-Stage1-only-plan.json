@@ -1,0 +1,77 @@
+{
+  "status": "prepared-not-started-awaiting-parent-budget-and-slot-release",
+  "stage_limit": 1,
+  "source_modules": 51,
+  "compiler_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
+  "branch_checkpoint": "7bc148d14a4885eb4e17671fc44cb11a4e821d69",
+  "bridge": {
+    "source_directory": "/workspace/dasl-stdlib-merged-family/build/merged-bootstrap",
+    "copy_only": [
+      "stage0",
+      "seed-sources"
+    ],
+    "seed_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+    "seed_runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "seed_source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd",
+    "reuse_existing_Stage1_or_Stage2": false
+  },
+  "output_directory": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-v4-bootstrap",
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "python3",
+    "tooling/bootstrap.py",
+    "build",
+    "--stage",
+    "1",
+    "--no-pgo",
+    "-j",
+    "1",
+    "--library-artifact",
+    "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/provider.json"
+  ],
+  "environment": {
+    "CINCH_BOOTSTRAP_BUILD": "/workspace/dasl-stdlib-refined-mask/build/refined-mask-v4-bootstrap",
+    "CARGO_BUILD_JOBS": "1",
+    "RUST_TEST_THREADS": "1",
+    "RUST_MIN_STACK": "67108864",
+    "CARGO_INCREMENTAL": "0",
+    "CINCH_HEAP_LIMIT": "2G",
+    "CINCH_STACK_SIZE": "64M",
+    "CARGO_PROFILE_DEV_CODEGEN_UNITS": "1",
+    "CARGO_PROFILE_TEST_CODEGEN_UNITS": "1",
+    "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1"
+  },
+  "provider_context": {
+    "receipt": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/provider.json",
+    "sha256": "52f2478e8f10dfbb802fc38fe14a5a50aa11067094f9ce0e5e5ef5b75db6be25",
+    "stage1_uses": "the unchanged certified seed compiler/runtime and its embedded base, not the V4 object",
+    "stage2_3_must_use": "the explicit admitted V4 object/interfaces/c4 runtime, only after separate authorization"
+  },
+  "storage_estimate": {
+    "basis": "Prior preserved bridge: Stage0 about22MiB, seed-sources69MiB; prior Stage1 final49MiB. Cold experimental host LLVM about240MiB, with transient clang object/link output in addition.",
+    "expected_final_increment_MiB": [
+      140,
+      180
+    ],
+    "estimated_transient_increment_MiB": [
+      450,
+      550
+    ],
+    "reservation_note": "Leave room for concurrent root targeted checker and runtime-only prototype; this is an estimate rather than a measured hard cap."
+  },
+  "gates_before_build": [
+    "parent establishes free-space and CPU1 budget",
+    "reverify source/seed/provider identities immediately before copying only certified bridge inputs",
+    "ensure output contains no inherited Stage1/2/3 cache"
+  ],
+  "stop_boundary": [
+    "verify fresh Stage1 stage.json source/builder/runtime identities and ELF bad-arguments exit1",
+    "preserve compiler-source bundle and actual emitted interfaces",
+    "run only parent-authorized bounded Stage1 semantic probe",
+    "do not launch bootstrap check, Stage2 or Stage3"
+  ],
+  "full_family_claim": false,
+  "build_started": false
+}

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Strict immutable producer snapshot verification only; no V5 artifact, compiler build or Native-family qualification",
+  "observations": 31,
+  "epochs": [
+    {
+      "receipt": "current-b924.json",
+      "sha256": "fd0b476598b422f9053e5d81c02c7dfd2b5dc605edc55ee7bb3c573b5630645e",
+      "compiler_sha256": "b924bd00e9f9868dcd0d7ffc4844f8cfcd2379cb6a4915ade6f3f3974558bb3c",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_checkpoint": "e4a4d7c9d5aae6b14f24dc366fc52a4ef601095f",
+      "source_envelope_sha256": "46756edd0b19b4a4276a564c2e52d3da151c240d9bcaf8070bfacf74ca7129b2",
+      "claim_verification": {
+        "library_source_claim_count": 188,
+        "rust_manifest_verified": true,
+        "source_claim_count": 63,
+        "source_claim_fields": [
+          "rust_source_sha256"
+        ]
+      },
+      "observations": 18,
+      "physical_fixture_bytes": 851687,
+      "status": "passed"
+    },
+    {
+      "receipt": "legacy-37dc.json",
+      "sha256": "3ca5df14d0293a8030200cdcad73dbc3d068f4f7995d9b0d980e4852751650c2",
+      "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_checkpoint": "b03018f7f210a38a0b99fa07b7cb773ae417455f",
+      "source_envelope_sha256": "2b2a62e5c8a49ad81b236352dde82e1fdf601d29b3f8df423fd44eb0d4181ac7",
+      "claim_verification": {
+        "library_source_claim_count": 0,
+        "rust_manifest_verified": false,
+        "source_claim_count": 3,
+        "source_claim_fields": [
+          "source_sha256"
+        ]
+      },
+      "observations": 13,
+      "physical_fixture_bytes": 520833,
+      "status": "passed"
+    }
+  ],
+  "trusted_original_provenance_rewritten": false,
+  "all_provided_claim_maps_checked_before_use": true,
+  "conflicting_empty_malformed_or_missing_claims_refused": true,
+  "legacy_schema_preserved": true,
+  "all65_embedded_source_checks_unchanged": true,
+  "source_compiler_runtime_pin_or_provider_changed": false,
+  "retained_output_bytes": 121603
+}

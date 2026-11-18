@@ -1,0 +1,2330 @@
+{
+  "status": "verified-complete",
+  "kind": "completed-scalar-compatibility-executables",
+  "source_llvm_asm_receipts_frozen_provider_runtime_benchmarks_unchanged": true,
+  "files": [
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0000/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "df2198fd7c19223cb58be378b57edc397cd1ef5e4c3ce7a9fe59e0204a3391a9",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564272,
+      "compressed_sha256": "55ee29942718ca18d89dfa91371d4ff03d0d6d9b1c2a5dd55335994054146cfe",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "df2198fd7c19223cb58be378b57edc397cd1ef5e4c3ce7a9fe59e0204a3391a9",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0064/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e7f28a4427c33eb375975004e16a3acad8590ef3dc364362d9879e9786f9e6f0",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564736,
+      "compressed_sha256": "d88e44511dff9ca506cc78646e7ba58f929a4ce93b13157fe50536e450d78da8",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "e7f28a4427c33eb375975004e16a3acad8590ef3dc364362d9879e9786f9e6f0",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0128/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "60d7dd07de4e4188765f418d1fcfdd924f5f11d041a1dbd1bc298dafcd55345d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563329,
+      "compressed_sha256": "386d8eaee6c102715615afd5681c80b3367de3610fc82a7f692a32bd5998cfd9",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "60d7dd07de4e4188765f418d1fcfdd924f5f11d041a1dbd1bc298dafcd55345d",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0192/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "3708070e1cb835050e9336e0dec3aeabba81107207066c9117c0b240786f648e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564340,
+      "compressed_sha256": "71c2bb0b9a2f9b91f7547e706fa3489c4e773a03353146c739f9ce01f90f8607",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "3708070e1cb835050e9336e0dec3aeabba81107207066c9117c0b240786f648e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0256/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8f523326db5644be0bb497c47fab6bcd835dc2b9aab8fae5f4b02c703f85713b",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564916,
+      "compressed_sha256": "e7e1f1fa9d824da7e94da46d27d99b16c7c7e3eb027887aaa255501673a59c26",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "8f523326db5644be0bb497c47fab6bcd835dc2b9aab8fae5f4b02c703f85713b",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0320/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "425b698b9970ddd9d596f996f8eed60df5bd8df910308eab3706aa08a6be6442",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562945,
+      "compressed_sha256": "81d4aa019d9452e3b9cf63b223f2ae8495f5227ea02c18aecd36d66a80fa8d67",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "425b698b9970ddd9d596f996f8eed60df5bd8df910308eab3706aa08a6be6442",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0384/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "50f49d8f388a6dceb5d758c63efa99b27b67c3d151a76b60c72ba1745e1dbf5a",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563635,
+      "compressed_sha256": "f17c28765e7bafb416830fb3afb222929af4189a4f55cbb4a84d197d52c9d052",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "50f49d8f388a6dceb5d758c63efa99b27b67c3d151a76b60c72ba1745e1dbf5a",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0448/consumer",
+      "original_bytes": 11512040,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "67634ce4fc9fa62ab874a287d426761b56ac01d9b8aee8a3712c80aa1b371bd3",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562437,
+      "compressed_sha256": "02338d14d2ba7c58e59e0147054663cac6fccc0b1592dd5074cb261ecf735a70",
+      "verified_decompressed_bytes": 11512040,
+      "verified_decompressed_sha256": "67634ce4fc9fa62ab874a287d426761b56ac01d9b8aee8a3712c80aa1b371bd3",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0512/consumer",
+      "original_bytes": 11512040,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "ab86ecef2cc1433adea6c8bed277f71b38db915f094c7f64974f8feb1b122330",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563626,
+      "compressed_sha256": "7f2c1315ea5fe57b4c9134720ea8ed04354645408962242bf8a2a007a344f86d",
+      "verified_decompressed_bytes": 11512040,
+      "verified_decompressed_sha256": "ab86ecef2cc1433adea6c8bed277f71b38db915f094c7f64974f8feb1b122330",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0576/consumer",
+      "original_bytes": 11511912,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "03f6cfdbd9fb99699b65c7a78ba913e472a83c32eb77b2291b433c534c6720c4",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564273,
+      "compressed_sha256": "96afcd42afc47bbb9785740fbfbc8249945702d4c056eeed9029fc13512dc1f6",
+      "verified_decompressed_bytes": 11511912,
+      "verified_decompressed_sha256": "03f6cfdbd9fb99699b65c7a78ba913e472a83c32eb77b2291b433c534c6720c4",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0640/consumer",
+      "original_bytes": 11507928,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8b93f2a95a04f5e4040f4b13d736036a2c181d570ad68bd793425fa87e831d4e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563009,
+      "compressed_sha256": "0dc09d5ac2c5067f2302ca3facfea4a874017838216ee0464e08d484a076dfc8",
+      "verified_decompressed_bytes": 11507928,
+      "verified_decompressed_sha256": "8b93f2a95a04f5e4040f4b13d736036a2c181d570ad68bd793425fa87e831d4e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0.json",
+      "completed_receipt_sha256": "956534bb9b7f39a2f404b951bf804c1c0b9f0e062018a2447ce36409620cce7c",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o0/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0000/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "2dbf7d1dda0518f24e75c8bbdd3609c22b1914a3970911f82078f0f5d02a797f",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564654,
+      "compressed_sha256": "d982cce510210713e253e2bd651f3d08d54d7a98570778d19863a340d30ef6d3",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "2dbf7d1dda0518f24e75c8bbdd3609c22b1914a3970911f82078f0f5d02a797f",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0064/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e46d69c289f11e37b53611b88baa6a01399472d817663ca9601dbb693898caf0",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563259,
+      "compressed_sha256": "9a70e1e11be7d495381cd0043ddd27545ecbc773a5a0054189b9e46ffca385ac",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "e46d69c289f11e37b53611b88baa6a01399472d817663ca9601dbb693898caf0",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0128/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "171ba30eeebd7d51175b8d3f1af4c9dfad5c23b9277abe86b6dc69c099bd1261",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563538,
+      "compressed_sha256": "432f6c18ec8571cba798a2ae138d0e6059c9715ac933fb338563a20ad0f0d3ad",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "171ba30eeebd7d51175b8d3f1af4c9dfad5c23b9277abe86b6dc69c099bd1261",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0192/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "58ccc385fc78492bce87c716c3576597e8b1d17b680010740d2df47cb27f7eac",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562182,
+      "compressed_sha256": "066eb042c35391210e4e7322536868dad66f90104f085916ef722f10c7470ec7",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "58ccc385fc78492bce87c716c3576597e8b1d17b680010740d2df47cb27f7eac",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0256/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "285b7375bdf19f0c5afb7d879068323c76eb8e9570d64a618c071dda41640b33",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564422,
+      "compressed_sha256": "a481b7e97ba7cc12f32c8891bb2cb9e96447ae40a54b2811f91187cb93e0d773",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "285b7375bdf19f0c5afb7d879068323c76eb8e9570d64a618c071dda41640b33",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0320/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "11025729712a9afade35decf71c17715abda03c44f19849b0b84134e95b77f35",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562246,
+      "compressed_sha256": "9e8e7b6b3ceeaf5235616018ccd482f578716aeecceda1613163ec07c0cfc65e",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "11025729712a9afade35decf71c17715abda03c44f19849b0b84134e95b77f35",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0384/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "008563d9a8622a0c137911bc168c6b2372ab477b6d7feb3387854501c081d57b",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563196,
+      "compressed_sha256": "9fe5208b5be22e653226de1f0ac8aa2a3a57abf66ce566e490ec6de2c97ae6ff",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "008563d9a8622a0c137911bc168c6b2372ab477b6d7feb3387854501c081d57b",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0448/consumer",
+      "original_bytes": 11507856,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "63898a238574ed3c71070e3ceb2886694cf4e627061a94b77775086fdb35f3af",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2566483,
+      "compressed_sha256": "5d29a06e409f04bd138f00c0ab865b84c935d0c5c80bd8e8a4e85ea3cc319354",
+      "verified_decompressed_bytes": 11507856,
+      "verified_decompressed_sha256": "63898a238574ed3c71070e3ceb2886694cf4e627061a94b77775086fdb35f3af",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0512/consumer",
+      "original_bytes": 11507856,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "6d1e842518cc47fb8d9cb3875b18865590011d63c21fb4eca32e07682fc874ad",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562827,
+      "compressed_sha256": "d558d48411f2d8727eb7a5c57f35f1755d704a572a58a42e51a29a43083287cf",
+      "verified_decompressed_bytes": 11507856,
+      "verified_decompressed_sha256": "6d1e842518cc47fb8d9cb3875b18865590011d63c21fb4eca32e07682fc874ad",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0576/consumer",
+      "original_bytes": 11507728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "5c7f2185225a292968cc59753effb3499e1818795f89fc0afc804e074f101c92",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565120,
+      "compressed_sha256": "2b054d343e27a24c4b4923dfed80e0f3954fbe7ca9ddb441b60682f90f243762",
+      "verified_decompressed_bytes": 11507728,
+      "verified_decompressed_sha256": "5c7f2185225a292968cc59753effb3499e1818795f89fc0afc804e074f101c92",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0640/consumer",
+      "original_bytes": 11503744,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8f718eb702240718ebc1ecf65a3defc88327524a4c2173f4fa1ff21f26aa7d68",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564320,
+      "compressed_sha256": "9e68dddf9a535351270963a55ddedff29a64a9c20f99ea9422eb3ba24a1c874d",
+      "verified_decompressed_bytes": 11503744,
+      "verified_decompressed_sha256": "8f718eb702240718ebc1ecf65a3defc88327524a4c2173f4fa1ff21f26aa7d68",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2.json",
+      "completed_receipt_sha256": "a0c9caafff64ef7eaa1631f005553a2ea90e6f1b7528362bcca4c5c32897d808",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-baseline-full-o2/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0000/consumer",
+      "original_bytes": 11512880,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8f1b740f5eba0320b638b740a7a08d28e1b04689c2e9fcf4836f3e89bfe8d197",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564426,
+      "compressed_sha256": "18b9c6fa98fe88e62028f743248df964995f859be95497f0e0f0b20518143ece",
+      "verified_decompressed_bytes": 11512880,
+      "verified_decompressed_sha256": "8f1b740f5eba0320b638b740a7a08d28e1b04689c2e9fcf4836f3e89bfe8d197",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0064/consumer",
+      "original_bytes": 11513208,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b7151f02089328901fc72b28dbc0e0a4fed908ff7197eec3f35e8976ae39ea0d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565183,
+      "compressed_sha256": "0f707fd7cc91885ef15cc2fdb05bbc7adc91e77feb6c0b7d6184eaa9eded014b",
+      "verified_decompressed_bytes": 11513208,
+      "verified_decompressed_sha256": "b7151f02089328901fc72b28dbc0e0a4fed908ff7197eec3f35e8976ae39ea0d",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0128/consumer",
+      "original_bytes": 11513224,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "fb094848be47bad9bb08942e053496b38c62e891a8ab5aec2d09926ae6a0287a",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565274,
+      "compressed_sha256": "0cda02b8cd2d2475013f0c499050712e248b6620f743b090ec4f1caee2cb0bdc",
+      "verified_decompressed_bytes": 11513224,
+      "verified_decompressed_sha256": "fb094848be47bad9bb08942e053496b38c62e891a8ab5aec2d09926ae6a0287a",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0192/consumer",
+      "original_bytes": 11513512,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b2df95e0619e13730394988e577654ee30f59101347e3f84a7aae0dfc9b32416",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565105,
+      "compressed_sha256": "95cc593a15145c6a04446ee42aeb995e7b23a4357f78b083a26b14574b100479",
+      "verified_decompressed_bytes": 11513512,
+      "verified_decompressed_sha256": "b2df95e0619e13730394988e577654ee30f59101347e3f84a7aae0dfc9b32416",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0256/consumer",
+      "original_bytes": 11512704,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "ee696ec6025c2d6e611190813be17f3507315b0ff6deb72d9e743db4e377a38e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564185,
+      "compressed_sha256": "59ccf4726a56764f65aa5dad32aa2809f901949db69f13997226da8b727b1397",
+      "verified_decompressed_bytes": 11512704,
+      "verified_decompressed_sha256": "ee696ec6025c2d6e611190813be17f3507315b0ff6deb72d9e743db4e377a38e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0320/consumer",
+      "original_bytes": 11513008,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "538f5fd3b3f5a816f3e4e60016cf9351d950c8f4da5f3bf6a7414f9551860d59",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565434,
+      "compressed_sha256": "d441d61b29c04a81868bcea79019c69089d15e28ab74daa62b62b40b7f095f56",
+      "verified_decompressed_bytes": 11513008,
+      "verified_decompressed_sha256": "538f5fd3b3f5a816f3e4e60016cf9351d950c8f4da5f3bf6a7414f9551860d59",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0384/consumer",
+      "original_bytes": 11513208,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e6438988bf90a1b5675a155c6862c6cd609acf8bb7e04f826d8de3e4422de85c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564868,
+      "compressed_sha256": "12bab3b92683c368f5e7c06c089fb66bd1a9402688263f03a3425aad29f3ccb7",
+      "verified_decompressed_bytes": 11513208,
+      "verified_decompressed_sha256": "e6438988bf90a1b5675a155c6862c6cd609acf8bb7e04f826d8de3e4422de85c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0448/consumer",
+      "original_bytes": 11513440,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e24c7a2054799f91c039c8eabf0a67950037f90d5011b7a911ef2dcfad7e07f0",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564949,
+      "compressed_sha256": "bf2638bc98f11bca908b6ced2a8f312150afad18a652c115687f23162e967b7e",
+      "verified_decompressed_bytes": 11513440,
+      "verified_decompressed_sha256": "e24c7a2054799f91c039c8eabf0a67950037f90d5011b7a911ef2dcfad7e07f0",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0512/consumer",
+      "original_bytes": 11513216,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8b1c258b5a5e2f965c9b7040393d3682990edf32fa3f03aa043fa408bef9e415",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564202,
+      "compressed_sha256": "116e1788a6d390457aa4a15b28d11ed026c34d2ef04025f05336cd5339b3bd4d",
+      "verified_decompressed_bytes": 11513216,
+      "verified_decompressed_sha256": "8b1c258b5a5e2f965c9b7040393d3682990edf32fa3f03aa043fa408bef9e415",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0576/consumer",
+      "original_bytes": 11512896,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "f949f52509c8dcee59238a64306bc9c354ed0d0a01b8c118b8b25e5b63c3c902",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564585,
+      "compressed_sha256": "c52cf5d50bee7379a259baead4fc373fce0f050a5c31220402439ce8e2590e32",
+      "verified_decompressed_bytes": 11512896,
+      "verified_decompressed_sha256": "f949f52509c8dcee59238a64306bc9c354ed0d0a01b8c118b8b25e5b63c3c902",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0640/consumer",
+      "original_bytes": 11508680,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "22a58c97a7a2d897853f443232cdfdb6342ef427b4bba3dcd2784bf7d7df286c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564902,
+      "compressed_sha256": "64ca19e9b4c92915bafb9e33dfaf1a7d3ad9d06661898765def3a3e038e70841",
+      "verified_decompressed_bytes": 11508680,
+      "verified_decompressed_sha256": "22a58c97a7a2d897853f443232cdfdb6342ef427b4bba3dcd2784bf7d7df286c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0.json",
+      "completed_receipt_sha256": "0b74f5e4fb884d001b8e156a75f327434f78c3064569596975d7b87d470d3718",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o0/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0000/consumer",
+      "original_bytes": 11504600,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "6e993f8f15f437b83bc786161556e7dd6e0d04b0fdd6c0526ce60ab7cd773f39",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562516,
+      "compressed_sha256": "eb7483f16d443f58c566677dda238309bae5470efdb5347a1ea2ea2d6f869cba",
+      "verified_decompressed_bytes": 11504600,
+      "verified_decompressed_sha256": "6e993f8f15f437b83bc786161556e7dd6e0d04b0fdd6c0526ce60ab7cd773f39",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0064/consumer",
+      "original_bytes": 11504928,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "5943296e508289d1224416c0481a6833f352cd205fea6e4acdddbbccd1669791",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562670,
+      "compressed_sha256": "a966273e90e43d7c5a7de41759783203e96b354dc10fe1659aa91bd3d7e275a8",
+      "verified_decompressed_bytes": 11504928,
+      "verified_decompressed_sha256": "5943296e508289d1224416c0481a6833f352cd205fea6e4acdddbbccd1669791",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0128/consumer",
+      "original_bytes": 11504944,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "714315ce4cc556201f762fceb967fe86a4d74fa3f07229c5bc08596461d1db92",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562796,
+      "compressed_sha256": "fd94cfaf15f10c27745adf35aff3c5bcabf5c31fe23c98195d8956c55d7acbee",
+      "verified_decompressed_bytes": 11504944,
+      "verified_decompressed_sha256": "714315ce4cc556201f762fceb967fe86a4d74fa3f07229c5bc08596461d1db92",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0192/consumer",
+      "original_bytes": 11505232,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "301f8737cfec7429269e142393ffaca5b35483b3969b484352dbff8a91c32b16",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2561987,
+      "compressed_sha256": "be23f8352770efc5bc5763088e0bc827449339e8c2547dfa36a8b6ba7945d53c",
+      "verified_decompressed_bytes": 11505232,
+      "verified_decompressed_sha256": "301f8737cfec7429269e142393ffaca5b35483b3969b484352dbff8a91c32b16",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0256/consumer",
+      "original_bytes": 11504424,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b326513784659b9b8b897ffb606e8b6b58f6eb24e6ae6d061bc567390054ac7c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563367,
+      "compressed_sha256": "2027fa7fdf3519819711ac4a614e72a039fbc27c90c469d0dbe279f24c60c720",
+      "verified_decompressed_bytes": 11504424,
+      "verified_decompressed_sha256": "b326513784659b9b8b897ffb606e8b6b58f6eb24e6ae6d061bc567390054ac7c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0320/consumer",
+      "original_bytes": 11504728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "4bf86c1c921eecfc1fa849fe4044672fa29656f3b985b304f683db7331dbfdac",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564374,
+      "compressed_sha256": "b37083397e496130ff54745850c769435dee2b6acca711f643f70d27fe1b57b6",
+      "verified_decompressed_bytes": 11504728,
+      "verified_decompressed_sha256": "4bf86c1c921eecfc1fa849fe4044672fa29656f3b985b304f683db7331dbfdac",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0384/consumer",
+      "original_bytes": 11504936,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "046c1c52113432652c5a0b035c644687f691e70e44d3e73108cf0a8d9611f07e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562626,
+      "compressed_sha256": "7d10282502966c91e709a770f5ce70d3cf9f905cbffdf07c4d14749c6862eb69",
+      "verified_decompressed_bytes": 11504936,
+      "verified_decompressed_sha256": "046c1c52113432652c5a0b035c644687f691e70e44d3e73108cf0a8d9611f07e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0448/consumer",
+      "original_bytes": 11505160,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "1cb925d4a7b7739e869adabd588f909493ecb8daa7ec03c050ee8ca2d71dfa35",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562503,
+      "compressed_sha256": "ecf38afb31908bbae49d3551bc0dd7ebafc6a5b31d83e46f2a94b27d7503b55d",
+      "verified_decompressed_bytes": 11505160,
+      "verified_decompressed_sha256": "1cb925d4a7b7739e869adabd588f909493ecb8daa7ec03c050ee8ca2d71dfa35",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0512/consumer",
+      "original_bytes": 11504936,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b51b90bd65bf52b1eec2e35930d57794eaeed76230bae9ab6a64d305589291d9",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562849,
+      "compressed_sha256": "62e4c7f0cd9444a4e8f652114a30bc5a859c685cff82b319ebed2adadc4b1bf2",
+      "verified_decompressed_bytes": 11504936,
+      "verified_decompressed_sha256": "b51b90bd65bf52b1eec2e35930d57794eaeed76230bae9ab6a64d305589291d9",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0576/consumer",
+      "original_bytes": 11504616,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "d3dc662e9cebd2f204a28f1cac9ac87901df0beb3a6c8cde2663fa6374b8ce4d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562472,
+      "compressed_sha256": "24411dccd90678961b0a5a2ccba5f34330d0d2b7d96ec1dec782add80bef29b8",
+      "verified_decompressed_bytes": 11504616,
+      "verified_decompressed_sha256": "d3dc662e9cebd2f204a28f1cac9ac87901df0beb3a6c8cde2663fa6374b8ce4d",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0640/consumer",
+      "original_bytes": 11504504,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "57bfd0e48066b1d9796dc16f4298b9249ee10de54275ac13c5cd374ae252abb4",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2566584,
+      "compressed_sha256": "52cff7520f2f63ee8e8c924d0c2d9b797718f0c9856fb6764b6057d3e3aac8d0",
+      "verified_decompressed_bytes": 11504504,
+      "verified_decompressed_sha256": "57bfd0e48066b1d9796dc16f4298b9249ee10de54275ac13c5cd374ae252abb4",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2.json",
+      "completed_receipt_sha256": "7649062cf8de086670450810216b91317582c77a733b342d72a7ad72bafef1b5",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r2-full-o2/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0000/consumer",
+      "original_bytes": 11512880,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8f1b740f5eba0320b638b740a7a08d28e1b04689c2e9fcf4836f3e89bfe8d197",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564426,
+      "compressed_sha256": "18b9c6fa98fe88e62028f743248df964995f859be95497f0e0f0b20518143ece",
+      "verified_decompressed_bytes": 11512880,
+      "verified_decompressed_sha256": "8f1b740f5eba0320b638b740a7a08d28e1b04689c2e9fcf4836f3e89bfe8d197",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0064/consumer",
+      "original_bytes": 11513208,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b7151f02089328901fc72b28dbc0e0a4fed908ff7197eec3f35e8976ae39ea0d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565183,
+      "compressed_sha256": "0f707fd7cc91885ef15cc2fdb05bbc7adc91e77feb6c0b7d6184eaa9eded014b",
+      "verified_decompressed_bytes": 11513208,
+      "verified_decompressed_sha256": "b7151f02089328901fc72b28dbc0e0a4fed908ff7197eec3f35e8976ae39ea0d",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0128/consumer",
+      "original_bytes": 11513224,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "fb094848be47bad9bb08942e053496b38c62e891a8ab5aec2d09926ae6a0287a",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565274,
+      "compressed_sha256": "0cda02b8cd2d2475013f0c499050712e248b6620f743b090ec4f1caee2cb0bdc",
+      "verified_decompressed_bytes": 11513224,
+      "verified_decompressed_sha256": "fb094848be47bad9bb08942e053496b38c62e891a8ab5aec2d09926ae6a0287a",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0192/consumer",
+      "original_bytes": 11513512,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b2df95e0619e13730394988e577654ee30f59101347e3f84a7aae0dfc9b32416",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565105,
+      "compressed_sha256": "95cc593a15145c6a04446ee42aeb995e7b23a4357f78b083a26b14574b100479",
+      "verified_decompressed_bytes": 11513512,
+      "verified_decompressed_sha256": "b2df95e0619e13730394988e577654ee30f59101347e3f84a7aae0dfc9b32416",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0256/consumer",
+      "original_bytes": 11512704,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "ee696ec6025c2d6e611190813be17f3507315b0ff6deb72d9e743db4e377a38e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564185,
+      "compressed_sha256": "59ccf4726a56764f65aa5dad32aa2809f901949db69f13997226da8b727b1397",
+      "verified_decompressed_bytes": 11512704,
+      "verified_decompressed_sha256": "ee696ec6025c2d6e611190813be17f3507315b0ff6deb72d9e743db4e377a38e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0320/consumer",
+      "original_bytes": 11513008,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "538f5fd3b3f5a816f3e4e60016cf9351d950c8f4da5f3bf6a7414f9551860d59",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565434,
+      "compressed_sha256": "d441d61b29c04a81868bcea79019c69089d15e28ab74daa62b62b40b7f095f56",
+      "verified_decompressed_bytes": 11513008,
+      "verified_decompressed_sha256": "538f5fd3b3f5a816f3e4e60016cf9351d950c8f4da5f3bf6a7414f9551860d59",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0384/consumer",
+      "original_bytes": 11513208,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e6438988bf90a1b5675a155c6862c6cd609acf8bb7e04f826d8de3e4422de85c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564868,
+      "compressed_sha256": "12bab3b92683c368f5e7c06c089fb66bd1a9402688263f03a3425aad29f3ccb7",
+      "verified_decompressed_bytes": 11513208,
+      "verified_decompressed_sha256": "e6438988bf90a1b5675a155c6862c6cd609acf8bb7e04f826d8de3e4422de85c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0448/consumer",
+      "original_bytes": 11513440,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "e24c7a2054799f91c039c8eabf0a67950037f90d5011b7a911ef2dcfad7e07f0",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564949,
+      "compressed_sha256": "bf2638bc98f11bca908b6ced2a8f312150afad18a652c115687f23162e967b7e",
+      "verified_decompressed_bytes": 11513440,
+      "verified_decompressed_sha256": "e24c7a2054799f91c039c8eabf0a67950037f90d5011b7a911ef2dcfad7e07f0",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0512/consumer",
+      "original_bytes": 11513216,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8b1c258b5a5e2f965c9b7040393d3682990edf32fa3f03aa043fa408bef9e415",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564202,
+      "compressed_sha256": "116e1788a6d390457aa4a15b28d11ed026c34d2ef04025f05336cd5339b3bd4d",
+      "verified_decompressed_bytes": 11513216,
+      "verified_decompressed_sha256": "8b1c258b5a5e2f965c9b7040393d3682990edf32fa3f03aa043fa408bef9e415",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0576/consumer",
+      "original_bytes": 11512896,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "f949f52509c8dcee59238a64306bc9c354ed0d0a01b8c118b8b25e5b63c3c902",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564585,
+      "compressed_sha256": "c52cf5d50bee7379a259baead4fc373fce0f050a5c31220402439ce8e2590e32",
+      "verified_decompressed_bytes": 11512896,
+      "verified_decompressed_sha256": "f949f52509c8dcee59238a64306bc9c354ed0d0a01b8c118b8b25e5b63c3c902",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0640/consumer",
+      "original_bytes": 11508680,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "22a58c97a7a2d897853f443232cdfdb6342ef427b4bba3dcd2784bf7d7df286c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564902,
+      "compressed_sha256": "64ca19e9b4c92915bafb9e33dfaf1a7d3ad9d06661898765def3a3e038e70841",
+      "verified_decompressed_bytes": 11508680,
+      "verified_decompressed_sha256": "22a58c97a7a2d897853f443232cdfdb6342ef427b4bba3dcd2784bf7d7df286c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0.json",
+      "completed_receipt_sha256": "2beb6c9a45694c87a6252ab9baf71fc4ba93a84b4b69353c6eb843086a6f9b73",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o0/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0000/consumer",
+      "original_bytes": 11504600,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "6e993f8f15f437b83bc786161556e7dd6e0d04b0fdd6c0526ce60ab7cd773f39",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562516,
+      "compressed_sha256": "eb7483f16d443f58c566677dda238309bae5470efdb5347a1ea2ea2d6f869cba",
+      "verified_decompressed_bytes": 11504600,
+      "verified_decompressed_sha256": "6e993f8f15f437b83bc786161556e7dd6e0d04b0fdd6c0526ce60ab7cd773f39",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0000/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0000/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0000/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0064/consumer",
+      "original_bytes": 11504928,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "5943296e508289d1224416c0481a6833f352cd205fea6e4acdddbbccd1669791",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562670,
+      "compressed_sha256": "a966273e90e43d7c5a7de41759783203e96b354dc10fe1659aa91bd3d7e275a8",
+      "verified_decompressed_bytes": 11504928,
+      "verified_decompressed_sha256": "5943296e508289d1224416c0481a6833f352cd205fea6e4acdddbbccd1669791",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0064/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0064/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0064/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0128/consumer",
+      "original_bytes": 11504944,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "714315ce4cc556201f762fceb967fe86a4d74fa3f07229c5bc08596461d1db92",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562796,
+      "compressed_sha256": "fd94cfaf15f10c27745adf35aff3c5bcabf5c31fe23c98195d8956c55d7acbee",
+      "verified_decompressed_bytes": 11504944,
+      "verified_decompressed_sha256": "714315ce4cc556201f762fceb967fe86a4d74fa3f07229c5bc08596461d1db92",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0128/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0128/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0128/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0192/consumer",
+      "original_bytes": 11505232,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "301f8737cfec7429269e142393ffaca5b35483b3969b484352dbff8a91c32b16",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2561987,
+      "compressed_sha256": "be23f8352770efc5bc5763088e0bc827449339e8c2547dfa36a8b6ba7945d53c",
+      "verified_decompressed_bytes": 11505232,
+      "verified_decompressed_sha256": "301f8737cfec7429269e142393ffaca5b35483b3969b484352dbff8a91c32b16",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0192/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0192/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0192/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0256/consumer",
+      "original_bytes": 11504424,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b326513784659b9b8b897ffb606e8b6b58f6eb24e6ae6d061bc567390054ac7c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2563367,
+      "compressed_sha256": "2027fa7fdf3519819711ac4a614e72a039fbc27c90c469d0dbe279f24c60c720",
+      "verified_decompressed_bytes": 11504424,
+      "verified_decompressed_sha256": "b326513784659b9b8b897ffb606e8b6b58f6eb24e6ae6d061bc567390054ac7c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0256/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0256/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0256/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0320/consumer",
+      "original_bytes": 11504728,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "4bf86c1c921eecfc1fa849fe4044672fa29656f3b985b304f683db7331dbfdac",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2564374,
+      "compressed_sha256": "b37083397e496130ff54745850c769435dee2b6acca711f643f70d27fe1b57b6",
+      "verified_decompressed_bytes": 11504728,
+      "verified_decompressed_sha256": "4bf86c1c921eecfc1fa849fe4044672fa29656f3b985b304f683db7331dbfdac",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0320/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0320/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0320/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0384/consumer",
+      "original_bytes": 11504936,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "046c1c52113432652c5a0b035c644687f691e70e44d3e73108cf0a8d9611f07e",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562626,
+      "compressed_sha256": "7d10282502966c91e709a770f5ce70d3cf9f905cbffdf07c4d14749c6862eb69",
+      "verified_decompressed_bytes": 11504936,
+      "verified_decompressed_sha256": "046c1c52113432652c5a0b035c644687f691e70e44d3e73108cf0a8d9611f07e",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0384/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0384/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0384/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0448/consumer",
+      "original_bytes": 11505160,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "1cb925d4a7b7739e869adabd588f909493ecb8daa7ec03c050ee8ca2d71dfa35",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562503,
+      "compressed_sha256": "ecf38afb31908bbae49d3551bc0dd7ebafc6a5b31d83e46f2a94b27d7503b55d",
+      "verified_decompressed_bytes": 11505160,
+      "verified_decompressed_sha256": "1cb925d4a7b7739e869adabd588f909493ecb8daa7ec03c050ee8ca2d71dfa35",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0448/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0448/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0448/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0512/consumer",
+      "original_bytes": 11504936,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "b51b90bd65bf52b1eec2e35930d57794eaeed76230bae9ab6a64d305589291d9",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562849,
+      "compressed_sha256": "62e4c7f0cd9444a4e8f652114a30bc5a859c685cff82b319ebed2adadc4b1bf2",
+      "verified_decompressed_bytes": 11504936,
+      "verified_decompressed_sha256": "b51b90bd65bf52b1eec2e35930d57794eaeed76230bae9ab6a64d305589291d9",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0512/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0512/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0512/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0576/consumer",
+      "original_bytes": 11504616,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "d3dc662e9cebd2f204a28f1cac9ac87901df0beb3a6c8cde2663fa6374b8ce4d",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562472,
+      "compressed_sha256": "24411dccd90678961b0a5a2ccba5f34330d0d2b7d96ec1dec782add80bef29b8",
+      "verified_decompressed_bytes": 11504616,
+      "verified_decompressed_sha256": "d3dc662e9cebd2f204a28f1cac9ac87901df0beb3a6c8cde2663fa6374b8ce4d",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0576/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0576/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0576/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0640/consumer",
+      "original_bytes": 11504504,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "57bfd0e48066b1d9796dc16f4298b9249ee10de54275ac13c5cd374ae252abb4",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2566584,
+      "compressed_sha256": "52cff7520f2f63ee8e8c924d0c2d9b797718f0c9856fb6764b6057d3e3aac8d0",
+      "verified_decompressed_bytes": 11504504,
+      "verified_decompressed_sha256": "57bfd0e48066b1d9796dc16f4298b9249ee10de54275ac13c5cd374ae252abb4",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2.json",
+      "completed_receipt_sha256": "59dadbd121e703e573afd71fc35f767670bb8b767ce5bd1c0882fd7bf9870ab1",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0640/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0640/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-full-o2/batch-0640/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/effect-order/consumer",
+      "original_bytes": 11504112,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "4a89b2da80ef38f6cc90c3d631f827d6237082a10ebfbdda72325514128e2dad",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/effect-order/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562623,
+      "compressed_sha256": "61dfa3e91b733d66ed5c3e7775379f11903edc4539c96d853e87c07cf99e2ddd",
+      "verified_decompressed_bytes": 11504112,
+      "verified_decompressed_sha256": "4a89b2da80ef38f6cc90c3d631f827d6237082a10ebfbdda72325514128e2dad",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/effect-order/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/effect-order/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/effect-order/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-defining-module-override/consumer",
+      "original_bytes": 11503752,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "f79a5f1a7ac62b59ccb32e715fce2205209518f0657b0361f2bd6d8af4f96cb1",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-defining-module-override/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565348,
+      "compressed_sha256": "df71d45bc6879dc8a7d6711c8edcd1f5b3fe166821ed9cb05fcfb8d1383c20d8",
+      "verified_decompressed_bytes": 11503752,
+      "verified_decompressed_sha256": "f79a5f1a7ac62b59ccb32e715fce2205209518f0657b0361f2bd6d8af4f96cb1",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-defining-module-override/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-defining-module-override/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-defining-module-override/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-foreign/consumer",
+      "original_bytes": 11503936,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "fc78951ec1a57adb9039664ab9e15ee72e2a9de1cd80513957feea087b86848c",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-foreign/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2561829,
+      "compressed_sha256": "4e17273cbca25b378a5dad72abca7b5e54c69037d4416f846c4c2887802c7f1e",
+      "verified_decompressed_bytes": 11503936,
+      "verified_decompressed_sha256": "fc78951ec1a57adb9039664ab9e15ee72e2a9de1cd80513957feea087b86848c",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-foreign/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-foreign/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-foreign/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-name/consumer",
+      "original_bytes": 11503736,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "74752a5d7dfb17d9d44cf70b75889bd8e4684c5e1c4f7d2f66f5db8923041dcd",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-name/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565206,
+      "compressed_sha256": "6b2c55e0bb2a22bb7f2764a386b442c6605a26e9774922c39fa90e271c4fa1cd",
+      "verified_decompressed_bytes": 11503736,
+      "verified_decompressed_sha256": "74752a5d7dfb17d9d44cf70b75889bd8e4684c5e1c4f7d2f66f5db8923041dcd",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-name/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-name/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/same-display-name/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-defining-intrinsic/consumer",
+      "original_bytes": 5882288,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "cc3d12e4036f23b2b0f935be88b6bc2fedac5aef48df1e99145331985fea1346",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-defining-intrinsic/consumer.completed-compat-v1.zst",
+      "archive_bytes": 1595425,
+      "compressed_sha256": "aa43b7dceca1a8aaccdabcc0cc58f773df7c25055357b7f0ddb646c84629c2b1",
+      "verified_decompressed_bytes": 5882288,
+      "verified_decompressed_sha256": "cc3d12e4036f23b2b0f935be88b6bc2fedac5aef48df1e99145331985fea1346",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-defining-intrinsic/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-defining-intrinsic/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-defining-intrinsic/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-reexport/consumer",
+      "original_bytes": 11503800,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "84fe7c1336a80560f2f7cdd2518ceafe709ee17488bbd5378cebc432a928a3c7",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-reexport/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2565660,
+      "compressed_sha256": "905a68dff04a4884962fcacfb350aba805fc53b0c4c8778b2316fcc0f6d4e660",
+      "verified_decompressed_bytes": 11503800,
+      "verified_decompressed_sha256": "84fe7c1336a80560f2f7cdd2518ceafe709ee17488bbd5378cebc432a928a3c7",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-reexport/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-reexport/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/source-absent-reexport/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/unsupported-operation/consumer",
+      "original_bytes": 11503672,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "a9bacf810b41cdc7f09fe5d3dc8428cafb2ce55b067b33cfbcf470b6c265ed66",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/unsupported-operation/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562602,
+      "compressed_sha256": "eb7e8dfe9ce89b931f7cc9e40d94ca8463be1d700fc0f50c6958c57f2ebaf93b",
+      "verified_decompressed_bytes": 11503672,
+      "verified_decompressed_sha256": "a9bacf810b41cdc7f09fe5d3dc8428cafb2ce55b067b33cfbcf470b6c265ed66",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0.json",
+      "completed_receipt_sha256": "5d0169d5be7bbec58eb6bbf95131e4212a6b48345b1353d47d2771f5532fda05",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/unsupported-operation/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/unsupported-operation/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o0/unsupported-operation/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/effect-order/consumer",
+      "original_bytes": 11504024,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "3e2d0b34b3cfcf1fa4750ed02a4aaaff0dacd2c6982df6fb2c2cb70a41577733",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/effect-order/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562563,
+      "compressed_sha256": "2c4c700d631beef925271695f5ff5b2facbfb0d03ba02cdd4a8865fd79e73198",
+      "verified_decompressed_bytes": 11504024,
+      "verified_decompressed_sha256": "3e2d0b34b3cfcf1fa4750ed02a4aaaff0dacd2c6982df6fb2c2cb70a41577733",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/effect-order/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/effect-order/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/effect-order/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-defining-module-override/consumer",
+      "original_bytes": 11503664,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "8372292671426ebf878151d7fdd9bf8fd6b0ebfbc44da595ea340874fb0f2b30",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-defining-module-override/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562381,
+      "compressed_sha256": "b2975eb44774cfb3725d658305cce05f28c22d5bcfc46d542596afa2f37e34b1",
+      "verified_decompressed_bytes": 11503664,
+      "verified_decompressed_sha256": "8372292671426ebf878151d7fdd9bf8fd6b0ebfbc44da595ea340874fb0f2b30",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-defining-module-override/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-defining-module-override/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-defining-module-override/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-foreign/consumer",
+      "original_bytes": 11503848,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "94664da2b5fb6ee67ad8185bbed67750f7c750771531a28dc3d697094e971594",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-foreign/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562731,
+      "compressed_sha256": "f96265480fb93b9efc4d1808dad31a65b27b159882add64bbe93a2c7f405f97b",
+      "verified_decompressed_bytes": 11503848,
+      "verified_decompressed_sha256": "94664da2b5fb6ee67ad8185bbed67750f7c750771531a28dc3d697094e971594",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-foreign/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-foreign/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-foreign/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-name/consumer",
+      "original_bytes": 11503648,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "f1098e0a33e939506aaaa0927a166561b91a86e3aa673f4a1816d70637810853",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-name/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562246,
+      "compressed_sha256": "6be1e24611b934e5e86f04992eaf9ad9e0f140b84cab5193979443477b26a651",
+      "verified_decompressed_bytes": 11503648,
+      "verified_decompressed_sha256": "f1098e0a33e939506aaaa0927a166561b91a86e3aa673f4a1816d70637810853",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-name/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-name/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/same-display-name/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-defining-intrinsic/consumer",
+      "original_bytes": 5878192,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "7933acb5f4cd2e8735c82f843c293db9dcc1779a54c9b6e1f76703e7625cce59",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-defining-intrinsic/consumer.completed-compat-v1.zst",
+      "archive_bytes": 1594707,
+      "compressed_sha256": "70d94b216496b0aaff15e4be7ce1b24243df1426bbfb6e8a91af1f6ffb1e3bd9",
+      "verified_decompressed_bytes": 5878192,
+      "verified_decompressed_sha256": "7933acb5f4cd2e8735c82f843c293db9dcc1779a54c9b6e1f76703e7625cce59",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-defining-intrinsic/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-defining-intrinsic/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-defining-intrinsic/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-reexport/consumer",
+      "original_bytes": 11503712,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "6973633d041c8c56c2c73de932a8a6e414cba133275cfdbb010bc5d9ed9d2d8b",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-reexport/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562021,
+      "compressed_sha256": "646a9cd13079abebce50645ba01d703ff4b6585ab68a3fd5d9032063167341d1",
+      "verified_decompressed_bytes": 11503712,
+      "verified_decompressed_sha256": "6973633d041c8c56c2c73de932a8a6e414cba133275cfdbb010bc5d9ed9d2d8b",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-reexport/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-reexport/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/source-absent-reexport/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    },
+    {
+      "original_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/unsupported-operation/consumer",
+      "original_bytes": 11503584,
+      "original_mode": "0o700",
+      "uncompressed_sha256": "fc3ff80202207bcf064ac412790312d1ac2cbbd10b9f6aa1d953ac71b476a6eb",
+      "archive_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/unsupported-operation/consumer.completed-compat-v1.zst",
+      "archive_bytes": 2562542,
+      "compressed_sha256": "bc5c6f1f0c3563be6cb8b805507f51a1b735681e6cfdcaf624502391c13bfcbf",
+      "verified_decompressed_bytes": 11503584,
+      "verified_decompressed_sha256": "fc3ff80202207bcf064ac412790312d1ac2cbbd10b9f6aa1d953ac71b476a6eb",
+      "completed_receipt_path": "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2.json",
+      "completed_receipt_sha256": "f4d0bad7f8cecb5c0a5bb5bd383e9feaea84f1e8d900a48f99225fc470ee3b85",
+      "raw_unlinked": true,
+      "recovery_commands": [
+        [
+          "zstd",
+          "-d",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/unsupported-operation/consumer.completed-compat-v1.zst",
+          "-o",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/unsupported-operation/consumer"
+        ],
+        [
+          "chmod",
+          "700",
+          "/workspace/dasl-stdlib-scalar-imports/build/scalar-r5-authority-o2/unsupported-operation/consumer"
+        ]
+      ],
+      "matches_completed_validation_receipt_digest": true
+    }
+  ],
+  "seconds": 9.776038306998089,
+  "bytes_freed": 706233157,
+  "all_original_hashes_match_completed_validation_receipts": true
+}

@@ -1,0 +1,85 @@
+{
+  "status": "observed",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "mode": "source-only check; no IR/runtime/library or compiler edits",
+  "cpu": 4,
+  "results": [
+    {
+      "name": "first-offset-nested",
+      "source_sha256": "f6cf2c9802e0574c9f7f3b1b7e41d2de9781181bd191f02ae7ec39667b89e6c5",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-nested/Main.cinch",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-nested/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-nested/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "sequential-nested",
+      "source_sha256": "eb45a674bdd33e2d9c35f6b773faaeecfed1ed40d814431ff62175bec460e99a",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-nested/Main.cinch",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-nested/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-nested/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "first-offset-prebound",
+      "source_sha256": "92a8e5ac795c4debf2525f140cab2efee957877d4862263c57793b1e84324ed1",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-prebound/Main.cinch",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-prebound/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/first-offset-prebound/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "sequential-prebound",
+      "source_sha256": "2fbc1439066cf43e746043d1b69bf344ffe0281bfa4f2b5d37de9d658e1d9a49",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-prebound/Main.cinch",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-prebound/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-value-witness-diagnosis-v1/sequential-prebound/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}

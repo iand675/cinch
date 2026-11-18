@@ -1,0 +1,87 @@
+{
+  "status": "observed",
+  "original_bundle_sha256": "3097a1112332c57784f3072063c11b7f84c0b51b504bbecacd5dbd930b44ceec",
+  "word_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+  "mode": "check-only; original declarations retained; no library edits",
+  "results": [
+    {
+      "name": "writer-only",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/writer-only/Bundle.cinch",
+      "source_sha256": "e9e3d48fb92520772e351673ec788d3ce486264e0c631a414cfb932f8127bba1",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/writer-only/Bundle.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/writer-only/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "full-word",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/full-word/Bundle.cinch",
+      "source_sha256": "ded25fdf3744d3b8f45801cc8175a5abf88929e5622167f2f113c126bd9b0cff",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/full-word/Bundle.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/full-word/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "array-full-word",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-full-word/Bundle.cinch",
+      "source_sha256": "c329bf27b51cbc46d3c5c79131d2a4b364c7deb5b6944dc082f98030e2ad9a0d",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-full-word/Bundle.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-full-word/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "array-writer-only",
+      "source": "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-writer-only/Bundle.cinch",
+      "source_sha256": "7f143d1b70da29cdf7b13d95042d1d4c66909c97ba9b51bf2a8e4a111060e3cb",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-writer-only/Bundle.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-module-context-v1/array-writer-only/checked"
+      ],
+      "exit": 0,
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "cpu": 4
+}

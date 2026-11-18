@@ -1,0 +1,73 @@
+{
+  "status": "focused-OOR-public-and-full-original-O0-rows-passed",
+  "full_family_admission": false,
+  "adoption_approved": false,
+  "performance_claim": false,
+  "provider_epoch": "V4",
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "frontend_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "public_OOR": {
+    "driver_sha256": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "bundle_sha256": "1a73cff87d53115dd979655200e35b1383bef7d6c4d1c9c88f58ffacc93368e0",
+    "groups": 34,
+    "runtime_profiles": 68,
+    "optimization": 2,
+    "complete_output_retained_input_and_pattern_hashes_matched": true,
+    "all_zero_leaks": true,
+    "llvm_sha256": "140103e6a89cda20513e015125d4f85217aa996a977c51b60baf10c398618ce3",
+    "executable_sha256": "7003bb3d219cce96447412368899fdf5bb27447748e59b5a3ad19acfd8e1e2a2"
+  },
+  "full_original_rows": {
+    "cases": 8295,
+    "runtime_profiles": 1038,
+    "batches": 519,
+    "optimization": 0,
+    "source_dependencies": {
+      "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+      "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+    },
+    "all_zero_leaks": true,
+    "llvm_sha256": "4af4355cef54f6bd453811dfebe2ea552da85332d64cea9e896444067cdf47db",
+    "executable_sha256": "7edc4497a43cd1b5df931042211f289c075390453f6b41454141f3eb079e5eab"
+  },
+  "consumer_stack": "8M",
+  "ordinary_heap": "32M",
+  "poison_heap": "256M",
+  "owner18": "bootstrap/stdlib-producer-v4-owner-results.json",
+  "scalar8": "bootstrap/stdlib-producer-v4-native-boundary-results.json",
+  "remaining": [
+    "O2 row corpus",
+    "deep/progress/protocol scopes",
+    "fresh repaired Native compiler family and final-stage clients"
+  ],
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-producer-v4-focused-initial-evidence/OOR-public-report.json",
+      "sha256": "915deb71c472adea9a73cc84465552c213f03d81b9eb6087849ececea2e3d963"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-focused-initial-evidence/original-8295-O0-report.json",
+      "sha256": "4085c5956f90dece384651d829807b4ad4ca7a393d729a63721c29c6690c1c50"
+    }
+  ]
+}

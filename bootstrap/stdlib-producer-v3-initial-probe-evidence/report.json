@@ -1,0 +1,56 @@
+{
+  "status": "failed-emit",
+  "pair_sha256": "c76f641e16ab57e6009debefaec958a72e49fbed970942f5dc529a42cf60096e",
+  "wrapper_sha256": "1e25b16adc3bf82f9507c34312f8d189b1e4551119a7e6502f28e2a85d859758",
+  "bundle_sha256": "84175169eb7d510644d767f9514b38a477a8e6cdd68a1b196274b7a625c95169",
+  "sources": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/objects.json",
+    "sha256": "5b9e7cc6520fc5c8de33f2289acdf538b069933f7d1c00202d35b4de7f233b60"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.o",
+    "sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "full_family_admission": false,
+  "source_override": false,
+  "opt_level": 0,
+  "profiles": [],
+  "emit": {
+    "command": [
+      "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/frontend.py",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/base-interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/objects.json",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v3-initial-owners/Bundle.cinch",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v3-initial-owners/consumer.ll"
+    ],
+    "exit": 5,
+    "seconds": 12.946431760996347
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "scope": "tuple validation and dispatch controls; actual consumer emission remains peer probe",
+  "observations": [
+    {
+      "name": "exact-selected-emit-dispatch",
+      "accepted": true,
+      "compiler_executed": false
+    },
+    {
+      "name": "wrong-objects",
+      "accepted": false,
+      "diagnostic": "legacy provider adapter requires its exact admitted objects"
+    },
+    {
+      "name": "wrong-interfaces",
+      "accepted": false,
+      "diagnostic": "legacy provider adapter requires its exact admitted interfaces"
+    },
+    {
+      "name": "unsupported-profile",
+      "accepted": false,
+      "diagnostic": "unsupported or repeated legacy provider option: --no-reclaim"
+    }
+  ]
+}

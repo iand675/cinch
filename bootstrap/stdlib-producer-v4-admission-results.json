@@ -1,0 +1,127 @@
+{
+  "status": "artifact-and-transitive-ABI-admitted-initial-owner-probe-pending",
+  "full_family_admission": false,
+  "adoption_approved": false,
+  "performance_claim": false,
+  "provider_receipt_sha256": "52f2478e8f10dfbb802fc38fe14a5a50aa11067094f9ce0e5e5ef5b75db6be25",
+  "producer_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "producer_source_checkpoint": "b03018f7f210a38a0b99fa07b7cb773ae417455f",
+  "producer_source_sha256": "2b2a62e5c8a49ad81b236352dde82e1fdf601d29b3f8df423fd44eb0d4181ac7",
+  "source_modules_verified": 65,
+  "runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "added_actual_request": {
+    "symbol": "Data.Producer.prod-take",
+    "classes": "OO"
+  },
+  "actual_transitive_units": [
+    {
+      "arity": 2,
+      "closure_entry": "Data.Producer.prod-take@OO.object-closure",
+      "params": [
+        "T",
+        "O"
+      ],
+      "result": "O",
+      "symbol": "Data.Producer.prod-take@OO"
+    },
+    {
+      "arity": 2,
+      "closure_entry": "Data.Producer.prod-take-step@OO.object-closure",
+      "params": [
+        "O",
+        "O"
+      ],
+      "result": "O",
+      "symbol": "Data.Producer.prod-take-step@OO"
+    },
+    {
+      "arity": 2,
+      "closure_entry": "Data.Producer.TakeSt@O.object-closure",
+      "params": [
+        "T",
+        "O"
+      ],
+      "result": "O",
+      "symbol": "Data.Producer.TakeSt@O"
+    }
+  ],
+  "actual_units_total": 2959,
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "metadata": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.abi.json",
+    "sha256": "43133008ff1e8341e0a81872815826717c6189c2710983e27dbf23e791c4b6cd"
+  },
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+    "sha256": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd"
+  },
+  "roots": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/roots.json",
+    "sha256": "26f10692a0100f3037d687165ef25d6d08a88e683d3435f6a5651c6ca9d7db41"
+  },
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "frontend_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "helper_sha256": "aa5510d76d5c2512988c6ce7184b6969db3f63f11488ac3abb9884e543a79934",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "prior_v3_unchanged": true,
+  "source_override": false,
+  "new_compiler_build_performed": false,
+  "copied_snapshot_builder_unchanged": true,
+  "required_pending": [
+    "original owner probe with unchanged Bundle84175169/owner48f79e/Split2b534/View2b7",
+    "V4 scalar boundary runtime controls",
+    "public Producer corpus/driver scopes",
+    "fresh repaired Native compiler family after parent boundary"
+  ],
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/adapter-controls.json",
+      "sha256": "d95b3f9f875bb837313352352cb12fc931a1ee960469e8cfe1d33db8f2592e1f"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/adapter.json",
+      "sha256": "764f10fc30f823351682a9d9e4f79a7008d0be83f33fe9d5e1be197692e007ab"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/frontend.py.txt",
+      "sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/pair.json",
+      "sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/provider.json",
+      "sha256": "52f2478e8f10dfbb802fc38fe14a5a50aa11067094f9ce0e5e5ef5b75db6be25"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-admission-evidence/source-proof.json",
+      "sha256": "09efe63a5eff7839661b9629d9a9fd58d769a875afb0f5ff1bea6f0fce39a137"
+    }
+  ]
+}

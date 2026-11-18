@@ -19,7 +19,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
-  import Bootstrap.Load (InterfaceSet, load-checked-interface-set-from-contracts, interface-set-body, interface-set-has-body)
+  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
@@ -43,6 +43,7 @@ module Bootstrap.Infer where
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export checked-foreign-plan, checked-intrinsic-symbol
   export scalar-intrinsic-scheme
+  export scalar-interface-contract-matches
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
   export elaboration-temporal, TemporalRow, temporal-row-definition, temporal-row-name, temporal-row-kind
   export temporal-row-formula, temporal-row-assumptions, temporal-row-result
@@ -2790,18 +2791,64 @@ module Bootstrap.Infer where
   register-imported-scalar sp name syntax metadata row classes kinds env st =
     case (field "external" row, field "abi" row, field "effects" row, field "type" row, resolved-text metadata, field "total_body" metadata) of
       (JStr symbol, JStr abi, JStr effects, JStr foreign-type, Some checked-type, JNull) ->
-        if not (same abi "ccall" && same effects "" && same foreign-type checked-type) then
+        if not (same abi "ccall" && same effects "") then
           (env, add-error sp "imported scalar intrinsic disagrees with its defining ABI" st)
         else (case scalar-intrinsic symbol of
           None -> (env, add-error sp "imported scalar intrinsic has no supported canonical operation" st)
           Some operation -> (case imported-scheme sp classes kinds syntax metadata st of
             (actual, prepared) ->
-              if not (scheme-equivalent actual (scalar-intrinsic-scheme operation)) then
-                (env, add-error sp "imported scalar intrinsic requires its exact canonical nominal scheme" prepared)
-              else (case lookup-binding name env of
-                Some prior -> (env, add-error sp "duplicate imported scalar intrinsic" prepared)
-                None -> (Cons (MkIntrinsicBinding name actual symbol) env, check-imported-value sp actual metadata prepared))))
+              if same foreign-type checked-type then
+                register-checked-scalar-view sp name symbol operation actual metadata kinds env prepared
+              else (case imported-scalar-defining-scheme sp foreign-type metadata classes kinds prepared of
+                (declared, checked) ->
+                  if not (scheme-equivalent (map-scheme-types (normalize checked) declared)
+                    (map-scheme-types (normalize checked) actual)) then
+                    (env, add-error sp "imported scalar intrinsic disagrees with its defining ABI" checked)
+                  else register-checked-scalar-view sp name symbol operation actual metadata kinds env checked)))
       other -> (env, add-error sp "incomplete imported scalar intrinsic contract" st)
+  -- | Compare the defining ABI's complete type through the same checked nominal and refinement vocabulary as its exported value.
+  imported-scalar-defining-scheme :: Span -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (Scheme, Store)
+  imported-scalar-defining-scheme sp text metadata classes kinds st = case parse-scheme "defining-scalar-interface" (string-to-bytes text) of
+    Parsed syntax Nil -> case qualify-resolved metadata syntax of
+      (qualified, Nil) -> make-scheme False classes kinds Nil qualified st
+      other -> (mono UError, add-error sp "invalid defining scalar nominal contract" st)
+    other -> (mono UError, add-error sp "invalid defining scalar scheme syntax" st)
+  -- | Compare complete represented scalar ABI views without registering a binding or granting implementation authority.
+  scalar-interface-contract-matches :: Json -> Json -> Bool
+  scalar-interface-contract-matches metadata row = case (field "external" row, field "abi" row, field "effects" row, field "type" row, resolved-text metadata, field "total_body" metadata) of
+    (JStr symbol, JStr abi, JStr effects, JStr text, Some resolved, JNull) ->
+      same abi "ccall" && same effects "" && (case scalar-intrinsic symbol of
+        None -> False
+        Some operation -> let sp = Span 0 0 1 1 in
+          (case collect-nominal-rows sp (resolved-nominals metadata) primitive-kinds (empty-store "represented scalar ABI") of
+            (kinds, prepared) -> case imported-scheme sp Nil kinds (TUnmodeled sp "missing scalar scheme") metadata prepared of
+              (actual, checked) -> case imported-scalar-defining-scheme sp text metadata Nil kinds checked of
+                (declared, done) -> let valid = check-imported-value sp actual metadata done in
+                  (case store-errors valid of Nil -> True; other -> False)
+                    && list-length (scheme-params actual) == 0 && list-length (scheme-requirements actual) == 0
+                    && scheme-equivalent (map-scheme-types (normalize valid) actual) (map-scheme-types (normalize valid) declared)
+                    && scheme-equivalent (mono (scalar-provider-carrier-view (normalize valid (scheme-body actual)))) (scalar-intrinsic-scheme operation)))
+    other -> False
+  -- | Inline only the canonical bare scheme; preserve a stronger valid contract as an ordinary provider call without body authority.
+  register-checked-scalar-view :: Span -> String -> String -> ScalarOperation -> Scheme -> Json -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-checked-scalar-view sp name symbol operation actual metadata kinds env st =
+    let canonical = scalar-intrinsic-scheme operation in
+    if scheme-equivalent actual canonical then
+      (case lookup-binding name env of
+        Some prior -> (env, add-error sp "duplicate imported scalar intrinsic" st)
+        None -> (Cons (MkIntrinsicBinding name actual symbol) env, check-imported-value sp actual metadata st))
+    else if list-length (scheme-params actual) == 0 && list-length (scheme-requirements actual) == 0
+      && scheme-equivalent (mono (scalar-provider-carrier-view (scheme-body actual))) canonical then
+      register-total-value sp name actual kinds env (check-imported-value sp actual metadata st)
+    else (env, add-error sp "imported scalar intrinsic requires its exact canonical nominal scheme" st)
+  -- | Classify runtime carriers only for ordinary provider fallback, retaining the full checked contract on the binding.
+  scalar-provider-carrier-view :: UType -> UType
+  scalar-provider-carrier-view ty = case refinement-view ty of
+    URefine id name carrier predicate -> scalar-provider-carrier-view carrier
+    UPi id name domain row result -> UFunEff (scalar-provider-carrier-view domain) row (scalar-provider-carrier-view result)
+    UFun domain result -> UFun (scalar-provider-carrier-view domain) (scalar-provider-carrier-view result)
+    UFunEff domain row result -> UFunEff (scalar-provider-carrier-view domain) row (scalar-provider-carrier-view result)
+    other -> other
   register-imported-wrapping :: Span -> String -> TypeExpr -> Json -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-imported-wrapping sp name syntax metadata row classes kinds env st =
     case (field "external" row, field "abi" row, field "effects" row, field "type" row, resolved-text metadata, field "total_body" metadata) of
@@ -6861,7 +6908,7 @@ module Bootstrap.Infer where
 
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m =
-    let interfaces = load-checked-interface-set-from-contracts (total-interface-inputs (module-decls m)) in
+    let interfaces = load-checked-body-interface-set-from-documents (total-interface-inputs (module-decls m)) in
     elaborate-module-with-source-bodies interfaces True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration

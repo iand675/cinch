@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "status": "verified lossless archival complete",
+  "scope": "Only 16 closed ordinary historical foreign-alias and independent C-trace test executables; no benchmark/compiler inputs",
+  "file_count": 16,
+  "original_bytes": 185198664,
+  "compressed_bytes": 41273233,
+  "recovered_bytes": 143925431,
+  "seconds": 1.9571216710028239,
+  "recovery_index_sha256": "3650ba788a54a682659ee0b3d25e29fafdb5d86f24746de4cef55a0196323542",
+  "all_original_hashes_matched_qualified_receipts": true,
+  "full_decompression_hash_and_size_verified": true,
+  "archive_parent_and_index_fsynced_before_unlink": true,
+  "active_executable_inodes_rechecked_before_unlink": true,
+  "source_llvm_assembly_c_oracle_receipts_frozen_provider_runtime_benchmark_inputs_unchanged": true
+}

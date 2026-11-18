@@ -1,0 +1,215 @@
+{
+  "purpose": "Read-only complete interface dependency closure inventory; no edges/hashes/contracts changed and no new authority admitted.",
+  "shadowed_source_homes": [
+    "Data.Json",
+    "Text.Codec"
+  ],
+  "complete_surviving_subset_count": 48,
+  "complete_surviving_subset": [
+    "Algebra.Arithmetic",
+    "Algebra.Bits",
+    "Algebra.Group",
+    "Algebra.Monoid",
+    "Algebra.Semigroup",
+    "Algebra.Semiring",
+    "Category.Alternative",
+    "Category.Applicative",
+    "Category.Foldable",
+    "Category.Functor",
+    "Category.Monad",
+    "Category.Traversable",
+    "Data.Ascii",
+    "Data.Bytes",
+    "Data.Char",
+    "Data.Compose",
+    "Data.Const",
+    "Data.Core",
+    "Data.Enum",
+    "Data.FromList",
+    "Data.FromMap",
+    "Data.Hash",
+    "Data.HashMap",
+    "Data.Identity",
+    "Data.Int",
+    "Data.List",
+    "Data.Map",
+    "Data.Nat",
+    "Data.NonEmpty",
+    "Data.NonZero",
+    "Data.Option",
+    "Data.Ordering",
+    "Data.Path",
+    "Data.Producer",
+    "Data.Result",
+    "Data.Set",
+    "Data.Sorted",
+    "Data.String",
+    "Data.Sym",
+    "Data.Target",
+    "Data.Wide",
+    "Effect.Clock",
+    "Effect.Concurrent",
+    "Effect.Sequencing",
+    "Function.Combinators",
+    "Relation.Eq",
+    "Relation.Ord",
+    "Text.Show"
+  ],
+  "rejection_rounds": [
+    [
+      "Data.Bool",
+      "Data.Machine",
+      "Prelude"
+    ],
+    [
+      "Effect.Fs",
+      "Effect.Process",
+      "Effect.Stm",
+      "Prim.Sys.Darwin",
+      "Prim.Sys.Linux",
+      "Prim.Sys.Portable"
+    ],
+    [
+      "Effect.Io",
+      "Effect.Stm.TBQueue",
+      "Effect.Stm.TMVar",
+      "Effect.Stm.TQueue",
+      "Effect.Stm.TSem",
+      "Prim.Sys"
+    ]
+  ],
+  "Nat_complete_closure": [
+    {
+      "home": "Algebra.Arithmetic",
+      "interface_hash": "15955951233682298768",
+      "document_sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "imports": []
+    },
+    {
+      "home": "Algebra.Group",
+      "interface_hash": "10191804152039713184",
+      "document_sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "imports": []
+    },
+    {
+      "home": "Algebra.Monoid",
+      "interface_hash": "16201076465688705376",
+      "document_sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+      "imports": [
+        {
+          "iface_hash": "10191804152039713184",
+          "module": "Algebra.Group"
+        },
+        {
+          "iface_hash": "12330126867724653607",
+          "module": "Algebra.Semigroup"
+        },
+        {
+          "iface_hash": "14481528633823986210",
+          "module": "Data.Core"
+        }
+      ]
+    },
+    {
+      "home": "Algebra.Semigroup",
+      "interface_hash": "12330126867724653607",
+      "document_sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+      "imports": [
+        {
+          "iface_hash": "14481528633823986210",
+          "module": "Data.Core"
+        }
+      ]
+    },
+    {
+      "home": "Algebra.Semiring",
+      "interface_hash": "7878644509220128592",
+      "document_sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "imports": []
+    },
+    {
+      "home": "Data.Core",
+      "interface_hash": "14481528633823986210",
+      "document_sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+      "imports": []
+    },
+    {
+      "home": "Data.Hash",
+      "interface_hash": "14069749392936063425",
+      "document_sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "imports": []
+    },
+    {
+      "home": "Data.Nat",
+      "interface_hash": "10882996168420728861",
+      "document_sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+      "imports": [
+        {
+          "iface_hash": "15955951233682298768",
+          "module": "Algebra.Arithmetic"
+        },
+        {
+          "iface_hash": "7878644509220128592",
+          "module": "Algebra.Semiring"
+        },
+        {
+          "iface_hash": "14481528633823986210",
+          "module": "Data.Core"
+        },
+        {
+          "iface_hash": "14069749392936063425",
+          "module": "Data.Hash"
+        },
+        {
+          "iface_hash": "659875273673653311",
+          "module": "Relation.Eq"
+        },
+        {
+          "iface_hash": "407980922947111539",
+          "module": "Relation.Ord"
+        }
+      ]
+    },
+    {
+      "home": "Data.Ordering",
+      "interface_hash": "5168188606608417254",
+      "document_sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+      "imports": [
+        {
+          "iface_hash": "16201076465688705376",
+          "module": "Algebra.Monoid"
+        },
+        {
+          "iface_hash": "12330126867724653607",
+          "module": "Algebra.Semigroup"
+        },
+        {
+          "iface_hash": "14481528633823986210",
+          "module": "Data.Core"
+        }
+      ]
+    },
+    {
+      "home": "Relation.Eq",
+      "interface_hash": "659875273673653311",
+      "document_sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "imports": []
+    },
+    {
+      "home": "Relation.Ord",
+      "interface_hash": "407980922947111539",
+      "document_sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+      "imports": [
+        {
+          "iface_hash": "5168188606608417254",
+          "module": "Data.Ordering"
+        },
+        {
+          "iface_hash": "659875273673653311",
+          "module": "Relation.Eq"
+        }
+      ]
+    }
+  ],
+  "Nat_closure_survives": true
+}

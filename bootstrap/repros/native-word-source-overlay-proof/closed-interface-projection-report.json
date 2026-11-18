@@ -1,0 +1,54 @@
+{
+  "purpose": "Negative diagnostic only: reproduce the exact retained DInterface closure after source-home shadowing. This is not an admitted runtime pair or a fallback manifest.",
+  "original_manifest_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "projection_sha256": "cde6adf1374c499fe5572c1594701a893277743e9add3f59527af5e9450d9a11",
+  "removed_source_shadowed_homes": [
+    "Data.Json",
+    "Text.Codec"
+  ],
+  "remaining_rows": 63,
+  "missing_dependency_edges": [
+    {
+      "importer": "Data.Bool",
+      "missing_home": "Data.Json",
+      "expected_interface_hash": "7360492984505101685"
+    },
+    {
+      "importer": "Data.Bool",
+      "missing_home": "Text.Codec",
+      "expected_interface_hash": "2934815228794287689"
+    },
+    {
+      "importer": "Data.Machine",
+      "missing_home": "Data.Json",
+      "expected_interface_hash": "7360492984505101685"
+    },
+    {
+      "importer": "Data.Machine",
+      "missing_home": "Text.Codec",
+      "expected_interface_hash": "2934815228794287689"
+    },
+    {
+      "importer": "Prelude",
+      "missing_home": "Data.Json",
+      "expected_interface_hash": "7360492984505101685"
+    }
+  ],
+  "runtime_or_source_changes": false,
+  "status": "observed",
+  "command": [
+    "taskset",
+    "-c",
+    "4",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--check",
+    "--interfaces",
+    "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/diagnostic-unclosed-shadow-projection.json",
+    "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/word-only.cinch",
+    "/workspace/dasl-stdlib-refined-mask/build/native-word-object-context-v1/negative-closure-check"
+  ],
+  "exit": 7,
+  "seconds": 0.8110597720078658,
+  "diagnostics": "bootstrap.interfaces: Data.Bool: missing interface dependency: Data.Json",
+  "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+}
