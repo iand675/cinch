@@ -29,18 +29,23 @@ module Bootstrap.Unpack where
     JArr row more -> (case field "name" row of JStr key | same key name -> Some row; other -> exported name more)
     other -> None
 
+  unpacked-labels :: String -> Option (List String)
+  unpacked-labels repr = let size = string-length repr in
+    if 8 <= size && string-starts-with "unpack(" repr && string-ends-with ")" repr then
+      Some (string-split-on "," (string-take (size - 8) (string-drop 7 repr)))
+    else None
+
   imported :: Span -> String -> Json -> Json -> List RecordRequest -> List RecordRequest
   imported sp home types rows tail = case rows of
     JArr row more -> let rest = imported sp home types more tail in
       (case (field "repr" row, field "type" row) of
-        (JStr repr, JStr name) | 8 <= string-length repr && string-starts-with "unpack(" repr && string-ends-with ")" repr ->
-          (case exported name types of
-            Some ty -> (case field "identity" ty of
+        (JStr repr, JStr name) ->
+          (case (unpacked-labels repr, exported name types) of
+            (Some wanted, Some ty) -> (case field "identity" ty of
               JStr identity | same identity (home <> "." <> name) ->
-                let wanted = string-split-on "," (string-take (string-length repr - 8) (string-drop 7 repr)) in
                 Cons (Fields sp (interface-global identity) (labels (field "fields" ty)) (map (\label -> (label, True)) wanted) (Some row)) rest
               other -> rest)
-            None -> rest)
+            other -> rest)
         other -> rest)
     other -> tail
   source-labels :: String -> List Decl -> List String
