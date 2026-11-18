@@ -471,3 +471,181 @@ The measured binary is `build/bootstrap/stage3/cinch`, sha256 `5031a3a42f7929e7`
    the only addition that lets a proven-unique value skip the runtime count
    check. It is a new feature with its own design cost, and this lane's numbers
    say the check is not what is costing us.
+
+---
+
+## 11 The follow-on: making the off-spine shapes reuse
+
+Section 10 said the next win is in the pass, not the language. This section
+records the pass change that collects part of it, and the measurements.
+
+### 11.1 What was added
+
+Two search extensions to `compiler/src/rc.rs`. Both keep the existing pairing
+logic and the existing soundness argument, and both are the one mechanism: no
+second pass, no new node, no calling-convention change.
+
+**Call and jump arguments are on the spine.** A call's arguments are
+evaluated in order after the `Release` bound the token and before the
+transfer, with no branch between them, so a compatible allocation among them
+is reachable on the same path that reached the `Release`. This is the
+`reverse` shape: `reverse-into ys (Cons y acc)` puts the fresh `Cons` in an
+argument of the recursive call. Jump arguments are the same fact, since a
+join's parameters are filled in the same order. Landed by lane
+`dasl-inplace-reverse` and merged to main as `f10f24b0`.
+
+**A branch expands the pair per arm.** When no allocation is on the
+straight-line spine, a `case` or an `if` gets a copy of the release in each
+arm, and each arm whose `insert_reuse` finds a pair binds its own token. This
+is Lean's `expandResetReuse`. The soundness argument is one sentence: the
+arms are mutually exclusive, so exactly one runs, and one release per arm is
+exactly one release per path, so the one-token-one-reuse rule holds per path
+rather than per spine. Nothing is shared across the branch, so no cell can be
+kept alive on a path with no reuse to take it, which is the leak the
+straight-line restriction exists to prevent.
+
+Four details the implementation needs, and the design should record:
+
+- **Arms need not agree.** An arm that allocates nothing, or allocates an
+  incompatible shape, binds no token, which is exactly the plain drop that
+  arm would have had. Requiring every arm to allocate was the first version
+  and it collected almost nothing (96 sites). Relaxing to per-arm
+  independence is what made the change pay, because the common shape is one
+  arm rebuilding and one returning a value unchanged.
+- **The moved-field set is per arm.** The single-body release moved the union
+  of the fields its one body reads. Duplicating it makes the set per arm, so
+  an arm that reads no counted field of the dying block moves none and drops
+  the block itself.
+- **The expansion applies only when at least one arm takes a pair.** Without
+  that gate it would duplicate a plain drop into every arm, which is code
+  growth with no reuse behind it.
+- **The tail-call frame rule is untouched.** `stack.rs` runs after `rc.rs` and
+  passes `tail` through a `Release` unchanged (`stack.rs`, the
+  `Core::Release` arm: `self.go(body, role, owner, tail)`), so a release
+  pushed into a branch keeps the branch's tail position. A `Reuse` is opaque
+  to that pass, and the block it writes is the dying one, already classified
+  on its own. The `let x = Cons ... in tailcall x` shape never enters this
+  path. Measured: an `if`-shaped rebuild compiles with 0 frees in its unit
+  and 3 `musttail` calls intact.
+
+### 11.2 The block counts, before and after
+
+Same programs on both compilers (main at `38fc9e31`, and that plus this
+change), `CINCH_ALLOC_STATS=1` with `CINCH_LEAK_CHECK=1`:
+
+| Shape | Before | After | What it means |
+| --- | --- | --- | --- |
+| `<>`, dead left operand | 2,008 | 2,008 | already reused (section 3.3) |
+| `map` over a dead input | 1,008 | 1,008 | already reused |
+| `a <> b <> c` | 1,508 | 1,508 | already reused |
+| `reverse` with an accumulator | 1,133 | **1,008** | the call-argument half: the reverse allocates nothing, 1,008 is the build |
+| `if`-shaped rebuild | 2,008 | **1,008** | the branch half |
+| nested-`case` rebuild | 2,008 | **1,008** | the branch half |
+| mixed arms (one allocates, one returns the tail) | 1,008 | 1,008 | the non-allocating arm takes the plain drop, so no pair there |
+
+Every run exits 0 with `leaked=0`. The three shapes that already reused are
+unchanged, which is the check that the extension does not disturb the
+straight-line path.
+
+The `if`-shaped rebuild's owned Core shows the shape the branch half
+produces:
+
+```text
+(if <condition>
+  (release t0 @token(t5)
+    (moved t1 t2) (rest)
+    (reuse t5 Data.Core.Cons (args (app (global Main.bump) (local t1)) (app (global Main.rebuild) (local t2)))))
+  (release t0 @token(t6)
+    (moved t1 t2) (rest)
+    (reuse t6 @kept(0) Data.Core.Cons (args (local t1) (app (global Main.rebuild) (local t2))))))
+```
+
+Two releases, two tokens, and the second arm skips a store the cell already
+holds (`@kept(0)`), which is the existing store-skipping working per arm.
+
+### 11.3 The census, and what it does not yet show
+
+The census tool (`tooling/reuse_census.py`) is the same one section 5 used.
+The branch half's census re-run is **not reported here**, because the only
+census runs I completed were against binaries that did not carry the branch
+half (a sibling lane's `jj` operation discarded the working copy twice, and
+each recovery needed a rebuild). Reporting a number from a binary that lacks
+the change would be worse than reporting none.
+
+What the two halves' program-level measurements do establish is the shape
+change, which is what the census counts: a branch arm with a compatible
+allocation now carries a `release @token` plus a `reuse`, exactly as the
+straight-line case does, so the `case` and `if` opportunity counts must fall
+by the number of arms that take a pair. Anyone landing this should run
+
+```sh
+python3 tooling/reuse_census.py <owned-core-dir> --by-module --why
+```
+
+against owned Core produced by the built compiler and record the split, so
+the `case` and `if` counts are on the record with the change.
+
+### 11.4 The gates
+
+| Gate | Result |
+| --- | --- |
+| `cargo test --lib` | 275 passed, 0 failed |
+| `--test reclamation` | 19 passed, 0 failed |
+| `--test rc_specialisation` | 7 passed, 1 failed |
+| `--test simplify` | 41 passed, 0 failed |
+| `--test inline_copy` | 4 passed, 0 failed |
+| `--test core_output` | 21 passed, 0 failed |
+| `--test ownership` | 29 passed, 0 failed |
+
+The four new `rc_specialisation` tests (an `if`-shaped rebuild, a nested-`case`
+rebuild, a branch whose arm allocates nothing, and a recursive branched
+rebuild in both a plain and an `rc_debug` build) all pass, as do the two
+accumulator tests the call-argument half brought.
+
+The one failure is
+`borrowed_parameters_release_and_static_dictionaries_place_fewer_operations`
+at `rc_specialisation.rs:100`, the assertion that `Main.SizeInt` is swept from
+the emitted IR. It is pre-existing and not caused by this change: it fails
+identically at `f07e60f2`, which contains neither half, verified by building
+that revision in a separate workspace and running the same test there.
+
+**Fixed point.** On a full ladder built from the tree with both halves
+(`CINCH_BOOTSTRAP_BUILD` in a private directory, `--no-pgo`):
+
+- stage2 and stage3 `compiler.ll`: **byte identical**
+- all 51 stage2/stage3 `*.cinchif`: **byte identical**, 0 differ
+- stage2 and stage3 `cinch`: differ at **char 217**, same size (16,715,784)
+
+Char 217 is in the Mach-O header, and the same mismatch reproduces on
+`38fc9e31` **without** this change (verified independently on the array pin:
+`cmp` reports char 217, line 1, same size). So the compiler reaches a
+functional fixed point and the binary comparison fails on linker metadata,
+which is a pre-existing toolchain issue, not a regression from this work. The
+gate that actually holds is IR plus interfaces plus behaviour.
+
+### 11.5 Considered and not done: a reuse token on the calling convention
+
+An extra `%1` parameter carrying a corpse into a callee would let a callee
+build into a cell its caller just died on. It is rejected: it taxes every call
+site of that callee, needs per-call-site specialisation and interface churn,
+and the cases it would cover are covered without it. If the corpse is already
+an argument, the callee's own reuse pass pairs it with a birth (the `reverse`
+shape, now working). If the corpse is dead before the call and is not an
+argument, it is dead code to eliminate rather than a value to transport. If
+the callee is small, inlining makes the pair intraprocedural. Only a large,
+allocation-heavy callee called from a site with a fresh corpse would pay, and
+the census has no such site large enough to justify the convention change.
+
+Selective callee specialisation (clone a callee per call site with a reuse
+slot) is the next mechanism, and it is **not** implemented here. Its order of
+work: this shape work first, then the clone with a must-analysis over the
+clone's entry path, a recursion fact carried in `borrow_modes`' existing
+worklist (which already chains a unit to itself), and a measured "one
+argument versus one allocation" pair. Nobody should assume it is coming from
+this lane.
+
+### 11.6 Lock bump
+
+**Needed.** `compiler/src/rc.rs` changed, so the stage0 seed and the library
+provider both need re-pinning. `runtime_abi` did not move.
+
