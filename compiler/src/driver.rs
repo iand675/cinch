@@ -3840,6 +3840,44 @@ fn link_target<'a>(
     }
 }
 
+/// Check whether this host can run the selected target with the supplied arguments.
+pub fn check_execution_target(mode: Mode, profile: &crate::core::TargetProfile, program_args: &[String]) -> Result<()> {
+    // `run` builds a binary and executes it here, so a program for
+    // another target has nothing to run on: refuse before any work
+    // instead of failing later inside the linker or, worse, executing a
+    // foreign binary the host cannot start. A freestanding Wasm module is
+    // the exception, and only because the host can carry it: Node loads
+    // the module and calls its `main`, which is the entry a freestanding
+    // module has instead of a process.
+    if mode == Mode::Run && is_foreign(profile) && !is_freestanding(profile) {
+        let host = crate::core::TargetProfile::native();
+        return Err(Error::plain(format!(
+            "target `{}`: `run` executes the program on this host, whose target is `{}`, and \
+             a binary built for `{}` does not run here; use `cinch build --target {} \
+             --runtime-archive <path>` and copy the artifact to the target",
+            profile.triple, host.triple, profile.triple, profile.triple
+        )));
+    }
+    // A Wasm module has no command line and no process, so `run` refuses
+    // the words it could not deliver rather than dropping them.
+    if mode == Mode::Run && is_freestanding(profile) && !program_args.is_empty() {
+        return Err(Error::plain(format!(
+            "target `{}`: a freestanding Wasm module has no command line, so `run` cannot pass \
+             {} program argument{}; pass them to the host that loads the module instead",
+            profile.triple,
+            program_args.len(),
+            if program_args.len() == 1 { "" } else { "s" }
+        )));
+    }
+    Ok(())
+}
+
+/// Link an already emitted LLVM module with its selected library object.
+/// Both self-hosted and native frontends use the target's normal system linker.
+pub fn link_emitted_ir(ir: &Path, out: &Path, library: &str, profile: &crate::core::TargetProfile, opts: &DriverOptions) -> Result<()> {
+    link_for(ir, out, &[library], &LinkPlan::default(), &link_target(profile, opts))
+}
+
 /// [`link`] for an explicit target: the form `build` uses when
 /// `--target` names something other than the host, and `emit-object`
 /// uses to assemble the target's own objects.
@@ -3893,8 +3931,13 @@ fn link_for(
     let _guard;
     match target.flavor {
         LinkFlavor::Host => {
-            cmd.arg(ensure_runtime()?);
-            _guard = runtime_lock(true);
+            if let Some(archive) = target.archive {
+                cmd.arg(cross_runtime(&crate::core::TargetProfile::native().triple, Some(archive))?);
+                _guard = None;
+            } else {
+                cmd.arg(ensure_runtime()?);
+                _guard = runtime_lock(true);
+            }
         }
         LinkFlavor::Cross(triple) => {
             cmd.arg(cross_runtime(triple, target.archive)?);
@@ -3908,8 +3951,12 @@ fn link_for(
     for word in plan.words() {
         cmd.arg(word);
     }
-    // Rust staticlibs need the usual system libraries on Linux.
-    if cfg!(target_os = "linux") {
+    // The linked static runtime needs the target's system libraries.
+    let linux = match target.flavor {
+        LinkFlavor::Cross(triple) => triple_components(triple).is_some_and(|(_, os, _)| os == "linux"),
+        _ => cfg!(target_os = "linux"),
+    };
+    if linux {
         cmd.args(["-ldl", "-lpthread", "-lm"]);
     }
     let output = cmd
@@ -4128,7 +4175,7 @@ process.exit(main());
 /// Execute a freestanding Wasm module under Node, which is the host that
 /// runs one on this machine. The exit status is the module's `main`
 /// result, so a program's exit code means here what it means natively.
-fn run_wasm_module(module: &Path, profile: &crate::core::TargetProfile) -> Result<i32> {
+pub fn run_wasm_module(module: &Path, profile: &crate::core::TargetProfile) -> Result<i32> {
     let node = std::env::var("CINCH_NODE").unwrap_or_else(|_| "node".to_string());
     let host = module.with_extension("host.mjs");
     std::fs::write(&host, WASM_HOST_JS)
@@ -5519,33 +5566,7 @@ pub fn driver_with_profile_opts(
     if mode != Mode::EmitObject && !opts.package_objects.is_empty() && mode == Mode::EmitIr {
         return Err(Error::plain("package objects require build or run mode"));
     }
-    // `run` builds a binary and executes it here, so a program for
-    // another target has nothing to run on: refuse before any work
-    // instead of failing later inside the linker or, worse, executing a
-    // foreign binary the host cannot start. A freestanding Wasm module is
-    // the exception, and only because the host can carry it: Node loads
-    // the module and calls its `main`, which is the entry a freestanding
-    // module has instead of a process.
-    if mode == Mode::Run && is_foreign(profile) && !is_freestanding(profile) {
-        let host = crate::core::TargetProfile::native();
-        return Err(Error::plain(format!(
-            "target `{}`: `run` executes the program on this host, whose target is `{}`, and \
-             a binary built for `{}` does not run here; use `cinch build --target {} \
-             --runtime-archive <path>` and copy the artifact to the target",
-            profile.triple, host.triple, profile.triple, profile.triple
-        )));
-    }
-    // A Wasm module has no command line and no process, so `run` refuses
-    // the words it could not deliver rather than dropping them.
-    if mode == Mode::Run && is_freestanding(profile) && !opts.program_args.is_empty() {
-        return Err(Error::plain(format!(
-            "target `{}`: a freestanding Wasm module has no command line, so `run` cannot pass \
-             {} program argument{}; pass them to the host that loads the module instead",
-            profile.triple,
-            opts.program_args.len(),
-            if opts.program_args.len() == 1 { "" } else { "s" }
-        )));
-    }
+    check_execution_target(mode, profile, &opts.program_args)?;
     let mut emit_modules = opts.emit_modules.clone();
     // One build, two profiles (design/base-as-a-package.md, "Host and
     // target are different questions"): the host is this machine, and the

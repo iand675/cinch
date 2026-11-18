@@ -62,6 +62,15 @@ module Main where
       _ -> if tvar-read-io t == 42 then 0 else 1
 ";
 
+/// An AArch64 target distinct from the host, for cross-link and execution refusals.
+fn foreign_arm_triple() -> &'static str {
+    if TargetProfile::native().triple == "aarch64-unknown-linux-gnu" {
+        "aarch64-apple-darwin"
+    } else {
+        "aarch64-unknown-linux-gnu"
+    }
+}
+
 /// The profile `--target <triple>` builds.
 fn profile(triple: &str) -> TargetProfile {
     target_profile(&DriverOptions {
@@ -261,13 +270,13 @@ fn a_cross_build_without_a_runtime_archive_names_what_is_missing() {
     let dir = write_project("cross-no-archive", TRIVIAL);
     let out = dir.join("prog");
     let opts = DriverOptions {
-        target: Some("aarch64-unknown-linux-gnu".to_string()),
+        target: Some(foreign_arm_triple().to_owned()),
         ..DriverOptions::default()
     };
     let err = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &opts)
         .expect_err("a cross build without the target's runtime archive fails");
     let msg = err.to_string();
-    assert!(msg.contains("aarch64-unknown-linux-gnu"), "{msg}");
+    assert!(msg.contains(foreign_arm_triple()), "{msg}");
     assert!(msg.contains("--runtime-archive"), "{msg} does not name the flag");
     assert!(
         msg.contains("none was named"),
@@ -285,7 +294,7 @@ fn a_runtime_archive_that_is_absent_is_named_by_path() {
     let dir = write_project("cross-absent-archive", TRIVIAL);
     let missing = dir.join("nope").join("libcinchruntime.a");
     let opts = DriverOptions {
-        target: Some("x86_64-unknown-linux-gnu".to_string()),
+        target: Some(foreign_arm_triple().to_owned()),
         runtime_archive: Some(missing.clone()),
         ..DriverOptions::default()
     };
@@ -293,7 +302,7 @@ fn a_runtime_archive_that_is_absent_is_named_by_path() {
         .expect_err("an absent archive fails the build");
     let msg = err.to_string();
     assert!(msg.contains(&missing.display().to_string()), "{msg}");
-    assert!(msg.contains("x86_64-unknown-linux-gnu"), "{msg}");
+    assert!(msg.contains(foreign_arm_triple()), "{msg}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -301,14 +310,14 @@ fn a_runtime_archive_that_is_absent_is_named_by_path() {
 fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
     let dir = write_project("cross-wrong-archive", TRIVIAL);
     // A well-formed archive whose one member is an x86_64 Mach-O object,
-    // offered for an aarch64 Linux target.
+    // offered for an AArch64 target.
     let mut object = vec![0u8; 32];
     object[0..4].copy_from_slice(b"\xcf\xfa\xed\xfe");
     object[4..8].copy_from_slice(&0x0100_0007u32.to_le_bytes());
     let archive = dir.join("libcinchruntime.a");
     std::fs::write(&archive, archive_with(&object)).expect("write a synthetic archive");
     let opts = DriverOptions {
-        target: Some("aarch64-unknown-linux-gnu".to_string()),
+        target: Some(foreign_arm_triple().to_owned()),
         runtime_archive: Some(archive.clone()),
         ..DriverOptions::default()
     };
@@ -317,7 +326,7 @@ fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
     let msg = err.to_string();
     assert!(msg.contains("x86_64"), "{msg} does not name what the archive holds");
     assert!(msg.contains("not aarch64"), "{msg} does not name the target's arch");
-    assert!(msg.contains("aarch64-unknown-linux-gnu"), "{msg}");
+    assert!(msg.contains(foreign_arm_triple()), "{msg}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -325,13 +334,13 @@ fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
 fn run_refuses_a_foreign_target_and_says_why() {
     let dir = write_project("cross-run", TRIVIAL);
     let opts = DriverOptions {
-        target: Some("x86_64-unknown-linux-gnu".to_string()),
+        target: Some(foreign_arm_triple().to_owned()),
         ..DriverOptions::default()
     };
     let err = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &opts)
         .expect_err("a foreign target cannot run here");
     let msg = err.to_string();
-    assert!(msg.contains("x86_64-unknown-linux-gnu"), "{msg}");
+    assert!(msg.contains(foreign_arm_triple()), "{msg}");
     let host = TargetProfile::native();
     assert!(msg.contains(&host.triple), "{msg} does not name this host");
     assert!(msg.contains("does not run here"), "{msg}");

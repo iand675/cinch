@@ -19,6 +19,7 @@ pub struct Frontend {
 pub struct Request {
     pub flags: Vec<String>,
     pub program_args: Vec<String>,
+    link: Option<DriverOptions>,
 }
 
 /// The profile the selected compiler implements for one `--target` value:
@@ -120,7 +121,10 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     if !*reclaim {
         flags.push("--no-reclaim".to_owned());
     }
-    Ok(Request { flags, program_args: Vec::new() })
+    let link = (foreign_triple && matches!(mode, Mode::Build | Mode::Run)).then(|| DriverOptions {
+        target: Some(host.triple.clone()), ..Default::default()
+    });
+    Ok(Request { flags, program_args: Vec::new(), link })
 }
 
 /// The request for a compile under driver `opts`, or the options the
@@ -156,8 +160,8 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
         ("resolved native words", !native_words.is_empty()),
         ("--print-link-plan", *print_link_plan),
         ("--allow-raw-link", !allow_raw_link.is_empty()),
-        ("--runtime-archive", runtime_archive.is_some()),
-        ("--opt-level", opt_level.is_some()),
+        ("--runtime-archive", runtime_archive.is_some() && !matches!(mode, Mode::Build | Mode::Run)),
+        ("--opt-level", opt_level.is_some() && !matches!(mode, Mode::Build | Mode::Run)),
         ("--target-version", target_version.is_some()),
         ("--dump-core", dump_core.is_some()),
         ("core emit output", core_out.is_some()),
@@ -177,7 +181,10 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     }
     // The program's words reach only a program the compile runs.
     let program_args = if mode == Mode::Run { program_args.clone() } else { Vec::new() };
-    Ok(Request { flags: target_flags, program_args })
+    let link = (matches!(mode, Mode::Build | Mode::Run)
+        && (!target_flags.is_empty() || runtime_archive.is_some() || opt_level.is_some())).then(|| opts.clone());
+    if opts.no_reclaim { target_flags.push("--no-reclaim".into()); }
+    Ok(Request { flags: target_flags, program_args, link })
 }
 
 pub fn configured() -> Result<Option<Frontend>, String> {
@@ -330,11 +337,15 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
 
 /// [`drive`] with the profile flags and program words of `request`.
 pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, request: &Request) -> Result<i32, String> {
+    if let Some(options) = &request.link {
+        let profile = cinch::driver::target_profile(options).map_err(|e| e.to_string())?;
+        cinch::driver::check_execution_target(mode, &profile, &request.program_args).map_err(|e| e.to_string())?;
+    }
     if let Some((interfaces, configuration)) = target_inputs(request, frontend)? {
         let target = Frontend { compiler: frontend.compiler.clone(), interfaces };
         return drive_request(&target, mode, dir, entry, out, Some(configuration), request);
     }
-    let objects = if mode == Mode::EmitObject {
+    let objects = if mode == Mode::EmitObject || request.link.is_some() {
         std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from)
     } else {
         None
@@ -392,6 +403,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| if mode == Mode::EmitObject { entry.with_extension("o") } else { work.join("program") });
     let report = work.join("link-report.txt");
     let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
+    let flag = if request.link.is_some() { "--emit-ir" } else { flag };
     let mut args = vec![flag.to_owned()];
     args.extend(request.flags.iter().cloned());
     args.extend(["--interfaces".into(), interfaces.display().to_string()]);
@@ -401,8 +413,8 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
         if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
         std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
     }
-    if matches!(mode, Mode::EmitObject | Mode::EmitIr) {
-        if let Some(configuration) = objects {
+    if matches!(mode, Mode::EmitObject | Mode::EmitIr) || request.link.is_some() {
+        if let Some(configuration) = &objects {
             let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
             args.extend(["--objects".into(), configuration.display().to_string()]);
         }
@@ -410,6 +422,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     args.extend([source.display().to_string(), ir.display().to_string()]);
     match mode {
         Mode::EmitObject => args.extend([exe.display().to_string(), exe.with_extension("abi.json").display().to_string(), format!("{}/", dir.join("build").display())]),
+        Mode::Build | Mode::Run if request.link.is_some() => {}
         Mode::Build | Mode::Run => args.extend([exe.display().to_string(), report.display().to_string()]),
         Mode::Check | Mode::EmitIr => (),
     }
@@ -424,6 +437,21 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     if !output.status.success() {
         let diagnostic = std::fs::read_to_string(ir.with_extension("ll.diagnostics")).unwrap_or_else(|_| String::from_utf8_lossy(&output.stderr).into_owned());
         return Err(format!("selected Cinch compiler exited {:?}: {diagnostic}\ninvocation: {}", output.status.code(), work.display()));
+    }
+    if let Some(options) = &request.link {
+        let config = objects.as_ref().ok_or("linking selected IR requires its library object configuration")?;
+        let json = parse_json(&std::fs::read_to_string(config).map_err(|e| e.to_string())?)?;
+        let library = json.get("object").and_then(Json::as_str).ok_or("library object configuration needs an object path")?;
+        let mut options = options.clone();
+        let profile = cinch::driver::target_profile(&options).map_err(|e| e.to_string())?;
+        if options.runtime_archive.is_none() && profile.triple == TargetProfile::native().triple {
+            options.runtime_archive = Some(std::env::var_os("CINCH_TEST_RUNTIME_ARCHIVE").map(PathBuf::from)
+                .ok_or("linking selected native IR requires its pinned runtime archive")?);
+        }
+        cinch::driver::link_emitted_ir(&ir, &exe, library, &profile, &options).map_err(|e| e.to_string())?;
+        if mode == Mode::Run && profile.arch == "wasm32" {
+            return cinch::driver::run_wasm_module(&exe, &profile).map_err(|e| e.to_string());
+        }
     }
     match mode {
         Mode::Check => Ok(0),
