@@ -28,9 +28,9 @@ module Bootstrap.Global where
     GlobalBody :: CoreGlobal -> BodyBinding -> CoreGlobal
     GlobalGuardedBody :: CoreGlobal -> GuardedBinding -> CoreGlobal
   data CoreGlobals where
-    ClosedGlobals :: List CoreGlobal -> List CoreDefinition -> List CoreData -> BodyBindings -> List GuardedBinding -> HashMap String (List BodyBinding) -> CoreGlobals
+    ClosedGlobals :: List CoreGlobal -> HashMap String CoreGlobal -> List CoreDefinition -> List CoreData -> BodyBindings -> List GuardedBinding -> HashMap String (List BodyBinding) -> CoreGlobals
   globals-declarations :: CoreGlobals -> List CoreGlobal
-  globals-declarations globals = case globals of ClosedGlobals declarations definitions datas bodies guarded dependents -> declarations
+  globals-declarations globals = case globals of ClosedGlobals declarations index definitions datas bodies guarded dependents -> declarations
   global-name :: CoreGlobal -> String
   global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalIntrinsicViews name views -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration; GlobalGuardedBody declaration binding -> global-name declaration
   global-scheme :: CoreGlobal -> Scheme
@@ -86,7 +86,7 @@ module Bootstrap.Global where
   globals-bodies :: CoreGlobals -> List BodyBinding
   globals-bodies globals = body-bindings-members (globals-body-context globals)
   globals-body-context :: CoreGlobals -> BodyBindings
-  globals-body-context globals = case globals of ClosedGlobals declarations definitions datas bodies guarded dependents -> bodies
+  globals-body-context globals = case globals of ClosedGlobals declarations index definitions datas bodies guarded dependents -> bodies
   body-declaration-valid :: CoreGlobal -> Bool
   body-declaration-valid declaration = case declaration of
     GlobalBody (GlobalValue name role sc) binding -> binding-matches name role sc binding
@@ -109,8 +109,8 @@ module Bootstrap.Global where
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "global reference")) of Nil -> True; other -> False)
   lookup-global :: String -> List CoreGlobal -> Option CoreGlobal
   lookup-global name declarations = case declarations of Nil -> None; Cons declaration rest -> if same name (global-name declaration) then Some declaration else lookup-global name rest
-  lookup-base-global :: String -> List CoreGlobal -> Option CoreGlobal
-  lookup-base-global name declarations = case lookup-global name declarations of Some declaration -> Some (base-global declaration); None -> None
+  lookup-base-global :: String -> HashMap String CoreGlobal -> Option CoreGlobal
+  lookup-base-global name declarations = case hash-map-lookup name declarations of Some declaration -> Some (base-global declaration); None -> None
   same-global :: CoreGlobal -> CoreGlobal -> Bool
   same-global first second = same (global-name first) (global-name second) && scheme-equivalent (global-scheme first) (global-scheme second) && same-body first second && (case (base-global first, base-global second) of
     (GlobalValue a role sc, GlobalValue b other ty) -> same role other
@@ -137,15 +137,24 @@ module Bootstrap.Global where
   decision-global declaration = case decision-constructor-scheme (global-name declaration) of
     Some expected -> (case base-global declaration of GlobalValue name role sc -> same role "constructor" && scheme-equivalent sc expected; other -> False)
     None -> True
-  globals-seen :: List CoreGlobal -> List String -> Bool
-  globals-seen declarations names = case declarations of
-    Nil -> True
+  -- Retain the same declaration table that detected duplicate names. A
+  -- Core reference still checks its actuals, role and evidence against
+  -- the defining declaration at every occurrence.
+  checked-global-index :: List CoreGlobal -> HashMap String CoreGlobal -> Option (HashMap String CoreGlobal)
+  checked-global-index declarations table = case declarations of
+    Nil -> Some table
     Cons declaration rest -> let name = global-name declaration in
-      string-length name > 0 && not (has-name name names) && schemes-closed (global-schemes declaration) && decision-global declaration && body-declaration-valid declaration
-      && global-role-valid declaration
-      && globals-seen rest (Cons name names)
+      (case hash-map-lookup name table of
+        Some prior -> None
+        None -> if string-length name > 0 && schemes-closed (global-schemes declaration)
+          && decision-global declaration && body-declaration-valid declaration && global-role-valid declaration then
+          checked-global-index rest (hash-map-insert name declaration table)
+          else None)
   globals-closed :: List CoreGlobal -> Bool
-  globals-closed declarations = globals-seen declarations Nil && guarded-bindings-closed (declaration-guarded-bodies declarations) && body-bindings-closed (declaration-bodies declarations) && declarations-body-authorized (declaration-bodies declarations) declarations
+  globals-closed declarations = case checked-global-index declarations hash-map-empty of
+    None -> False
+    Some table -> let bindings = declaration-bodies declarations in
+      guarded-bindings-closed (declaration-guarded-bodies declarations) && body-bindings-closed bindings && declarations-body-authorized bindings declarations
 
   -- `globals-closed` folds four unrelated tests into one `Bool`, so a refusal
   -- names nothing. These two report the FIRST declaration that fails, in the
@@ -198,13 +207,15 @@ module Bootstrap.Global where
   close-globals-with-source-data declarations definitions datas =
     let bindings = declaration-bodies declarations in
     let guarded = declaration-guarded-bodies declarations in
-    if globals-seen declarations Nil && guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
-      (case check-body-bindings bindings of
-        Some bodies -> if bodies-match bindings bindings definitions datas then
-          Some (ClosedGlobals declarations definitions datas bodies guarded (body-dependents bindings hash-map-empty))
-          else None
-        None -> None)
-      else None
+    case checked-global-index declarations hash-map-empty of
+      None -> None
+      Some index -> if guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
+        (case check-body-bindings bindings of
+          Some bodies -> if bodies-match bindings bindings definitions datas then
+            Some (ClosedGlobals declarations index definitions datas bodies guarded (body-dependents bindings hash-map-empty))
+            else None
+          None -> None)
+        else None
   -- Index the already validated graphs. Replacing any member requires
   -- rederiving all the graphs that mention it, including transitive uses.
   body-dependents :: List BodyBinding -> HashMap String (List BodyBinding) -> HashMap String (List BodyBinding)
@@ -256,7 +267,7 @@ module Bootstrap.Global where
   lookup-given name givens = case givens of Nil -> None; Cons given rest -> if same name (given-symbol given) then Some (given-type given) else lookup-given name rest
   instance-role :: String -> Bool
   instance-role role = same role "instance" || same role "implicit-instance"
-  evidence-valid :: List CoreGlobal -> List CoreGiven -> CoreEvidence -> Bool
+  evidence-valid :: HashMap String CoreGlobal -> List CoreGiven -> CoreEvidence -> Bool
   evidence-valid globals givens evidence = case evidence of
     CEGiven sp ty name -> case lookup-given name givens of Some expected -> equal-type ty expected; None -> False
     CEInstance sp ty name actuals arguments -> case lookup-base-global name globals of
@@ -265,19 +276,19 @@ module Bootstrap.Global where
         None -> False)
       other -> False
     other -> False
-  evidence-arguments :: List CoreGlobal -> List CoreGiven -> List Requirement -> CoreEvidence -> Bool
+  evidence-arguments :: HashMap String CoreGlobal -> List CoreGiven -> List Requirement -> CoreEvidence -> Bool
   evidence-arguments globals givens requirements arguments = case (requirements, arguments) of
     (Nil, CEArgumentsEnd sp) -> True
     (Cons r rest, CEArgument sp first more) -> equal-type (requirement-type r) (evidence-type first)
       && evidence-valid globals givens first && evidence-arguments globals givens rest more
     other -> False
-  evidence-list :: List CoreGlobal -> List CoreGiven -> List Requirement -> List CoreEvidence -> Bool
+  evidence-list :: HashMap String CoreGlobal -> List CoreGiven -> List Requirement -> List CoreEvidence -> Bool
   evidence-list globals givens requirements evidence = case (requirements, evidence) of
     (Nil, Nil) -> True
     (Cons r rest, Cons first more) -> equal-type (requirement-type r) (evidence-type first)
       && evidence-valid globals givens first && evidence-list globals givens rest more
     other -> False
-  value-reference :: List CoreGlobal -> List CoreGiven -> UType -> String -> String -> List UType -> List CoreEvidence -> Bool
+  value-reference :: HashMap String CoreGlobal -> List CoreGiven -> UType -> String -> String -> List UType -> List CoreEvidence -> Bool
   value-reference globals givens ty name role actuals evidence =
     if same role "dictionary" then (case (actuals, evidence, lookup-given name givens) of (Nil, Nil, Some expected) -> equal-type ty expected; other -> False)
     else case lookup-base-global name globals of
@@ -286,13 +297,13 @@ module Bootstrap.Global where
         None -> False)
       Some (GlobalIntrinsicViews symbol views) -> same role "intrinsic" && intrinsic-view-reference globals givens ty actuals evidence views
       other -> False
-  intrinsic-view-reference :: List CoreGlobal -> List CoreGiven -> UType -> List UType -> List CoreEvidence -> List Scheme -> Bool
+  intrinsic-view-reference :: HashMap String CoreGlobal -> List CoreGiven -> UType -> List UType -> List CoreEvidence -> List Scheme -> Bool
   intrinsic-view-reference globals givens ty actuals evidence views = case views of
     Nil -> False
     Cons sc rest -> (case instantiate-contract sc actuals of
       Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
       None -> False) || intrinsic-view-reference globals givens ty actuals evidence rest
-  method-reference :: List CoreGlobal -> List CoreGiven -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> Bool
+  method-reference :: HashMap String CoreGlobal -> List CoreGiven -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> Bool
   method-reference globals givens ty name owner slot actuals evidence = case lookup-base-global name globals of
     Some (GlobalMethod symbol declared number sc) -> same owner declared && slot == number && (case instantiate-contract sc actuals of
       Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
@@ -333,11 +344,11 @@ module Bootstrap.Global where
   constructor-pattern-supported sc = scheme-closed sc
     && constructor-visible-parameters (scheme-params sc) (constructor-result-parameters (constructor-result (scheme-body sc)))
 
-  constructor-reference :: List CoreGlobal -> String -> List UType -> UType -> Bool
+  constructor-reference :: HashMap String CoreGlobal -> String -> List UType -> UType -> Bool
   constructor-reference globals name actuals ty = case lookup-base-global name globals of
     Some (GlobalValue symbol role sc) -> same role "constructor" && constructor-pattern-supported sc && (case instantiate-contract sc actuals of Some (expected, Nil) -> equal-type ty expected; other -> False)
     other -> False
-  pattern-locals :: List CoreGlobal -> List (Nat, Scheme) -> CorePattern -> Option (List (Nat, Scheme))
+  pattern-locals :: HashMap String CoreGlobal -> List (Nat, Scheme) -> CorePattern -> Option (List (Nat, Scheme))
   pattern-locals globals locals pattern = case pattern of
     CPVar sp ty id name -> bind-local id (mono ty) locals
     CPProof sp ty id name -> bind-local id (mono ty) locals
@@ -351,9 +362,9 @@ module Bootstrap.Global where
     CPString sp ty text -> Some locals
     CPChar sp ty text -> Some locals
     CPDone sp -> Some locals
-  patterns-locals :: List CoreGlobal -> List (Nat, Scheme) -> List CorePattern -> Option (List (Nat, Scheme))
+  patterns-locals :: HashMap String CoreGlobal -> List (Nat, Scheme) -> List CorePattern -> Option (List (Nat, Scheme))
   patterns-locals globals locals patterns = case patterns of Nil -> Some locals; Cons first rest -> case pattern-locals globals locals first of Some bound -> patterns-locals globals bound rest; None -> None
-  term-references :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
+  term-references :: HashMap String CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
   term-references globals locals givens term = case term of
     CUse sp ty name role actuals -> value-reference globals givens ty name role actuals Nil
     CQualifiedUse sp ty name role actuals evidence -> value-reference globals givens ty name role actuals evidence
@@ -416,17 +427,17 @@ module Bootstrap.Global where
       Some bound -> bind-recursive-references rest bound
       None -> None
     other -> None
-  recursive-references :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
+  recursive-references :: HashMap String CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
   recursive-references globals locals givens members = case members of
     CRecursiveBindingsEnd -> True
     CRecursiveBinding id name value rest ->
       term-references globals locals givens value && recursive-references globals locals givens rest
     other -> False
-  clause-references :: List CoreGlobal -> List CoreGiven -> List CoreClause -> Bool
+  clause-references :: HashMap String CoreGlobal -> List CoreGiven -> List CoreClause -> Bool
   clause-references globals givens clauses = clause-references-with globals Nil givens clauses
   value-local-schemes :: List (Nat, UType) -> List (Nat, Scheme)
   value-local-schemes values = case values of Nil -> Nil; Cons (id, carrier) rest -> Cons (id, mono carrier) (value-local-schemes rest)
-  clause-references-with :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> List CoreClause -> Bool
+  clause-references-with :: HashMap String CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> List CoreClause -> Bool
   clause-references-with globals prefix givens clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause sp patterns body) rest -> (case patterns-locals globals prefix patterns of
@@ -453,7 +464,7 @@ module Bootstrap.Global where
       && declared-givens rest more (Cons name names)
     other -> False
   global-definition-closed :: CoreGlobals -> CoreDefinition -> Bool
-  global-definition-closed context definition = case context of ClosedGlobals globals definitions datas bodies guarded dependents -> (case lookup-base-global (core-name definition) globals of
+  global-definition-closed context definition = case context of ClosedGlobals declarations globals definitions datas bodies guarded dependents -> (case lookup-base-global (core-name definition) globals of
     Some (GlobalValue name role sc) -> (same role "value" || same role "instance-method") && scheme-equivalent sc (core-scheme definition)
       && definition-openings (scheme-params (core-scheme definition)) (core-openings definition) Nil Nil
       && declared-givens (map-requirements (substitute-bound (core-openings definition)) (scheme-requirements (core-scheme definition))) (core-givens definition) Nil
@@ -464,5 +475,5 @@ module Bootstrap.Global where
   declaration-guarded-bodies :: List CoreGlobal -> List GuardedBinding
   declaration-guarded-bodies declarations = case declarations of Nil -> Nil; Cons (GlobalGuardedBody base binding) rest -> Cons binding (declaration-guarded-bodies rest); Cons other rest -> declaration-guarded-bodies rest
   globals-guarded-bodies :: CoreGlobals -> List GuardedBinding
-  globals-guarded-bodies globals = case globals of ClosedGlobals declarations definitions datas bodies guarded dependents -> guarded
+  globals-guarded-bodies globals = case globals of ClosedGlobals declarations index definitions datas bodies guarded dependents -> guarded
 
