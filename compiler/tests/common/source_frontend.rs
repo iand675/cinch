@@ -46,6 +46,20 @@ pub fn check_source_interfaces(source: &str, name: &str) -> Result<Vec<Iface>, S
     }
 }
 
+/// Return the IR produced by the same frontend used to check and run fixtures.
+pub fn emit_ir(source: &str) -> Result<String, String> {
+    match external_frontend::configured()? {
+        Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
+            let ir = dir.join("program.ll");
+            external_frontend::drive(&frontend, Mode::EmitIr, dir, entry, Some(ir.clone()))?;
+            std::fs::read_to_string(&ir).map_err(|error| format!("{}: {error}", ir.display()))
+        }),
+        None => driver::check_sources(source, "<test>")
+            .and_then(|program| cinch::codegen::emit(&program))
+            .map_err(|error| error.to_string()),
+    }
+}
+
 pub fn run_source(source: &str) -> Result<i32, String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project("Main.cinch", source, |dir, entry| {

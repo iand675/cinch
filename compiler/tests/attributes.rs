@@ -9,7 +9,7 @@ mod common;
 use cinch::check::{check_program_multi_diag, Diagnostic, StagingCx};
 use cinch::core::Program;
 use cinch::driver::{parse_prelude, parse_source};
-use common::source_frontend::{check_sources, run_source};
+use common::source_frontend::{check_source_interfaces, check_sources, emit_ir, run_source};
 use cinch::interface::Iface;
 use cinch::Result;
 use std::collections::HashMap;
@@ -62,13 +62,18 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 /// The emitted LLVM IR of a program (every IR test carries a `main`,
 /// which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
-    let program =
-        cinch::driver::check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    emit_ir(src).unwrap_or_else(|error| panic!("{name}: emit failed: {error}"))
 }
 
 /// The checked interface of a single-module source (main-less is fine).
 fn iface_of(name: &str, src: &str) -> Iface {
+    if common::external_frontend::configured().expect("selected frontend").is_some() {
+        return check_source_interfaces(src, "Main.cinch")
+            .unwrap_or_else(|error| panic!("{name}: check failed: {error}"))
+            .into_iter()
+            .find(|interface| interface.module == "Main")
+            .unwrap_or_else(|| panic!("{name}: selected compiler did not write Main's interface"));
+    }
     let (_p, ifaces, diags) = check_with_diags(src)
         .unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
     assert!(diags.is_empty(), "{name}: unexpected diagnostics: {diags:?}");
@@ -1123,6 +1128,11 @@ module Main where
         let unit = program.fns.iter().find(|unit| unit.id.0 == name).unwrap();
         assert!(unit.ctor.is_none());
         assert!(matches!(unit.body, cinch::core::Core::Var(_)));
+    }
+    let interface = iface_of("unboxed layouts", source);
+    for (name, size) in [("Number", 8), ("Flag", 1), ("Label", 8)] {
+        let layout = interface.layouts.iter().find(|row| row.name == name).expect(name);
+        assert_eq!((layout.repr.as_str(), layout.size, layout.align), ("unboxed", size, size));
     }
     expect_ok("unboxed data and record", source, 37);
 }
