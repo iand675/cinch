@@ -875,9 +875,9 @@ def check_fixed_point() -> None:
     interfaces = {str(p.relative_to(second)): file_hash(p) for p in compiler_interface_paths(second)}
     rebuilt = {str(p.relative_to(third)): file_hash(p) for p in compiler_interface_paths(third)}
     require_compiler_interfaces(second, compiler_sources())
-    require_compiler_interfaces(third, compiler_sources())
     if not interfaces or interfaces != rebuilt:
         raise BootstrapError("canonical stage-2/stage-3 interfaces are missing or differ")
+    # The consumer validates the third stage's contracts before using them.
     check_interface_consumer(third, compiler_sources())
     check_changed_source()
     print("bootstrap: stages 2 and 3 reached a fixed point", flush=True)

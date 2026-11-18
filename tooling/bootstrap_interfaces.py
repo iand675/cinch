@@ -287,6 +287,7 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
 
 def verify_dependencies(documents: dict[str, dict], base: dict[str, dict]) -> None:
     available = {**base, **documents}
+    identities = {}
     for name, doc in documents.items():
         seen = set()
         for dependency in doc["imports"]:
@@ -294,5 +295,7 @@ def verify_dependencies(documents: dict[str, dict], base: dict[str, dict]) -> No
             if owner == name or owner in seen or owner not in available:
                 raise ValueError(f"{name}: duplicate, missing or self dependency: {owner}")
             seen.add(owner)
-            if dependency["iface_hash"] != interface_hash(available[owner]):
+            if owner not in identities:
+                identities[owner] = interface_hash(available[owner])
+            if dependency["iface_hash"] != identities[owner]:
                 raise ValueError(f"{name}: stale dependency contract: {owner}")
