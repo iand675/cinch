@@ -1,7 +1,7 @@
 //! Invoke the selected Cinch executable; no Rust frontend is used on this path.
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{DriverOptions, Mode, Package, BASE_PACKAGE};
+use cinch::driver::{base_package, DriverOptions, Mode};
 use cinch::lsp::{parse_json, Json};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -219,7 +219,9 @@ fn validate_interfaces(path: &Path) -> Result<(), String> {
     if doc.get("schema").and_then(Json::as_num) != Some(1.0) {
         return Err("external interface manifest must use schema 1".into());
     }
-    let allowed = Package::parse(BASE_PACKAGE).map_err(|e| e.to_string())?.modules.into_iter().map(|m| m.name).collect::<BTreeSet<_>>();
+    static BASE_MODULES: std::sync::LazyLock<BTreeSet<&str>> = std::sync::LazyLock::new(|| {
+        base_package().modules.iter().map(|module| module.name.as_str()).collect()
+    });
     let rows = doc.get("interfaces").and_then(Json::as_arr).ok_or("external manifest needs interfaces")?;
     let mut seen = BTreeSet::new();
     for row in rows {
@@ -228,7 +230,7 @@ fn validate_interfaces(path: &Path) -> Result<(), String> {
             return Err("external interface row must contain module, hash and path strings".into());
         }
         let name = fields[0].as_str().unwrap();
-        if !allowed.contains(name) || !seen.insert(name.to_owned()) {
+        if !BASE_MODULES.contains(name) || !seen.insert(name) {
             return Err(format!("external tests require distinct checked base interfaces, not {name}"));
         }
     }
