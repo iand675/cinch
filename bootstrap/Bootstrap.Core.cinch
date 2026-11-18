@@ -39,7 +39,7 @@ module Bootstrap.Core where
   export mutable-fact-write, mutable-predicate-write, facts-after-writes, proof-after-writes, volatile-borrow-index
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
-  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct, handler-performs
+  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-resumption-count, handler-body-direct, handler-performs
   export CProofRef, CProofRefl, CProofSearch, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
   export prove-erased-goal, scoped-erased-witness
   export scoped-list-index
@@ -552,73 +552,78 @@ module Bootstrap.Core where
   -- A resumption can be called once along a path. Passing it as a value,
   -- capturing it in another closure, or storing it requires richer usage
   -- evidence and is refused here rather than treated as unrestricted.
-  resume-uses :: Nat -> CoreTerm -> Nat
-  resume-uses id term = case term of
+  resume-uses :: (Nat -> Nat -> Nat) -> Nat -> CoreTerm -> Nat
+  resume-uses choose id term = case term of
     CLocal sp ty key name actuals -> if id == key then 2 else 0
-    CApply sp ty (CLocal at ft key name actuals) arg -> if id == key then 1 + resume-uses id arg else resume-uses id arg
-    CApply sp ty f x -> resume-uses id f + resume-uses id x
-    CApplyEff sp ty row f x -> resume-uses id f + resume-uses id x
-    CErasedApply sp ty row f witness -> resume-uses id f
-    CLambda sp ty pattern body -> if resume-uses id body > 0 then 2 else 0
-    CLet sp ty key name sc rhs body -> resume-uses id rhs + resume-uses id body
-    CRecursiveFunctions sp ty members body -> recursive-resume-uses id members + resume-uses id body
-    CRecursiveValues sp ty region members body -> recursive-resume-uses id members + resume-uses id body
-    CIf sp ty condition yes no -> resume-uses id condition + resume-max (resume-uses id yes) (resume-uses id no)
-    CCase sp ty value alts -> resume-uses id value + resume-uses id alts
-    CAlternative sp pattern body rest -> resume-alternative-uses id body rest
-    CArgument sp first rest -> resume-uses id first + resume-uses id rest
-    CTuple sp ty fields -> resume-uses id fields
-    CPolyIntro sp ty poly-ids fields -> resume-uses id fields
-    CPolyElim sp ty fields poly-args -> resume-uses id fields
-    CPrimitive sp ty name args -> resume-uses id args
-    CDecision sp ty predicate body -> resume-uses id body
-    CProved sp ty evidence body -> resume-uses id body
-    CRefine sp ty evidence body -> resume-uses id body
-    CRefineProof sp ty witness body -> resume-uses id witness + resume-uses id body
-    CForget sp ty body -> resume-uses id body
-    CRequire sp ty body -> resume-uses id body
-    CDischarge sp ty evidence body -> resume-uses id body
-    CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
-    CScope sp ty region evidence callback -> resume-uses id callback
-    CMemoScope sp ty region body -> resume-uses id body
-    CSpawn sp ty token body -> resume-uses id token + resume-uses id body
-    CJoin sp ty token body -> resume-uses id token + resume-uses id body
-    CWith sp ty given value body -> resume-uses id value + resume-uses id body
-    CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
-    CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
-    CHandlerOperation sp slot openings row closure rest -> resume-uses id closure + resume-uses id rest
+    CApply sp ty (CLocal at ft key name actuals) arg -> if id == key then 1 + resume-uses choose id arg else resume-uses choose id arg
+    CApply sp ty f x -> resume-uses choose id f + resume-uses choose id x
+    CApplyEff sp ty row f x -> resume-uses choose id f + resume-uses choose id x
+    CErasedApply sp ty row f witness -> resume-uses choose id f
+    CLambda sp ty pattern body -> if resume-uses choose id body > 0 then 2 else 0
+    CLet sp ty key name sc rhs body -> resume-uses choose id rhs + resume-uses choose id body
+    CRecursiveFunctions sp ty members body -> recursive-resume-uses choose id members + resume-uses choose id body
+    CRecursiveValues sp ty region members body -> recursive-resume-uses choose id members + resume-uses choose id body
+    CIf sp ty condition yes no -> resume-uses choose id condition + choose (resume-uses choose id yes) (resume-uses choose id no)
+    CCase sp ty value alts -> resume-uses choose id value + resume-uses choose id alts
+    CAlternative sp pattern body (CAlternativesEnd end) -> resume-uses choose id body
+    CAlternative sp pattern body rest -> choose (resume-alternative-uses choose id body rest) (resume-uses choose id rest)
+    CArgument sp first rest -> resume-uses choose id first + resume-uses choose id rest
+    CTuple sp ty fields -> resume-uses choose id fields
+    CPolyIntro sp ty poly-ids fields -> resume-uses choose id fields
+    CPolyElim sp ty fields poly-args -> resume-uses choose id fields
+    CPrimitive sp ty name args -> resume-uses choose id args
+    CDecision sp ty predicate body -> resume-uses choose id body
+    CProved sp ty evidence body -> resume-uses choose id body
+    CRefine sp ty evidence body -> resume-uses choose id body
+    CRefineProof sp ty witness body -> resume-uses choose id witness + resume-uses choose id body
+    CForget sp ty body -> resume-uses choose id body
+    CRequire sp ty body -> resume-uses choose id body
+    CDischarge sp ty evidence body -> resume-uses choose id body
+    CGuard sp ty condition body -> resume-uses choose id condition + resume-uses choose id body
+    CScope sp ty region evidence callback -> resume-uses choose id callback
+    CMemoScope sp ty region body -> resume-uses choose id body
+    CSpawn sp ty token body -> resume-uses choose id token + resume-uses choose id body
+    CJoin sp ty token body -> resume-uses choose id token + resume-uses choose id body
+    CWith sp ty given value body -> resume-uses choose id value + resume-uses choose id body
+    CHandle sp ty label residual body handled-by -> resume-uses choose id body + resume-uses choose id handled-by
+    CHandler sp ty returned operations -> if resume-uses choose id returned + resume-uses choose id operations > 0 then 2 else 0
+    CHandlerOperation sp slot openings row closure rest -> resume-uses choose id closure + resume-uses choose id rest
     other -> 0
-  recursive-resume-uses :: Nat -> CoreTerm -> Nat
-  recursive-resume-uses id members = case members of
+  recursive-resume-uses :: (Nat -> Nat -> Nat) -> Nat -> CoreTerm -> Nat
+  recursive-resume-uses choose id members = case members of
     CRecursiveBindingsEnd -> 0
-    CRecursiveBinding key name value rest -> resume-uses id value + recursive-resume-uses id rest
+    CRecursiveBinding key name value rest -> resume-uses choose id value + recursive-resume-uses choose id rest
     other -> 0
   -- A failed guard continues to later alternatives. Calls performed by
   -- the guard therefore add to calls in the later branch, rather than
   -- being counted as mutually exclusive with that branch.
-  resume-alternative-uses :: Nat -> CoreTerm -> CoreTerm -> Nat
-  resume-alternative-uses id body rest = case body of
-    CGuard sp ty condition value -> resume-uses id condition + resume-max (resume-uses id value) (resume-uses id rest)
-    CLet sp ty key name sc rhs value -> resume-uses id rhs + resume-alternative-uses id value rest
-    CRequire sp ty value -> resume-alternative-uses id value rest
-    CDischarge sp ty evidence value -> resume-alternative-uses id value rest
-    CProved sp ty evidence value -> resume-alternative-uses id value rest
-    CRefine sp ty evidence value -> resume-alternative-uses id value rest
-    CForget sp ty value -> resume-alternative-uses id value rest
-    other -> resume-max (resume-uses id body) (resume-uses id rest)
+  resume-alternative-uses :: (Nat -> Nat -> Nat) -> Nat -> CoreTerm -> CoreTerm -> Nat
+  resume-alternative-uses choose id body rest = case body of
+    CGuard sp ty condition value -> resume-uses choose id condition + choose (resume-uses choose id value) (resume-uses choose id rest)
+    CLet sp ty key name sc rhs value -> resume-uses choose id rhs + resume-alternative-uses choose id value rest
+    CRequire sp ty value -> resume-alternative-uses choose id value rest
+    CDischarge sp ty evidence value -> resume-alternative-uses choose id value rest
+    CProved sp ty evidence value -> resume-alternative-uses choose id value rest
+    CRefine sp ty evidence value -> resume-alternative-uses choose id value rest
+    CForget sp ty value -> resume-alternative-uses choose id value rest
+    other -> choose (resume-uses choose id body) (resume-uses choose id rest)
   handler-resumption-safe :: UType -> CoreTerm -> Bool
-  handler-resumption-safe operation closure = case closure of
+  handler-resumption-safe operation closure = handler-resumption-count False operation closure
+  resume-min :: Nat -> Nat -> Nat
+  resume-min a b = if a < b then a else b
+  handler-resumption-count :: Bool -> UType -> CoreTerm -> Bool
+  handler-resumption-count exact operation closure = case closure of
     CLambda sp ty pattern body -> case arrow-shape operation of
-      UFun a b -> handler-resumption-safe b body
-      UFunEff a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
-      UPi id name a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
-      UProofFun predicate row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      UFun a b -> handler-resumption-count exact b body
+      UFunEff a row b -> if operation-function b then handler-resumption-count exact b body else resume-body-safe exact body
+      UPi id name a row b -> if operation-function b then handler-resumption-count exact b body else resume-body-safe exact body
+      UProofFun predicate row b -> if operation-function b then handler-resumption-count exact b body else resume-body-safe exact body
       other -> False
     other -> False
-  resume-body-safe :: CoreTerm -> Bool
-  resume-body-safe term = case term of
-    CLambda sp ty (CPVar at domain id name) body -> resume-uses id body <= 1
-    CLambda sp ty (CPWild at domain) body -> True
+  resume-body-safe :: Bool -> CoreTerm -> Bool
+  resume-body-safe exact term = case term of
+    CLambda sp ty (CPVar at domain id name) body -> resume-uses resume-max id body <= 1 && (not exact || resume-uses resume-min id body == 1)
+    CLambda sp ty (CPWild at domain) body -> not exact
     other -> False
 
   data CoreClause where

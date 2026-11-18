@@ -1282,6 +1282,7 @@ module Bootstrap.RuntimeIr where
           None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
       if same role "dictionary" then evidence-value definitions locals w (CEGiven sp ty name)
+      else if same role "operation" then expression definitions locals w (operation-closure sp ty)
       else if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
       else direct-call definitions locals w sp name actuals Nil
@@ -1341,9 +1342,26 @@ module Bootstrap.RuntimeIr where
         else erased-constructor-or-function definitions locals w sp f
       other -> erased-constructor-or-function definitions locals w sp f
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
+  -- Handled direct calls have already been rewritten by handler-cps.
+  -- Constructing an operation value is pure. Applying its final argument
+  -- outside that lexical dispatch takes the language's unhandled fault.
+  operation-closure :: Span -> UType -> CoreTerm
+  operation-closure sp ty = case arrow-shape ty of
+    UFun domain result -> operation-lambda sp ty domain result
+    UFunEff domain row result -> operation-lambda sp ty domain result
+    UPi id name domain row result -> operation-lambda sp ty domain result
+    UProofFun predicate row result -> CLambda sp ty (CPProof sp predicate 0 "#operation-proof") (operation-closure sp result)
+    other -> CPrimitive sp ty "#unhandled-operation" (CArgumentsEnd sp)
+  operation-lambda :: Span -> UType -> UType -> UType -> CoreTerm
+  operation-lambda sp ty domain result = CLambda sp ty
+    (if erased-value-arrow ty then CPErasedValue sp domain 0 "#operation-argument" else CPWild sp domain)
+    (operation-closure sp result)
+
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
-      CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
+      CUse at function name role actuals -> if same role "operation" then
+        (case expression definitions locals w f of (ready, closure-word) -> apply-terms definitions locals ready closure-word [x])
+        else direct-call definitions locals w sp name actuals (arguments term Nil)
       -- Checked evidence is a prefix of the same known call, not an unknown
       -- closure application. Keep the complete argument spine for saturation.
       CQualifiedUse at function name role actuals evidence -> case evidences definitions locals w evidence of
@@ -4319,6 +4337,8 @@ module Bootstrap.RuntimeIr where
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args = case args of
+    CArgumentsEnd at | same op "#unhandled-operation" -> let (ready, dead) = fresh w "afterfault" in
+      (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
       else if same op "memo-demand" then memo-demand definitions locals w sp ty input
       else if same op "borrow" || same op "thunk-delay" then expression definitions locals w input

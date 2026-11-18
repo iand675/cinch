@@ -4740,8 +4740,31 @@ module Bootstrap.Infer where
     Cons pat rest -> case bind-arrow-pattern classes kinds families env locals pat expected st of
       (bound, pattern, ignored, result, next) -> case source-handler-lambda classes kinds families bound locals rest body result next of
         (value, row, done) -> (CLambda (pat-span pat) (source-handler-lambda-type (normalize done expected) pats row) pattern value, row, done)
-  source-handler-operations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreEffect -> UType -> UType -> Expr -> List CoreOperation -> Store -> (CoreTerm, UType, Store)
-  source-handler-operations classes kinds families env locals declaration label output clauses operations st = case operations of
+  handler-answer-type :: List Pat -> CoreTerm -> UType
+  handler-answer-type pats term = case (pats, term) of
+    (Cons pat rest, CLambda sp ty parameter body) -> handler-answer-type rest body
+    other -> core-type term
+  handler-type-escapes :: List Nat -> UType -> Store -> Bool
+  handler-type-escapes ids ty st = let used = type-all-ids (normalize st ty) in shares-handler-id ids used
+  shares-handler-id :: List Nat -> List Nat -> Bool
+  shares-handler-id ids used = case ids of
+    Nil -> False
+    Cons id rest -> contains-meta id used || shares-handler-id rest used
+  handler-outer-escapes :: List Nat -> List CheckedBinding -> Store -> Bool
+  handler-outer-escapes ids env st = case env of
+    Nil -> False
+    Cons (MkBodyContext context names cache) rest -> False
+    Cons (MkLocalBinding name sc id level) rest -> handler-type-escapes ids (scheme-body sc) st || handler-outer-escapes ids rest st
+    Cons (MkValueBinding name sc id level value) rest -> handler-type-escapes ids (scheme-body sc) st || handler-outer-escapes ids rest st
+    Cons (MkGivenBinding name ty symbol) rest -> handler-type-escapes ids ty st || handler-outer-escapes ids rest st
+    Cons other rest -> handler-outer-escapes ids rest st
+  handler-opening-scope :: Span -> List (Nat, UType) -> List CheckedBinding -> UType -> UType -> UType -> UType -> Store -> Store
+  handler-opening-scope sp openings env input output answer row st = case rigid-ids openings of
+    Nil -> st
+    ids -> if handler-type-escapes ids input st || handler-type-escapes ids output st || handler-type-escapes ids answer st
+      || handler-type-escapes ids row st || handler-outer-escapes ids env st then add-error sp "operation-local type parameter escapes its handler clause" st else st
+  source-handler-operations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreEffect -> UType -> UType -> UType -> Expr -> List CoreOperation -> Store -> (CoreTerm, UType, Store)
+  source-handler-operations classes kinds families env locals declaration label input output clauses operations st = case operations of
     Nil -> (CHandlerEnd (expr-span clauses), URow UEnd, st)
     Cons operation rest -> case source-handler-clause (core-operation-name operation) clauses of
       Some (EHandlerClause sp name pats continuation body more) -> case handler-operation-scheme declaration label operation of
@@ -4752,8 +4775,7 @@ module Bootstrap.Infer where
             let expected = handler-clause-type opened output (URow UEnd) in
             case source-handler-lambda classes kinds families env locals ps body expected shape of
               (closure, row, checked) ->
-                let safe = if handler-resumption-safe (normalize checked opened) (map-term-types (normalize checked) closure) then checked else add-error sp "a one-shot handler resumption must be used at most once and within its handler clause" checked in
-                case source-handler-operations classes kinds families env locals declaration label output clauses rest safe of
+                case source-handler-operations classes kinds families env locals declaration label input output clauses rest (handler-opening-scope sp openings env input output (handler-answer-type ps closure) row checked) of
                   (tail, latent, done) -> (CHandlerOperation sp (core-operation-slot operation) openings row closure tail, union-effects row latent, done)
         None -> (CError sp, UError, add-error sp "handler operation has unsupported or ill-scoped declaration constraints" st)
       other -> (CError (expr-span clauses), UError, add-error (expr-span clauses) "handler is missing a declared operation" st)
@@ -4765,7 +4787,7 @@ module Bootstrap.Infer where
           Some (EHandlerClause at name pats continuation body rest) ->
             let simple = if handler-patterns-simple pats then shaped else add-error at "handler return needs a variable or wildcard pattern" shaped in
             case source-handler-lambda classes kinds families env locals pats body (UFun input output) simple of
-              (returned, return-row, checked) -> case source-handler-operations classes kinds families env locals declaration label output clauses (core-effect-operations declaration) checked of
+              (returned, return-row, checked) -> case source-handler-operations classes kinds families env locals declaration label input output clauses (core-effect-operations declaration) checked of
                 (operations, operation-row, done) -> (CHandler sp (handler-type label input output (union-effects return-row operation-row)) returned operations, done)
           other -> term-error sp "handler is missing its return clause" shaped
       None -> term-error sp "handler needs its actual checked effect declaration" converted

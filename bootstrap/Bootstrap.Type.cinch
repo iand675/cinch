@@ -1128,7 +1128,8 @@ module Bootstrap.Type where
   mismatch :: Span -> UType -> UType -> Store -> Store
   mismatch sp a b st = add-deferred-error sp (\u -> mismatch-message a b) st
   mismatch-message :: UType -> UType -> String
-  mismatch-message a b = string-concat-all ["type mismatch: expected ", display-type-text b, ", found ", display-type-text a]
+  mismatch-message a b = let prefix = if kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow then "effect row type mismatch: expected " else "type mismatch: expected " in
+    string-concat-all [prefix, display-type-text b, ", found ", display-type-text a]
   -- Diagnostic text only: every encoded nominal identity `i.` reads as the
   -- unqualified source name it encodes (Bootstrap.Nominal.decode-identity).
   -- type-text itself, and so every interface and IR spelling, keeps the

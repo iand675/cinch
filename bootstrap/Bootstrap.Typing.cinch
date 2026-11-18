@@ -112,6 +112,17 @@ module Bootstrap.Typing where
         && effect-kind-declared name (core-effect-kind declaration) kinds
         && operations-registered (core-effect-operations declaration) globals
         && effects-registered kinds globals (Cons name seen) rest
+  -- Source effects inhabit the same global label namespace. A declaration
+  -- such as effect Fail supplies its own kind and checked operations.
+  undeclared-kernel-kinds :: List (String, Kind) -> List CoreEffect -> List (String, Kind)
+  undeclared-kernel-kinds kernels effects = case effects of
+    Nil -> kernels
+    other -> (case kernels of
+      Nil -> Nil
+      Cons (name, kind) rest -> let more = undeclared-kernel-kinds rest effects in
+        (case effect-for-label (UCon name kind) effects of
+          Some declaration -> if kind-equal kind (core-effect-kind declaration) then more else Cons (name, kind) more
+          None -> Cons (name, kind) more))
   close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
   close-typing-context-with-effects kinds declarations effects = close-typing-context-with-data kinds declarations effects Nil
   close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
@@ -131,7 +142,7 @@ module Bootstrap.Typing where
             other -> more)
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
-  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
+  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = undeclared-kernel-kinds kernel-effect-kinds effects <> kinds in
     let all = declared <> constructor-index-kinds datas in
     if nominal-kinds-closed declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
         && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
@@ -201,7 +212,7 @@ module Bootstrap.Typing where
   -- `False` and need different fixes. The checking form stays the one every
   -- caller uses; this one only shapes a message.
   closure-refusal :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> String
-  closure-refusal kinds declarations effects datas definitions = let declared = kernel-effect-kinds <> kinds in
+  closure-refusal kinds declarations effects datas definitions = let declared = undeclared-kernel-kinds kernel-effect-kinds effects <> kinds in
     let all = declared <> constructor-index-kinds datas in
     if not (nominal-kinds-closed declared) then "the nominal kind table is not closed"
     else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))
@@ -783,21 +794,42 @@ module Bootstrap.Typing where
     other -> None
   -- An effect operation may drop its continuation. Kernel spawn instead
   -- transfers its closure and returns a task handle before it continues.
-  use-count-after :: Bool -> CoreTerm -> Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
+  data UseInterruptions where
+    Uninterrupted :: UseInterruptions
+    MayInterrupt :: UseInterruptions
+    ResumingContext :: TypingContext -> UType -> UseInterruptions
+  interrupts-usage :: UseInterruptions -> UType -> Bool
+  interrupts-usage policy performed = case policy of
+    Uninterrupted -> False
+    MayInterrupt -> not (effects-fit performed empty-row)
+    ResumingContext context allowed -> not (effects-fit performed allowed)
+  -- Only a checked inline handler that resumes on every path can make
+  -- its label non-interrupting. Its clause effects still escape.
+  resuming-context :: Span -> UseInterruptions -> UType -> CoreTerm -> UseInterruptions
+  resuming-context sp policy label handled-by = case (policy, handled-by) of
+    (ResumingContext context allowed, CHandler at ty returned operations) -> (case handler-parts ty of
+      Some (actual, input, output, latent) -> if equal-type actual label && effects-fit latent allowed then
+        (case handler-usage-error context sp True handled-by of
+          None -> ResumingContext context (union-effects allowed (URow (UArg label UEnd)))
+          Some error -> policy)
+        else policy
+      None -> policy)
+    other -> policy
+  use-count-after :: UseInterruptions -> CoreTerm -> Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
   use-count-after interrupted first uses next =
     let before = (case first of
       CSpawn sp ty token callback -> union-effects (core-effects token) (core-effects callback)
       other -> core-effects first) in
-    use-count-sequence uses (if interrupted && not (effects-fit before empty-row) then use-count-choice (Some (0, 0)) next else next)
-  use-count-list :: Bool -> Nat -> List CoreTerm -> Option (Nat, Nat)
+    use-count-sequence uses (if interrupts-usage interrupted before then use-count-choice (Some (0, 0)) next else next)
+  use-count-list :: UseInterruptions -> Nat -> List CoreTerm -> Option (Nat, Nat)
   use-count-list interrupted id terms = case terms of
     Nil -> Some (0, 0)
     Cons first rest -> use-count-after interrupted first (use-count interrupted id first) (use-count-list interrupted id rest)
-  use-count-once :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-once :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
   use-count-once interrupted id callback = case callback of
     CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else use-count interrupted id body
     other -> use-count interrupted id callback
-  use-count :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
   use-count interrupted id term = case term of
     CLocal sp ty key name actuals -> if id == key then Some (1, 1) else Some (0, 0)
     CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else (case use-count interrupted id body of Some (0, 0) -> Some (0, 0); other -> None)
@@ -823,13 +855,14 @@ module Bootstrap.Typing where
       use-count-sequence (use-count interrupted id first) (use-count-unbounded id second)
     CPrimitive sp ty op (CArgument at callback (CArgument bt input (CArgumentsEnd end))) | same op "par-map" ->
       use-count-sequence (use-count-unbounded id callback) (use-count interrupted id input)
-    CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
+    CHandle sp ty label residual body handled-by -> use-count-after interrupted handled-by (use-count interrupted id handled-by)
+      (use-count (resuming-context sp interrupted label handled-by) id body)
     other -> use-count-list interrupted id (runtime-term-children term)
   -- A many-shot frame: any use inside the callback is unbounded.
   use-count-unbounded :: Nat -> CoreTerm -> Option (Nat, Nat)
   use-count-unbounded id callback = case callback of
     CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else (if task-id-present id (task-free-ids body) then None else Some (0, 0))
-    other -> use-count False id callback
+    other -> use-count Uninterrupted id callback
   task-free-ids :: CoreTerm -> List Nat
   task-free-ids body = case task-free Nil body of
     Nil -> Nil
@@ -838,7 +871,7 @@ module Bootstrap.Typing where
   par-free-ids free = case free of Nil -> Nil; Cons (id, ty) rest -> Cons id (par-free-ids rest)
   use-pattern-total :: CorePattern -> Bool
   use-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> use-pattern-total inner; other -> False
-  use-count-row :: Bool -> Nat -> CoreTerm -> CoreTerm -> Option (Nat, Nat)
+  use-count-row :: UseInterruptions -> Nat -> CoreTerm -> CoreTerm -> Option (Nat, Nat)
   use-count-row interrupted id body rest = case body of
     CGuard sp ty guard value ->
       let branch = use-count interrupted id value in
@@ -853,7 +886,7 @@ module Bootstrap.Typing where
     CRefineProof sp ty witness value -> use-count-row interrupted id value rest
     CForget sp ty value -> use-count-row interrupted id value rest
     other -> use-count interrupted id body
-  use-count-alternatives :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-alternatives :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
   use-count-alternatives interrupted id alts = case alts of
     CAlternative sp p body (CAlternativesEnd end) -> use-count interrupted id body
     CAlternative sp p body rest -> if task-id-present id (task-pattern-ids p) then use-count-alternatives interrupted id rest
@@ -864,12 +897,12 @@ module Bootstrap.Typing where
   -- A variable, or an alias for a wildcard, instead exposes that value to
   -- the body. Other alias forms need joint accounting for the alias and
   -- the inner pattern before they can check a restricted argument.
-  pattern-use-count :: CorePattern -> CoreTerm -> Option (Nat, Nat)
-  pattern-use-count pattern body = case pattern of
-    CPVar sp ty id name -> use-count True id body
-    CPErasedValue sp ty id name -> use-count True id body
+  pattern-use-count :: TypingContext -> CorePattern -> CoreTerm -> Option (Nat, Nat)
+  pattern-use-count context pattern body = case pattern of
+    CPVar sp ty id name -> use-count (ResumingContext context empty-row) id body
+    CPErasedValue sp ty id name -> use-count (ResumingContext context empty-row) id body
     CPWild sp ty -> Some (0, 0)
-    CPAs sp ty id name (CPWild at inner) -> use-count True id body
+    CPAs sp ty id name (CPWild at inner) -> use-count (ResumingContext context empty-row) id body
     CPAs sp ty id name inner -> None
     CPConstructor sp ty name actuals ctor fields -> Some (1, 1)
     CPTuple sp ty fields -> Some (1, 1)
@@ -885,26 +918,26 @@ module Bootstrap.Typing where
     other -> False
   -- A strict alias moves the value. The source must satisfy its own
   -- obligation and the new binding inherits the same obligation.
-  aliases-use-allowed :: ArrowUsage -> Nat -> CoreTerm -> Bool
-  aliases-use-allowed usage id term = case term of
+  aliases-use-allowed :: TypingContext -> ArrowUsage -> Nat -> CoreTerm -> Bool
+  aliases-use-allowed context usage id term = case term of
     CLet sp ty key name sc (CLocal at carrier original display Nil) body ->
-      (if id == original then use-count-fits usage (use-count True key body) && aliases-use-allowed usage key body else True)
-        && aliases-use-allowed usage id body
-    other -> alias-children-allowed usage id (runtime-term-children term)
-  alias-children-allowed :: ArrowUsage -> Nat -> List CoreTerm -> Bool
-  alias-children-allowed usage id children = case children of
+      (if id == original then use-count-fits usage (use-count (ResumingContext context empty-row) key body) && aliases-use-allowed context usage key body else True)
+        && aliases-use-allowed context usage id body
+    other -> alias-children-allowed context usage id (runtime-term-children term)
+  alias-children-allowed :: TypingContext -> ArrowUsage -> Nat -> List CoreTerm -> Bool
+  alias-children-allowed context usage id children = case children of
     Nil -> True
-    Cons first rest -> aliases-use-allowed usage id first && alias-children-allowed usage id rest
-  pattern-aliases-allowed :: ArrowUsage -> CorePattern -> CoreTerm -> Bool
-  pattern-aliases-allowed usage pattern body = case pattern of
-    CPVar sp ty id name -> aliases-use-allowed usage id body
-    CPErasedValue sp ty id name -> aliases-use-allowed usage id body
-    CPAs sp ty id name (CPWild at carrier) -> aliases-use-allowed usage id body
+    Cons first rest -> aliases-use-allowed context usage id first && alias-children-allowed context usage id rest
+  pattern-aliases-allowed :: TypingContext -> ArrowUsage -> CorePattern -> CoreTerm -> Bool
+  pattern-aliases-allowed context usage pattern body = case pattern of
+    CPVar sp ty id name -> aliases-use-allowed context usage id body
+    CPErasedValue sp ty id name -> aliases-use-allowed context usage id body
+    CPAs sp ty id name (CPWild at carrier) -> aliases-use-allowed context usage id body
     other -> True
   pattern-usage-allowed :: TypingContext -> UType -> CorePattern -> CoreTerm -> Bool
   pattern-usage-allowed context function pattern body = case function of
     UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (pattern-type pattern)
-    UUsageArrow usage arrow -> use-count-fits usage (pattern-use-count pattern body) && pattern-aliases-allowed usage pattern body
+    UUsageArrow usage arrow -> use-count-fits usage (pattern-use-count context pattern body) && pattern-aliases-allowed context usage pattern body
     other -> True
   annotated-arrow :: UType -> Bool
   annotated-arrow ty = case ty of UUsageArrow usage arrow -> True; other -> False
@@ -927,7 +960,7 @@ module Bootstrap.Typing where
   pattern-usage-error context sp function pattern body = case function of
     UUsageArrow usage arrow -> if pattern-usage-allowed context function pattern body then None else
       let site = case pattern of CPVar at ty id name -> at; CPErasedValue at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
-      let count = pattern-use-count pattern body in
+      let count = pattern-use-count context pattern body in
       let detail = if use-count-fits usage count then "" else usage-detail count in
       Some (site, string-concat (usage-message usage) detail)
     other -> None
@@ -946,8 +979,8 @@ module Bootstrap.Typing where
     other -> False
   guard-uses :: Nat -> CoreTerm -> Option (Nat, Nat)
   guard-uses id body = case body of
-    CGuard sp ty guard value -> use-count True id guard
-    CLet sp ty key name sc rhs value -> use-count-after True rhs (use-count True id rhs) (guard-uses id value)
+    CGuard sp ty guard value -> use-count MayInterrupt id guard
+    CLet sp ty key name sc rhs value -> use-count-after MayInterrupt rhs (use-count MayInterrupt id rhs) (guard-uses id value)
     CRequire sp ty value -> guard-uses id value
     CDischarge sp ty evidence value -> guard-uses id value
     CProved sp ty evidence value -> guard-uses id value
@@ -997,11 +1030,11 @@ module Bootstrap.Typing where
   thunk-use-error sp detail = Some (sp, string-concat "multiplicity %aff: a thunk must be used at most once" detail)
   task-bound-error :: Span -> Nat -> UType -> CoreTerm -> Option (Span, String)
   task-bound-error sp id ty body =
-    if task-handle-type ty then (case use-count False id body of
+    if task-handle-type ty then (case use-count Uninterrupted id body of
       Some (1, 1) -> None
       Some (0, 0) -> task-drop-error sp
       other -> task-use-error sp)
-    else if affine-thunk ty then (case use-count True id body of
+    else if affine-thunk ty then (case use-count MayInterrupt id body of
       Some (low, high) -> if high <= 1 then None else thunk-use-error sp (usage-detail (Some (low, high)))
       None -> thunk-use-error sp (usage-detail None))
     else None
@@ -1155,7 +1188,7 @@ module Bootstrap.Typing where
     Cons (id, ty) rest ->
       (task-handle-type ty || task-shareable context Nil 64 ty || (transferable-local env id &&
         task-transfer-safe context Nil 64 ty &&
-        (case use-count False id body of Some (low, high) -> high == 1; None -> False)))
+        (case use-count Uninterrupted id body of Some (low, high) -> high == 1; None -> False)))
       && task-free-transfer context env body rest
   task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace
   task-callable context env scopes spawning site callback = case callback of
@@ -1427,7 +1460,7 @@ module Bootstrap.Typing where
     Nil -> None
     Cons (MkCoreClause sp patterns body) rest ->
       let bound = par-bindings prefix patterns Nil in
-      let owned = if additive then par-additive-ids declared patterns else Nil in
+      let owned = if additive then capture-usage declared patterns (CaptureIds Nil Nil) else CaptureIds Nil Nil in
       case par-term-error context owned bound body of
         Some error -> Some error
         None -> par-clauses-error context additive prefix declared rest
@@ -1435,24 +1468,27 @@ module Bootstrap.Typing where
   -- parallel callback may move such a value into one `parBoth` branch
   -- (section 2.3). The seed reads the same fact from the binder's effective
   -- multiplicity (`check_parallel_captures`).
-  par-additive-ids :: UType -> List CorePattern -> List Nat
-  par-additive-ids declared patterns = par-additive-walk declared patterns
-  par-additive-walk :: UType -> List CorePattern -> List Nat
-  par-additive-walk declared patterns = case (declared, patterns) of
-    (UUsageArrow usage arrow, Cons p rest) ->
-      (if transfer-usage usage then par-ids-of p else Nil) <> par-additive-walk arrow rest
-    (UFun domain result, Cons p rest) -> par-additive-walk result rest
-    (UFunEff domain row result, Cons p rest) -> par-additive-walk result rest
-    (UPi id name domain row result, Cons p rest) -> par-additive-walk result rest
-    other -> Nil
-  transfer-usage :: ArrowUsage -> Bool
-  transfer-usage usage = case usage of UsageOne -> True; UsageAffine -> True; other -> False
-  par-ids-of :: CorePattern -> List Nat
-  par-ids-of p = case p of
-    CPVar sp ty id name -> Cons id Nil
-    CPErasedValue sp ty id name -> Cons id Nil
-    CPAs sp ty id name inner -> Cons id Nil
-    other -> Nil
+  data CaptureUsage where
+    CaptureIds :: List Nat -> List Nat -> CaptureUsage
+  transferable-ids :: CaptureUsage -> List Nat
+  transferable-ids capture = case capture of CaptureIds moves linear -> moves
+  linear-ids :: CaptureUsage -> List Nat
+  linear-ids capture = case capture of CaptureIds moves linear -> linear
+  capture-usage :: UType -> List CorePattern -> CaptureUsage -> CaptureUsage
+  capture-usage declared patterns prior = case patterns of
+    Nil -> prior
+    Cons p rest -> let next = (case (declared, prior) of
+          (UUsageArrow usage arrow, CaptureIds moves linear) -> case usage of
+            UsageOne -> let ids = task-pattern-ids p in CaptureIds (ids <> moves) (ids <> linear)
+            UsageAffine -> CaptureIds (task-pattern-ids p <> moves) linear
+            other -> prior
+          other -> prior) in
+      (case arrow-shape declared of
+        UFun domain result -> capture-usage result rest next
+        UFunEff domain row result -> capture-usage result rest next
+        UPi id name domain row result -> capture-usage result rest next
+        UProofFun prop row result -> capture-usage result rest next
+        other -> next)
   par-bindings :: List CorePattern -> List CorePattern -> List (Nat, String, UType) -> List (Nat, String, UType)
   par-bindings prefix patterns acc = case (prefix, patterns) of
     (Cons p rest, Cons q more) -> par-bindings rest more (par-binding q (par-binding p acc))
@@ -1464,16 +1500,16 @@ module Bootstrap.Typing where
     CPErasedValue sp ty id name -> Cons (id, name, ty) acc
     CPAs sp ty id name inner -> Cons (id, name, ty) acc
     other -> acc
-  par-term-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> CoreTerm -> Option (Span, String)
+  par-term-error :: TypingContext -> CaptureUsage -> List (Nat, String, UType) -> CoreTerm -> Option (Span, String)
   par-term-error context owned bound term = case term of
     CPrimitive sp ty op (CArgument at f (CArgument bt g (CArgumentsEnd end))) | same op "par-both" ->
-      first-task-error (par-callback-error context owned bound sp "parBoth" False f)
-        (first-task-error (par-callback-error context owned bound sp "parBoth" False g)
+      first-task-error (par-callback-error context (transferable-ids owned) bound sp "parBoth" False f)
+        (first-task-error (par-callback-error context (transferable-ids owned) bound sp "parBoth" False g)
           (first-task-error (par-term-error context owned bound f) (par-term-error context owned bound g)))
     -- `parTabulate` takes (count, callback); `parMap` takes
     -- (callback, array), so the callback is the first argument there.
     CPrimitive sp ty op (CArgument at first (CArgument bt second (CArgumentsEnd end))) | same op "par-tabulate" ->
-      first-task-error (par-callback-error context owned bound sp "parTabulate" True second)
+      first-task-error (par-callback-error context (transferable-ids owned) bound sp "parTabulate" True second)
         (first-task-error (par-term-error context owned bound first) (par-term-error context owned bound second))
     -- `parMap`'s input becomes one array every participant reads, so its
     -- element type must be `Share` (section 2.3). The elaboration lowered
@@ -1483,13 +1519,19 @@ module Bootstrap.Typing where
     -- moves to the caller at the join, like a task result.
     CPrimitive sp ty op (CArgument at callback (CArgument bt input (CArgumentsEnd end))) | same op "par-map" ->
       first-task-error (par-element-error context sp (core-type input))
-        (first-task-error (par-callback-error context owned bound sp "parMap" True callback)
+        (first-task-error (par-callback-error context (transferable-ids owned) bound sp "parMap" True callback)
           (first-task-error (par-term-error context owned bound callback) (par-term-error context owned bound input)))
     CPrimitive sp ty op args -> par-children-error context owned bound (term-children term)
-    CLambda sp ty p body -> par-term-error context owned (par-binding p bound) body
+    CHandler sp ty returned operations -> first-task-error (handler-usage-error context sp False term)
+      (par-children-error context owned bound [returned, operations])
+    CHandle sp ty label row body handled-by -> let ids = linear-ids owned in
+      let needs-exact = case ids of Nil -> False; other -> linear-continuation label ids False body in
+      first-task-error (if needs-exact then handler-usage-error context sp True handled-by else None)
+        (par-children-error context owned bound [body, handled-by])
+    CLambda sp ty p body -> par-term-error context (capture-usage ty [p] owned) (par-binding p bound) body
     CLet sp ty id name sc rhs body -> first-task-error (par-term-error context owned bound rhs) (par-term-error context owned (Cons (id, name, scheme-body sc) bound) body)
     other -> par-children-error context owned bound (runtime-term-children term)
-  par-children-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> List CoreTerm -> Option (Span, String)
+  par-children-error :: TypingContext -> CaptureUsage -> List (Nat, String, UType) -> List CoreTerm -> Option (Span, String)
   par-children-error context owned bound terms = case terms of
     Nil -> None
     Cons first rest -> first-task-error (par-term-error context owned bound first) (par-children-error context owned bound rest)
@@ -1507,6 +1549,55 @@ module Bootstrap.Typing where
         par-blocker-clause context element])
   -- One callback's captures, classified. A callback that is not a literal
   -- has no readable captures and was refused at the call site already.
+  -- A linear value consumed before an operation is outside its
+  -- continuation. Follow evaluation order and keep alternatives separate.
+  linear-reference :: List Nat -> CoreTerm -> Bool
+  linear-reference ids term = intersects-linear ids (task-free Nil term)
+  intersects-linear :: List Nat -> List (Nat, UType) -> Bool
+  intersects-linear ids free = case free of
+    Nil -> False
+    Cons (id, ty) rest -> task-id-present id ids || intersects-linear ids rest
+  linear-continuation :: UType -> List Nat -> Bool -> CoreTerm -> Bool
+  linear-continuation label ids after term = case term of
+    CApplyEff sp ty row f x -> (after && handler-performs label row) || linear-sequence label ids after [f, x]
+    CErasedApply sp ty row f witness -> (after && handler-performs label row) || linear-continuation label ids after f
+    CIf sp ty condition yes no -> linear-continuation label ids (after || linear-reference ids yes || linear-reference ids no) condition
+      || linear-continuation label ids after yes || linear-continuation label ids after no
+    CAlternative sp pat body rest -> linear-arm label ids after body rest || linear-continuation label ids after rest
+    CHandle sp ty inner residual body handled-by -> if equal-type label inner then after && handler-performs label (core-effects term)
+      else linear-continuation label ids after body
+    CLambda sp ty pat body -> False
+    CHandler sp ty returned operations -> False
+    CPolyIntro sp ty openings body -> False
+    CPrimitive sp ty op args | same op "thunk-delay" -> False
+    other -> linear-sequence label ids after (runtime-term-children term)
+  linear-sequence :: UType -> List Nat -> Bool -> List CoreTerm -> Bool
+  linear-sequence label ids after terms = case terms of
+    Nil -> False
+    Cons first rest -> linear-continuation label ids (after || linear-suffix ids rest) first || linear-sequence label ids after rest
+  linear-suffix :: List Nat -> List CoreTerm -> Bool
+  linear-suffix ids terms = case terms of Nil -> False; Cons first rest -> linear-reference ids first || linear-suffix ids rest
+  linear-arm :: UType -> List Nat -> Bool -> CoreTerm -> CoreTerm -> Bool
+  linear-arm label ids after arm rest = case arm of
+    CGuard sp ty guard body -> linear-continuation label ids (after || linear-reference ids body || linear-reference ids rest) guard
+      || linear-continuation label ids after body
+    other -> linear-continuation label ids after arm
+  handler-usage-error :: TypingContext -> Span -> Bool -> CoreTerm -> Option (Span, String)
+  handler-usage-error context site exact term = case term of
+    CHandler sp ty returned clauses -> (case handler-parts ty of
+      Some (label, input, output, row) -> (case effect-for-label label (context-effects context) of
+        Some declaration -> handler-clause-usage exact declaration label (core-effect-operations declaration) clauses
+        None -> None)
+      None -> None)
+    other -> if exact then Some (site, "a handler with a linear continuation must be written inline and its resumption must be used exactly once") else None
+  handler-clause-usage :: Bool -> CoreEffect -> UType -> List CoreOperation -> CoreTerm -> Option (Span, String)
+  handler-clause-usage exact decl label ops clauses = case (ops, clauses) of
+    (Cons operation rest, CHandlerOperation sp slot openings row closure more) -> (case handler-operation-scheme decl label operation of
+      Some sc -> if handler-resumption-count exact (substitute-bound openings (scheme-body sc)) closure then handler-clause-usage exact decl label rest more
+        else Some (sp, if exact then "a handler resumption that captures a linear value must be used exactly once" else "a one-shot handler resumption must be used at most once and within its handler clause")
+      None -> None)
+    other -> None
+
   par-callback-error :: TypingContext -> List Nat -> List (Nat, String, UType) -> Span -> String -> Bool -> CoreTerm -> Option (Span, String)
   par-callback-error context owned bound sp op many-shot callback = case callback of
     CLambda at ty p body -> par-captures-error context owned (Cons (par-pattern-id p, par-pattern-name p, pattern-type p) bound) sp op many-shot (task-free (task-pattern-ids p) body)
@@ -1738,7 +1829,7 @@ module Bootstrap.Typing where
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition =
     core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
-    && task-definition-safe context definition && definition-structure-closed context definition
+    && task-definition-safe context definition && (case par-definition-error context definition of None -> True; Some error -> False) && definition-structure-closed context definition
 
   -- On the compiler path the same checks also provide diagnostics. Keep
   -- their order so the most specific refusal reaches the source location.
