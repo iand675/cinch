@@ -31,7 +31,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Inputs (read-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces)
-  import Bootstrap.Stage (expand-stages-with)
+  import Bootstrap.Stage (expand-stages-with, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces, interface-hash, build-profile-manifest)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
@@ -311,7 +311,9 @@ module Bootstrap.Pipeline where
   check-source-phase :: TargetProfile -> (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase profile resolve headers program = case expand-stages-with resolve headers program of
     Err errors -> Err errors
-    Ok expanded -> retain-resolved-source profile (resolve expanded)
+    Ok expanded -> case retain-resolved-source profile (resolve expanded) of
+      Err errors -> Err (explain-expansion-errors expanded errors)
+      Ok checked -> Ok checked
   retain-resolved-source :: TargetProfile -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
   retain-resolved-source profile result = case result of
     (resolved, Nil) -> case check-and-retain resolved of

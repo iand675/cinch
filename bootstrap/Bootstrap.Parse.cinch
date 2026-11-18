@@ -1058,7 +1058,9 @@ module Bootstrap.Parse where
         POk patterns (Cons equals (Cons quote tail)) | is-punct-t (lt-token equals) "=" && stage-word-t (lt-token quote) "quoteDecls" ->
           (case expect-word-t tail "where" of
             POk site block -> (case parse-block block src fix of
-              POk declarations rest -> POk (DDeclarationMacro (sp-of keyword) name patterns (decl-spine site declarations)) rest
+              POk declarations rest -> let end = case rest of Cons next more -> span-start (sp-of next); Nil -> bytes-len src in
+                let range = Span (span-start site) end (span-line site) (span-col site) in
+                POk (DDeclarationMacro (sp-of keyword) name patterns (decl-spine range declarations)) rest
               PBad -> PBad)
             PBad -> PBad)
         other -> parse-marked-decl DMacro toks src fix)

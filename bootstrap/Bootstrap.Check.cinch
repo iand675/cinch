@@ -987,7 +987,7 @@ module Bootstrap.Check where
     DNamedDeclaration s hole body -> fail s "a name splice is only meaningful inside a `quoteDecls` template"
     DDeclarationMacro s name patterns template -> fail s "a declaration macro requires compile-time expansion"
     DEmitMacro s name tokens -> fail s "emit requires a generate block"
-    DGeneratedGroup s owner template -> fail s "generated declarations require lexical resolution"
+    DGeneratedGroup s owner macro-name template -> fail s "generated declarations require lexical resolution"
     DStageEmit s template -> fail s "emit requires a generate block"
     DStageBranch s condition yes no -> fail s "a staged branch requires a generate block"
     -- A temporal contract is verified by the elaboration that owns the

@@ -139,7 +139,7 @@ module Bootstrap.Resolve where
     Cons d rest -> case d of
       DImport s path mods alias members hidden args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
-      DGeneratedGroup s owner template -> own-bindings home rest (own-bindings home (decls-of template) acc)
+      DGeneratedGroup s owner macro-name template -> own-bindings home rest (own-bindings home (decls-of template) acc)
       DMacroBinding s name -> own-bindings home rest (add-macro home name acc)
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
@@ -1097,7 +1097,7 @@ module Bootstrap.Resolve where
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
     DNamedDeclaration s hole body -> (Nil, fail s "a name splice is only meaningful inside a `quoteDecls` template")
-    DGeneratedGroup s owner template -> (case visible of
+    DGeneratedGroup s owner macro-name template -> (case visible of
       MkVisible insertion homes caller -> case find-home owner homes of
         None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))
         Some (MkLexicalScope order index aliases) ->

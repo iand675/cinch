@@ -7,17 +7,47 @@ module Bootstrap.Stage where
   import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
-  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
   import Bootstrap.StageEval
   import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
   import Bootstrap.Type (Scheme, UType, UApp, UCon, scheme-body)
   import Algebra.Semigroup
   import Data.Int (int-neg)
   import Data.List (list-length)
-  import Text.Lex (Span, span-start, LToken)
+  import Text.Lex (Span, span-start, span-end, LToken)
   import Text.Show (int-to-string, nat-to-string)
 
-  export expand-stages, expand-stages-with
+  export expand-stages, expand-stages-with, explain-expansion-errors
+
+  -- The generated group leaves the surface during lexical resolution. Keep
+  -- its template range and call site until ordinary checking has diagnosed
+  -- the generated declarations. An ordinary source error keeps its origin.
+  explain-expansion-errors :: Program -> List Diagnostic -> List Diagnostic
+  explain-expansion-errors program errors = case expansion-sites (program-modules program) of
+    Nil -> errors
+    sites -> map (explain-expansion-error sites) errors
+  expansion-sites :: List Module -> List (Span, Span, String)
+  expansion-sites modules = case modules of
+    Nil -> Nil
+    Cons m rest -> module-expansions (module-decls m) (expansion-sites rest)
+  module-expansions :: List Decl -> List (Span, Span, String) -> List (Span, Span, String)
+  module-expansions ds sites = case ds of
+    Nil -> sites
+    Cons (DGeneratedGroup caller home name template) rest ->
+      Cons (decl-span template, caller, home <> "." <> name) (module-expansions rest sites)
+    Cons other rest -> module-expansions rest sites
+  within-span :: Span -> Span -> Bool
+  within-span location range = span-start location >= span-start range && span-start location < span-end range
+  expansion-notes :: Span -> List (Span, Span, String) -> String
+  expansion-notes location sites = case sites of
+    Nil -> ""
+    Cons (template, caller, name) rest -> let tail = expansion-notes location rest in
+      if within-span location template || within-span location caller then
+        " (in expansion of " <> name <> " at " <> render-position caller <> ")" <> tail
+      else tail
+  explain-expansion-error :: List (Span, Span, String) -> Diagnostic -> Diagnostic
+  explain-expansion-error sites error = let at = diagnostic-span error in let notes = expansion-notes at sites in
+    if same notes "" then error else MkDiagnostic (diagnostic-rung error) at (diagnostic-message error <> notes)
 
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
   stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
@@ -704,7 +734,7 @@ module Bootstrap.Stage where
                 Err errors -> Err errors
                 Ok operands -> case fill-declarations scope fix operands (decls-of template) (fuel - 1) of
                   Err errors -> Err errors
-                  Ok (decls, remaining) -> Ok ([DGeneratedGroup site home (decl-spine site decls)], remaining)))
+                  Ok (decls, remaining) -> Ok ([DGeneratedGroup site home name (decl-spine (decl-span template) decls)], remaining)))
 
   fill-declarations :: MacroSite -> List (String, Fix) -> MacroOperands -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   fill-declarations scope fix operands declarations fuel = case declarations of
