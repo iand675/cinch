@@ -940,11 +940,33 @@ module Bootstrap.Infer where
       (value, checked) -> (case convert-total-arguments external kinds locals rest more checked of
         (values, done) -> (UArg value values, done)))
     other -> bad (type-expr-span arguments) "defining total call arity mismatch" st
+  source-constructor-arrow :: TypeContext -> String -> List Decl -> Option UType
+  source-constructor-arrow kinds name declarations = case declarations of
+    Nil -> None
+    Cons (DData sp owner Nil [(symbol, TFun site (TName arg field) (TName end result))]) rest | same name symbol && same owner result ->
+      (case context-kind owner kinds of
+        Some KType -> (case context-kind field kinds of
+          Some KType -> Some (UFun (literal-type kinds field) (UCon owner KType))
+          other -> None)
+        other -> None)
+    Cons other rest -> source-constructor-arrow kinds name rest
+
+  constructor-operand-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> Option UType
+  constructor-operand-carrier kinds locals syntax = case syntax of
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (case lookup-local name locals of
+      None -> (case source-constructor-arrow kinds name (context-aliases kinds) of
+        Some (UFun field result) -> Some result
+        other -> predicate-carrier locals syntax)
+      other -> predicate-carrier locals syntax)
+    other -> predicate-carrier locals syntax
   convert-total-call :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
   convert-total-call external kinds locals sp name arguments st = case context-total-observation name kinds of
     Some binding -> (case convert-total-arguments external kinds locals (total-parameters (binding-function binding)) arguments st of
       (values, checked) -> checked-typed-source-index sp (UIndexCall (binding-function binding) values) checked)
-    None -> bad sp "index application has no actual defining total body declaration" st
+    None -> (case (lookup-local name locals, source-constructor-arrow kinds name (context-aliases kinds), arguments) of
+      (None, Some (UFun domain result), TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals domain input st of
+        (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
+      other -> bad sp "index application has no actual defining total body declaration" st)
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
@@ -1003,7 +1025,12 @@ module Bootstrap.Infer where
     let gamma = proof-context env st in
     let facts = proof-facts env in
     let checked = map-term-types (normalize st) term in
-    case scoped-total-call-index gamma facts checked of
+    case constructor-index-parts checked of
+      Some (name, function, child) -> (case reify-argument sp env child st of
+        (input, prepared) -> checked-typed-source-index sp (UIndexConstructor name function input) prepared)
+      None -> reify-observed-argument sp env gamma facts checked term st
+  reify-observed-argument :: Span -> List CheckedBinding -> ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Store -> (UType, Store)
+  reify-observed-argument sp env gamma facts checked term st = case scoped-total-call-index gamma facts checked of
       Some value -> checked-typed-source-index sp value st
       None -> case scoped-list-index gamma facts checked of
         Some value -> checked-typed-source-index sp value st
@@ -1126,7 +1153,9 @@ module Bootstrap.Infer where
   bind-arrow-pattern classes kinds families env locals pat expected st = case arrow-shape (normalize st expected) of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
       (bound, pattern, checked) -> (bound, pattern, effects, result, checked)
-    UPi id name domain effects result -> case bind-arrow-value-pattern classes kinds families env locals pat expected domain st of
+    UPi id name domain effects result -> let binder = (case pat of
+      PWild origin | pi-dependent (normalize st expected) -> PVar origin "#dependent-argument"
+      other -> pat) in case bind-arrow-value-pattern classes kinds families env locals binder expected domain st of
       (bound, pattern, checked) -> if pi-dependent (normalize checked expected) then
         (case pattern-value pattern of
           Some actual -> case reify-argument (pat-span pat) bound actual checked of
@@ -1829,7 +1858,10 @@ module Bootstrap.Infer where
       DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DData s name ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
-        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
+        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
+          (ks, sk) -> collect-kinds rest (case (qs, cs) of
+            (Nil, [(symbol, TFun site (TName arg field) (TName end result))]) | same name result -> context-add-alias d ks
+            other -> ks) sk
       -- The generated single-constructor data has already checked the
       -- kind. Keep the defining labels as separate source provenance.
       DRecord s name ps fields -> collect-kinds rest (context-add-alias d kinds)
@@ -2143,6 +2175,7 @@ module Bootstrap.Infer where
     UIndexForget body -> imported-mvar-in-type body
     UIndexByteLength body -> imported-mvar-in-type body
     UIndexBorrowRead body -> imported-mvar-in-type body
+    UIndexConstructor name arrow input -> imported-mvar-in-type arrow || imported-mvar-in-type input
     UIndexList element fields -> imported-mvar-in-type element || imported-mvar-in-type fields
     UIndexCall function arguments -> imported-mvar-in-type arguments
     UIndexPromote body -> imported-mvar-in-type body
@@ -4258,6 +4291,7 @@ module Bootstrap.Infer where
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
     UIndexBorrowRead value -> UIndexBorrowRead (relocate-local-index binding new-level value)
+    UIndexConstructor name arrow input -> UIndexConstructor name (relocate-local-index binding new-level arrow) (relocate-local-index binding new-level input)
     UIndexList element fields ->
       UIndexList (relocate-local-index binding new-level element) (relocate-local-index binding new-level fields)
     UIndexCall function args -> UIndexCall function (relocate-local-index binding new-level args)
@@ -4345,19 +4379,22 @@ module Bootstrap.Infer where
 
   -- | Bind one strict RHS under its source value restriction while retaining dependent witness scopes.
   check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
-  check-refined-binding classes kinds families env locals sp at name rest body expected level eligible value st =
-    if let-result-escapes value then (case value of
-      CLet s ty id display sc rhs inner ->
-        let binding = MkLocalBinding display sc id level in
-        let bound = proof-let-env env binding id sc rhs st in
-        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
-          (result, done) -> (CLet s expected id display sc rhs result, done)
-      other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
-      case fresh-id (restore-level level st) of
-        (id, fresh) -> case let-binding at env name scheme id level value fresh of
-          (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
-            (result, done) -> (CLet at expected id name scheme (abstract-term st pairs value) result, done)
+  check-refined-binding classes kinds families env locals sp at name rest body expected level eligible value st = case value of
+    -- Strictly naming an erased witness preserves its scoped identity.
+    CProofRef origin predicate proof-id original -> check-refined-let classes kinds families (Cons (MkErasedBinding name predicate proof-id origin None) env) locals sp rest body expected (restore-level level st)
+    other ->
+      if let-result-escapes value then (case value of
+        CLet s ty id display sc rhs inner ->
+          let binding = MkLocalBinding display sc id level in
+          let bound = proof-let-env env binding id sc rhs st in
+          case check-refined-binding classes kinds families bound locals sp at name rest body expected level (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+            (result, done) -> (CLet s expected id display sc rhs result, done)
+        other -> term-error at "dependent let result has no retained witness scope" st)
+      else let (scheme, pairs) = strict-value-scheme eligible level env value st in
+        case fresh-id (restore-level level st) of
+          (id, fresh) -> case let-binding at env name scheme id level value fresh of
+            (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
+              (result, done) -> (CLet at expected id name scheme (abstract-term st pairs value) result, done)
   infer-arguments :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   infer-arguments classes kinds families env locals term args st = case args of
     EArgsEnd s -> (term, st)
@@ -4712,19 +4749,22 @@ module Bootstrap.Infer where
     other -> term-error (expr-span bs) "malformed let binding spine" st
   -- | Keep an evaluated strict allocation monomorphic and retain its original mutation/effect identity.
   infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
-  infer-let-binding classes kinds families env locals sp at name rest body level wanted eligible value st =
-    if let-result-escapes value then (case value of
-      CLet s ty id display sc rhs inner ->
-        let binding = MkLocalBinding display sc id level in
-        let bound = proof-let-env env binding id sc rhs st in
-        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
-          (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
-      other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
-      case fresh-id (restore-level level st) of
-        (id, fresh) -> case let-binding at env name scheme id level value fresh of
-          (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
-            (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
+  infer-let-binding classes kinds families env locals sp at name rest body level wanted eligible value st = case value of
+    -- Strictly naming an erased witness preserves its scoped identity.
+    CProofRef origin predicate proof-id original -> infer-let-with-expected classes kinds families (Cons (MkErasedBinding name predicate proof-id origin None) env) locals sp rest body wanted (restore-level level st)
+    other ->
+      if let-result-escapes value then (case value of
+        CLet s ty id display sc rhs inner ->
+          let binding = MkLocalBinding display sc id level in
+          let bound = proof-let-env env binding id sc rhs st in
+          case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+            (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
+        other -> term-error at "dependent let result has no retained witness scope" st)
+      else let (scheme, pairs) = strict-value-scheme eligible level env value st in
+        case fresh-id (restore-level level st) of
+          (id, fresh) -> case let-binding at env name scheme id level value fresh of
+            (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
+              (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
   memo-demand-head :: List CheckedBinding -> Expr -> Bool
   memo-demand-head env expression = case expression of
     EVar sp name -> same name "b.demand" && (case lookup-binding name env of
@@ -8254,7 +8294,7 @@ module Bootstrap.Infer where
       -- indexed family is a well-formed goal. The `<`/`<=`/`>`/`>=`/`==`/
       -- `/=` forms below do compare numbers and keep that requirement.
       else if same op "Eq" then
-        (case merge-predicate-carriers (predicate-carrier locals a) (predicate-carrier locals b) of
+        (case merge-predicate-carriers (constructor-operand-carrier kinds locals a) (constructor-operand-carrier kinds locals b) of
           Some carrier -> (case convert-predicate-index external kinds locals carrier a st of
             (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of
               (right, sb) -> let out = UCompare "Eq" left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb))

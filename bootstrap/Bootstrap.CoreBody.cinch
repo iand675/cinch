@@ -100,6 +100,7 @@ module Bootstrap.CoreBody where
     UIndexForget value -> dense-mix 71 (dense-type-digest value) 0
     UIndexByteLength value -> dense-mix 73 (dense-type-digest value) 0
     UIndexBorrowRead value -> dense-mix 79 (dense-type-digest value) 0
+    UIndexConstructor name arrow input -> dense-mix 307 (string-length name) (dense-mix 311 (dense-type-digest arrow) (dense-type-digest input))
     UIndexList element fields -> dense-mix 83 (dense-type-digest element) (dense-type-digest fields)
     UIndexCall function args -> dense-mix 89 (string-length (total-identity function)) (dense-type-digest args)
     UIndexPromote value -> dense-mix 97 (dense-type-digest value) 0

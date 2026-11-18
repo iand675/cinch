@@ -52,7 +52,7 @@ module Bootstrap.Core where
   export scoped-refinement-predicate
   export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
-  export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
+  export constructor-index-parts, scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function
@@ -147,6 +147,7 @@ module Bootstrap.Core where
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
     UIndexBorrowRead value -> effect-type-scope qs value
+    UIndexConstructor name arrow input -> effect-type-scope qs arrow && effect-type-scope qs input
     UIndexList element fields -> effect-type-scope qs element && effect-type-scope qs fields
     UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -638,6 +639,7 @@ module Bootstrap.Core where
     UIndexForget input -> index-value-terms sp input
     UIndexPromote input -> index-value-terms sp input
     UIndexMath op first second -> index-value-terms sp first <> index-value-terms sp second
+    UIndexConstructor name arrow input -> index-value-terms sp input
     UIndexList element fields -> case fields of
       UArg first rest -> index-value-terms sp first <> index-value-terms sp rest
       other -> Nil
@@ -1236,6 +1238,7 @@ module Bootstrap.Core where
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
     UIndexBorrowRead value -> UIndexBorrowRead (freeze value)
+    UIndexConstructor name arrow input -> UIndexConstructor name (freeze arrow) (freeze input)
     UIndexList element fields -> UIndexList (freeze element) (freeze fields)
     UIndexCall function args -> UIndexCall function (freeze args)
     UIndexPromote value -> UIndexPromote (freeze value)
@@ -1280,6 +1283,7 @@ module Bootstrap.Core where
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
     UIndexBorrowRead value -> type-metas st value
+    UIndexConstructor name arrow input -> type-metas st arrow <> type-metas st input
     UIndexList element fields -> type-metas st element <> type-metas st fields
     UIndexCall function args -> type-metas st args
     UIndexPromote value -> type-metas st value
@@ -1419,6 +1423,7 @@ module Bootstrap.Core where
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexBorrowRead value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexConstructor name arrow input -> valid-type ty && closed-type arrow && closed-type input
     UIndexList element fields -> valid-type ty && closed-type element && closed-type fields
     UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
@@ -1643,6 +1648,7 @@ module Bootstrap.Core where
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
     UIndexBorrowRead value -> type-index-scope bound rigid value
+    UIndexConstructor name arrow input -> type-index-scope bound rigid arrow && type-index-scope bound rigid input
     UIndexList element fields -> type-index-scope bound rigid element && type-index-scope bound rigid fields
     UIndexCall function args -> type-index-scope bound rigid args
     UIndexPromote value -> type-index-scope bound rigid value
@@ -1975,6 +1981,7 @@ module Bootstrap.Core where
     UIndexPromote a -> borrow-index-regions a
     UIndexMath op a b -> borrow-index-regions a <> borrow-index-regions b
     UIndexCall function args -> borrow-index-regions args
+    UIndexConstructor name arrow input -> borrow-index-regions input
     UIndexList element args -> borrow-index-regions args
     UArg a rest -> borrow-index-regions a <> borrow-index-regions rest
     URequire conditions body -> borrow-index-regions conditions <> borrow-index-regions body
@@ -3012,7 +3019,25 @@ module Bootstrap.Core where
   actual-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   actual-index gamma facts term = case checked-total-index gamma facts term of
     Some value -> Some value
-    None -> case scoped-list-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+    None -> case scoped-list-index gamma facts term of
+      Some value -> Some value
+      None -> case scoped-constructor-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+
+  constructor-index-parts :: CoreTerm -> Option (String, UType, CoreTerm)
+  constructor-index-parts term = case term of
+    CApply sp result (CUse at (UFun domain (UCon owner KType)) name role Nil) child ->
+      if string-compare role "constructor" == 0 && contract-equal result (UCon owner KType) && contract-equal domain (core-type child)
+        then Some (name, UFun domain result, child) else None
+    other -> None
+  scoped-constructor-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-constructor-index gamma facts term = case constructor-index-parts term of
+    Some (name, function, child) -> if proof-term gamma facts term then
+      (case actual-index gamma facts child of
+        Some input -> let index = UIndexConstructor name function input in
+          if typed-index-admissible index then Some index else None
+        None -> None)
+      else None
+    None -> None
   scoped-list-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-list-index gamma facts term = case term of
     CUse sp ty name role actuals | string-compare name (global-data-core-nil) == 0 && string-compare role "constructor" == 0 ->
