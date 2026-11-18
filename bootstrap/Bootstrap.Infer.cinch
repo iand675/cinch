@@ -6212,6 +6212,11 @@ module Bootstrap.Infer where
       if include-guards || body-covers body then Cons [p] more else more
     other -> Nil
 
+  has-conditional-alternative :: Expr -> Bool
+  has-conditional-alternative alts = case alts of
+    EAlt s p body rest -> not (body-covers body) || has-conditional-alternative rest
+    other -> False
+
   -- A constructor-specializing coverage matrix. Nonliteral guards never
   -- cover values; specialization uses a private copy of the store.
   wildcard :: Pat -> Bool
@@ -6267,23 +6272,34 @@ module Bootstrap.Infer where
       other -> coverage-pattern-head env ty rest st)
     Cons Nil rest -> coverage-pattern-head env ty rest st
     Nil -> (ty, st)
+  data PatternCoverage where
+    MatrixComplete :: PatternCoverage
+    MatrixIncomplete :: PatternCoverage
+    MixedFieldBinders :: Span -> String -> PatternCoverage
+
+  coverage-result :: Bool -> PatternCoverage
+  coverage-result covered = if covered then MatrixComplete else MatrixIncomplete
+
   covers :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Bool
-  covers families env tys rows st = case tys of
-    Nil -> has-empty-row rows
+  covers families env tys rows st = case matrix-coverage families env tys rows st of MatrixComplete -> True; other -> False
+
+  matrix-coverage :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> PatternCoverage
+  matrix-coverage families env tys rows st = case tys of
+    Nil -> coverage-result (has-empty-row rows)
     Cons ty rest -> (case (case normalize st ty of
       UMeta id KType -> coverage-pattern-head env ty rows st
       actual -> (actual, st)) of
         (head, shaped) -> covers-head families env head rest rows shaped)
-  covers-head :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> Store -> Bool
-  covers-head families env ty rest rows st = if empty-family (normalize st ty) families then True else case rows of
-      Nil -> coverage-index-empty families env ty st
-      other -> if only-defaults rows then covers families env rest (defaults rows) st else case normalize st ty of
-        UTuple fields -> covers families env (spine-list fields <> rest) (tuple-rows (list-length (spine-list fields)) rows) st
+  covers-head :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> Store -> PatternCoverage
+  covers-head families env ty rest rows st = if empty-family (normalize st ty) families then MatrixComplete else case rows of
+      Nil -> coverage-result (coverage-index-empty families env ty st)
+      other -> if only-defaults rows then matrix-coverage families env rest (defaults rows) st else case normalize st ty of
+        UTuple fields -> matrix-coverage families env (spine-list fields <> rest) (tuple-rows (list-length (spine-list fields)) rows) st
         other -> case root-name (normalize st ty) of
           Some name -> case family-ctors name families of
             Some cs -> cover-constructors families env ty rest rows cs st
-            None -> if same name "Unit" then covers families env rest (tuple-rows 0 rows) st else covers families env rest (defaults rows) st
-          None -> covers families env rest (defaults rows) st
+            None -> if same name "Unit" then matrix-coverage families env rest (tuple-rows 0 rows) st else matrix-coverage families env rest (defaults rows) st
+          None -> matrix-coverage families env rest (defaults rows) st
   empty-family :: UType -> List (String, List String) -> Bool
   empty-family ty families = case root-name ty of Some name -> (case family-ctors name families of Some Nil -> True; other -> False); None -> False
   only-defaults :: List (List Pat) -> Bool
@@ -6310,17 +6326,62 @@ module Bootstrap.Infer where
   coverage-index-empty families env ty st = case root-name (normalize st ty) of
     Some name -> (case family-ctors name families of Some constructors -> coverage-no-index-constructor env ty constructors st; None -> False)
     None -> False
-  cover-constructors :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> List String -> Store -> Bool
+  -- Only a binder mentioned by a later field needs a common substitution
+  -- across rows of this constructor in this decision column.
+  later-field-mentions :: Nat -> UType -> Bool
+  later-field-mentions id ty = case arrow-shape ty of
+    UPi binder name field row rest -> contains-meta id (type-free-bound field) || later-field-mentions id rest
+    UFun field rest -> contains-meta id (type-free-bound field) || later-field-mentions id rest
+    UFunEff field row rest -> contains-meta id (type-free-bound field) || later-field-mentions id rest
+    UProofFun field row rest -> contains-meta id (type-free-bound field) || later-field-mentions id rest
+    other -> False
+  field-variable :: Nat -> Pat -> Option (Span, String)
+  field-variable ordinal fields = case fields of
+    PArg sp first rest -> if ordinal == 0 then (case first of PVar site name -> Some (site, name); other -> None)
+      else field-variable (ordinal - 1) rest
+    other -> None
+  column-field-variables :: String -> Nat -> List (List Pat) -> Option String -> PatternCoverage
+  column-field-variables ctor ordinal rows previous = case rows of
+    Nil -> MatrixComplete
+    Cons (Cons p tail) rest -> (case strip-pattern p of
+      PCon site name fields | same name ctor -> (case field-variable ordinal fields of
+        Some (at, spelling) -> (case previous of
+          Some prior | not (same prior spelling) -> MixedFieldBinders at ctor
+          other -> column-field-variables ctor ordinal rest (Some spelling))
+        None -> column-field-variables ctor ordinal rest previous)
+      other -> column-field-variables ctor ordinal rest previous)
+    Cons Nil rest -> column-field-variables ctor ordinal rest previous
+  constructor-field-names :: String -> UType -> Nat -> List (List Pat) -> PatternCoverage
+  constructor-field-names ctor ty ordinal rows = case arrow-shape ty of
+    UPi id name field row rest -> (case (if later-field-mentions id rest then column-field-variables ctor ordinal rows None else MatrixComplete) of
+      MatrixComplete -> constructor-field-names ctor rest (ordinal + 1) rows
+      other -> other)
+    UFun field rest -> constructor-field-names ctor rest (ordinal + 1) rows
+    UFunEff field row rest -> constructor-field-names ctor rest (ordinal + 1) rows
+    UProofFun field row rest -> constructor-field-names ctor rest (ordinal + 1) rows
+    other -> MatrixComplete
+
+  cover-constructors :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> List String -> Store -> PatternCoverage
   cover-constructors families env ty tail rows cs st = case cs of
-    Nil -> True
+    Nil -> MatrixComplete
     Cons name rest -> case lookup-binding name env of
-      None -> covers families env tail (defaults rows) st
+      None -> matrix-coverage families env tail (defaults rows) st
       Some b -> case instantiate (checked-scheme b) st of
         (ct, sc) -> if coverage-index-apart (normalize sc (result-type ct)) (normalize sc ty) then cover-constructors families env ty tail rows rest st else
-          let su = unify zero (result-type ct) ty sc in
-          covers families env (domains ct <> tail) (specialize name (scheme-arity (checked-scheme b)) rows) su && cover-constructors families env ty tail rows rest st
+          (case (case rows of Cons first (Cons second more) -> constructor-field-names name ct 0 rows; other -> MatrixComplete) of
+            MatrixComplete -> let su = unify zero (result-type ct) ty sc in
+              (case matrix-coverage families env (domains ct <> tail) (specialize name (scheme-arity (checked-scheme b)) rows) su of
+                MatrixComplete -> cover-constructors families env ty tail rows rest st
+                other -> other)
+            other -> other)
+
+  mixed-field-error :: Span -> String -> Store -> Store
+  mixed-field-error site ctor st = add-error site ("constructor " <> ctor <> " has dependent field types: every row must bind the same names") st
   ensure-coverage :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Store
-  ensure-coverage sp families env tys rows st = if covers families env tys rows st then st else add-error sp "non-exhaustive patterns" st
+  ensure-coverage sp families env tys rows st = case matrix-coverage families env tys rows st of
+    MatrixComplete -> st
+    MixedFieldBinders site ctor -> mixed-field-error site ctor st
+    MatrixIncomplete -> add-error sp "non-exhaustive patterns" st
 
   -- The unguarded matrix decides coverage. Use the original rows only to
   -- name a path through that failed matrix, including guarded literals.
@@ -6382,11 +6443,18 @@ module Bootstrap.Infer where
   coverage-refusal sp families env tys covered original hint st =
     add-error sp (string-concat-all ["non-exhaustive patterns: ", uncovered-coverage families env tys covered original hint st,
       " is not covered by an unguarded row; add an unguarded final row"]) st
+  guarded-field-names :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Store
+  guarded-field-names families env types rows st = case matrix-coverage families env types rows st of
+    MixedFieldBinders at name -> mixed-field-error at name st
+    other -> st
   ensure-match-coverage :: Span -> List (String, List String) -> List CheckedBinding -> UType -> Expr -> Store -> Store
   ensure-match-coverage sp families env ty alternatives st =
     let rows = alternative-rows False alternatives in
-    if covers families env [ty] rows st then st else
-      coverage-refusal sp families env [ty] rows (alternative-rows True alternatives) "a scrutinee value" st
+    case matrix-coverage families env [ty] rows st of
+      MatrixComplete -> if has-conditional-alternative alternatives then
+        guarded-field-names families env [ty] (alternative-rows True alternatives) st else st
+      MixedFieldBinders at name -> mixed-field-error at name st
+      MatrixIncomplete -> coverage-refusal sp families env [ty] rows (alternative-rows True alternatives) "a scrutinee value" st
 
   families-of :: List Decl -> List (String, List String)
   families-of ds = case ds of Nil -> Nil; Cons (DData s name ps cs) rest -> Cons (name, ctor-names cs) (families-of rest); Cons d rest -> families-of rest
@@ -6413,8 +6481,11 @@ module Bootstrap.Infer where
   ensure-equation-coverage :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat, Expr) -> Store -> Store
   ensure-equation-coverage sp families env types clauses st =
     let rows = clause-rows False clauses in
-    if covers families env types rows st then st else
-      coverage-refusal sp families env types rows (clause-rows True clauses) "an argument combination" st
+    case matrix-coverage families env types rows st of
+      MatrixComplete -> if list-length rows == list-length clauses then st else
+        guarded-field-names families env types (clause-rows True clauses) st
+      MixedFieldBinders at name -> mixed-field-error at name st
+      MatrixIncomplete -> coverage-refusal sp families env types rows (clause-rows True clauses) "an argument combination" st
   check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (List CorePattern) -> List CorePattern -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
   check-equation classes kinds families env locals earlier reversed ps body expected allowed st = case ps of
     Nil -> let patterns = reverse reversed in

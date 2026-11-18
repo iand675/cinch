@@ -1166,10 +1166,29 @@ module Bootstrap.Type where
     let pure = unify sp effects (URow UEnd) st in
     if list-length (store-errors pure) > list-length (store-errors st) then pure
     else unify sp application arrow pure
+  -- An unannotated closed decision defaults to Int. The same two numerals
+  -- can witness a Nat comparison when both lie in its domain. Keep the
+  -- original kinds for variable operands, machine integers and typed Eq.
+  comparison-literals-at :: UType -> UType -> UType -> Option (UType, UType)
+  comparison-literals-at carrier left right = case left of
+    UIndex ty (IInteger a) -> (case right of
+      UIndex other (IInteger b) | integer-literal-valid carrier a && integer-literal-valid carrier b ->
+        Some (UIndex carrier (IInteger a), UIndex carrier (IInteger b))
+      any -> None)
+    any -> None
+  unify-comparison :: Span -> String -> UType -> UType -> UType -> UType -> Store -> Store
+  unify-comparison sp relation left right x y st = case (typed-index-carrier left, typed-index-carrier x) of
+    (Some a, Some b) | not (same-tag relation "Eq") && not (same-shape a b) && mathematical-carrier a && mathematical-carrier b ->
+      (case comparison-literals-at b left right of
+        Some (first, second) -> unify sp second y (unify sp first x st)
+        None -> case comparison-literals-at a x y of
+          Some (first, second) -> unify sp right second (unify sp left first st)
+          None -> mismatch sp left x st)
+    other -> unify sp right y (unify sp left x st)
   unify-structure :: Span -> UType -> UType -> Store -> Store
   unify-structure sp a b st = case a of
     UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
-    UCompare relation left right -> case b of UCompare op x y -> if same-tag relation op then unify sp right y (unify sp left x st) else mismatch sp a b st; other -> mismatch sp a b st
+    UCompare relation left right -> case b of UCompare op x y -> if same-tag relation op then unify-comparison sp relation left right x y st else mismatch sp a b st; other -> mismatch sp a b st
     UPropAnd left right -> case b of UPropAnd x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
     UPropOr left right -> case b of UPropOr x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
     UPropNot body -> case b of UPropNot other -> unify sp body other st; other -> mismatch sp a b st

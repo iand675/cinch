@@ -38,6 +38,19 @@ fn independent_evidence_field_names_can_differ_between_rows() {
 }
 
 #[test]
+fn fin_constructor_requires_the_exact_decided_bound() {
+    for (decision, index) in [("3 < 9", "3"), ("3 > 10", "3"), ("3 < 10", "4")] {
+        let source = format!(
+            "module Main where\n  make :: Option (Fin 10)\n  make = case decide ({decision}) of\n    Yes witness -> Some (Fin {index} witness)\n    No _ -> None\n"
+        );
+        assert!(
+            check_sources(&source, "mismatched-fin-bound").is_err(),
+            "accepted {decision} as evidence for {index} < 10"
+        );
+    }
+}
+
+#[test]
 fn fields_mentioned_by_later_fields_still_require_consistent_names() {
     let source = r#"module Main where
   readFin :: Fin 10 -> Bool -> Nat
