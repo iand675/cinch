@@ -20,6 +20,7 @@ module Bootstrap.Infer where
   import Bootstrap.Unpack (check-unpacked-records)
   import Bootstrap.Instance
   import Bootstrap.Global
+  import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
   import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body, contract-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
@@ -1263,6 +1264,7 @@ module Bootstrap.Infer where
   expect-type :: Span -> UType -> Store -> Store
   expect-type sp ty st = case type-kind ty of
     KType -> st
+    KRegion -> add-error sp "a region identity cannot be used as a value type: expected kind Type, found Region" st
     KRow -> add-error sp "row parameter has an incompatible kind or non-row use: a value type must have kind Type" st
     other -> add-error sp "a value type must have kind Type" st
   -- A declaration's own type is a value type or a proposition: `witness ::
@@ -4311,7 +4313,12 @@ module Bootstrap.Infer where
             Some message -> term-error sp message st
             None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
               (case scoped-refinement-predicate gamma facts refined value of
-                Some predicate -> term-error sp (missing-obligation message predicate) st
+                Some predicate -> if disproved-predicate gamma predicate then
+                  (case (value, predicate) of
+                    (CInt at ty numeral, UPropNonZero (UIndex carrier (IInteger zero))) | zero == 0 && (case index-number numeral of Some n -> n == 0; None -> False) && same-type ty carrier ->
+                      term-error sp (message <> " because integer literal " <> numeral <> " is not a NonZero " <> display-type-text carrier) st
+                    other -> term-error sp (message <> " because the obligation `" <> obligation-text predicate <> "` is false for this value") st)
+                  else term-error sp (missing-obligation message predicate) st
                 None -> term-error sp message st)
 
   obligation-text :: UType -> String
@@ -7440,7 +7447,8 @@ module Bootstrap.Infer where
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
     let (ordinary-core, body-checked) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
     let core = defaults <> ordinary-core in
-    let (declared-data, declared-store) = case store-errors body-checked of Nil -> checked-data classes linked-kinds env ds Nil body-checked; other -> (Nil, body-checked) in
+    let initialized = case store-errors body-checked of Nil -> check-eager-values ordinary-core body-checked; other -> body-checked in
+    let (declared-data, declared-store) = case store-errors initialized of Nil -> checked-data classes linked-kinds env ds Nil initialized; other -> (Nil, initialized) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
@@ -8155,15 +8163,13 @@ module Bootstrap.Infer where
   -- cannot afford; the three lists are read off the elaboration once and
   -- threaded through the per-name read instead.
   data SourceTotalSurface where
-    MkSourceTotalSurface :: List BodyBinding -> List CoreDefinition -> List CoreData -> SourceTotalSurface
+    MkSourceTotalSurface :: List BodyBinding -> TotalCoreIndex -> List CoreData -> SourceTotalSurface
   source-total-surface :: Elaboration -> SourceTotalSurface
-  source-total-surface checked = MkSourceTotalSurface (env-body-bindings (elaboration-source-bindings checked)) (elaboration-source-core checked) (elaboration-source-data checked)
+  source-total-surface checked = MkSourceTotalSurface (env-body-bindings (elaboration-source-bindings checked)) (total-core-index (elaboration-source-core checked)) (elaboration-source-data checked)
   -- One name's total body, read off a surface this pass already built.
   source-total-checked-body :: String -> SourceTotalSurface -> Option BodyBinding
   source-total-checked-body name surface = case surface of
-    MkSourceTotalSurface bodies definitions datas -> (case export-global name of
-      Ok native -> core-source-body bodies definitions datas native
-      Err error -> None)
+    MkSourceTotalSurface bodies index datas -> indexed-source-body bodies index datas name
   -- Every name's body from one surface, in name order, asked for once.
   --
   -- The unresolved set and the emitted list are both read off this table, so
@@ -8435,12 +8441,13 @@ module Bootstrap.Infer where
           (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
             case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
               (effects, sr) -> case convert-contracted external kinds bound bounds result sr of
-                (body, done) -> (UPi id name domain effects body, done))
+                (body, done) -> let ty = UPi id name domain effects body in
+                  (ty, if valid-type ty then done else add-error sp "ill-formed contracted dependent function" done))
     other -> case convert-domain external kinds locals argument st of
       (domain, checked) -> if kind-equal (type-kind domain) KProp then convert-contracted-proof-arrow external kinds locals bounds sp domain row result checked else
         (case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
           (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
-            (body, done) -> (function-type domain effects body, done))
+            (body, done) -> (function-type domain effects body, expect-type (type-expr-span result) body (expect-type (type-expr-span argument) domain done)))
   introduce-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
   introduce-facts facts env = case facts of Nil -> env; Cons p rest -> Cons (MkProofBinding zero None p) (introduce-facts rest env)
   check-required :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)

@@ -1,0 +1,78 @@
+-- Strict top-level initializers cannot re-enter themselves through another
+-- definition. Function bodies, lambdas and delayed arguments suspend a
+-- reference, just as they do in the guarded-letrec check.
+module Bootstrap.Eager where
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.ExportType (diagnostic-member-name)
+  import Text.Lex (Span)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Algebra.Semigroup
+  export check-eager-values
+
+  references :: Bool -> CoreTerm -> List String -> List String
+  references immediate term rest = case term of
+    CUse sp ty symbol role actuals -> Cons symbol rest
+    CQualifiedUse sp ty symbol role actuals evidence -> Cons symbol rest
+    CLambda sp ty pattern body -> if immediate then rest else references False body rest
+    CPolyIntro sp ty ids body -> if immediate then rest else references False body rest
+    CPrimitive sp ty op args | immediate && string-compare op "thunk-delay" == 0 -> rest
+    other -> children immediate (term-children term) rest
+  children :: Bool -> List CoreTerm -> List String -> List String
+  children immediate terms rest = case terms of
+    Nil -> rest
+    Cons term more -> references immediate term (children immediate more rest)
+
+  clause-references :: Bool -> List CoreClause -> List String
+  clause-references immediate clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause sp patterns body) more ->
+      let rest = clause-references immediate more in
+      case patterns of
+        Nil -> references immediate body rest
+        other -> if immediate then rest else references False body rest
+
+  initializers :: List CoreDefinition -> List (Span, String, List String)
+  initializers definitions = case definitions of
+    Nil -> Nil
+    Cons (MkCoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
+      let more = initializers rest in
+      case givens of
+        Nil -> (case clause-references True clauses of Nil -> more; edges -> Cons (sp, owner, edges) more)
+        other -> more
+
+  -- Walk the reverse graph from each initializer. Most entry points have
+  -- no callers, so this avoids walking the entire program reachable from main.
+  callers :: HashMap String (List String) -> String -> List String
+  callers graph name = case hash-map-lookup name graph of None -> Nil; Some parents -> parents
+  add-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
+  add-edges owner edges graph = case edges of
+    Nil -> graph
+    Cons name rest -> add-edges owner rest (hash-map-insert name (Cons owner (callers graph name)) graph)
+  caller-graph :: List CoreDefinition -> HashMap String (List String) -> HashMap String (List String)
+  caller-graph definitions graph = case definitions of
+    Nil -> graph
+    Cons (MkCoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
+      caller-graph rest (add-edges owner (clause-references False clauses) graph)
+  ancestors :: HashMap String (List String) -> List String -> HashMap String Bool -> HashMap String Bool
+  ancestors graph pending seen = case pending of
+    Nil -> seen
+    Cons name rest -> case hash-map-lookup name seen of
+      Some found -> ancestors graph rest seen
+      None -> ancestors graph (callers graph name <> rest) (hash-map-insert name True seen)
+  cyclic-edge :: HashMap String Bool -> List String -> Option String
+  cyclic-edge seen edges = case edges of
+    Nil -> None
+    Cons name rest -> case hash-map-lookup name seen of Some found -> Some name; None -> cyclic-edge seen rest
+  check-initializers :: HashMap String (List String) -> List (Span, String, List String) -> Store -> Store
+  check-initializers graph pending st = case pending of
+    Nil -> st
+    Cons (sp, owner, edges) rest -> case callers graph owner of
+      Nil -> check-initializers graph rest st
+      more -> case cyclic-edge (ancestors graph more hash-map-empty) edges of
+        None -> check-initializers graph rest st
+        Some name -> add-error sp ("top-level value " <> diagnostic-member-name name <> " is part of an eager reference cycle; wrap its reference in a lambda or use letrec") st
+  check-eager-values :: List CoreDefinition -> Store -> Store
+  check-eager-values definitions st = case initializers definitions of
+    Nil -> st
+    pending -> check-initializers (caller-graph definitions hash-map-empty) pending st

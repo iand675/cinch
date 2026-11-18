@@ -55,7 +55,7 @@ module Bootstrap.Core where
   export constructor-index-parts, scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
-  export core-total-function
+  export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
   export core-source-body, core-source-function, core-total-function-uses-native, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
@@ -3563,6 +3563,18 @@ module Bootstrap.Core where
             None -> None)
         None -> None)
     other -> None
+  -- A strict discard of an already evaluated parameter terminates. Unit
+  -- has no wire sort in the total-body language, so erase only this
+  -- checked no-op when its binder is unused in the translated body.
+  total-unit-initializer :: List (Option Nat, String) -> CoreTerm -> Bool
+  total-unit-initializer scope term = case term of
+    CUnit sp (UCon name KType) -> string-compare name "Unit" == 0
+    CLet sp ty id name sc (CLocal rhs field param label Nil) body ->
+      (case (total-core-local param scope 0, total-core-value-sort field, scheme-params sc, scheme-requirements sc) of
+        (Some (slot, expected), Some actual, Nil, Nil) -> string-compare expected actual == 0
+          && contract-equal field (scheme-body sc) && total-unit-initializer scope body
+        other -> False)
+    other -> False
   total-core-expression :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
   total-core-expression bindings index scope term = if not (contract-equal (core-effects term) (URow UEnd)) then None else case term of
     CLocal sp ty id name Nil -> (case (total-core-local id scope 0, total-core-value-sort ty) of
@@ -3573,7 +3585,9 @@ module Bootstrap.Core where
       (Some (test, called), Some (first, left), Some (second, right)) -> Some (JObj "node" (JStr "if") (JObj "condition" test (JObj "yes" first (JObj "no" second JObjEnd))), called <> left <> right)
       other -> None)
     CLet sp ty id name sc rhs body -> if (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False) then
-      (case (total-core-expression bindings index scope rhs, total-core-value-sort (scheme-body sc)) of
+      (if total-unit-initializer scope rhs && contract-equal (scheme-body sc) (UCon "Unit" KType)
+       then total-core-expression bindings index scope body
+       else case (total-core-expression bindings index scope rhs, total-core-value-sort (scheme-body sc)) of
         (Some (value, called), Some sort) -> (case total-core-expression bindings index (scope <> [(Some id, sort)]) body of
           Some (inside, more) -> Some (JObj "node" (JStr "let") (JObj "value" value (JObj "body" inside JObjEnd)), called <> more)
           None -> None)
@@ -3701,10 +3715,12 @@ module Bootstrap.Core where
       None -> None)
   core-total-function :: List BodyBinding -> List CoreDefinition -> String -> Option TotalFunction
   core-total-function bindings definitions native = case total-core-native-definition native definitions of
-    Some definition -> (case total-core-gather bindings (total-core-index definitions) (core-name definition) of
-      Some rows -> (case total-core-table rows of
-        Some ordered -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list ordered) JObjEnd)) of Some graph -> total-function graph native; None -> None)
-        None -> None)
+    Some definition -> indexed-total-function bindings (total-core-index definitions) definition native
+    None -> None
+  indexed-total-function :: List BodyBinding -> TotalCoreIndex -> CoreDefinition -> String -> Option TotalFunction
+  indexed-total-function bindings index definition native = case total-core-gather bindings index (core-name definition) of
+    Some rows -> (case total-core-table rows of
+      Some ordered -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list ordered) JObjEnd)) of Some graph -> total-function graph native; None -> None)
       None -> None)
     None -> None
 
@@ -3770,6 +3786,18 @@ module Bootstrap.Core where
     Some definition -> (case core-source-function bindings definitions datas native of
       Some function -> check-source-body-binding (core-name definition) native (core-scheme definition) function
       None -> None)
+    None -> None
+  -- Elaborators already have the resolved symbol and an immutable table
+  -- for their pass. Decode only the definition that lookup selected.
+  indexed-source-body :: List BodyBinding -> TotalCoreIndex -> List CoreData -> String -> Option BodyBinding
+  indexed-source-body bindings index datas name = case total-core-indexed-definition name index of
+    Some definition -> (case export-global name of
+      Ok native -> (case (case indexed-total-function bindings index definition native of
+        Some function -> Some function
+        None -> core-field-projection datas definition native) of
+          Some function -> check-source-body-binding name native (core-scheme definition) function
+          None -> None)
+      Err problem -> None)
     None -> None
   -- Apply the real closed self dictionary before reading a method body.
   -- The table is built from the checked defining class slots and actual
