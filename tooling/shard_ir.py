@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import hashlib
+import heapq
 import json
 import os
 from pathlib import Path
@@ -64,7 +65,7 @@ SYMBOL_RE = re.compile(r'@(?:"((?:[^"\\]|\\.)*)"|([A-Za-z$._][A-Za-z0-9$._-]*))'
 # A symbol reference, with string literals matched first so an `@` inside a
 # constant string is not mistaken for a global.
 REFERENCE_RE = re.compile(
-    r'c?"(?:[^"\\]|\\.)*"|@(?:"((?:[^"\\]|\\.)*)"|([A-Za-z$._][A-Za-z0-9$._-]*))')
+    r'"(?:[^"\\]|\\.)*"|@(?:"((?:[^"\\]|\\.)*)"|([A-Za-z$._][A-Za-z0-9$._-]*))')
 
 FALLBACK_GROUP = "@misc"
 
@@ -255,7 +256,7 @@ def references(text: str) -> set[str]:
     """
     found: set[str] = set()
     for match in REFERENCE_RE.finditer(text):
-        if match.group(0).startswith(('"', 'c"')):
+        if match.group(1) is None and match.group(2) is None:
             continue
         found.add(_symbol_name(match))
     return found
@@ -482,15 +483,13 @@ def split_module(text: str, count: int) -> list[str]:
             # need their definitions in the object that carries the body.
             parts.append("".join(module.metadata))
         parts.append("".join(unit.text for unit in per_shard[shard]))
-        pending = sorted(references("".join(parts)) - defined)
+        pending = list(references("".join(parts)) - defined)
+        discovered = defined.union(pending)
+        heapq.heapify(pending)
         declarations: dict[str, str] = {}
         copies: dict[str, str] = {}
-        seen: set[str] = set()
         while pending:
-            symbol = pending.pop(0)
-            if symbol in seen or symbol in defined:
-                continue
-            seen.add(symbol)
+            symbol = heapq.heappop(pending)
             unit = definitions.get(symbol)
             if unit is None:
                 if symbol in module.declares:
@@ -503,9 +502,9 @@ def split_module(text: str, count: int) -> list[str]:
                 continue
             if unit.linkage in ("internal", "private"):
                 copies[symbol] = unit.text
-                defined.add(symbol)
-                pending.extend(sorted(references(unit.text) - defined))
-                pending.sort()
+                for dependency in references(unit.text) - discovered:
+                    discovered.add(dependency)
+                    heapq.heappush(pending, dependency)
             elif unit.kind == "function":
                 declarations[symbol] = declaration_for(unit.text)
             else:
