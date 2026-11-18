@@ -6470,19 +6470,19 @@ module Bootstrap.Infer where
     DData s name ps cs -> case context-kind name kinds of
       Some k -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case checked-constructors cs env sq of
-          (constructors, sc) -> (Some (MkCoreData s name k qs constructors UniformData), sc)
+          (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
     DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data" || same variety "record" || same variety "codata"; other -> False) then
       (case imported-kinds kinds (field "parameters" metadata) st of
         (qs, checked) -> if (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
           let storage = record-storage-name True name in
           (case lookup-binding storage env of
-            Some binding -> (Some (MkCoreData s name (kind-arrow qs) qs [MkCoreConstructor s storage (checked-scheme binding)] UniformData), checked)
+            Some binding -> (Some (MkCoreData s name (kind-arrow qs) qs [MkCoreConstructor s storage (checked-scheme binding)]), checked)
             None -> (None, add-error s "codata has no checked observation storage" checked))
           else if runtime-constructors-complete name (field "ctors" metadata) then
             (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
-              (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors UniformData), done))
-            else (Some (MkCoreData s name (kind-arrow qs) qs Nil UniformData), checked))
+              (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors), done))
+            else (Some (MkCoreData s name (kind-arrow qs) qs Nil), checked))
       else (None, st)
     other -> (None, st)
   checked-data :: List (String, Kind) -> TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
@@ -6498,7 +6498,7 @@ module Bootstrap.Infer where
     JArr row rest -> (case (field "kind" row, field "identity" row) of
       (JStr variety, JStr identity) -> if same variety "data" && not (runtime-data-present (interface-global identity) datas) then
         (case imported-kinds kinds (field "parameters" row) st of
-          (params, checked) -> nominal-runtime-data rest kinds (Cons (MkCoreData zero (interface-global identity) (kind-arrow params) params Nil UniformData) datas) checked)
+          (params, checked) -> nominal-runtime-data rest kinds (Cons (MkCoreData zero (interface-global identity) (kind-arrow params) params Nil) datas) checked)
         else nominal-runtime-data rest kinds datas st
       other -> nominal-runtime-data rest kinds datas st)
     other -> (datas, st)

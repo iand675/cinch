@@ -227,20 +227,21 @@ module Bootstrap.Core where
     -- Represented field name, runtime word class, ABI size and alignment.
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
   data CoreData where
-    MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> DataLayout -> CoreData
+    MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
+    WithLayout :: DataLayout -> CoreData -> CoreData
 
   core-data-layout :: CoreData -> DataLayout
-  core-data-layout d = case d of MkCoreData sp name k qs cs layout -> layout
+  core-data-layout d = case d of WithLayout layout bare -> layout; other -> UniformData
   with-data-layout :: DataLayout -> CoreData -> CoreData
-  with-data-layout layout d = case d of MkCoreData sp name k qs cs previous -> MkCoreData sp name k qs cs layout
+  with-data-layout layout d = case d of WithLayout prior bare -> with-data-layout layout bare; other -> (case layout of UniformData -> d; marked -> WithLayout layout d)
   core-data-name :: CoreData -> String
-  core-data-name d = case d of MkCoreData s name k qs constructors layout -> name
+  core-data-name d = case d of MkCoreData s name k qs constructors -> name; WithLayout layout bare -> core-data-name bare
   core-data-kind :: CoreData -> Kind
-  core-data-kind d = case d of MkCoreData s name k qs constructors layout -> k
+  core-data-kind d = case d of MkCoreData s name k qs constructors -> k; WithLayout layout bare -> core-data-kind bare
   core-data-params :: CoreData -> List Quant
-  core-data-params d = case d of MkCoreData s name k qs constructors layout -> qs
+  core-data-params d = case d of MkCoreData s name k qs constructors -> qs; WithLayout layout bare -> core-data-params bare
   core-data-constructors :: CoreData -> List CoreConstructor
-  core-data-constructors d = case d of MkCoreData s name k qs constructors layout -> constructors
+  core-data-constructors d = case d of MkCoreData s name k qs constructors -> constructors; WithLayout layout bare -> core-data-constructors bare
   core-constructor-name :: CoreConstructor -> String
   core-constructor-name c = case c of MkCoreConstructor s name sc -> name
   core-constructor-scheme :: CoreConstructor -> Scheme
