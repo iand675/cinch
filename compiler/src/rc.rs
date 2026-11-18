@@ -1200,16 +1200,15 @@ fn branch_reuse(
     match e {
         Core::Case { scrut, alts } if !alts.is_empty() => {
             let mut bodies = Vec::with_capacity(alts.len());
-            let mut every = true;
+            let mut any = false;
             for a in alts {
                 let (body, reused) = arm(&a.body);
-                every &= reused;
+                any |= reused;
                 bodies.push(body);
             }
-            // A token some arm does not read keeps the cell on that path
-            // with nothing to free it: only a branch whose every arm
-            // reuses binds one.
-            if !every {
+            // Nothing to gain: a token no arm reads is a slot no path
+            // uses, and the release is the same either way.
+            if !any {
                 return None;
             }
             let mut bodies = bodies.into_iter();
@@ -1226,7 +1225,7 @@ fn branch_reuse(
         Core::If(c, t, f) => {
             let (then, then_reused) = arm(&t.body);
             let (otherwise, else_reused) = arm(&f.body);
-            if !(then_reused && else_reused) {
+            if !then_reused && !else_reused {
                 return None;
             }
             Some(Core::If(

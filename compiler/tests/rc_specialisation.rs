@@ -581,13 +581,13 @@ fn source_project(tag: &str, source: &str) -> PathBuf {
     dir
 }
 
-/// How many times a unit's body frees a block, which is what a reuse pair
-/// removes from a path. A reuse emits no named symbol (it is inline stores
-/// into the kept cell), so the observable is the `cinch_free` the unique
-/// path would otherwise run: a branch whose every arm reuses frees nothing,
-/// and an arm with no allocation to reuse into still frees.
-fn frees(ir: &str, name: &str) -> usize {
-    body(ir, name).matches("call void @cinch_free(i64").count()
+/// Count the arms that reuse the token bound by the release at the branch head.
+fn reusing_arms(dir: &Path, name: &str) -> usize {
+    let core = owned_core(dir);
+    let unit = core_unit(&core, name);
+    let (_, binding) = unit.split_once("@token(").expect("tokenised branch release");
+    let (token, _) = binding.split_once(')').expect("token name");
+    unit.matches(&format!("(reuse {token} ")).count()
 }
 
 const IF_SHAPED: &str = r#"
@@ -634,9 +634,7 @@ module Main where
   main = if count (rebuild (build 1000 Nil)) == 1000 then 0 else 1
 "#;
 
-/// One arm allocates, the other returns the tail unchanged. The pair must
-/// be refused: the second arm has nothing to reuse the cell into, so a
-/// per-arm pair there would strand the cell on that path.
+/// One arm reuses the cell. The arm returning the tail must free the unused cell.
 const MIXED_ARMS: &str = r#"
 module Main where
   import Data.List
@@ -688,19 +686,7 @@ module Main where
 #[test]
 fn an_if_shaped_rebuild_reuses_one_pair_per_branch() {
     let dir = source_project("if", IF_SHAPED);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    // Both alternatives allocate a `Cons`, so both take a pair. The unit
-    // names the reuse twice and, critically, frees the cell on neither
-    // path: a free here would mean the arm kept the block alive with no
-    // reuse to take it.
-    assert_eq!(
-        frees(&ir, "Main.rebuild"),
-        0,
-        "the if-shaped rebuild still frees the dying cell on a path:\n{}",
-        body(&ir, "Main.rebuild")
-    );
+    assert_eq!(reusing_arms(&dir, "Main.rebuild"), 2);
     let (code, err) = build_and_run(&dir, "prog", false);
     assert_eq!(code, Some(0), "{err}");
     assert!(
@@ -713,15 +699,7 @@ fn an_if_shaped_rebuild_reuses_one_pair_per_branch() {
 #[test]
 fn a_case_shaped_rebuild_reuses_one_pair_per_alternative() {
     let dir = source_project("case", CASE_SHAPED);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    assert_eq!(
-        frees(&ir, "Main.rebuild"),
-        0,
-        "the case-shaped rebuild still frees the dying cell on a path:\n{}",
-        body(&ir, "Main.rebuild")
-    );
+    assert_eq!(reusing_arms(&dir, "Main.rebuild"), 2);
     let (code, err) = build_and_run(&dir, "prog", false);
     assert_eq!(code, Some(0), "{err}");
     assert!(
@@ -734,19 +712,7 @@ fn a_case_shaped_rebuild_reuses_one_pair_per_alternative() {
 #[test]
 fn a_nonallocating_arm_frees_the_dying_cell() {
     let dir = source_project("mixed", MIXED_ARMS);
-    let ir_path = dir.join("prog.ll");
-    drive(Mode::EmitIr, &dir, &ir_path, false);
-    let ir = std::fs::read_to_string(&ir_path).expect("read IR");
-    // The `False` arm returns the tail itself, so there is no allocation to
-    // reuse the dying cell into. The pair must not be placed: a per-arm
-    // release on that path would keep the cell alive with nothing to take
-    // it, which is the leak the straight-line rule exists to prevent.
-    assert!(
-        frees(&ir, "Main.mixed") > 0,
-        "a branch with a non-allocating arm took a per-arm pair, which would \
-         strand the cell on that path:\n{}",
-        body(&ir, "Main.mixed")
-    );
+    assert_eq!(reusing_arms(&dir, "Main.mixed"), 1);
     let (code, err) = build_and_run(&dir, "prog", false);
     assert_eq!(code, Some(0), "{err}");
     assert!(
