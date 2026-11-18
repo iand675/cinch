@@ -35458,14 +35458,308 @@
       }
     }
   },
-  "performance_comparison_claimed": false,
+  "performance_comparison_claimed": true,
   "parent_pending": [
     "combined phase2/3/4 freshly embedded Rust and fresh Native producer/provider source receipts",
     "full fresh Native first/last/count corpus and ownership gates",
     "focused Rust target including actual big-endian object gate"
   ],
-  "lane_pending": [
-    "exclusive paired public String scalar-count timing and final assembly report"
-  ],
-  "consumer_coordination": "Text.Utf8 facade uses exact string-utf8-first/last Option(Char,Nat width), string-length/byte-length and safe raw-layer factories; no String-to-Utf8 dependency."
+  "lane_pending": [],
+  "consumer_coordination": "Text.Utf8 facade uses exact string-utf8-first/last Option(Char,Nat width), string-length/byte-length and safe raw-layer factories; no String-to-Utf8 dependency.",
+  "public_count_benchmark": {
+    "report": "benchmarks/stdlib/string-scalars-cad70-O2-2026-11-16.json",
+    "report_sha256": "c806b60d928d8aa2b4901d255efd5bf4a51ddaf49dc08aedf9d3925ba9bf666c",
+    "driver_sha256": "0c6da73f9b6e84d9ea54b027e8abe29cba95d68338aa14a93ead47202dd7bd74",
+    "measured_processes": 150,
+    "all_independent_counts_and_wire_digests_match": true,
+    "assembly": {
+      "before/work": {
+        "path": "benchmarks/stdlib/string-scalars-before-work.asm",
+        "sha256": "46b4da24e147c0a5ae6aa91ef2df3d1e89c49467568ffdfc72b48a83b7120c48"
+      },
+      "before/count": {
+        "path": "benchmarks/stdlib/string-scalars-before-count.asm",
+        "sha256": "c96967a51560fcfe4af0c18cb980f40fde17c18c72feda3785f4a3137507fcfb"
+      },
+      "after/work": {
+        "path": "benchmarks/stdlib/string-scalars-after-work.asm",
+        "sha256": "1e1404af7ab0f5439ee4882e0d76b95e1d948396d7e0acd20c22b66967d25d68"
+      },
+      "after/count": {
+        "path": "benchmarks/stdlib/string-scalars-after-count.asm",
+        "sha256": "726b1a53afc70317d8a4ea8495a4b222622e6ef8d829a1479380b64c38e362e7"
+      }
+    },
+    "loop_backedge_no_hoist": {
+      "before": [
+        {
+          "call_address": "0x2ba04",
+          "instruction": "2ba04:\te8 97 8d ff ff       \tcall   247a0 <Data.String.string-length-from>",
+          "enclosing_backedges": [
+            [
+              "0x2b710",
+              "0x2c128"
+            ],
+            [
+              "0x2b710",
+              "0x2c184"
+            ],
+            [
+              "0x2b727",
+              "0x2c1a8"
+            ],
+            [
+              "0x2b727",
+              "0x2c1c8"
+            ],
+            [
+              "0x2b727",
+              "0x2c1d0"
+            ],
+            [
+              "0x2b727",
+              "0x2c1e6"
+            ],
+            [
+              "0x2b710",
+              "0x2c22d"
+            ],
+            [
+              "0x2b727",
+              "0x2c237"
+            ]
+          ]
+        },
+        {
+          "call_address": "0x2bf4a",
+          "instruction": "2bf4a:\te8 51 88 ff ff       \tcall   247a0 <Data.String.string-length-from>",
+          "enclosing_backedges": [
+            [
+              "0x2b710",
+              "0x2c128"
+            ],
+            [
+              "0x2b710",
+              "0x2c184"
+            ],
+            [
+              "0x2b727",
+              "0x2c1a8"
+            ],
+            [
+              "0x2b727",
+              "0x2c1c8"
+            ],
+            [
+              "0x2b727",
+              "0x2c1d0"
+            ],
+            [
+              "0x2b727",
+              "0x2c1e6"
+            ],
+            [
+              "0x2b710",
+              "0x2c22d"
+            ],
+            [
+              "0x2b727",
+              "0x2c237"
+            ]
+          ]
+        }
+      ],
+      "after": [
+        {
+          "call_address": "0x2bd24",
+          "instruction": "2bd24:\te8 c7 c6 ff ff       \tcall   283f0 <Data.String.string-count-from>",
+          "enclosing_backedges": [
+            [
+              "0x2ba34",
+              "0x2bf26"
+            ],
+            [
+              "0x2ba34",
+              "0x2bf3b"
+            ],
+            [
+              "0x2bb29",
+              "0x2bf48"
+            ],
+            [
+              "0x2ba84",
+              "0x2bf4e"
+            ],
+            [
+              "0x2b830",
+              "0x2c458"
+            ],
+            [
+              "0x2b830",
+              "0x2c4b4"
+            ],
+            [
+              "0x2b847",
+              "0x2c4d8"
+            ],
+            [
+              "0x2b847",
+              "0x2c4f8"
+            ],
+            [
+              "0x2b847",
+              "0x2c500"
+            ],
+            [
+              "0x2b847",
+              "0x2c516"
+            ],
+            [
+              "0x2b830",
+              "0x2c55c"
+            ],
+            [
+              "0x2b847",
+              "0x2c566"
+            ]
+          ]
+        },
+        {
+          "call_address": "0x2bd60",
+          "instruction": "2bd60:\te8 fb c8 ff ff       \tcall   28660 <Data.String.string-count-tail>",
+          "enclosing_backedges": [
+            [
+              "0x2ba34",
+              "0x2bf26"
+            ],
+            [
+              "0x2ba34",
+              "0x2bf3b"
+            ],
+            [
+              "0x2bb29",
+              "0x2bf48"
+            ],
+            [
+              "0x2ba84",
+              "0x2bf4e"
+            ],
+            [
+              "0x2b830",
+              "0x2c458"
+            ],
+            [
+              "0x2b830",
+              "0x2c4b4"
+            ],
+            [
+              "0x2b847",
+              "0x2c4d8"
+            ],
+            [
+              "0x2b847",
+              "0x2c4f8"
+            ],
+            [
+              "0x2b847",
+              "0x2c500"
+            ],
+            [
+              "0x2b847",
+              "0x2c516"
+            ],
+            [
+              "0x2b830",
+              "0x2c55c"
+            ],
+            [
+              "0x2b847",
+              "0x2c566"
+            ]
+          ]
+        },
+        {
+          "call_address": "0x2c252",
+          "instruction": "2c252:\te8 a9 87 ff ff       \tcall   24a00 <Data.String.string-length>",
+          "enclosing_backedges": [
+            [
+              "0x2b830",
+              "0x2c458"
+            ],
+            [
+              "0x2b830",
+              "0x2c4b4"
+            ],
+            [
+              "0x2b847",
+              "0x2c4d8"
+            ],
+            [
+              "0x2b847",
+              "0x2c4f8"
+            ],
+            [
+              "0x2b847",
+              "0x2c500"
+            ],
+            [
+              "0x2b847",
+              "0x2c516"
+            ],
+            [
+              "0x2b830",
+              "0x2c55c"
+            ],
+            [
+              "0x2b847",
+              "0x2c566"
+            ]
+          ]
+        },
+        {
+          "call_address": "0x2c286",
+          "instruction": "2c286:\te8 75 87 ff ff       \tcall   24a00 <Data.String.string-length>",
+          "enclosing_backedges": [
+            [
+              "0x2b830",
+              "0x2c458"
+            ],
+            [
+              "0x2b830",
+              "0x2c4b4"
+            ],
+            [
+              "0x2b847",
+              "0x2c4d8"
+            ],
+            [
+              "0x2b847",
+              "0x2c4f8"
+            ],
+            [
+              "0x2b847",
+              "0x2c500"
+            ],
+            [
+              "0x2b847",
+              "0x2c516"
+            ],
+            [
+              "0x2b830",
+              "0x2c55c"
+            ],
+            [
+              "0x2b847",
+              "0x2c566"
+            ]
+          ]
+        }
+      ]
+    },
+    "limits": [
+      "Finalcad70 explicit before/after source overrides only; no fresh embedded or Native public-count claim.",
+      "Large shared-machine improvement reflects removing per-scalar decode/observation construction, not a universal hardware throughput guarantee.",
+      "Input preparation/initial wire digest before clock; retained backing-copy digest and cleanup after clock."
+    ]
+  }
 }

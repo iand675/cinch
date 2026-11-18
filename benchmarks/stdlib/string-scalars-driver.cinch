@@ -1,0 +1,49 @@
+-- | Complete immutable scalar counts with runtime inputs and postclock backing observations.
+module Main where
+  import Data.String
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+  -- | Parse validated nonnegative harness arguments outside timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Accumulate one exact decimal value without recursive return frames.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some digit -> let next = value * 10 + digit in decimal-from rest next
+  -- | Select valid UTF-8 patterns, including embedded NUL, outside timing.
+  pattern :: String -> String
+  pattern name = if name == "ascii" then "x" else if name == "two" then "é"
+    else if name == "four" then "🙂" else if name == "nul" then "a\u{0}é🙂" else "é界🙂"
+  -- | Consume public counts of alternating complete immutable inputs on every iteration.
+  work :: String -> String -> Nat -> Nat -> Nat -> Nat
+  work first second left i total = if left == 0 then total else
+    let count = string-length (if nat-rem i 2 == 0 then first else second) in
+    let next-total = nat-rem (total + count) 1000000007 in
+    let remaining = left - 1 in let next = i + 1 in work first second remaining next next-total
+  -- | Keep actual backing reads and copied digest observations after the ending clock.
+  retained :: String -> String
+  retained text = hex-encode (sha256-bytes (string-to-bytes text))
+  -- | Time public counting after materialization and before final owner reads and teardown.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
+  measure unit count iterations =
+    let first = string-repeat count unit in let second = string-concat first unit in
+    let original = hex-encode (sha256-bytes (string-to-bytes first)) in
+    let start = clock-monotonic-ns () in let checksum = work first second iterations 0 0 in
+    let end = clock-monotonic-ns () in let kept = retained second in
+    let output = string-concat-all [nat-to-string (saturating-sub end start)," ",nat-to-string checksum," ",original," ",kept,"\n"] in
+    let printed = ioWrite (string-to-bytes output) in 0
+  -- | Resolve runtime materialization sizes and patterns before all clock readings.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons name (Cons count (Cons iterations Nil))) -> measure (pattern name) (decimal count) (decimal iterations)
+    other -> 2
