@@ -361,6 +361,7 @@ module Bootstrap.Infer where
     ELetRec sp bindings body -> True
     ESupplied s head supplies -> True
     EWith s bs body -> True
+    EDoLet sp simple bindings -> True
     EDo sp statements -> True
     EHandle s body handled-by -> True
     EHandler s label clauses -> True
@@ -4783,8 +4784,29 @@ module Bootstrap.Infer where
             other -> st in
       align-handler-labels sp label rest next
     other -> st
+  -- Follow the expressions evaluated by the handled computation. Lambda
+  -- bodies and memo initializers are suspended until their own call site.
+  handled-do-error :: Expr -> Option (Span, String)
+  handled-do-error expr = case expr of
+    EDo sp statements -> handled-do-error statements
+    EDoLet sp simple bindings -> if simple then handled-do-error bindings else Some (sp, "local functions and memo bindings under a handled computation are not supported")
+    EArg sp first rest -> first-guard-error (handled-do-error first) (handled-do-error rest)
+    EBind sp name rhs -> handled-do-error rhs
+    ELocalStrict sp pattern value rest -> first-guard-error (handled-do-error value) (handled-do-error rest)
+    ELocalSignature sp name ty rest -> handled-do-error rest
+    ELocalMemo sp name rhs rest -> handled-do-error rest
+    EIf sp condition yes no -> first-guard-error (handled-do-error condition) (first-guard-error (handled-do-error yes) (handled-do-error no))
+    ECase sp value alternatives -> first-guard-error (handled-do-error value) (handled-do-error alternatives)
+    EAlt sp pattern body rest -> first-guard-error (handled-do-error body) (handled-do-error rest)
+    EApp sp f x -> first-guard-error (handled-do-error f) (handled-do-error x)
+    EBin sp op x y -> first-guard-error (handled-do-error x) (handled-do-error y)
+    ELetScope sp body -> handled-do-error body
+    ELet sp bindings body -> first-guard-error (handled-do-error bindings) (handled-do-error body)
+    EBinding sp name value rest -> first-guard-error (handled-do-error value) (handled-do-error rest)
+    EAnn sp value ty -> handled-do-error value
+    other -> None
   infer-handle :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
-  infer-handle classes kinds families env locals sp body handled-by st = case infer classes kinds families env locals body st of
+  infer-handle classes kinds families env locals sp body handled-by st = case infer classes kinds families env locals body (case handled-do-error body of Some (site, reason) -> add-error site reason st; None -> st) of
     (value, checked) -> case fresh-meta KType checked of
       (output, fresh) -> case (case handled-by of
         EHandler at label clauses -> infer-source-handler classes kinds families env locals at label clauses (core-type value) output fresh
@@ -4829,7 +4851,7 @@ module Bootstrap.Infer where
       (case (with-region (normalize st wanted), take-supply (requirement-name requirement) supplies) of
         (Some region, Some (rhs, remaining)) -> (case check classes kinds families env locals rhs wanted st of
           (value, checked) -> (case store-errors checked of
-            Cons error prior -> term-error (expr-span rhs) ("checking the supplied value against the declared capability type: got " <> display-type-text (normalize st wanted) <> " for " <> requirement-name requirement) checked
+            Cons error prior -> term-error (expr-span rhs) ("checking the supplied value against the declared capability type: got Io " <> display-type-text (normalize st region) <> " for " <> requirement-name requirement) checked
             Nil -> case fresh-id checked of
               (id, fresh) -> let symbol = "#capability_" <> nat-to-string id in
                 let given = CGiven pos symbol wanted in
@@ -5075,13 +5097,28 @@ module Bootstrap.Infer where
           (more, done) -> (ready <> Cons step more, done))
   infer-local-group :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-local-group classes kinds families env locals sp bindings syntax wanted st =
+    elaborate-local-group False classes kinds families env locals sp bindings syntax wanted st
+  -- Strict statements in a do group must be pure; the memo scope owns the
+  -- Eval effects introduced by demands of that group's own cells.
+  check-do-steps :: UType -> List LocalStep -> Store -> Store
+  check-do-steps region steps st = case steps of
+    Nil -> st
+    Cons step rest -> let value = step-value step in
+      let row = normalize st (core-effects value) in
+      let site = step-span step in
+      let checked = include-effects site (memo-residual region row) (URow UEnd) st in
+      check-do-steps region rest (case (store-errors st, store-errors checked) of
+        (Nil, Cons error more) -> add-error site "a strict do let binding must be pure" checked
+        other -> checked)
+  elaborate-local-group :: Bool -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  elaborate-local-group in-do classes kinds families env locals sp bindings syntax wanted st =
     let level = store-level st in
     let signatures = group-signatures bindings in
     (case fresh-id (enter-level st) of
       (id, opened) -> let region = URigid id "memo" (store-level opened) KRegion in
         (case open-memo-locals kinds env locals signatures region bindings opened of
           (memos, cells, prepared) -> (case infer-group-strict classes kinds families memos locals signatures bindings prepared of
-            (bound, strict, checked) -> (case infer-memo-bodies classes kinds families bound locals cells checked of
+            (bound, strict, checked) -> (case infer-memo-bodies classes kinds families bound locals cells (if in-do then check-do-steps region strict checked else checked) of
               (initial, ready) -> (case (case wanted of
                 Some expected -> check classes kinds families bound locals syntax expected ready
                 None -> infer classes kinds families bound locals syntax ready) of
@@ -6024,12 +6061,14 @@ module Bootstrap.Infer where
   check-do-statements direct owner classes kinds families env locals sp statements expected st = case statements of
     EArg at first (EArgsEnd end) -> (case first of
       EBind at name rhs -> term-error at "a do block must end in an expression" st
+      EDoLet at simple bindings -> term-error at "a do block must end in an expression" st
       ELet at bindings (EUnit end) -> term-error at "a do block must end in an expression" st
       other -> check classes kinds families env locals other expected st)
     EArg at (EBind location name rhs) rest | not direct ->
       check-provider-bind owner classes kinds families env locals location name rhs rest expected st
     EArg at (EBind location name rhs) rest -> (case infer classes kinds families env locals rhs st of
       (value, checked) -> bind-do-value classes kinds families env locals sp location name value rest expected checked)
+    EArg at (EDoLet location simple bindings) rest -> elaborate-local-group True classes kinds families env locals location bindings (EDo sp rest) (Some expected) st
     EArg at (ELet location bindings (EUnit end)) rest -> check-do-lets classes kinds families env locals sp bindings rest expected st
     EArg at first rest | not direct ->
       check-provider-bind owner classes kinds families env locals at "_" first rest expected st
@@ -7694,6 +7733,7 @@ module Bootstrap.Infer where
       EForall sp names body -> nested flow body
       EUsing sp bounds body -> nested flow body
       EBind sp name rhs -> eager rhs
+      EDoLet sp simple bindings -> eager bindings
       EDo sp statements -> eager statements
       ESupplied sp head supplies -> first-guard-error (eager head) (eager supplies)
       EWith sp bindings body -> first-guard-error (eager bindings) (nested flow body)
@@ -7883,6 +7923,7 @@ module Bootstrap.Infer where
     EForall sp names body -> EForall sp names (record-expression all body)
     EUsing sp bounds body -> EUsing sp bounds (record-expression all body)
     EBind sp name value -> EBind sp name (record-expression all value)
+    EDoLet sp simple bindings -> EDoLet sp simple (record-expression all bindings)
     EDo sp statements -> EDo sp (record-expression all statements)
     EWith sp bindings body -> EWith sp (record-expression all bindings) (record-expression all body)
     EHandle sp body handled-by -> EHandle sp (record-expression all body) (record-expression all handled-by)

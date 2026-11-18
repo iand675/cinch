@@ -553,6 +553,7 @@ module Bootstrap.Eval where
     EForall s vs body -> fail s "unsupported expression: forall"
     EUsing s bounds body -> fail s "unsupported expression: implicit using"
     EBind s n rhs -> fail s "unsupported expression: bind statement"
+    EDoLet s simple stmts -> fail s "unsupported expression: do let group"
     EDo s stmts -> fail s "unsupported expression: do block"
     EHandle s body h -> fail s "unsupported expression: handle"
     EHandler s label clauses -> fail s "unsupported expression: handler"

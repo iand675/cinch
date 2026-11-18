@@ -71,6 +71,7 @@ module Bootstrap.Parse where
     MkFix :: String -> Nat -> Fix
 
   data LocalSyntax where
+    LocalFunction :: Pat -> Expr -> LocalSyntax
     LocalStrict :: Pat -> Expr -> LocalSyntax
     LocalSignature :: Span -> String -> TypeExpr -> LocalSyntax
     LocalMemo :: Span -> String -> Expr -> LocalSyntax
@@ -2578,9 +2579,7 @@ module Bootstrap.Parse where
     Cons token rest -> if is-word-t (lt-token token) "let" then
       (case expect-punct-t rest "{" of
         POk at bindings -> (case parse-bindings bindings src fix Nil of
-          POk values remaining -> (case strict-locals values of
-            Some strict -> POk (ELet (sp-of token) (binding-spine (sp-of token) (do-binding-names strict)) (EUnit (sp-of token))) remaining
-            None -> POk (EUnmodeled (sp-of token) "a do let statement needs strict bindings without local signatures") remaining)
+          POk values remaining -> POk (EDoLet (sp-of token) (simple-do-group values) (local-spine (sp-of token) values)) remaining
           PBad -> PBad)
         PBad -> PBad)
       else (case parse-pat toks src of
@@ -2594,13 +2593,14 @@ module Bootstrap.Parse where
           PBad -> parse-expr toks src fix)
         PBad -> parse-expr toks src fix)
     Nil -> PBad
-  do-binding-names :: List (Pat, Expr) -> List (String, Expr)
-  do-binding-names values = case values of
-    Nil -> Nil
-    Cons (pattern, rhs) rest -> case pattern of
-      PVar sp name -> Cons (name, rhs) (do-binding-names rest)
-      PWild sp -> Cons ("_", rhs) (do-binding-names rest)
-      other -> Cons ("#unsupported-do-pattern", EUnmodeled (pat-span pattern) "do let currently requires named or wildcard bindings") (do-binding-names rest)
+  -- A handled computation admits only simple strict bindings (D24).
+  simple-do-group :: List LocalSyntax -> Bool
+  simple-do-group values = case values of
+    Nil -> True
+    Cons (LocalSignature sp name ty) rest -> simple-do-group rest
+    Cons (LocalStrict (PVar sp name) rhs) rest -> simple-do-group rest
+    Cons (LocalStrict (PWild sp) rhs) rest -> simple-do-group rest
+    other -> False
 
   parse-handle :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-handle sp toks src fix = case parse-expr toks src fix of
@@ -2831,6 +2831,7 @@ module Bootstrap.Parse where
   strict-locals :: List LocalSyntax -> Option (List (Pat, Expr))
   strict-locals bindings = case bindings of
     Nil -> Some Nil
+    Cons (LocalFunction pattern value) rest -> strict-locals (Cons (LocalStrict pattern value) rest)
     Cons (LocalStrict pattern value) rest -> (case strict-locals rest of
       Some more -> Some (Cons (pattern, value) more)
       None -> None)
@@ -2840,6 +2841,7 @@ module Bootstrap.Parse where
   local-spine sp bindings = case bindings of
     Nil -> ELocalEnd sp
     Cons first rest -> let more = local-spine sp rest in (case first of
+      LocalFunction pattern value -> ELocalStrict (pat-span pattern) pattern value more
       LocalStrict pattern value -> ELocalStrict (pat-span pattern) pattern value more
       LocalSignature at name ty -> ELocalSignature at name ty more
       LocalMemo at name value -> ELocalMemo at name value more)
@@ -2883,30 +2885,25 @@ module Bootstrap.Parse where
       PBad -> parse-strict-local toks src fix)
 
   parse-strict-local :: List LToken -> Bytes -> List (String, Fix) -> Ps LocalSyntax
-  parse-strict-local toks src fix = case parse-binding toks src fix of
-    POk (pattern, value) rest -> POk (LocalStrict pattern value) rest
-    PBad -> PBad
-
-  parse-binding :: List LToken -> Bytes -> List (String, Fix) -> Ps (Pat, Expr)
-  parse-binding toks src fix = case parse-value-name toks of
+  parse-strict-local toks src fix = case parse-value-name toks of
     POk name rest -> case rest of
       Cons t rest2 ->
         if is-punct-t (lt-token t) "=" then
           case parse-expr rest2 src fix of
-            POk e rest3 -> POk (PVar (list-start-span toks) name, e) rest3
+            POk e rest3 -> POk (LocalStrict (PVar (list-start-span toks) name) e) rest3
             PBad -> PBad
         else case parse-pats rest src of
           POk pats rest3 -> case rest3 of
             Cons eq rest4 ->
               if is-punct-t (lt-token eq) "=" then
                 case parse-expr rest4 src fix of
-                  POk body rest5 -> POk (PVar (list-start-span toks) name, ELam (sp-of t) pats body) rest5
+                  POk body rest5 -> POk (LocalFunction (PVar (list-start-span toks) name) (ELam (sp-of t) pats body)) rest5
                   PBad -> PBad
               else PBad
             Nil -> PBad
           PBad -> PBad
       Nil -> PBad
-    PBad -> parse-tuple-binding toks src fix
+    PBad -> (case parse-tuple-binding toks src fix of POk (pattern, value) rest -> POk (LocalStrict pattern value) rest; PBad -> PBad)
 
   parse-tuple-binding :: List LToken -> Bytes -> List (String, Fix) -> Ps (Pat, Expr)
   -- A parenthesized variable is that variable, so `let (x) = e` binds `x`

@@ -290,6 +290,7 @@ module Bootstrap.Ast where
     EForall :: Span -> List String -> Expr -> Expr
     EUsing :: Span -> TypeExpr -> Expr -> Expr
     EBind :: Span -> String -> Expr -> Expr
+    EDoLet :: Span -> Bool -> Expr -> Expr
     EDo :: Span -> Expr -> Expr
     EHandle :: Span -> Expr -> Expr -> Expr
     EHandler :: Span -> TypeExpr -> Expr -> Expr
@@ -391,6 +392,7 @@ module Bootstrap.Ast where
     EForall s vs body -> s
     EUsing s bounds body -> s
     EBind s n rhs -> s
+    EDoLet s simple group -> s
     EDo s stmts -> s
     EHandle s body h -> s
     EHandler s label clauses -> s
@@ -787,6 +789,7 @@ module Bootstrap.Ast where
     EForall s vs body -> expr-unmodeled-count body
     EUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + expr-unmodeled-count body
     EBind s n rhs -> expr-unmodeled-count rhs
+    EDoLet s simple group -> expr-unmodeled-count group
     EDo s stmts -> exprs-unmodeled (exprs-of stmts)
     EHandle s body h -> expr-unmodeled-count body + expr-unmodeled-count h
     EHandler s label clauses -> type-unmodeled-count label + expr-unmodeled-count clauses
@@ -1019,6 +1022,7 @@ module Bootstrap.Ast where
     EForall part0 part1 part2 -> JArr (JStr "EForall") (JArr (source-identity-names part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EUsing part0 part1 part2 -> JArr (JStr "EUsing") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EBind part0 part1 part2 -> JArr (JStr "EBind") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EDoLet s simple group -> JArr (JStr "EDoLet") (JArr (JBool simple) (JArr (source-identity-expr group) JArrEnd))
     EDo part0 part1 -> JArr (JStr "EDo") (JArr (source-identity-expr part1) (JArrEnd))
     EHandle part0 part1 part2 -> JArr (JStr "EHandle") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EHandler part0 part1 part2 -> JArr (JStr "EHandler") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))

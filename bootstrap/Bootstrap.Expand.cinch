@@ -68,6 +68,7 @@ module Bootstrap.Expand where
     EForall s vs body -> term-has-macro-call body
     EUsing s bounds body -> term-has-macro-call body
     EBind s name rhs -> term-has-macro-call rhs
+    EDoLet s simple group -> term-has-macro-call group
     EDo s stmts -> term-has-macro-call stmts
     EHandle s body h -> term-has-macro-call body || term-has-macro-call h
     EHandler s label clauses -> term-has-macro-call clauses
@@ -321,6 +322,8 @@ module Bootstrap.Expand where
       (renamed, after) -> (EUsing s bounds renamed, after)
     EBind s name rhs -> case hygiene rhs renames serial of
       (renamed, after) -> (EBind s name renamed, after)
+    EDoLet s simple group -> case hygiene group renames serial of
+      (renamed, after) -> (EDoLet s simple renamed, after)
     EDo s stmts -> case hygiene stmts renames serial of
       (renamed, after) -> (EDo s renamed, after)
     EHandle s body h -> case hygiene body renames serial of
@@ -467,6 +470,9 @@ module Bootstrap.Expand where
     EBind s name rhs -> case fill-walk rhs groups fix of
       Err errors -> Err errors
       Ok (filled, more) -> Ok (EBind s name filled, more)
+    EDoLet s simple group -> case fill-walk group groups fix of
+      Err problem -> Err problem
+      Ok (filled, more) -> Ok (EDoLet s simple filled, more)
     EDo s stmts -> case fill-walk stmts groups fix of
       Err errors -> Err errors
       Ok (filled, more) -> Ok (EDo s filled, more)

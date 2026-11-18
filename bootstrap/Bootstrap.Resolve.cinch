@@ -735,7 +735,7 @@ module Bootstrap.Resolve where
   duplicate-group-sites description seen sites = case sites of
     Nil -> Nil
     Cons (sp, name) rest -> let more = duplicate-group-sites description (Cons name seen) rest in
-      if has-name name seen then fail sp (cat ["duplicate local ", description, " ", name]) <> more else more
+      if has-name name seen then fail sp (if same description "do binding" then cat ["duplicate binding `", name, "` in the `let` group"] else cat ["duplicate local ", description, " ", name]) <> more else more
   orphan-group-signatures :: List String -> List (Span, String) -> List Diagnostic
   orphan-group-signatures declared sites = case sites of
     Nil -> Nil
@@ -830,6 +830,15 @@ module Bootstrap.Resolve where
     EArg sp (EBind at name rhs) rest -> (case rename-expr visible locals rhs of
       (value, errors) -> case rename-do visible (if same name "_" then locals else Cons name locals) rest of
         (more, others) -> (EArg sp (EBind at name value) more, errors <> others))
+    EArg sp (EDoLet at simple bindings) rest ->
+      let sites = group-binding-sites bindings in
+      let declared = map group-site-name sites in
+      let all = declared <> locals in
+      let signatures = group-signature-sites bindings in
+      let errors = duplicate-group-sites "do binding" Nil sites <> duplicate-group-sites "signature" Nil signatures <> orphan-group-signatures declared signatures in
+      (case rename-group-bindings visible (group-memo-names bindings <> locals) all bindings of
+        (values, first) -> case rename-do visible all rest of
+          (more, others) -> (EArg sp (EDoLet at simple values) more, errors <> first <> others))
     EArg sp (ELet at bindings (EUnit end)) rest -> (case rename-bindings visible locals bindings of
       (values, names, errors) -> case rename-do visible names rest of
         (more, others) -> (EArg sp (ELet at values (EUnit end)) more, errors <> others))
@@ -889,6 +898,7 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (ELetScope sp renamed, errors)
     ELocalGroup sp bindings body -> rename-local-group False visible locals sp bindings body
     ELetRec sp bindings body -> rename-local-group True visible locals sp bindings body
+    EDoLet sp simple bindings -> (e, fail sp "do let outside a do statement")
     EDo sp statements -> (case rename-do visible locals statements of (renamed, errors) -> (EDo sp renamed, errors))
     EWith s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of

@@ -541,6 +541,7 @@ module Bootstrap.Stage where
     EForall s vs body -> expand-one (EForall s vs) body site-context fuel
     EUsing s bounds body -> expand-one (EUsing s bounds) body site-context fuel
     EBind s name rhs -> expand-one (EBind s name) rhs site-context fuel
+    EDoLet s simple stmts -> expand-one (EDoLet s simple) stmts site-context fuel
     EDo s stmts -> expand-one (EDo s) stmts site-context fuel
     EHandler s label clauses -> expand-one (EHandler s label) clauses site-context fuel
     EQuote s body -> expand-one (EQuote s) body site-context fuel

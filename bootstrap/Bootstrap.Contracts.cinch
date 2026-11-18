@@ -296,6 +296,7 @@ module Bootstrap.Contracts where
     EGuarded s guard body -> expr-references guard <> expr-references body
     EAnn s body ty -> expr-references body <> type-references ty
     EWith s bs body -> expr-references bs <> expr-references body
+    EDoLet s simple bindings -> expr-references bindings
     EDo s statements -> sequencing-references sequencing-providers <> expr-references statements
     EBind s name rhs -> expr-references rhs
     EHandle s body handled-by -> expr-references body <> expr-references handled-by

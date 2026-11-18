@@ -450,6 +450,7 @@ module Bootstrap.Check where
     EForall s vs body -> (TyHole, fail s "unsupported expression: forall")
     EUsing s bounds body -> (TyHole, fail s "unsupported expression: implicit using")
     EBind s n rhs -> (TyHole, fail s "unsupported expression: bind statement")
+    EDoLet s simple stmts -> (TyHole, fail s "unsupported expression: do let group")
     EDo s stmts -> (TyHole, fail s "unsupported expression: do block")
     EHandle s body h -> (TyHole, fail s "unsupported expression: handle")
     EHandler s label clauses -> (TyHole, fail s "unsupported expression: handler")

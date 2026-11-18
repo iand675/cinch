@@ -756,6 +756,7 @@ module Bootstrap.Ir where
     EForall s vs body -> "forall expression"
     EUsing s bounds body -> "using expression"
     EBind s n rhs -> "binding"
+    EDoLet s simple stmts -> "do let group"
     EDo s stmts -> "do block"
     EHandle s body h -> "handle"
     EHandler s label clauses -> "handler"
