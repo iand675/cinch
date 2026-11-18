@@ -783,7 +783,11 @@ module Bootstrap.Parse where
     Cons t rest -> case lt-token t of
       TWord w -> if string-compare w "when" == 0 then parse-conditional-decl toks src fix
         else decl-by-word w toks src fix
-      TVar s -> if string-compare s "unsafe" == 0 then
+      TVar s -> if string-compare s "when" == 0 then
+        (case parse-conditional-decl toks src fix of
+          POk decl tail -> POk decl tail
+          PBad -> parse-sig-or-eq toks src fix)
+        else if string-compare s "unsafe" == 0 then
         (case rest of Cons keyword more -> if is-word-t (lt-token keyword) "prim" then parse-prim True rest src fix else parse-sig-or-eq toks src fix; Nil -> PBad)
         else parse-sig-or-eq toks src fix
       TPunct p ->
@@ -798,6 +802,7 @@ module Bootstrap.Parse where
   -- declaration under two atoms.
   parse-conditional-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-conditional-decl toks src fix = case parse-when-atoms toks Nil of
+    POk Nil rest -> PBad
     POk atoms rest -> case parse-decl rest src fix of
       POk inner tail -> POk (DConditional (span-join (list-start-span toks) (decl-span inner)) atoms inner) tail
       PBad -> PBad
@@ -806,7 +811,7 @@ module Bootstrap.Parse where
   parse-when-atoms :: List LToken -> List Expr -> Ps (List Expr)
   parse-when-atoms toks acc = case toks of
     Cons t rest ->
-      if is-word-t (lt-token t) "when" then case parse-when-atom rest of
+      if string-compare (prim-word (lt-token t)) "when" == 0 then case parse-when-atom rest of
         POk atom tail -> parse-when-atoms tail (Cons atom acc)
         PBad -> PBad
       else POk (reverse acc) toks
@@ -819,7 +824,7 @@ module Bootstrap.Parse where
   parse-when-atom :: List LToken -> Ps Expr
   parse-when-atom toks = case toks of
     Cons t rest ->
-      if is-word-t (lt-token t) "not" then case rest of
+      if string-compare (prim-word (lt-token t)) "not" == 0 then case rest of
         Cons open inner -> if is-punct-t (lt-token open) "(" then (case parse-when-atom inner of
           POk atom (Cons close tail) -> if is-punct-t (lt-token close) ")" then
             POk (EApp (span-join (sp-of t) (sp-of close)) (EVar (sp-of t) "not") atom) tail

@@ -457,7 +457,7 @@ module Bootstrap.Target where
   collect-conditions decls clauses found = case decls of
     Nil -> found
     Cons first rest -> case first of
-      DConditional sp when inner -> collect-conditions (Cons inner rest) (clauses <> when) found
+      DConditional sp when inner -> collect-conditions rest clauses (collect-conditions [inner] (clauses <> when) found)
       other -> case definition-name other of
         Some name -> collect-conditions rest clauses (Cons (name, clauses) found)
         None -> collect-conditions rest clauses found
