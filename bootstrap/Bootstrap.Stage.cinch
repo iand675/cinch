@@ -4,7 +4,7 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, macro-parameters, syntax-template-of, expand-error)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
@@ -32,11 +32,18 @@ module Bootstrap.Stage where
   -- when its ordinary code calls a macro. The second half matters for a
   -- module that only *uses* a macro: it declares no `macro`, but its calls
   -- still have to be expanded before the ordinary check.
+  data MacroCallers where
+    RootCall :: MacroCallers
+    CallerSite :: String -> List (String, Fix) -> MacroCallers -> MacroCallers
+  data MacroSite where
+    MkMacroSite :: String -> List (String, Fix) -> List Module -> MacroNamespaces -> MacroCallers -> MacroSite
+
   stage-work :: List Decl -> Bool
   stage-work declarations = case declarations of
     Nil -> False
     Cons first rest -> case first of
       DMacro site body -> True
+      DDeclarationMacro site name patterns template -> True
       DStage site body -> True
       DGenerate site body -> True
       other -> decl-has-macro-call other || stage-work rest
@@ -134,6 +141,7 @@ module Bootstrap.Stage where
 
   action-probes :: Decl -> Result (List Diagnostic) (List Decl)
   action-probes action = case action of
+    DEmitMacro site path tokens -> Ok Nil
     DStageEmit site template -> template-probes (decls-of template)
     DStageBranch site condition yes no -> case (action-probes yes, action-probes no) of
       (Ok first, Ok second) -> Ok (probe site (TName site "Bool") condition <> first <> second)
@@ -216,6 +224,7 @@ module Bootstrap.Stage where
       Ok tail -> case first of
         -- A macro declaration is compile-time only: it names no runtime
         -- value in any module, so the runtime program keeps no trace of it.
+        DDeclarationMacro site name patterns template -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site (DFun at name clauses) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site (DSig at name scheme) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site body -> stage-error site "a macro requires a signature or equation"
@@ -446,29 +455,24 @@ module Bootstrap.Stage where
         Err errors -> Err errors
         Ok (more, done) -> Ok (Cons value more, done)
 
-  expand-action :: CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-action checked owner scope action fuel = case action of
+  expand-action :: MacroSite -> CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-action context checked owner scope action fuel = case action of
+    DEmitMacro site path tokens -> expand-declaration-call context site path tokens fuel
     DStageEmit site template -> expand-template checked owner (scope-with-template (decls-of template) scope) fuel
     DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
       Err errors -> Err errors
-      Ok (StageBoolean selected, remaining) -> expand-action checked owner scope (if selected then yes else no) remaining
+      Ok (StageBoolean selected, remaining) -> expand-action context checked owner scope (if selected then yes else no) remaining
       Ok other -> stage-error site "checked generator branch did not produce Bool"
     other -> stage-error (decl-span action) "invalid compile-time generator action"
 
-  expand-actions :: CheckedProgram -> String -> ExpandScope -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-actions checked owner scope actions fuel = case actions of
+  expand-actions :: MacroSite -> CheckedProgram -> String -> ExpandScope -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-actions context checked owner scope actions fuel = case actions of
     Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-action checked owner scope first fuel of
+    Cons first rest -> case expand-action context checked owner scope first fuel of
       Err errors -> Err errors
-      Ok (generated, remaining) -> case expand-actions checked owner scope rest remaining of
+      Ok (generated, remaining) -> case expand-actions context checked owner scope rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (generated <> more, done)
-
-  data MacroCallers where
-    RootCall :: MacroCallers
-    CallerSite :: String -> List (String, Fix) -> MacroCallers -> MacroCallers
-  data MacroSite where
-    MkMacroSite :: String -> List (String, Fix) -> List Module -> MacroNamespaces -> MacroCallers -> MacroSite
 
   macro-module :: String -> List Module -> Option Module
   macro-module home modules = case modules of
@@ -487,12 +491,13 @@ module Bootstrap.Stage where
   -- names it, which is why nothing has to survive here.
   expand-declaration :: Option CheckedProgram -> MacroSite -> String -> List Decl -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration evaluator site-context owner module-decls declaration fuel = case declaration of
+    DDeclarationMacro site name patterns template -> Ok ([DMacroBinding site name], fuel)
     DMacro site (DFun at name clauses) -> Ok ([DMacroBinding site name], fuel)
     DMacro site (DSig at name scheme) -> Ok ([DMacroBinding site name], fuel)
     DMacro site body -> stage-error site "a macro requires a signature or equation"
     DStage site body -> Ok (Nil, fuel)
     DGenerate site actions -> (case evaluator of
-      Some checked -> expand-actions checked owner (MkExpandScope module-decls Nil) (decls-of actions) fuel
+      Some checked -> expand-actions site-context checked owner (MkExpandScope module-decls Nil) (decls-of actions) fuel
       None -> stage-error site "generator requires a checked stage program")
     DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
     DFun site name clauses -> if clauses-have-macro-call clauses then
@@ -617,6 +622,54 @@ module Bootstrap.Stage where
                     case expand-term scope filled (macro-budget - (serial + 1)) of
                       Err errors -> Err errors
                       Ok (expanded, remaining) -> Ok (ETemplateScope site home expanded, remaining)
+
+  expand-declaration-call :: MacroSite -> Span -> String -> List LToken -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declaration-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else case caller of
+    MkMacroSite owner fix modules names parent -> (case lookup-macro names owner path of
+      None -> expand-error site (cat ["declaration macro is not in scope: ", path])
+      Some (home, name) -> case macro-module home modules of
+        None -> expand-error site (cat ["unavailable macro module ", home])
+        Some definition -> case declaration-macro name (module-decls definition) of
+          None -> expand-error site "emit requires a macro producing Declarations"
+          Some (params, template) -> let groups = macro-argument-groups tokens (list-length params) in
+            if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
+              let scope = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+              (case fill-declarations scope fix (zip-parameters params groups) (decls-of template) (fuel - 1) of
+                Err errors -> Err errors
+                Ok (decls, remaining) -> Ok ([DGeneratedGroup site home (decl-spine site decls)], remaining)))
+
+  fill-declarations :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  fill-declarations scope fix groups declarations fuel = case declarations of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> (case fill-declaration scope fix groups first fuel of
+      Err errors -> Err errors
+      Ok (declared, remaining) -> case fill-declarations scope fix groups rest remaining of
+        Err errors -> Err errors
+        Ok (tail, done) -> Ok (Cons declared tail, done))
+
+  fill-declaration :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  fill-declaration scope fix groups declaration fuel = case declaration of
+    DFun site name clauses -> (case fill-declared-clauses scope fix groups clauses fuel of
+      Err errors -> Err errors
+      Ok (expanded, remaining) -> Ok (DFun site name expanded, remaining))
+    DSig site name ty -> Ok (declaration, fuel)
+    DData site name params constructors -> Ok (declaration, fuel)
+    DRecord site name params fields -> Ok (declaration, fuel)
+    other -> expand-error (decl-span declaration) "unsupported declaration in a quoted group"
+
+  fill-declared-clauses :: MacroSite -> List (String, Fix) -> List (String, List LToken) -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  fill-declared-clauses scope fix groups clauses fuel = if fuel > macro-budget then expand-error (Span 0 0 1 1) "macro expansion exhausted its work budget" else case clauses of
+    Nil -> Ok (Nil, fuel)
+    Cons (patterns, rhs) rest -> let site = expr-span rhs in
+      (case hygienic-term (ELam site patterns rhs) (macro-budget - fuel) of
+        (ELam at ps body, serial) -> if serial > macro-budget then expand-error site "macro expansion exhausted its work budget" else (case macro-fill-splices body groups fix of
+          Err errors -> Err errors
+          Ok filled -> case expand-term scope filled (macro-budget - serial) of
+            Err errors -> Err errors
+            Ok (expanded, remaining) -> case fill-declared-clauses scope fix groups rest remaining of
+              Err errors -> Err errors
+              Ok (more, done) -> Ok (Cons (ps, expanded) more, done))
+        other -> expand-error site "invalid quoted equation")
 
   zip-parameters :: List String -> List (List LToken) -> List (String, List LToken)
   zip-parameters names groups = case (names, groups) of

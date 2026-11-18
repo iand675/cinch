@@ -560,6 +560,9 @@ module Bootstrap.Ast where
     -- `macro name :: ty` and `macro name patterns = body`: a compile-time
     -- declaration. It carries no runtime presence; expansion marks its uses.
     DMacroBinding :: Span -> String -> Decl
+    DDeclarationMacro :: Span -> String -> List Pat -> Decl -> Decl
+    DEmitMacro :: Span -> String -> List LToken -> Decl
+    DGeneratedGroup :: Span -> String -> Decl -> Decl
     DMacro :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
     DGenerate :: Span -> Decl -> Decl
@@ -625,6 +628,9 @@ module Bootstrap.Ast where
     DConditional s clauses inner -> s
     DMacroBinding s name -> s
     DMacro s body -> s
+    DDeclarationMacro s name patterns template -> s
+    DEmitMacro s name tokens -> s
+    DGeneratedGroup s home template -> s
     DStage s body -> s
     DGenerate s actions -> s
     DStageEmit s template -> s
@@ -672,6 +678,9 @@ module Bootstrap.Ast where
     DConditional s clauses inner -> decl-name inner
     DMacroBinding s name -> None
     DMacro s body -> None
+    DDeclarationMacro s name patterns template -> None
+    DEmitMacro s name tokens -> None
+    DGeneratedGroup s home template -> None
     DStage s body -> None
     DGenerate s actions -> None
     DStageEmit s template -> None
@@ -921,6 +930,9 @@ module Bootstrap.Ast where
     DConditional s clauses inner -> exprs-unmodeled clauses + decl-unmodeled-count inner
     DMacroBinding s name -> 0
     DMacro s body -> decl-unmodeled-count body
+    DDeclarationMacro s name patterns template -> decl-unmodeled-count template
+    DEmitMacro s name tokens -> 0
+    DGeneratedGroup s home template -> decl-unmodeled-count template
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template

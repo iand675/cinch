@@ -22,7 +22,7 @@ module Bootstrap.Expand where
   export term-has-macro-call, decl-has-macro-call, clauses-have-macro-call
   export hygienic-term, closed-code-template
   export fill-splices
-  export macro-parameters, template-of, syntax-template-of
+  export declaration-macro, macro-parameters, template-of, syntax-template-of
   export expand-error
 
   same :: String -> String -> Bool
@@ -146,6 +146,27 @@ module Bootstrap.Expand where
     Nil -> None
     Cons (DMacro site (DSig at declared ty)) rest -> if same declared name then Some ty else macro-signature name rest
     Cons other rest -> macro-signature name rest
+
+  declaration-parameters :: TypeExpr -> List Pat -> Option (List String)
+  declaration-parameters ty patterns = case (ty, patterns) of
+    (TFun site (TName at domain) tail, Cons (PVar arg param) rest) | same domain "Syntax" -> (case declaration-parameters tail rest of
+      Some names -> if syntax-input param names then None else Some (Cons param names)
+      None -> None)
+    (TName at result, Nil) | same result "Declarations" -> Some Nil
+    other -> None
+
+  declaration-macro :: String -> List Decl -> Option (List String, Decl)
+  declaration-macro name declarations = case macro-signature name declarations of
+    Some ty -> declaration-template name ty declarations
+    None -> None
+
+  declaration-template :: String -> TypeExpr -> List Decl -> Option (List String, Decl)
+  declaration-template name ty declarations = case declarations of
+    Cons (DDeclarationMacro site declared patterns template) rest | same declared name -> (case declaration-parameters ty patterns of
+      Some params -> Some (params, template)
+      None -> None)
+    Cons other rest -> declaration-template name ty rest
+    Nil -> None
 
   macro-body :: String -> (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
   macro-body home available name declared-type declarations = case declarations of

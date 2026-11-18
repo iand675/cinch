@@ -139,6 +139,7 @@ module Bootstrap.Resolve where
     Cons d rest -> case d of
       DImport s path mods alias members hidden args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
+      DGeneratedGroup s owner template -> own-bindings home rest (own-bindings home (decls-of template) acc)
       DMacroBinding s name -> own-bindings home rest (add-macro home name acc)
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
@@ -437,6 +438,7 @@ module Bootstrap.Resolve where
   macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
   macro-declaration :: Decl -> Decl
   macro-declaration declaration = case declaration of
+    DDeclarationMacro s name patterns template -> DMacroBinding s name
     DMacro s (DFun at name clauses) -> DMacroBinding s name
     DMacro s (DSig at name ty) -> DMacroBinding s name
     other -> declaration
@@ -1028,6 +1030,14 @@ module Bootstrap.Resolve where
     TName s name -> same name "Copy" || same name "Share"
     TApp s head args -> structural-class-head head
     other -> False
+  -- Generated names belong to the destination module. Their templates see
+  -- each other and the macro's lexical module; argument splices see the
+  -- scope from which the declaration macro was invoked.
+  extend-generated :: List Binding -> HashMap String Binding -> HashMap String Binding
+  extend-generated bindings index = case bindings of
+    Nil -> index
+    Cons entry rest -> hash-map-insert (binding-name entry) entry (extend-generated rest index)
+
   rename-decl :: String -> Visible -> List Decl -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations d = case d of
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
@@ -1086,6 +1096,13 @@ module Bootstrap.Resolve where
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
+    DGeneratedGroup s owner template -> (case visible of
+      MkVisible insertion homes caller -> case find-home owner homes of
+        None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))
+        Some (MkLexicalScope order index aliases) ->
+          let group = decls-of template in let declared = own-bindings home group Nil in
+          let scoped = MkLexicalScope (declared <> order) (extend-generated declared index) aliases in
+          rename-decls home (MkVisible scoped homes (CallerScope insertion Nil caller)) group)
     DMacroBinding s name -> (Nil, Nil)
     DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")

@@ -174,6 +174,37 @@ fn macro_helper_resolves_at_definition_site() {
     assert_eq!(code, 101);
 }
 
+#[test]
+fn declaration_macro_keeps_its_own_type_and_value_scope() {
+    let source = r#"module Library where
+  export build
+  data Local where
+    Here :: Local
+  private :: Local
+  private = Here
+  macro build :: Syntax -> Declarations
+  macro build arg = quoteDecls where
+    picked :: Local
+    picked = private
+    value :: Int
+    value = case picked of { Here -> $(arg) }
+module Main where
+  import stage Library (build)
+  data Local where
+    Elsewhere :: Local
+  amount :: Int
+  amount = 42
+  generate do
+    emit (build!(amount))
+  main :: Int
+  main = value
+"#;
+    assert_eq!(run(source).unwrap(), 42);
+    let unbound = source.replace("picked = private", "picked = impostor")
+        .replace("  amount :: Int", "  impostor :: Local\n  impostor = Elsewhere\n  amount :: Int");
+    assert!(run_err(&unbound).contains("impostor"));
+}
+
 // ------------------------------------------------------- D46: `Name` members
 
 /// A name splice names the generated declaration: the macro's `Syntax`
