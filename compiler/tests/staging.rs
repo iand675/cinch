@@ -99,6 +99,31 @@ fn quote_with_typed_splice_evaluates_at_runtime() {
     assert_eq!(code, 22);
 }
 
+#[test]
+fn imported_code_arguments_keep_their_scope_and_declared_carrier() {
+    let source = r#"module Gen where
+  export add
+  hidden :: Int
+  hidden = 40
+  stage add :: Code Int -> Code Int
+  stage add operand = [| let score = hidden in score + $(operand) |]
+module Main where
+  import stage Gen (add)
+  score :: Int
+  score = 2
+  hidden :: Int
+  hidden = 7
+  generate do
+    emit (quoteDecls where { answer :: Int; answer = $(add [| score |]) })
+  main :: Int
+  main = answer
+"#;
+    assert_eq!(run(source).unwrap(), 42);
+    let unused = source.replace("score + $(operand)", "score").replace("[| score |]", "[| True |]");
+    let error = run_err(&unused);
+    assert!(error.contains("Int") && error.contains("Bool"), "{error}");
+}
+
 /// `quoteDecls` with a splice produces a checked declaration: the
 /// generated `base` is spliced code, and `answer` references the generated
 /// `base` by its chosen name.

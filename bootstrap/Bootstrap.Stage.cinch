@@ -215,7 +215,7 @@ module Bootstrap.Stage where
   quotation-bodied :: Decl -> Bool
   quotation-bodied declaration = case declaration of
     DFun site name clauses -> case clauses of
-      Cons (Nil, EQuote at body) Nil -> True
+      Cons (patterns, EQuote at body) Nil -> True
       other -> False
     other -> False
 
@@ -227,7 +227,7 @@ module Bootstrap.Stage where
   quotation-signature-of name all = case all of
     Nil -> False
     Cons first rest -> case first of
-      DStage site body -> if quotation-bodied body then same (definition-name body) name else quotation-signature-of name rest
+      DStage site body -> (quotation-bodied body && same (definition-name body) name) || quotation-signature-of name rest
       other -> quotation-signature-of name rest
 
   -- The name a marked declaration defines, whether it is the definition
@@ -258,8 +258,8 @@ module Bootstrap.Stage where
         DMacro site (DFun at name clauses) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site (DSig at name scheme) -> Ok (Cons (DMacroBinding site name) tail)
         DMacro site body -> stage-error site "a macro requires a signature or equation"
-        DStage site body -> if not owner then Ok tail
-          else if quotation-bodied body then Ok tail
+        DStage site body -> if quotation-bodied body then Ok (Cons (DMacroBinding site (definition-name body)) tail)
+          else if not owner then Ok tail
           else if quotation-signature-of (definition-name body) all then Ok tail
           else Ok (Cons body tail)
         DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
@@ -359,93 +359,101 @@ module Bootstrap.Stage where
     Ok (StageQuoted value, remaining) -> Ok (EUnit site, remaining)
     Ok other -> stage-error site "a splice did not produce checked code"
 
-  -- The name a splice expression resolves to, when it is a bare reference to
-  -- a declaration. `$(quoted)` and `$(Main.quoted)` both resolve to the
-  -- declaration's global name, which is what the surface carries.
-  splice-reference :: Expr -> Option String
-  splice-reference expression = case expression of
-    EVar site name -> Some name
-    other -> None
+  -- Resolve the spelling through the caller's imports and exports. The
+  -- quotation's free names and carrier belong to its defining module.
+  data CodeTemplate where
+    CodeTemplate :: String -> List Pat -> TypeExpr -> Expr -> CodeTemplate
 
-  -- A stage declaration whose body is a quotation names code, not a scalar.
-  -- The elaborator has no term for a quotation, because it is compile-time
-  -- data with no runtime representation, so the expander reads the template
-  -- off the checked surface: the same program the checker accepted, with the
-  -- declaration the splice names. The template is then filled and re-checked
-  -- where the code lands, which is the discipline the seed states.
-  -- The template comes from the module's OWN declarations, not from the
-  -- stage namespace: a quotation-bodied declaration is deliberately kept out
-  -- of that namespace, because its template is not stage code. Both the
-  -- declaration and the splice carry the same spelling here, because the
-  -- expansion runs over the declarations before resolution renames them.
-  surface-template :: String -> List Decl -> Option Expr
-  surface-template name declarations = declarations-template name declarations
+  surface-template :: MacroSite -> String -> Option CodeTemplate
+  surface-template scope spelling = case scope of
+    MkMacroSite owner fix modules names parent -> (case lookup-macro names owner spelling of
+      Some (home, name) -> (case macro-module home modules of
+        Some definition -> let declarations = module-decls definition in
+          (case (template-equation name declarations, stage-signature name declarations) of
+            (Some (parameters, body), Some ty) -> Some (CodeTemplate home parameters ty body)
+            other -> None)
+        None -> None)
+      None -> None)
 
-  -- A stage declaration and its signature are two marked declarations with
-  -- the same name, and the signature comes first. A match that carries no
-  -- template therefore continues the walk rather than ending it, which is
-  -- what finds the definition behind the signature.
-  declarations-template :: String -> List Decl -> Option Expr
-  declarations-template name declarations = case declarations of
+  template-equation :: String -> List Decl -> Option (List Pat, Expr)
+  template-equation name declarations = case declarations of
+    Cons (DStage site (DFun at declared [(parameters, EQuote span body)])) rest | same declared name -> Some (parameters, body)
+    Cons other rest -> template-equation name rest
     Nil -> None
-    Cons first rest -> case first of
-      DStage site body -> if same (definition-name body) name then
-        (case clause-template-of body of
-          Some template -> Some template
-          None -> declarations-template name rest)
-        else declarations-template name rest
-      other -> declarations-template name rest
 
-  clause-template-of :: Decl -> Option Expr
-  clause-template-of declaration = case declaration of
-    DFun site name clauses -> clause-template clauses
+  stage-signature :: String -> List Decl -> Option TypeExpr
+  stage-signature name declarations = case declarations of
+    Cons (DStage site (DSig at declared ty)) rest | same declared name -> Some ty
+    Cons other rest -> stage-signature name rest
+    Nil -> None
+
+  code-carrier :: TypeExpr -> Option TypeExpr
+  code-carrier ty = case ty of
+    TApp site (TName at name) (TArg arg carrier (TArgsEnd end)) | same name "Code" -> Some carrier
     other -> None
 
-  -- A quotation body is the declaration's whole right-hand side: a single
-  -- clause with no patterns whose body is the quotation.
-  clause-template :: List (List Pat, Expr) -> Option Expr
-  clause-template clauses = case clauses of
-    Cons (Nil, EQuote at body) Nil -> Some body
-    other -> None
-
-  -- A splice is one of three things. The expression it names is a quotation
-  -- written here, so its template is filled and re-checked where it lands; or
-  -- it names a stage declaration whose body is a quotation, whose template
-  -- the surface supplies; or it is a stage computation whose value is code,
-  -- which the evaluator runs and reifies. A splice that is none of these is
-  -- refused by name.
-  -- The two declaration lists the expander walks, kept apart by name. They
-  -- are both `List Decl`, so a call site that passes them in the wrong order
-  -- type-checks and silently looks a template up in the wrong list; naming
-  -- them in a record makes that impossible and says which one each walk
-  -- iterates.
-  --
-  --   module   the module's own declarations, where a quotation-bodied stage
-  --            declaration and its template live (the lookup reads this);
-  --   template the declaration list of the emit being expanded, which the
-  --            template walk iterates.
   data ExpandScope where
-    MkExpandScope :: List Decl -> List Decl -> ExpandScope
+    MkExpandScope :: MacroSite -> List Decl -> ExpandScope
 
-  scope-module :: ExpandScope -> List Decl
-  scope-module scope = case scope of MkExpandScope module-decls template-decls -> module-decls
+  scope-site :: ExpandScope -> MacroSite
+  scope-site scope = case scope of MkExpandScope site template -> site
 
   scope-template :: ExpandScope -> List Decl
-  scope-template scope = case scope of MkExpandScope module-decls template-decls -> template-decls
+  scope-template scope = case scope of MkExpandScope site template -> template
 
   scope-with-template :: List Decl -> ExpandScope -> ExpandScope
-  scope-with-template template-decls scope = MkExpandScope (scope-module scope) template-decls
+  scope-with-template declarations scope = MkExpandScope (scope-site scope) declarations
 
   expand-clause :: CheckedProgram -> String -> ExpandScope -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-clause checked owner scope body fuel = case body of
-    ESplice site expression -> case expression of
-      EQuote at template -> expand-quotation checked owner template fuel
-      other -> case splice-reference other of
-        Some name -> case surface-template name (scope-module scope) of
-          Some template -> expand-quotation checked owner template fuel
-          None -> splice-value checked owner site expression fuel
-        None -> splice-value checked owner site expression fuel
+    ESplice site expression -> expand-code checked owner scope site expression fuel
     other -> Ok (body, fuel)
+
+  expand-code :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-code checked owner scope site expression fuel = code-application checked owner scope site expression expression Nil fuel
+
+  code-application :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Expr -> List Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  code-application checked owner scope site original expression args fuel = if fuel == 0 || fuel > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else case expression of
+    EApp at function argument -> code-application checked owner scope site original function (Cons argument args) (fuel - 1)
+    EQuote at body -> (case args of Nil -> expand-quotation checked owner body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
+    EVar at name -> (case surface-template (scope-site scope) name of
+      Some (CodeTemplate home parameters ty body) -> (case hygienic-term body (macro-budget - fuel) of
+        (renamed, serial) -> if serial + 1 > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else
+          (case apply-code-template checked owner scope site parameters ty args Nil renamed (macro-budget - (serial + 1)) of
+            Ok (result, remaining) -> Ok (ETemplateScope site home result, remaining)
+            Err errors -> Err errors))
+      None -> splice-value checked owner site original (fuel - 1))
+    other -> splice-value checked owner site original (fuel - 1)
+
+  -- A Code operand is a suspended runtime expression. The checked thunk
+  -- preserves its caller's bindings, validates even unused operands and
+  -- executes only at the splice sites that the quotation actually reaches.
+  apply-code-template :: CheckedProgram -> String -> ExpandScope -> Span -> List Pat -> TypeExpr -> List Expr -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  apply-code-template checked owner scope site parameters ty arguments names body fuel = case (parameters, arguments, ty) of
+    (Nil, Nil, result) -> (case code-carrier result of
+      Some carrier -> (case names of
+        Nil -> (case expand-quotation checked owner body fuel of
+          Ok (expanded, remaining) -> Ok (EAnn site expanded carrier, remaining)
+          Err errors -> Err errors)
+        other -> (case fill-splices-with (code-operand names) body Nil Nil of
+          Ok expanded -> Ok (EAnn site expanded carrier, fuel)
+          Err errors -> Err errors))
+      None -> stage-error site "a quoted stage definition must return Code")
+    (Cons (PVar at name) rest, Cons argument more, TFun arrow domain result) -> (case code-carrier domain of
+      Some carrier -> (case expand-code checked owner scope (expr-span argument) argument fuel of
+        Ok (value, next) -> let key = cat ["#stage-operand-", nat-to-string (span-start site), "-", nat-to-string (list-length rest)] in
+          (case apply-code-template checked owner scope site rest result more (Cons (name, key) names) body next of
+            Ok (expanded, remaining) -> let thunk = ELam site [PAnn site (PWild site) (TName site "Unit")] (EAnn site (EArgumentScope site value) carrier) in
+              Ok (ELet site (EBinding site key thunk (EBindingsEnd site)) expanded, remaining)
+            Err errors -> Err errors)
+        Err errors -> Err errors)
+      None -> stage-error site "a quotation parameter must have a Code carrier")
+    other -> stage-error site "quotation arguments disagree with the stage definition"
+
+  code-operand :: List (String, String) -> Span -> Expr -> Result (List Diagnostic) (Option Expr)
+  code-operand names site expression = case (names, expression) of
+    (Cons (parameter, key) rest, EVar at name) -> if same name parameter then Ok (Some (EApp site (EVar site key) (EUnit site))) else code-operand rest site expression
+    other -> Ok None
 
   -- A splice whose expression is a stage computation: evaluate it and reify
   -- the code it produced.
@@ -525,9 +533,9 @@ module Bootstrap.Stage where
     DMacro site (DFun at name clauses) -> Ok ([DMacroBinding site name], fuel)
     DMacro site (DSig at name scheme) -> Ok ([DMacroBinding site name], fuel)
     DMacro site body -> stage-error site "a macro requires a signature or equation"
-    DStage site body -> Ok (Nil, fuel)
+    DStage site body -> Ok (if quotation-bodied body then [DMacroBinding site (definition-name body)] else Nil, fuel)
     DGenerate site actions -> (case evaluator of
-      Some checked -> expand-actions site-context checked owner (MkExpandScope module-decls Nil) (decls-of actions) fuel
+      Some checked -> expand-actions site-context checked owner (MkExpandScope site-context Nil) (decls-of actions) fuel
       None -> stage-error site "generator requires a checked stage program")
     DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
     DFun site name clauses -> if clauses-have-macro-call clauses then
@@ -836,10 +844,9 @@ module Bootstrap.Stage where
   expand-stages resolve program = expand-stages-with resolve (\unit -> Nil) program
 
   stage-code-carrier :: String -> List Decl -> Option TypeExpr
-  stage-code-carrier name declarations = case declarations of
-    Cons (DStage site (DSig at declared (TApp app (TName head constructor) (TArg slot carrier (TArgsEnd end))))) rest | same declared name && same constructor "Code" -> Some carrier
-    Cons other rest -> stage-code-carrier name rest
-    Nil -> None
+  stage-code-carrier name declarations = case stage-signature name declarations of
+    Some ty -> code-carrier ty
+    None -> None
 
   prepare-stage-code :: String -> (String -> Bool) -> List Decl -> Decl -> Decl
   prepare-stage-code home available declarations declaration = case declaration of
