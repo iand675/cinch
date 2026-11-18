@@ -2555,11 +2555,21 @@ module Bootstrap.Core where
       && proof-term gamma facts first && proof-after-term gamma facts first second
       && (case operation-obligation gamma facts op first second of Some (goal, hypotheses) -> check-proof hypotheses goal evidence; None -> False)
     other -> False
+  -- Machine literals and copies have exact mathematical values even though
+  -- arithmetic at the same width can wrap.
+  scalar-copy :: CoreTerm -> Bool
+  scalar-copy term = case term of
+    CInt sp ty digits -> True
+    CLocal sp ty id name Nil -> True
+    CForget sp ty body -> scalar-copy body
+    CRefine sp ty certificate body -> scalar-copy body
+    CRefineProof sp ty witness body -> scalar-copy body
+    other -> False
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
       else let carrier = numeric-carrier-view (scheme-body sc) in
-        if same-number-sort carrier carrier then
+        if same-number-sort carrier carrier || (integer-carrier carrier && scalar-copy rhs) then
           (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
            case core-arithmetic gamma facts value of Some reading -> Some (PCompare Equal (proof-variable id) reading); None -> None)
         else None

@@ -61,6 +61,21 @@ module Main where
 }
 
 #[test]
+fn widening_intrinsics_preserve_signed_values_and_prove_named_bounds() {
+    let source = r#"
+module Main where
+  type AtMost (limit :: Int) a = refine (n :: a) with n <= limit
+  foreign import ccall "cinch.prim.i32ToI64" signed :: (x :: I32) -> refined (r == x) I64
+  foreign import ccall "cinch.prim.u8ToI16" unsigned :: (x :: U8) -> refined (AtMost 255 r && r == x) I16
+
+  main :: Int
+  main = if signed (-123 :: I32) == (-123 :: I64) && unsigned (255 :: U8) == (255 :: I16) then 42 else 0
+"#;
+    expect_run("signed-and-unsigned", source, 42);
+    expect_err("too-small", &source.replace("AtMost 255 r", "AtMost 254 r"), &["the intrinsic promises"]);
+}
+
+#[test]
 fn addition_preserves_a_refined_operand_in_either_position() {
     for expression in ["65 + nat-rem n 10", "nat-rem n 10 + 65"] {
         let source = format!(

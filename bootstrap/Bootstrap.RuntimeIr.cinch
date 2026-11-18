@@ -2202,7 +2202,7 @@ module Bootstrap.RuntimeIr where
   scalar-worker-operation w operation arguments result values =
     let code = scalar-operation-code operation in
     case (arguments, values) of
-      ([source], [value]) -> if same code "convert" then scalar-worker-convert w source result value
+      ([source], [value]) -> if same code "convert" || same code "widen" then scalar-worker-convert w source result value
         else if same code "not" then
           (let (ready, computed) = fresh w "%scalar" in
            foreign-result-word (line ready (cat ["  ", computed, " = xor ", foreign-llvm-type source, " ", value, ", -1"])) result computed)

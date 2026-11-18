@@ -78,7 +78,8 @@ module Bootstrap.Builtin where
   -- | Match a canonical family and require an exact supported nominal suffix.
   scalar-family :: String -> List (String, String) -> Option ScalarOperation
   scalar-family body families = case families of
-    Nil -> scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    Nil -> if string-starts-with "wrapping" body then scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+      else scalar-widening-conversion body [("i8To", "I8"), ("i16To", "I16"), ("i32To", "I32"), ("i64To", "I64"), ("u8To", "U8"), ("u16To", "U16"), ("u32To", "U32"), ("u64To", "U64")]
     Cons (prefix, code) rest -> if string-starts-with prefix body then
       (case scalar-shape (string-drop (string-length prefix) body) of
         Some shape -> Some (scalar-family-operation code shape)
@@ -105,6 +106,20 @@ module Bootstrap.Builtin where
           (Some source, Some destination) -> Some (ScalarOperation [source] destination "convert")
           other -> None)
       else scalar-wrapping-conversion body rest
+
+  -- Only integer conversions preserving every mathematical input value
+  -- can grant an equality between the input and the result.
+  scalar-widening-conversion :: String -> List (String, String) -> Option ScalarOperation
+  scalar-widening-conversion body names = case names of
+    Nil -> None
+    Cons (prefix, name) rest -> if string-starts-with prefix body then
+      (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
+        (Some source, Some destination) -> if
+          (scalar-shape-signed source == scalar-shape-signed destination && scalar-shape-width source <= scalar-shape-width destination)
+          || (not (scalar-shape-signed source) && scalar-shape-signed destination && scalar-shape-width source < scalar-shape-width destination)
+          then Some (ScalarOperation [source] destination "widen") else None
+        other -> None)
+      else scalar-widening-conversion body rest
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =

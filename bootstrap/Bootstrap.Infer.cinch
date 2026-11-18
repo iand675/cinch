@@ -10,7 +10,7 @@ module Bootstrap.Infer where
   import Bootstrap.Total
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
-  import Bootstrap.Proof (Proposition, PNegate, disproved)
+  import Bootstrap.Proof (Proposition, PNegate, PCompare, Equal, disproved)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
   import Text.Scan (string-words)
@@ -27,7 +27,7 @@ module Bootstrap.Infer where
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, mvar-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-arguments, scalar-operation-result)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, mvar-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -46,7 +46,7 @@ module Bootstrap.Infer where
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export checked-foreign-plan, checked-intrinsic-symbol
-  export scalar-intrinsic-scheme
+  export scalar-intrinsic-scheme, scalar-promise-matches
   export scalar-interface-contract-matches
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
   export elaboration-temporal, TemporalRow, temporal-row-definition, temporal-row-name, temporal-row-kind
@@ -2890,8 +2890,10 @@ module Bootstrap.Infer where
       (actual, checked) ->
         if list-length (scheme-params actual) /= 0 || list-length (scheme-requirements actual) /= 0 then
           (env, add-error sp "runtime intrinsic cannot be polymorphic or constrained" checked)
-        else if not (scheme-equivalent actual (scalar-intrinsic-scheme operation)) then
-          (env, add-error sp "type mismatch: scalar intrinsic requires its exact canonical nominal scheme" checked)
+        else if not (scalar-promise-matches sp operation actual) then
+          (env, add-error sp (if same (scalar-operation-code operation) "widen" then
+            "type mismatch: the intrinsic promises a value-preserving integer conversion at its canonical input and result types"
+            else "type mismatch: scalar intrinsic requires its exact canonical nominal scheme") checked)
         else (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate scalar intrinsic binding" checked)
           None -> (Cons (MkIntrinsicBinding name actual symbol) env, checked))
@@ -3015,6 +3017,27 @@ module Bootstrap.Infer where
   scalar-intrinsic-scheme :: ScalarOperation -> Scheme
   scalar-intrinsic-scheme operation = mono (scalar-intrinsic-arrows (scalar-operation-arguments operation)
     (primitive-type (scalar-shape-name (scalar-operation-result operation))))
+  scalar-promise-matches :: Span -> ScalarOperation -> Scheme -> Bool
+  scalar-promise-matches sp operation actual =
+    if scheme-equivalent actual (scalar-intrinsic-scheme operation) then True else
+    same (scalar-operation-code operation) "widen" && (case (scheme-params actual, scheme-requirements actual, scalar-operation-arguments operation) of
+      (Nil, Nil, [source]) ->
+        let input = primitive-type (scalar-shape-name source) in
+        let output = primitive-type (scalar-shape-name (scalar-operation-result operation)) in
+        (case scheme-body actual of
+          UFun domain result -> same-type domain input && widening-result-matches sp input output result
+          UPi id name domain row result -> same-type domain input && same-type row (URow UEnd) &&
+            widening-result-matches sp input output (substitute-bound [(id, UIndex input (IRigid 0 "#widen-input" 0))] result)
+          other -> False)
+      other -> False)
+  widening-result-matches :: Span -> UType -> UType -> UType -> Bool
+  widening-result-matches sp input output result = if same-type result output then True else case refinement-view result of
+    URefine binder name carrier predicate -> same-type carrier output && (case
+      scoped-prove-refinement (make-proof-scope [(0, input), (1, output)] Nil)
+        [PCompare Equal (proof-variable 0) (proof-variable 1)] result (CLocal sp output 1 "#widen-result" Nil) of
+          Some certificate -> True
+          None -> False)
+    other -> False
   -- | Preserve every scalar operand and the exact result nominal in its checked arrow spine.
   scalar-intrinsic-arrows :: List ScalarShape -> UType -> UType
   scalar-intrinsic-arrows arguments result = case arguments of
@@ -3061,17 +3084,17 @@ module Bootstrap.Infer where
                   (case store-errors valid of Nil -> True; other -> False)
                     && list-length (scheme-params actual) == 0 && list-length (scheme-requirements actual) == 0
                     && scheme-equivalent (map-scheme-types (normalize valid) actual) (map-scheme-types (normalize valid) declared)
-                    && scheme-equivalent (mono (scalar-provider-carrier-view (normalize valid (scheme-body actual)))) (scalar-intrinsic-scheme operation)))
+                    && (if same (scalar-operation-code operation) "widen" then scalar-promise-matches sp operation (map-scheme-types (normalize valid) actual) else scheme-equivalent (mono (scalar-provider-carrier-view (normalize valid (scheme-body actual)))) (scalar-intrinsic-scheme operation))))
     other -> False
   -- | Inline only the canonical bare scheme; preserve a stronger valid contract as an ordinary provider call without body authority.
   register-checked-scalar-view :: Span -> String -> String -> ScalarOperation -> Scheme -> Json -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-checked-scalar-view sp name symbol operation actual metadata kinds env st =
     let canonical = scalar-intrinsic-scheme operation in
-    if scheme-equivalent actual canonical then
+    if scalar-promise-matches sp operation actual then
       (case lookup-binding name env of
         Some prior -> (env, add-error sp "duplicate imported scalar intrinsic" st)
         None -> (Cons (MkIntrinsicBinding name actual symbol) env, check-imported-value sp actual metadata st))
-    else if list-length (scheme-params actual) == 0 && list-length (scheme-requirements actual) == 0
+    else if not (same (scalar-operation-code operation) "widen") && list-length (scheme-params actual) == 0 && list-length (scheme-requirements actual) == 0
       && scheme-equivalent (mono (scalar-provider-carrier-view (scheme-body actual))) canonical then
       register-total-value sp name actual kinds env (check-imported-value sp actual metadata st)
     else (env, add-error sp "imported scalar intrinsic requires its exact canonical nominal scheme" st)
@@ -4212,6 +4235,8 @@ module Bootstrap.Infer where
       (UFun domain result, UFun wanted-domain wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
       (UFunEff domain row result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain row result wanted st
       (UFun domain result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
+      (UPi id name domain row result, UFun wanted-domain wanted) -> forgotten-pi sp term id name domain row result wanted st
+      (UPi id name domain row result, UFunEff wanted-domain wanted-row wanted) -> forgotten-pi sp term id name domain row result wanted st
       other -> None
   function-value-reference :: CoreTerm -> Bool
   function-value-reference term = case term of
@@ -4228,6 +4253,21 @@ module Bootstrap.Infer where
           let argument = CLocal sp domain local "#forget-argument" Nil in
           let ty = case row of URow UEnd -> UFun domain carrier; other -> UFunEff domain row carrier in
           Some (CLambda sp ty (CPVar sp domain local "#forget-argument") (CForget sp carrier (applied-core sp result row term argument)), fresh))
+      other -> None
+  -- Opening a dependent result gives its comparison predicate an actual
+  -- argument before projection. The resulting plain arrow may not mention
+  -- that local in either its carrier or its latent effects.
+  forgotten-pi :: Span -> CoreTerm -> Nat -> String -> UType -> UType -> UType -> UType -> Store -> Option (CoreTerm, Store)
+  forgotten-pi sp term id name domain row result wanted st =
+    if not (comparison-refinement result) || is-refined-type wanted then None else case refinement-view result of
+      URefine binder label carrier predicate -> if pi-dependent (UPi id name domain row carrier) then None else
+        (case fresh-id st of
+          (local, fresh) -> let display = "#forget-argument" in
+            let argument = CLocal sp domain local display Nil in
+            let index = UIndex domain (IRigid local display (store-level fresh)) in
+            case open-pi sp (core-type term) index fresh of
+              (opened, effects, checked) -> Some (CLambda sp (function-type domain effects carrier) (CPVar sp domain local display)
+                (CForget sp carrier (applied-core sp opened effects term argument)), checked))
       other -> None
   is-refined-type :: UType -> Bool
   is-refined-type ty = case refinement-view ty of URefine id name carrier predicate -> True; other -> False
@@ -8464,6 +8504,37 @@ module Bootstrap.Infer where
       None -> bad sp (string-concat-all ["`", label, "` needs a checked local value"]) st)
     other -> bad sp (string-concat-all ["`", label, "` needs a checked local value"]) st
 
+  -- Apply a checked refinement declaration as a predicate. The caller
+  -- supplies value indices and the subject. Type parameters are inferred
+  -- from the subject, and the predicate is interpreted in its defining scope.
+  named-predicate :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> List TypeExpr -> Store -> (UType, Store)
+  named-predicate external kinds locals sp name arguments st = case find-refinement name (context-aliases kinds) of
+    Some (DRefine at owner parameters binder predicate) -> (case context-enter-alias owner kinds of
+      Some scoped -> predicate-parameters external scoped locals sp parameters binder predicate Nil arguments st
+      None -> bad sp "recursive refinement predicate expansion" st)
+    other -> bad sp "unsupported proof predicate former" st
+  predicate-parameters :: Bool -> TypeContext -> List (String, UType) -> Span -> List TypeParam -> TypeParam -> TypeExpr -> List (String, UType) -> List TypeExpr -> Store -> (UType, Store)
+  predicate-parameters external kinds locals sp parameters binder predicate bound arguments st = case parameters of
+    Nil -> (case (arguments, param-kind binder) of
+      ([subject], Some syntax) -> (case convert False kinds bound syntax st of
+        (carrier, ready) ->
+          let matched = (case constructor-operand-carrier kinds locals subject of
+            Some actual -> unify sp carrier actual ready
+            None -> ready) in
+          case convert-predicate-index external kinds locals (normalize matched carrier) subject matched of
+            (value, checked) -> convert-predicate False kinds (Cons (param-name binder, value) bound) predicate checked)
+      other -> bad sp "a refinement predicate takes its index arguments and one value" st)
+    Cons parameter rest ->
+      let (kind, prepared) = (case param-kind parameter of
+        None -> (KType, st)
+        Some syntax -> kind-of False kinds bound syntax st) in
+      (case value-carrier kind of
+        Some carrier -> (case arguments of
+          Cons arg more -> (case convert-predicate-index external kinds locals carrier arg prepared of
+            (actual, ready) -> predicate-parameters external kinds locals sp rest binder predicate (Cons (param-name parameter, actual) bound) more ready)
+          Nil -> bad sp "missing refinement predicate index" prepared)
+        None -> (case fresh-meta kind prepared of
+          (actual, ready) -> predicate-parameters external kinds locals sp rest binder predicate (Cons (param-name parameter, actual) bound) arguments ready))
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
@@ -8475,7 +8546,7 @@ module Bootstrap.Infer where
       else if same name "NotNull" then convert-not-null sp locals input st
       else if same name "Ascii" then convert-structural sp locals input "Ascii" UPropAscii st
       else if same name "Ordered" then convert-structural sp locals input "Ordered" UPropOrdered st
-      else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
+      else if not (same name "NonZero") then named-predicate external kinds locals sp name [input] st
       else let carrier = predicate-comparison-carrier locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of
           (value, checked) -> let predicate = UPropNonZero value in
@@ -8485,6 +8556,7 @@ module Bootstrap.Infer where
             (value, checked) -> let predicate = UPropNonZeroPending value in
               (predicate, if valid-type predicate then checked else add-error sp "ill-sorted abstract NonZero predicate" checked))
         else bad sp (string-concat-all ["`NonZero` decides numeric values (`Nat`, `Int`, machine integers), not `", display-type-text carrier, "` (a wrong predicate for this refinement's container is refused naming the predicate)"]) st
+    TApp sp (TName at name) args -> named-predicate external kinds locals sp name (type-args-of args) st
     TInfix s op a b -> if same op "&&" || same op "||" then
       (case convert-predicate external kinds locals a st of
         (left, sa) -> case convert-predicate external kinds locals b sa of

@@ -5,7 +5,7 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Unpack (unpacked-abi)
   import Bootstrap.Core (CoreEffect, core-effect-name, CoreData, DataLayout, UniformData, UnboxedData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -22,7 +22,7 @@ module Bootstrap.Export where
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Json (canonical-bytes)
-  import Text.Lex (bytes-slice)
+  import Text.Lex (bytes-slice, Span)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export export-interfaces, interface-hash, build-manifest, build-profile-manifest
@@ -849,7 +849,7 @@ module Bootstrap.Export where
         Err error -> Err error
         Ok identity -> case foreign-drop-prefix (unpack (string-concat owner ".")) (unpack identity) of
           None -> Ok None
-          Some local -> if not (scheme-equivalent (checked-scheme binding) (scalar-intrinsic-scheme operation)) then
+          Some local -> if not (scalar-promise-matches (Span 0 0 1 1) operation (checked-scheme binding)) then
             Err "scalar intrinsic export disagrees with its checked canonical nominal scheme"
             else (case export-scheme (checked-scheme binding) of
               Err error -> Err error
