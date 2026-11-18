@@ -358,14 +358,16 @@ module Data.Matrix where
     None -> empty-string
 
   pad-column :: Nat -> String -> String
-  pad-column w s = if string-length s >= w then s else string-concat (string-repeat (w - string-length s) " ") s
+  pad-column w s = let width = string-length s in
+    if width >= w then s else string-concat (string-repeat (w - width) " ") s
 
   column-max :: List String -> Nat
   column-max xs = case xs of
     Nil -> 0
     Cons s ss ->
       let rest = column-max ss in
-      if string-length s > rest then string-length s else rest
+      let width = string-length s in
+      if width > rest then width else rest
 
   column-widths :: List (List String) -> List Nat
   column-widths cells = case cells of
