@@ -347,6 +347,12 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
   mixed first _ last = first + last
   hidden :: Int -> Int
   hidden n = n
+module GuardedNumbers where
+  signature Choose a where
+    choose :: a -> a -> a
+  implicit instance ChooseNat :: Choose Nat where
+    choose :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat
+    choose x y = x
 "#);
     std::fs::write(&library, &source).unwrap();
     let ir = dir.join("library.ll"); let out = dir.join("library.o"); let abi = out.with_extension("abi.json");
@@ -359,6 +365,11 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     std::fs::copy(&ir, dir.join("successful.library.ll")).unwrap();
     std::fs::write(dir.join("successful.library.source"), &source).unwrap();
     let metadata = parse_json(&text).unwrap();
+    let conditional = metadata.get("dictionaries").unwrap().get("GuardedNumbers.ChooseNat").unwrap();
+    assert_eq!(conditional.get("class").and_then(Json::as_str), Some("GuardedNumbers.Choose"));
+    assert_eq!(conditional.get("methods").unwrap().as_arr().unwrap()[0].as_str(), Some("GuardedNumbers.ChooseNat.choose"));
+    assert!(metadata.get("units").unwrap().as_arr().unwrap().iter().all(|unit|
+        unit.get("symbol").and_then(Json::as_str) != Some("GuardedNumbers.ChooseNat.mk")));
     assert_eq!(metadata.get("runtime_abi").and_then(Json::as_num), Some(f64::from(cinch::interface::RUNTIME_ABI_VERSION)));
     let constructor = metadata.get("units").and_then(Json::as_arr).unwrap().iter().find(|u| u.get("symbol").and_then(Json::as_str) == Some("Library.Box")).expect("actual concrete constructor root");
     assert_eq!(constructor.get("result").and_then(Json::as_str), Some("O"));
@@ -391,11 +402,12 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     let client = dir.join("client.source"); let client_ir = dir.join("client.ll");
     std::fs::write(&client, r#"module Main where
   import Library
+  import GuardedNumbers
   import Data.Array
   main :: Int
   main =
     let erased-ok = discard-word (429865131 :: I64) == 7 && mixed 20 (829054163 :: I64) 22 == 42 in
-    if erased-ok && array-length (make 42) == 1 && unwrap (wrap 184467440737095516160) == 184467440737095516160 then 0 else 1
+    if erased-ok && choose (5 :: Nat) 2 == 5 && array-length (make 42) == 1 && unwrap (wrap 184467440737095516160) == 184467440737095516160 then 0 else 1
 "#).unwrap();
     let result = run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &final_objects);
     assert!(result.status.success(), "{}", common::read_output(&dir, "client.ll.diagnostics"));

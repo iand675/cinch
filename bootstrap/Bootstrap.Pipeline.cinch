@@ -729,6 +729,45 @@ module Bootstrap.Pipeline where
       other -> JNull)
     JArrEnd -> older
     other -> JNull
+  -- Conditional instances have private physical method entries and no
+  -- unrestricted constructor. Publish the checked slot order alongside
+  -- the object units so a separately checked client can call those entries.
+  object-method-field :: String -> Json -> Option Json
+  object-method-field name units = case units of
+    JArr row rest -> (case object-field "symbol" row of
+      JStr actual | string-compare name actual == 0 -> (case (object-field "params" row, object-field "result" row) of
+        (JArr first more, result) -> Some (JStr "O")
+        (JArrEnd, JStr result) -> Some (JStr result)
+        other -> None)
+      other -> object-method-field name rest)
+    other -> None
+  object-method-fields :: Json -> Json -> Result String Json
+  object-method-fields methods units = case methods of
+    JArrEnd -> Ok JArrEnd
+    JArr (JStr name) rest -> (case (object-method-field name units, object-method-fields rest units) of
+      (Some field, Ok fields) -> Ok (JArr field fields)
+      (None, other) -> Err ("conditional method has no compiled object unit: " <> name)
+      (other, Err error) -> Err error)
+    other -> Err "invalid conditional method list"
+  object-instance-methods :: Json -> Json -> Json -> Result String Json
+  object-instance-methods rows units acc = case rows of
+    JArr row rest -> (case (object-field "resolved" row, object-field "method_contracts" row) of
+      (JNull, JArr first more) -> (case (object-field "id" row, object-field "class" row, object-field "ctx" row) of
+        (JStr name, JStr owner, JArrEnd) -> let methods = object-field "methods" row in (case object-method-fields methods units of
+          Ok fields -> let physical = JObj "class" (JStr owner) (JObj "context_arity" (JNum 0) (JObj "fields" fields (JObj "methods" methods JObjEnd))) in
+            object-instance-methods rest units (JObj name physical acc)
+          Err error -> Err error)
+        other -> Err "invalid closed conditional instance")
+      other -> object-instance-methods rest units acc)
+    JArrEnd -> Ok acc
+    other -> Err "invalid instance inventory"
+  object-conditional-methods :: List (String, Json) -> Json -> Json -> Result String Json
+  object-conditional-methods interfaces units acc = case interfaces of
+    Nil -> Ok acc
+    Cons (name, doc) rest -> (case object-instance-methods (object-field "instances" (object-field "exports" doc)) units acc of
+      Ok rows -> object-conditional-methods rest units rows
+      Err error -> Err error)
+
   -- Blocks describe themselves, so the manifest carries no layout table:
   -- the combined object states its constructors' descriptions as facts.
   object-manifest :: Json -> Json -> Json -> Json -> String -> Bytes -> Json
@@ -737,9 +776,10 @@ module Bootstrap.Pipeline where
       (object-set "constructors" (object-merge-fields (object-field "constructors" facts) (object-field "constructors" provider))
         (object-set "self_describing" (JBool True) provider))) in
     object-set "interfaces" interfaces
+      (object-set "dictionaries" (object-merge-fields (object-field "dictionaries" facts) (object-field "dictionaries" provider))
       (object-set "units" (object-append (object-field "units" provider) units)
         (object-set "ir_content_hash" (JStr (fnv-source-hash (string-to-bytes ir)))
-          (object-set "object_content_hash" (JStr (fnv-source-hash code)) actual)))
+          (object-set "object_content_hash" (JStr (fnv-source-hash code)) actual))))
   object-paths-distinct :: List String -> Bool
   object-paths-distinct paths = case paths of
     Nil -> True
@@ -789,11 +829,16 @@ module Bootstrap.Pipeline where
         Ok closure -> case emit-runtime-library-artifact-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) False inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
           Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else if not (object-distinct-units units (object-field "units" document)) then write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused else
-            case fs-write ir (string-to-bytes text) of
-              Err error -> pipeline-write-failed
-              Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
-                Err error -> pipeline-write-failed
-                Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+            case object-conditional-methods exported units JObjEnd of
+              Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
+              Ok rows -> write-library-object profile document closure exported prefix text units (object-set "dictionaries" rows facts) provider-code ir object abi
+  write-library-object :: forall r. using (io :: Io r) => TargetProfile -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
+  write-library-object profile document closure exported prefix text units facts provider-code ir object abi =
+    case fs-write ir (string-to-bytes text) of
+      Err error -> pipeline-write-failed
+      Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+        Err error -> pipeline-write-failed
+        Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
   assemble-library-object :: forall r. using (io :: Io r) => String -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
   assemble-library-object triple document closure exported prefix text units facts ir object abi =
     let object-name = path-to-string object in
