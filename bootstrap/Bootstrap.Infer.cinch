@@ -8823,11 +8823,12 @@ module Bootstrap.Infer where
   -- application after both operands have been evaluated. Keep the actual
   -- method visible to the proof checker and name the refined value before
   -- forgetting its predicate, just as an explicit source let would.
-  arithmetic-projection :: CoreTerm -> Bool
-  arithmetic-projection term = case term of
-    CLet sp ty id name sc rhs body -> arithmetic-projection body
+  arithmetic-projection :: List CheckedBinding -> CoreTerm -> Store -> Bool
+  arithmetic-projection env term st = case term of
+    CLet sp ty id name sc rhs body -> arithmetic-projection (proof-let-env env (MkLocalBinding name sc id (store-level st)) id sc rhs st) body st
     CForget sp carrier (CLocal at ty id name actuals) -> False
-    CForget sp carrier value -> comparison-refinement (core-type value)
+    CForget sp carrier value -> comparison-refinement (core-type value) && (case reify-argument sp env term st of
+      (index, checked) -> not (valid-type index))
     other -> False
   projected-operand :: Span -> List CheckedBinding -> CoreTerm -> (List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)) -> Store -> (CoreTerm, Store)
   projected-operand sp env term finish st = case term of
@@ -8849,11 +8850,11 @@ module Bootstrap.Infer where
     other -> None
   checked-arithmetic-application :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> Option (CoreTerm, Store)
   checked-arithmetic-application classes sp env fun right st = case fun of
-    CMethod at ty name owner slot actuals evidence -> if not (arithmetic-projection right) then None else
+    CMethod at ty name owner slot actuals evidence -> if not (arithmetic-projection env right st) then None else
       (case numeric-operands env fun right right st of
         None -> None
         Some op -> Some (projected-operand sp env right (\bound operand ready -> apply-checked-runtime classes sp bound fun operand ready) st))
-    CApply at ty method first -> if not (arithmetic-projection right) then None else
+    CApply at ty method first -> if not (arithmetic-projection env right st) then None else
       (case numeric-operands env method first right st of
         None -> None
         Some op -> Some (projected-operand sp env first (\outer left ready ->
