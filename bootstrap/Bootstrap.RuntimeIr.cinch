@@ -89,7 +89,7 @@ module Bootstrap.RuntimeIr where
   data FunctionHints where
     FunctionHints :: String -> Bool -> Option String -> FunctionHints
   data BindingIndex where
-    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String FunctionHints) -> BindingIndex
+    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String FunctionHints) -> HashMap String CoreDefinition -> BindingIndex
   -- Keep declaration order for emitted layouts. The indexes are lookup-only,
   -- so their iteration order cannot affect the output.
   data DataIndex where
@@ -180,20 +180,20 @@ module Bootstrap.RuntimeIr where
   program-instances :: ProgramInfo -> List CoreInstance
   program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> bindings
   program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> plans
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> plans
   -- The foreign plan of the first binding named `name`, if that binding is foreign.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
-  index-bindings :: CheckedProgram -> BindingIndex
-  index-bindings checked =
+  index-bindings :: CheckedProgram -> List CoreDefinition -> BindingIndex
+  index-bindings checked definitions =
     let bindings = elaboration-bindings (checked-elaboration checked) in
     case foreign-index bindings of
-      (plans, names) -> BindingIndex bindings plans names (collect-function-hints (program-modules (checked-surface checked)) None)
+      (plans, names) -> BindingIndex bindings plans names (collect-function-hints (program-modules (checked-surface checked)) None) (index-definitions (reverse definitions) hash-map-empty)
   collect-function-hints :: List Module -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
   collect-function-hints modules hints = case modules of
     Nil -> hints
@@ -211,7 +211,7 @@ module Bootstrap.RuntimeIr where
     Cons other rest -> index-function-hints rest hints
   function-hints :: ProgramInfo -> String -> FunctionHints
   function-hints info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints)) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
     other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
@@ -797,8 +797,15 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> if tag == 0 then first else data-descriptor rest (tag - 1)
   constructor :: String -> ProgramInfo -> Option (String, Nat, CoreConstructor)
   constructor name info = case data-index-of info of DataIndex datas types constructors unpacked -> hash-map-lookup name constructors
-  definition :: String -> List CoreDefinition -> Option CoreDefinition
-  definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
+  -- Preserve first-definition lookup order for both source workers and
+  -- dictionary fields. The index never determines emitted worker order.
+  index-definitions :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  index-definitions reversed table = case reversed of
+    Nil -> table
+    Cons d rest -> index-definitions rest (hash-map-insert (core-name d) d table)
+  worker-definition :: String -> Writer -> Option CoreDefinition
+  worker-definition name w = case writer-program w of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects groups reclaim wasm32 -> hash-map-lookup name definitions
   join :: List String -> String
   join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
   argument-words :: List String -> List String
@@ -1069,7 +1076,7 @@ module Bootstrap.RuntimeIr where
   -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a source closure.
   fuse-scoped-source-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
   fuse-scoped-source-call definitions w term = case scoped-partial-name term of
-    Some name -> case definition name definitions of
+    Some name -> case worker-definition name w of
       Some d -> case field-owner name (program-instances (writer-program w)) of
         Some owner -> None
         None -> if list-length (core-givens d) == 0 && list-length (core-openings d) == 0 && not (wide-definition d)
@@ -2083,7 +2090,7 @@ module Bootstrap.RuntimeIr where
                     None -> unsupported w sp "constructor fields need known closure parameter representations")
                 else unsupported w sp "constructor application exceeds its checked arity"
           None -> unsupported w sp "constructor has no defining runtime declaration"
-        None -> case definition name definitions of
+        None -> case worker-definition name w of
           Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
             Some classes -> case inline-call definitions locals w sp d classes givens args of
               Some copied -> copied
@@ -4007,7 +4014,7 @@ module Bootstrap.RuntimeIr where
     other -> False
   inline-scrutinee :: List CoreDefinition -> Writer -> CoreTerm -> Option (String, List CoreTerm)
   inline-scrutinee definitions w value = case call-spine value Nil of
-    Some (name, actuals, args) -> if not (inline-admitted (writer-context w) name) then None else case definition name definitions of
+    Some (name, actuals, args) -> if not (inline-admitted (writer-context w) name) then None else case worker-definition name w of
       Some d -> case inline-body-shape d of
         Some (patterns, body) -> if list-length args /= list-length patterns then None else case erased-constructor-call body Nil of
           Some (ctor, ctor-actuals, ctor-args) -> if identity-arguments patterns ctor-args then Some (ctor, args) else None
@@ -4201,7 +4208,7 @@ module Bootstrap.RuntimeIr where
   move-field definitions locals w term = case term of
     CLocal sp ty id name Nil -> local-field id locals None
     CApply sp ty (CUse at scheme name role Nil) (CLocal arg carrier id label Nil) ->
-      (case definition name definitions of
+      (case worker-definition name w of
         Some d -> if (case (scheme-params (core-scheme d), scheme-requirements (core-scheme d), definition-parameters d) of
               (Nil, Nil, [parameter]) -> not (wide-type (writer-context w) ty || wide-type (writer-context w) carrier)
               other -> False) && (case definition-value-dependencies w d of Nil -> True; other -> False)
@@ -4922,7 +4929,7 @@ module Bootstrap.RuntimeIr where
   global-tail-target :: List CoreDefinition -> Nat -> Writer -> String -> List UType -> List CoreEvidence -> List CoreTerm -> Option (String, List Nat, List CoreEvidence, List CoreTerm)
   global-tail-target definitions group w name actuals evidence args = case hash-map-lookup name (program-tail-groups (writer-program w)) of
     Some (callee, width) -> if callee == group then
-      (case definition name definitions of
+      (case worker-definition name w of
         Some d -> if list-length args == list-length (definition-parameters d) && list-length evidence == list-length (runtime-givens w d) then
           (case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
             Some classes -> if wide-code classes then None else Some (name, classes, evidence, args)
@@ -5138,7 +5145,7 @@ module Bootstrap.RuntimeIr where
         let emitted-dictionary = dictionaries || (case demand of DictionaryDemand name classes -> True; other -> False) in
         let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary) inlining) in
         case demand of
-          Demand name classes -> case definition name definitions of
+          Demand name classes -> case worker-definition name w of
             Some d -> workers definitions (worker definitions classes claimed d)
             None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
           ConstructorDemand name classes -> workers definitions (constructor-worker name classes claimed)
@@ -5478,7 +5485,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage False "internal ", builder-run code])
@@ -5535,7 +5542,7 @@ module Bootstrap.RuntimeIr where
         case closure (Span 0 0 1 1) worker params Nil accessor of
           (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
   library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)
-  library-checked-shape definitions w name classes = case definition name definitions of
+  library-checked-shape definitions w name classes = case worker-definition name w of
     Some d -> library-root-shape w d classes
     None -> case constructor name (writer-program w) of
       Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
@@ -5552,7 +5559,7 @@ module Bootstrap.RuntimeIr where
       Some True -> library-bridges definitions rest seen w
       Some False -> (refuse w (Span 0 0 1 1) "library ABI export symbols collide", JArrEnd)
       None -> if not (library-public-symbol public) then (refuse w (Span 0 0 1 1) "library ABI export symbol is empty or collides with typed workers", JArrEnd) else
-        if (case (definition name definitions, constructor name (writer-program w)) of (None, None) -> True; other -> False) then
+        if (case (worker-definition name w, constructor name (writer-program w)) of (None, None) -> True; other -> False) then
           (refuse w (Span 0 0 1 1) "library ABI root has no checked definition", JArrEnd) else
           case library-checked-shape definitions w name classes of
             None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked physical parameter/result shape", JArrEnd)
@@ -5576,7 +5583,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -5695,7 +5702,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
@@ -5725,7 +5732,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
+    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
     case runtime-entry (elaboration-core typed) None of
       Err errors -> Err errors
       Ok None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]

@@ -753,7 +753,7 @@ module Bootstrap.Export where
   source-conditional-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List Decl -> Json -> Result String Json
   source-conditional-rows typed interfaces references context ds rows = case ds of
     Nil -> Ok rows
-    Cons (DInstance sp flag symbol params head members) rest | guarded-members (decls-of members) && has-symbol symbol (field "declarations" context) ->
+    Cons (DInstance sp flag symbol params head members) rest | has-symbol symbol (field "declarations" context) ->
       (case export-global symbol of
         Ok identity -> (case source-conditional-head identity (elaboration-bindings typed) of
           Some actual -> (case conditional-instance-row typed interfaces references symbol identity flag actual of
@@ -762,35 +762,47 @@ module Bootstrap.Export where
           None -> Err "conditional instance has no checked methods")
         Err error -> Err error)
     Cons other rest -> source-conditional-rows typed interfaces references context rest rows
-  instance-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List CoreInstance -> Result String Json
-  instance-rows typed interfaces references context declarations = case declarations of
-    Nil -> source-conditional-rows typed interfaces references context (elaboration-declarations typed) JArrEnd
+  instance-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List Decl -> List CoreInstance -> Result String Json
+  instance-rows typed interfaces references context guarded declarations = case declarations of
+    Nil -> source-conditional-rows typed interfaces references context guarded JArrEnd
     Cons declaration rest -> if has-symbol (instance-name declaration) (field "declarations" context) then
-      (case (instance-row typed interfaces references declaration, instance-rows typed interfaces references context rest) of
+      (case (instance-row typed interfaces references declaration, instance-rows typed interfaces references context guarded rest) of
         (Ok row, Ok more) -> Ok (insert-row "id" row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
-      else instance-rows typed interfaces references context rest
+      else instance-rows typed interfaces references context guarded rest
   -- The checked bindings and data declarations by name, built once for all
   -- modules: every public row looks its symbol up in both. Each map keeps
   -- the first entry of a name, as find-binding and find-data do.
   data ExportIndex where
-    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> ExportIndex
+    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> List Decl -> ExportIndex
   export-index :: Elaboration -> ExportIndex
   export-index typed = ExportIndex (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
-    (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed))
+    (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed)) (guarded-instances (elaboration-declarations typed))
+  guarded-instances :: List Decl -> List Decl
+  guarded-instances ds = case ds of
+    Nil -> Nil
+    Cons d rest -> case d of
+      DInstance sp flag symbol params head members | guarded-members (decls-of members) -> Cons d (guarded-instances rest)
+      other -> guarded-instances rest
+  indexed-guarded :: ExportIndex -> List Decl
+  indexed-guarded index = case index of ExportIndex bindings datas references physical guarded -> guarded
+  guarded-instance-name :: String -> List Decl -> Bool
+  guarded-instance-name name ds = case ds of
+    Cons (DInstance sp flag symbol params head members) rest -> same symbol name || guarded-instance-name name rest
+    other -> False
   binding-index :: List CheckedBinding -> HashMap String CheckedBinding
   binding-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (checked-name row) row (binding-index rest)
   data-index :: List CoreData -> HashMap String CoreData
   data-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (core-data-name row) row (data-index rest)
   indexed-layouts :: ExportIndex -> HashMap String DataLayout
-  indexed-layouts index = case index of ExportIndex bindings datas references physical -> physical
+  indexed-layouts index = case index of ExportIndex bindings datas references physical guarded -> physical
   indexed-binding :: String -> ExportIndex -> Option CheckedBinding
-  indexed-binding name index = case index of ExportIndex bindings datas references physical -> hash-map-lookup name bindings
+  indexed-binding name index = case index of ExportIndex bindings datas references physical guarded -> hash-map-lookup name bindings
   indexed-data :: String -> ExportIndex -> Option CoreData
-  indexed-data name index = case index of ExportIndex bindings datas references physical -> hash-map-lookup name datas
+  indexed-data name index = case index of ExportIndex bindings datas references physical guarded -> hash-map-lookup name datas
   indexed-references :: ExportIndex -> HashMap String (List String)
-  indexed-references index = case index of ExportIndex bindings datas references physical -> references
+  indexed-references index = case index of ExportIndex bindings datas references physical guarded -> references
   -- Source effect labels belong to the handler table. The public interface
   -- exposes their operations as values with display-only schemes.
   declared-effect :: String -> List CoreEffect -> Bool
@@ -819,7 +831,7 @@ module Bootstrap.Export where
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
                   else case indexed-binding symbol index of
-                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || (case export-global symbol of Ok identity -> (case source-conditional-head identity (elaboration-bindings typed) of Some head -> True; None -> False); Err error -> False) then Ok (values, types)
+                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || guarded-instance-name symbol (indexed-guarded index) then Ok (values, types)
                       else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in
@@ -1088,7 +1100,7 @@ module Bootstrap.Export where
     Cons context rest -> case field "module" context of
       JStr name -> case (exports typed index interfaces (field "exports" context) (field "exports" context), source-hash source context) of
           (Ok (values, types), Ok hash) ->
-            (case instance-rows typed interfaces (indexed-references index) context (elaboration-instances typed) of
+            (case instance-rows typed interfaces (indexed-references index) context (indexed-guarded index) (elaboration-instances typed) of
               Err error -> Err error
               Ok instances -> case signature-rows typed interfaces (indexed-references index) (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
                 Err error -> Err error
