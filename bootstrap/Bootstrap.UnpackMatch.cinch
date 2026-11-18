@@ -1,0 +1,95 @@
+-- After type checking, turn an unpacked field pattern into patterns on
+-- the owning record's physical slots. Rebuild a bound logical product in
+-- the successful arm, where ordinary let ownership and guard cleanup apply.
+module Bootstrap.UnpackMatch where
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export lower-unpacked-patterns, needs-unpacked-patterns
+
+  data Plan where
+    Plan :: Nat -> List (Span, Nat, String, CoreTerm) -> Plan
+    Invalid :: Plan
+  field-list :: CorePattern -> List CorePattern
+  field-list fields = case fields of CPField sp first rest -> Cons first (field-list rest); other -> Nil
+  field-spine :: Span -> List CorePattern -> CorePattern
+  field-spine sp fields = case fields of Nil -> CPDone sp; Cons first rest -> CPField sp first (field-spine sp rest)
+  runtime-patterns :: List CorePattern -> List CorePattern
+  runtime-patterns patterns = case patterns of Nil -> Nil; Cons p rest -> if erased-pattern p then runtime-patterns rest else Cons p (runtime-patterns rest)
+  arrow :: List UType -> UType -> UType
+  arrow fields result = case fields of Nil -> result; Cons ty rest -> UFun ty (arrow rest result)
+  apply-words :: Span -> CoreTerm -> List CoreTerm -> CoreTerm
+  apply-words sp fn values = case (core-type fn, values) of
+    (UFun domain result, Cons value rest) -> apply-words sp (CApply sp result fn value) rest
+    other -> fn
+  -- Capture each physical slot even if the nested pattern also binds it.
+  -- These new locals are borrowed from the matched record during the arm.
+  bind-slots :: Span -> List UType -> List CorePattern -> Nat -> (List CorePattern, List CoreTerm, Nat)
+  bind-slots sp fields patterns next = case (fields, patterns) of
+    (Cons ty more, Cons pat rest) -> (case bind-slots sp more rest (next + 1) of
+      (ps, args, end) -> (Cons (CPAs sp ty next "#unpacked-slot" pat) ps, Cons (CLocal sp ty next "#unpacked-slot" Nil) args, end))
+    other -> (Nil, Nil, next)
+  bind-product :: Span -> Nat -> String -> RecordSlot -> List CorePattern -> Plan -> (List CorePattern, Plan)
+  bind-product sp id name slot patterns plan = case (slot, plan) of
+    (ProductSlot label ty ctor actuals fields, Plan next lets) | list-length fields == list-length patterns ->
+      (case bind-slots sp fields patterns next of
+        (ps, args, end) -> let fn = CUse sp (arrow fields ty) (core-constructor-name ctor) "constructor" actuals in
+          (ps, Plan end (Cons (sp, id, name, apply-words sp fn args) lets)))
+    other -> (Nil, Invalid)
+
+  product-pattern :: (String -> Option (List RecordSlot)) -> RecordSlot -> CorePattern -> Plan -> (List CorePattern, Plan)
+  product-pattern lookup slot pat plan = case slot of
+    ProductSlot label ty ctor actuals fields -> (case pat of
+      CPWild sp t -> (map (CPWild sp) fields, plan)
+      CPVar sp t id name -> bind-product sp id name slot (map (CPWild sp) fields) plan
+      CPAs sp t id name inner -> (case product-pattern lookup slot inner plan of
+        (ps, nested) -> bind-product sp id name slot ps nested)
+      CPConstructor sp t name args sc children | string-compare name (core-constructor-name ctor) == 0 ->
+        let ps = runtime-patterns (field-list children) in
+        if list-length ps == list-length fields then lower-patterns lookup ps plan else (Nil, Invalid)
+      other -> (Nil, Invalid))
+    other -> (Nil, Invalid)
+  record-patterns :: (String -> Option (List RecordSlot)) -> List RecordSlot -> List CorePattern -> Plan -> (List CorePattern, Plan)
+  record-patterns lookup slots patterns plan = case (slots, patterns) of
+    (Nil, Nil) -> (Nil, plan)
+    (Cons slot more, Cons pat rest) -> (case (case slot of
+      OrdinarySlot label ty -> (case lower-pattern lookup pat plan of (p, next) -> ([p], next))
+      other -> product-pattern lookup slot pat plan) of
+        (ps, next) -> case record-patterns lookup more rest next of (tail, end) -> (ps <> tail, end))
+    other -> (Nil, Invalid)
+  needs-unpacked-patterns :: (String -> Option (List RecordSlot)) -> List CorePattern -> Bool
+  needs-unpacked-patterns lookup patterns = case patterns of
+    Nil -> False
+    Cons p rest -> needs-unpacked-pattern lookup p || needs-unpacked-patterns lookup rest
+  needs-unpacked-pattern :: (String -> Option (List RecordSlot)) -> CorePattern -> Bool
+  needs-unpacked-pattern lookup pat = case pat of
+    CPAs sp ty id name inner -> needs-unpacked-pattern lookup inner
+    CPConstructor sp ty name args sc fields -> (case lookup name of Some slots -> True; None -> needs-unpacked-pattern lookup fields)
+    CPTuple sp ty fields -> needs-unpacked-pattern lookup fields
+    CPField sp first rest -> needs-unpacked-pattern lookup first || needs-unpacked-pattern lookup rest
+    other -> False
+
+  lower-pattern :: (String -> Option (List RecordSlot)) -> CorePattern -> Plan -> (CorePattern, Plan)
+  lower-pattern lookup pat plan = case pat of
+    CPAs sp ty id name inner -> (case lower-pattern lookup inner plan of (p, next) -> (CPAs sp ty id name p, next))
+    CPTuple sp ty fields -> (case lower-patterns lookup (field-list fields) plan of (ps, next) -> (CPTuple sp ty (field-spine sp ps), next))
+    CPConstructor sp ty name args sc fields -> (case (case lookup name of
+      Some slots -> record-patterns lookup slots (runtime-patterns (field-list fields)) plan
+      None -> lower-patterns lookup (field-list fields) plan) of
+        (ps, next) -> (CPConstructor sp ty name args sc (field-spine sp ps), next))
+    other -> (pat, plan)
+  lower-patterns :: (String -> Option (List RecordSlot)) -> List CorePattern -> Plan -> (List CorePattern, Plan)
+  lower-patterns lookup patterns plan = case patterns of
+    Nil -> (Nil, plan)
+    Cons first rest -> (case lower-pattern lookup first plan of
+      (p, next) -> case lower-patterns lookup rest next of (more, end) -> (Cons p more, end))
+  rebuild :: (Nat -> CoreTerm -> Bool) -> List (Span, Nat, String, CoreTerm) -> CoreTerm -> CoreTerm
+  rebuild used bindings body = case bindings of
+    Nil -> body
+    Cons (sp, id, name, rhs) rest -> rebuild used rest (if used id body then CLet sp (core-type body) id name (mono (core-type rhs)) rhs body else body)
+  lower-unpacked-patterns :: (Nat -> CoreTerm -> Bool) -> (String -> Option (List RecordSlot)) -> List CorePattern -> CoreTerm -> Nat -> Option (List CorePattern, CoreTerm)
+  lower-unpacked-patterns used lookup patterns body next = case lower-patterns lookup patterns (Plan next Nil) of
+    (ps, Plan end bindings) -> Some (ps, rebuild used bindings body)
+    other -> None

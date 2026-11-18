@@ -319,6 +319,7 @@ module Bootstrap.Check where
     TBound s name ty rest -> (TyHole, fail s "unsupported type: implicit bound")
     TBoundsEnd s -> (TyHole, fail s "unsupported type: implicit bounds end")
     TEvidenceField s name ty -> (TyHole, fail s "record evidence fields require checked proposition elaboration")
+    TUnpackField s enabled ty -> (TyHole, fail s "record layout requires checked nominal elaboration")
     TUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled type: " text))
 
   type-app-to-ty :: TypeExpr -> TypeExpr -> (Ty, List Diagnostic)
@@ -988,6 +989,7 @@ module Bootstrap.Check where
     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
     DDeclsEnd s -> Nil
     DUnboxed s name label -> Nil
+    DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 

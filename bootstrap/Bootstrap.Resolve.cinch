@@ -568,6 +568,7 @@ module Bootstrap.Resolve where
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
     TUsageArrow s usage arrow -> TUsageArrow s usage (rename-type visible locals arrow)
     TEvidenceField s name ty -> TEvidenceField s name (rename-type visible locals ty)
+    TUnpackField s enabled ty -> rename-type visible locals ty
     TRow s labels tail -> TRow s (rename-mvar-effects visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
@@ -603,6 +604,14 @@ module Bootstrap.Resolve where
     Cons (name, ty) rest -> Cons (global-name home name, rename-type visible locals ty) (rename-ctors home visible locals rest)
 
   -- Labels belong to the record. Only their field types use module names.
+  -- Only the declaring record can request a physical field layout. Keep
+  -- its label alongside the ordinary, resolved logical field type.
+  record-layout-requests :: List (String, TypeExpr) -> List (String, Bool)
+  record-layout-requests fields = case fields of
+    Nil -> Nil
+    Cons (name, TUnpackField at enabled ty) rest -> Cons (name, enabled) (record-layout-requests rest)
+    Cons field rest -> record-layout-requests rest
+
   rename-record-fields :: Bool -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
   rename-record-fields dependent visible locals fields = case fields of
     Nil -> Nil
@@ -991,7 +1000,8 @@ module Bootstrap.Resolve where
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
-        (rename-record-fields True visible (parameter-names params) fields)) Nil, Nil)
+        (rename-record-fields True visible (parameter-names params) fields))
+        (case record-layout-requests fields of Nil -> Nil; requests -> [DUnpackFields s (global-name home name) requests]), Nil)
     DCodata s name params observations -> if opaque-name-reserved name then
       (Nil, fail s "a builtin type cannot be redefined as codata")
       else ([DCodata s (global-name home name) (rename-params visible Nil params)
@@ -1052,6 +1062,7 @@ module Bootstrap.Resolve where
     -- the catch-all below would claim namespace work is missing when the
     -- real gap is a surface form the parser does not accept yet.
     DUnboxed s name label -> ([DUnboxed s (global-name home name) label], Nil)
+    DUnpackFields s name fields -> ([DUnpackFields s (global-name home name) fields], Nil)
     DInlineHint s name hint -> (case hint of
       Err message -> (Nil, fail s message)
       Ok value -> ([DInlineHint s (global-name home name) hint], Nil))

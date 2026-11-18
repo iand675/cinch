@@ -560,6 +560,7 @@ module Bootstrap.Ir where
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
     DUnboxed s name label -> Nil
+    DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration lowers as the declaration it wraps;

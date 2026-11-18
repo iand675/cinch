@@ -7,6 +7,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, scalar-intrinsic-scheme)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
+  import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
   import Bootstrap.Foreign
   import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
@@ -89,9 +90,14 @@ module Bootstrap.RuntimeIr where
   -- Keep declaration order for emitted layouts. The indexes are lookup-only,
   -- so their iteration order cannot affect the output.
   data DataIndex where
-    DataIndex :: List CoreData -> HashMap String CoreData -> HashMap String (String, Nat, CoreConstructor) -> DataIndex
+    DataIndex :: List CoreData -> HashMap String CoreData -> HashMap String (String, Nat, CoreConstructor) -> Bool -> DataIndex
   index-data :: List CoreData -> DataIndex
-  index-data datas = case index-data-rows datas of (types, constructors) -> DataIndex datas types constructors
+  index-data datas = case index-data-rows datas of (types, constructors) -> DataIndex datas types constructors (includes-unpacked datas)
+  includes-unpacked :: List CoreData -> Bool
+  includes-unpacked datas = case datas of
+    Nil -> False
+    Cons d rest -> (case core-data-layout d of UnpackedRecord fields -> True; other -> includes-unpacked rest)
+
   index-data-rows :: List CoreData -> (HashMap String CoreData, HashMap String (String, Nat, CoreConstructor))
   index-data-rows rows = case rows of
     Nil -> (hash-map-empty, hash-map-empty)
@@ -156,7 +162,7 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case data-index-of info of DataIndex datas types constructors -> datas
+  program-data info = case data-index-of info of DataIndex datas types constructors unpacked -> datas
   data-index-of :: ProgramInfo -> DataIndex
   data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> index
   program-classes :: ProgramInfo -> List CoreClass
@@ -316,7 +322,7 @@ module Bootstrap.RuntimeIr where
   method-reference :: String -> String -> Nat -> List CheckedBinding -> Bool
   method-reference name owner slot bindings = case bindings of Nil -> False; Cons first rest -> checked-method-matches first name owner slot || method-reference name owner slot rest
   data-declaration :: String -> ProgramInfo -> Option CoreData
-  data-declaration name info = case data-index-of info of DataIndex datas types constructors -> hash-map-lookup name types
+  data-declaration name info = case data-index-of info of DataIndex datas types constructors unpacked -> hash-map-lookup name types
   type-head :: UType -> UType
   type-head ty = case base ty of UApp f x -> type-head f; other -> other
   representation :: Nat -> List (Nat, Nat) -> Option Nat
@@ -379,10 +385,14 @@ module Bootstrap.RuntimeIr where
         URigid id name level kind -> applied-former-class ty kind (representation id rigids)
         other -> None
   data-word-class :: CoreData -> Nat
-  data-word-class d = case core-data-layout d of UniformData -> 1; UnboxedData label word bytes align -> word
+  data-word-class d = case core-data-layout d of UnboxedData label word bytes align -> word; other -> 1
+  uniform-owner :: String -> Writer -> Bool
+  uniform-owner name w = case data-declaration name (writer-program w) of
+    Some d -> (case core-data-layout d of UniformData -> True; other -> False)
+    None -> False
   unboxed-owner :: String -> Writer -> Bool
   unboxed-owner owner w = case data-declaration owner (writer-program w) of
-    Some d -> (case core-data-layout d of UnboxedData label word bytes align -> True; UniformData -> False)
+    Some d -> (case core-data-layout d of UnboxedData label word bytes align -> True; other -> False)
     None -> False
 
   applied-former-class :: UType -> Kind -> Option Nat -> Option Nat
@@ -731,7 +741,9 @@ module Bootstrap.RuntimeIr where
   constructor-supported context d c = let sc = core-constructor-scheme c in
     regular-parameters (core-data-params d) (scheme-params sc)
     && (case scheme-requirements sc of Nil -> True; other -> False)
-    && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (core-constructor-fields c) <= 16
+    && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) <= 16
+  storage-fields :: CoreData -> CoreConstructor -> List UType
+  storage-fields d c = case core-data-layout d of UnpackedRecord slots -> physical-fields slots; other -> core-constructor-fields c
   -- Each constructor's description, by tag. A constructor the lowering
   -- cannot represent is refused once, when its family is first described.
   constructor-descriptions :: RuntimeContext -> CoreData -> Nat -> List CoreConstructor -> Writer -> (Writer, List Nat)
@@ -740,7 +752,7 @@ module Bootstrap.RuntimeIr where
     Cons c rest ->
       let (checked, description) = (if not (constructor-supported context d c) then
           (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering", 0)
-        else case class-vector context (core-constructor-fields c) of
+        else case class-vector context (storage-fields d c) of
           None -> (refuse w (Span 0 0 1 1) "constructor field representation is unknown", 0)
           Some codes -> (w, shape-description 1 tag (word-codes codes))) in
       case constructor-descriptions context d (tag + 1) rest checked of
@@ -766,7 +778,7 @@ module Bootstrap.RuntimeIr where
     Nil -> 0
     Cons first rest -> if tag == 0 then first else data-descriptor rest (tag - 1)
   constructor :: String -> ProgramInfo -> Option (String, Nat, CoreConstructor)
-  constructor name info = case data-index-of info of DataIndex datas types constructors -> hash-map-lookup name constructors
+  constructor name info = case data-index-of info of DataIndex datas types constructors unpacked -> hash-map-lookup name constructors
   definition :: String -> List CoreDefinition -> Option CoreDefinition
   definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
   join :: List String -> String
@@ -1974,7 +1986,31 @@ module Bootstrap.RuntimeIr where
   box-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> List Nat -> Nat -> List CoreTerm -> (Writer, String)
   box-constructor definitions locals w sp d classes tag args = case request-data sp d classes w of
     (planned, descriptor) -> case expressions definitions locals planned args of
-      (ready, values) -> allocate-typed ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values)
+      (ready, values) -> allocate-constructor d ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values)
+
+  allocate-constructor :: CoreData -> Writer -> Nat -> List (String, String) -> (Writer, String)
+  allocate-constructor d w descriptor values = case core-data-layout d of
+    UnpackedRecord slots -> (case flatten-values slots values w of (ready, physical) -> allocate-typed ready descriptor physical)
+    other -> allocate-typed w descriptor values
+  -- The source constructor consumes every argument. A flattened product
+  -- transfers one owned reference per slot before releasing its old block.
+  flatten-values :: List RecordSlot -> List (String, String) -> Writer -> (Writer, List (String, String))
+  flatten-values slots values w = case (slots, values) of
+    (Nil, Nil) -> (w, Nil)
+    (Cons (OrdinarySlot label ty) more, Cons value rest) -> (case flatten-values more rest w of
+      (ready, tail) -> (ready, Cons value tail))
+    (Cons (ProductSlot label ty ctor args fields) more, Cons (llvm, word) rest) ->
+      let (one, ptr) = fresh w "%ptr" in
+      (case owned-payload fields ptr 0 (line one (cat ["  ", ptr, " = inttoptr i64 ", word, " to ptr"])) of
+        (loaded, physical) -> case flatten-values more rest (count-op False ty word loaded) of
+          (ready, tail) -> (ready, physical <> tail))
+    other -> (refuse w (Span 0 0 1 1) "logical constructor arity disagrees with unpack layout", Nil)
+  owned-payload :: List UType -> String -> Nat -> Writer -> (Writer, List (String, String))
+  owned-payload fields pointer index w = case fields of
+    Nil -> (w, Nil)
+    Cons ty rest -> case read-slot ty pointer index w of
+      (loaded, llvm, value, next) -> case owned-payload rest pointer next (count-op True ty value loaded) of
+        (ready, more) -> (ready, Cons (llvm, value) more)
 
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
@@ -3451,17 +3487,20 @@ module Bootstrap.RuntimeIr where
     CPDone end -> (w, Nil)
     CPField sp (CPProof at predicate id name) rest -> match-fields rest pointer index failed w
     CPField sp first rest ->
-      let wide = wide-type (writer-context w) (pattern-type first) in
-      let access = if wide then "i128" else "i64" in
-      let alignment = if wide then ", align 8" else "" in
-      let (one, slot) = fresh w "%ptr" in
-      let (two, value) = fresh one "%v" in
-      let pointed = line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
-      let loaded = line pointed (cat ["  ", value, " = load ", access, ", ptr ", slot, alignment]) in
-      case match-pattern first value failed loaded of
-        (bound, bindings) -> case match-fields rest pointer (index + (if wide then 2 else 1)) failed bound of
-          (done, more) -> (done, bindings <> more)
+      case read-slot (pattern-type first) pointer index w of
+        (loaded, llvm, value, next) -> case match-pattern first value failed loaded of
+          (bound, bindings) -> case match-fields rest pointer next failed bound of
+            (done, more) -> (done, bindings <> more)
     other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", Nil)
+  read-slot :: UType -> String -> Nat -> Writer -> (Writer, String, String, Nat)
+  read-slot ty pointer index w =
+    let wide = wide-type (writer-context w) ty in
+    let access = if wide then "i128" else "i64" in
+    let alignment = if wide then ", align 8" else "" in
+    let (one, slot) = fresh w "%ptr" in
+    let (two, value) = fresh one "%v" in
+    let pointed = line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
+    (line pointed (cat ["  ", value, " = load ", access, ", ptr ", slot, alignment]), access, value, index + (if wide then 2 else 1))
   guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   guarded-expression definitions locals w failed term = case term of
     CRequire sp ty body -> guarded-expression definitions locals w failed body
@@ -3979,7 +4018,7 @@ module Bootstrap.RuntimeIr where
         else if named ty "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
         else case constructor name (writer-program w) of
-          Some (owner, tag, c) -> if not (unboxed-owner owner w) && list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
+          Some (owner, tag, c) -> if uniform-owner owner w && list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
           None -> NoArm
       other -> NoArm
   -- The dispatch a case can use. The switch's case list is fixed before any
@@ -4053,8 +4092,8 @@ module Bootstrap.RuntimeIr where
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nextalt" in
-      case match-pattern pattern value failed one of
-        (matched, bindings) -> case guarded-expression definitions (bindings <> locals) matched failed body of
+      case match-alternative pattern body locals value failed one of
+        (matched, bindings, rebuilt) -> case guarded-expression definitions (bindings <> locals) matched failed rebuilt of
           (done, result) -> let stored = line (count-op False ty value done) (cat ["  store ", value-llvm (writer-context done) (core-type body), " ", result, ", ptr ", slot]) in
             let next = line (line stored (cat ["  br label %", joined])) (cat [failed, ":"]) in
             case-rows definitions locals next ty value slot joined rest
@@ -4503,6 +4542,28 @@ module Bootstrap.RuntimeIr where
   parameter-roots patterns index = case patterns of
     Nil -> Nil
     Cons first rest -> Cons (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) (parameter-roots rest (index + 1))
+  unpacked-slots :: Writer -> String -> Option (List RecordSlot)
+  unpacked-slots w name = case constructor name (writer-program w) of
+    Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
+      Some d -> (case core-data-layout d of UnpackedRecord slots -> Some slots; other -> None)
+      None -> None)
+    None -> None
+  largest-pattern-id :: List CorePattern -> Nat
+  largest-pattern-id patterns = case patterns of Nil -> 0; Cons p rest -> handler-largest (handler-pattern-id p) (largest-pattern-id rest)
+  prepare-match :: List CorePattern -> CoreTerm -> List Local -> Writer -> (List CorePattern, CoreTerm, Writer)
+  prepare-match patterns body locals w = case data-index-of (writer-program w) of
+    DataIndex datas types ctors unpacked -> if not unpacked || not (needs-unpacked-patterns (unpacked-slots w) patterns) then (patterns, body, w) else
+      let next = 1 + handler-largest (handler-term-id body) (handler-largest (handler-local-id locals) (largest-pattern-id patterns)) in
+      (case lower-unpacked-patterns term-uses (unpacked-slots w) patterns body next of
+        Some (physical, rebuilt) -> (physical, rebuilt, w)
+        None -> (patterns, body, refuse w (Span 0 0 1 1) "record pattern disagrees with checked unpack layout"))
+  match-clause :: List CorePattern -> CoreTerm -> List Local -> Nat -> String -> Writer -> (Writer, List Local, CoreTerm)
+  match-clause patterns body locals offset failed w = case prepare-match patterns body locals w of
+    (physical, rebuilt, ready) -> (case match-parameters physical offset failed ready of (done, bindings) -> (done, bindings, rebuilt))
+  match-alternative :: CorePattern -> CoreTerm -> List Local -> String -> String -> Writer -> (Writer, List Local, CoreTerm)
+  match-alternative pat body locals value failed w = case prepare-match [pat] body locals w of
+    ([physical], rebuilt, ready) -> (case match-pattern physical value failed ready of (done, bindings) -> (done, bindings, rebuilt))
+    other -> (refuse w (Span 0 0 1 1) "missing checked alternative pattern", Nil, body)
   match-parameters :: List CorePattern -> Nat -> String -> Writer -> (Writer, List Local)
   match-parameters patterns index failed w = case patterns of
     Nil -> (w, Nil)
@@ -4537,8 +4598,8 @@ module Bootstrap.RuntimeIr where
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexteq" in
-      case match-parameters patterns offset failed one of
-        (matched, bindings) -> case worker-result definitions (bindings <> prefix) roots matched failed body of
+      case match-clause patterns body prefix offset failed one of
+        (matched, bindings, rebuilt) -> case worker-result definitions (bindings <> prefix) roots matched failed rebuilt of
           (done, result) -> let returned = line done (cat ["  ret ", value-llvm (writer-context done) (core-type body), " ", result]) in
             worker-clauses definitions prefix roots offset rest (line returned (cat [failed, ":"]))
   worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
@@ -4602,7 +4663,7 @@ module Bootstrap.RuntimeIr where
                 let values = value-parameters count 0 in
                 let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
                 let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ") {"])) "entry:" in
-                case allocate-typed started (data-descriptor descriptor tag) typed of
+                case allocate-constructor d started (data-descriptor descriptor tag) typed of
                   (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
@@ -4809,10 +4870,10 @@ module Bootstrap.RuntimeIr where
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nexttailalt" in
-      case match-pattern pattern value failed one of
-        (matched, bindings) ->
+      case match-alternative pattern body locals value failed one of
+        (matched, bindings, rebuilt) ->
           let owned = Cons (Discard ty value) roots in
-          let done = tail-result definitions (bindings <> locals) owned context matched failed body in
+          let done = tail-result definitions (bindings <> locals) owned context matched failed rebuilt in
           tail-chain definitions locals roots context (line done (cat [failed, ":"])) ty value rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
 
@@ -4834,9 +4895,9 @@ module Bootstrap.RuntimeIr where
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexttaileq" in
-      case match-parameters patterns offset failed one of
-        (matched, bindings) ->
-          let returned = tail-result definitions (bindings <> prefix) roots context matched failed body in
+      case match-clause patterns body prefix offset failed one of
+        (matched, bindings, rebuilt) ->
+          let returned = tail-result definitions (bindings <> prefix) roots context matched failed rebuilt in
           global-tail-clauses definitions prefix roots offset context rest (line returned (cat [failed, ":"]))
 
   global-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> List Local -> Writer -> Nat -> Nat -> Nat -> Writer
@@ -4858,11 +4919,11 @@ module Bootstrap.RuntimeIr where
       let prefix = captured-bindings saved 0 in
       if not (word-type (writer-context scoped) (core-type body)) then refuse scoped sp "recursive worker result needs a runtime representation" else
         let (started, failed) = fresh (start-tail-worker "" name (offset + arity) (offset + width) scoped) "tailmiss" in
-        (case match-parameters patterns offset failed started of
-          (matched, bindings) -> case recursive-locals sp captures prefix group body matched of
+        (case match-clause patterns body prefix offset failed started of
+          (matched, bindings, rebuilt) -> case recursive-locals sp captures prefix group rebuilt matched of
             (ready, siblings) ->
               let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
-              let done = tail-result definitions (bindings <> siblings <> prefix) roots (LocalTail group prefix width) ready failed body in
+              let done = tail-result definitions (bindings <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
@@ -5337,8 +5398,9 @@ module Bootstrap.RuntimeIr where
     Cons c more -> case library-public-name (core-constructor-name c) codes of
       Err message -> library-constructor-facts d codes descriptions (tag + 1) more rest
       Ok public -> let description = data-descriptor descriptions tag in
-        JObj public (JObj "tag" (JNum (nat-to-int tag))
-        (JObj "arity" (JNum (nat-to-int (list-length (core-constructor-fields c))))
+        let physical = (case core-data-layout d of UnpackedRecord slots -> public <> "$unpacked"; other -> public) in
+        JObj physical (JObj "tag" (JNum (nat-to-int tag))
+        (JObj "arity" (JNum (nat-to-int (list-length (storage-fields d c))))
           (JObj "descriptor" (JNum (nat-to-int (description-field description)))
             (JObj "escaped" (JBool (description-escaped description)) JObjEnd))))
         (library-constructor-facts d codes descriptions (tag + 1) more rest)

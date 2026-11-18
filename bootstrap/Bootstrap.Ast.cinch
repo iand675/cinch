@@ -110,6 +110,7 @@ module Bootstrap.Ast where
     TBound :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
     TBoundsEnd :: Span -> TypeExpr
     TEvidenceField :: Span -> String -> TypeExpr -> TypeExpr
+    TUnpackField :: Span -> Bool -> TypeExpr -> TypeExpr
     TUnmodeled :: Span -> String -> TypeExpr
 
   type-arg-spine :: Span -> List TypeExpr -> TypeExpr
@@ -159,6 +160,7 @@ module Bootstrap.Ast where
     TBound s name ty rest -> s
     TBoundsEnd s -> s
     TEvidenceField s name ty -> s
+    TUnpackField s unpacked ty -> s
     TUnmodeled s text -> s
 
   -- Declaration binders retain their kinds and implicitness. Throwing
@@ -548,6 +550,7 @@ module Bootstrap.Ast where
     -- Where a clause does not hold the name is absent from the interface,
     -- from the module's exports and from code generation.
     DUnboxed :: Span -> String -> List String -> Decl
+    DUnpackFields :: Span -> String -> List (String, Bool) -> Decl
     DInlineHint :: Span -> String -> Result String String -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
@@ -601,6 +604,7 @@ module Bootstrap.Ast where
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DUnboxed s name label -> s
+    DUnpackFields s name fields -> s
     DInlineHint s name hint -> s
     DUnmodeled s text -> s
 
@@ -631,6 +635,7 @@ module Bootstrap.Ast where
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnboxed s name label -> None
+    DUnpackFields s name fields -> None
     DInlineHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
@@ -708,6 +713,7 @@ module Bootstrap.Ast where
     TBoundsEnd s -> 0
     TUnmodeled s text -> 1
     TEvidenceField s name ty -> type-unmodeled-count ty
+    TUnpackField s unpacked ty -> type-unmodeled-count ty
 
   type-unmodeleds :: List TypeExpr -> Nat
   type-unmodeleds ts = case ts of
@@ -871,6 +877,7 @@ module Bootstrap.Ast where
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnboxed s name label -> 0
+    DUnpackFields s name fields -> 0
     DInlineHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
@@ -956,6 +963,7 @@ module Bootstrap.Ast where
     TBoundsEnd part0 -> JArr (JStr "TBoundsEnd") (JArrEnd)
     TUnmodeled part0 part1 -> JArr (JStr "TUnmodeled") (JArr (JStr part1) (JArrEnd))
     TEvidenceField s name ty -> JArr (JStr "TEvidenceField") (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd))
+    TUnpackField s unpacked ty -> JArr (JStr "TUnpackField") (JArr (JBool unpacked) (JArr (source-identity-type ty) JArrEnd))
 
   source-identity-pat :: Pat -> Json
   source-identity-pat value = case value of

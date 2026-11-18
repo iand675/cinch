@@ -1757,12 +1757,24 @@ module Bootstrap.Parse where
 
   parse-record-field :: List LToken -> Bytes -> Ps (String, TypeExpr)
   parse-record-field toks src = case toks of
-    Cons first rest -> if is-word-t (lt-token first) "erased" then
-      (case parse-field rest src of
-        POk (name, ty) tail -> POk (name, TEvidenceField (sp-of first) name ty) tail
-        PBad -> PBad)
-      else parse-field toks src
+    Cons first rest -> (case lt-token first of
+      TAttr text -> let attr = string-strip text in
+        if string-compare attr "unpack" == 0 || string-compare attr "nounpack" == 0 then
+          (case parse-record-field (field-attribute-tail rest) src of
+            POk (name, TUnpackField at prior ty) tail -> POk (name, TUnmodeled (sp-of first) "duplicate or conflicting unpack and nounpack attributes") tail
+            POk (name, ty) tail -> POk (name, TUnpackField (sp-of first) (string-compare attr "unpack" == 0) ty) tail
+            PBad -> PBad)
+          else PBad
+      other -> if is-word-t (lt-token first) "erased" then
+        (case parse-field rest src of
+          POk (name, ty) tail -> POk (name, TEvidenceField (sp-of first) name ty) tail
+          PBad -> PBad)
+        else parse-field toks src)
     Nil -> PBad
+  field-attribute-tail :: List LToken -> List LToken
+  field-attribute-tail toks = case toks of
+    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then rest else toks
+    Nil -> Nil
 
   parse-field :: List LToken -> Bytes -> Ps (String, TypeExpr)
   parse-field toks src = case parse-value-name toks of

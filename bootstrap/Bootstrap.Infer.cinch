@@ -17,6 +17,7 @@ module Bootstrap.Infer where
   import Data.Bytes (bytes-len)
   import Bootstrap.Core
   import Bootstrap.Layout (check-layouts)
+  import Bootstrap.Unpack (check-unpacked-records)
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
@@ -2768,6 +2769,7 @@ module Bootstrap.Infer where
       -- definition it names has been elaborated (its write log and its
       -- recursion), which is the pass `temporal-contracts` runs.
       DUnboxed s name label -> register all rows classes kinds rest env st
+      DUnpackFields s name fields -> register all rows classes kinds rest env st
       DInlineHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
       DContract s keyword name subject clauses -> register all rows classes kinds rest env st
       other -> register all rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
@@ -7275,7 +7277,7 @@ module Bootstrap.Infer where
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
-    let (datas, layout-store) = case store-errors usage-store of Nil -> check-layouts ds runtime-data usage usage-store; other -> (runtime-data, usage-store) in
+    let (datas, layout-store) = case store-errors usage-store of Nil -> check-unpacked-records ds (check-layouts ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
     let finished = case store-errors layout-store of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage layout-store); other -> layout-store in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in

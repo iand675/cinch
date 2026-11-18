@@ -6,7 +6,8 @@ module Bootstrap.Export where
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
-  import Bootstrap.Core (CoreData, DataLayout, UniformData, UnboxedData, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+  import Bootstrap.Unpack (unpacked-abi)
+  import Bootstrap.Core (CoreData, DataLayout, UniformData, UnboxedData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -744,6 +745,7 @@ module Bootstrap.Export where
   layouts :: HashMap String DataLayout -> Json -> Json
   layouts index types = case types of
     JArr row rest -> let layout = (case hash-map-lookup (text (field "identity" row)) index of
+          Some (UnpackedRecord slots) -> unpacked-abi slots
           Some (UnboxedData label word size align) -> let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
             JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr "unboxed") JObjEnd)))
           other -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd)))) in

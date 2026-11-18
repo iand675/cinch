@@ -675,6 +675,7 @@ module Bootstrap.Eval where
     -- A contract declares no value the interpreter binds, so it needs no
     -- evaluation. It is checked where its definition is elaborated.
     DUnboxed s name label -> Nil
+    DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
     -- A target-selected declaration is whatever it wraps: pruning already

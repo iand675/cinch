@@ -68,7 +68,8 @@ module Bootstrap.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, UnpackedRecord, core-data-layout, with-data-layout
+  export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
   export core-constructor-name, core-constructor-scheme, core-constructor-fields
@@ -222,8 +223,17 @@ module Bootstrap.Core where
   -- remain checked interface contracts, not reconstructed source data.
   data CoreConstructor where
     MkCoreConstructor :: Span -> String -> Scheme -> CoreConstructor
+  data RecordSlot where
+    OrdinarySlot :: String -> UType -> RecordSlot
+    ProductSlot :: String -> UType -> CoreConstructor -> List UType -> List UType -> RecordSlot
+  slot-types :: RecordSlot -> List UType
+  slot-types slot = case slot of OrdinarySlot label ty -> [ty]; ProductSlot label ty ctor actuals fields -> fields
+  physical-fields :: List RecordSlot -> List UType
+  physical-fields slots = case slots of Nil -> Nil; Cons slot rest -> slot-types slot <> physical-fields rest
+
   data DataLayout where
     UniformData :: DataLayout
+    UnpackedRecord :: List RecordSlot -> DataLayout
     -- Represented field name, runtime word class, ABI size and alignment.
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
   data CoreData where

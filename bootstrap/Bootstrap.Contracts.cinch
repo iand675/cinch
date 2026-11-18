@@ -225,6 +225,7 @@ module Bootstrap.Contracts where
     TArg s x rest -> type-references x <> type-references rest
     TBound s name kind rest -> type-references kind <> type-references rest
     TEvidenceField s name ty -> type-references ty
+    TUnpackField s enabled ty -> type-references ty
     other -> Nil
 
   pat-references :: Pat -> List String
