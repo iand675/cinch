@@ -345,7 +345,9 @@ pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, o
 fn target_inputs(request: &Request, frontend: &Frontend) -> Result<Option<(PathBuf, PathBuf)>, String> {
     let Some(flag) = request.flags.windows(2).find(|pair| pair[0] == "--target") else { return Ok(None) };
     let Some(helper) = std::env::var_os("CINCH_TEST_TARGET_INPUTS") else { return Ok(None) };
-    if std::env::var_os("CINCH_TEST_COMPILER").as_deref() != Some(frontend.compiler.as_os_str()) {
+    if std::env::var_os("CINCH_TEST_COMPILER").as_deref() != Some(frontend.compiler.as_os_str())
+        || std::env::var_os("CINCH_TEST_INTERFACES").as_deref() != Some(frontend.interfaces.as_os_str())
+    {
         return Ok(None);
     }
     let output = std::process::Command::new(helper).args(["--test-target-inputs", &flag[1]])

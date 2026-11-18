@@ -472,6 +472,17 @@ fn the_cooperative_profile_selects_the_sequential_entries() {
             "the cooperative artifact calls the pooled entry {entry}"
         );
     }
+    let object = dir.join("program.o");
+    let clang = std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into());
+    let assembly = std::process::Command::new(clang)
+        .args(["--target=wasm32-unknown-unknown", "-c"])
+        .arg(&ir_path)
+        .arg("-o")
+        .arg(&object)
+        .output()
+        .expect("assemble the emitted Wasm IR");
+    assert!(assembly.status.success(), "{}", String::from_utf8_lossy(&assembly.stderr));
+    assert!(std::fs::read(object).expect("read Wasm object").starts_with(b"\0asm"));
     common::cleanup(&dir);
 }
 

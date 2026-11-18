@@ -87,7 +87,7 @@ module Bootstrap.RuntimeIr where
   data BindingIndex where
     BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String String) -> BindingIndex
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> String -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> Bool -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -139,19 +139,19 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done inlining -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim parallel-prefix -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> bindings
   program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim parallel-prefix -> plans
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> plans
   -- The foreign plan of the first binding named `name`, if that binding is foreign.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim parallel-prefix -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   index-bindings :: CheckedProgram -> BindingIndex
@@ -171,7 +171,7 @@ module Bootstrap.RuntimeIr where
     Cons (name, hint) rest -> index-inline-hints rest (hash-map-insert name hint hints)
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints)) versions provider exposed effects tail-groups reclaim parallel-prefix ->
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints)) versions provider exposed effects tail-groups reclaim wasm32 ->
       case hash-map-lookup name hints of Some hint -> hint; None -> ""
     other -> ""
   llvm-hint :: Writer -> String -> String
@@ -183,30 +183,30 @@ module Bootstrap.RuntimeIr where
       (plans, names) -> let plan = checked-foreign-plan binding in
         ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim parallel-prefix -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim wasm32 -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim parallel-prefix -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 -> groups
   -- Whether this emission counts references (`--no-reclaim` and
   -- `CINCH_RECLAIM=0` select the other arm): the one switch every
   -- ownership operation reads, so a leak-baseline build emits none of
   -- them and every block it allocates stays live until exit.
   program-reclaim :: ProgramInfo -> Bool
-  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> reclaim
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim parallel-prefix ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim parallel-prefix
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim wasm32 ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -603,10 +603,26 @@ module Bootstrap.RuntimeIr where
     if description-escaped description then
       line (with-descriptor w description) (cat ["  ", pointer, " = call ptr ", entry, "_desc(i64 ", bytes, kind-word, ", ptr ", descriptor-symbol description, ")"])
     else line w (cat ["  ", pointer, " = call ptr ", entry, "(i64 ", bytes, kind-word, ", i64 ", nat-to-string description, ")"])
-  -- The words of a static shaped block before its header: an escaped
-  -- block's descriptor address, nothing otherwise.
-  static-prefix :: Nat -> String
-  static-prefix description = if description-escaped description then cat ["i64 ptrtoint (ptr ", descriptor-symbol description, " to i64), "] else ""
+  data StaticWord where
+    StaticBits :: Nat -> StaticWord
+    StaticAddress :: String -> StaticWord
+  -- A heap word is eight bytes on every target. Wasm relocates an address
+  -- in the low four bytes, with zero in the high four (little endian).
+  static-word-type :: StaticWord -> String
+  static-word-type word = case word of StaticAddress address -> "ptr, i32"; StaticBits bits -> "i64"
+  static-word-value :: Bool -> StaticWord -> String
+  static-word-value wasm32 word = case word of
+    StaticBits bits -> cat ["i64 ", nat-to-string bits]
+    StaticAddress address -> if wasm32 then cat ["ptr ", address, ", i32 0"] else cat ["i64 ptrtoint (ptr ", address, " to i64)"]
+  static-block :: Writer -> String -> Nat -> Nat -> List StaticWord -> Writer
+  static-block w storage descriptor kind payload =
+    let header = StaticBits (static-header kind (description-field descriptor)) in
+    let body = Cons header payload in
+    let words = if description-escaped descriptor then Cons (StaticAddress (descriptor-symbol descriptor)) body else body in
+    let wasm32 = program-wasm32 (writer-program w) in
+    let values = join (map (static-word-value wasm32) words) in
+    let initializer = if wasm32 then cat ["<{ ", join (map static-word-type words), " }> <{ ", values, " }>"] else cat ["[", nat-to-string (list-length words), " x i64] [", values, "]"] in
+    global (with-descriptor w descriptor) (cat [storage, " = private unnamed_addr constant ", initializer, ", align 8"])
   static-prefix-words :: Nat -> Nat
   static-prefix-words description = if description-escaped description then 1 else 0
   -- A payload's per-word codes from its per-field classes: a wide field
@@ -1444,9 +1460,7 @@ module Bootstrap.RuntimeIr where
       let (declared, storage) = fresh planned "@closure" in
       let skip = static-prefix-words descriptor in
       let block = cat ["[", nat-to-string (4 + skip), " x i64]"] in
-      let stored = global (with-descriptor declared descriptor) (cat [storage, " = private unnamed_addr constant ", block, " [", static-prefix descriptor,
-        "i64 ", nat-to-string (static-header 2 (description-field descriptor)),
-        ", i64 ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64), i64 ", nat-to-string (list-length classes), ", i64 0], align 8"]) in
+      let stored = static-block declared storage descriptor 2 [StaticAddress (symbol (cat [name, ".app"])), StaticBits (list-length classes), StaticBits 0] in
       (stored, cat ["getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ")"])
   apply-one :: Writer -> String -> String -> (Writer, String)
   apply-one w function value =
@@ -2732,7 +2746,7 @@ module Bootstrap.RuntimeIr where
                   let (declared, storage) = fresh ready "@dictionary" in
                   let skip = static-prefix-words descriptor in
                   let block = cat ["[", nat-to-string (count + 2 + skip), " x i64]"] in
-                  let stored = global (with-descriptor declared descriptor) (cat [storage, " = private unnamed_addr constant ", block, " [", static-prefix descriptor, "i64 ", nat-to-string (static-header 3 (description-field descriptor)), ", i64 ", nat-to-string count, static-words (physical-words 0 count words), "], align 8"]) in
+                  let stored = static-block declared storage descriptor 3 (Cons (StaticBits count) (physical-words 0 count words)) in
                   let (done, result) = fresh stored "%v" in
                   line (line (line done (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ") to i64"])) (cat ["  ret i64 ", result])) "}"
                 None ->
@@ -2757,7 +2771,7 @@ module Bootstrap.RuntimeIr where
         (case static-method w d actual of
           Some parameter-classes -> (case static-closure (Span 0 0 1 1) (specialized-name (core-name d) actual) parameter-classes (demand-worker (core-name d) actual w) of
             (planned, payload) -> case static-dictionary-fields owner classes count rest planned of
-              Some (done, words) -> Some (done, Cons (physical, cat ["ptrtoint (ptr ", payload, " to i64)"]) words)
+              Some (done, words) -> Some (done, Cons (physical, payload) words)
               None -> None)
           None -> None)
       None -> None
@@ -2773,12 +2787,10 @@ module Bootstrap.RuntimeIr where
       let quiet = list-length (definition-value-dependencies w d) == 0 && list-length (opening-value-types (core-openings d)) == 0 in
       if quiet && (list-length required > 0 || list-length parameters > 0) && not (wide-type context (final-result (scheme-body (core-scheme d)))) then class-vector context (given-types required <> pattern-types parameters) else None
     None -> None
-  physical-words :: Nat -> Nat -> List (Nat, String) -> List String
+  physical-words :: Nat -> Nat -> List (Nat, String) -> List StaticWord
   physical-words index count words = if index >= count then Nil else Cons (physical-word index words) (physical-words (index + 1) count words)
-  physical-word :: Nat -> List (Nat, String) -> String
-  physical-word index words = case words of Nil -> "0"; Cons (slot, word) rest -> if slot == index then word else physical-word index rest
-  static-words :: List String -> String
-  static-words words = case words of Nil -> ""; Cons first rest -> cat [", i64 ", first, static-words rest]
+  physical-word :: Nat -> List (Nat, String) -> StaticWord
+  physical-word index words = case words of Nil -> StaticBits 0; Cons (slot, address) rest -> if slot == index then StaticAddress address else physical-word index rest
   pattern-binds :: Nat -> CorePattern -> Bool
   pattern-binds id pattern = case pattern of
     CPVar sp ty key name -> id == key
@@ -3242,8 +3254,7 @@ module Bootstrap.RuntimeIr where
     let skip = static-prefix-words descriptor in
     let storage = cat ["@empty-ctor", nat-to-string descriptor] in
     let block = cat ["[", nat-to-string (2 + skip), " x i64]"] in
-    let declared = global (with-descriptor w descriptor) (cat [storage, " = private unnamed_addr constant ", block,
-      " [", static-prefix descriptor, "i64 ", nat-to-string (static-header 1 (description-field descriptor)), ", i64 0], align 8"]) in
+    let declared = static-block w storage descriptor 1 [StaticBits 0] in
     let (ready, result) = fresh declared "%v" in
     (line ready (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block,
       ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ") to i64"]), result)
@@ -4289,8 +4300,10 @@ module Bootstrap.RuntimeIr where
   -- Every class here is an immediate baked into the body, so the emission
   -- depends only on the checked program, never on a schedule.
   par-prefix :: ProgramInfo -> String
-  par-prefix info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim parallel-prefix -> parallel-prefix
+  par-prefix info = if program-wasm32 info then "@cinch_coop_" else "@cinch_"
+  program-wasm32 :: ProgramInfo -> Bool
+  program-wasm32 info = case info of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> wasm32
   par-entry :: Writer -> String -> String
   par-entry w base = cat [par-prefix (writer-program w), base]
   -- The two result words are owned by the caller, and the pair takes the
@@ -5139,7 +5152,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True "@cinch_" in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
     let plan = inline-plan inlining definitions info in
     case settled-workers-with-plan plan definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage "internal ", builder-run code])
@@ -5237,7 +5250,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True "@cinch_" in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -5356,12 +5369,11 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-artifact artifact inlining checked provider roots =
     emit-runtime-library-artifact-for-target "" False artifact inlining checked provider roots
   emit-runtime-library-artifact-for-target :: String -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
-  emit-runtime-library-artifact-for-target header cooperative artifact inlining checked provider roots =
-    let parallel-prefix = if cooperative then "@cinch_coop_" else "@cinch_" in
+  emit-runtime-library-artifact-for-target header wasm32 artifact inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True parallel-prefix in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
     let plan = inline-plan inlining definitions info in
     case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
@@ -5387,12 +5399,11 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program-counting-mode inlining debug reclaim checked provider =
     emit-runtime-program-for-target "" False inlining debug reclaim checked provider
   emit-runtime-program-for-target :: String -> Bool -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-for-target header cooperative inlining debug reclaim checked provider =
-    let parallel-prefix = if cooperative then "@cinch_coop_" else "@cinch_" in
+  emit-runtime-program-for-target header wasm32 inlining debug reclaim checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim parallel-prefix in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of

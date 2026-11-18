@@ -110,7 +110,7 @@ def stage3_artifacts():
 
 def test_target_inputs(directory, objects, triple):
     """Build only the base library for the requested target using its pinned producer."""
-    from bootstrap_objects import ENTRY, admitted_interfaces
+    from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
 
     supported = {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
                  "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"}
@@ -123,7 +123,7 @@ def test_target_inputs(directory, objects, triple):
         raise ValueError("cross compilation requires a pinned base library producer")
     native = pinned["object"].parent
     producer = native / "cinch"
-    roots = bootstrap.ROOT / "bootstrap/library-object-roots.json"
+    roots = native / "roots.json"
     output = Path(directory) / "target-libraries" / configuration["object_sha256"] / triple
     project = output / "library"
     project.mkdir(parents=True, exist_ok=True)
@@ -142,8 +142,8 @@ def test_target_inputs(directory, objects, triple):
             document = bootstrap.read_json(metadata)
             if document.get("target") != triple:
                 raise ValueError("base library producer emitted a different target")
-            host_modules = bootstrap.read_json(native / "interfaces.json")["interfaces"]
-            package = {"modules": [{"name": row[0]} for row in host_modules]}
+            snapshot = source_snapshot(bootstrap, bootstrap.library_provider_lock())
+            package = bootstrap.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
             bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
             library = output / "library.o"
             bootstrap.write_json(config, dict(schema=1, target=triple, object=str(library),
