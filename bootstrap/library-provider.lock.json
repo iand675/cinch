@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with definition-site row-polymorphic class method contracts.",
-  "revision": "a5664d96938247c17632618293a7b303da527c47",
+  "description": "ABI 10 provider with checked sequencing class methods and container instance heads.",
+  "revision": "e4532cb571634c5289432ecf66b3176fa6b35fa2",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "671d92b9b40457380d831a7284908fd5f9db1fb521b878f99f523cc1d5d2ed08"
+  "source_sha256": "ac22bc71f4858ee53864167175cdf658738381f685a6991244eb29d7e624c87e"
 }
