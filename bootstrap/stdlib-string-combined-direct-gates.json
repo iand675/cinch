@@ -1,0 +1,74 @@
+{
+  "description": "Combined String/Bytes direct fresh embedded and explicit-provider validation",
+  "status": "direct gates passed; full compiler fixed-point gate pending",
+  "source_shadow_used": false,
+  "fresh_embedded_compiler_sha256": "96c4f542c5f9925b5a6fab25c1e0c2d38eba40987fc1eed268fac51230cc2d2a",
+  "native_compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+  "provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+  "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_sha256": {
+    "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+    "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+  },
+  "fresh_embedded_scopes": {
+    "packed_strings": 184,
+    "byte_lists": 92,
+    "deep_construction": 2,
+    "joins": 450,
+    "scalar_texts": 637,
+    "scalar_edges": 2048,
+    "complete_scalar_aggregates": 7,
+    "raw_prefixes": 154,
+    "temporary_alias_owner_controls": true
+  },
+  "consumer_opt_levels": [
+    0,
+    2
+  ],
+  "memory_limits": {
+    "ordinary_heap": "32M",
+    "poisoned_heap": "256M",
+    "stack": "8M"
+  },
+  "reports": [
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-buffer-o0.json",
+      "sha256": "c7964f7952d8674743f87446ee2bd39cc21aa17a1c1fe16bbd7ff5fd77c949a9"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-buffer-o2.json",
+      "sha256": "eb9ac27890db0d415a4b46d43b94ca83f2c7e81215fbd7fcf6af6d6f4a74326a"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-join-o0.json",
+      "sha256": "250dacd23b7938ed2842bebda1b9bfe490edf04671588804e8686c6bd0675bf9"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-join-o2.json",
+      "sha256": "6a9ce95b855b03a21b827906feeb97c1461caec317f76880683ca8c358d24f5d"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-scalar-o0.json",
+      "sha256": "8d4bf264e1486013b9ef4feaa79f936b9ef40564fc5fcae5a8bfa8cb043d64df"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-fresh-scalar-o2.json",
+      "sha256": "06d2d162a3d34f7dc52b914b1889646fa453fc527e91b499007b7d77c85cd966"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-native-construction-o0.json",
+      "sha256": "0fe23141cf7a8ecf06fd9cfe68a1b53bd631fd635965e39b4720101b7c8af6bf"
+    },
+    {
+      "path": "bootstrap/stdlib-string-combined-native-construction-o2.json",
+      "sha256": "b63f2d0e27a9225872f45491131ac9c7f6a73834b23c6f4ccd8a01870ef4a72e"
+    }
+  ],
+  "additional_native_pack_join_receipt": "bootstrap/stdlib-string-combined-native-construction-results.json",
+  "limitations": [
+    "The self-built Native compiler used here predates the changed String/Bytes source; it links only the admitted fresh provider.",
+    "A full self-built compiler chain and distribution admission for the combined source remain separate pending gates.",
+    "No performance parity claim is made by these functional gates."
+  ]
+}
