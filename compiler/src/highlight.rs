@@ -1,20 +1,14 @@
 //! Cinch syntax highlighting from the repository's tree-sitter grammar.
 //!
-//! The grammar is compiled into the compiler by `build.rs`. The generated
+//! The compiler links the grammar from its Rust binding. The generated
 //! parser is the same one the editor integration tests, so documentation
 //! output and editor output agree about what a token is.
 
 use std::sync::LazyLock;
 use regex::Regex;
 use tree_sitter::{Language, Node, Parser};
-use tree_sitter_language::LanguageFn;
 
-extern "C" {
-    fn tree_sitter_cinch() -> *const ();
-}
-
-static LANGUAGE: LazyLock<Language> =
-    LazyLock::new(|| unsafe { Language::new(LanguageFn::from_raw(tree_sitter_cinch)) });
+static LANGUAGE: LazyLock<Language> = LazyLock::new(|| Language::new(tree_sitter_cinch::LANGUAGE));
 
 fn language() -> &'static Language {
     &LANGUAGE

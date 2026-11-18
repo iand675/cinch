@@ -1,0 +1,16 @@
+[package]
+name = "tree-sitter-cinch"
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+build = "bindings/rust/build.rs"
+
+[lib]
+path = "bindings/rust/lib.rs"
+
+[dependencies]
+tree-sitter-language = "0.1"
+
+[build-dependencies]
+cc = "1"

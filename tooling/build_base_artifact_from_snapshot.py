@@ -27,7 +27,7 @@ def committed_sources(repository: Path, checkpoint: str) -> tuple[str, dict[str,
     paths = ['compiler/src', 'compiler/prelude', 'compiler/runtime/src', 'compiler/Cargo.toml',
              'compiler/Cargo.lock', 'compiler/.cargo/config.toml', 'compiler/runtime/Cargo.toml',
              'compiler/runtime/Cargo.lock', bootstrap.NATIVE_BUILD_SCRIPT]
-    paths.extend(bootstrap.NATIVE_GRAMMAR + '/' + name for name in bootstrap.NATIVE_GRAMMAR_INPUTS)
+    paths.extend(bootstrap.native_grammar_inputs(repository, revision))
     archive = subprocess.check_output(['git', '-C', str(repository), 'archive', '--format=tar', revision, *paths])
     files = {}
     with tarfile.open(fileobj=io.BytesIO(archive)) as tree:
