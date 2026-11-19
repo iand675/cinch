@@ -82,6 +82,6 @@ module Category.Applicative where
   -- because a length cannot be negative and a count that cannot be
   -- negative needs no refusal.
   replicate-m :: forall f a. using (app :: Applicative f) => Nat -> f a -> f (List a)
-  replicate-m n act = case n == 0 of
-    True -> pure Nil
-    False -> lift-a2 (\x xs -> Cons x xs) act (replicate-m (n - 1) act)
+  replicate-m n act = case n of
+    0 -> pure Nil
+    _ -> lift-a2 (\x xs -> Cons x xs) act (replicate-m (n - 1) act)
