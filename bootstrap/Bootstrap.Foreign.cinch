@@ -278,8 +278,9 @@ module Bootstrap.Foreign where
     else string-starts-with "$" operand && decimal-digits (string-slice operand 1 (string-length operand))
 
   register-call-arguments :: String -> Bool
-  register-call-arguments suffix = 1 <= string-length suffix && string-starts-with "(" suffix && string-ends-with ")" suffix &&
-    all register-call-argument (string-split-on "," (string-slice suffix 1 (string-length suffix - 1)))
+  register-call-arguments suffix = string-starts-with "(" suffix && string-ends-with ")" suffix &&
+    (let end = string-length suffix in if 1 <= end then
+      all register-call-argument (string-split-on "," (string-slice suffix 1 (end - 1))) else False)
 
   register-call-argument :: String -> Bool
   register-call-argument argument = case string-words argument of
