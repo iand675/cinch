@@ -15,6 +15,7 @@ module Bootstrap.Stage where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Char (is-ascii-upper)
   import Data.String (string-char-at)
+  import Text.Scan (string-starts-with)
   import Data.Int (int-neg)
   import Data.List (list-length, foldr)
   import Text.Lex (Span, span-start, span-end, LToken)
@@ -50,7 +51,11 @@ module Bootstrap.Stage where
       else tail
   explain-expansion-error :: List (Span, Span, String) -> Diagnostic -> Diagnostic
   explain-expansion-error sites error = let at = diagnostic-span error in let notes = expansion-notes at sites in
-    if same notes "" then error else MkDiagnostic (diagnostic-rung error) at (diagnostic-message error <> notes)
+    if same notes "" then error else
+      let message = diagnostic-message error in
+      let origin = if string-starts-with "unknown index " message || string-starts-with "unknown name " message
+            then " (the name does not resolve where this template was defined)" else "" in
+      MkDiagnostic (diagnostic-rung error) at (message <> origin <> notes)
 
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
   stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
@@ -530,7 +535,9 @@ module Bootstrap.Stage where
       other -> stage-error site "checked generator binding did not produce Unit")
     DStageEmitValue site value -> emit-stage-value checked scope site value fuel
     DEmitMacro site path tokens -> expand-declaration-call context site path tokens fuel
-    DStageEmit site template -> expand-template checked owner (scope-with-template (decls-of template) scope) fuel
+    DStageEmit site template -> case expand-template checked owner (scope-with-template (decls-of template) scope) fuel of
+      Err errors -> Err errors
+      Ok (generated, remaining) -> Ok ([DGeneratedGroup site owner "quoteDecls" (decl-spine (decl-span template) generated)], remaining)
     DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
       Err errors -> Err errors
       Ok (StageBoolean selected, remaining) -> expand-action context checked owner scope (if selected then yes else no) remaining
