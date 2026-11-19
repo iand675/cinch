@@ -4241,13 +4241,23 @@ module Bootstrap.Infer where
   hint-application-result sp ty args expected st = hint-independent-result Nil sp ty args expected st
   result-mentions-binder :: List Nat -> UType -> Bool
   result-mentions-binder binders ty = case binders of Nil -> False; Cons id rest -> contains-meta id (type-free-bound ty) || result-mentions-binder rest ty
+  -- Argument types determine the region identities on a partially applied
+  -- callback. Its open row can absorb other labels, so matching the labels
+  -- against an expected callback before seeing those arguments is premature.
+  -- check-inferred subsumes the complete result after the call.
+  hint-result-types :: Span -> UType -> UType -> Store -> Store
+  hint-result-types sp actual expected st = case actual of
+    UFunEff domain (URowJoin labels tail) result -> (case expected of
+      UFunEff input row output -> hint-result-types sp result output (hint-result-types sp domain input st)
+      other -> unify sp actual expected st)
+    other -> unify sp actual expected st
   hint-independent-result :: List Nat -> Span -> UType -> List Expr -> UType -> Store -> Store
   hint-independent-result binders sp ty args expected st = case args of
-    Nil -> if result-mentions-binder binders (normalize st ty) then st else (case normalize st expected of
+    Nil -> let actual = normalize st ty in if result-mentions-binder binders actual then st else (case normalize st expected of
       UMeta id kind -> st
-      other -> let hinted = unify sp ty expected st in
+      other -> let hinted = hint-result-types sp actual other st in
         if list-length (store-errors hinted) == list-length (store-errors st) then hinted
-        else (case refinement-view (normalize st ty) of
+        else (case refinement-view actual of
           URefine id name carrier predicate -> let base = unify sp carrier expected st in
             if list-length (store-errors base) == list-length (store-errors st) then base else st
           other -> st))
@@ -6576,6 +6586,15 @@ module Bootstrap.Infer where
         guarded-field-names families env types (clause-rows True clauses) st
       MixedFieldBinders at name -> mixed-field-error at name st
       MatrixIncomplete -> coverage-refusal sp families env types rows (clause-rows True clauses) "an argument combination" st
+  -- At the end of a definition with a closed effect signature, every
+  -- callback argument and the expected result have been checked. A remaining
+  -- flexible union tail can take its least instantiation. A rigid caller
+  -- effect and every explicit label still have to fit the declared row.
+  close-performed-tails :: Span -> UType -> Store -> Store
+  close-performed-tails sp row st = case row of
+    UMeta id KRow -> unify sp row (URow UEnd) st
+    URowJoin first second -> close-performed-tails sp second (close-performed-tails sp first st)
+    other -> st
   check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (List CorePattern) -> List CorePattern -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
   check-equation classes kinds families env locals earlier reversed ps body expected allowed st = case ps of
     Nil -> let patterns = reverse reversed in
@@ -6585,7 +6604,11 @@ module Bootstrap.Infer where
               (scoped-core-equation-facts (proof-context env st) (normalize-equation-prefix st earlier) (normalize-patterns st patterns)) env in
       (case check-required classes kinds families bound locals body expected st of
         (rhs, ss) -> let site = expr-span body in
-          let checked = include-effects site (core-effects rhs) allowed ss in
+          let performed = core-effects rhs in
+          let ready = (case normalize ss allowed of
+            URow labels -> close-performed-tails site (normalize ss performed) ss
+            other -> ss) in
+          let checked = include-effects site performed allowed ready in
           let finished = (case reversed of
             Nil -> if list-length (store-errors checked) > list-length (store-errors ss) then
               add-error site "a nullary definition must be pure" checked else checked
