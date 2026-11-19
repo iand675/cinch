@@ -101,6 +101,7 @@ module Bootstrap.Target where
   target-layout :: String -> String -> String
   target-layout machine system =
     if string-compare machine "wasm32" == 0 then "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20"
+    else if string-compare machine "powerpc64" == 0 then "E-m:e-Fi64-i64:64-i128:128-n32:64-S128-v256:256:256-v512:512:512"
     else if string-compare machine "aarch64" == 0 then
       (if string-compare system "darwin" == 0 then "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-n32:64-S128"
        else "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128")
@@ -114,7 +115,7 @@ module Bootstrap.Target where
   supported-targets :: List String
   supported-targets =
     ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+    "aarch64-unknown-linux-gnu", "powerpc64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
   has-triple :: String -> List String -> Bool
   has-triple triple triples = case triples of
@@ -136,6 +137,7 @@ module Bootstrap.Target where
     else if string-compare triple "x86_64-apple-darwin" == 0 then Some ("x86_64", "darwin", "libSystem")
     else if string-compare triple "x86_64-unknown-linux-gnu" == 0 then Some ("x86_64", "linux", "glibc")
     else if string-compare triple "aarch64-unknown-linux-gnu" == 0 then Some ("aarch64", "linux", "glibc")
+    else if string-compare triple "powerpc64-unknown-linux-gnu" == 0 then Some ("powerpc64", "linux", "glibc")
     else if string-compare triple "wasm32-unknown-unknown" == 0 then Some ("wasm32", "unknown", "none")
     else None
 
@@ -157,7 +159,7 @@ module Bootstrap.Target where
       -- The freestanding Wasm target is the one 32-bit entry in the table.
       if string-compare arch "wasm32" == 0 then
         Ok (MkTargetProfile triple triple os arch libc 32 "little" False)
-      else Ok (MkTargetProfile triple triple os arch libc 64 "little" False)
+      else Ok (MkTargetProfile triple triple os arch libc 64 (if string-compare arch "powerpc64" == 0 then "big" else "little") False)
 
   -- The profile of the machine this compiler runs on. `Bootstrap.Host` is
   -- rendered from the build host before the sources are hashed, the same

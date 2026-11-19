@@ -132,7 +132,7 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
     from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
 
     supported = {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
-                 "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"}
+                 "aarch64-unknown-linux-gnu", "powerpc64-unknown-linux-gnu", "wasm32-unknown-unknown"}
     configuration = bootstrap.read_json(Path(objects))
     if triple == "native":
         triple = configuration["target"]

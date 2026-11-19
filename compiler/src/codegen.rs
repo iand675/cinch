@@ -272,6 +272,7 @@ fn target_datalayout(profile: &crate::core::TargetProfile) -> Option<&'static st
             "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64",
             "-i128:128-n32:64-S128"
         ),
+        ("powerpc64", "linux") => "E-m:e-Fi64-i64:64-i128:128-n32:64-S128-v256:256:256-v512:512:512",
         // wasm32 (WebAssembly and WASI specification sections 2 and 8):
         // 32-bit pointers, and the funcref and externref address spaces
         // at 8 bytes.
@@ -340,6 +341,19 @@ fn emit_module(
     // must be position independent) keeps the ordinary call from the slow
     // path instead. Known tail calls under `tailcc` need no prefix data and
     // stay.
+    if profile.arch == "powerpc64" {
+        // An ELFv1 tail branch must preserve this compilation unit's TOC.
+        // Reserve musttail for the recursive calls that require constant stack.
+        let mut groups = HashMap::new();
+        for (group, recursive) in crate::core::tail_report(program).into_iter().enumerate() {
+            for name in recursive.members {
+                if emitted_symbol(&name, emit_modules) {
+                    groups.insert(name, group);
+                }
+            }
+        }
+        reg.elfv1_tail_groups = Some(groups);
+    }
     reg.tail_apply = tail_conv && !shared && profile.os != "darwin";
     reg.tail_regs = tail_regs(&profile.arch);
     if tail_conv {
@@ -1003,12 +1017,11 @@ fn emit_module(
             group,
             if private(&u.name) {
                 Some("internal")
-            } else if profile.arch == "powerpc64" && !object && !shared {
-                // Whole-program definitions bind within this executable.
-                // ELFv1 must know that a required C-convention tail call
-                // keeps the current TOC; a preemptable symbol cannot give
-                // that guarantee. Relocatable/public object linkage and
-                // shared-library export handling remain separate.
+            } else if !shared && reg.elfv1_tail_groups.as_ref().is_some_and(|groups| {
+                groups.contains_key(u.name.strip_suffix("#tail").unwrap_or(&u.name))
+            }) {
+                // Calls within the recursive group bind in this link image.
+                // Its entry points stay externally visible in a static object.
                 Some("dso_local")
             } else {
                 (object && primitive).then_some("linkonce_odr")
@@ -1239,6 +1252,8 @@ struct Registry {
     /// `tailcc` is callee-pops and costs every ordinary call into it a
     /// stack adjustment.
     tailcc: HashSet<String>,
+    /// Local recursive group identities on the ELFv1 C calling convention.
+    elfv1_tail_groups: Option<HashMap<String, usize>>,
     /// The ordinary function units this module defines, when
     /// [`Registry::tail_conv`] holds: the candidates for a `tailcc` body
     /// and a product result.
@@ -11700,6 +11715,9 @@ impl CoreEmitter<'_, '_> {
                     // call boxes beside itself in the arm below.
                     Some((unit, arity))
                         if !self.reg.tailcc.contains(&self.unit)
+                            && self.reg.elfv1_tail_groups.as_ref().is_none_or(|groups| {
+                                groups.get(&self.unit).is_some_and(|group| groups.get(&unit) == Some(group))
+                            })
                             && !self.reg.cpr.contains_key(&unit)
                             && self.reg.tail_sig(&unit, arity).1 == self.width
                             // `musttail` needs the callee's prototype to be

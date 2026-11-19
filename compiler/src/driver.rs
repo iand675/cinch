@@ -4391,8 +4391,7 @@ fn first_object_arch(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
-/// One object's architecture from its header: an ELF64 little-endian
-/// machine word or a 64-bit little-endian Mach-O CPU type.
+/// Read the machine type and byte order from the object header.
 fn object_arch(object: &[u8]) -> Option<&'static str> {
     // A Wasm module: the magic, the version, and nothing else that varies
     // by target. `wasm32` is the only architecture the format has.
@@ -4400,14 +4399,14 @@ fn object_arch(object: &[u8]) -> Option<&'static str> {
         return Some("wasm32");
     }
     if object.starts_with(b"\x7fELF") && object.len() >= 20 {
-        // Class 2 is 64-bit and data 1 is little-endian; the four
-        // supported targets are all of them.
-        if object[4] != 2 || object[5] != 1 {
+        if object[4] != 2 {
             return None;
         }
-        return match u16::from_le_bytes([object[18], object[19]]) {
-            62 => Some("x86_64"),
-            183 => Some("aarch64"),
+        let machine = [object[18], object[19]];
+        return match (object[5], machine) {
+            (1, [62, 0]) => Some("x86_64"),
+            (1, [183, 0]) => Some("aarch64"),
+            (2, [0, 21]) => Some("powerpc64"),
             _ => None,
         };
     }
@@ -5198,6 +5197,7 @@ pub const SUPPORTED_TARGETS: &[&str] = &[
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
     "aarch64-unknown-linux-gnu",
+    "powerpc64-unknown-linux-gnu",
     "wasm32-unknown-unknown",
 ];
 
@@ -5210,6 +5210,7 @@ fn triple_components(triple: &str) -> Option<(&'static str, &'static str, &'stat
         "x86_64-apple-darwin" => ("x86_64", "darwin", "libSystem"),
         "x86_64-unknown-linux-gnu" => ("x86_64", "linux", "glibc"),
         "aarch64-unknown-linux-gnu" => ("aarch64", "linux", "glibc"),
+        "powerpc64-unknown-linux-gnu" => ("powerpc64", "linux", "glibc"),
         "wasm32-unknown-unknown" => ("wasm32", "unknown", "none"),
         _ => return None,
     })
@@ -5242,10 +5243,8 @@ fn profile_of_triple(triple: &str) -> Result<crate::core::TargetProfile> {
     profile.os = os.to_string();
     profile.arch = arch.to_string();
     profile.libc = libc.to_string();
-    // Every native triple in the table is 64-bit and little-endian; a
-    // 32-bit or big-endian one joins with its own values here.
     profile.word_size = 64;
-    profile.endian = "little".to_string();
+    profile.endian = if arch == "powerpc64" { "big" } else { "little" }.into();
     Ok(profile)
 }
 

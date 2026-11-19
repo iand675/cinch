@@ -147,7 +147,8 @@ fn every_supported_triple_builds_a_profile_from_the_triple_alone() {
         // the host, which is what this test is about.
         let words = if triple.starts_with("wasm32") { 32 } else { 64 };
         assert_eq!(p.word_size, words, "{triple} carries the word width its triple names");
-        assert_eq!(p.endian, "little", "{triple} is little-endian");
+        let endian = if triple.starts_with("powerpc64-") { "big" } else { "little" };
+        assert_eq!(p.endian, endian, "{triple} carries the byte order its triple names");
         assert!(!p.os.is_empty() && !p.arch.is_empty() && !p.libc.is_empty());
     }
     // The components come from the triple: one host, two operating systems
