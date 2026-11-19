@@ -4577,14 +4577,16 @@ module Bootstrap.Infer where
   strict-value-scheme eligible level env value st = if eligible && strict-value-pure value st then
     generalize-with level (\u -> env-metas env st) (core-type value) st
     else (mono (normalize st (core-type value)), Nil)
-  -- | Check strict bindings under an expected result without generalizing evaluated applications.
+  -- An evaluated RHS is monomorphic. Its unsolved dictionaries can depend
+  -- on a type fixed by a later use of the same value. Resolve them with
+  -- their captured givens once the enclosing expression has been checked.
   check-refined-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-refined-let classes kinds families env locals sp bindings body expected st = case bindings of
     EBindingsEnd s -> check classes kinds families env locals body expected st
-    EBinding s name rhs rest -> let level = store-level st in
+    EBinding s name rhs rest -> let level = store-level st in let eligible = strict-syntactic-value rhs in
       case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
-        (value, checked) -> case resolve-inventory-term False classes (env-inventory env) (env-givens env) value checked of
-          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level (strict-syntactic-value rhs) resolved ready
+        (value, checked) -> case resolve-inventory-term (not eligible) classes (env-inventory env) (env-givens env) value checked of
+          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level eligible resolved ready
     other -> term-error sp "malformed let binding spine" st
 
   -- | Bind one strict RHS under its source value restriction while retaining dependent witness scopes.
@@ -5043,10 +5045,10 @@ module Bootstrap.Infer where
   infer-let-with-expected classes kinds families env locals sp bs body wanted st = case bs of
     EBindingsEnd s -> case wanted of None -> infer classes kinds families env locals body st; Some expected -> check classes kinds families env locals body expected st
     EBinding s name rhs rest ->
-      let level = store-level st in
+      let level = store-level st in let eligible = strict-syntactic-value rhs in
       case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
-        (value, sr) -> case resolve-inventory-term False classes (env-inventory env) (env-givens env) value sr of
-          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted (strict-syntactic-value rhs) resolved sd
+        (value, sr) -> case resolve-inventory-term (not eligible) classes (env-inventory env) (env-givens env) value sr of
+          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted eligible resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
   -- | Keep an evaluated strict allocation monomorphic and retain its original mutation/effect identity.
   infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)

@@ -98,6 +98,28 @@ fn every_container_check_passes() {
 }
 
 #[test]
+fn a_later_use_fixes_one_monomorphic_hash_key() {
+    let source = r#"module Main where
+  import Data.Mutable.HashTable
+  main :: Unit ->{Mut r} Int
+  main u =
+    let t = hash-table-new () in
+    let before = hash-table-member t 3 in
+    let put = hash-table-insert t (3 :: Nat) True in
+    if before then 1 else if hash-table-member t (3 :: Nat) then 0 else 2
+"#;
+    let dir = project("mutable_inferred_hash_key", source);
+    assert_eq!(common::run(&dir, "Main.cinch"), 0);
+    common::cleanup(&dir);
+
+    let mixed = source.replace("else if hash-table-member t (3 :: Nat)", "else if hash-table-member t True");
+    let dir = project("mutable_conflicting_hash_keys", &mixed);
+    let error = common::check(&dir, "Main.cinch").expect_err("all uses share one hash-key type");
+    common::cleanup(&dir);
+    assert!(error.contains("Nat") && error.contains("Bool"), "{error}");
+}
+
+#[test]
 fn the_facade_reexports_every_container() {
     // One import, `Data.Mutable`, reaches every container's vocabulary.
     let main = r#"
