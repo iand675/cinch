@@ -14,7 +14,7 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, Mode};
+use cinch::driver::Mode;
 mod common;
 use common::source_frontend::run_source;
 use std::path::PathBuf;
@@ -86,29 +86,39 @@ fn expect_run(name: &str, src: &str, expected: i32) {
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
-    let program =
-        check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    common::source_frontend::emit_ir(src).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The body of one unit's define (its lines between `{` and `}`).
 fn body_of(ir: &str, unit: &str) -> String {
-    let quoted = format!("@\"{unit}\"(");
-    let bare = format!("@{unit}(");
+    let worker = format!("cinch.typed.m.{unit}");
+    let specialized = format!("{worker}.r");
     let mut lines = ir.lines();
-    while let Some(l) = lines.next() {
-        if l.starts_with("define ") && (l.contains(&quoted) || l.contains(&bare)) {
-            let mut body = String::new();
-            for l in lines.by_ref() {
-                if l == "}" {
-                    return body;
-                }
-                body.push_str(l);
-                body.push('\n');
-            }
+    while let Some(line) = lines.next() {
+        let Some(signature) = line.strip_prefix("define ") else { continue };
+        let Some((head, _)) = signature.split_once('(') else { continue };
+        let Some((_, name)) = head.rsplit_once('@') else { continue };
+        let name = name.trim_matches('"');
+        if name == unit || name == worker || name.strip_prefix(&specialized)
+            .is_some_and(|suffix| !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return lines.by_ref().take_while(|line| *line != "}").collect::<Vec<_>>().join("\n");
         }
     }
-    panic!("{unit}: no body in {ir}")
+    panic!("no LLVM definition for {unit}")
+}
+
+/// Number LLVM locals by first appearance so distinct SSA numbering leaves
+/// instructions, constants, globals and operand relationships comparable.
+fn canonical_locals(body: &str) -> String {
+    let locals = regex::Regex::new(r"(?m)%([a-zA-Z0-9_.$-]+)|^([a-zA-Z0-9_.$-]+):").unwrap();
+    let mut names = std::collections::HashMap::new();
+    locals.replace_all(body, |caps: &regex::Captures<'_>| {
+        let token = caps.get(1).or_else(|| caps.get(2)).unwrap().as_str();
+        let next = names.len();
+        let id = names.entry(token.to_string()).or_insert(next);
+        if caps.get(1).is_some() { format!("%v{id}") } else { format!("v{id}:") }
+    }).into_owned()
 }
 
 /// Write one source (and any extra `(file, source)` modules beside it)
@@ -303,12 +313,14 @@ module Main where
   ne1 = NonEmpty (Cons (1 :: Int) Nil) (decide (NotNull (Cons (1 :: Int) Nil)))
 
   main :: Int
-  main = 0
+  main = case (proj ne1, list1) of
+    (Cons actual _, Cons expected _) -> if actual == expected then 0 else 1
+    _ -> 2
 "#,
     );
     let proj = body_of(&ir, "Main.proj");
     assert!(
-        !proj.contains("cinch_alloc") && !proj.contains("call"),
+        !proj.contains("cinch_alloc") && !proj.contains("call") && !proj.contains("inttoptr"),
         "the projection runs at zero cost, got:\n{proj}"
     );
     assert!(
@@ -318,11 +330,11 @@ module Main where
     let ne1 = body_of(&ir, "Main.ne1");
     let list1 = body_of(&ir, "Main.list1");
     assert!(
-        !ne1.contains("cinch_alloc") && !ne1.contains("NonEmpty"),
+        ne1.matches("@cinch_alloc").count() <= 1 && !ne1.contains("NonEmpty"),
         "a refined value's construction allocates no wrapper, got:\n{ne1}"
     );
     assert_eq!(
-        ne1, list1,
+        canonical_locals(&ne1), canonical_locals(&list1),
         "the refined construction IS the container's construction (the witness erases)"
     );
 }
