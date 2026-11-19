@@ -15,6 +15,7 @@ module Bootstrap.Typing where
   import Bootstrap.Nominal (interface-global, global-data-string-string, global-data-core-list)
   import Bootstrap.Builtin (array-type-name, cell-type-name)
   import Text.Lex (Span)
+  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
@@ -921,29 +922,39 @@ module Bootstrap.Typing where
     (UsageOne, Some (1, 1)) -> True
     (UsageAffine, Some (low, high)) -> high <= 1
     other -> False
-  -- A strict alias moves the value. The source must satisfy its own
-  -- obligation and the new binding inherits the same obligation.
-  aliases-use-allowed :: TypingContext -> ArrowUsage -> Nat -> CoreTerm -> Bool
-  aliases-use-allowed context usage id term = case term of
-    CLet sp ty key name sc (CLocal at carrier original display Nil) body ->
-      (if id == original then use-count-fits usage (use-count (ResumingContext context empty-row) key body) && aliases-use-allowed context usage key body else True)
-        && aliases-use-allowed context usage id body
-    other -> alias-children-allowed context usage id (runtime-term-children term)
-  alias-children-allowed :: TypingContext -> ArrowUsage -> Nat -> List CoreTerm -> Bool
-  alias-children-allowed context usage id children = case children of
-    Nil -> True
-    Cons first rest -> aliases-use-allowed context usage id first && alias-children-allowed context usage id rest
-  pattern-aliases-allowed :: TypingContext -> ArrowUsage -> CorePattern -> CoreTerm -> Bool
-  pattern-aliases-allowed context usage pattern body = case pattern of
-    CPVar sp ty id name -> aliases-use-allowed context usage id body
-    CPErasedValue sp ty id name -> aliases-use-allowed context usage id body
-    CPAs sp ty id name (CPWild at carrier) -> aliases-use-allowed context usage id body
-    other -> True
+  -- A record projection elaborates to one constructor match returning its
+  -- generated field binder. Follow only that binder back to the actual place.
+  copies-place :: Nat -> CoreTerm -> Bool
+  copies-place id value = case value of
+    CLocal sp ty key name actuals -> id == key
+    CCase sp ty source (CAlternative at pattern (CLocal field-sp field-ty key name Nil) (CAlternativesEnd end)) ->
+      string-starts-with "#record-field:" name && task-id-present key (task-pattern-ids pattern) && copies-place id source
+    other -> False
+  -- A strict alias moves the value and inherits the original use obligation.
+  alias-usage-error :: TypingContext -> ArrowUsage -> Nat -> CoreTerm -> Option (Span, String)
+  alias-usage-error context usage id term = case term of
+    CLet sp ty key name sc (CLocal at carrier original display Nil) body | id == original ->
+      let count = use-count (ResumingContext context empty-row) key body in
+      if not (use-count-fits usage count) then Some (sp, usage-message usage <> usage-detail count)
+      else (case alias-usage-error context usage key body of
+        Some error -> Some error
+        None -> alias-usage-error context usage id body)
+    CPrimitive sp ty name (CArgument at value (CArgumentsEnd end)) | same name "copy-out" ->
+      case borrow-type-parts (task-base (core-type value)) of
+        None -> if copies-place id value then Some (sp, "multiplicity " <> arrow-usage-text usage <> ": copyOut would duplicate a restricted value")
+          else alias-usage-error context usage id value
+        Some borrowed -> alias-usage-error context usage id value
+    other -> alias-children-error context usage id (runtime-term-children term)
+  alias-children-error :: TypingContext -> ArrowUsage -> Nat -> List CoreTerm -> Option (Span, String)
+  alias-children-error context usage id children = case children of
+    Nil -> None
+    Cons first rest -> case alias-usage-error context usage id first of
+      Some error -> Some error
+      None -> alias-children-error context usage id rest
   pattern-usage-allowed :: TypingContext -> UType -> CorePattern -> CoreTerm -> Bool
-  pattern-usage-allowed context function pattern body = case function of
-    UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (pattern-type pattern)
-    UUsageArrow usage arrow -> use-count-fits usage (pattern-use-count context pattern body) && pattern-aliases-allowed context usage pattern body
-    other -> True
+  pattern-usage-allowed context function pattern body = case pattern-usage-error context (Span 0 0 1 1) function pattern body of
+    None -> True
+    Some error -> False
   annotated-arrow :: UType -> Bool
   annotated-arrow ty = case ty of UUsageArrow usage arrow -> True; other -> False
   -- The observed use count, named the way a reader counts uses: never,
@@ -963,11 +974,17 @@ module Bootstrap.Typing where
     UsageMany -> "multiplicity %many: the argument needs structural Share evidence"
   pattern-usage-error :: TypingContext -> Span -> UType -> CorePattern -> CoreTerm -> Option (Span, String)
   pattern-usage-error context sp function pattern body = case function of
-    UUsageArrow usage arrow -> if pattern-usage-allowed context function pattern body then None else
+    UUsageArrow usage arrow ->
       let site = case pattern of CPVar at ty id name -> at; CPErasedValue at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
+      if (case usage of UsageMany -> True; other -> False) then (if task-shareable context Nil 64 (pattern-type pattern) then None
+        else Some (site, usage-message usage <> usage-detail (pattern-use-count context pattern body))) else
       let count = pattern-use-count context pattern body in
-      let detail = if use-count-fits usage count then "" else usage-detail count in
-      Some (site, string-concat (usage-message usage) detail)
+      if not (use-count-fits usage count) then Some (site, usage-message usage <> usage-detail count)
+      else (case pattern of
+        CPVar at ty id name -> alias-usage-error context usage id body
+        CPErasedValue at ty id name -> alias-usage-error context usage id body
+        CPAs at ty id name (CPWild inner carrier) -> alias-usage-error context usage id body
+        other -> None)
     other -> None
   -- Before a guard commits to this equation, a later equation can still
   -- receive the same argument. An owned argument cannot move on that path.
