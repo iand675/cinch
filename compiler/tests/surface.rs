@@ -232,6 +232,23 @@ fn range_literals_desugar_through_the_enum_class() {
 }
 
 #[test]
+fn range_syntax_keeps_the_library_builders_when_local_functions_shadow_them() {
+    let dir = write_project(&[(
+        "Main.cinch",
+        r#"module Main where
+  enum-from-to :: Int -> Int -> List Int
+  enum-from-to lo hi = []
+  enum-from-then-to :: Int -> Int -> Int -> List Int
+  enum-from-then-to lo next hi = []
+  main :: Int
+  main = let from-list :: List Int -> List Int; from-list ignored = [] in
+    if length ([1..3] :: List Int) == 3 && length ([6,4..2] :: List Int) == 3 then 42 else 0
+"#,
+    )]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run shadowed ranges"), 42);
+}
+
+#[test]
 fn range_literal_folds_when_stage_known() {
     // Constant endpoints fold through the D92 evaluator to a constant
     // value (the boundary records it); runtime endpoints keep the class

@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with checked one-shot callbacks, regional and nominal contracts, and big-endian PowerPC64 objects.",
-  "revision": "bd6593d7fed03cb968eb109f3bc1a8c767c308d1",
+  "description": "ABI 10 provider with checked numeric Enum dictionaries, regional and nominal contracts, and big-endian PowerPC64 objects.",
+  "revision": "af50d1647371d789c61a31bf064b7fa299a34383",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "42b0d68b0fde818aaa383b8ea7566e70bc66839419e04b39c631562486c2d432"
+  "source_sha256": "9e1639c8af966917d19779a257d330527d0482d26f957e4e15b32412111a149a"
 }

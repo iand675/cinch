@@ -556,6 +556,7 @@ module Bootstrap.Eval where
     ELitFloat s text -> fail s "unsupported expression: float literal"
     ETuple s xs -> eval-tuple globals env s xs
     EList s xs -> fail s "unsupported expression: list literal"
+    ERange s xs -> fail s "unsupported expression: range literal"
     EForall s vs body -> fail s "unsupported expression: forall"
     EUsing s bounds body -> fail s "unsupported expression: implicit using"
     EBind s n rhs -> fail s "unsupported expression: bind statement"

@@ -473,6 +473,7 @@ module Bootstrap.Check where
       True -> case infer-tuple-fields env (exprs-of xs) of
         (fields, ds) -> (TyTuple fields, ds)
     EList s xs -> (TyHole, fail s "unsupported expression: list literal")
+    ERange s xs -> (TyHole, fail s "unsupported expression: range literal")
     ELitFloat s text -> (TyHole, fail s "unsupported expression: float literal")
     EArg s x rest -> (TyHole, fail s "unsupported expression: argument spine cell")
     EArgsEnd s -> (TyHole, fail s "unsupported expression: argument spine end")

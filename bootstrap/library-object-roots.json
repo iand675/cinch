@@ -231,6 +231,14 @@
     {
       "classes": "",
       "symbol": "Effect.Stm.Alternative_STM"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Int.Enum_Int"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.Enum_Nat"
     }
   ],
   "methods": [
@@ -1778,6 +1786,30 @@
     {
       "classes": "OO",
       "symbol": "Data.Result.option-to-result"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Enum.enum-from-then-to"
     }
   ]
 }

@@ -2844,10 +2844,21 @@ module Bootstrap.Parse where
       Cons t2 rest2 -> case lt-token t2 of
         TPunct q ->
           if string-compare q "," == 0 then list-items sp rest2 src fix (Cons e acc)
+          else if string-compare q ".." == 0 then (case acc of
+            Nil -> range-end sp [e] rest2 src fix
+            Cons first Nil -> range-end sp [first, e] rest2 src fix
+            other -> PBad)
           else if string-compare q "]" == 0 then POk (EList sp (expr-spine sp (reverse (Cons e acc)))) rest2
           else PBad
         _ -> PBad
       Nil -> PBad
+    PBad -> PBad
+
+  range-end :: Span -> List Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  range-end sp prefix toks src fix = case parse-expr toks src fix of
+    POk last rest -> (case expect-punct-t rest "]" of
+      POk close tail -> POk (ERange (span-join sp close) (expr-spine sp (prefix <> [last]))) tail
+      PBad -> PBad)
     PBad -> PBad
 
   parse-unmodeled-atom :: List LToken -> Bytes -> String -> Ps Expr
