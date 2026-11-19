@@ -3,12 +3,13 @@
 module Bootstrap.Kinds where
   import Bootstrap.Type
   import Bootstrap.Index
+  import Data.Char (is-ascii-alpha-numeric)
   import Text.Lex (Span)
 
   export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme, add-value-parameter
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
   export nominal-kinds-closed, add-rigid-kind, constructor-index-key
-  export proper-type, argument-well-formed
+  export proper-type, argument-well-formed, symbolic-effect-spelling
   export borrow-scope-conflict, open-memo-region, in-memo-region
 
   data TypeScope where
@@ -223,16 +224,31 @@ module Bootstrap.Kinds where
     UArg first rest -> row-label-well-formed kinds scope first && row-labels-well-formed kinds scope rest
     other -> False
 
-  -- | Admit the exact mutation effect under its registered ownership name and a scoped Region argument.
-  -- The same spelling remains a two-argument ownership constructor everywhere
-  -- outside a row. An annotation alone cannot register either interpretation.
+  -- A symbolic label has no operations or declaration identity. Accept a bare
+  -- constructor spelling only inside a row, with at most one scoped Region.
+  symbolic-effect-spelling :: String -> Bool
+  symbolic-effect-spelling name = case unpack name of
+    Cons first rest -> char-code first >= 65 && char-code first <= 90 && symbolic-effect-tail rest
+    Nil -> False
+
+  symbolic-effect-tail :: List Char -> Bool
+  symbolic-effect-tail chars = case chars of
+    Nil -> True
+    Cons ch rest -> (is-ascii-alpha-numeric ch || char-code ch == 95 || char-code ch == 45 || char-code ch == 39) && symbolic-effect-tail rest
+
   row-label-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
   row-label-well-formed kinds scope label = case label of
     UApp (UCon name actual) region -> if same name "Mut" then
       kind-equal actual (KFun KRegion KEffect)
         && kind-equal (type-kind region) KRegion && type-well-formed kinds scope region
         && (case lookup-kind "Mut" kinds of Some declared -> kind-equal declared borrow-constructor-kind; None -> False)
-      else type-well-formed kinds scope label
+      else (case lookup-kind name kinds of
+        Some declared -> type-well-formed kinds scope label
+        None -> symbolic-effect-spelling name && kind-equal actual (KFun KRegion KEffect)
+          && kind-equal (type-kind region) KRegion && type-well-formed kinds scope region)
+    UCon name KEffect -> (case lookup-kind name kinds of
+      Some declared -> kind-equal declared KEffect
+      None -> symbolic-effect-spelling name)
     other -> type-well-formed kinds scope label
   scheme-type-scope :: List (String, Kind) -> TypeScope -> List Quant -> Option TypeScope
   scheme-type-scope kinds scope qs = case qs of

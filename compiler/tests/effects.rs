@@ -27,6 +27,23 @@ fn expect_err(name: &str, src: &str, needle: &str) {
     }
 }
 
+#[test]
+fn symbolic_effect_labels_check_their_region_without_declaring_operations() {
+    let source = r#"module Main where
+  invoke :: forall r. (Unit ->{Observe r, Audit} Int) ->{Observe r, Audit} Int
+  invoke action = action ()
+  main :: Int
+  main = 0
+"#;
+    check_sources(source, "symbolic-region.cinch").unwrap();
+    for (label, source) in [
+        ("non-region", source.replace("forall r.", "forall (r :: Type).")),
+        ("unresolved owner", source.replace("Observe r", "Missing.Observe r")),
+    ] {
+        assert!(check_sources(&source, "invalid-symbolic-region.cinch").is_err(), "{label}");
+    }
+}
+
 // ---------------------------------------------------------------- handlers
 
 #[test]

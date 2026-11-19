@@ -4,6 +4,7 @@
 module Bootstrap.Infer where
 
   import Bootstrap.Ast
+  import Bootstrap.Kinds (symbolic-effect-spelling)
   import Bootstrap.Type
   import Bootstrap.Foreign (ForeignPlan, foreign-plan, foreign-document, primitive-plan)
   import Bootstrap.Index
@@ -1399,6 +1400,11 @@ module Bootstrap.Infer where
     TArg s label rest -> case convert-effect kinds locals label st of
       (out, checked) -> case convert-effects kinds locals rest checked of (more, done) -> (UArg out more, done)
     other -> bad (type-expr-span labels) "malformed effect label spine" st
+  -- A bare capability in a row may be symbolic, even when it has no
+  -- operation table. Operations and qualified names still require a declaration.
+  symbolic-effect-name :: TypeContext -> String -> Bool
+  symbolic-effect-name kinds name = symbolic-effect-spelling name && (case context-kind name kinds of None -> True; Some declared -> False)
+
   convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effect kinds locals label st = case label of
     TName s name -> if (same name "#kernel.MVar" && cell-effect-name "MVar") || (same name "#kernel.STM" && cell-effect-name "STM") then (UCon name KEffect, st)
@@ -1406,9 +1412,9 @@ module Bootstrap.Infer where
         Some KEffect -> convert-declared-effect kinds locals label st
         other -> (UCon ("#kernel." <> name) KEffect, st))
       else if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
-      else convert-declared-effect kinds locals label st
+      else if symbolic-effect-name kinds name then (UCon name KEffect, st) else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then (case lookup-local region locals of
+      if has name ["IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] || symbolic-effect-name kinds name then (case lookup-local region locals of
         Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
           else bad r "effect argument must have kind Region" st
         None -> bad r "unbound effect region" st)
@@ -1639,8 +1645,15 @@ module Bootstrap.Infer where
     TBound sp name annotation rest -> nominal-region-names kinds params annotation <> nominal-region-names kinds params rest
     TArg sp first rest -> nominal-region-names kinds params first <> nominal-region-names kinds params rest
     TTuple sp fields -> nominal-region-names kinds params fields
-    TRow sp labels tail -> nominal-region-names kinds params labels
+    TRow sp labels tail -> row-region-names kinds params labels
     TForall sp binders body -> unshadowed-region-names (nominal-region-names kinds params body) (parameter-names-for-check (forall-params-of binders))
+    other -> Nil
+
+  row-region-names :: TypeContext -> List TypeParam -> TypeExpr -> List String
+  row-region-names kinds params labels = case labels of
+    TArg at (TApp sp (TName head name) (TArg pos (TName arg region) (TArgsEnd end))) rest | symbolic-effect-name kinds name ->
+      Cons region (row-region-names kinds params rest)
+    TArg at label rest -> nominal-region-names kinds params label <> row-region-names kinds params rest
     other -> Nil
 
   -- | Infer a family's parameters across all of its defining signatures.
