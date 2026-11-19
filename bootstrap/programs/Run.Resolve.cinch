@@ -51,7 +51,7 @@ module Main where
     , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
     , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = A.add 1\n", "name is not in scope: A.add")
     , (string-concat library "module Main where\n  import A (add as bump)\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
-    , (string-concat library "module Main where\n  import A (missing)\n  main :: Int\n  main = 0\n", "A has no exported member: missing")
+    , (string-concat library "module Main where\n  import A (missing)\n  main :: Int\n  main = 0\n", "`A` has no member `missing` to import (as `missing`)")
     , ("module A where\n  value :: Int\n  value = 1\nmodule B where\n  value :: Int\n  value = 2\nmodule Main where\n  import A\n  import B\n  main :: Int\n  main = 0\n", "the name `value` is imported from both A and B: rename one (a selection like `import B (value as ...)`) or leave one out (`import B hiding (value)`)")
     -- A hidden name is out of scope under the module's qualifier as well, and
     -- the refusal names the hidden spelling rather than the whole reference.
@@ -64,7 +64,7 @@ module Main where
     , ("module Main where\n  main :: Int\n  main = 0\nmodule Main where\n  other :: Int\n  other = 1\n", "duplicate module: Main")
     , (string-concat library "module B where\n  import A (add)\nmodule Main where\n  import B\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
     , ("module A where\n  export T\n  data T where\n    Private :: T\nmodule Main where\n  import A\n  main :: Int\n  main = case Private of _ -> 0\n", "name is not in scope: Private")
-    , (string-concat library "module Main where\n  import A\n  export A.private\n  main :: Int\n  main = 0\n", "name is not in scope to export: A.private")
+    , (string-concat library "module Main where\n  import A\n  export A.private\n  main :: Int\n  main = 0\n", "`A.private` is not a name in scope to export")
     , ("module Main where\n  main :: Int\n  main = with (io = io) in 0\n", "name is not in scope: io")
     , ("module Main where\n  f :: Int -> Int\n  f x = with (io = x) in io\n  main :: Int\n  main = io\n", "name is not in scope: io")
     , ("module Main where\n  foreign export ccall \"unknown\" missing :: Int -> Int\n  main :: Int\n  main = 0\n", "name is not in scope: missing")

@@ -485,7 +485,7 @@ module Main where
     <> (one (MkCheck "fixity" fixity-program "bootstrap.check:4:3: fixity declarations are not supported in this rung\n"))
     <> (one (MkCheck "operator" operator-program "bootstrap.check:5:11: unsupported operator: &&\n"))
     <> (one (MkCheck "expression" expression-program "bootstrap.check:5:11: unsupported expression: float literal\n"))
-    <> (one (MkCheck "missing-polymorphic-body" type-form-program "bootstrap.check:4:3: signature has no definition: id\n"))
+    <> (one (MkCheck "missing-polymorphic-body" type-form-program "bootstrap.check:4:3: missing defining equation for id\n"))
     <> (one (MkCheck "pattern" pattern-program "bootstrap.check:10:5: unsupported pattern: list literal\n"))
     <> (one (MkCheck "unknown-ctor" unknown-ctor-program "bootstrap.check:10:5: unknown constructor: Qz\n"))
     <> (one (MkCheck "ctor-arity" ctor-arity-program "bootstrap.check:11:5: arity mismatch: constructor Ps: declared arity 1, used arity 2\n"))

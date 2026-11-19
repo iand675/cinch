@@ -1998,7 +1998,8 @@ module Bootstrap.Infer where
     Cons b rest -> if position == 0 then Some b else binding-at rest (position - 1)
   add-binding :: Span -> String -> Scheme -> String -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   add-binding sp name sc role env st = case lookup-binding name env of
-    Some prior -> (env, add-error sp (string-concat "duplicate signature or constructor: " name) st)
+    Some prior -> (env, add-error sp (if same role "value" && same (checked-role prior) "value" then
+      string-concat "duplicate signature for " (diagnostic-member-name name) else string-concat "duplicate signature or constructor: " name) st)
     None -> (Cons (MkCheckedBinding name sc role) env, st)
 
   -- Length framing preserves exact defining contract identity even if
@@ -6724,7 +6725,7 @@ module Bootstrap.Infer where
           Some core -> case resolve-inventory-definition classes (env-inventory env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
               (hash-map-insert name 0 seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
-    DSig s name ty -> (seen, None, if indexed name clauses then st else add-error s (string-concat "signature has no definition: " name) st)
+    DSig s name ty -> (seen, None, if indexed name clauses then st else add-error s (string-concat "missing defining equation for " (diagnostic-member-name name)) st)
     other -> (seen, None, st)
   -- Every equation of each defined name, in declaration order (what
   -- function-clauses collects), indexed once per body pass.

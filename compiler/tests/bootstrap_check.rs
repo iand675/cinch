@@ -61,7 +61,7 @@ bootstrap.check:5:11: unsupported operator: &&
 expression:
 bootstrap.check:5:11: unsupported expression: float literal
 missing-polymorphic-body:
-bootstrap.check:4:3: signature has no definition: id
+bootstrap.check:4:3: missing defining equation for id
 pattern:
 bootstrap.check:10:5: unsupported pattern: list literal
 unknown-ctor:

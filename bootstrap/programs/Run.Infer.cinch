@@ -67,7 +67,7 @@ module Main where
     , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first (Link x xs) = x\n  main :: Int\n  main = 0\n", "non-exhaustive")
     , ("module Main where\n  same-value :: forall a. a -> Bool\n  same-value x = x == x\n  main :: Int\n  main = 0\n", "Eq dictionary")
     , (string-concat identity-source "  helper x = x\n  main :: Int\n  main = 0\n", "no signature")
-    , ("module Main where\n  identity :: forall a. a -> a\n", "signature has no definition")
+    , ("module Main where\n  identity :: forall a. a -> a\n", "missing defining equation for identity")
     , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first xs = case xs of End -> 0; Link x rest -> x\n  main :: Int\n  main = 0\n", "type mismatch")
     , ("module Main where\n  bad :: forall a. using (io :: Io r) => a -> a\n  bad x = x\n  main :: Int\n  main = 0\n", "checked signature type")
     , (string-concat identity-source "  bad :: Int -> Int\n  bad x = x / 0\n  main :: Int\n  main = 0\n", "division needs checked NonZero evidence for its divisor")

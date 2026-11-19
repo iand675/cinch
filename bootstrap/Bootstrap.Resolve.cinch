@@ -251,7 +251,7 @@ module Bootstrap.Resolve where
     Nil -> (Nil, Nil)
     Cons (name, alias) rest -> case select-members sp path rest surface of
       (others, errors) -> case lookup-binding name surface of
-        None -> (others, fail sp (cat [path, " has no exported member: ", name]) <> errors)
+        None -> (others, fail sp (cat ["`", path, "` has no member `", name, "` to import (as `", (case alias of None -> name; Some renamed -> renamed), "`)"]) <> errors)
         Some (MkBinding visible owner symbol) ->
           (Cons (MkBinding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
 
@@ -382,7 +382,7 @@ module Bootstrap.Resolve where
     Cons item rest -> case item of
       ExportName s parts -> case lookup-binding (join-parts parts) visible of
         None -> case build-exports rest visible views acc of
-          (entries, errors) -> (entries, fail s (cat ["name is not in scope to export: ", join-parts parts]) <> errors)
+          (entries, errors) -> (entries, fail s (cat ["`", join-parts parts, "` is not a name in scope to export"]) <> errors)
         Some (MkBinding name home symbol) -> case add-exports s (Cons (MkBinding (last-part parts) home symbol) Nil) acc of
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
