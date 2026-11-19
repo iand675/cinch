@@ -1,7 +1,6 @@
 //! Typed JSON descriptors, record metadata, conversion errors and bounded ownership.
 mod common;
 
-use cinch::driver::Mode;
 
 /// Select explicit project retention without changing the default test lifetime.
 fn keep_qualification_projects() -> bool {
@@ -194,15 +193,8 @@ fn run(source: &str) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(executable.clone()),
-        &profile,
-    )
-    .unwrap();
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &executable, &profile)
+        .unwrap();
     let mut qualified_runs = Vec::new();
     for debug in [false, true] {
         let result = std::process::Command::new(&executable)
