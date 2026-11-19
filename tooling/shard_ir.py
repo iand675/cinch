@@ -34,8 +34,8 @@ so the profile-use relink replays exactly that command.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 import concurrent.futures
-import hashlib
 import heapq
 import json
 import os
@@ -45,6 +45,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+
+from pgo import file_digest
 
 # Definition-only words on a `define` line. A declaration has no linkage, so
 # they are removed when the signature is reused for a `declare`.
@@ -426,7 +429,8 @@ def _assignment(module: Module, count: int) -> list[int]:
     loads[0] += sum(unit.lines() for unit in module.globals)
     loads[0] += sum(line.count("\n") or 1 for line in module.metadata)
     loads[0] += sum(line.count("\n") or 1 for line in module.other)
-    total = sum(unit.lines() for unit in module.functions)
+    line_counts = [unit.lines() for unit in module.functions]
+    total = sum(line_counts)
     share = max(1, -(-total // count))
     groups: dict[str, list[int]] = {}
     for index, unit in enumerate(module.functions):
@@ -437,13 +441,13 @@ def _assignment(module: Module, count: int) -> list[int]:
         target = min(range(count), key=lambda k: (loads[k], k))
         for index in chunk:
             shards[index] = target
-        loads[target] += sum(module.functions[index].lines() for index in chunk)
+        loads[target] += sum(line_counts[index] for index in chunk)
 
     for group in sorted(groups):
         chunk: list[int] = []
         size = 0
         for index in groups[group]:
-            lines = module.functions[index].lines()
+            lines = line_counts[index]
             if chunk and size + lines > share:
                 place(chunk)
                 chunk, size = [], 0
@@ -463,29 +467,31 @@ def split_module(text: str, count: int) -> list[str]:
         raise ShardError("shard count must be positive")
     if count == 1:
         return [text]
-    module = parse_module(text)
+    return ["".join(parts) for parts in _shard_parts(parse_module(text), count)]
+
+
+def _shard_parts(module: Module, count: int) -> Iterator[list[str]]:
+    """Yield references to the original IR blocks for one shard at a time."""
     shard_of_function = _assignment(module, count)
-    header = "".join(module.header)
-    content = ("" if module.has_metadata_attachments else "".join(module.metadata))
     definitions: dict[str, Unit] = {unit.name: unit for unit in module.functions}
     definitions.update({unit.name: unit for unit in module.globals})
     per_shard: list[list[Unit]] = [[] for _ in range(count)]
     for unit, shard in zip(module.functions, shard_of_function):
         per_shard[shard].append(unit)
-    shards: list[str] = []
     for shard in range(count):
-        parts = [header]
+        parts = module.header.copy()
         defined = {unit.name for unit in per_shard[shard]}
         if shard == 0:
-            parts.append(content)
-            parts.append("".join(unit.text for unit in module.globals))
-            parts.append("".join(module.other))
+            if not module.has_metadata_attachments:
+                parts.extend(module.metadata)
+            parts.extend(unit.text for unit in module.globals)
+            parts.extend(module.other)
             defined.update(unit.name for unit in module.globals)
         if module.has_metadata_attachments:
             # Numbered metadata is module scoped and `!range` attachments
             # need their definitions in the object that carries the body.
-            parts.append("".join(module.metadata))
-        parts.append("".join(unit.text for unit in per_shard[shard]))
+            parts.extend(module.metadata)
+        parts.extend(unit.text for unit in per_shard[shard])
         pending = list(references("".join(parts)) - defined)
         discovered = defined.union(pending)
         heapq.heapify(pending)
@@ -512,10 +518,9 @@ def split_module(text: str, count: int) -> list[str]:
                 declarations[symbol] = declaration_for(unit.text)
             else:
                 declarations[symbol] = external_declaration(unit)
-        parts.append("".join(copies[symbol] for symbol in sorted(copies)))
-        parts.append("".join(declarations[symbol] for symbol in sorted(declarations)))
-        shards.append("".join(parts))
-    return shards
+        parts.extend(copies[symbol] for symbol in sorted(copies))
+        parts.extend(declarations[symbol] for symbol in sorted(declarations))
+        yield parts
 
 
 def write_shards(ir_path: Path, directory: Path, count: int,
@@ -523,10 +528,18 @@ def write_shards(ir_path: Path, directory: Path, count: int,
     """Write `<stem>.shard<k>.ll`; K=1 returns the original IR untouched."""
     if count == 1:
         return [ir_path]
-    text = ir_path.read_text()
+    if count < 1:
+        raise ShardError("shard count must be positive")
+    module = parse_module(ir_path.read_text())
     paths = [directory / f"{stem}.shard{k}.ll" for k in range(count)]
-    for path, shard in zip(paths, split_module(text, count)):
-        path.write_text(shard)
+    # A later shard can still discover an invalid reference. Finish the
+    # entire split before replacing any files from a previous build.
+    with tempfile.TemporaryDirectory(dir=directory) as temporary:
+        for path, parts in zip(paths, _shard_parts(module, count)):
+            with (Path(temporary) / path.name).open("w") as output:
+                output.writelines(parts)
+        for path in paths:
+            (Path(temporary) / path.name).replace(path)
     return paths
 
 
@@ -637,7 +650,7 @@ def shard_directory(ir_path: Path) -> Path:
     instrumentation and profile use must therefore see the same shard paths,
     and a rebuilt stage must reuse the path its profile was trained under.
     """
-    fingerprint = hashlib.sha256(ir_path.read_bytes()).hexdigest()[:16]
+    fingerprint = file_digest(ir_path)[:16]
     return ir_path.parent / f".shards-{fingerprint}"
 
 

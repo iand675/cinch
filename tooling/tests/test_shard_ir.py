@@ -31,6 +31,19 @@ class ClangWrapperTests(unittest.TestCase):
 
 
 class ModuleTests(unittest.TestCase):
+    def test_invalid_later_shard_preserves_previous_outputs(self):
+        ir = "define i32 @A.f() {\n  ret i32 1\n}\ndefine i32 @B.f() {\n  ret i32 2\n}\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "program.ll"
+            path.write_text(ir)
+            outputs = shard_ir.write_shards(path, path.parent, 2)
+            expected = [output.read_bytes() for output in outputs]
+            path.write_text(ir.replace("ret i32 1", "ret i32 3").replace(
+                "ret i32 2", "%x = call i32 @missing()\n  ret i32 %x"))
+            with self.assertRaisesRegex(shard_ir.ShardError, "undefined symbol missing"):
+                shard_ir.write_shards(path, path.parent, 2)
+            self.assertEqual([output.read_bytes() for output in outputs], expected)
+
     def test_function_boundaries_and_multiline_units(self):
         for newline in ("\n", "\r\n", "\r"):
             with self.subTest(newline=newline):
