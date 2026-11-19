@@ -544,12 +544,24 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (MkScoped home surface ds) rest -> ds <> scoped-decls rest
 
+  -- C ABI spellings denote the same machine types as in the native checker.
+  -- Pointer-sized aliases retain their target-dependent width.
+  c-scalar-name :: String -> String
+  c-scalar-name name = if same name "SizeT" then "Usize" else if not (string-starts-with "C" name) then name
+    else if same name "CInt" then "I32" else if same name "CUint" then "U32"
+    else if same name "CChar" then "I8" else if same name "CUchar" then "U8"
+    else if same name "CShort" then "I16" else if same name "CUshort" then "U16"
+    else if same name "CLong" || same name "CLongLong" then "I64"
+    else if same name "CULong" || same name "CULongLong" then "U64"
+    else if same name "CSize" then "Usize" else if same name "CSsize" then "Isize"
+    else if same name "CFloat" then "F32" else if same name "CDouble" then "F64"
+    else if same name "CVoid" then "Unit" else name
   -- Type variables and dependent binders remain local. Only names in the
   -- module's visible global surface are rewritten here; the checker owns
   -- kind checking and unknown type diagnostics.
   type-name :: Visible -> List String -> String -> String
   type-name visible locals name = if has-name name locals then name else case visible-lookup name visible of
-    None -> name
+    None -> if has-name (annotation-type-local name) locals then name else c-scalar-name name
     Some b -> if has-name (annotation-type-local name) locals then name else binding-symbol b
 
   -- A term annotation can shadow a type name while the same spelling
@@ -1094,6 +1106,9 @@ module Bootstrap.Resolve where
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
+    DData s name params ctors | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
+    DRecord s name params fields | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
+    DRefine s name params binder predicate | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
     DData s name params ctors | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DRecord s name params fields | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DRefine s name params binder predicate | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
