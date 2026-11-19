@@ -2620,8 +2620,8 @@ fn write_artifacts(
     // below. The class pass and the encoding are only paid for when this
     // compile is a library producer (or the caller asked), so a check of a
     // user program does not run them.
-    let unfoldable = if write_optimisations {
-        Some(crate::simplify::unfoldable_names(program))
+    let body_index = if write_optimisations {
+        Some(crate::ifaceopt::ModuleBodyIndex::new(program, &crate::simplify::unfoldable_names(program)))
     } else {
         None
     };
@@ -2639,12 +2639,15 @@ fn write_artifacts(
             }
         }
         let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
-        match &unfoldable {
+        match &body_index {
             None => {
                 let _ = std::fs::remove_file(&opt_path);
             }
-            Some(class) => {
-                let optimisation = crate::ifaceopt::for_module_in(iface, program, class);
+            Some(index) => {
+                let contract_hash = contract_hashes.get(iface.module.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| iface.iface_hash());
+                let optimisation = index.for_contract(&iface.module, contract_hash);
                 if optimisation.bodies.is_empty() {
                     let _ = std::fs::remove_file(&opt_path);
                 } else {
