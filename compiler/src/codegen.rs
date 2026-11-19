@@ -1401,12 +1401,26 @@ impl Registry {
                 ));
             }
         }
+        // Object builds publish many units. Index their checked results once so
+        // emitting each ABI row does not rescan the entire program.
+        let primitives: HashMap<_, _> = self
+            .prims
+            .iter()
+            .map(|op| (op.symbol(), prim_sig(*op).map(|(_, ty)| sig_class(&ty))))
+            .collect();
+        let mut results: HashMap<&str, Class> = p
+            .fns
+            .iter()
+            .filter_map(|f| f.repr.result.map(|result| (f.id.0.as_str(), result)))
+            .collect();
+        for plan in &p.prims {
+            results.insert(plan.unit.as_str(), inline_prim_class(&plan.res));
+        }
         let mut names: Vec<_> = self
             .arity
             .keys()
             .filter(|name| {
-                emitted_symbol(name, emit_modules)
-                    || self.prims.iter().any(|op| op.symbol() == **name)
+                emitted_symbol(name, emit_modules) || primitives.contains_key(name.as_str())
             })
             .collect();
         names.sort();
@@ -1433,21 +1447,17 @@ impl Registry {
             if params.len() != self.arity[name] {
                 return err(format!("object ABI parameter arity mismatch for {name}"));
             }
-            let result = if self.insts.keys().any(|i| format!("{i}.mk") == *name)
-                || self.ctors.contains_key(name)
+            let result = if self.ctors.contains_key(name)
+                || name
+                    .strip_suffix(".mk")
+                    .is_some_and(|owner| self.insts.contains_key(owner))
             {
                 Some(Class::Obj)
             } else {
-                p.fns
-                    .iter()
-                    .find(|f| f.id.0 == *name)
-                    .and_then(|f| f.repr.result)
-                    .or_else(|| {
-                        self.prims
-                            .iter()
-                            .find(|op| op.symbol() == *name)
-                            .and_then(|op| prim_sig(*op).map(|(_, ty)| sig_class(&ty)))
-                    })
+                results
+                    .get(name.as_str())
+                    .copied()
+                    .or_else(|| primitives.get(name.as_str()).copied().flatten())
             };
             let mut row = vec![
                 ("symbol", J::from(name.as_str())),
@@ -1862,7 +1872,7 @@ impl Registry {
         // boundaries directly; closure frames use the ordinary wide boxing path.
         for plan in &p.prims {
             let cross = |t: &PrimAbiTy| {
-                if matches!(t, PrimAbiTy::Int { bits: 128, .. }) { Cross::WIDE } else { Cross::WORD }
+                if inline_prim_class(t) == Class::Wide { Cross::WIDE } else { Cross::WORD }
             };
             let sig = NarrowSig { params: plan.args.iter().map(cross).collect(), ret: cross(&plan.res) };
             if sig.is_wide() {
@@ -2396,6 +2406,9 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
             _ => fit(cs, arity),
         };
         out.insert(f.id.0.clone(), classes);
+    }
+    for plan in &p.prims {
+        out.insert(plan.unit.clone(), plan.args.iter().map(inline_prim_class).collect());
     }
     for (name, plan) in &p.foreigns {
         if !plan.export {
@@ -15392,6 +15405,14 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
 }
 
 // ==================== `prim` inline-body units (P18) ====================
+
+/// Representation of a checked inline primitive's scalar at its public boundary.
+fn inline_prim_class(ty: &PrimAbiTy) -> Class {
+    match ty {
+        PrimAbiTy::Int { bits: 128, .. } => Class::Wide,
+        PrimAbiTy::Int { .. } | PrimAbiTy::F32 | PrimAbiTy::F64 => Class::Raw,
+    }
+}
 
 /// The LLVM type of one prim ABI scalar (the inline fragment's widths).
 fn abi_word(t: &PrimAbiTy) -> String {
