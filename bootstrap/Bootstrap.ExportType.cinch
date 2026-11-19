@@ -290,6 +290,7 @@ module Bootstrap.ExportType where
     UIndexForget value -> type-in-style display scope value
     UIndexPromote value -> type-in-style display scope value
     UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
+    UIndexMeasure measure value -> join [Ok (string-concat-all ["(", if display then "" else "b.", index-measure-name measure, " "]), type-in-style display scope value, Ok ")"]
     UIndexStringLength value -> if display then join [Ok "(Data.String.string-length ", type-in-style display scope value, Ok ")"] else Err nonportable-string-length
     UIndexBorrowRead value -> Err "local borrow observation cannot appear in a published contract"
     UIndexConstructor name scheme UEnd -> export-global name

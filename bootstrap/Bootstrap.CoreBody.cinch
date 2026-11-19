@@ -99,6 +99,7 @@ module Bootstrap.CoreBody where
     UIndex carrier value -> dense-mix 67 (dense-type-digest carrier) (dense-index-digest value)
     UIndexForget value -> dense-mix 71 (dense-type-digest value) 0
     UIndexByteLength value -> dense-mix 73 (dense-type-digest value) 0
+    UIndexMeasure measure value -> dense-mix (case measure of WordToNat -> 353; BufferLength -> 359) (dense-type-digest value) 0
     UIndexStringLength value -> dense-mix 349 (dense-type-digest value) 0
     UIndexBorrowRead value -> dense-mix 79 (dense-type-digest value) 0
     UIndexConstructor name arrow input -> dense-mix 307 (string-length name) (dense-mix 311 (dense-type-digest arrow) (dense-type-digest input))

@@ -636,6 +636,10 @@ module Bootstrap.Resolve where
     TRefined s predicate carrier -> TRefined s (rename-predicate visible locals predicate) (rename-type visible locals carrier)
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
       TApp s (TName at name) (TArg first (rename-predicate visible locals a) (TArg second (rename-predicate visible locals b) (TArgsEnd end)))
+    -- D29 reserves these spellings in value-index applications. Keep the
+    -- operand in its lexical scope, including inside captured annotations.
+    TApp s (TName at name) args | same name "length" || same name "toNat" ->
+      TApp s (TName at name) (rename-type visible locals args)
     TApp s (TName at name) args | insertion-only-name visible locals name -> TUnmodeled s (scope-diagnostic visible (name <> " does not resolve where this template was defined"))
     TApp s head args -> TApp s (rename-type visible locals head) (rename-type visible locals args)
     TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)

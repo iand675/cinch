@@ -126,6 +126,7 @@ module Bootstrap.ExportNominal where
     UIndexForget value -> type-references value
     UIndexPromote value -> type-references value
     UIndexByteLength value -> type-references value
+    UIndexMeasure measure value -> type-references value
     UIndexStringLength value -> type-references value
     UIndexBorrowRead value -> type-references value
     -- Executable identities are emitted as checked measure contracts by
@@ -236,9 +237,9 @@ module Bootstrap.ExportNominal where
         (case template-text declarations locals input of Ok value -> Ok (string-concat "Ordered " value); Err error -> Err error)
       else if same name (global-data-core-list) then
         (case template-text declarations locals input of Ok value -> Ok (string-concat "Data.Core.List " value); Err error -> Err error)
-      else if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then
+      else if has-name name ["toNat", "#kernel.toNat", "NonZero", "length", "#kernel.length", "#kernel.bytes-length"] || primitive-observer name declarations then
         (case template-text declarations locals input of
-          Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else "b.bytesLen", " ", value, ")"])
+          Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else if has-name name ["toNat", "#kernel.toNat"] then "b.toNat" else if has-name name ["length", "#kernel.length"] then "b.length" else "b.bytesLen", " ", value, ")"])
           Err error -> Err error)
       else Err "refinement application needs its retained defining contract"
     other -> Err "refinement template has no portable checked representation"

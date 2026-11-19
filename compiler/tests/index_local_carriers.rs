@@ -68,3 +68,43 @@ fn implicit_string_length_indices_use_the_unicode_length_provider() {
 "#;
     assert_eq!(run_source(source).unwrap(), 42);
 }
+
+#[test]
+fn builtin_index_observations_pass_the_measured_value_to_the_worker() {
+    let source = r#"module Main where
+  data Mark (n :: Nat) where
+    Mark :: Mark n
+  inspect :: forall (n :: Nat). Mark n -> Int
+  inspect tag = if n == 4294967295 then 40 else if n == 3 then 2 else 0
+  word :: U32 -> Int
+  word value = inspect (Mark :: Mark (toNat value))
+  buffer :: Bytes -> Int
+  buffer value = inspect (Mark :: Mark (length value))
+  main :: Int
+  main = word 4294967295 + buffer (bytes-new 3)
+"#;
+    assert_eq!(run_source(source).unwrap(), 42);
+    for (from, to) in [("toNat value", "length value"), ("length value", "toNat value")] {
+        let error = check_sources(&source.replace(from, to), "wrong-builtin-index-carrier.cinch")
+            .expect_err("a builtin observation must check its operand carrier")
+            .to_string();
+        assert!(
+            error.contains("Bytes") || error.contains("machine integer") || error.contains("U32"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn builtin_length_and_the_byte_length_primitive_stay_distinct_in_types() {
+    let source = r#"module Main where
+  data Mark (n :: Nat) where
+    Mark :: Mark n
+  exchange :: (b :: Bytes) -> Mark (length b) -> Mark (bytes-len b)
+  exchange b value = value
+  main :: Int
+  main = 0
+"#;
+    check_sources(source, "opaque-length-index.cinch")
+        .expect_err("two executable observations cannot silently convert between indexed types");
+}

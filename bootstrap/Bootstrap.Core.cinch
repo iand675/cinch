@@ -147,6 +147,7 @@ module Bootstrap.Core where
     UIndexForget value -> effect-type-scope qs value
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
+    UIndexMeasure measure value -> effect-type-scope qs value
     UIndexStringLength value -> effect-type-scope qs value
     UIndexBorrowRead value -> effect-type-scope qs value
     UIndexConstructor name arrow input -> effect-type-scope qs arrow && effect-type-scope qs input
@@ -658,6 +659,7 @@ module Bootstrap.Core where
   index-value-terms :: Span -> UType -> List CoreTerm
   index-value-terms sp value = case value of
     UIndexByteLength input -> index-value-terms sp input
+    UIndexMeasure measure input -> index-value-terms sp input
     UIndexStringLength input -> index-value-terms sp input
     UIndexForget input -> index-value-terms sp input
     UIndexPromote input -> index-value-terms sp input
@@ -1264,6 +1266,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexMeasure measure value -> UIndexMeasure measure (freeze value)
     UIndexStringLength value -> UIndexStringLength (freeze value)
     UIndexBorrowRead value -> UIndexBorrowRead (freeze value)
     UIndexConstructor name arrow input -> UIndexConstructor name (freeze arrow) (freeze input)
@@ -1310,6 +1313,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-metas st body
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
+    UIndexMeasure measure value -> type-metas st value
     UIndexStringLength value -> type-metas st value
     UIndexBorrowRead value -> type-metas st value
     UIndexConstructor name arrow input -> type-metas st arrow <> type-metas st input
@@ -1453,6 +1457,7 @@ module Bootstrap.Core where
   closed-type ty = case ty of
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexMeasure measure value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexStringLength value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexBorrowRead value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexConstructor name arrow input -> valid-type ty && closed-type arrow && closed-type input
@@ -1681,6 +1686,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-index-scope ids Nil body
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexMeasure measure value -> type-index-scope bound rigid value
     UIndexStringLength value -> type-index-scope bound rigid value
     UIndexBorrowRead value -> type-index-scope bound rigid value
     UIndexConstructor name arrow input -> type-index-scope bound rigid arrow && type-index-scope bound rigid input
@@ -2014,6 +2020,7 @@ module Bootstrap.Core where
     UPropOrdered a -> borrow-index-regions a
     UIndexForget a -> borrow-index-regions a
     UIndexByteLength a -> borrow-index-regions a
+    UIndexMeasure measure a -> borrow-index-regions a
     UIndexStringLength a -> borrow-index-regions a
     UIndexPromote a -> borrow-index-regions a
     UIndexMath op a b -> borrow-index-regions a <> borrow-index-regions b
@@ -2995,6 +3002,9 @@ module Bootstrap.Core where
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
     UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case body-index-arguments gamma function args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
     UIndexByteLength input -> byte-observation-reading gamma input
+    UIndexMeasure measure input -> (case measure of
+      WordToNat -> typed-index-arithmetic gamma (UIndexPromote input)
+      BufferLength -> byte-observation-reading gamma input)
     UIndexStringLength input -> string-length-reading gamma input
     UIndexBorrowRead input -> borrow-observation-reading gamma input
     UIndex carrier index -> index-arithmetic gamma carrier index

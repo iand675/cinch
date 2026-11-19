@@ -699,7 +699,7 @@ module Bootstrap.Infer where
     -- The prefix `Eq a b` former is the comparison the elaborator reads as
     -- index equality, so both of its operands are in predicate scope.
     TApp sp (TName at name) (TArg s1 x (TArg s2 y (TArgsEnd end))) -> same name "Eq" && refinement-predicate-scope kinds names x && refinement-predicate-scope kinds names y
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || byte-length-binding name kinds || string-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || index-observer-name name kinds || string-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -1002,6 +1002,24 @@ module Bootstrap.Infer where
     if not (byte-length-binding name kinds) then bad sp "index expression needs checked scope, purity and totality" st
     else case convert-byte-operand external kinds locals sp argument st of
       (input, checked) -> checked-typed-source-index sp (UIndexByteLength input) checked
+  -- The builtin toNat scheme takes a U32. Its mathematical reading is
+  -- available only after checking the operand against that exact carrier.
+  builtin-index-measure :: String -> Option IndexMeasure
+  builtin-index-measure name =
+    if same name "toNat" || same name "#kernel.toNat" then Some WordToNat
+    else if same name "length" || same name "#kernel.length" then Some BufferLength
+    else None
+  index-observer-name :: String -> TypeContext -> Bool
+  index-observer-name name kinds = case builtin-index-measure name of Some measure -> True; None -> byte-length-binding name kinds
+  convert-index-application :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
+  convert-index-application external kinds locals sp name args st = case (builtin-index-measure name, args) of
+    (Some WordToNat, TArg arg input (TArgsEnd end)) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
+      (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
+    (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-byte-operand external kinds locals sp input st of
+      (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
+    (Some measure, other) -> bad sp "builtin index measure needs exactly one operand" st
+    (None, TArg arg input (TArgsEnd end)) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
+    other -> convert-total-call external kinds locals sp name args st
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
   convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
     (Nil, TArgsEnd sp) -> (UEnd, st)
@@ -1110,11 +1128,8 @@ module Bootstrap.Infer where
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TUnmodeled at message | not (same message "") -> bad at message st
-    TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
-        (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
-      other -> (case convert-total-call external kinds locals sp name arguments st of
-        (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked)))
+    TApp sp (TName at name) arguments -> (case convert-index-application external kinds locals sp name arguments st of
+      (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
     TIndex sp text -> case index-number text of
       Some n -> checked-source-index sp carrier (IInteger n) st
       None -> bad sp "index literal is not a mathematical integer" st
@@ -2377,6 +2392,7 @@ module Bootstrap.Infer where
     UIndex carrier value -> imported-cell-effect-in-type carrier
     UIndexForget body -> imported-cell-effect-in-type body
     UIndexByteLength body -> imported-cell-effect-in-type body
+    UIndexMeasure measure body -> imported-cell-effect-in-type body
     UIndexStringLength body -> imported-cell-effect-in-type body
     UIndexBorrowRead body -> imported-cell-effect-in-type body
     UIndexConstructor name arrow input -> imported-cell-effect-in-type arrow || imported-cell-effect-in-type input
@@ -4667,6 +4683,7 @@ module Bootstrap.Infer where
     UIndexPromote value -> obligation-text value
     UIndexStringLength value -> string-concat-all ["(Data.String.string-length ", obligation-text value, ")"]
     UIndexByteLength value -> string-concat-all ["(Data.Bytes.bytes-len ", obligation-text value, ")"]
+    UIndexMeasure measure value -> string-concat-all ["(", index-measure-name measure, " ", obligation-text value, ")"]
     UIndexMath op left right -> string-concat-all ["(", obligation-text left, " ", op, " ", obligation-text right, ")"]
     other -> display-type-text ty
   missing-obligation :: String -> UType -> String
@@ -4705,6 +4722,7 @@ module Bootstrap.Infer where
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexMeasure measure value -> UIndexMeasure measure (relocate-local-index binding new-level value)
     UIndexStringLength value -> UIndexStringLength (relocate-local-index binding new-level value)
     UIndexBorrowRead value -> UIndexBorrowRead (relocate-local-index binding new-level value)
     UIndexConstructor name arrow input -> UIndexConstructor name (relocate-local-index binding new-level arrow) (relocate-local-index binding new-level input)
@@ -8915,6 +8933,7 @@ module Bootstrap.Infer where
   predicate-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> Option UType
   predicate-carrier kinds locals syntax = case syntax of
     TName s name -> case lookup-local name locals of Some ty -> value-carrier (type-kind ty); None -> None
+    TApp sp (TName at name) arguments | (case builtin-index-measure name of Some measure -> True; None -> False) -> Some (primitive-type "Nat")
     TApp sp (TName at name) arguments -> (case lookup-local name locals of
       Some shadow -> None
       None -> if byte-length-binding name kinds || string-length-binding name kinds then Some (primitive-type "Nat") else
@@ -8945,7 +8964,7 @@ module Bootstrap.Infer where
     None -> primitive-type "Int"
   predicate-arithmetic-input :: TypeContext -> List (String, UType) -> TypeExpr -> Bool
   predicate-arithmetic-input kinds locals syntax = case syntax of
-    TApp sp (TName at name) arguments -> byte-length-binding name kinds || string-length-binding name kinds || (case context-total-observation name kinds of
+    TApp sp (TName at name) arguments -> index-observer-name name kinds || string-length-binding name kinds || (case context-total-observation name kinds of
       Some binding -> has (total-result (binding-function binding)) ["Nat", "Int"]
       None -> False)
     -- A local fixed-width value can be read as mathematical Int in a type
@@ -8968,11 +8987,8 @@ module Bootstrap.Infer where
     None -> bad sp "a type cannot be used as a predicate value" st
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of
-    TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
-        (value, checked) -> predicate-index-value sp carrier value checked)
-      other -> (case convert-total-call external kinds locals sp name arguments st of
-        (value, checked) -> predicate-index-value sp carrier value checked))
+    TApp sp (TName at name) arguments -> (case convert-index-application external kinds locals sp name arguments st of
+      (value, checked) -> predicate-index-value sp carrier value checked)
     TName sp name -> case lookup-local name locals of
       Some value -> predicate-index-value sp carrier value st
       None -> (case constant-index kinds name of

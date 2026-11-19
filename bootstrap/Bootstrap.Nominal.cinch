@@ -412,6 +412,7 @@ module Bootstrap.Nominal where
       (renamed, errors) -> (TUsageArrow s usage renamed, errors)
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
       qualify-predicate refs locals ty
+    TApp s (TName at name) args | has name ["b.toNat", "b.length", "b.bytesLen"] -> qualify-predicate refs locals ty
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
       ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
     TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
@@ -482,8 +483,8 @@ module Bootstrap.Nominal where
         ((left, errors), (right, more)) ->
           (TApp s (TName at name) (TArg first left (TArg second right (TArgsEnd end))), errors <> more)
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if same name "b.bytesLen" then (case qualify-predicate refs locals input of
-        (value, errors) -> (TApp sp (TName at "#kernel.bytes-length") (TArg arg value (TArgsEnd end)), errors))
+      if has name ["b.toNat", "b.length", "b.bytesLen"] then (case qualify-predicate refs locals input of
+        (value, errors) -> (TApp sp (TName at (if same name "b.toNat" then "#kernel.toNat" else if same name "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
       else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
