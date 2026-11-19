@@ -73,7 +73,9 @@ let
   # `git archive REV compiler tooling/tree-sitter-cinch/...` without git.
   archive = lock: pkgs.runCommand "cinch-source-${builtins.substring 0 12 lock.revision}.tar" { } ''
     cd ${fetchPinned lock.revision}
-    tar --sort=name --mtime=@1 --owner=0 --group=0 --numeric-owner -cf $out \
+    # The store may hard-link identical files; the driver admits only plain
+    # files and directories, so archive each one whole.
+    tar --hard-dereference --sort=name --mtime=@1 --owner=0 --group=0 --numeric-owner -cf $out \
       compiler $(for f in grammar.js tree-sitter.json src/scanner.c Cargo.toml bindings/rust/build.rs bindings/rust/lib.rs; do
         [ -e tooling/tree-sitter-cinch/$f ] && echo tooling/tree-sitter-cinch/$f; done)
   '';
