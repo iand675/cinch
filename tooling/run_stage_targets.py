@@ -120,8 +120,12 @@ def integration_targets(tree):
 
 def run_with_receipts(target, env, out, cargo_target, receipts):
     directory = receipts / target
-    row = run(target, dict(env, CINCH_TEST_INVOCATIONS=str(directory)), out, cargo_target)
-    row['selected_invocations'] = sum(1 for _ in directory.glob('*.json'))
+    corpus = directory / 'standalone'
+    row = run(target, dict(env, CINCH_TEST_INVOCATIONS=str(directory),
+                           CINCH_TEST_CORPUS_REPORTS=str(corpus)), out, cargo_target)
+    row['standalone_invocations'] = sum(len(bootstrap.read_json(path)['runs'])
+                                        for path in corpus.glob('*.json'))
+    row['selected_invocations'] = sum(1 for _ in directory.glob('*.json')) + row['standalone_invocations']
     return row
 
 

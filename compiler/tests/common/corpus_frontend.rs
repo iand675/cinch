@@ -98,6 +98,19 @@ impl Frontend {
                         .unwrap();
                 assert!(objects["object_sha256"].is_string());
                 assert_eq!(identity["provider_sha256"], objects["object_sha256"]);
+                if let Some(output) = env::var_os("CINCH_TEST_CORPUS_REPORTS") {
+                    let compiler = directory.join("cinch").canonicalize().unwrap();
+                    for row in report["runs"].as_array().unwrap() {
+                        assert_eq!(row["frontend"], "native");
+                        let command = row["command"].as_array().unwrap();
+                        assert_eq!(Path::new(command[0].as_str().unwrap()).canonicalize().unwrap(), compiler);
+                        assert!(row["ir_sha256"].is_string());
+                    }
+                    fs::create_dir_all(&output).unwrap();
+                    let file = tempfile::Builder::new().suffix(".json").tempfile_in(output).unwrap();
+                    serde_json::to_writer(file.as_file(), report).unwrap();
+                    file.keep().unwrap();
+                }
             }
         }
     }
