@@ -42,7 +42,6 @@
 
 mod common;
 
-use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -140,7 +139,7 @@ const HELPERS: &str = r#"
 fn drive(entry: &Path) -> i32 {
     let dir = entry.parent().expect("entry directory");
     let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
-    common::drive(Mode::Run, dir, file, None).unwrap_or_else(|e| panic!("compilation failed: {e}"))
+    common::run_executable(dir, file).unwrap_or_else(|e| panic!("compilation failed: {e}"))
 }
 
 fn run_main(name: &str, main_src: &str) -> i32 {

@@ -14,7 +14,6 @@
 
 mod common;
 
-use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -117,8 +116,8 @@ fn run_main(name: &str, main_src: &str) -> i32 {
         std::fs::write(dir.join(file), src).expect("write module");
     }
     // Compiling the embedded prelude plus these modules recurses deeply in
-    // the compiler; `common::drive` compiles on a large-stack thread.
-    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
+    // the compiler; the Native driver compiles on a large-stack thread.
+    match common::run_executable(&dir, "Main.cinch") {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

@@ -36,7 +36,6 @@
 //! layout rules.
 
 mod common;
-use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -85,7 +84,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [("StringIo.cinch", STRING_IO), ("Main.cinch", main_src)] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
+    match common::run_executable(&dir, "Main.cinch") {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
