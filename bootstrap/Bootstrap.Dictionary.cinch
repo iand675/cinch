@@ -253,6 +253,15 @@ module Bootstrap.Dictionary where
   instance-parameters-scoped parameters wanted st = case parameters of
     Nil -> True
     Cons ty rest -> valid-type (normalize st ty) && metas-in (free-metas st ty) (free-metas st wanted) && instance-parameters-scoped rest wanted st
+  -- A winning factory can leave one of its own type parameters at an
+  -- undetermined literal. Default that parameter before solving its context.
+  -- A literal passed only to an unconstrained function still needs a type.
+  default-instance-literals :: List UType -> Store -> Store
+  default-instance-literals parameters st = case parameters of
+    Nil -> st
+    Cons ty rest -> (case normalize st ty of
+      UMeta id KType -> default-instance-literals rest (default-numbers-for ty st)
+      other -> default-instance-literals rest st)
   -- Every candidate is tried from the same immutable caller store. Only
   -- one successful factory can commit its substitution; unresolved factory
   -- parameters must already occur in the wanted head.
@@ -264,8 +273,9 @@ module Bootstrap.Dictionary where
       case open-qualified False sc st of
         (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
           if not (clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial) then more
-          else case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize trial) requirements) trial of
-            (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
+          else let resolved = default-instance-literals (instance-types pairs trial) trial in
+            case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize resolved) requirements) resolved of
+              (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
   matching-heads :: Resolution -> Span -> UType -> List (String, Scheme) -> Store -> List (String, Scheme)
   matching-heads context sp wanted instances st = case instances of
     Nil -> Nil

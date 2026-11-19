@@ -291,7 +291,8 @@ module Bootstrap.Contracts where
     ESupplied s f a -> expr-references f <> expr-references a
     EApp s f a -> expr-references f <> expr-references a
     EBin s op a b -> expr-references a <> expr-references b
-    ENeg s x -> expr-references x
+    ENeg s (ELitInt at text) -> Nil
+    ENeg s x -> Cons (interface-global "Algebra.Arithmetic.Neg.negate") (expr-references x)
     ELam s ps body -> patterns-references ps <> expr-references body
     ELet s bs body -> expr-references bs <> expr-references body
     ELetScope sp body -> expr-references body
