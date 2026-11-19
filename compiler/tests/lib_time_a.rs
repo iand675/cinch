@@ -32,7 +32,6 @@
 
 mod common;
 
-use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -71,7 +70,7 @@ fn drive_main(name: &str, main_src: &str) -> Result<i32, String> {
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    common::drive(Mode::Run, &dir, "Main.cinch", None)
+    common::run_executable(&dir, "Main.cinch")
 }
 
 /// Compile and run the project, returning the observed exit code.

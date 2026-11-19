@@ -243,6 +243,18 @@ pub fn run(dir: &Path, entry: &str) -> i32 {
     }
 }
 
+/// Run a project whose only observed output is the program's exit status.
+pub fn run_executable(dir: &Path, entry: &str) -> Result<i32, String> {
+    match external_frontend::configured()? {
+        Some(frontend) => {
+            let mut request = external_frontend::Request::default();
+            request.discard_interfaces = true;
+            external_frontend::drive_profile(&frontend, Mode::Run, dir, entry, None, &request)
+        }
+        None => drive_native(Mode::Run, dir, entry, None),
+    }
+}
+
 /// Type-check `entry` only.
 pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
     drive(Mode::Check, dir, entry, None).map(|_| ())

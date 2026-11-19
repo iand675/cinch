@@ -1774,6 +1774,10 @@
     {
       "classes": "O",
       "symbol": "Data.Option.is-some"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.Result.option-to-result"
     }
   ]
 }
