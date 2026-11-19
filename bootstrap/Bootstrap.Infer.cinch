@@ -3005,10 +3005,10 @@ module Bootstrap.Infer where
     Cons (name, ty) rest -> case make-scheme False classes kinds Nil (operation-syntax (type-expr-span ty) ps ty) st of
       (sc, ss) -> case add-binding (type-expr-span ty) name sc "operation" env ss of
         (more, checked) -> register-operations classes kinds ps rest more checked
-  -- `all` is the module's whole declaration list, which the reference graph
-  -- needs: a declaration's group is a property of the module, so it cannot be
-  -- read from the tail being walked.
-  register :: List Decl -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  -- `all` is the reference graph of the module's whole declaration list: a
+  -- declaration's group is a property of the module, so it cannot be read
+  -- from the tail being walked.
+  register :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register all rows classes kinds ds env st = case ds of
     Nil -> (env, st)
     Cons d rest -> case d of
@@ -3036,7 +3036,7 @@ module Bootstrap.Infer where
         (e, se) -> register all rows classes kinds rest e se
       DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
         (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-          (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity all name)) of
+          (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity (data-graph-declarations all) name)) of
             (Some prior, result) -> register all rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
             (None, Err error) -> register all rows classes kinds rest env (add-error s error checked)
             (None, Ok plan) -> register all rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
@@ -3659,56 +3659,79 @@ module Bootstrap.Infer where
     TInfix s op a b -> structural-type-names a <> structural-type-names b
     TUsing s bounds body -> structural-type-names bounds <> structural-type-names body
     other -> Nil
-  -- The data names a declaration's body mentions. A record is a data
+  -- The data names a constructor or field list mentions. A record is a data
   -- declaration with one constructor, so its fields are walked the same
   -- way: excluding records would leave a cycle `A -> R -> A` unchecked
   -- when `R`'s field is negative (design/mutual-data-groups.md section 2).
-  declaration-data-references :: Decl -> List String
-  declaration-data-references d = case d of
-    DData s name ps cs -> ctor-data-references cs
-    DRecord s name ps fields -> ctor-data-references fields
-    other -> Nil
   ctor-data-references :: List (String, TypeExpr) -> List String
   ctor-data-references cs = case cs of Nil -> Nil; Cons (name, ty) rest -> structural-type-names ty <> ctor-data-references rest
-  declared-data-name :: Decl -> String
-  declared-data-name d = case d of DData s name ps cs -> name; DRecord s name ps fields -> name; other -> ""
-  -- Every edge out of `from`. A record contributes through both of its
-  -- forms (the single-constructor data it lowers to and its own field list),
-  -- so the union is the complete edge set whatever the fields' shape.
-  data-edges :: List Decl -> String -> List String
-  data-edges ds from = case ds of
-    Nil -> Nil
-    Cons d rest -> if same (declared-data-name d) from then declaration-data-references d <> data-edges rest from else data-edges rest from
-  data-reaches :: List Decl -> List String -> List String -> String -> Bool
-  data-reaches ds visited pending goal = case pending of
-    Nil -> False
-    Cons first rest -> if same first goal then True
-      else if has first visited then data-reaches ds visited rest goal
-      else data-reaches ds (Cons first visited) (rest <> data-edges ds first) goal
+  -- The reference graph of a module's data declarations, built once.
+  --
+  -- A declaration's group is a question about the whole module, and
+  -- `register` asks it for every data declaration. Answered from the
+  -- declaration list each time, one group costs a reachability search per
+  -- candidate whose every step scans every declaration, which is cubic in
+  -- the module and was most of a self-compile (design/compilation-speed.md
+  -- section 2.22). The graph holds what those scans computed: the data and
+  -- record names in declaration order, each name's out edges, and each
+  -- name's in edges. A record contributes through both of its forms (the
+  -- single-constructor data it lowers to and its own field list), so a name
+  -- can be declared twice and its edges are the union. The declarations
+  -- ride along for the one other question `register` asks of the module.
+  data DataGraph where
+    MkDataGraph :: List Decl -> List String -> HashMap String (List String) -> HashMap String (List String) -> DataGraph
+  data-graph :: List Decl -> DataGraph
+  data-graph ds = data-graph-from ds ds Nil hash-map-empty hash-map-empty
+  data-graph-declarations :: DataGraph -> List Decl
+  data-graph-declarations graph = case graph of MkDataGraph all candidates out into -> all
+  data-graph-from :: List Decl -> List Decl -> List String -> HashMap String (List String) -> HashMap String (List String) -> DataGraph
+  data-graph-from all ds names out into = case ds of
+    Nil -> MkDataGraph all (reverse names) out into
+    Cons d rest -> (case d of
+      DData s name ps cs -> data-graph-declared all name (ctor-data-references cs) rest names out into
+      DRecord s name ps fields -> data-graph-declared all name (ctor-data-references fields) rest names out into
+      other -> data-graph-from all rest names out into)
+  data-graph-declared :: List Decl -> String -> List String -> List Decl -> List String -> HashMap String (List String) -> HashMap String (List String) -> DataGraph
+  data-graph-declared all name references rest names out into =
+    data-graph-from all rest (Cons name names) (hash-map-insert name (references <> data-neighbors name out) out) (data-graph-into name references into)
+  data-graph-into :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
+  data-graph-into from references into = case references of
+    Nil -> into
+    Cons referenced rest -> data-graph-into from rest (hash-map-insert referenced (Cons from (data-neighbors referenced into)) into)
+  data-neighbors :: String -> HashMap String (List String) -> List String
+  data-neighbors name edges = case hash-map-lookup name edges of Some found -> found; None -> Nil
+  -- Every name a chain of edges leads to from the pending ones, the pending
+  -- ones included.
+  data-reached :: HashMap String (List String) -> List String -> HashMap String Bool -> HashMap String Bool
+  data-reached edges pending seen = case pending of
+    Nil -> seen
+    Cons first rest -> (case hash-map-lookup first seen of
+      Some found -> data-reached edges rest seen
+      None -> data-reached edges (data-push (data-neighbors first edges) rest) (hash-map-insert first True seen))
+  data-push :: List String -> List String -> List String
+  data-push names pending = case names of Nil -> pending; Cons first rest -> data-push rest (Cons first pending)
   -- The group a name belongs to, by mutual reachability: `b` is reachable
   -- from `a` when a chain of constructor field types leads from `a` to `b`,
   -- and two names lie in one strongly connected component exactly when each
-  -- reaches the other. The declaration counts are small, so the definition
-  -- is easier to review than a functional Tarjan. A name on no cycle is its
-  -- own group, which keeps its diagnostic exactly what the
-  -- single-declaration rule gave.
-  data-group :: List Decl -> String -> List String
-  data-group ds name = data-group-members ds name (data-names-and-records ds)
-  data-names-and-records :: List Decl -> List String
-  data-names-and-records ds = case ds of
-    Nil -> Nil
-    Cons (DData s name ps cs) rest -> Cons name (data-names-and-records rest)
-    Cons (DRecord s name ps fields) rest -> Cons name (data-names-and-records rest)
-    Cons d rest -> data-names-and-records rest
-  data-group-members :: List Decl -> String -> List String -> List String
-  data-group-members ds name candidates = case candidates of
+  -- reaches the other. That is two searches from the name, one along the
+  -- out edges and one along the in edges, and a candidate is in the group
+  -- when both found it. A name on no cycle is its own group, which keeps
+  -- its diagnostic exactly what the single-declaration rule gave. The
+  -- members keep declaration order with the name itself last, the order
+  -- the per-candidate definition produced.
+  data-group :: DataGraph -> String -> List String
+  data-group graph name = case graph of
+    MkDataGraph all candidates out into ->
+      data-group-members name (data-reached out [name] hash-map-empty) (data-reached into [name] hash-map-empty) candidates
+  data-group-members :: String -> HashMap String Bool -> HashMap String Bool -> List String -> List String
+  data-group-members name below above candidates = case candidates of
     Nil -> Cons name Nil
     Cons first rest ->
-      let more = data-group-members ds name rest in
+      let more = data-group-members name below above rest in
       if has first more then more
-      else if data-reaches ds Nil (Cons first Nil) name && data-reaches ds Nil (Cons name Nil) first
-        then Cons first more
-        else more
+      else (case (hash-map-lookup first below, hash-map-lookup first above) of
+        (Some down, Some up) -> Cons first more
+        other -> more)
 
   term-error :: Span -> String -> Store -> (CoreTerm, Store)
   term-error sp message st = (CError sp, add-error sp message st)
@@ -8251,7 +8274,7 @@ module Bootstrap.Infer where
     let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
     let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies interfaces label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
-    let (values, sv) = register ds rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
+    let (values, sv) = register (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
     let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
@@ -8302,7 +8325,7 @@ module Bootstrap.Infer where
   -- pass can resolve them, and its definitions never become executable Core.
   check-logical-declarations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreInstance -> List CoreData -> List UsageShape -> List CoreDefinition -> List Decl -> Store -> Store
   check-logical-declarations classes kinds families env rows instances datas usage ordinary specs st =
-    let (logical, registered) = register specs rows classes kinds specs env st in
+    let (logical, registered) = register (data-graph specs) rows classes kinds specs env st in
     let (definitions, checked) = check-bodies classes kinds families logical Nil specs specs registered in
     let graph = codata-call-graph specs in
     let total = check-logical-definitions graph definitions checked in
