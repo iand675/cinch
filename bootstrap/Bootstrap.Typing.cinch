@@ -960,11 +960,11 @@ module Bootstrap.Typing where
       Some Nil -> projected-places root rest
       Some path -> Cons path (projected-places root rest)
       None -> projected-places root (runtime-term-children first) <> projected-places root rest)
-  max-place-uses :: UseInterruptions -> Nat -> CoreTerm -> List (List Nat) -> Nat -> Option Nat
-  max-place-uses policy id body paths maximum = case paths of
-    Nil -> Some maximum
+  max-place-uses :: UseInterruptions -> Nat -> CoreTerm -> List (List Nat) -> Nat -> Nat -> Option (Nat, Nat)
+  max-place-uses policy id body paths min-uses max-uses = case paths of
+    Nil -> Some (min-uses, max-uses)
     Cons path rest -> case use-count (CountingPlace path policy) id body of
-      Some (low, high) -> max-place-uses policy id body rest (if high > maximum then high else maximum)
+      Some (low, high) -> max-place-uses policy id body rest (if low > min-uses then low else min-uses) (if high > max-uses then high else max-uses)
       None -> None
   -- Any use consumes the root at least once. On each path the most-used
   -- field counts repeated transfers, while disjoint fields share one split.
@@ -973,8 +973,8 @@ module Bootstrap.Typing where
     let direct = use-count policy id body in case direct of
       Some (low, high) | high > 1 -> (case projected-places id [body] of
         Nil -> direct
-        paths -> (case max-place-uses policy id body paths 0 of
-          Some most -> Some (if low == 0 then 0 else 1, most)
+        paths -> (case max-place-uses policy id body paths (if low == 0 then 0 else 1) 0 of
+          Some bounds -> Some bounds
           None -> None))
       other -> direct
   pattern-use-count :: TypingContext -> CorePattern -> CoreTerm -> Option (Nat, Nat)
