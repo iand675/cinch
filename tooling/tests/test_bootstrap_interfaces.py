@@ -128,7 +128,7 @@ class CompilerInterfaceGate(unittest.TestCase):
 
             def run(command, cwd, log):
                 self.assertEqual(command[0], root / "cinch")
-                self.assertEqual(command[1:3], ["--check", "--interfaces"])
+                self.assertEqual(command[1:3], ["--check-types", "--interfaces"])
                 manifest = bootstrap.read_json(command[3])
                 self.assertEqual(manifest["interfaces"], [["Bootstrap.Check", contracts.interface_hash(dependency), str(path.resolve())]])
                 self.assertEqual(Path(command[4]).read_bytes(), files["Main.cinch"])
