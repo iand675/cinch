@@ -303,6 +303,7 @@ module Bootstrap.Ast where
     ETuple :: Span -> Expr -> Expr
     EList :: Span -> Expr -> Expr
     ERange :: Span -> Expr -> Expr
+    EMap :: Span -> Expr -> Expr
     EApp :: Span -> Expr -> Expr -> Expr
     EBin :: Span -> String -> Expr -> Expr -> Expr
     ENeg :: Span -> Expr -> Expr
@@ -412,6 +413,7 @@ module Bootstrap.Ast where
     ETuple s xs -> s
     EList s xs -> s
     ERange s xs -> s
+    EMap s xs -> s
     EApp s f a -> s
     EBin s op l r -> s
     ENeg s x -> s
@@ -846,6 +848,7 @@ module Bootstrap.Ast where
     ETuple s xs -> exprs-unmodeled (exprs-of xs)
     EList s xs -> exprs-unmodeled (exprs-of xs)
     ERange s xs -> exprs-unmodeled (exprs-of xs)
+    EMap s xs -> exprs-unmodeled (exprs-of xs)
     EApp s f a -> expr-unmodeled-count f + expr-unmodeled-count a
     EBin s op l r -> expr-unmodeled-count l + expr-unmodeled-count r
     ENeg s x -> expr-unmodeled-count x
@@ -1095,6 +1098,7 @@ module Bootstrap.Ast where
     ETuple part0 part1 -> JArr (JStr "ETuple") (JArr (source-identity-expr part1) (JArrEnd))
     EList part0 part1 -> JArr (JStr "EList") (JArr (source-identity-expr part1) (JArrEnd))
     ERange part0 part1 -> JArr (JStr "ERange") (JArr (source-identity-expr part1) (JArrEnd))
+    EMap part0 part1 -> JArr (JStr "EMap") (JArr (source-identity-expr part1) (JArrEnd))
     EApp part0 part1 part2 -> JArr (JStr "EApp") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EBin part0 part1 part2 part3 -> JArr (JStr "EBin") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     ENeg part0 part1 -> JArr (JStr "ENeg") (JArr (source-identity-expr part1) (JArrEnd))
@@ -1324,6 +1328,7 @@ module Bootstrap.Ast where
       Some body -> if default-tag tag "ETuple" then Some (ETuple sp body)
         else if default-tag tag "EList" then Some (EList sp body)
         else if default-tag tag "ERange" then Some (ERange sp body)
+        else if default-tag tag "EMap" then Some (EMap sp body)
         else if default-tag tag "ENeg" then Some (ENeg sp body) else None
       None -> None
     JArr (JStr tag) (JArr (JStr name) (JArr (JStr candidate) (JArr fields JArrEnd))) | default-tag tag "EFamilyCon" && default-vector-pair name candidate ->

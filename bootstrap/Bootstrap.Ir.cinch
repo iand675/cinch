@@ -749,6 +749,7 @@ module Bootstrap.Ir where
     ETuple s xs -> "tuple"
     EList s xs -> "list literal"
     ERange s xs -> "range literal"
+    EMap s xs -> "map literal"
     EApp s f a -> "application"
     EBin s op l r -> "operator application"
     ENeg s x -> "negation"

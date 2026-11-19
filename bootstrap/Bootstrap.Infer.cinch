@@ -4118,16 +4118,18 @@ module Bootstrap.Infer where
       EArg a lo (EArg b hi (EArgsEnd end)) -> EApp sp from (EApp sp (EApp sp (builder "enum-from-to") lo) hi)
       EArg a lo (EArg b next (EArg c hi (EArgsEnd end))) -> EApp sp from (EApp sp (EApp sp (EApp sp (builder "enum-from-then-to") lo) next) hi)
       other -> EUnmodeled sp "range requires two or three endpoints"
-  infer-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  infer-collection classes kinds families env locals sp fields expected st = case fresh-meta KType st of
+  infer-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Bool -> Option UType -> Store -> (CoreTerm, Store)
+  infer-collection classes kinds families env locals sp fields is-map expected st = case fresh-meta KType st of
     (element, fresh) -> (case (case expected of Some ty -> (ty, fresh); None -> fresh-meta KType fresh) of
-      (result, next) -> (case lookup-value sp (global-data-fromlist-fromlist-from-list) env next of
+      (result, next) -> let owner-name = if is-map then interface-global "Data.FromMap.FromMap" else global-data-fromlist-fromlist in
+        let method-name = if is-map then interface-global "Data.FromMap.FromMap.from-map" else global-data-fromlist-fromlist-from-list in
+        (case lookup-value sp method-name env next of
         (method, opened) -> let shaped = unify sp (core-type method) (UFun (collection-list element) result) opened in
           (case method of
-            CMethod at ty name owner slot actuals (Cons needed Nil) -> if not (same name (global-data-fromlist-fromlist-from-list) && same owner (global-data-fromlist-fromlist)) then term-error sp "collection literal needs its actual defining FromList method" shaped
+            CMethod at ty name owner slot actuals (Cons needed Nil) -> if not (same name method-name && same owner owner-name) then term-error sp "collection literal needs its actual defining collection method" shaped
               else (case raw-collection classes kinds families env locals sp fields element shaped of
                 (items, checked) -> (CApply sp result method items, checked))
-            other -> term-error sp "collection literal has no checked FromList declaration" shaped)))
+            other -> term-error sp "collection literal has no checked collection declaration" shaped)))
 
   -- A typed quotation `[| e |]` (modules specification section 7) has type
   -- `Code t`, where `t` is the template's type. The template is checked in a
@@ -4292,7 +4294,8 @@ module Bootstrap.Infer where
     EFamilyCon sp fallback candidate args -> infer classes kinds families env locals (ECon sp fallback args) st
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     ERange s args -> infer classes kinds families env locals (range-expression env s args) st
-    EList s args -> infer-collection classes kinds families env locals s args None st
+    EMap s args -> infer-collection classes kinds families env locals s args True None st
+    EList s args -> infer-collection classes kinds families env locals s args False None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
@@ -4381,7 +4384,8 @@ module Bootstrap.Infer where
             (values, checked) -> (CTuple sp expected values, checked)))
       other -> check-inferred classes kinds families env locals expr expected st)
     ERange s args -> check classes kinds families env locals (range-expression env s args) expected st
-    EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
+    EMap s args -> infer-collection classes kinds families env locals s args True (Some expected) st
+    EList s args -> infer-collection classes kinds families env locals s args False (Some expected) st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body (Some expected) st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
       (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
@@ -8323,6 +8327,7 @@ module Bootstrap.Infer where
       ETuple sp fields -> eager fields
       EList sp fields -> eager fields
       ERange sp fields -> eager fields
+      EMap sp fields -> eager fields
       EBin sp operation left right -> first-guard-error (eager left) (eager right)
       ENeg sp value -> eager value
       ELam sp patterns body -> eager body
@@ -8530,6 +8535,7 @@ module Bootstrap.Infer where
     ETuple sp fields -> ETuple sp (record-expression all fields)
     EList sp fields -> EList sp (record-expression all fields)
     ERange sp fields -> ERange sp (record-expression all fields)
+    EMap sp fields -> EMap sp (record-expression all fields)
     EArg sp first rest -> EArg sp (record-expression all first) (record-expression all rest)
     EBinding sp name value rest -> EBinding sp name (record-expression all value) (record-expression all rest)
     EAlt sp pattern body rest -> EAlt sp (record-pattern all pattern) (record-expression all body) (record-expression all rest)

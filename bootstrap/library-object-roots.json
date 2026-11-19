@@ -239,6 +239,78 @@
     {
       "classes": "",
       "symbol": "Data.Nat.Enum_Nat"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "RO",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "RR",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "TR",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.FromMap_Map"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "RO",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "RR",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "TR",
+      "symbol": "Data.HashMap.FromMap_HashMap"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.FromMap_HashMap"
     }
   ],
   "methods": [

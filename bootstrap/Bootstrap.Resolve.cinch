@@ -973,6 +973,8 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (EList s renamed, errors)
     ERange s args -> case rename-expr visible locals args of
       (renamed, errors) -> (ERange s renamed, errors)
+    EMap s args -> case rename-expr visible locals args of
+      (renamed, errors) -> (EMap s renamed, errors)
     ESupplied s callee supplies -> case rename-expr visible locals callee of
       (head, errors) -> case rename-expr visible locals supplies of
         (fields, more) -> (ESupplied s head fields, errors <> more)

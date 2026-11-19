@@ -26,6 +26,8 @@ fn compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionari
     for (module, identity) in [
         ("Data.List", "Data.List.FromList_List"),
         ("Data.Bytes", "Data.Bytes.FromList_Bytes"),
+        ("Data.Map", "Data.Map.FromMap_Map"),
+        ("Data.HashMap", "Data.HashMap.FromMap_HashMap"),
         ("Data.Int", "Data.Int.Enum_Int"),
         ("Data.Nat", "Data.Nat.Enum_Nat"),
     ] {
