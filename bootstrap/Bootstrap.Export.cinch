@@ -27,7 +27,7 @@ module Bootstrap.Export where
   import Text.Lex (bytes-slice, Span)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export export-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows
+  export export-interfaces, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
@@ -232,10 +232,10 @@ module Bootstrap.Export where
     Cons first rest -> (case value-carrier (quant-kind first) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
   interface-value-arity :: Scheme -> Nat
   interface-value-arity scheme = scheme-arity scheme + list-length (scheme-requirements scheme) + quantified-value-arity (scheme-params scheme)
-  value-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> CheckedBinding -> Result String Json
-  value-row typed interfaces references name symbol binding =
+  value-row :: Bool -> Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> CheckedBinding -> Result String Json
+  value-row require-worker typed interfaces references name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
-    else if same (checked-role binding) "foreign" then foreign-value-row name symbol binding
+    else if same (checked-role binding) "foreign" then foreign-value-row require-worker name symbol binding
     else if same (checked-role binding) "operation" then opaque-value-row name symbol binding
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
@@ -255,11 +255,11 @@ module Bootstrap.Export where
   imported-symbol symbol = case unpack symbol of
     Cons prefix (Cons dot rest) -> char-code prefix == 105 && char-code dot == 46
     other -> False
-  foreign-value-row :: String -> String -> CheckedBinding -> Result String Json
-  foreign-value-row name symbol binding = case checked-foreign-plan binding of
+  foreign-value-row :: Bool -> String -> String -> CheckedBinding -> Result String Json
+  foreign-value-row require-worker name symbol binding = case checked-foreign-plan binding of
     None -> Err "foreign binding has no checked ABI plan"
     Some plan | (case foreign-primitive-assumptions plan of Some checked -> True; None -> False) ->
-      if primitive-object-callable plan then opaque-value-row name symbol binding
+      if not require-worker || primitive-object-callable plan then opaque-value-row name symbol binding
       else Err "public inline primitive needs a checked uniform-word object entry"
     Some plan -> case (export-global symbol, foreign-display-scheme plan) of
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name) (JObj "symbol" (JStr identity)
@@ -777,9 +777,9 @@ module Bootstrap.Export where
   -- modules: every public row looks its symbol up in both. Each map keeps
   -- the first entry of a name, as find-binding and find-data do.
   data ExportIndex where
-    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> List Decl -> ExportIndex
-  export-index :: Elaboration -> ExportIndex
-  export-index typed = ExportIndex (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
+    ExportIndex :: Bool -> HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> List Decl -> ExportIndex
+  export-index :: Bool -> Elaboration -> ExportIndex
+  export-index require-worker typed = ExportIndex require-worker (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
     (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed)) (guarded-instances (elaboration-declarations typed))
   guarded-instances :: List Decl -> List Decl
   guarded-instances ds = case ds of
@@ -787,8 +787,10 @@ module Bootstrap.Export where
     Cons d rest -> case d of
       DInstance sp flag symbol params head members | guarded-members (decls-of members) -> Cons d (guarded-instances rest)
       other -> guarded-instances rest
+  indexed-requires-worker :: ExportIndex -> Bool
+  indexed-requires-worker index = case index of ExportIndex require-worker bindings datas references physical guarded -> require-worker
   indexed-guarded :: ExportIndex -> List Decl
-  indexed-guarded index = case index of ExportIndex bindings datas references physical guarded -> guarded
+  indexed-guarded index = case index of ExportIndex require-worker bindings datas references physical guarded -> guarded
   guarded-instance-name :: String -> List Decl -> Bool
   guarded-instance-name name ds = case ds of
     Cons (DInstance sp flag symbol params head members) rest -> same symbol name || guarded-instance-name name rest
@@ -798,13 +800,13 @@ module Bootstrap.Export where
   data-index :: List CoreData -> HashMap String CoreData
   data-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (core-data-name row) row (data-index rest)
   indexed-layouts :: ExportIndex -> HashMap String DataLayout
-  indexed-layouts index = case index of ExportIndex bindings datas references physical guarded -> physical
+  indexed-layouts index = case index of ExportIndex require-worker bindings datas references physical guarded -> physical
   indexed-binding :: String -> ExportIndex -> Option CheckedBinding
-  indexed-binding name index = case index of ExportIndex bindings datas references physical guarded -> hash-map-lookup name bindings
+  indexed-binding name index = case index of ExportIndex require-worker bindings datas references physical guarded -> hash-map-lookup name bindings
   indexed-data :: String -> ExportIndex -> Option CoreData
-  indexed-data name index = case index of ExportIndex bindings datas references physical guarded -> hash-map-lookup name datas
+  indexed-data name index = case index of ExportIndex require-worker bindings datas references physical guarded -> hash-map-lookup name datas
   indexed-references :: ExportIndex -> HashMap String (List String)
-  indexed-references index = case index of ExportIndex bindings datas references physical guarded -> references
+  indexed-references index = case index of ExportIndex require-worker bindings datas references physical guarded -> references
   -- Source effect labels belong to the handler table. The public interface
   -- exposes their operations as values with display-only schemes.
   declared-effect :: String -> List CoreEffect -> Bool
@@ -838,7 +840,7 @@ module Bootstrap.Export where
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in
                       if same role "method" || same role "instance" || same role "implicit-instance" then Ok (values, types)
-                      else case value-row typed interfaces references name symbol binding of
+                      else case value-row (indexed-requires-worker index) typed interfaces references name symbol binding of
                         Err error -> Err error
                         Ok actual -> Ok (insert-row "name" actual values, types)
     JArrEnd -> Ok (JArrEnd, JArrEnd)
@@ -1170,10 +1172,18 @@ module Bootstrap.Export where
       Cons context rest ->
         Cons (set-field "exports" (interface-export-surface source-only (field "exports" context)) context) (interface-contexts source-only rest))
   export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
-  export-interfaces checked interfaces source = let typed = checked-elaboration checked in
+  export-interfaces = export-interfaces-for False
+
+  -- Source contracts carry the primitive's checked type and its assumptions.
+  -- A library object must additionally supply a callable public worker.
+  export-object-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
+  export-object-interfaces = export-interfaces-for True
+
+  export-interfaces-for :: Bool -> CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
+  export-interfaces-for require-worker checked interfaces source = let typed = checked-elaboration checked in
     case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) (elaboration-bindings typed) of
       Some message -> Err message
-      None -> export-loop typed (export-index typed) interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
+      None -> export-loop typed (export-index require-worker typed) interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
   retained-intrinsic :: String -> String -> List Json -> Bool
   retained-intrinsic name identity rows = case rows of
     Nil -> False
