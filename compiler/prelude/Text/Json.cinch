@@ -99,6 +99,9 @@ module Text.Json where
   -- Printing, canonicalization, content identity.
   export print-json, canonical-json, canonical-bytes, canonical-hash, digest-hex
   export json-eq
+  -- Offsets over a document's bytes, for a reader that wants a span and
+  -- not a value.
+  export json-space-end, json-value-end
 
 
   -- ---------------------------------------------------------------------------
@@ -1032,6 +1035,66 @@ module Text.Json where
   fast-elements src i acc = case fast-value src i of
     JFastNo -> JFastNo
     JFastOk value next -> fast-element-close src (fast-skip-ws src next) (Cons value acc)
+
+  -- The offset after the insignificant whitespace at `i`.
+  json-space-end :: Bytes -> Nat -> Nat
+  json-space-end = fast-skip-ws
+
+  -- The offset after the value that starts at `i`, or 0 when no value ends.
+  --
+  -- This finds where a value stops and decides nothing else: brackets are
+  -- counted and not matched by kind, a string ends at its first unescaped
+  -- quotation mark, and a scalar ends at the next separator. It is for a
+  -- reader that will either compare the span with bytes it has already
+  -- parsed or hand the span to `parse-json`, which is where a malformed
+  -- value is refused. A value is at least one byte, so 0 is never an end.
+  json-value-end :: Bytes -> Nat -> Nat
+  json-value-end src i =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then skip-string-end src (i + 1)
+      else if nat-cmp b 123 == 0 then skip-nested-end src (i + 1) 0
+      else if nat-cmp b 91 == 0 then skip-nested-end src (i + 1) 0
+      else skip-scalar-end src (i + 1)
+    else 0
+
+  -- After the closing quotation mark of the body at `i`.
+  skip-string-end :: Bytes -> Nat -> Nat
+  skip-string-end src i =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then i + 1
+      else if nat-cmp b 92 == 0 then skip-string-end src (i + 2)
+      else skip-string-end src (i + 1)
+    else 0
+
+  -- After the bracket that closes the group `i` is inside; `inner` counts
+  -- the groups opened within it and not yet closed.
+  skip-nested-end :: Bytes -> Nat -> Nat -> Nat
+  skip-nested-end src i inner =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then
+        (let after = skip-string-end src (i + 1) in
+         if after == 0 then 0 else skip-nested-end src after inner)
+      else if nat-cmp b 123 == 0 then skip-nested-end src (i + 1) (inner + 1)
+      else if nat-cmp b 91 == 0 then skip-nested-end src (i + 1) (inner + 1)
+      else if nat-cmp b 125 == 0 then (if inner == 0 then i + 1 else skip-nested-end src (i + 1) (inner - 1))
+      else if nat-cmp b 93 == 0 then (if inner == 0 then i + 1 else skip-nested-end src (i + 1) (inner - 1))
+      else skip-nested-end src (i + 1) inner
+    else 0
+
+  -- A number or a keyword runs to the next separator or the end of input.
+  skip-scalar-end :: Bytes -> Nat -> Nat
+  skip-scalar-end src i =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 44 == 0 then i
+      else if nat-cmp b 125 == 0 then i
+      else if nat-cmp b 93 == 0 then i
+      else if is-ws b then i
+      else skip-scalar-end src (i + 1)
+    else i
 
   fast-element-close :: Bytes -> Nat -> List Json -> JFast
   fast-element-close src close acc =

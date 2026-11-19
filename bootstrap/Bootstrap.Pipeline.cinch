@@ -24,7 +24,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
-  import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, admit-runtime-object-mode)
+  import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-mode)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
@@ -203,7 +203,7 @@ module Bootstrap.Pipeline where
   emit-admitted-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
   emit-admitted-object-client inlining debug reclaim profile mode manifest object-config source ir = case read-interfaces manifest of
     Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-    Ok interfaces -> case read-runtime-object-mode reclaim interfaces object-config of
+    Ok interfaces -> case read-runtime-object-client-mode reclaim interfaces object-config of
       Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
       Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client inlining debug reclaim profile mode interfaces provider source ir
 
@@ -227,7 +227,7 @@ module Bootstrap.Pipeline where
               Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
               Ok interfaces -> case configuration of
                 Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
-                Ok config -> case admit-runtime-object-mode reclaim interfaces config of
+                Ok config -> case admit-runtime-object-client-mode reclaim interfaces config of
                   Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
                   Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
                     emit-object-client inlining debug reclaim profile EmitWithInterfaces interfaces provider source ir)
@@ -289,7 +289,7 @@ module Bootstrap.Pipeline where
     if not (object-paths-distinct paths) then pipeline-bad-args
     else case read-interfaces manifest of
       Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-      Ok interfaces -> case read-runtime-object-mode reclaim interfaces config of
+      Ok interfaces -> case read-runtime-object-client-mode reclaim interfaces config of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
         Ok (provider, metadata, object-path, object-bytes) ->
           if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed

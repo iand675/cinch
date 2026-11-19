@@ -1,7 +1,7 @@
 -- Checked physical library objects. Source visibility still comes exclusively
 -- from the independently loaded interface set, never from this unit inventory.
 module Bootstrap.Object where
-  import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, loaded-values, imported-symbol)
+  import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -11,7 +11,9 @@ module Bootstrap.Object where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
   import Data.Nat (nat-from-int)
-  import Text.Json (parse-json, canonical-bytes)
+  import Text.Json (parse-json, canonical-bytes, json-space-end, json-value-end)
+  import Text.Builder (Builder, builder-new, builder-add-bytes, builder-add-string, builder-bytes)
+  import Text.Lex (bytes-slice)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
   import Data.Path (path-from-string)
@@ -19,6 +21,7 @@ module Bootstrap.Object where
 
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export read-runtime-object-document, read-runtime-object-mode, admit-runtime-object-mode
+  export read-runtime-object-client-mode, admit-runtime-object-client-mode
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
   export object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export read-object-unit-roots
@@ -355,7 +358,12 @@ module Bootstrap.Object where
   parse-runtime-object :: String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
   parse-runtime-object = parse-runtime-object-mode True
   parse-runtime-object-mode :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
-  parse-runtime-object-mode reclaim expected-triple interfaces code doc =
+  parse-runtime-object-mode reclaim expected-triple interfaces code doc = parse-runtime-object-carved reclaim expected-triple interfaces code doc None
+  -- `carved` is the manifest's bytes and the spans of its embedded contracts
+  -- when `doc` was parsed without them (`carve-contracts`), and `None` when
+  -- `doc` holds them.
+  parse-runtime-object-carved :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> Option (Bytes, List (Nat, Nat, Nat)) -> Result String RuntimeObject
+  parse-runtime-object-carved reclaim expected-triple interfaces code doc carved =
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
       (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && same expected-triple actual
         && (case profile-of-triple actual of
@@ -364,13 +372,125 @@ module Bootstrap.Object where
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
-          (case (units (field "units" doc) hash-map-empty, interface-files (field "interfaces" doc)) of
-            (Ok functions, Ok files) -> (case load-object-interfaces-with-known interfaces files of
-                Err message -> Err message
-                Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch")
+          (case (units (field "units" doc) hash-map-empty, object-contracts interfaces (field "interfaces" doc) carved) of
+            (Ok functions, Ok checked) -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch"
             (Err message, other-files) -> Err message
             (other-units, Err message) -> Err message)
         other -> Err "runtime object has no code identity")
+
+  -- The object's checked interface closure, from the documents the manifest
+  -- holds or from the spans a carved manifest left behind.
+  object-contracts :: List LoadedInterface -> Json -> Option (Bytes, List (Nat, Nat, Nat)) -> Result String (List LoadedInterface)
+  object-contracts interfaces rows carved = case carved of
+    None -> (case interface-files rows of
+      Err message -> Err message
+      Ok files -> load-object-interfaces-with-known interfaces files)
+    Some (src, spans) -> (case interface-sources src rows 0 spans of
+      Err message -> Err message
+      Ok sources -> load-object-interface-sources interfaces sources)
+  -- Each row of a carved manifest with the bytes of the contract it held.
+  -- A row and a span belong together by the row's position, so a row whose
+  -- contract was not carved (it was not an object) is a mismatch here and
+  -- the caller reads the manifest whole.
+  interface-sources :: Bytes -> Json -> Nat -> List (Nat, Nat, Nat) -> Result String (List (String, String, Bytes))
+  interface-sources src rows ordinal spans = case rows of
+    JArr row rest -> (case (field "module" row, field "iface_hash" row, field "interface" row, spans) of
+      (JStr name, JStr hash, JNull, Cons (at, start, end) more) | at == ordinal && end <= bytes-len src ->
+        (case interface-sources src rest (ordinal + 1) more of
+          Err message -> Err message
+          Ok others -> Ok (Cons (name, hash, bytes-slice src start end) others))
+      other -> Err "carved contract does not match its row")
+    JArrEnd -> (case spans of Nil -> Ok Nil; other -> Err "carved contract has no row")
+    other -> Err "missing object interface closure"
+
+  -- The manifest embeds, beside each interface's hash, the whole interface
+  -- document: four fifths of its bytes, and for a client compile they are
+  -- the bytes of the files its own manifest named, already read and parsed.
+  -- A client therefore reads the manifest in two parts. `carve-contracts`
+  -- walks the bytes, finds each row's embedded contract, and yields the
+  -- manifest with `null` in its place and the contract's span. The reduced
+  -- manifest is parsed as ever, and each span goes to
+  -- `Bootstrap.Load.read-known-source`, which takes the interface already
+  -- loaded when the bytes are the same and parses the span when they are
+  -- not.
+  --
+  -- The walk decides nothing about validity. It finds where values end
+  -- (`Text.Json.json-value-end`) and gives up on anything it does not
+  -- expect, and a client that cannot carve, or whose carved read fails for
+  -- any reason, reads the manifest whole: every refusal comes from the path
+  -- that has always produced it. A carved read that succeeds accepted the
+  -- same document, because the reduced manifest and every span parsed, or
+  -- were bytes that had, and a value in place of `null` is the original.
+  data Carved where
+    MkCarved :: Builder -> Nat -> List (Nat, Nat, Nat) -> Carved
+  -- The byte at an offset, or 256 past the end.
+  byte-at :: Bytes -> Nat -> Nat
+  byte-at src i = if i < bytes-len src then bytes-get src i else 256
+  spells :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  spells src at word i = if i < bytes-len word then byte-at src (at + i) == bytes-get word i && spells src at word (i + 1) else True
+  -- Whether the quoted key at `at`, ending before `end`, is `word`.
+  key-spells :: Bytes -> Nat -> Nat -> Bytes -> Bool
+  key-spells src at end word = end == at + bytes-len word && spells src at word 0
+  -- The offset of the bracket that opens the top-level `interfaces` member, or 0.
+  contract-table :: Bytes -> Nat
+  contract-table src = let open = json-space-end src 0 in
+    if byte-at src open == 123 then contract-table-from src (json-space-end src (open + 1)) (string-to-bytes "\"interfaces\"") else 0
+  contract-table-from :: Bytes -> Nat -> Bytes -> Nat
+  contract-table-from src at word =
+    if byte-at src at == 34 then
+      let key-end = json-value-end src at in
+      let colon = json-space-end src key-end in
+      if key-end == 0 || byte-at src colon /= 58 then 0 else
+        let value = json-space-end src (colon + 1) in
+        if key-spells src at key-end word then (if byte-at src value == 91 then value else 0)
+        else let after = json-value-end src value in
+          let next = json-space-end src after in
+          if after == 0 || byte-at src next /= 44 then 0 else contract-table-from src (json-space-end src (next + 1)) word
+    else 0
+  -- From an element's first byte to the offset after the table's closing
+  -- bracket, or 0.
+  carve-rows :: Bytes -> Nat -> Nat -> Bytes -> Carved -> (Nat, Carved)
+  carve-rows src at ordinal word carved =
+    case (if byte-at src at == 123 then carve-row src (json-space-end src (at + 1)) ordinal word carved else (json-value-end src at, carved)) of
+      (after, next) -> if after == 0 then (0, next) else
+        let close = json-space-end src after in
+        if byte-at src close == 44 then carve-rows src (json-space-end src (close + 1)) (ordinal + 1) word next
+        else if byte-at src close == 93 then (close + 1, next)
+        else (0, next)
+  -- From a member's opening quotation mark to the offset after the row's
+  -- closing brace, or 0.
+  carve-row :: Bytes -> Nat -> Nat -> Bytes -> Carved -> (Nat, Carved)
+  carve-row src at ordinal word carved =
+    if byte-at src at == 125 then (at + 1, carved)
+    else if byte-at src at == 34 then
+      let key-end = json-value-end src at in
+      let colon = json-space-end src key-end in
+      if key-end == 0 || byte-at src colon /= 58 then (0, carved) else
+        let value = json-space-end src (colon + 1) in
+        let after = json-value-end src value in
+        if after == 0 then (0, carved) else
+          let next = (if key-spells src at key-end word && byte-at src value == 123 then carve-span src value after ordinal carved else carved) in
+          let close = json-space-end src after in
+          if byte-at src close == 44 then carve-row src (json-space-end src (close + 1)) ordinal word next
+          else if byte-at src close == 125 then (close + 1, next)
+          else (0, next)
+    else (0, carved)
+  carve-span :: Bytes -> Nat -> Nat -> Nat -> Carved -> Carved
+  carve-span src value after ordinal carved = case carved of
+    MkCarved pieces copied spans ->
+      if value <= bytes-len src then
+        MkCarved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after (Cons (ordinal, value, after) spans)
+      else carved
+  carve-contracts :: Bytes -> Option (Bytes, List (Nat, Nat, Nat))
+  carve-contracts src = let table = contract-table src in
+    if table == 0 then None else
+      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (MkCarved builder-new 0 Nil) of
+        (after, MkCarved pieces copied spans) -> if after == 0 then None else
+          (case spans of
+            Nil -> None
+            other -> let end = bytes-len src in
+              if end <= bytes-len src then Some (builder-bytes (builder-add-bytes (bytes-slice src copied end) pieces), reverse spans)
+              else None))
 
   -- The build driver supplies cryptographic identities for both artifacts.
   -- Paths remain individual words; no shell expansion participates in loading.
@@ -387,6 +507,15 @@ module Bootstrap.Object where
   read-runtime-object-mode reclaim interfaces path = case read-runtime-object-config path of
     Err message -> Err message
     Ok configuration -> admit-runtime-object-mode reclaim interfaces configuration
+
+  -- A client compile's read. The manifest it returns has `null` for each
+  -- embedded contract when the read was carved, which is all a client asks
+  -- of it (its target). A library build, which writes the closure back out,
+  -- uses `read-runtime-object-document`.
+  read-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-client-mode reclaim interfaces path = case read-runtime-object-config path of
+    Err message -> Err message
+    Ok configuration -> admit-runtime-object-client-mode reclaim interfaces configuration
 
   data RuntimeObjectConfig where
     MkRuntimeObjectConfig :: String -> String -> String -> String -> String -> RuntimeObjectConfig
@@ -417,6 +546,26 @@ module Bootstrap.Object where
             other -> Err "runtime object manifest is not valid JSON")
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
+
+  admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  admit-runtime-object-client-mode reclaim interfaces configuration = case configuration of
+    MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
+      (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
+        (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
+          (case admit-carved reclaim expected-triple interfaces code metadata-file metadata of
+            Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
+            None -> admit-runtime-object-mode reclaim interfaces configuration)
+          else admit-runtime-object-mode reclaim interfaces configuration
+        other -> admit-runtime-object-mode reclaim interfaces configuration)
+  -- The carved read, or `None` for the whole one.
+  admit-carved :: Bool -> String -> List LoadedInterface -> Bytes -> String -> Bytes -> Option (RuntimeObject, Json)
+  admit-carved reclaim expected-triple interfaces code metadata-file metadata = case carve-contracts metadata of
+    None -> None
+    Some (reduced, spans) -> (case parse-json metadata-file reduced of
+      Parsed artifact Nil -> (case parse-runtime-object-carved reclaim expected-triple interfaces code artifact (Some (metadata, spans)) of
+        Ok provider -> Some (provider, artifact)
+        Err message -> None)
+      other -> None)
 
   -- Encode every UTF-8 byte, so source operators and non-ASCII names cannot
   -- become LLVM syntax. No platform-specific alias spellings are assumed.
