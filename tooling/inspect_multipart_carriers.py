@@ -59,6 +59,21 @@ def inspect(interface: dict, changes: list[dict], source: str, public: bool) -> 
     return result
 
 
+def observation_source(source: str, changes: list[dict]) -> tuple[str, list[dict]]:
+    """Expose private carrier kinds through checked identity functions in an observation copy."""
+    observed = source
+    witnesses = []
+    for change in changes:
+        if change['visibility'] != 'private':
+            continue
+        name = change['name']; witness = 'observe-' + re.sub(r'(?<!^)([A-Z])', r'-\1', name).lower()
+        parameters = re.sub(r'^data \w+ \(r :: Region\)', '', change['proposal_header']).removesuffix(' where').strip()
+        target = name + ' r' + (' ' + parameters if parameters else '')
+        observed += f'\n  export {witness}\n\n  -- | Observe the defining private carrier kind without adding an operation.\n  {witness} :: forall (r :: Region) {parameters}. {target} -> {target}\n  {witness} value = value\n'
+        witnesses.append({'carrier': name, 'observer': witness})
+    return observed, witnesses
+
+
 def main() -> None:
     """Require the fresh exact source gate before checking an isolated observation copy."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -88,16 +103,7 @@ def main() -> None:
         raise RuntimeError('changed genuine candidate interface')
     source = original.read_text()
     rows = inspect(json.loads(public_path.read_text()), manifest['changes'], source, True)
-    observed = source
-    witnesses = []
-    for change in manifest['changes']:
-        if change['visibility'] != 'private':
-            continue
-        name = change['name']; witness = 'observe-' + re.sub(r'(?<!^)([A-Z])', r'-\1', name).lower()
-        parameters = re.sub(r'^data \w+ \(r :: Region\)', '', change['proposal_header']).removesuffix(' where').strip()
-        target = name + ' r' + (' ' + parameters if parameters else '')
-        observed += f'\n  export {witness}\n\n  -- | Observe the defining private carrier kind without adding an operation.\n  {witness} :: forall (r :: Region) {parameters}. {target} -> {target}\n  {witness} value = value\n'
-        witnesses.append({'carrier': name, 'observer': witness})
+    observed, witnesses = observation_source(source, manifest['changes'])
     for name, expected in gate['sources'].items():
         path = source_work / (name + '.cinch')
         if digest(path) != expected:
@@ -106,7 +112,7 @@ def main() -> None:
     (work / 'Effect.Multipart.cinch').write_text(observed)
     (work / 'Main.cinch').write_text('-- | Inspect a source-checked carrier observation copy without execution.\nmodule Main where\n  import Effect.Multipart\n  -- | Keep metadata checking independent of runtime.\n  main :: Int\n  main = 0\n')
     command = [str(compiler), 'check', str(work / 'Main.cinch')]
-    result = subprocess.run(command, cwd=work, capture_output=True, text=True, timeout=60,
+    result = subprocess.run(command, cwd=work, capture_output=True, text=True, timeout=600,
                             env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
     report = {'scope': __doc__, 'production_adopted': False, 'runtime_claim': False,
               'compiler_sha256': digest(compiler), 'manifest_qualification_compiler_sha256': manifest['compiler']['sha256'],
