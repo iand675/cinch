@@ -941,7 +941,7 @@ module Bootstrap.Infer where
   convert-byte-operand external kinds locals sp argument st = case argument of
     TName at binding -> case lookup-local binding locals of
       Some value -> predicate-index-value sp (primitive-type "Bytes") value st
-      None -> bad sp "byte observation input has no checked local identity" st
+      None -> bad sp ("unknown index " <> binding <> ": byte observation input has no checked local identity") st
     TApp at (TName called name) arguments -> (case (lookup-local name locals, context-identity-observation name kinds, arguments) of
       (None, Some sc, TArg arg input (TArgsEnd end)) -> (case open-scheme False sc st of
         (function, pairs, opened) -> case function of
@@ -3571,7 +3571,7 @@ module Bootstrap.Infer where
   lookup-value :: Span -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
   lookup-value sp name env st = case lookup-binding name env of
     Some (MkOverloadBinding symbol candidates) -> lookup-overload sp symbol candidates env st
-    None -> term-error sp (string-concat "unbound variable or constructor: " name) st
+    None -> term-error sp (string-concat "unknown name " (diagnostic-member-name name)) st
     Some b -> case open-qualified False (checked-scheme b) st of
       (ty, requirements, pairs, ss) ->
         let evidence = case requirements of
