@@ -16,7 +16,7 @@ module Bootstrap.Object where
   import Effect.Fs (fs-read)
 
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
-  export read-runtime-object-document
+  export read-runtime-object-document, read-runtime-object-mode, admit-runtime-object-mode
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
   export object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export llvm-object-symbol
@@ -315,9 +315,11 @@ module Bootstrap.Object where
   -- the artifact it returns: parsing them a second time to recover them was
   -- one whole manifest parse per compile.
   parse-runtime-object :: String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
-  parse-runtime-object expected-triple interfaces code doc =
+  parse-runtime-object = parse-runtime-object-mode True
+  parse-runtime-object-mode :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> Result String RuntimeObject
+  parse-runtime-object-mode reclaim expected-triple interfaces code doc =
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
-      (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool True, JStr actual, JBool True) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual && bits == (if same actual "wasm32-unknown-unknown" then 32 else 64)
+      (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual && bits == (if same actual "wasm32-unknown-unknown" then 32 else 64)
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
@@ -339,9 +341,11 @@ module Bootstrap.Object where
   -- Keep the manifest and object bytes from the same authenticated read.
   -- Object production must not reopen unchecked metadata after admission.
   read-runtime-object-document :: forall r. using (io :: Io r) => List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  read-runtime-object-document interfaces path = case read-runtime-object-config path of
+  read-runtime-object-document = read-runtime-object-mode True
+  read-runtime-object-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-mode reclaim interfaces path = case read-runtime-object-config path of
     Err message -> Err message
-    Ok configuration -> admit-runtime-object interfaces configuration
+    Ok configuration -> admit-runtime-object-mode reclaim interfaces configuration
 
   data RuntimeObjectConfig where
     MkRuntimeObjectConfig :: String -> String -> String -> String -> String -> RuntimeObjectConfig
@@ -359,12 +363,14 @@ module Bootstrap.Object where
       other -> Err "runtime object configuration is not valid JSON"
 
   admit-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  admit-runtime-object interfaces configuration = case configuration of
+  admit-runtime-object = admit-runtime-object-mode True
+  admit-runtime-object-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  admit-runtime-object-mode reclaim interfaces configuration = case configuration of
     MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
         (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
           (case parse-json metadata-file metadata of
-            Parsed artifact Nil -> (case parse-runtime-object expected-triple interfaces code artifact of
+            Parsed artifact Nil -> (case parse-runtime-object-mode reclaim expected-triple interfaces code artifact of
               Err message -> Err message
               Ok provider -> Ok (provider, artifact, object-file, code))
             other -> Err "runtime object manifest is not valid JSON")

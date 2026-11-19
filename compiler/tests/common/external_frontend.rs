@@ -380,15 +380,19 @@ pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, o
 }
 
 fn target_inputs(request: &Request, frontend: &Frontend) -> Result<Option<(PathBuf, PathBuf)>, String> {
-    let Some(flag) = request.flags.windows(2).find(|pair| pair[0] == "--target") else { return Ok(None) };
+    let target = request.flags.windows(2).find(|pair| pair[0] == "--target");
+    let uncounted = request.flags.iter().any(|arg| arg == "--no-reclaim");
+    if target.is_none() && !uncounted { return Ok(None); }
     let Some(helper) = std::env::var_os("CINCH_TEST_TARGET_INPUTS") else { return Ok(None) };
     if std::env::var_os("CINCH_TEST_COMPILER").as_deref() != Some(frontend.compiler.as_os_str())
         || std::env::var_os("CINCH_TEST_INTERFACES").as_deref() != Some(frontend.interfaces.as_os_str())
     {
         return Ok(None);
     }
-    let output = std::process::Command::new(helper).args(["--test-target-inputs", &flag[1]])
-        .output().map_err(|err| format!("prepare target inputs: {err}"))?;
+    let mut command = std::process::Command::new(helper);
+    command.args(["--test-target-inputs", target.map_or("native", |pair| pair[1].as_str())]);
+    if uncounted { command.arg("--no-reclaim"); }
+    let output = command.output().map_err(|err| format!("prepare target inputs: {err}"))?;
     if !output.status.success() {
         return Err(format!("prepare target inputs: {}", String::from_utf8_lossy(&output.stderr)));
     }
@@ -445,7 +449,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
         if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
         std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
     }
-    if matches!(mode, Mode::EmitObject | Mode::EmitIr) || request.link.is_some() {
+    if mode != Mode::Check || request.link.is_some() {
         if let Some(configuration) = &objects {
             let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
             args.extend(["--objects".into(), configuration.display().to_string()]);

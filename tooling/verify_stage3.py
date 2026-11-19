@@ -50,6 +50,9 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     if args[0:1] == ["--emit-ir"]:
         flags = [] if "--objects" in args else ["--objects", objects]
         return subprocess.call([compiler, emit, *profile, *flags, *args[1:]], env=env)
+    if args[:2] == ["--compile-only", "--interfaces"] and args[3:4] == ["--objects"]:
+        objects = args[4]
+        args = args[:3] + args[5:]
     if len(args) != 7 or args[:2] != ["--compile-only", "--interfaces"]:
         return 1
     manifest, source, ir, exe, report = map(Path, args[2:])
@@ -111,15 +114,17 @@ def stage3_artifacts():
     return compiler, manifest, objects, runtime, hashes
 
 
-def test_target_inputs(directory, objects, triple):
+def test_target_inputs(directory, objects, triple, *, reclaim=True):
     """Build only the base library for the requested target using its pinned producer."""
     from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
 
     supported = {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
                  "aarch64-unknown-linux-gnu", "wasm32-unknown-unknown"}
+    configuration = bootstrap.read_json(Path(objects))
+    if triple == "native":
+        triple = configuration["target"]
     if triple not in supported:
         raise ValueError(f"unsupported target {triple!r}")
-    configuration = bootstrap.read_json(Path(objects))
     pinned = bootstrap.runtime_provider()
     if (pinned["identity"].get("kind") == "current-base-artifact"
             or configuration != pinned["configuration"]):
@@ -128,6 +133,8 @@ def test_target_inputs(directory, objects, triple):
     producer = native / "cinch"
     roots = native / "roots.json"
     output = Path(directory) / "target-libraries" / configuration["object_sha256"] / triple
+    if not reclaim:
+        output = output / "no-reclaim"
     project = output / "library"
     project.mkdir(parents=True, exist_ok=True)
     manifest, config = output / "interfaces.json", output / "objects.json"
@@ -137,14 +144,14 @@ def test_target_inputs(directory, objects, triple):
             source = project / "CinchBaseObject.cinch"
             source.write_bytes(ENTRY)
             code = bootstrap.run([producer, "emit-object", source, "--target", triple,
-                                  "--object-roots", roots, "-o", output / "library.o"],
+                                  *([] if reclaim else ["--no-reclaim"]), "--object-roots", roots, "-o", output / "library.o"],
                                  project, output / "build.log")
             if code:
                 raise ValueError(f"building {triple} base library failed: {output / 'build.log'}")
             metadata = output / "library.abi.json"
             document = bootstrap.read_json(metadata)
-            if document.get("target") != triple:
-                raise ValueError("base library producer emitted a different target")
+            if document.get("target") != triple or document.get("reclaim") is not reclaim:
+                raise ValueError("base library producer emitted a different target or ownership mode")
             snapshot = source_snapshot(bootstrap, bootstrap.library_provider_lock())
             package = bootstrap.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
             bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
@@ -187,8 +194,8 @@ def write_wrapper(wrapper, compiler, objects, runtime):
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
         "from verify_stage3 import compile_client, test_target_inputs\n"
         f"compiler={str(compiler)!r}\n"
-        "if len(sys.argv) == 3 and sys.argv[1] == '--test-target-inputs':\n"
-        f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2]))\n"
+        "if sys.argv[1:2] == ['--test-target-inputs'] and len(sys.argv) >= 3 and sys.argv[3:] in ([], ['--no-reclaim']):\n"
+        f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3))\n"
         f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], ir_only={ir_only!r}))\n"
     )
     wrapper.chmod(0o755)

@@ -217,6 +217,21 @@ class FrozenVerification(unittest.TestCase):
             self.assertEqual(link[:6], ["clang", ir, str(library), str(runtime), "-o", exe])
             self.assertEqual(report.read_text(), "clang-exit: 0\n")
 
+    def test_uncounted_client_compiles_and_links_with_the_selected_library(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            objects = root / "uncounted.json"
+            library = root / "uncounted.o"
+            objects.write_text(json.dumps({"object": str(library)}))
+            args = ["--compile-only", "--no-reclaim", "--interfaces", "interfaces.json",
+                    "--objects", str(objects), "Main.cinch", "out.ll", "program", str(root / "report")]
+            with patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
+                self.assertEqual(verify_stage3.compile_client("cinch", root / "default.json", "runtime.a", args), 0)
+            emission, link = [call.args[0] for call in run.call_args_list]
+            self.assertIn("--no-reclaim", emission)
+            self.assertEqual(emission[emission.index("--objects") + 1], str(objects))
+            self.assertIn(str(library), link)
+
     def test_ir_only_requires_both_disposable_output_and_compiler_support(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
