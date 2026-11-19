@@ -461,10 +461,16 @@ module Bootstrap.Foreign where
             Some clause -> string-concat-all ["the `", family, "` body's `when ", clause, "` condition holds in the target profile"] in
       JObj "family" (JStr family) (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
         (JObj "identity" (JStr identity) (JObj "tier" (JStr "assumed") (JObj "why" (JStr why)
-          (JObj "trust" (trust-document trust) (JObj "immarg" (immediate-document immediates)
+          (JObj "trust" (trust-document bodies trust) (JObj "immarg" (immediate-document immediates)
             (JObj "uses" JArrEnd (JObj "validation" (validation-document bodies) JObjEnd))))))))
-  trust-document :: List String -> Json
-  trust-document trust = case trust of Nil -> JArrEnd; Cons name rest -> JArr (JStr name) (trust-document rest)
+  trust-document :: List PrimBody -> List String -> Json
+  trust-document bodies identities = case bodies of
+    Nil -> JArrEnd
+    Cons (MkPrimBody site family fragment unverified clauses projected justification uses immediates) rest ->
+      if unverified then (case identities of
+        Cons identity more -> JArr (JStr (string-concat-all [family, ": declared under `unsafe`, trusted not verified (", identity, ")"])) (trust-document rest more)
+        Nil -> JArrEnd)
+      else trust-document rest identities
   immediate-document :: List Nat -> Json
   immediate-document positions = case positions of Nil -> JArrEnd; Cons i rest -> JArr (JNum (nat-to-int i)) (immediate-document rest)
   validation-document :: List PrimBody -> Json
