@@ -144,6 +144,8 @@ class FrozenVerification(unittest.TestCase):
             compiler, manifest, objects, runtime = (root / name for name in ("cinch", "interfaces", "objects", "runtime"))
             for path in (compiler, manifest, objects, runtime):
                 path.write_text(path.name)
+            library = root / "base.o"
+            objects.write_text(json.dumps({"object": str(library)}))
             hashes = {path: checklist.digest(path) for path in (compiler, manifest, objects, runtime)}
             called = []
             record_api = False
@@ -157,6 +159,7 @@ class FrozenVerification(unittest.TestCase):
                     workers.wait(timeout=5)
                 self.assertIn("--include-ignored", command)
                 self.assertEqual(env["CINCH_TEST_API_EMIT_INTERFACES"], "1" if target == "api" else "0")
+                self.assertEqual(env["CINCH_TEST_LIBRARY_OBJECT"], str(library))
                 self.assertEqual(env["CINCH_TEST_INTERFACES"], str(manifest))
                 self.assertEqual(env["CINCH_TEST_CHECK_TYPES"], "1")
                 wrapper = Path(env["CINCH_TEST_COMPILER"])

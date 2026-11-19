@@ -248,7 +248,8 @@ def verify(evidence, cargo_target, jobs=1):
     env.update(CINCH_TEST_STANDALONE=standalone_inputs(evidence / "standalone", compiler, manifest, objects, runtime),
                CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
-               CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
+               CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_LIBRARY_OBJECT=bootstrap.read_json(objects)["object"],
+               CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
                CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "compiler"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")
     report = {
         "stage": 3, "compiler_sha256": hashes[compiler], "interfaces_sha256": hashes[manifest],
