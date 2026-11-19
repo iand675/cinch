@@ -7,7 +7,7 @@ module Bootstrap.Index where
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
 
-  export IndexTerm, IInteger, IBound, IRigid, IGlobal, IMeta, IApply, ILambda
+  export IndexTerm, ICharacter, IInteger, IBound, IRigid, IGlobal, IMeta, IApply, ILambda
   export IAdd, ISubtract, IMultiply
   export index-tree, index-from-tree
   export index-equal, index-free-bound, index-free-metas, index-occurs
@@ -24,6 +24,7 @@ module Bootstrap.Index where
     IAdd :: IndexTerm -> IndexTerm -> IndexTerm
     ISubtract :: IndexTerm -> IndexTerm -> IndexTerm
     IMultiply :: IndexTerm -> IndexTerm -> IndexTerm
+    ICharacter :: Char -> IndexTerm
 
   has :: Nat -> List Nat -> Bool
   has id ids = case ids of Nil -> False; Cons first rest -> id == first || has id rest
@@ -66,6 +67,7 @@ module Bootstrap.Index where
     other -> False
   equal-under :: List (Nat, Nat) -> IndexTerm -> IndexTerm -> Bool
   equal-under pairs first second = case (first, second) of
+    (ICharacter a, ICharacter b) -> a == b
     (IInteger a, IInteger b) -> a == b
     (IBound a name, IBound b other) -> equal-bound pairs a b
     (IRigid a name level, IRigid b other depth) -> a == b && level == depth
@@ -87,6 +89,7 @@ module Bootstrap.Index where
   -- Unsolved index metas cannot become invented runtime witnesses.
   index-scoped :: List Nat -> List Nat -> List String -> IndexTerm -> Bool
   index-scoped bound rigid globals term = case term of
+    ICharacter c -> True
     IInteger value -> True
     IBound id name -> has id bound
     IRigid id name level -> has id rigid
@@ -163,6 +166,7 @@ module Bootstrap.Index where
   index-node tag fields = JArr (JStr tag) (index-fields fields)
   index-tree :: IndexTerm -> Json
   index-tree term = case term of
+    ICharacter c -> index-node "char" [JStr (pack [c])]
     IInteger value -> index-node "int" [JNum value]
     IBound id name -> index-node "bound" [JNum (nat-to-int id), JStr name]
     IRigid id name level -> index-node "rigid" [JNum (nat-to-int id), JStr name, JNum (nat-to-int level)]
@@ -181,6 +185,7 @@ module Bootstrap.Index where
   index-from-tree doc = case doc of
     JArr (JStr tag) (JArr value JArrEnd) ->
       if same-index-tag tag "int" then (case value of JNum n -> Some (IInteger n); other -> None)
+      else if same-index-tag tag "char" then (case value of JStr text -> (case unpack text of [c] -> Some (ICharacter c); other -> None); other -> None)
       else if same-index-tag tag "meta" then (case index-natural value of Some n -> Some (IMeta n); None -> None)
       else if same-index-tag tag "global" then (case value of JStr identity -> Some (IGlobal identity); other -> None)
       else None

@@ -2513,6 +2513,7 @@ module Bootstrap.RuntimeIr where
       None -> unsupported w sp "index arithmetic has no checked carrier")
     other -> (case (value-carrier (type-kind value), index-of-type value) of
       (Some carrier, Some (IRigid id name level)) -> read-index-local locals w sp id carrier
+      (Some carrier, Some (ICharacter c)) -> if named carrier "Char" then (w, nat-to-string (char-code c)) else unsupported w sp "character index needs its Char carrier"
       (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else unsupported w sp "index literal needs a runtime integer carrier"
       (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
       (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
@@ -4631,11 +4632,48 @@ module Bootstrap.RuntimeIr where
               cat ["  br label %", loop], cat [end, ":"]] in
             call (count-op False carrier root walked) "@cinch_nat_from_i64" [count])
       other -> unsupported w sp "length needs its checked list layout"
+  -- Hold the input across the scan. Char code points and UTF-8 bytes are
+  -- ASCII exactly when each unsigned word is below 128.
+  ascii-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  ascii-word w sp carrier root = case carrier of
+    UCon name KType | checked-string-word name (writer-program w) -> (case string-bytes w root of
+      (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
+        (measured, count) -> ascii-loop measured carrier root (Some (bytes, count)))
+    other -> if ascii-carrier carrier && array-list-abi w && (case core-list-element carrier of Some element -> True; None -> False)
+      then ascii-loop w carrier root None else unsupported w sp "Ascii needs its checked string or char-list layout"
+  ascii-loop :: Writer -> UType -> String -> Option (String, String) -> (Writer, String)
+  ascii-loop w carrier root buffer =
+    let (a, entry) = fresh w "ascii-entry" in let (b, loop) = fresh a "ascii-loop" in
+    let (c, read) = fresh b "ascii-read" in let (d, step) = fresh c "ascii-step" in
+    let (e, yes) = fresh d "ascii-yes" in let (f, no) = fresh e "ascii-no" in
+    let (g, end) = fresh f "ascii-end" in let (h, cursor) = fresh g "%v" in
+    let (i, next) = fresh h "%v" in let (j, done) = fresh i "%v" in
+    let (k, valid) = fresh j "%v" in let (m, result) = fresh k "%v" in
+    let initial = case buffer of Some pair -> "0"; None -> root in
+    let start = emit-lines m [cat ["  br label %", entry], cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"],
+      cat ["  ", cursor, " = phi i64 [ ", initial, ", %", entry, " ], [ ", next, ", %", step, " ]"]] in
+    let (checked, test, limit) = case buffer of Some (bytes, size) -> (start, cursor, size); None -> case constructor-tag start cursor of (tagged, tag) -> (tagged, tag, "0") in
+    let body = emit-lines checked [cat ["  ", done, " = icmp eq i64 ", test, ", ", limit],
+      cat ["  br i1 ", done, ", label %", yes, ", label %", read], cat [read, ":"]] in
+    let (loaded, unit, advance) = case buffer of
+          Some (bytes, size) -> (case call body "@cinch_bytes_get" [bytes, cursor] of
+            (got, value) -> (got, value, [cat ["  ", next, " = add i64 ", cursor, ", 1"]]))
+          None -> let (p, ptr) = fresh body "%ptr" in let (q, head) = fresh p "%v" in let (r, tail) = fresh q "%ptr" in
+            (emit-lines r [cat ["  ", ptr, " = inttoptr i64 ", cursor, " to ptr"], cat ["  ", head, " = load i64, ptr ", ptr]], head,
+             [cat ["  ", tail, " = getelementptr i64, ptr ", ptr, ", i64 1"], cat ["  ", next, " = load i64, ptr ", tail]]) in
+    let scanned = emit-lines loaded ([cat ["  ", valid, " = icmp ult i64 ", unit, ", 128"],
+      cat ["  br i1 ", valid, ", label %", step, ", label %", no], cat [step, ":"]] <> advance <>
+      [cat ["  br label %", loop], cat [yes, ":"], cat ["  br label %", end], cat [no, ":"], cat ["  br label %", end],
+       cat [end, ":"], cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]]) in
+    (count-op False carrier root scanned, result)
+
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args = case args of
     CArgumentsEnd at | same op "#unhandled-operation" -> let (ready, dead) = fresh w "afterfault" in
       (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.ascii" -> (case expression definitions locals w input of
+      (ready, value) -> ascii-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) | same op "#kernel.length" -> (case expression definitions locals w input of
       (ready, value) -> length-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input

@@ -1010,3 +1010,28 @@ module Main where
         );
     }
 }
+
+#[test]
+fn ascii_decisions_inspect_the_character_and_text_payloads() {
+    expect_run(
+        "ascii-payloads",
+        r#"
+module Main where
+  chars :: List Char -> Bool
+  chars xs = case decide (Ascii xs) of
+    Yes _ -> True
+    No _ -> False
+
+  text :: String -> Bool
+  text xs = case decide (Ascii xs) of
+    Yes _ -> True
+    No _ -> False
+
+  main :: Int
+  main =
+    if chars Nil && chars (Cons 'A' Nil) && not (chars (Cons 'a' (Cons 'Ā' Nil)))
+       && text "" && text "hello" && not (text "aé") then 0 else 1
+"#,
+        0,
+    );
+}

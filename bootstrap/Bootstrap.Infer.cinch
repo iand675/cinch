@@ -4093,11 +4093,11 @@ module Bootstrap.Infer where
          (value, checked) -> case decision-index sp env carrier value checked of
            (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
     else if same name "NotNull" then decision-not-null classes kinds families env locals sp input st
-    -- `Ascii` and `Ordered` are refinements the checker decides statically
-    -- over constructor forms; a runtime `decide` needs a recursive scan
-    -- whose result is a proof, which this tier does not build yet. Refused
-    -- by name, never guessed at.
-    else if same name "Ascii" then decision-failure sp "`decide (Ascii ...)` needs a checked recursive scan over the value, which this tier does not build: discharge `Ascii` statically (a constructor form) or carry it as a refinement predicate" st
+    else if same name "Ascii" then (case infer classes kinds families env locals input st of
+      (value, checked) -> let operand = map-term-types (normalize checked) value in
+        if not (ascii-carrier (core-type operand)) then decision-failure sp "Ascii decides String or List Char" checked
+        else case reify-argument sp env operand checked of
+          (index, done) -> (UPropAscii index, CPrimitive sp (primitive-type "Bool") "#kernel.ascii" (CArgument sp operand (CArgumentsEnd sp)), done))
     else if same name "Ordered" then decision-failure sp "`decide (Ordered ...)` needs a checked recursive scan over the value, which this tier does not build: discharge `Ordered` statically (a constructor form) or carry it as a refinement predicate" st
     else decision-failure sp "unknown executable predicate former" st
   decision-not-null :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)

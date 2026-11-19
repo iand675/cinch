@@ -349,6 +349,7 @@ module Bootstrap.Typing where
         None -> False)
       -- `parWorkers n` sets the participant budget and answers `Unit`; the
       -- count is a `Nat` in source and crosses as a length at lowering.
+      else if same name "#kernel.ascii" then type-is "Bool" ty && ascii-carrier (core-type first)
       else if same name "#kernel.length" then type-is "Nat" ty && length-carrier (core-type first)
       else if same name "par-workers" then type-is "Unit" ty && type-is "Nat" (core-type first)
       else same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
