@@ -4794,6 +4794,9 @@ module Bootstrap.Infer where
   -- | Preserve an explicit strict forall without generalizing an evaluated annotation or its performed effects.
   infer-strict-rhs :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer-strict-rhs classes kinds families env locals syntax st = case syntax of
+    -- An unannotated literal bound directly by let is in inference position.
+    -- Arguments of polymorphic calls still wait for their expected carrier.
+    ELitInt sp text -> checked-literal sp (primitive-type "Int") text st
     EAnn sp expression (TForall at binders body) ->
       infer-forall-annotation-with True classes kinds families env locals sp expression binders body st
     other -> infer classes kinds families env locals syntax st
