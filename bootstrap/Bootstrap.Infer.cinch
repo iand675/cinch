@@ -1347,6 +1347,7 @@ module Bootstrap.Infer where
   bind-erased-value-pattern kinds env locals pat domain st = case pat of
     PVar sp name -> erased-value-binding env sp name domain st
     PWild sp -> erased-value-binding env sp "#erased-argument" domain st
+    PTuple sp (PArgsEnd end) -> erased-value-binding env sp "#erased-unit" domain (unify sp domain (primitive-type "Unit") st)
     PAnn sp inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, checked) -> bind-erased-value-pattern kinds env locals inner domain (unify sp domain ty (expect-type sp ty checked))
     other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "multiplicity %0: an erased argument needs a variable or wildcard pattern" st)
