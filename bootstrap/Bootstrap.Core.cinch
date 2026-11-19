@@ -60,7 +60,7 @@ module Bootstrap.Core where
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
-  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
+  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEInstance
   export CEArgument, CEArgumentsEnd
   export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
@@ -298,17 +298,19 @@ module Bootstrap.Core where
   data CoreEvidence where
     CENeeded :: Span -> UType -> List CoreGiven -> CoreEvidence
     CEGiven :: Span -> UType -> String -> CoreEvidence
+    CECopy :: Span -> UType -> CoreEvidence
     CEInstance :: Span -> UType -> String -> List UType -> CoreEvidence -> CoreEvidence
     CEArgument :: Span -> CoreEvidence -> CoreEvidence -> CoreEvidence
     CEArgumentsEnd :: Span -> CoreEvidence
   evidence-type :: CoreEvidence -> UType
-  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CEInstance s ty name actuals args -> ty; other -> UError
+  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
   map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
   map-givens f givens = case givens of Nil -> Nil; Cons (CGiven s name ty) rest -> Cons (CGiven s name (f ty)) (map-givens f rest)
   map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
   map-evidence f evidence = case evidence of
     CENeeded s ty scope -> CENeeded s (f ty) (map-givens f scope)
     CEGiven s ty name -> CEGiven s (f ty) name
+    CECopy s carrier -> CECopy s (f carrier)
     CEInstance s ty name actuals args -> CEInstance s (f ty) name (map-types f actuals) (map-evidence f args)
     CEArgument s arg rest -> CEArgument s (map-evidence f arg) (map-evidence f rest)
     CEArgumentsEnd s -> evidence
@@ -892,6 +894,7 @@ module Bootstrap.Core where
     other -> False
   rewrite-evidence-equal :: CoreEvidence -> CoreEvidence -> Bool
   rewrite-evidence-equal first second = case (first, second) of
+    (CECopy sp carrier, CECopy at other) -> same-shape carrier other
     (CEGiven sp ty name, CEGiven at other symbol) ->
       string-compare name symbol == 0 && rewrite-type-equal ty other
     (CEInstance sp ty name types arguments, CEInstance at other symbol actuals supplied) ->
@@ -1346,6 +1349,7 @@ module Bootstrap.Core where
   evidence-metas st evidence = case evidence of
     CENeeded s ty scope -> type-metas st ty <> given-metas st scope
     CEGiven s ty name -> type-metas st ty
+    CECopy s carrier -> type-metas st carrier
     CEInstance s ty name actuals args -> type-metas st ty <> types-metas st actuals <> evidence-metas st args
     CEArgument s arg rest -> evidence-metas st arg <> evidence-metas st rest
     CEArgumentsEnd s -> Nil
@@ -1521,6 +1525,7 @@ module Bootstrap.Core where
   evidence-closed evidence = case evidence of
     CENeeded s ty scope -> False
     CEGiven s ty name -> closed-type ty
+    CECopy s carrier -> copy-marker-carrier carrier
     CEInstance s ty name actuals args -> closed-type ty && closed-types actuals && evidence-arguments-closed args
     other -> False
   evidence-arguments-closed :: CoreEvidence -> Bool
@@ -1761,6 +1766,7 @@ module Bootstrap.Core where
   evidence-index-scope-with universals rigid evidence = case evidence of
     CENeeded s ty scope -> False
     CEGiven s ty name -> type-index-scope universals rigid ty
+    CECopy s carrier -> copy-marker-carrier carrier
     CEInstance s ty name actuals args -> type-index-scope universals rigid ty && types-index-scope universals rigid actuals && evidence-index-scope-with universals rigid args
     CEArgument s arg rest -> evidence-index-scope-with universals rigid arg && evidence-index-scope-with universals rigid rest
     CEArgumentsEnd s -> True

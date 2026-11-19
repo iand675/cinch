@@ -237,6 +237,7 @@ module Bootstrap.Typing where
   actual-types context scope types = case types of Nil -> True; Cons ty rest -> body-type-authorized (context-bodies context) ty && argument-well-formed (context-kinds context) scope ty && actual-types context scope rest
   evidence-types :: TypingContext -> TypeScope -> CoreEvidence -> Bool
   evidence-types context scope evidence = case evidence of
+    CECopy sp carrier -> wf context scope (evidence-type evidence) && copy-marker-carrier carrier
     CEGiven sp ty symbol -> wf context scope ty
     CEInstance sp ty symbol actuals args -> wf context scope ty && actual-types context scope actuals && evidence-types context scope args
     CEArgument sp first rest -> evidence-types context scope first && evidence-types context scope rest

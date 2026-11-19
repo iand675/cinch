@@ -19,6 +19,7 @@ module Bootstrap.Type where
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UForall, UArg, UEnd, UError
+  export copy-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, ascii-carrier, ordered-carrier
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
@@ -1718,6 +1719,18 @@ module Bootstrap.Type where
   mathematical-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "Int"; other -> False
   natural-carrier :: UType -> Bool
   natural-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat"; other -> False
+  -- Ground scalar and tuple Copy dictionaries have no runtime payload.
+  -- A type variable obtains its evidence through the lexical dictionary.
+  copy-marker-carrier :: UType -> Bool
+  copy-marker-carrier ty = case ty of
+    UCon name KType -> number-literal-carrier ty || same-tag name "Char" || same-tag name "Bool" || same-tag name "Unit"
+    UTuple fields -> copy-marker-fields fields
+    other -> False
+  copy-marker-fields :: UType -> Bool
+  copy-marker-fields fields = case fields of
+    UEnd -> True
+    UArg first rest -> copy-marker-carrier first && copy-marker-fields rest
+    other -> False
   integer-carrier :: UType -> Bool
   integer-carrier carrier = mathematical-carrier carrier || promotable-carrier carrier
   -- The supported bootstrap target uses 64-bit machine words.

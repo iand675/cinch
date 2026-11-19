@@ -360,6 +360,26 @@ module Main where
 }
 
 #[test]
+fn copy_dictionaries_follow_the_carrier_through_polymorphic_calls() {
+    let duplicate = r#"module Main where
+  duplicate :: forall a. using (copier :: Copy a) => a -> (a, a)
+  duplicate x = (x, x)
+"#;
+    expect_ok(
+        "tuple-copy-dictionary",
+        &format!("{duplicate}  main :: Int\n  main = case duplicate ((42 :: Int), True) of ((x,b),(y,c)) -> if b && c && x == y then 0 else 1\n"),
+        0,
+    );
+    for (name, declaration) in [
+        ("bytes", "bad :: Bytes -> (Bytes, Bytes)"),
+        ("abstract", "bad :: forall a. a -> (a, a)"),
+    ] {
+        let source = format!("{duplicate}  {declaration}\n  bad x = duplicate x\n  main :: Int\n  main = 0\n");
+        expect_err(name, &source, &["no Copy evidence"]);
+    }
+}
+
+#[test]
 fn copy_class_is_structural_and_not_user_extensible() {
     expect_err(
         "copy-no-evidence",
