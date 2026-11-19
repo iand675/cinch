@@ -1753,6 +1753,138 @@ interface exporter's `result-in`/`value-quantifiers`
 their own byte-identity argument; the exporter one is delicate because it
 writes the published contract text.
 
+### 2.22 Three repetitions that were most of a self-compile (2026-11-19)
+
+Measured on a 4-core x86_64 Linux machine with LLVM 20, where the audited
+chain at `697c6f93` took 41 minutes for stages 1 to 3: Stage 1's frontend
+ran for 442 s to emit the Stage 2 module, single threaded, and Stage 2's ran
+as long again.
+
+`perf` works there where the harness's `sample` does not (`nix build
+nixpkgs#perf`; the event is `task-clock`, which needs no hardware counter).
+Two recipes cover what follows. A long run is recorded flat, `perf record
+-F 499`, because the stage binaries keep no frame pointers and a frame
+pointer call graph of them is noise. A run of a few seconds, or a long one
+at `-F 59`, is recorded with `--call-graph dwarf,16384`, which unwinds
+correctly and costs about 40 MB per second of run at 2 kHz. A loop the
+optimizer inlined shows up as a bare address; `nm -n` on the binary names the
+function that contains it.
+
+The flat profile of the 442 s run put 51% of the samples at two addresses
+inside `Bootstrap.Infer.data-group-members` and another 15% in the string
+comparisons under it. Every finding below came from the profile, and each
+fix was accepted only when the compiler built with it emitted, for the
+unchanged Stage 1 bundle, the byte-identical Stage 2 module of the fixed
+point.
+
+| Change | Self-compile, CPU s | What repeated |
+| --- | ---: | --- |
+| handoff (profile-guided Stage 1) | 442 | |
+| the data reference graph is built once | 155 | `register` asked for the mutual group of every data declaration, and each answer searched reachability per candidate with every step scanning every declaration for one name's edges |
+| the sealed environment is a balanced tree | 108.8 | a name below the module's cache entry resolved to a position, and the position was walked down a list of thousands of bindings |
+| a defining ownership row is decoded once per elaboration | 94.8 | an interface repeats a type's ownership table in every entry that names the type, and each copy was lexed and parsed again |
+| well-formed JSON is scanned by offset (section 2.23) | 92.2 | |
+
+The first row is a profile-guided binary and the rest are development
+builds without a profile, so the table understates the change. The chain
+with the first two changes built and checked in about 30 minutes while
+sharing the machine with a test run.
+
+What the profile says is left, as inclusive shares of the 108.8 s run:
+
+- **The totality retry, 42%.** A self-compile runs 92 module elaborations:
+  the real one, one joint preliminary and 90 retries, one per name the joint
+  preliminary left unresolved (section 2.16 made the retry flat; it did not
+  make an attempt cheap). Each attempt re-registers every imported
+  declaration, closes the typing context again and decodes usage again,
+  about half a second of work that is a function of the interface set and
+  not of the name. The same prework is what a trivial program pays twice.
+  Hoisting it needs `elaborate-module-with-source-bodies` cut into an
+  import phase and a source phase, which is a refactor of the checker's
+  spine rather than a lookup fix.
+- **`check-global-core`, 25%.** Mostly `checked-definition-error` over every
+  definition in the real elaboration, which is the independent check doing
+  its job; 8% is `close-typing-context-with-usage`, paid per attempt.
+- **`register-external`, 7%.** `imported-foreign-row` scans the declaration
+  list per foreign entry; `Data.Machine` alone has 820.
+- **Emission, 12%.**
+
+### 2.23 What every compile pays before it reads the program (2026-11-19)
+
+The fib smoke compiled against the base interfaces and the library object
+takes about two seconds, and the program accounts for none of it: 66
+interfaces are 2.2 MB of JSON and the object's metadata is 2.8 MB. The suite
+makes thousands of such compiles, so this is the suite's floor.
+
+A `--call-graph dwarf` profile of that compile, before any change:
+
+| Share | Work |
+| ---: | --- |
+| 31% | `Text.Json.parse-json`, 16% for the object metadata and 15% for the interfaces |
+| 37% | two module elaborations (the real one and the totality preliminary), 21% of it decoding usage shapes |
+| 11% | FNV-1a over the object code and each contract, one library call per byte |
+| 7% | `validate-interface-set`, run for the manifest's set and again for the object's |
+| 3% | SHA-256 of the two artifacts |
+
+Two changes landed against it. With each ownership row decoded once
+(section 2.22), a development build without a profile compiles it in 1.36 s
+of CPU; the handoff's profile-guided Stage 2 took 2.05 s, and the two
+binaries are not otherwise comparable. An offset scanner for well-formed
+documents then took the development build to about 1.2 s: `parse-json`
+threads a bare byte offset and builds the value, and declines anything it
+cannot accept, at which point the combinator scanner runs from the start
+and reports exactly what it always reported.
+
+Two findings are recorded and not acted on, because each is a decision
+about a format or about what is checked rather than about speed:
+
+- **The object's metadata embeds every interface a second time.** 2.2 MB of
+  the 2.8 MB is the `interfaces` member, whose rows carry the whole
+  interface document beside its hash. The compiler parses those documents
+  and then compares each against the one it already loaded from the
+  manifest (`read-known-document`). A metadata file with the hash alone
+  would remove about a fifth of the compile, and would turn a full
+  comparison into trust in a 64-bit contract hash.
+- **The emitter names by one counter.** Locals, string and number globals
+  and lambdas all draw from the `Writer`'s single `next`, and the seed
+  numbers lambdas the same way, so an edit renumbers every later function
+  and no shard of the module survives it. The object cache below reuses 46
+  of 48 shards when a string constant changes and none when a function is
+  added. Unit-local numbering (the counter reset per unit, module-level
+  names scoped by their unit) is what makes the backend incremental, and it
+  is the same change parallel emission needs
+  (`design/parallel-evaluation.md` section 5.3).
+
+### 2.24 The development chain: stable shards and an object cache (2026-11-19)
+
+`tooling/bootstrap.py build --dev` builds a stage for iteration and not for
+audit: no profile, the module cut into 48 shards by a hash of each
+function's module name, and each shard's object reused from
+`CINCH_SHARD_CACHE` when its text, the clang and the flags are the ones a
+previous compile saw. The balanced partition of `-j` packs groups onto the
+least loaded shard, so one function growing moves the groups after it; the
+stable partition moves a function only when it is renamed, and gives the
+module-level content a shard of its own so a new constant recompiles no
+code.
+
+On the machine above, building Stage 1 from the seed:
+
+| Build | Wall | CPU | Shards compiled |
+| --- | ---: | ---: | ---: |
+| cold | 3 m 41 s | 7 m 00 s | 48 of 48 |
+| after changing one string literal | 2 m 07 s | 1 m 58 s | 2 of 48 |
+
+What is left of the second row is the seed's frontend and the split of a
+305 MB module in Python. A profile compile never uses the cache, because
+its object depends on the path clang is handed, and the audited chain sets
+no cache at all: each stage compiling its own IR is part of what the fixed
+point claims.
+
+`tooling/nix` and `flake.nix` package the pin-keyed half of a cold chain
+(the two cargo release builds and the library object) and the checked
+ladder as separate derivations for a binary cache; `tooling/nix/README.md`
+has the commands.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
