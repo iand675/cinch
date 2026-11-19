@@ -19,6 +19,7 @@ module Bootstrap.Type where
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UForall, UArg, UEnd, UError
+  export foreign-pointer
   export core-list-type, core-list-element, ascii-carrier, ordered-carrier
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
@@ -1127,9 +1128,16 @@ module Bootstrap.Type where
         other -> unify-structure sp a b checked
   mismatch :: Span -> UType -> UType -> Store -> Store
   mismatch sp a b st = add-deferred-error sp (\u -> mismatch-message a b) st
+  foreign-pointer :: UType -> Bool
+  foreign-pointer ty = case ty of
+    UApp (UCon name kind) pointee -> (same-tag name "RawPtr" || same-tag name "Borrowed" || same-tag name "MaybeNull")
+      && kind-equal kind (KFun KType KType) && valid-type pointee && kind-equal (type-kind pointee) KType
+    other -> False
   mismatch-message :: UType -> UType -> String
   mismatch-message a b = let prefix = if kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow then "effect row type mismatch: expected " else "type mismatch: expected " in
-    string-concat-all [prefix, display-type-text b, ", found ", display-type-text a]
+    let pointer-cast = (foreign-pointer b && (integer-carrier a || wide-carrier a)) || (foreign-pointer a && (integer-carrier b || wide-carrier b)) in
+    string-concat-all [prefix, display-type-text b, ", found ", display-type-text a,
+      if pointer-cast then " (a boundary pointer role is never constructed from an integer)" else ""]
   -- Diagnostic text only: every encoded nominal identity `i.` reads as the
   -- unqualified source name it encodes (Bootstrap.Nominal.decode-identity).
   -- type-text itself, and so every interface and IR spelling, keeps the
