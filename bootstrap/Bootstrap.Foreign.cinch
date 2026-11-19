@@ -20,6 +20,7 @@ module Bootstrap.Foreign where
   export foreign-blocking, foreign-width, foreign-signed, foreign-nullable, foreign-role
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
+  export primitive-object-callable, foreign-primitive-selection
   export PrimitiveAssembly, AssemblyFragment
   export foreign-llvm-type, primitive-layout
 
@@ -30,7 +31,7 @@ module Bootstrap.Foreign where
   data InlinePrimitive where
     InlinePrimitiveBody :: String -> List String -> List Nat -> Option PrimitiveAssembly -> InlinePrimitive
   data ForeignPlan where
-    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, String, List String) -> ForeignPlan
+    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, String, List String, Json) -> ForeignPlan
   foreign-symbol :: ForeignPlan -> String
   foreign-symbol plan = case plan of Plan symbol scheme params result inline -> symbol
   foreign-scheme :: ForeignPlan -> Scheme
@@ -40,11 +41,26 @@ module Bootstrap.Foreign where
   foreign-result :: ForeignPlan -> ForeignParameter
   foreign-result plan = case plan of Plan symbol scheme params result inline -> result
   foreign-inline :: ForeignPlan -> Option InlinePrimitive
-  foreign-inline plan = case plan of Plan symbol scheme params result inline -> (case inline of Some (body, identity, trust) -> Some body; None -> None)
+  foreign-inline plan = case plan of Plan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection) -> Some body; None -> None)
+  -- A public worker receives ordinary arguments. Immediate-only operands
+  -- must still be checked at a direct call with their actual literal values.
+  primitive-object-callable :: ForeignPlan -> Bool
+  primitive-object-callable plan = case foreign-inline plan of
+    Some (InlinePrimitiveBody fragment symbols Nil assembly) -> pure-primitive-arrows (scheme-body (foreign-scheme plan))
+    other -> False
+  pure-primitive-arrows :: UType -> Bool
+  pure-primitive-arrows ty = case ty of
+    UFun domain result -> pure-primitive-arrows result
+    UCon name KType -> True
+    other -> False
   foreign-primitive-assumptions :: ForeignPlan -> Option (String, List String)
   foreign-primitive-assumptions plan = case plan of
     Plan symbol scheme params result inline ->
-      (case inline of Some (body, identity, trust) -> Some (identity, trust); None -> None)
+      (case inline of Some (body, identity, trust, selection) -> Some (identity, trust); None -> None)
+  foreign-primitive-selection :: ForeignPlan -> Option Json
+  foreign-primitive-selection plan = case plan of
+    Plan symbol scheme params result (Some (body, identity, trust, selection)) -> Some selection
+    other -> None
   foreign-parameter-type :: ForeignParameter -> UType
   foreign-parameter-type parameter = case parameter of Parameter ty category role width align signed nullable -> ty
   foreign-class :: ForeignParameter -> String
@@ -365,9 +381,9 @@ module Bootstrap.Foreign where
       "call", "callq", "bl", "blr", "ret", "jmp", "br"] words)
   -- | Prefer a matching target-specific body over the fallback regardless of order,
   -- while rejecting duplicate defaults and ambiguous matching alternatives.
-  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Bool -> Bool -> Option PrimitiveAssembly -> String -> Result String InlinePrimitive
-  checked-prim-bodies bodies arity result baseline seen-default selected-conditional assembly missing = case bodies of
-    Nil -> (case baseline of Some (fragment, symbols, immediates) -> Ok (InlinePrimitiveBody fragment symbols immediates assembly); None -> Err (string-concat "no LLVM baseline for " missing))
+  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Bool -> Option String -> Option PrimitiveAssembly -> String -> Result String (InlinePrimitive, Option String)
+  checked-prim-bodies bodies arity result baseline seen-default selected-condition assembly missing = case bodies of
+    Nil -> (case baseline of Some (fragment, symbols, immediates) -> Ok (InlinePrimitiveBody fragment symbols immediates assembly, selected-condition); None -> Err (string-concat "no LLVM baseline for " missing))
     Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
       else if has family ["clr", "jvm"] then Err (string-concat family " target-IR family is reserved")
@@ -382,15 +398,16 @@ module Bootstrap.Foreign where
           Err message -> Err message
           Ok symbols -> (case when of
             Nil -> if seen-default then Err "duplicate LLVM baseline in an inline primitive"
-              else checked-prim-bodies rest arity result (if selected-conditional then baseline else Some (fragment, symbols, immediates)) True selected-conditional assembly missing
+              else checked-prim-bodies rest arity result (case selected-condition of Some clause -> baseline; None -> Some (fragment, symbols, immediates)) True selected-condition assembly missing
             Cons first rest-conditions ->
               if primitive-condition-holds selected when then
-                (if selected-conditional then Err "ambiguous matching LLVM bodies in an inline primitive"
-                 else checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) seen-default True assembly missing)
-              else checked-prim-bodies rest arity result baseline seen-default selected-conditional assembly (condition-text when)))
+                (case selected-condition of
+                  Some prior -> Err "ambiguous matching LLVM bodies in an inline primitive"
+                  None -> checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) seen-default (Some (condition-text when)) assembly missing)
+              else checked-prim-bodies rest arity result baseline seen-default selected-condition assembly (condition-text when)))
           else if same family "asm" then (case (when, assembly) of
-            (Cons first rest-conditions, prior) -> checked-prim-bodies rest arity result baseline seen-default selected-conditional prior (condition-text when)
-            (Nil, None) -> checked-prim-bodies rest arity result baseline seen-default selected-conditional (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
+            (Cons first rest-conditions, prior) -> checked-prim-bodies rest arity result baseline seen-default selected-condition prior (condition-text when)
+            (Nil, None) -> checked-prim-bodies rest arity result baseline seen-default selected-condition (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
             (Nil, Some prior) -> Err "duplicate unconditional assembly body in an inline primitive")
           else Err (string-concat "unsupported inline target-IR family " family))
   -- | Derive scalar operand and result layouts from a closed monomorphic signature without granting executable code authority.
@@ -403,12 +420,37 @@ module Bootstrap.Foreign where
   primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
   primitive-plan name scheme bodies =
     case (export-global name, primitive-layout scheme) of
-      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None False False None "the current target profile" of
-        Ok body -> Ok (Plan (string-concat symbol ".llvm") scheme arguments result
-          (Some (body, primitive-identity symbol (primitive-body-text bodies), primitive-trust symbol bodies)))
+      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None False None None "the current target profile" of
+        Ok (body, condition) -> let identity = primitive-identity symbol (primitive-body-text bodies) in
+          let trust = primitive-trust symbol bodies in
+          Ok (Plan (string-concat symbol ".llvm") scheme arguments result
+            (Some (body, identity, trust, selection-document body condition identity trust bodies)))
         Err message -> Err message)
       (Err message, other) -> Err message
       (other, Err message) -> Err message
+  -- Keep target selection in the artifact manifest. Interface assumptions
+  -- continue to use the target-independent identities of all checked bodies.
+  selection-document :: InlinePrimitive -> Option String -> String -> List String -> List PrimBody -> Json
+  selection-document body condition identity trust bodies = case body of
+    InlinePrimitiveBody fragment symbols immediates assembly ->
+      let why = case condition of
+            None -> "the baseline `llvm` body (the fallback when no `when` condition matches)"
+            Some clause -> string-concat-all ["the `llvm` body's `when ", clause, "` condition holds in the target profile"] in
+      JObj "family" (JStr "llvm") (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
+        (JObj "identity" (JStr identity) (JObj "tier" (JStr "assumed") (JObj "why" (JStr why)
+          (JObj "trust" (trust-document trust) (JObj "immarg" (immediate-document immediates)
+            (JObj "uses" JArrEnd (JObj "validation" (validation-document bodies) JObjEnd))))))))
+  trust-document :: List String -> Json
+  trust-document trust = case trust of Nil -> JArrEnd; Cons name rest -> JArr (JStr name) (trust-document rest)
+  immediate-document :: List Nat -> Json
+  immediate-document positions = case positions of Nil -> JArrEnd; Cons i rest -> JArr (JNum (nat-to-int i)) (immediate-document rest)
+  validation-document :: List PrimBody -> Json
+  validation-document bodies = case bodies of
+    Nil -> JArrEnd
+    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+      let detail = if same family "llvm" then "llvm: containment validated: checked return, permitted instructions and calls"
+            else "asm: containment validated structurally for escaping instructions" in
+      JArr (JStr detail) (validation-document rest)
   strings :: String -> List String -> String
   strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
   visible-regions :: List Quant -> List (Nat, UType)

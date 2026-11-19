@@ -324,7 +324,12 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
   import Data.Array
   import Data.Tensor
   import Data.Columnar
-  export make, peek, column, Box, wrap, unwrap, discard-word, mixed
+  export make, peek, column, Box, wrap, unwrap, discard-word, mixed, successor
+  prim successor :: U32 -> U32 where
+    llvm {
+      %next = add i32 %0, 1
+      ret i32 %next
+    }
   make :: Int -> Array Int
   make x = array-from-list [x]
   peek :: Tensor Int -> Array Nat -> Option Int

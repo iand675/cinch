@@ -5006,7 +5006,7 @@ module Bootstrap.RuntimeIr where
   -- A call that crosses an object boundary keeps the checked public ABI.
   global-tail-call :: List CoreDefinition -> Nat -> Writer -> CoreTerm -> Option (String, List Nat, List CoreEvidence, List CoreTerm)
   global-tail-call definitions group w term = case head term of
-    CUse sp ty name role actuals -> global-tail-target definitions group w name actuals Nil (arguments term Nil)
+    CUse sp ty name role actuals | not (same role "foreign") -> global-tail-target definitions group w name actuals Nil (arguments term Nil)
     CQualifiedUse sp ty name role actuals evidence -> global-tail-target definitions group w name actuals evidence (arguments term Nil)
     other -> None
 
@@ -5481,7 +5481,7 @@ module Bootstrap.RuntimeIr where
     CForget sp ty body -> source-tail-edges arities body next
     CDischarge sp ty evidence body -> source-tail-edges arities body next
     other -> case head term of
-      CUse sp ty name role actuals -> source-tail-edge arities name 0 (arguments term Nil) next
+      CUse sp ty name role actuals | not (same role "foreign") -> source-tail-edge arities name 0 (arguments term Nil) next
       CQualifiedUse sp ty name role actuals evidence -> source-tail-edge arities name (list-length evidence) (arguments term Nil) next
       other -> next
 
@@ -5670,21 +5670,25 @@ module Bootstrap.RuntimeIr where
         (case export-global (core-name d) of
           Err message -> Err message
           Ok public -> if same public "Main.main" then Err "library objects cannot contain the process entry" else Ok (Cons (core-name d, Nil, public) more))
-  -- Public intrinsic bindings have source names but their calls carry the canonical
-  -- runtime identity. Give the object bridge a typed definition at the source name.
+  -- The exported worker takes ordinary Cinch words. Its body calls the
+  -- checked intrinsic or primitive through its own declared machine ABI.
   library-intrinsic-definitions :: List CheckedBinding -> List CoreDefinition
   library-intrinsic-definitions bindings = case bindings of
     Nil -> Nil
     Cons binding rest -> let more = library-intrinsic-definitions rest in
-      case checked-intrinsic-symbol binding of
-        None -> more
-        Some intrinsic -> let name = checked-name binding in let sc = checked-scheme binding in
-          if not (library-source-name name && builtin-known intrinsic) then more else
-            (case (scheme-params sc, scheme-requirements sc) of
-              (Nil, Nil) -> let sp = Span 0 0 1 1 in let ty = scheme-body sc in
-                (case library-intrinsic-clause sp 0 ty (CUse sp ty intrinsic "intrinsic" Nil) Nil of
-                  clause -> Cons (MkCoreDefinition sp name sc Nil Nil Nil [clause]) more)
-              other -> more)
+      let name = checked-name binding in let sc = checked-scheme binding in
+      if not (library-source-name name) then more else case (scheme-params sc, scheme-requirements sc) of
+        (Nil, Nil) -> let sp = Span 0 0 1 1 in let ty = scheme-body sc in
+          (case library-primitive-use binding sp ty of
+            Some function -> Cons (MkCoreDefinition sp name sc Nil Nil Nil [library-intrinsic-clause sp 0 ty function Nil]) more
+            None -> more)
+        other -> more
+  library-primitive-use :: CheckedBinding -> Span -> UType -> Option CoreTerm
+  library-primitive-use binding sp ty = case checked-intrinsic-symbol binding of
+    Some symbol | builtin-known symbol -> Some (CUse sp ty symbol "intrinsic" Nil)
+    other -> (case checked-foreign-plan binding of
+      Some plan | primitive-object-callable plan -> Some (CUse sp ty (checked-name binding) "foreign" Nil)
+      other -> None)
   library-intrinsic-clause :: Span -> Nat -> UType -> CoreTerm -> List CorePattern -> CoreClause
   library-intrinsic-clause sp id ty function patterns = case ty of
     UFun domain result -> let name = "$arg" <> nat-to-string id in
