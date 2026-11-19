@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with checked numeric Enum dictionaries, regional and nominal contracts, and big-endian PowerPC64 objects.",
-  "revision": "af50d1647371d789c61a31bf064b7fa299a34383",
+  "description": "ABI 10 provider with checked numeric Enum and ordered map dictionaries, regional and nominal contracts, and big-endian PowerPC64 objects.",
+  "revision": "5455b59b09ff951e82cfbb60b948fc7c2a41bdd8",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "9e1639c8af966917d19779a257d330527d0482d26f957e4e15b32412111a149a"
+  "source_sha256": "9ea06f095efb4b75a47f98d65ac6e443479d0e07f682568aa5362654e4c01770"
 }

@@ -174,6 +174,24 @@ fn map_literal_defaults_and_wrong_instance_are_reported() {
 }
 
 #[test]
+fn map_literal_uses_the_expected_containers_dictionary() {
+    let dir = write_project(&[("Main.cinch", r#"
+module Main where
+  data ResultBox where
+    Box :: Int -> ResultBox
+  implicit instance BuildBox :: FromMap ResultBox Bool Int where
+    from-map xs = case xs of
+      Cons (True, value) Nil -> Box value
+      _ -> Box 0
+  choose :: Bool -> ResultBox
+  choose key = let from-map ignored = Box 0 in {key => 42}
+  main :: Int
+  main = case choose True of Box n -> n
+"#)]);
+    assert_eq!(run_entry(&dir, "Main.cinch").unwrap(), 42);
+}
+
+#[test]
 fn map_literal_keys_and_values_resolve_infix_chains() {
     // An infix chain in a map key or value resolves in place through
     // the `resolve_term` map arm (as the range literal does); before

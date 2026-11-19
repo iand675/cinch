@@ -693,6 +693,7 @@ module Bootstrap.Stage where
     ETuple s xs -> walk-one visit (ETuple s) xs state
     EList s xs -> walk-one visit (EList s) xs state
     ERange s xs -> walk-one visit (ERange s) xs state
+    EMap s xs -> walk-one visit (EMap s) xs state
     ENeg s x -> walk-one visit (ENeg s) x state
     ELam s ps body -> walk-one visit (ELam s ps) body state
     ELetScope s body -> walk-one visit (ELetScope s) body state

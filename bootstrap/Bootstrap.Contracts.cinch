@@ -287,6 +287,7 @@ module Bootstrap.Contracts where
     ERecordField s name value rest -> expr-references value <> expr-references rest
     EProject s value name -> expr-references value
     ETuple s args -> expr-references args
+    EMap s args -> [global-data-core-nil, global-data-core-cons, interface-global "Data.FromMap.FromMap.from-map"] <> expr-references args
     ERange s args -> Cons global-data-fromlist-fromlist-from-list (Cons (interface-global (case args of
       EArg a lo (EArg b hi (EArgsEnd end)) -> "Data.Enum.enum-from-to"
       other -> "Data.Enum.enum-from-then-to")) (expr-references args))

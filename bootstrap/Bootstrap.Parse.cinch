@@ -2611,6 +2611,9 @@ module Bootstrap.Parse where
       TCon s -> name-atom (sp-of t) rest (Cons s Nil)
       TPunct p ->
         if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
+        else if string-compare p "{" == 0 && not (lt-virtual t) then (case rest of
+          Cons close tail | is-punct-t (lt-token close) "}" -> POk (EMap (span-join (sp-of t) (sp-of close)) (EArgsEnd (sp-of close))) tail
+          other -> map-items (sp-of t) rest src fix Nil)
         else if string-compare p "[" == 0 then parse-list-expr (sp-of t) rest src fix
         else if string-compare p "[|" == 0 then parse-quotation (sp-of t) rest src fix
         else if string-compare p "$" == 0 then parse-splice (sp-of t) rest src fix
@@ -2852,6 +2855,19 @@ module Bootstrap.Parse where
           else PBad
         _ -> PBad
       Nil -> PBad
+    PBad -> PBad
+
+  map-items :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Expr -> Ps Expr
+  map-items sp toks src fix previous = case parse-expr toks src fix of
+    POk key after-key -> (case expect-punct-t after-key "=>" of
+      POk arrow following -> (case parse-expr following src fix of
+        POk value (Cons separator rest) -> let site = span-join (expr-span key) (expr-span value) in
+          let pairs = Cons (ETuple site (expr-spine site [key, value])) previous in
+          if is-punct-t (lt-token separator) "}" then POk (EMap (span-join sp (sp-of separator)) (expr-spine sp (reverse pairs))) rest
+          else if is-punct-t (lt-token separator) "," then map-items sp rest src fix pairs
+          else PBad
+        other -> PBad)
+      PBad -> PBad)
     PBad -> PBad
 
   range-end :: Span -> List Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr

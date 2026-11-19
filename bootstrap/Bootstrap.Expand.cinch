@@ -51,6 +51,7 @@ module Bootstrap.Expand where
     ETuple s xs -> term-has-macro-call xs
     EList s xs -> term-has-macro-call xs
     ERange s xs -> term-has-macro-call xs
+    EMap s xs -> term-has-macro-call xs
     ESupplied s f a -> term-has-macro-call f || term-has-macro-call a
     EApp s f a -> term-has-macro-call f || term-has-macro-call a
     EBin s op l r -> term-has-macro-call l || term-has-macro-call r
@@ -415,6 +416,8 @@ module Bootstrap.Expand where
       (renamed, after) -> (EList s renamed, after)
     ERange s xs -> case hygiene xs renames serial of
       (renamed, after) -> (ERange s renamed, after)
+    EMap s xs -> case hygiene xs renames serial of
+      (renamed, after) -> (EMap s renamed, after)
     ESupplied s f a -> case hygiene f renames serial of
       (renamed-f, more) -> case hygiene a renames more of
         (renamed-a, after) -> (ESupplied s renamed-f renamed-a, after)
@@ -654,6 +657,7 @@ module Bootstrap.Expand where
     ETuple s xs -> fill-node reify (ETuple s) xs groups fix
     EList s xs -> fill-node reify (EList s) xs groups fix
     ERange s xs -> fill-node reify (ERange s) xs groups fix
+    EMap s xs -> fill-node reify (EMap s) xs groups fix
     ENeg s x -> case fill-splices-with reify x groups fix of
       Err errors -> Err errors
       Ok filled -> Ok (ENeg s filled)
