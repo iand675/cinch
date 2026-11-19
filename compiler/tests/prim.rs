@@ -709,6 +709,56 @@ fn linux_x86_64() -> TargetProfile {
 }
 
 #[test]
+fn embedded_register_assembly_requires_explicit_trust_even_when_unselected() {
+    let src = r#"module Main where
+  prim probe :: U32 -> U32 where
+    llvm {
+      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
+      %out = extractvalue { i32, i32, i32, i32 } %regs, 2
+      ret i32 %out
+    } when arch never-selected
+    llvm { ret i32 %0 }
+
+  main :: Int
+  main = 0
+"#;
+    expect_err("untrusted-asm", src, "unsafe");
+    common::source_frontend::check_sources(&src.replacen("llvm {", "unsafe llvm {", 1), "trusted-asm")
+        .expect("the explicitly trusted register call checks");
+}
+
+#[test]
+fn llvm_body_guards_follow_the_requested_target() {
+    let source = r#"module Main where
+  foreign import ccall "cinch.prim.eqU32" same-word :: U32 -> U32 -> Bool
+  prim guarded :: U32 -> U32 where
+    llvm { ret i32 101 } when os linux when arch aarch64
+    llvm { ret i32 202 }
+    llvm { ret i32 303 } when arch x86_64 when os linux
+
+  main :: Int
+  main = if same-word (guarded 0) 101 then 0 else 1
+"#;
+    for (triple, selected) in [
+        ("aarch64-unknown-linux-gnu", 101),
+        ("aarch64-apple-darwin", 202),
+        ("x86_64-unknown-linux-gnu", 303),
+    ] {
+        let profile = target_profile(&DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        }).unwrap();
+        let ir = common::source_frontend::emit_ir_profile(source, &profile)
+            .unwrap_or_else(|error| panic!("{triple}: {error}"));
+        for marker in [101, 202, 303] {
+            let instruction = format!("ret i32 {marker}");
+            assert_eq!(ir.lines().any(|line| line.trim() == instruction), marker == selected,
+                "{triple}: unexpected selection for {marker}");
+        }
+    }
+}
+
+#[test]
 fn platform_gated_asm_bodies_select_per_arch() {
     // The canonical shape: a portable `llvm` baseline beside per-arch
     // `asm` bodies. Selection is manifest-only with the platform in the

@@ -529,32 +529,43 @@ module Bootstrap.Target where
   -- no interface entry. What survives is exactly the module the source
   -- describes for this target.
   target-view :: TargetProfile -> Module -> Result String Module
-  target-view profile m = if module-has-conditions (module-decls m) then conditioned-view profile m
-    else Ok m
+  target-view profile m = choose-view profile m (module-decls m) False
 
-  -- A module with no `when` clause at all is the module the source
-  -- describes for every target, so its view is itself and the compiler's
-  -- own sources pay nothing for a feature they do not use. That is also why
-  -- the host build's emitted artifact cannot change: the check below is
-  -- false for every module in this compiler.
-  module-has-conditions :: List Decl -> Bool
-  module-has-conditions decls = case decls of
+  -- A conditional definition needs overlap and export checks. An ordinary
+  -- module with guarded prim bodies only needs to select against the target.
+  choose-view :: TargetProfile -> Module -> List Decl -> Bool -> Result String Module
+  choose-view profile m decls has-guarded-prim = case decls of
+    Nil -> if has-guarded-prim then apply-view profile m Nil else Ok m
+    Cons first rest -> case first of
+      DConditional sp when inner -> conditioned-view profile m
+      DPrim sp name ty bodies -> choose-view profile m rest (has-guarded-prim || guarded-bodies bodies)
+      other -> choose-view profile m rest has-guarded-prim
+
+  guarded-bodies :: List PrimBody -> Bool
+  guarded-bodies bodies = case bodies of
     Nil -> False
-    Cons first rest -> decl-has-condition first || module-has-conditions rest
+    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+      case when of Nil -> guarded-bodies rest; Cons clause remaining -> True
 
-  decl-has-condition :: Decl -> Bool
-  decl-has-condition d = case d of
-    DConditional sp when inner -> True
-    other -> False
+  select-bodies :: TargetProfile -> List PrimBody -> List PrimBody -> Result String (List PrimBody)
+  select-bodies profile bodies acc = case bodies of
+    Nil -> Ok (reverse acc)
+    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+      case condition-holds when profile of
+        Err message -> Err message
+        Ok holds -> select-bodies profile rest (Cons (MkPrimBody sp family fragment unverified when (Some holds) justification uses immediates) acc)
 
   conditioned-view :: TargetProfile -> Module -> Result String Module
   conditioned-view profile m = case check-definition-disjointness m of
     Err message -> Err message
     Ok unit -> case dropped-modules profile (module-decls m) Nil of
       Err message -> Err message
-      Ok dropped -> case prune-decls profile dropped (module-decls m) Nil of
-        Err message -> Err message
-        Ok kept -> Ok (MkModule (module-span m) (module-name m) (decl-spine (module-span m) kept))
+      Ok dropped -> apply-view profile m dropped
+
+  apply-view :: TargetProfile -> Module -> List String -> Result String Module
+  apply-view profile m dropped = case prune-decls profile dropped (module-decls m) Nil of
+    Err message -> Err message
+    Ok kept -> Ok (MkModule (module-span m) (module-name m) (decl-spine (module-span m) kept))
 
   -- The module names every false import would have contributed.
   dropped-modules :: TargetProfile -> List Decl -> List String -> Result String (List String)
@@ -583,7 +594,10 @@ module Bootstrap.Target where
       Err message -> Err message
       Ok True -> prune-one profile dropped inner
       Ok False -> Ok None
-    DExport s text items -> Ok (prune-export dropped s text items)
+    DPrim sp name ty bodies -> case select-bodies profile bodies Nil of
+      Err message -> Err message
+      Ok selected -> Ok (Some (DPrim sp name ty selected))
+    DExport s text items -> (case dropped of Nil -> Ok (Some d); Cons first rest -> Ok (prune-export dropped s text items))
     other -> Ok (Some other)
 
   -- An export whose items all named a dropped module disappears entirely;

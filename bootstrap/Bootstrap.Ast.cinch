@@ -456,7 +456,7 @@ module Bootstrap.Ast where
     LawProposition :: TypeExpr -> LawSyntax
 
   data PrimBody where
-    MkPrimBody :: Span -> String -> String -> Bool -> Option Expr -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
+    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> Option Bool -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
 
   -- A method keeps its ordinary declaration and slot. Its equality
   -- operands can be checked by the same term elaborator as an explicit law.
@@ -970,8 +970,8 @@ module Bootstrap.Ast where
   prim-bodies-unmodeled :: List PrimBody -> Nat
   prim-bodies-unmodeled bodies = case bodies of
     Nil -> 0
-    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
-      (case condition of Some value -> expr-unmodeled-count value; None -> 0)
+    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+      exprs-unmodeled condition
         + (case justification of Some value -> expr-unmodeled-count value; None -> 0)
         + ctors-unmodeled uses + prim-bodies-unmodeled rest
 

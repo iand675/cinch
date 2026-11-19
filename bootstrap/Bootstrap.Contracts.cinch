@@ -454,7 +454,7 @@ module Bootstrap.Contracts where
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of
     Nil -> Nil
-    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
+    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       ctor-references uses <> (case justification of Some evidence -> expr-references evidence; None -> Nil) <> prim-body-references rest
 
   declaration-references :: List Decl -> List String

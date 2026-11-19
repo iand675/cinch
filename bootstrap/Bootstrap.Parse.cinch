@@ -1151,7 +1151,7 @@ module Bootstrap.Parse where
       TVar family -> (case expect-punct-t rest "{" of
         POk at (Cons fragment after) -> (case (lt-token fragment, expect-punct-t after "}") of
           (TPrimFrag text, POk close tail) ->
-            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body None None Nil Nil) tail src fix
+            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body Nil None None Nil Nil) tail src fix
           other -> PBad)
         other -> PBad)
       other -> PBad)
@@ -1173,19 +1173,19 @@ module Bootstrap.Parse where
     (body, rest) -> (case parse-expr body src fix of POk value Nil -> POk value rest; other -> PBad)
   parse-prim-modifiers :: PrimBody -> List LToken -> Bytes -> List (String, Fix) -> Ps PrimBody
   parse-prim-modifiers body toks src fix = case (body, toks) of
-    (MkPrimBody sp family fragment unverified when justification uses immediates, Cons word rest) ->
+    (MkPrimBody sp family fragment unverified when selected justification uses immediates, Cons word rest) ->
       let label = prim-word (lt-token word) in
-      if string-compare label "when" == 0 then (case (when, parse-prim-clause rest src fix) of
-        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified (Some value) justification uses immediates) tail src fix
-        other -> PBad)
+      if string-compare label "when" == 0 then (case parse-when-atom rest of
+        POk value tail -> parse-prim-modifiers (MkPrimBody sp family fragment unverified (when <> [value]) selected justification uses immediates) tail src fix
+        PBad -> PBad)
       else if string-compare label "justify" == 0 then (case (justification, parse-prim-clause rest src fix) of
-        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when (Some value) uses immediates) tail src fix
+        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected (Some value) uses immediates) tail src fix
         other -> PBad)
       else if string-compare label "uses" == 0 then (case (uses, parse-prim-uses rest src Nil) of
-        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when justification values immediates) tail src fix
+        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected justification values immediates) tail src fix
         other -> PBad)
       else if string-compare label "immarg" == 0 then (case (immediates, parse-prim-immediates rest Nil) of
-        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when justification uses values) tail src fix
+        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected justification uses values) tail src fix
         other -> PBad)
       else POk body toks
     other -> POk body toks

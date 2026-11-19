@@ -1273,12 +1273,12 @@ module Bootstrap.Resolve where
   rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)
   rename-prim-bodies visible bodies = case bodies of
     Nil -> (Nil, Nil)
-    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
+    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       let (evidence, evidence-errors) = (case justification of
         None -> (None, Nil)
         Some expression -> (case rename-expr visible Nil expression of (renamed, errors) -> (Some renamed, errors))) in
       (case rename-prim-bodies visible rest of
-        (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition evidence
+        (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition selected evidence
           (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))
 
   rewrite-application :: Expr -> List Expr -> Option (Span, String, List Expr)
