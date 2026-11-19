@@ -2,8 +2,8 @@
 //! Regenerate fixtures with tooling/go_stdlib_vectors.go; Go is not needed to test.
 mod common;
 
-use cinch::driver::Mode;
 use serde_json::Value;
+use std::fmt::Write;
 
 fn vectors() -> Value {
     serde_json::from_str(include_str!("fixtures/go-stdlib-vectors.json")).unwrap()
@@ -14,17 +14,77 @@ fn field<'a>(v: &'a Value, key: &str) -> &'a str {
 }
 
 fn bytes(hex: &str) -> String {
-    let mut list = "Nil".to_owned();
-    for pair in hex.as_bytes().chunks_exact(2).rev() {
+    let mut literal = String::from("(bytes-from-list ");
+    for pair in hex.as_bytes().chunks_exact(2) {
         let value = u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap();
-        list = format!("(Cons {value} {list})");
+        write!(literal, "(Cons {value} ").unwrap();
     }
-    format!("(bytes-from-list {list})")
+    literal.push_str("Nil");
+    literal.extend(std::iter::repeat(')').take(hex.len() / 2 + 1));
+    literal
 }
 
 fn run(name: &str, checks: Vec<String>) {
     run_with_profile(name, checks, None);
 }
+
+const HEX_CHECKS: &str = r#"  hex-is :: String -> Bytes -> Bool
+  hex-is s expected = case hex-decode s of
+    Err _ -> False
+    Ok b -> bytes-equal b expected
+"#;
+
+const BASE32_CHECKS: &str = r#"  base32-is :: Base32Alphabet -> String -> Bytes -> Bool
+  base32-is alphabet s expected = case base32-decode alphabet s of
+    Err _ -> False
+    Ok b -> bytes-equal b expected
+
+  raw-is :: Base32Alphabet -> String -> Bytes -> Bool
+  raw-is alphabet s expected = case base32-raw-decode alphabet s of
+    Err _ -> False
+    Ok b -> bytes-equal b expected
+"#;
+
+const FIXED_WIDTH_CHECKS: &str = r#"  read16-is :: ByteOrder -> Bytes -> Nat -> U16 -> Bool
+  read16-is order b pos expected = case binary-read-u16 order b pos of
+    Err _ -> False
+    Ok x -> eq-u16 x expected
+
+  read32-is :: ByteOrder -> Bytes -> Nat -> U32 -> Bool
+  read32-is order b pos expected = case binary-read-u32 order b pos of
+    Err _ -> False
+    Ok x -> eq-u32 x expected
+
+  read64-is :: ByteOrder -> Bytes -> Nat -> U64 -> Bool
+  read64-is order b pos expected = case binary-read-u64 order b pos of
+    Err _ -> False
+    Ok x -> eq-u64 x expected
+
+  put-ok :: Bool
+  put-ok =
+    let b = bytes-new 6 in
+    case binary-put-u32 BigEndian b 1 0x12345678 of
+      Err _ -> False
+      Ok _ -> bytes-equal b (bytes-from-list (Cons 0 (Cons 18 (Cons 52 (Cons 86 (Cons 120 (Cons 0 Nil)))))))
+
+  put-atomic :: Bool
+  put-atomic =
+    let b = bytes-from-list (Cons 1 (Cons 2 (Cons 3 Nil))) in
+    case binary-put-u32 LittleEndian b 0 0xFFFFFFFF of
+      Err UnexpectedBinaryEnd -> bytes-equal b (bytes-from-list (Cons 1 (Cons 2 (Cons 3 Nil))))
+      _ -> False
+"#;
+
+const VARINT_CHECKS: &str = r#"  uvarint-is :: Bytes -> Nat -> U64 -> Nat -> Bool
+  uvarint-is b pos expected consumed = case binary-read-uvarint b pos of
+    Err _ -> False
+    Ok (x, n) -> eq-u64 x expected && n == consumed
+
+  varint-is :: Bytes -> I64 -> Nat -> Bool
+  varint-is b expected consumed = case binary-read-varint b 0 of
+    Err _ -> False
+    Ok (x, n) -> eq-i64 x expected && n == consumed
+"#;
 
 /// Build a consumer under a selected instruction profile and inspect its IR.
 fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core::TargetProfile>) {
@@ -45,14 +105,18 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         include_str!("../prelude/Data/Bytes/Word.cinch"),
     )
     .unwrap();
-    let mut source = String::from(
-        r#"module Main where
-  import Text.Binary
-  import Text.Hex
-  import Text.Base32
-  import Text.Checksum
-  import Text.Fnv
-  import Data.Bool
+    let (module, helpers, expected) = match name {
+        "fixed-width" => ("Text.Binary", FIXED_WIDTH_CHECKS, "@llvm.bswap.i64"),
+        "varints" => ("Text.Binary", VARINT_CHECKS, "lshr i64"),
+        "hex" => ("Text.Hex", HEX_CHECKS, "shufflevector <4 x i8>"),
+        "base32" => ("Text.Base32", BASE32_CHECKS, "lshr <8 x i16>"),
+        "base32-long-prefix-tails" => ("Text.Base32", BASE32_CHECKS, "icmp uge <8 x i8>"),
+        "checksums" | "checksums-portable" => ("Text.Checksum", "", "@llvm.vector.reduce.add.v16i32"),
+        "fnv" => ("Text.Fnv", "", "mul i64"),
+        _ => panic!("unknown consumer {name}"),
+    };
+    let mut source = format!("module Main where\n  import {module}\n");
+    source.push_str(r#"  import Data.Bool
   import Data.Bytes
   import Data.Char
   import Data.List
@@ -64,86 +128,25 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
   bytes-equal :: Bytes -> Bytes -> Bool
   bytes-equal a b = eq-i64 (bytes-compare a b) 0
 
-  hex-is :: String -> Bytes -> Bool
-  hex-is s expected = case hex-decode s of
-    Err _ -> False
-    Ok b -> bytes-equal b expected
-
-  base32-is :: Base32Alphabet -> String -> Bytes -> Bool
-  base32-is alphabet s expected = case base32-decode alphabet s of
-    Err _ -> False
-    Ok b -> bytes-equal b expected
-
-  raw-is :: Base32Alphabet -> String -> Bytes -> Bool
-  raw-is alphabet s expected = case base32-raw-decode alphabet s of
-    Err _ -> False
-    Ok b -> bytes-equal b expected
-
-  read16-is :: ByteOrder -> Bytes -> Nat -> U16 -> Bool
-  read16-is order b pos expected = case binary-read-u16 order b pos of
-    Err _ -> False
-    Ok x -> eq-u16 x expected
-
-  read32-is :: ByteOrder -> Bytes -> Nat -> U32 -> Bool
-  read32-is order b pos expected = case binary-read-u32 order b pos of
-    Err _ -> False
-    Ok x -> eq-u32 x expected
-
-  read64-is :: ByteOrder -> Bytes -> Nat -> U64 -> Bool
-  read64-is order b pos expected = case binary-read-u64 order b pos of
-    Err _ -> False
-    Ok x -> eq-u64 x expected
-
-  uvarint-is :: Bytes -> Nat -> U64 -> Nat -> Bool
-  uvarint-is b pos expected consumed = case binary-read-uvarint b pos of
-    Err _ -> False
-    Ok (x, n) -> eq-u64 x expected && n == consumed
-
-  varint-is :: Bytes -> I64 -> Nat -> Bool
-  varint-is b expected consumed = case binary-read-varint b 0 of
-    Err _ -> False
-    Ok (x, n) -> eq-i64 x expected && n == consumed
-
-  put-ok :: Bool
-  put-ok =
-    let b = bytes-new 6 in
-    case binary-put-u32 BigEndian b 1 0x12345678 of
-      Err _ -> False
-      Ok _ -> bytes-equal b (bytes-from-list (Cons 0 (Cons 18 (Cons 52 (Cons 86 (Cons 120 (Cons 0 Nil)))))))
-
-  put-atomic :: Bool
-  put-atomic =
-    let b = bytes-from-list (Cons 1 (Cons 2 (Cons 3 Nil))) in
-    case binary-put-u32 LittleEndian b 0 0xFFFFFFFF of
-      Err UnexpectedBinaryEnd -> bytes-equal b (bytes-from-list (Cons 1 (Cons 2 (Cons 3 Nil))))
-      _ -> False
-"#,
-    );
-    for (i, check) in checks.iter().enumerate() {
-        source.push_str(&format!("\n  check{i} :: Bool\n  check{i} = {check}\n\n  step{i} :: Int\n  step{i} = if check{i} then step{} else {}\n", i + 1, i % 250 + 1));
+"#);
+    source.push_str(helpers);
+    // Bound the depth of each expression without creating two globals for every vector.
+    const CHUNK: usize = 8;
+    for (batch, group) in checks.chunks(CHUNK).enumerate() {
+        write!(source, "\n  step{batch} :: Int\n  step{batch} = ").unwrap();
+        for (index, check) in group.iter().enumerate() {
+            let failure = (batch * CHUNK + index) % 250 + 1;
+            write!(source, "if not ({check}) then {failure} else ").unwrap();
+        }
+        writeln!(source, "step{}", batch + 1).unwrap();
     }
-    source.push_str(&format!(
-        "\n  step{} :: Int\n  step{} = 0\n  main :: Int\n  main = step0\n",
-        checks.len(),
-        checks.len()
-    ));
+    let end = checks.len().div_ceil(CHUNK);
+    writeln!(source, "\n  step{end} :: Int\n  step{end} = 0\n  main :: Int\n  main = step0").unwrap();
     std::fs::write(dir.path().join("Main.cinch"), source).unwrap();
     let executable = dir.path().join("consumer");
     match profile {
-        Some(profile) => common::drive_with_profile(
-            Mode::Build,
-            cinch::check::StageMode::Refresh,
-            dir.path(),
-            "Main.cinch",
-            Some(executable.clone()),
-            &profile,
-        ),
-        None => common::drive(
-            Mode::Build,
-            dir.path(),
-            "Main.cinch",
-            Some(executable.clone()),
-        ),
+        Some(profile) => common::build_executable_with_profile(dir.path(), "Main.cinch", &executable, &profile).map(|_| ()),
+        None => common::build_executable(dir.path(), "Main.cinch", "consumer").map(|_| ()),
     }
     .unwrap_or_else(|e| panic!("{name}: {e}"));
     let code = std::process::Command::new(&executable)
@@ -158,20 +161,25 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         checks.get((code as usize).wrapping_sub(1))
     );
     let ir = std::fs::read_to_string(executable.with_extension("ll")).unwrap();
-    let expected = match name {
-        "hex" => "shufflevector <4 x i8>",
-        "base32" => "lshr <8 x i16>",
-        "base32-long-prefix-tails" => "icmp uge <8 x i8>",
-        "checksums" | "checksums-portable" => "@llvm.vector.reduce.add.v16i32",
-        "fixed-width" => "@llvm.bswap.i64",
-        "varints" => "Text.Binary.compress-varint8",
-        "fnv" => "Text.Fnv.fnv64-word",
-        _ => panic!("unknown consumer {name}"),
-    };
     assert!(
         ir.contains(expected),
         "{name}: acceleration kernel missing from emitted LLVM"
     );
+    if let Some(symbol) = match name {
+        "fnv" => Some("Text.Fnv.fnv64-word.llvm"),
+        "varints" => Some("Text.Binary.compress-varint8.llvm"),
+        _ => None,
+    } {
+        let escaped: String = symbol.bytes().map(|byte| format!("\\{byte:02X}")).collect();
+        let names = [format!("@\"{symbol}\"("), format!("@\"{escaped}\"(")];
+        let mut lines = ir.lines();
+        lines.find(|line| line.starts_with("define ") && names.iter().any(|name| line.contains(name)))
+            .unwrap_or_else(|| panic!("{symbol}: missing LLVM definition"));
+        assert!(lines.take_while(|line| *line != "}").any(|line| line.contains(expected)),
+            "{symbol}: missing {expected} in the kernel");
+        assert!(ir.lines().any(|line| line.contains("call ") && names.iter().any(|name| line.contains(name))),
+            "{symbol}: missing kernel call");
+    }
     if name == "checksums-portable" {
         assert!(
             !ir.contains("asm \"crc32q"),
