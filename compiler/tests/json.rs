@@ -19,7 +19,6 @@
 
 mod common;
 
-use cinch::driver::Mode;
 use std::path::{Path, PathBuf};
 
 const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
@@ -57,22 +56,13 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     dir
 }
 
-/// Run a driver invocation on a thread with a large stack (the
-/// checker recurses over a program's elaborated code; the toolkit
-/// programs are bigger than a default test thread's stack).
-fn drive(mode: Mode, entry: &Path, out: Option<&Path>) -> i32 {
-    let dir = entry.parent().expect("entry directory");
-    let file = entry.file_name().and_then(|f| f.to_str()).expect("entry file name");
-    common::drive(mode, dir, file, out.map(Path::to_path_buf))
-        .unwrap_or_else(|e| panic!("compilation failed: {e}"))
-}
-
 /// Compile and run a `Main`; the exit code is the program's
 /// `main :: Int` result (0 on success, the failing case number on a
 /// named failure).
 fn run_main(name: &str, main: &str) -> i32 {
     let dir = write_project(name, &[("main.cinch", main)]);
-    let code = drive(Mode::Run, &dir.join("main.cinch"), None);
+    let code = common::run_executable(&dir, "main.cinch")
+        .unwrap_or_else(|e| panic!("{name}: compilation failed: {e}"));
     let _ = std::fs::remove_dir_all(&dir);
     code
 }
@@ -86,9 +76,8 @@ fn expect_exit(name: &str, main: &str, expected: i32) {
 /// project directory until `remove_dir`).
 fn build_exe(name: &str, main: &str) -> (PathBuf, PathBuf) {
     let dir = write_project(name, &[("main.cinch", main)]);
-    let exe = dir.join("program");
-    let code = drive(Mode::Build, &dir.join("main.cinch"), Some(&exe));
-    assert_eq!(code, 0, "{name}: build failed");
+    let exe = common::build_executable(&dir, "main.cinch", "program")
+        .unwrap_or_else(|e| panic!("{name}: build failed: {e}"));
     (dir, exe)
 }
 
@@ -821,8 +810,7 @@ fn bootstrap_manifest_round_trip_is_byte_identical() {
             ),
         ],
     );
-    let code = drive(Mode::Check, &mdir.join("Main.cinch"), None);
-    assert_eq!(code, 0, "the manifest project must check");
+    common::check(&mdir, "Main.cinch").expect("emit the manifest project's interfaces");
     let original =
         std::fs::read(mdir.join("build/Main.cinchif")).expect("read build/Main.cinchif");
     let original_text = String::from_utf8(original.clone()).expect("manifest is UTF-8");
