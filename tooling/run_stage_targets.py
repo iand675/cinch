@@ -96,6 +96,26 @@ def run_in_slot(target, env, out, cargo_target):
     return dict(target=target, exit=code, passed=passed, failed=failed, failed_count=failed_count)
 
 
+def prebuild(targets, env, out, cargo_target):
+    """Build every selected test executable in one Cargo invocation.
+
+    Each worker runs `cargo test --test <target>`, and Cargo holds one build
+    lock per target directory, so without this the executables are built one
+    at a time by whichever worker holds the lock while the others wait: 345
+    serial crate builds on however many cores the machine has. One
+    invocation naming every target lets Cargo's own job pool build them side
+    by side, and each worker's build step is then a fingerprint check.
+
+    A target that does not compile is not this step's to report: the
+    worker's own `cargo test` fails on it and its log says why.
+    """
+    command = ['cargo', 'test', '--no-run', '--target-dir', str(cargo_target)]
+    for target in targets:
+        command += ['--test', target]
+    with (out / 'prebuild.log').open('wb') as log:
+        subprocess.run(command, cwd=TREE / 'compiler', env=env, stdout=log, stderr=subprocess.STDOUT)
+
+
 TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'package_link', 'incremental'}
 
 
@@ -179,8 +199,9 @@ def main():
             return 3
     a.out.mkdir(parents=True, exist_ok=True)
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
-    env = setup(a.stage, a.out.resolve(), a.tree)
     global TREE; TREE = a.tree
+    env = setup(a.stage, a.out.resolve(), a.tree)
+    prebuild(a.targets, env, a.out.resolve(), a.cargo_target)
     # Cargo releases its build lock before running a test executable. Each
     # worker can start its suite as soon as that executable is ready.
     rows = []
