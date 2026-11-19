@@ -8,6 +8,7 @@ module Bootstrap.Object where
   import Bootstrap.Builtin (scalar-intrinsic)
   import Bootstrap.Infer (scalar-interface-contract-matches)
   import Bootstrap.Nominal (interface-global, global-data-string-string)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
   import Data.Nat (nat-from-int)
   import Text.Json (parse-json, canonical-bytes)
@@ -28,7 +29,7 @@ module Bootstrap.Object where
   data RuntimeUnit where
     RuntimeUnit :: String -> String -> String -> List Nat -> Option Nat -> RuntimeUnit
   data RuntimeObject where
-    RuntimeObject :: List RuntimeUnit -> List String -> List String -> Json -> Json -> Json -> RuntimeObject
+    RuntimeObject :: HashMap String RuntimeUnit -> List String -> List String -> Json -> Json -> Json -> RuntimeObject
   unit-symbol :: RuntimeUnit -> String
   unit-symbol value = case value of RuntimeUnit name key closure params result -> name
   unit-key :: RuntimeUnit -> String
@@ -45,10 +46,6 @@ module Bootstrap.Object where
   field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
   has :: String -> List String -> Bool
   has name names = case names of Nil -> False; Cons first rest -> same name first || has name rest
-  find-unit :: String -> List RuntimeUnit -> Option RuntimeUnit
-  find-unit name units = case units of
-    Nil -> None
-    Cons first rest -> if same name (unit-key first) then Some first else find-unit name rest
   -- Inventory membership is insufficient: require an actual loaded value
   -- export as well. Private helpers and dictionary workers do not bind names.
   object-unit :: String -> RuntimeObject -> Option RuntimeUnit
@@ -64,7 +61,7 @@ module Bootstrap.Object where
   encoded-variant codes = case codes of Nil -> ""; other -> "$40" <> encoded-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-variant name codes value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> if has name exports then find-unit (name <> encoded-variant codes) units else None
+    RuntimeObject units exports instances dictionaries families constructors -> if has name exports then hash-map-lookup (name <> encoded-variant codes) units else None
   instance-symbols :: Json -> List String
   instance-symbols rows = case rows of
     JArr row rest -> (case field "id" row of JStr name -> Cons (interface-global name) (instance-symbols rest); other -> instance-symbols rest)
@@ -83,7 +80,7 @@ module Bootstrap.Object where
   object-dictionary name codes value = case value of
     RuntimeObject units exports instances dictionaries families constructors -> if not (has name instances) then None else
       (case dictionary-row (name <> encoded-variant codes) dictionaries of
-        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), find-unit (key <> "$2emk") units) of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), hash-map-lookup (key <> "$2emk") units) of
           (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
           other -> None)
         None -> None)
@@ -98,7 +95,7 @@ module Bootstrap.Object where
     (Nil, RuntimeObject units exports instances dictionaries families constructors) -> if not (has dictionary instances) then None else
       (case dictionary-row dictionary dictionaries of
         Some (key, row) -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
-          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then find-unit name units else None
+          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then hash-map-lookup name units else None
           other -> None)
         None -> None)
     other -> None
@@ -107,10 +104,10 @@ module Bootstrap.Object where
   -- through the exported instance and exact declaring slot, never as an
   -- ordinary value export. A zero-argument worker is a strict value and
   -- keeps the normal dictionary construction path.
-  closed-function-fields :: List RuntimeUnit -> List Nat -> Json -> Bool
+  closed-function-fields :: HashMap String RuntimeUnit -> List Nat -> Json -> Bool
   closed-function-fields units fields methods = case (fields, methods) of
     (Nil, JArrEnd) -> True
-    (Cons 1 rest, JArr (JStr name) more) -> (case find-unit (interface-global name) units of
+    (Cons 1 rest, JArr (JStr name) more) -> (case hash-map-lookup (interface-global name) units of
       Some unit -> (case unit-params unit of Nil -> False; other -> True) && closed-function-fields units rest more
       None -> False)
     other -> False
@@ -121,7 +118,7 @@ module Bootstrap.Object where
         Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
           (JStr actual-owner, JNum 0, Some fields) -> if not (same owner (interface-global actual-owner) && closed-function-fields units fields (field "methods" row)) then None else
             (case conditional-method-at slot (field "methods" row) of
-              Some method -> find-unit (interface-global method) units
+              Some method -> hash-map-lookup (interface-global method) units
               None -> None)
           other -> None)
         None -> None)
@@ -207,21 +204,26 @@ module Bootstrap.Object where
     JArr first rest -> (case (class-code first, classes rest) of (Some code, Some more) -> Some (Cons code more); other -> None)
     JArrEnd -> Some Nil
     other -> None
-  units :: Json -> List String -> Result String (List RuntimeUnit)
-  units doc seen = case doc of
+  -- Encoding preserves the complete symbol. The table rejects duplicate
+  -- metadata rows during admission and serves later worker lookups.
+  units :: Json -> HashMap String RuntimeUnit -> Result String (HashMap String RuntimeUnit)
+  units doc table = case doc of
     JArr row rest -> (case (field "symbol" row, field "closure_entry" row, field "arity" row, classes (field "params" row)) of
-      (JStr name, JStr closure, JNum arity, Some params) -> if string-length name == 0 || not (same closure (name <> ".object-closure")) || has name seen || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
-        (case (field "result" row, class-code (field "result" row)) of
-          (JNull, other) -> add-unit name closure params None rest seen
-          (other, Some result) -> add-unit name closure params (Some result) rest seen
-          other -> Err "invalid runtime object result class")
+      (JStr name, JStr closure, JNum arity, Some params) ->
+        if string-length name == 0 || not (same closure (name <> ".object-closure")) || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
+        let key = interface-global name in
+        (case hash-map-lookup key table of
+          Some prior -> Err "invalid or duplicate runtime object unit"
+          None -> (case field "result" row of
+            JNull -> add-unit (RuntimeUnit name key closure params None) rest table
+            value -> (case class-code value of
+              Some result -> add-unit (RuntimeUnit name key closure params (Some result)) rest table
+              None -> Err "invalid runtime object result class")))
       other -> Err "malformed runtime object unit")
-    JArrEnd -> Ok Nil
+    JArrEnd -> Ok table
     other -> Err "malformed runtime object units"
-  add-unit :: String -> String -> List Nat -> Option Nat -> Json -> List String -> Result String (List RuntimeUnit)
-  add-unit name closure params result rest seen = case units rest (Cons name seen) of
-    Err message -> Err message
-    Ok more -> Ok (Cons (RuntimeUnit name (interface-global name) closure params result) more)
+  add-unit :: RuntimeUnit -> Json -> HashMap String RuntimeUnit -> Result String (HashMap String RuntimeUnit)
+  add-unit unit rest table = units rest (hash-map-insert (unit-key unit) unit table)
   -- Canonical names are encoded once at admission. Re-encoding the entire
   -- inventory on every call repeatedly scans UTF-8 strings in large builds.
   encode-dictionary-keys :: Json -> Json
@@ -362,7 +364,7 @@ module Bootstrap.Object where
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
-          (case (units (field "units" doc) Nil, interface-files (field "interfaces" doc)) of
+          (case (units (field "units" doc) hash-map-empty, interface-files (field "interfaces" doc)) of
             (Ok functions, Ok files) -> (case load-object-interfaces-with-known interfaces files of
                 Err message -> Err message
                 Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch")

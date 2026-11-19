@@ -7,15 +7,16 @@ use std::path::Path;
 use std::process::Command;
 
 fn sha256(path: &Path) -> String {
-    let output = Command::new("python3").args(["-c", "import hashlib,pathlib,sys;print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())"]).arg(path).output().unwrap();
-    assert!(output.status.success(), "artifact hash: {}", String::from_utf8_lossy(&output.stderr));
-    String::from_utf8(output.stdout).unwrap().trim().into()
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    std::io::copy(&mut std::fs::File::open(path).unwrap(), &mut hash).unwrap();
+    format!("{:x}", hash.finalize())
 }
-fn configuration(path: &Path, object: &Path) {
+fn configuration(path: &Path, object: &Path, metadata: &Path) {
     std::fs::write(path, Json::obj(vec![
         ("schema", Json::Num(1.0)), ("target", Json::Str(cinch::core::TargetProfile::native().triple)),
-        ("object", Json::Str(object.display().to_string())), ("metadata", Json::Str(object.with_extension("abi.json").display().to_string())),
-        ("object_sha256", Json::Str(sha256(object))), ("metadata_sha256", Json::Str(sha256(&object.with_extension("abi.json")))),
+        ("object", Json::Str(object.display().to_string())), ("metadata", Json::Str(metadata.display().to_string())),
+        ("object_sha256", Json::Str(sha256(object))), ("metadata_sha256", Json::Str(sha256(metadata))),
     ]).to_text()).unwrap();
 }
 fn interfaces(path: &Path, dirs: &[&Path]) {
@@ -368,7 +369,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     }
     let manifest = dir.join("provider.interfaces.json");
     interfaces(&manifest, &[&provider.join("build")]);
-    let objects = dir.join("provider.objects.json"); configuration(&objects, &object);
+    let objects = dir.join("provider.objects.json"); configuration(&objects, &object, &object.with_extension("abi.json"));
     let library = dir.join("library.source");
     let source = format!("{}\n{}\n{}\n{}", include_str!("../prelude/Data/Array.cinch"), include_str!("../prelude/Data/Tensor.cinch"), include_str!("../prelude/Data/Columnar.cinch"), r#"module Library where
   import Data.Array
@@ -449,7 +450,7 @@ module GuardedNumbers where
     assert!(!llvm.contains("@llvm.global_ctors"), "dependency object must leave table registration to final consumer");
     for symbol in ["cinch_array_from_list", "cinch_tensor_get", "cinch_columnar_column"] { assert!(llvm.contains(symbol)); }
     let final_manifest = dir.join("client.interfaces.json"); interfaces(&final_manifest, &[&provider.join("build"), &build]);
-    let final_objects = dir.join("client.objects.json"); configuration(&final_objects, &out);
+    let final_objects = dir.join("client.objects.json"); configuration(&final_objects, &out, &abi);
     let client = dir.join("client.source"); let client_ir = dir.join("client.ll");
     std::fs::write(&client, r#"module Main where
   import Library
@@ -477,6 +478,18 @@ module GuardedNumbers where
     assert_eq!(ran.status.code(), Some(0), "{}", String::from_utf8_lossy(&ran.stderr));
     assert!(String::from_utf8_lossy(&ran.stderr).contains("live=0 immortal=0 leaked=0"));
     println!("closed object client: {}", String::from_utf8_lossy(&ran.stderr).trim());
+    // A matching file digest authenticates the bytes. The object reader
+    // must still reject two physical entries claiming the same symbol.
+    let mut duplicate: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let units = duplicate["units"].as_array_mut().unwrap();
+    units.push(units.first().expect("checked provider has units").clone());
+    let duplicate_abi = dir.join("duplicate.abi.json");
+    let duplicate_objects = dir.join("duplicate.objects.json");
+    std::fs::write(&duplicate_abi, serde_json::to_vec(&duplicate).unwrap()).unwrap();
+    configuration(&duplicate_objects, &out, &duplicate_abi);
+    let rejected = run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &duplicate_objects);
+    assert_eq!(rejected.status.code(), Some(7));
+    assert!(common::read_output(&dir, "client.ll.diagnostics").contains("invalid or duplicate runtime object unit"));
     std::fs::write(&client, "module Main where\n  import Library (hidden)\n  main :: Int\n  main = hidden 0\n").unwrap();
     assert_eq!(run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &final_objects).status.code(), Some(4));
     assert!(std::fs::read_to_string(&client_ir).unwrap().is_empty());
