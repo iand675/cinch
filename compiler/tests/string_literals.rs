@@ -258,8 +258,8 @@ fn lexer_rejections_match_the_lexer() {
 
 /// Literal equality stays byte semantics (`Eq String`/`Ord String` over
 /// `string-compare`). The type is OPAQUE: the representation
-/// constructor is module-private (immutability), and a literal pattern
-/// stays the parser's named refusal in the bootstrap slice.
+/// constructor is module-private. The self-hosted frontend also matches
+/// string patterns by content. The seed retains its named syntax refusal.
 #[test]
 fn literal_equality_stays_byte_semantics() {
     expect_ok(
@@ -282,11 +282,21 @@ module Main where
 "#,
         0,
     );
-    expect_err(
-        "literal-patterns-are-a-named-refusal",
-        "module Main where\n  f :: String -> Int\n  f s = case s of\n    \"a\" -> 0\n    _ -> 1\n  main :: Int\n  main = 0\n",
-        &["literal patterns are not supported in the bootstrap slice"],
-    );
+    let pattern_source = r#"
+module Main where
+  f :: String -> Int
+  f s = case s of
+    "ab" -> 7
+    _ -> 2
+  main :: Int
+  main = f (string-concat "a" "b") + f "a"
+"#;
+    if common::external_frontend::configured().unwrap().is_some() {
+        expect_ok("matching-and-nonmatching-string-patterns", pattern_source, 9);
+    } else {
+        expect_err("literal-patterns-are-a-named-refusal", pattern_source,
+            &["literal patterns are not supported in the bootstrap slice"]);
+    }
     expect_err(
         "the-representation-constructor-is-private",
         "module Main where\n  f :: String -> Int\n  f s = case s of\n    String b -> 1\n  main :: Int\n  main = 0\n",
@@ -587,6 +597,7 @@ fn emit_ir_references_the_constant_directly() {
     let dir = write_project(&[(
         "Main.cinch",
         "module Main where\n\
+         \x20 #[noinline]\n\
          \x20 greet :: Nat -> String\n\
          \x20 greet n = \"hello\"\n\
          \x20 main :: Int\n\
@@ -609,34 +620,25 @@ fn emit_ir_references_the_constant_directly() {
     let ir = std::fs::read_to_string(&ir_path).expect("ir text");
     let lit_lines: Vec<&str> = ir.lines().filter(|l| l.contains("c\"hello\"")).collect();
     assert!(!lit_lines.is_empty(), "the literal emits a constant");
-    // The site compiles to one shared constant in its unit (a second
-    // evaluation of the site never constructs another).
-    let site_lines: Vec<&str> = lit_lines
-        .iter()
-        .copied()
-        .filter(|l| l.contains("Main.greet"))
-        .collect();
-    assert_eq!(
-        site_lines.len(),
-        1,
-        "one constant for the literal site: {site_lines:?}"
-    );
-    for l in &lit_lines {
+    // A constant can have a compiler-generated name and can be shared
+    // across functions. Identify the site by its use in greet's body.
+    let greet = ir.lines().skip_while(|line| {
+        !(line.starts_with("define ") && line.contains("Main.greet"))
+    }).take_while(|line| !line.starts_with('}')).collect::<Vec<_>>().join("\n");
+    let mut referenced = 0;
+    for line in lit_lines {
         assert!(
-            l.contains("internal constant { i64, ptr, i64, i64, ptr,"),
-            "the constant is the composite object (two headered blocks + bytes): {l}"
+            (line.contains("internal constant") || line.contains("private unnamed_addr constant"))
+                && line.contains("constant { i64, ptr, i64, i64, ptr,"),
+            "the literal is a private composite constant: {line}"
         );
-        assert!(!l.contains("cinch_bytes_from_data"), "no materialisation: {l}");
+        assert!(!line.contains("cinch_bytes_from_data"), "no materialisation: {line}");
+        let (symbol, _) = line.split_once(" = ").expect("constant definition");
+        if greet.contains(&format!("ptr {symbol}, i64 0, i32 1) to i64")) {
+            referenced += 1;
+        }
     }
-    let name = site_lines[0]
-        .split_once(' ')
-        .map(|(n, _)| n.trim_start_matches('@').to_string())
-        .expect("constant name");
-    // The value word points one header word into the composite.
-    assert!(
-        ir.contains(&format!("ptr @{name}, i64 0, i32 1) to i64")),
-        "the constant is referenced directly"
-    );
+    assert_eq!(referenced, 1, "greet must directly reference one literal object: {greet}");
     let code = drive_with(Mode::Run, StageMode::Refresh, &dir, "Main.cinch", None)
         .expect("run");
     assert_eq!(code, 0, "the emitted program runs");
