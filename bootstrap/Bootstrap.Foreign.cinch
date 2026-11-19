@@ -15,7 +15,7 @@ module Bootstrap.Foreign where
 
   export ForeignPlan, ForeignParameter, foreign-plan, foreign-parameters, foreign-result
   export foreign-symbol, foreign-scheme, foreign-parameter-type, foreign-class
-  export foreign-width, foreign-signed, foreign-nullable, foreign-role
+  export foreign-blocking, foreign-width, foreign-signed, foreign-nullable, foreign-role
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
   export PrimitiveAssembly, AssemblyFragment
@@ -105,6 +105,20 @@ module Bootstrap.Foreign where
   accounted-labels labels = case labels of
     UArg label rest -> (case head-name label of Some name -> has name ["Foreign", "IO", "#kernel.ForeignIO", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"]; None -> False) || accounted-labels rest
     other -> False
+  -- Only the kernel Blocking label on a checked call arrow enters the scheduler.
+  blocking-labels :: UType -> Bool
+  blocking-labels labels = case labels of
+    UArg (UCon name KEffect) rest -> same name "Blocking" || blocking-labels rest
+    UArg other rest -> blocking-labels rest
+    other -> False
+  blocking-arrow :: UType -> Bool
+  blocking-arrow ty = case ty of
+    UFun domain result -> blocking-arrow result
+    UFunEff domain (URow labels) result -> blocking-labels labels || blocking-arrow result
+    UPi id name domain (URow labels) result -> blocking-labels labels || blocking-arrow result
+    other -> False
+  foreign-blocking :: ForeignPlan -> Bool
+  foreign-blocking plan = blocking-arrow (scheme-body (foreign-scheme plan))
   envelope :: UType -> Bool
   envelope ty = case ty of
     UFun domain result -> envelope-next (URow UEnd) result

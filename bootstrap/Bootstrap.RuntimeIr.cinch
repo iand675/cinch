@@ -2285,9 +2285,13 @@ module Bootstrap.RuntimeIr where
         (evaluated, values) -> let boundary = (case foreign-inline plan of None -> True; Some body -> False) in
           case foreign-marshal boundary evaluated (foreign-parameters plan) values of
           (ready, arguments) -> let result = foreign-result plan in let ty = foreign-llvm-type result in
-            if same ty "void" then (line ready (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
-            else let (next, value) = fresh ready "%foreign" in
-              foreign-result-word (line next (cat ["  ", value, " = call ", if boundary then foreign-c-result result else ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
+            let blocking = boundary && not (program-wasm32 (writer-program ready)) && foreign-blocking plan in
+            let entered = if blocking then line ready "  call i64 @cinch_sched_blocking_enter()" else ready in
+            let (called, value) = if same ty "void" then (line entered (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
+                  else (case fresh entered "%foreign" of
+                    (next, name) -> (line next (cat ["  ", name, " = call ", if boundary then foreign-c-result result else ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), name)) in
+            let exited = if blocking then line called "  call i64 @cinch_sched_blocking_exit()" else called in
+            if same ty "void" then (exited, value) else foreign-result-word exited result value
   primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
   primitive-immediate-arguments plan args = case plan of
     None -> True
@@ -5202,6 +5206,7 @@ module Bootstrap.RuntimeIr where
   declarations-counting wasm32 debug reclaim = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n",
+    if wasm32 then "" else "declare i64 @cinch_sched_blocking_enter()\ndeclare i64 @cinch_sched_blocking_exit()\n",
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
