@@ -23,7 +23,12 @@ fn compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionari
     ]);
 
     let (_, interfaces) = cinch::driver::check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "collection-base.cinch").unwrap();
-    for (module, identity) in [("Data.List", "Data.List.FromList_List"), ("Data.Bytes", "Data.Bytes.FromList_Bytes")] {
+    for (module, identity) in [
+        ("Data.List", "Data.List.FromList_List"),
+        ("Data.Bytes", "Data.Bytes.FromList_Bytes"),
+        ("Data.Int", "Data.Int.Enum_Int"),
+        ("Data.Nat", "Data.Nat.Enum_Nat"),
+    ] {
         let iface = interfaces.iter().find(|i| i.module == module).unwrap();
         assert!(iface.exports.instances.iter().find(|i| i.id == identity).unwrap().resolved.is_some(), "actual {identity} factory must carry its complete defining scheme");
     }
