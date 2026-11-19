@@ -355,7 +355,9 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     } else if let Some(compiler) = common::external_frontend::configured().unwrap()
         .and_then(|frontend| fixed_point_compiler(&compiler_sources, &frontend))
     {
-        common::check_diagnostics(&dir, "Main.cinch").expect("check compiler sources through the selected CLI");
+        // The receipt already covers the compiler sources. Exercise the selected
+        // project frontend on the fixture's provider before using its object.
+        common::check_diagnostics(&provider, "Provider.cinch").expect("check provider through the selected CLI");
         compiler
     } else {
         common::build_executable(&dir, "Main.cinch", "object-compiler").expect("build actual Cinch CLI")
