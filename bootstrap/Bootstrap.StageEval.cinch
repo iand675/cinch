@@ -6,7 +6,8 @@ module Bootstrap.StageEval where
   import Bootstrap.Guarded (guarded-reading)
   import Bootstrap.Proof (Arithmetic, AInteger)
   import Bootstrap.Instance (CoreInstance, find-instance, field-at, instance-fields, dictionary-field-definition)
-  import Bootstrap.Nominal (stage-quotation-module)
+  import Bootstrap.Nominal (stage-quotation-module, global-stage-str-nat)
+  import Text.Scan (string-strip)
   import Bootstrap.Ast (Expr, Decl, DInterface)
   import Bootstrap.Builtin (scalar-intrinsic, scalar-operation-code, scalar-operation-arguments, scalar-operation-result, scalar-shape-name)
   import Bootstrap.Load (contract-intrinsic)
@@ -14,7 +15,7 @@ module Bootstrap.StageEval where
   import Bootstrap.Infer (elaboration-core, elaboration-declarations, elaboration-method-scope, elaboration-instances)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.TotalSemantics (total-numeric-operation, total-numeric-comparison, arithmetic-constant)
-  import Bootstrap.Total (total-decimal-value)
+  import Bootstrap.Total (parse-decimal-value, total-decimal-value)
   import Bootstrap.Type (UType, UCon, KType, integer-literal-valid)
   import Data.Int (int-add, int-sub, int-mul, int-neg)
   import Text.Lex (Span)
@@ -158,6 +159,12 @@ module Bootstrap.StageEval where
       (case (if same role "intrinsic" then conversion-shape name else None) of
         Some (source, result) -> apply-conversion site source result values fuel
         None -> stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"]))
+    else if same role "external" && same name global-stage-str-nat then (case values of
+      [StageString text] -> case parse-decimal-value (string-strip text) of
+        Some value | value >= 0 -> Ok (StageInteger value, fuel)
+        Some negative -> stage-error site "`strNat` rejects a negative `Nat`"
+        None -> stage-error site (string-concat-all ["`strNat` needs decimal digits, got `", text, "`"])
+      other -> stage-error site "`strNat` requires one string")
     else if same role "constructor" then evaluate-constructor site ty name values fuel
     else case definition-for name (stage-definitions definitions) of
       Some definition -> evaluate-definition definitions site definition values fuel

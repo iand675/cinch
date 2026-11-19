@@ -356,12 +356,10 @@ module Main where
 /// (`strNat`) run as before.
 #[test]
 fn staging_strings_are_unchanged() {
-    expect_ok(
-        "staging-strNat",
-        r#"
+    let source = r#"
 module Main where
   stage greet :: Nat -> Nat
-  stage greet n = strNat "42"
+  stage greet n = strNat " 42 "
 
   generate do
     emit (quoteDecls where
@@ -370,9 +368,11 @@ module Main where
 
   main :: Int
   main = nat-to-int answer
-"#,
-        42,
-    );
+"#;
+    expect_ok("staging-strNat", source, 42);
+    for (text, diagnostic) in [("4x", "needs decimal digits"), ("-42", "rejects a negative")] {
+        expect_err("invalid-staging-strNat", &source.replace(" 42 ", text), &[diagnostic]);
+    }
 }
 
 // ----------------------------------------------------------- JPL no-allocation

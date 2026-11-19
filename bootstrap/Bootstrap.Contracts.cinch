@@ -7,7 +7,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Builtin (builtin-syntax-metadata)
   import Bootstrap.Load
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
+  import Bootstrap.Nominal (global-stage-str-nat, interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
@@ -140,6 +140,11 @@ module Bootstrap.Contracts where
     Cons d rest -> case d of
       DExternal s name kind scheme metadata ->
         if not (referenced name references) || seen-entry name kind seen then materialize-externals-from references seen rest
+        -- Stage primitives have a compiler-owned signature resolved in their
+        -- synthetic module, including the active String carrier.
+        else if same kind "stage-primitive" && same name global-stage-str-nat then
+          (case materialize-externals-from references (seen-add name kind seen) rest of
+            (others, errors) -> (Cons d others, errors))
         else case external-type s name kind metadata of
           (ty, errors) -> case materialize-externals-from references (seen-add name kind seen) rest of
             (others, more) -> (Cons (DExternal s name kind ty metadata) others, errors <> more)

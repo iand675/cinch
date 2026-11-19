@@ -14,6 +14,7 @@ module Bootstrap.Stage where
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Char (is-ascii-upper)
+  import Data.Json (JNull)
   import Data.String (string-char-at)
   import Text.Scan (string-starts-with)
   import Data.Int (int-neg)
@@ -119,7 +120,8 @@ module Bootstrap.Stage where
 
   quotation-declarations :: Span -> List Decl
   quotation-declarations site =
-    [DExport site "" [ExportName site [quote-type-name], ExportName site ["quoteNat"], ExportName site ["quoteInt"], ExportName site ["quoteBool"]],
+    [DExport site "" [ExportName site [quote-type-name], ExportName site ["quoteNat"], ExportName site ["quoteInt"], ExportName site ["quoteBool"], ExportName site ["strNat"]],
+     DExternal site "strNat" "stage-primitive" (Some (TFun site (TName site "String") (TName site "Nat"))) JNull,
      DData site quote-type-name [MkTypeParam site "a" None False]
       [(stage-quotation-constructor, TFun site (TName site "a") (quote-type site quote-type-name "a"))]]
     <> quote-function site "quoteNat" "Nat"

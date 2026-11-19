@@ -10,7 +10,7 @@ module Bootstrap.Total where
   import Text.Json (canonical-bytes)
 
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
-  export total-decimal-value, total-function-closure, total-graph-symbols
+  export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
@@ -239,7 +239,9 @@ module Bootstrap.Total where
     Cons char rest -> let code = char-code char in
       if code >= 48 && code <= 57 then decimal-fold rest (value * 10 + (nat-to-int code - 48)) else None
   decimal-value :: String -> Option Int
-  decimal-value value = if string-length value > 4096 then None else case unpack value of
+  decimal-value value = if string-length value > 4096 then None else parse-decimal-value value
+  parse-decimal-value :: String -> Option Int
+  parse-decimal-value value = case unpack value of
     Nil -> None
     Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
   unknown-domains :: List String -> List (Option (List Int))

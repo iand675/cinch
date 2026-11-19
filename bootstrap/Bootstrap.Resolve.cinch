@@ -5,7 +5,7 @@
 module Bootstrap.Resolve where
 
   import Bootstrap.Ast
-  import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
+  import Bootstrap.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
   import Bootstrap.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set)
@@ -1119,6 +1119,8 @@ module Bootstrap.Resolve where
 
   rename-decl :: String -> Visible -> List Decl -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations d = case d of
+    DExternal s name category (Some ty) metadata | same home stage-quotation-module && same category "stage-primitive" ->
+      ([DExternal s (global-name home name) category (Some (rename-type visible Nil ty)) metadata], Nil)
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)

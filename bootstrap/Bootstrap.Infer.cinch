@@ -31,7 +31,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
+  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code, global-stage-str-nat)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -2492,7 +2492,12 @@ module Bootstrap.Infer where
   -- | Register only the checked authority carried by a kernel, class, foreign, or ordinary external declaration.
   register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =
-    if same category "builtin" then register-kernel sp name metadata classes kinds env st
+    if same category "stage-primitive" && same name global-stage-str-nat then
+      (case make-scheme False classes kinds Nil ty st of
+        (sc, checked) -> if scheme-equivalent sc (mono (UFun (literal-type kinds "String") (primitive-type "Nat"))) then
+          add-binding sp name sc "external" env checked
+          else (env, add-error sp "stage decimal parser requires its String -> Nat signature" checked))
+    else if same category "builtin" then register-kernel sp name metadata classes kinds env st
     else if same category "builtin-syntax" then register-decision-syntax sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
     else if same category "builtin-constructor" then register-decision-constructor sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
     else if same category "value" && imported-foreign-value metadata kinds then register-imported-foreign sp name ty metadata classes kinds env st
