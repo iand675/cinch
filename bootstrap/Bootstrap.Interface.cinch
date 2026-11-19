@@ -280,13 +280,13 @@ module Bootstrap.Interface where
   fnv-prime = 0x100000001b3
 
   fnv-bytes :: Bytes -> U64
-  fnv-bytes b = fnv-from b 0 fnv-basis
+  fnv-bytes b = fnv-from b (bytes-len b) 0 fnv-basis
 
-  fnv-from :: Bytes -> Nat -> U64 -> U64
-  fnv-from b i h =
-    if i < bytes-len b then
+  fnv-from :: using (end == bytes-len b) => (b :: Bytes) -> (end :: Nat) -> Nat -> U64 -> U64
+  fnv-from b end i h =
+    if i < end then
       let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
-      fnv-from b (i + 1) (wrapping-mul-u64 (bit-xor-u64 h byte) fnv-prime)
+      fnv-from b end (i + 1) (wrapping-mul-u64 (bit-xor-u64 h byte) fnv-prime)
     else h
 
   -- The decimal spelling of a `U64`, the form the interface records both
