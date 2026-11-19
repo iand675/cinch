@@ -31,7 +31,7 @@ def publish_interfaces(manifest, source, prefix):
 # paths. The selectors in compiler/tests/common put them after the mode word.
 # `--no-reclaim` is one of them: it is a word, not a path, so a caller that
 # leaves it in the argument list would hand it to the compiler as a source.
-PROFILE_FLAGS = ("--rc-debug", "--no-reclaim", "--portable-isa")
+PROFILE_FLAGS = ("--clear-features", "--rc-debug", "--no-reclaim", "--portable-isa")
 
 
 def compile_client(compiler, objects, runtime, args, *, ir_only=False):
@@ -40,14 +40,14 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
     emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
-    if args and args[0] in ("--interfaces", "--target", "--require-capability", *PROFILE_FLAGS):
+    if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", *PROFILE_FLAGS):
         return subprocess.call([compiler, *args], env=env)
     profile = []
     end = 1
     while end < len(args):
         if args[end] in PROFILE_FLAGS:
             width = 1
-        elif args[end] in ("--require-capability", "--target") and end + 1 < len(args):
+        elif args[end] in ("--require-capability", "--target-feature", "--target") and end + 1 < len(args):
             width = 2
         else:
             break

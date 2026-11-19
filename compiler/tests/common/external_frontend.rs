@@ -89,7 +89,6 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
         ("word_size", *word_size == host.word_size),
         ("endian", *endian == host.endian),
         ("vector_shape", *vector_shape == host.vector_shape),
-        ("features", *features == host.features),
         ("allow_eval", *allow_eval == host.allow_eval),
         ("artifact", *artifact == host.artifact),
         ("jpl", *jpl == host.jpl),
@@ -117,6 +116,12 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     }
     if arch == "portable" {
         flags.push("--portable-isa".to_owned());
+    }
+    if *features != host.features {
+        flags.push("--clear-features".to_owned());
+        for feature in features {
+            flags.extend(["--target-feature".to_owned(), feature.clone()]);
+        }
     }
     for capability in required {
         flags.extend(["--require-capability".to_owned(), capability.clone()]);
@@ -437,6 +442,12 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let mut profile = implemented_profile(triple)?;
     if request.flags.iter().any(|flag| flag == "--portable-isa") {
         profile.arch = "portable".into();
+    }
+    if request.flags.iter().any(|flag| flag == "--clear-features") {
+        profile.features = request.flags.windows(2)
+            .filter(|words| words[0] == "--target-feature")
+            .map(|words| words[1].clone())
+            .collect();
     }
     profile.required = request.flags.windows(2)
         .filter(|words| words[0] == "--require-capability")
