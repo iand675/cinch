@@ -149,6 +149,7 @@ let
     version = "${builtins.substring 0 8 seedLock.revision}-${builtins.substring 0 8 providerLock.revision}";
     src = pinSources;
     nativeBuildInputs = tools;
+    postPatch = "patchShebangs tooling";
     dontConfigure = true;
     dontFixup = true;
     buildPhase = ''
@@ -172,6 +173,9 @@ let
     version = "0";
     src = ladderSources;
     nativeBuildInputs = tools;
+    # The seed runs tooling/shard_ir.py as its clang, by its shebang, and
+    # the sandbox has no /usr/bin/env.
+    postPatch = "patchShebangs tooling";
     dontConfigure = true;
     dontFixup = true;
     buildPhase = ''
