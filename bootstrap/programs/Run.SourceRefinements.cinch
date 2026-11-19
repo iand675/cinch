@@ -1,7 +1,7 @@
 module Main where
   import Bootstrap.Ast
   import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
+  import Bootstrap.Check (check-and-retain, checked-elaboration)
   import Bootstrap.Resolve (resolve-program)
   import Bootstrap.Infer
   import Bootstrap.Core
@@ -13,12 +13,10 @@ module Main where
   run :: Bytes -> (Int, String)
   run source = case parse-program "refinement-source" source of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> case check-program resolved of
-        Nil -> let result = elaborate-program "refinement-source" resolved in
-          case elaboration-errors result of
-            Nil -> if elaboration-core-contracts-closed result then (0, "") else (94, "refinement Core did not retain checked evidence")
-            errors -> (4, render-diagnostics errors)
-        errors -> (4, render-diagnostics errors)
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, render-diagnostics errors)
+        Ok checked -> if elaboration-core-contracts-closed (checked-elaboration checked) then (0, "")
+          else (94, "refinement Core did not retain checked evidence")
       (resolved, errors) -> (4, render-diagnostics errors)
     other -> (2, "refinement source parse failed")
   main :: Unit ->{IO r} Int
