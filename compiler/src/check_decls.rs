@@ -454,7 +454,7 @@ fn accounted_effect(head: &str) -> bool {
 /// it remains a legal, independently handleable source effect, never kernel authority.
 fn declared_effect_head(module: &str, name: &ast::Name) -> String {
     if name.declaration_binding().is_some() || accounted_effect(&name.text)
-        || matches!(name.text.as_str(), "Async" | "Cancel" | "Eval" | "Mut" | "MVar") {
+        || matches!(name.text.as_str(), "Async" | "Cancel" | "Eval" | "Mut" | "MVar" | "STM") {
         format!("{module}.{}", name.text)
     } else {
         name.text.clone()

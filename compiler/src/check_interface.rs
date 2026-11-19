@@ -455,41 +455,41 @@ impl Checker {
         })
     }
 
-    /// Find canonical kernel MVar effects in checked types, including latent callback rows.
-    fn interface_type_mentions_mvar(ty: &Ty) -> bool {
-        let row = |effects: &EffRow| effects.labels.iter().any(|label| label.head.as_str() == "MVar");
+    /// Find kernel MVar and STM effects in checked types, including latent callback rows.
+    fn interface_type_mentions_cell_effect(ty: &Ty) -> bool {
+        let row = |effects: &EffRow| effects.labels.iter().any(|label| matches!(label.head.as_str(), "MVar" | "STM"));
         match ty {
             Ty::Fun(domain, _, effects, result)
             | Ty::Pi { dom: domain, eff: effects, cod: result, .. } =>
-                row(effects) || Self::interface_type_mentions_mvar(domain)
-                    || Self::interface_type_mentions_mvar(result),
-            Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(Self::interface_type_mentions_mvar),
-            Ty::App(head, args) => Self::interface_type_mentions_mvar(head)
-                || args.iter().any(Self::interface_type_mentions_mvar),
+                row(effects) || Self::interface_type_mentions_cell_effect(domain)
+                    || Self::interface_type_mentions_cell_effect(result),
+            Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(Self::interface_type_mentions_cell_effect),
+            Ty::App(head, args) => Self::interface_type_mentions_cell_effect(head)
+                || args.iter().any(Self::interface_type_mentions_cell_effect),
             Ty::Thunk { eff, inner } | Ty::Lazy { eff, inner, .. } =>
-                row(eff) || Self::interface_type_mentions_mvar(inner),
+                row(eff) || Self::interface_type_mentions_cell_effect(inner),
             Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner)
-            | Ty::Ptr { pointee: inner, .. } => Self::interface_type_mentions_mvar(inner),
-            Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_mvar(dom)
-                || Self::interface_type_mentions_mvar(cod),
-            Ty::Forall(scheme) => Self::interface_type_mentions_mvar(&scheme.ty),
-            Ty::Handler { label, input, output, eff, .. } => label.head.as_str() == "MVar"
-                || row(eff) || Self::interface_type_mentions_mvar(input)
-                || Self::interface_type_mentions_mvar(output),
+            | Ty::Ptr { pointee: inner, .. } => Self::interface_type_mentions_cell_effect(inner),
+            Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_cell_effect(dom)
+                || Self::interface_type_mentions_cell_effect(cod),
+            Ty::Forall(scheme) => Self::interface_type_mentions_cell_effect(&scheme.ty),
+            Ty::Handler { label, input, output, eff, .. } => matches!(label.head.as_str(), "MVar" | "STM")
+                || row(eff) || Self::interface_type_mentions_cell_effect(input)
+                || Self::interface_type_mentions_cell_effect(output),
             _ => false,
         }
     }
 
-    /// Serialize MVar only after the complete closed row agrees with checked semantic identities.
+    /// Serialize MVar and STM only after the complete closed row agrees with checked semantic identities.
     ///
     /// Source-owned effects keep their qualified heads. Existing unsupported open rows and
     /// unpaired source-only rendering receive no new authority from this checked path.
     fn resolved_checked_kernel_effect_row(
         &self, source: &ast::EffectRow, checked: &EffRow, scheme: &Scheme, vars: &[String],
     ) -> Option<String> {
-        let actual_mvar = checked.labels.iter().any(|label| label.head.as_str() == "MVar");
-        let source_mvar = source.labels.iter().any(|(path, _)|
-            self.effect_head(path, false).ok().as_deref() == Some("MVar"));
+        let checked_cell_effect = checked.labels.iter().any(|label| matches!(label.head.as_str(), "MVar" | "STM"));
+        let source_cell_effect = source.labels.iter().any(|(path, _)|
+            matches!(self.effect_head(path, false).ok().as_deref(), Some("MVar" | "STM")));
         // A class projection may pass its own universally quantified row
         // through a continuation. Both the binder and its occurrence must
         // agree with the defining checked scheme.
@@ -503,7 +503,7 @@ impl Checker {
             };
         }
         if !matches!(checked.tail, crate::types::RowTail::Closed) { return None }
-        if !actual_mvar && !source_mvar {
+        if !checked_cell_effect && !source_cell_effect {
             return self.resolved_kernel_effect_row(source, scheme, vars);
         }
         if source.tail.is_some() || !matches!(checked.tail, crate::types::RowTail::Closed) {
@@ -522,7 +522,7 @@ impl Checker {
                 [region] => Some(region.text.clone()),
                 _ => return None,
             };
-            if head == "MVar" {
+            if matches!(head.as_str(), "MVar" | "STM") {
                 if argument.is_some() { return None }
             } else {
                 other.labels.push((path.clone(), arguments.clone()));
@@ -567,7 +567,7 @@ impl Checker {
         }
         // Keep existing canonical application parentheses for contracts
         // without predicates or kernel MVar effects. Those structures need checked printing.
-        if scheme.row_params.is_empty() && !carries_predicates(checked) && !Self::interface_type_mentions_mvar(checked) {
+        if scheme.row_params.is_empty() && !carries_predicates(checked) && !Self::interface_type_mentions_cell_effect(checked) {
             return self.resolved_source_type(source, scheme, vars, references, display);
         }
         // Print propositions from their checked structure. Operator source
@@ -662,7 +662,7 @@ impl Checker {
                 let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
                 Some(format!("({head} {})", args.join(" ")))
             }
-            _ if Self::interface_type_mentions_mvar(checked) => None,
+            _ if Self::interface_type_mentions_cell_effect(checked) => None,
             _ => self.resolved_source_type(source, scheme, vars, references, display),
         }
     }
@@ -933,6 +933,22 @@ mod mvar_effect_contract_tests {
         }
     }
 
+    #[test]
+    fn stm_contracts_preserve_the_checked_kernel_effect() {
+        let checker = Checker::new();
+        let scheme = Scheme::mono(Ty::Unit);
+        let source = row(&[("STM", &[]), ("Diverge", &[])]);
+        let checked = EffRow::closed(vec![EffLabel::plain("Diverge"), EffLabel::plain("STM")]);
+        assert_eq!(
+            checker.resolved_checked_kernel_effect_row(&source, &checked, &scheme, &[]).as_deref(),
+            Some("{Diverge, STM}")
+        );
+        for other in ["Other.STM", "MVar"] {
+            let mismatch = EffRow::closed(vec![EffLabel::plain("Diverge"), EffLabel::plain(other)]);
+            assert!(checker.resolved_checked_kernel_effect_row(&source, &mismatch, &scheme, &[]).is_none());
+        }
+    }
+
     /// Keep the complete checked blocking/cancellation row and its Region identity.
     #[test]
     fn checked_mvar_rows_preserve_divergence_and_region_identity() {
@@ -1029,6 +1045,6 @@ mod mvar_effect_contract_tests {
         assert!(checker.resolved_checked_kernel_effect_row(&row(&[]), &actual, &scheme, &[]).is_none());
         assert!(checker.resolved_kernel_effect_row(&row(&[("MVar", &[])]), &scheme, &[]).is_none());
         let callback = Ty::fun_eff(Ty::Unit, actual, Ty::Unit);
-        assert!(Checker::interface_type_mentions_mvar(&Ty::Adt("Holder".into(), vec![callback])));
+        assert!(Checker::interface_type_mentions_cell_effect(&Ty::Adt("Holder".into(), vec![callback])));
     }
 }
