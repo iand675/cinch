@@ -314,7 +314,7 @@ fn runtime_backed_probe_uses_session_imports_and_the_project_directory() {
     let output = out(repl.eval(
         "with (io = newIO ()) in fs-write (path-from-string \"probe-out.txt\") (string-to-bytes \"ok\")",
     ));
-    assert!(output.contains("<value> :: Result"), "{output}");
+    assert_eq!(output.trim(), "<value> :: Data.Core.Result Effect.Fs.FsError Unit");
     assert_eq!(
         std::fs::read_to_string(dir.join("probe-out.txt")).expect("probe file"),
         "ok"
