@@ -1080,6 +1080,15 @@ module Bootstrap.Resolve where
 
   stage-type-name :: String -> Bool
   stage-type-name name = has-name name ["Code", "Syntax", "SyntaxBinding", "TypeSyntax", "PackedCode", "Declarations", "Name"]
+  -- These source heads have compiler-owned runtime representations, including
+  -- the C spellings of machine scalars. An unrelated nominal cannot own one.
+  reserved-primitive-name :: String -> Bool
+  reserved-primitive-name name = not (same name (c-scalar-name name)) || has-name name
+    ["Int", "Nat", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "I128", "Isize",
+     "U8", "U16", "U32", "U64", "U128", "Usize", "F32", "F64", "Secret", "IoCap", "FileReadCap", "FileWriteCap", "ProcCap"]
+  reserved-primitive-message :: String -> String
+  reserved-primitive-message name = if same name (c-scalar-name name) then name <> " is a builtin primitive type and cannot be redefined"
+    else "a C ABI scalar cannot be redefined (builtin type " <> name <> ")"
   opaque-name-reserved :: String -> Bool
   opaque-name-reserved name = kernel-type-name name || stage-type-name name || has-name name
     ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret"
@@ -1106,20 +1115,20 @@ module Bootstrap.Resolve where
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
-    DData s name params ctors | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
-    DRecord s name params fields | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
-    DRefine s name params binder predicate | not (same name (c-scalar-name name)) -> (Nil, fail s "a C ABI scalar cannot be redefined")
+    DData s name params ctors | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
+    DRecord s name params fields | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
+    DRefine s name params binder predicate | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
     DData s name params ctors | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DRecord s name params fields | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DRefine s name params binder predicate | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
-    DData s name params ctors -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the kernel " <> name <> " carrier cannot be redefined")) else if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
+    DData s name params ctors -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined")) else if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
-    DRecord s name params fields -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the kernel " <> name <> " carrier cannot be redefined as a record")) else if has-name name ["Array", "Tensor", "Columnar"] then
+    DRecord s name params fields -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a record")) else if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
@@ -1133,7 +1142,7 @@ module Bootstrap.Resolve where
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
-    DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the kernel " <> name <> " carrier cannot be redefined as a refinement")) else
+    DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else
       let names = parameter-names params in
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
       (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder
