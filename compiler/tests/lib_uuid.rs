@@ -103,16 +103,8 @@ fn run(source: &str) {
             include_str!("../prelude/Data/Bytes/Word.cinch"),
         ),
         (
-            "Effect.Clock",
-            include_str!("../prelude/Effect/Clock.cinch"),
-        ),
-        (
             "Effect.Random",
             include_str!("../prelude/Effect/Random.cinch"),
-        ),
-        (
-            "Effect.Concurrent.MVar",
-            include_str!("../prelude/Effect/Concurrent/MVar.cinch"),
         ),
     ] {
         std::fs::write(directory.path().join(format!("{module}.cinch")), source).unwrap();
@@ -314,7 +306,17 @@ fn uuid_full_adapters_compile_for_portable_targets() {
             panic!("UUID portable emission failed for {triple}: {error:?}");
         });
         let ir = std::fs::read_to_string(&ir_path).unwrap();
-        for actual_body in ["Data.Uuid.compare-packed", "@llvm.bswap.i64", "<8 x i8>"] {
+        // LLVM permits the same quoted identifier to use literal or hexadecimal bytes.
+        let packed = "Data.Uuid.compare-packed.llvm";
+        let escaped: String = packed.bytes().map(|byte| format!("\\{byte:02X}")).collect();
+        assert!(
+            ir.lines().filter(|line| line.starts_with("define ")).any(|line| {
+                line.contains(&format!("@\"{packed}\"(")) || line.contains(&format!("@\"{escaped}\"("))
+                    || line.contains(&format!("@{packed}("))
+            }),
+            "{triple}: missing packed comparison definition"
+        );
+        for actual_body in ["@llvm.bswap.i64", "<8 x i8>"] {
             assert!(
                 ir.contains(actual_body),
                 "{triple}: missing actual adapter body {actual_body}"

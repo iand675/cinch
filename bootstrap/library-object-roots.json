@@ -231,6 +231,18 @@
     {
       "classes": "",
       "symbol": "Effect.Stm.Alternative_STM"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-new"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-put"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-take"
     }
   ],
   "methods": [
@@ -1588,6 +1600,10 @@
       "symbol": "Data.Producer.prod-fold"
     },
     {
+      "classes": "TTT",
+      "symbol": "Data.Producer.prod-map"
+    },
+    {
       "classes": "OO",
       "symbol": "Data.List.foldr"
     },
@@ -1742,6 +1758,10 @@
     {
       "classes": "OR",
       "symbol": "Category.Foldable.all"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Clock.timeout"
     }
   ]
 }

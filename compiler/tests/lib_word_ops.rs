@@ -330,32 +330,18 @@ fn word_kernels_compile_for_32_bit_arm_and_big_endian_targets() {
             target: Some(triple.into()),
             ..cinch::driver::DriverOptions::default()
         })
-        .unwrap_or_else(|_| {
-            // This target checks LLVM portability, rather than driver linking support.
-            assert_eq!(arch, "powerpc64");
-            let mut profile = cinch::core::TargetProfile::native();
-            profile.name = "powerpc64-kernel-check".into();
-            profile.triple = triple.into();
-            profile.arch = arch.into();
-            profile.endian = endian.into();
-            profile.word_size = width;
-            profile
-        });
+        .unwrap();
         assert_eq!(profile.arch, arch);
         assert_eq!(profile.endian, endian);
         assert_eq!(profile.word_size, width);
         let source=format!("{}\nmodule Main where\n  import Data.Word\n  main :: Int\n  main = if eq-u32 word-bits {width} then (case add-carry-usize {maximum} 1 False of (value,carry) -> if eq-usize value 0 && carry then 0 else 2) else 3\n",include_str!("../prelude/Data/Word.cinch"));
-        let (profile, program) = std::thread::Builder::new()
+        let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
-            .spawn(move || {
-                cinch::driver::check_sources_profile(&source, "word-target.cinch", &profile)
-                    .map(|program| (profile, program))
-            })
+            .spawn(move || common::source_frontend::emit_ir_profile(&source, &profile))
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        let ir = cinch::codegen::emit_for(&profile, &program).unwrap();
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(

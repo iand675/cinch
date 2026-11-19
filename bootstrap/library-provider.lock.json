@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with checked STM and MVar effect rows, sequencing methods and structural cell field contracts.",
-  "revision": "feb9f2ce62e8b0f6335c828983811c510fb39f8f",
+  "description": "ABI 10 provider with checked one-shot callbacks, regional and nominal contracts, and big-endian PowerPC64 objects.",
+  "revision": "bd6593d7fed03cb968eb109f3bc1a8c767c308d1",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "9b5d4e1b9416c80497b6bcb60c2e2a1f6dee0598a19bf276e1298513f36bfdf3"
+  "source_sha256": "42b0d68b0fde818aaa383b8ea7566e70bc66839419e04b39c631562486c2d432"
 }
