@@ -10,6 +10,7 @@
 module Data.Map where
 
   import Data.List
+  import Data.FromMap
   import Data.Option
   import Relation.Ord
   export Map, Tip, Bin, map-insert, map-lookup, map-from-pairs
