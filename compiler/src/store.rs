@@ -462,6 +462,12 @@ fn profile_identity(p: &TargetProfile) -> String {
 
 // ----------------------------------------------------------------- the store
 
+/// Canonical bytes and the checked contract hash already produced by the driver.
+pub(crate) struct RenderedInterface<'a> {
+    pub json: String,
+    pub contract_hash: &'a str,
+}
+
 /// A package store rooted at one directory.
 #[derive(Clone, Debug)]
 pub struct Store {
@@ -540,6 +546,19 @@ impl Store {
         bodies: &[BodyArtifact],
         rebuild: bool,
     ) -> Result<Outcome, StoreError> {
+        self.write_rendered(pkg, profile, adapters, ifaces, bodies, rebuild, &BTreeMap::new())
+    }
+
+    pub(crate) fn write_rendered(
+        &self,
+        pkg: &Package,
+        profile: &TargetProfile,
+        adapters: &[WitAdapter],
+        ifaces: &[Iface],
+        bodies: &[BodyArtifact],
+        rebuild: bool,
+        rendered: &BTreeMap<&str, RenderedInterface<'_>>,
+    ) -> Result<Outcome, StoreError> {
         let sources = pkg.ordered_sources().map_err(|e| StoreError::Package {
             reason: e.to_string(),
         })?;
@@ -560,18 +579,22 @@ impl Store {
             }
             selected.push(iface);
         }
-        // The key names the compiler build and every input the artifacts
-        // are a function of, and an entry is only ever installed whole (one
-        // rename of a staged directory), so an entry whose manifest records
-        // this key and whose interfaces are all present is this compile's
-        // set: keeping it needs no rendering. Verifying contents is the
-        // loader's job (`Store::load`), as for any other fault.
-        if !rebuild && bodies.is_empty() && self.entry_present(pkg, &key, &selected) {
-            return Ok(Outcome::Verified(key));
-        }
-        let expected = expected_records(&selected, bodies)?;
+        let expected = expected_records(&selected, bodies, rendered)?;
         let dir = self.entry_dir(pkg, &key);
         let manifest_path = dir.join(ENTRY_MANIFEST);
+        let manifest = entry_manifest(pkg, &key, profile, &expected);
+        // The driver has already rendered and checked these interfaces. Compare
+        // its bytes directly on a warm build, without decoding the whole family.
+        if !rebuild && bodies.is_empty() && !rendered.is_empty()
+            && std::fs::read(&manifest_path).is_ok_and(|bytes| bytes == manifest.as_bytes())
+            && selected.iter().all(|iface| {
+                rendered.get(iface.module.as_str()).is_some_and(|artifact|
+                    std::fs::read(Kind::Interface.path_in(&dir, &iface.module))
+                        .is_ok_and(|bytes| bytes == artifact.json.as_bytes()))
+            })
+        {
+            return Ok(Outcome::Verified(key));
+        }
         // The compile path WRITES the store; it never trusts an entry to
         // decide whether to fail. An entry is kept only when it is both
         // intact and exactly the set this compile produced, and anything
@@ -588,7 +611,12 @@ impl Store {
         // reported to whoever is about to rely on the artifacts.
         if !rebuild {
             if let Ok(loaded) = self.load(pkg, &key) {
-                if self.agrees_with_compile(&loaded, &selected, &expected) {
+                if self.agrees_with_compile(&loaded, &selected, &expected)
+                    && bodies.iter().all(|body| {
+                        std::fs::read(body.kind.path_in(&dir, &body.module))
+                            .is_ok_and(|stored| stored == body.bytes)
+                    })
+                {
                     return Ok(Outcome::Verified(key));
                 }
             }
@@ -620,16 +648,16 @@ impl Store {
             detail: e.to_string(),
         })?;
         for iface in &selected {
-            write_file(
-                &Kind::Interface.path_in(&staged, &iface.module),
-                iface.to_json().as_bytes(),
-            )?;
+            let path = Kind::Interface.path_in(&staged, &iface.module);
+            match rendered.get(iface.module.as_str()) {
+                Some(artifact) => write_file(&path, artifact.json.as_bytes())?,
+                None => write_file(&path, iface.to_json().as_bytes())?,
+            }
         }
         for body in bodies {
             write_file(&body.kind.path_in(&staged, &body.module), &body.bytes)?;
         }
-        let text = entry_manifest(pkg, &key, profile, &expected);
-        write_file(&staged.join(ENTRY_MANIFEST), text.as_bytes())?;
+        write_file(&staged.join(ENTRY_MANIFEST), manifest.as_bytes())?;
         if dir.exists() {
             std::fs::remove_dir_all(&dir).map_err(|e| StoreError::Io {
                 path: dir.clone(),
@@ -650,24 +678,6 @@ impl Store {
         } else {
             Outcome::Wrote(key)
         })
-    }
-
-    /// Whether the entry for `key` was installed (its manifest records the
-    /// key) and holds an interface for each of `modules`.
-    fn entry_present(&self, pkg: &Package, key: &str, modules: &[&Iface]) -> bool {
-        let dir = self.entry_dir(pkg, key);
-        let Ok(text) = std::fs::read_to_string(dir.join(ENTRY_MANIFEST)) else {
-            return false;
-        };
-        let recorded = parse_json(&text).ok().and_then(|doc| match doc {
-            JsonValue::Obj(fields) => match fields.get("key") {
-                Some(JsonValue::Str(k)) => Some(k.clone()),
-                _ => None,
-            },
-            _ => None,
-        });
-        recorded.as_deref() == Some(key)
-            && modules.iter().all(|iface| Kind::Interface.path_in(&dir, &iface.module).is_file())
     }
 
     /// Load one entry: the interfaces for every module, and the paths of
@@ -902,27 +912,14 @@ impl Store {
         if loaded.kinds.len() != selected.len() {
             return false;
         }
-        for iface in selected {
-            if !loaded.kinds.contains_key(&iface.module) {
+        for (iface, record) in selected.iter().zip(expected) {
+            if loaded.kinds.get(&iface.module) != Some(&record.kinds) {
                 return false;
             }
-        }
-        for record in expected {
-            let want: Vec<&str> = record.kinds.iter().map(|k| k.as_str()).collect();
-            let recorded: Vec<&str> = loaded
-                .kinds
-                .get(&record.module)
-                .map(|ks| ks.iter().map(|k| k.as_str()).collect())
-                .unwrap_or_default();
-            if want != recorded {
-                return false;
-            }
-        }
-        for iface in selected {
             let Some(prior) = loaded.iface(&iface.module) else {
                 return false;
             };
-            if prior.iface_hash() != iface.iface_hash() || prior.source_hash != iface.source_hash {
+            if prior.iface_hash() != record.iface_hash || prior.source_hash != iface.source_hash {
                 return false;
             }
         }
@@ -1002,6 +999,7 @@ struct Entry {
 fn expected_records(
     selected: &[&Iface],
     bodies: &[BodyArtifact],
+    rendered: &BTreeMap<&str, RenderedInterface<'_>>,
 ) -> Result<Vec<ModuleRecord>, StoreError> {
     let mut records = Vec::new();
     let mut consumed: Vec<&str> = Vec::new();
@@ -1026,7 +1024,8 @@ fn expected_records(
         hashes.sort();
         records.push(ModuleRecord {
             module: iface.module.clone(),
-            iface_hash: iface.iface_hash(),
+            iface_hash: rendered.get(iface.module.as_str())
+                .map_or_else(|| iface.iface_hash(), |artifact| artifact.contract_hash.to_owned()),
             kinds,
             bodies: hashes,
         });
