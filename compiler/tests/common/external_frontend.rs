@@ -22,6 +22,7 @@ pub struct Request {
     pub flags: Vec<String>,
     pub program_args: Vec<String>,
     link: Option<DriverOptions>,
+    unit_roots: Vec<(String, String)>,
 }
 
 /// The profile the selected compiler implements for one `--target` value:
@@ -145,6 +146,7 @@ pub fn profile_options_request(mode: Mode, stage: StageMode, profile: &TargetPro
     if opts.no_reclaim && profile.reclaim {
         request.flags.push("--no-reclaim".into());
     }
+    request.unit_roots = options.unit_roots;
     request.program_args = options.program_args;
     Ok(request)
 }
@@ -175,7 +177,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
         }
     }
     for (option, requested) in [
-        ("explicit object roots", !object_roots.is_empty()),
+        ("explicit object roots outside object emission", mode != Mode::EmitObject && !object_roots.is_empty()),
         ("emitted module sets", !emit_modules.is_empty()),
         ("package objects", !package_objects.is_empty()),
         ("--rebuild", *rebuild_store),
@@ -198,6 +200,15 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
             lacking.push(option.to_owned());
         }
     }
+    let mut unit_roots = Vec::new();
+    for root in object_roots {
+        match root {
+            cinch::specialize::ObjectRoot::Unit { symbol, classes } =>
+                unit_roots.push((symbol.clone(), cinch::repr::letters(classes))),
+            cinch::specialize::ObjectRoot::Dictionary { .. } => lacking.push("explicit dictionary roots".into()),
+            cinch::specialize::ObjectRoot::Method { .. } => lacking.push("explicit method roots".into()),
+        }
+    }
     if !lacking.is_empty() {
         return Err(format!("external frontend lacks {}", lacking.join(", ")));
     }
@@ -206,7 +217,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     let link = (matches!(mode, Mode::Build | Mode::Run)
         && (!target_flags.is_empty() || runtime_archive.is_some() || opt_level.is_some())).then(|| opts.clone());
     if opts.no_reclaim { target_flags.push("--no-reclaim".into()); }
-    Ok(Request { flags: target_flags, program_args, link, ..Request::default() })
+    Ok(Request { flags: target_flags, unit_roots, program_args, link, ..Request::default() })
 }
 
 pub fn configured() -> Result<Option<Frontend>, String> {
@@ -461,6 +472,15 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
             let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
             args.extend(["--objects".into(), configuration.display().to_string()]);
         }
+    }
+    if !request.unit_roots.is_empty() {
+        let path = work.join("object-roots.json");
+        let rows = request.unit_roots.iter().map(|(symbol, classes)| Json::obj(vec![
+            ("symbol", Json::Str(symbol.clone())), ("classes", Json::Str(classes.clone())),
+        ])).collect();
+        let roots = Json::obj(vec![("schema", Json::Num(1.0)), ("units", Json::Arr(rows))]);
+        std::fs::write(&path, roots.to_text()).map_err(|e| e.to_string())?;
+        args.extend(["--object-roots".to_owned(), path.display().to_string()]);
     }
     args.extend([source.display().to_string(), ir.display().to_string()]);
     match mode {

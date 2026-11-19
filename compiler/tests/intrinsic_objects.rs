@@ -23,3 +23,37 @@ fn checked_intrinsic_exports_are_object_roots_with_exact_word_classes() {
         assert!(row.contains(&format!("\"closure_entry\":\"{name}.object-closure\"")), "{row}");
     }
 }
+
+#[test]
+fn explicit_unit_roots_select_only_the_requested_polymorphic_variant() {
+    use cinch::driver::{DriverOptions, Mode};
+    use cinch::repr::Class;
+    use cinch::specialize::ObjectRoot;
+
+    let dir = common::project("specialized_object_roots", &[("Library.cinch", r#"module Library where
+  export identity
+  identity :: forall a. a -> a
+  identity x = x
+"#)]);
+    let object = dir.join("library.o");
+    let emit = |symbol: &str, classes: Vec<Class>| {
+        let opts = DriverOptions {
+            object_roots: vec![ObjectRoot::Unit { symbol: symbol.into(), classes }],
+            ..Default::default()
+        };
+        common::drive_opts(Mode::EmitObject, &dir, "Library.cinch", Some(object.clone()), &opts)
+    };
+
+    emit("Library.identity", vec![Class::TObj]).unwrap();
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(object.with_extension("abi.json")).unwrap()).unwrap();
+    let variants: Vec<_> = metadata["units"].as_array().unwrap().iter()
+        .filter(|row| row["symbol"].as_str().unwrap().starts_with("Library.identity"))
+        .collect();
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["symbol"], "Library.identity@T");
+    assert_eq!(variants[0]["params"], serde_json::json!(["T"]));
+    assert_eq!(variants[0]["result"], "T");
+    assert!(emit("Library.identity", vec![]).unwrap_err().contains("Library.identity"));
+    assert!(emit("Library.missing", vec![Class::Obj]).unwrap_err().contains("Library.missing"));
+}

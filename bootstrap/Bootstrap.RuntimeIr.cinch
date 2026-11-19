@@ -5,7 +5,7 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, scalar-intrinsic-scheme)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
@@ -31,7 +31,7 @@ module Bootstrap.RuntimeIr where
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export emit-runtime-library-with-object-mode
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
-  export runtime-library-default-roots, emit-runtime-library-object-with-object
+  export runtime-library-default-roots, runtime-library-unit-roots, emit-runtime-library-object-with-object
 
   -- The descriptions of each named family's constructors, by tag, keyed by
   -- the family's specialized name. A description is content, not identity
@@ -1918,7 +1918,7 @@ module Bootstrap.RuntimeIr where
     None -> [1]
   -- A Unit argument the extern does not take is still the worker's raw word.
   platform-classes :: List Nat -> List Nat
-  platform-classes codes = case codes of Nil -> Nil; Cons code rest -> Cons (if code == 3 then 0 else code) (platform-classes rest)
+  platform-classes codes = case codes of Nil -> Nil; Cons code rest -> Cons (if code == 3 then 0 else if code == 4 then 2 else code) (platform-classes rest)
   platform-arguments :: Writer -> List Nat -> Nat -> (Writer, List String)
   platform-arguments w codes index = case codes of
     Nil -> (w, Nil)
@@ -1930,7 +1930,7 @@ module Bootstrap.RuntimeIr where
   platform-drops :: Writer -> List Nat -> Nat -> Writer
   platform-drops w codes index = case codes of
     Nil -> w
-    Cons code rest -> platform-drops (if code == 1 || code == 2 then count-line False (cat ["%arg", nat-to-string index]) w else w) rest (index + 1)
+    Cons code rest -> platform-drops (if code == 1 || code == 2 || code == 4 then count-line False (cat ["%arg", nat-to-string index]) w else w) rest (index + 1)
   platform-worker :: Writer -> String -> List Nat -> Nat -> (Writer, String)
   platform-worker w external codes result = case platform-arguments w codes 0 of
     (converted, values) -> case call converted (cat ["@", external]) values of
@@ -5595,14 +5595,65 @@ module Bootstrap.RuntimeIr where
         (case export-global (core-name d) of
           Err message -> Err message
           Ok public -> if same public "Main.main" then Err "library objects cannot contain the process entry" else Ok (Cons (core-name d, Nil, public) more))
+  -- Public intrinsic bindings have source names but their calls carry the canonical
+  -- runtime identity. Give the object bridge a typed definition at the source name.
+  library-intrinsic-definitions :: List CheckedBinding -> List CoreDefinition
+  library-intrinsic-definitions bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> let more = library-intrinsic-definitions rest in
+      case checked-intrinsic-symbol binding of
+        None -> more
+        Some intrinsic -> let name = checked-name binding in let sc = checked-scheme binding in
+          if not (library-source-name name && builtin-known intrinsic) then more else
+            (case (scheme-params sc, scheme-requirements sc) of
+              (Nil, Nil) -> let sp = Span 0 0 1 1 in let ty = scheme-body sc in
+                (case library-intrinsic-clause sp 0 ty (CUse sp ty intrinsic "intrinsic" Nil) Nil of
+                  clause -> Cons (MkCoreDefinition sp name sc Nil Nil Nil [clause]) more)
+              other -> more)
+  library-intrinsic-clause :: Span -> Nat -> UType -> CoreTerm -> List CorePattern -> CoreClause
+  library-intrinsic-clause sp id ty function patterns = case ty of
+    UFun domain result -> let name = "$arg" <> nat-to-string id in
+      library-intrinsic-clause sp (id + 1) result (CApply sp result function (CLocal sp domain id name Nil)) (Cons (CPVar sp domain id name) patterns)
+    other -> MkCoreClause sp (reverse patterns) function
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
-  runtime-library-default-roots checked =
+  runtime-library-default-roots checked = runtime-library-unit-roots checked Nil
+  runtime-library-unit-roots :: CheckedProgram -> List (String, List Nat) -> Result String (List (String, List Nat, String))
+  runtime-library-unit-roots checked demands =
     let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) in
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
-    case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
-      (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
+    case (library-default-definitions definitions, library-default-constructors (elaboration-data typed) (empty-writer info)) of
+      (Ok ordinary, Ok constructors) -> case library-requested-units demands definitions (elaboration-data typed) of
+        Ok requested -> Ok (ordinary <> constructors <> requested)
+        Err message -> Err message
       (Err message, other) -> Err message
       (other, Err message) -> Err message
+  library-requested-units :: List (String, List Nat) -> List CoreDefinition -> List CoreData -> Result String (List (String, List Nat, String))
+  library-requested-units demands definitions datas = case demands of
+    Nil -> Ok Nil
+    Cons (public, codes) rest -> case library-requested-definition public definitions datas of
+      None -> Err ("unknown object unit root " <> public)
+      Some (name, count) -> if count /= list-length codes then Err ("wrong class vector length for object unit root " <> public) else
+        (case (library-public-name name codes, library-requested-units rest definitions datas) of
+          (Ok variant, Ok more) -> Ok (Cons (name, codes, variant) more)
+          (Err message, other) -> Err message
+          (other, Err message) -> Err message)
+  library-export-matches :: String -> String -> Bool
+  library-export-matches public name = library-source-name name && (case export-global name of Ok spelled -> same spelled public; Err message -> False)
+  library-requested-definition :: String -> List CoreDefinition -> List CoreData -> Option (String, Nat)
+  library-requested-definition public ds datas = case ds of
+    Cons d rest -> if library-export-matches public (core-name d) then Some (core-name d, type-param-count (scheme-params (core-scheme d))) else library-requested-definition public rest datas
+    Nil -> library-requested-constructor public datas
+  library-requested-constructor :: String -> List CoreData -> Option (String, Nat)
+  library-requested-constructor public datas = case datas of
+    Nil -> None
+    Cons d rest -> case library-match-constructor public (core-data-constructors d) of
+      Some name -> Some (name, type-param-count (core-data-params d))
+      None -> library-requested-constructor public rest
+  library-match-constructor :: String -> List CoreConstructor -> Option String
+  library-match-constructor public cs = case cs of
+    Nil -> None
+    Cons c rest -> if library-export-matches public (core-constructor-name c) then Some (core-constructor-name c) else library-match-constructor public rest
   library-source-name :: String -> Bool
   library-source-name name = let bytes = string-to-bytes name in
     bytes-len bytes > 2 && bytes-get bytes 0 == 109 && bytes-get bytes 1 == 46
@@ -5715,7 +5766,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-artifact-for-target :: String -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact-for-target header wasm32 artifact inlining checked provider roots =
     let typed = checked-elaboration checked in
-    let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
+    let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
     let plan = inline-plan inlining definitions info in

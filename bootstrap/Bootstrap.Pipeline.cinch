@@ -22,9 +22,9 @@ module Bootstrap.Pipeline where
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
-  import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-default-roots, emit-runtime-library-object-with-object)
+  import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
-  import Bootstrap.Object (RuntimeObject, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, admit-runtime-object-mode)
+  import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, admit-runtime-object-mode)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
@@ -807,6 +807,17 @@ module Bootstrap.Pipeline where
 
   compile-source-library-object-at :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
   compile-source-library-object-at inlining profile manifest configuration source ir object abi prefix =
+    compile-source-library-object-roots inlining profile Nil manifest configuration source ir object abi prefix
+
+  compile-requested-library-object :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  compile-requested-library-object inlining profile roots manifest configuration source ir object abi prefix =
+    if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
+      case read-object-unit-roots roots of
+        Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
+        Ok requested -> compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi prefix
+
+  compile-source-library-object-roots :: forall r. using (io :: Io r) => Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi prefix =
     let ir-name = path-to-string ir in let object-name = path-to-string object in let abi-name = path-to-string abi in
     if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
       case fs-write abi (string-to-bytes "") of
@@ -826,10 +837,10 @@ module Bootstrap.Pipeline where
                       Err message -> write-failure ir message pipeline-check-refused
                       Ok view -> (case check-object-client profile bytes view interfaces of
                         Err message -> write-failure ir message pipeline-check-refused
-                        Ok checked -> prepare-library-object profile inlining checked interfaces bytes provider document provider-code ir object abi prefix)
+                        Ok checked -> prepare-library-object profile inlining requested checked interfaces bytes provider document provider-code ir object abi prefix)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
-  prepare-library-object :: forall r. using (io :: Io r) => TargetProfile -> Bool -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  prepare-library-object profile inlining checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
+  prepare-library-object :: forall r. using (io :: Io r) => TargetProfile -> Bool -> List (String, List Nat) -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  prepare-library-object profile inlining requested checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-unit-roots checked requested of
     Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
     Ok roots -> case export-interfaces checked interfaces source of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
