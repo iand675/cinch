@@ -33,6 +33,18 @@ struct InterfaceIndexScope {
     measure_calls: std::cell::RefCell<std::collections::BTreeSet<String>>,
 }
 
+/// Preserve written usage in portable arrow syntax after the signature has been checked.
+fn interface_arrow(mult: Option<&ast::Name>, checked: Option<Mult>, effects: &str) -> Option<String> {
+    match mult {
+        None => Some(format!("->{effects}")),
+        Some(name) => {
+            let usage = Mult::parse(&name.text)?;
+            if checked.is_some_and(|actual| actual != usage) { return None }
+            Some(format!("{} ->{effects}", usage.spelling()?))
+        }
+    }
+}
+
 impl Checker {
     fn interface_index_sort(&self, ty: &Ty, seen: &mut Vec<Ty>) -> Option<InterfaceIndexSort> {
         use InterfaceIndexSort::*;
@@ -425,15 +437,15 @@ impl Checker {
                 args.reverse();
                 format!("({})", args.join(" "))
             }
-            ast::Type::Fun { arg, res, mult: None, eff, .. } => {
+            ast::Type::Fun { arg, res, mult, eff, .. } => {
                 let effects = match eff {
                     None => String::new(),
                     Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)?,
                 };
-                format!("({} ->{} {})", self.resolved_source_type(arg, scheme, vars, references, display)?,
-                    effects, self.resolved_source_type(res, scheme, vars, references, display)?)
+                format!("({} {} {})", self.resolved_source_type(arg, scheme, vars, references, display)?,
+                    interface_arrow(mult.as_ref(), None, &effects)?, self.resolved_source_type(res, scheme, vars, references, display)?)
             },
-            ast::Type::DepFun(name, domain, None, row, result, _) => {
+            ast::Type::DepFun(name, domain, mult, row, result, _) => {
                 if vars.contains(&name.text) { return None }
                 let domain = self.resolved_source_type(domain, scheme, vars, references, display)?;
                 let mut bound = vars.to_vec();
@@ -442,7 +454,7 @@ impl Checker {
                     None => String::new(),
                     Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)?,
                 };
-                format!("(({} :: {}) ->{} {})", name.text, domain, effects,
+                format!("(({} :: {}) {} {})", name.text, domain, interface_arrow(mult.as_ref(), None, &effects)?,
                     self.resolved_source_type(result, scheme, &bound, references, display)?)
             }
             ast::Type::Unit(_) => "()".to_string(),
@@ -625,7 +637,7 @@ impl Checker {
             return Some(format!("(refined ({predicate}) {carrier_text})"));
         }
         match (source, checked) {
-            (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, actual_row, codomain)) => {
+            (ast::Type::Fun { arg, res, mult, eff, .. }, Ty::Fun(domain, usage, actual_row, codomain)) => {
                 let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments, display)?;
                 let effects = match eff {
                     None if actual_row.is_pure() => String::new(),
@@ -635,10 +647,10 @@ impl Checker {
                 let mut next = arguments.to_vec();
                 next.push((None, (**domain).clone()));
                 let result = self.resolved_checked_source_type(res, codomain, scheme, vars, references, &next, display)?;
-                Some(format!("({domain_text} ->{effects} {result})"))
+                Some(format!("({domain_text} {} {result})", interface_arrow(mult.as_ref(), Some(*usage), &effects)?))
             }
-            (ast::Type::DepFun(name, domain, None, row, result, _),
-                Ty::Fun(dom, _, actual_row, cod) | Ty::Pi { dom, eff: actual_row, cod, .. }) => {
+            (ast::Type::DepFun(name, domain, mult, row, result, _),
+                Ty::Fun(dom, usage, actual_row, cod) | Ty::Pi { dom, mult: usage, eff: actual_row, cod, .. }) => {
                 if vars.contains(&name.text) { return None }
                 let domain_text = self.resolved_checked_source_type(domain, dom, scheme, vars, references, arguments, display)?;
                 let mut bound = vars.to_vec();
@@ -651,7 +663,7 @@ impl Checker {
                     Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, &bound)?,
                 };
                 let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next, display)?;
-                Some(format!("(({} :: {domain_text}) ->{effects} {result})", name.text))
+                Some(format!("(({} :: {domain_text}) {} {result})", name.text, interface_arrow(mult.as_ref(), Some(*usage), &effects)?))
             }
             (ast::Type::Tuple(items, _), Ty::Tuple(types)) if items.len() == types.len() => {
                 let items = items.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
@@ -677,8 +689,8 @@ impl Checker {
         scope.allow_measures = true;
         loop {
             let (name, result) = match source {
-                ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
-                ast::Type::Fun { res, mult: None, .. } => (None, &**res),
+                ast::Type::DepFun(name, _, _, _, result, _) => (Some(name.text.clone()), &**result),
+                ast::Type::Fun { res, .. } => (None, &**res),
                 _ => break,
             };
             let (domain, codomain) = match checked {

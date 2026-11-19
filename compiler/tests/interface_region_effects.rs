@@ -146,3 +146,28 @@ module A where
     assert!(run.resolved.is_none(), "an owned effect was mistaken for kernel Mut: {:?}", run.resolved);
     common::cleanup(&dir);
 }
+
+#[test]
+fn a_one_shot_callback_keeps_its_nominal_and_region_contract() {
+    let dir = common::project("clock_callback_contract", &[
+        ("ClockWitness.cinch", r#"module ClockWitness where
+  data Delay where
+    Delay :: Nat -> Delay
+  data Outcome a where
+    Finished :: a -> Outcome a
+  wait :: forall a r. using (io :: Io r) => Delay -> (Unit ->{IO r, Cancel r} a) %1 ->{Async r, IO r, Cancel r, Diverge} Outcome a
+  wait delay work = Finished (work ())
+"#),
+        ("Main.cinch", "module Main where\n  import ClockWitness\n  main :: Int\n  main = 0\n"),
+    ]);
+    common::check(&dir, "Main.cinch").expect("emit callback contract");
+    let text = std::fs::read_to_string(dir.join("build/ClockWitness.cinchif")).unwrap();
+    let iface = Iface::from_json(&text).unwrap();
+    let wait = iface.exports.values.iter().find(|v| v.name == "wait").unwrap();
+    let contract = wait.resolved.as_ref().expect("portable one-shot callback");
+    assert!(contract.scheme.contains("%1 ->"), "{}", contract.scheme);
+    for name in ["ClockWitness.Delay", "ClockWitness.Outcome"] {
+        assert!(contract.nominals.iter().any(|ty| ty.identity == name), "missing {name}");
+    }
+    common::cleanup(&dir);
+}
