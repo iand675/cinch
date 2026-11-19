@@ -2418,6 +2418,11 @@ module Bootstrap.RuntimeIr where
   runtime-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) (without-index-levels first) (without-index-levels second) (empty-store "runtime index carrier")) of Nil -> True; other -> False)
   index-expression :: List Local -> Writer -> Span -> UType -> (Writer, String)
   index-expression locals w sp value = if not (typed-index-admissible value) then unsupported w sp "implicit value argument has no solved checked index witness" else case value of
+    UIndexConstructor name (UCon owner KType) UEnd -> (case constructor name (writer-program w) of
+      Some (declared, tag, ctor) | same owner declared && (case core-constructor-fields ctor of Nil -> True; other -> False)
+        && runtime-type-equal (scheme-body (core-constructor-scheme ctor)) (UCon owner KType) ->
+          direct-call Nil locals w sp name Nil Nil
+      other -> unsupported w sp "nullary index constructor needs its checked defining family")
     UIndexByteLength input -> (case index-expression locals w sp input of
       (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
         (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of

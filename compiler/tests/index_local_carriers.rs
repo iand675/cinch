@@ -35,3 +35,21 @@ fn ordinary_index_annotations_resolve_locals_and_check_their_carriers() {
         .to_string();
     assert!(error.contains("Int") && error.contains("Bytes"), "{error}");
 }
+
+#[test]
+fn implicit_nominal_indices_pass_the_selected_constructor_to_the_worker() {
+    let source = r#"module Main where
+  data Mode where
+    Cold :: Mode
+    Warm :: Mode
+  data Tagged (mode :: Mode) where
+    Token :: Tagged mode
+  inspect :: forall (mode :: Mode). Tagged mode -> Int
+  inspect token = case mode of
+    Cold -> 3
+    Warm -> 39
+  main :: Int
+  main = inspect (Token :: Tagged Cold) + inspect (Token :: Tagged Warm)
+"#;
+    assert_eq!(run_source(source).unwrap(), 42);
+}
