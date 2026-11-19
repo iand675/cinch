@@ -367,6 +367,12 @@ pub fn run_cli(frontend: &Frontend, entry: &Path, words: &[&str]) -> Result<i32,
     status.code().ok_or_else(|| "selected Cinch CLI terminated without an exit code".into())
 }
 
+/// Check the entire project when the caller consumes diagnostics alone.
+pub fn check_diagnostics(frontend: &Frontend, dir: &Path, entry: &str) -> Result<(), String> {
+    let request = Request { diagnostics_only: true, ..Request::default() };
+    drive_profile(frontend, Mode::Check, dir, entry, None, &request).map(|_| ())
+}
+
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
     drive_profile(frontend, mode, dir, entry, out, &Request::default())
 }

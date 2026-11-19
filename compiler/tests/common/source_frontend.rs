@@ -30,9 +30,7 @@ fn source_project<T>(
 pub fn check_sources(source: &str, name: &str) -> Result<(), String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project(name, source, |dir, entry| {
-            let mut request = external_frontend::Request::default();
-            request.diagnostics_only = true;
-            external_frontend::drive_profile(&frontend, Mode::Check, dir, entry, None, &request).map(|_| ())
+            external_frontend::check_diagnostics(&frontend, dir, entry)
         }),
         None => driver::check_sources(source, name).map(|_| ()).map_err(|error| error.to_string()),
     }

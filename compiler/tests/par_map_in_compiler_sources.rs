@@ -110,7 +110,7 @@ fn check_project(tag: &str, sources: &[(String, String)]) -> Result<(), String> 
         .map(|(name, src)| (name.as_str(), src.as_str()))
         .collect();
     let dir = common::project(tag, &refs);
-    let outcome = common::check(&dir, "Main.cinch");
+    let outcome = common::check_diagnostics(&dir, "Main.cinch");
     common::cleanup(&dir);
     outcome
 }

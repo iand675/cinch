@@ -248,6 +248,14 @@ pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
     drive(Mode::Check, dir, entry, None).map(|_| ())
 }
 
+/// Check a project whose caller consumes only success or diagnostics.
+pub fn check_diagnostics(dir: &Path, entry: &str) -> Result<(), String> {
+    match external_frontend::configured()? {
+        Some(frontend) => external_frontend::check_diagnostics(&frontend, dir, entry),
+        None => drive_native(Mode::Check, dir, entry, None).map(|_| ()),
+    }
+}
+
 /// Read checked contracts from the compiler that checked the project.
 pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     check(dir, entry)?;
