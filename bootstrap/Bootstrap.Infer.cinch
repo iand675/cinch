@@ -1031,6 +1031,13 @@ module Bootstrap.Infer where
       (None, Some (UFun domain result), TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals domain input st of
         (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
       other -> bad sp "index application has no actual defining total body declaration" st)
+  -- A value name is an index only when its defining checked total body
+  -- takes no arguments. Locally bound indices take precedence at each use.
+  constant-index :: TypeContext -> String -> Option UType
+  constant-index kinds name = case context-total-observation name kinds of
+    Some binding -> let function = binding-function binding in
+      (case total-parameters function of Nil -> Some (UIndexCall function UEnd); other -> None)
+    None -> None
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TUnmodeled at message | not (same message "") -> bad at message st
@@ -1045,7 +1052,9 @@ module Bootstrap.Infer where
     TName sp name -> case lookup-local name locals of
       Some value -> let checked = unify-kind sp (type-kind value) (value-kind carrier) st in
         checked-typed-source-index sp value checked
-      None -> bad sp "source index has no checked local binding" st
+      None -> (case constant-index kinds name of
+        Some value -> checked-typed-source-index sp value (unify-kind sp (type-kind value) (value-kind carrier) st)
+        None -> bad sp "source index has no checked local binding" st)
     TNegate sp input -> case convert-index external kinds locals carrier input st of
       (value, checked) -> case index-of-type value of
         Some term -> checked-source-index sp carrier (ISubtract (IInteger 0) term) checked
@@ -8656,7 +8665,9 @@ module Bootstrap.Infer where
         (value, checked) -> predicate-index-value sp carrier value checked))
     TName sp name -> case lookup-local name locals of
       Some value -> predicate-index-value sp carrier value st
-      None -> bad sp (string-concat-all ["source index has no checked local binding: `", name, "` does not resolve to ", if math-carrier carrier then "a numeric index" else "an index", " in this scope"]) st
+      None -> (case constant-index kinds name of
+        Some value -> predicate-index-value sp carrier value st
+        None -> bad sp (string-concat-all ["source index has no checked local binding: `", name, "` does not resolve to ", if math-carrier carrier then "a numeric index" else "an index", " in this scope"]) st)
     TInfix sp op first second -> if not (predicate-arithmetic-input kinds locals syntax) then bad sp "machine arithmetic cannot enter mathematical index conversion" st
       else if has op ["+", "-", "*"] then
         (case convert-predicate-index external kinds locals carrier first st of
