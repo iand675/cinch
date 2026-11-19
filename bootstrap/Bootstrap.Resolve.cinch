@@ -59,7 +59,7 @@ module Bootstrap.Resolve where
   -- keeps the front-most binding of a repeated spelling, which is the one
   -- the scan would find.
   data LexicalScope where
-    MkLexicalScope :: List Binding -> HashMap String Binding -> List (String, String) -> LexicalScope
+    MkLexicalScope :: String -> Bool -> List Binding -> HashMap String Binding -> List (String, String) -> LexicalScope
   data CallerScopes where
     NoCaller :: CallerScopes
     CallerScope :: LexicalScope -> List String -> CallerScopes -> CallerScopes
@@ -73,10 +73,10 @@ module Bootstrap.Resolve where
 
   visible-lookup :: String -> Visible -> Option Binding
   visible-lookup name entries = case entries of
-    MkVisible (MkLexicalScope order index bindings) homes caller -> hash-map-lookup name index
+    MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> hash-map-lookup name index
 
   visible-order :: Visible -> List Binding
-  visible-order entries = case entries of MkVisible (MkLexicalScope order index bindings) homes caller -> order
+  visible-order entries = case entries of MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> order
 
   binding-name :: Binding -> String
   binding-name b = case b of
@@ -440,7 +440,7 @@ module Bootstrap.Resolve where
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
-    let lexical = MkLexicalScope visible (binding-index visible) Nil in
+    let lexical = MkLexicalScope home False visible (binding-index visible) Nil in
     let has-macro = declares-macros (module-decls m) in
     let homes = Cons (home, lexical) earlier in
     let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
@@ -619,9 +619,14 @@ module Bootstrap.Resolve where
         None -> False)
     other -> False
 
+  scope-diagnostic :: Visible -> String -> String
+  scope-diagnostic visible message = case visible of
+    MkVisible (MkLexicalScope origin True order index aliases) homes caller -> message <> " (not bound in captured source scope " <> origin <> ")"
+    other -> message
+
   rename-type :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-type visible locals t = case t of
-    TName s name -> if insertion-only-name visible locals name then TUnmodeled s ("unknown type " <> name <> " does not resolve where this template was defined")
+    TName s name -> if insertion-only-name visible locals name then TUnmodeled s (scope-diagnostic visible ("unknown type " <> name <> " does not resolve where this template was defined"))
       else TName s (type-name visible locals name)
     TIndex s digits -> t
     TNegate s x -> TNegate s (rename-type visible locals x)
@@ -630,7 +635,7 @@ module Bootstrap.Resolve where
     TRefined s predicate carrier -> TRefined s (rename-predicate visible locals predicate) (rename-type visible locals carrier)
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
       TApp s (TName at name) (TArg first (rename-predicate visible locals a) (TArg second (rename-predicate visible locals b) (TArgsEnd end)))
-    TApp s (TName at name) args | insertion-only-name visible locals name -> TUnmodeled s (name <> " does not resolve where this template was defined")
+    TApp s (TName at name) args | insertion-only-name visible locals name -> TUnmodeled s (scope-diagnostic visible (name <> " does not resolve where this template was defined"))
     TApp s head args -> TApp s (rename-type visible locals head) (rename-type visible locals args)
     TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
@@ -725,7 +730,7 @@ module Bootstrap.Resolve where
   resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
     else case visible of
-      MkVisible (MkLexicalScope order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
+      MkVisible (MkLexicalScope origin captured order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
         (False, Some key) -> (key, Nil)
         other -> resolve-global-use sp constructor visible name)
 
@@ -738,8 +743,8 @@ module Bootstrap.Resolve where
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
-            (name, fail sp (cat ["unknown constructor ", name, ": not exported into this scope"]))
-          else (name, fail sp (cat ["name is not in scope: ", name]))
+            (name, fail sp (scope-diagnostic visible (cat ["unknown constructor ", name, ": not exported into this scope"])))
+          else (name, fail sp (scope-diagnostic visible (cat ["name is not in scope: ", name])))
 
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
@@ -1022,8 +1027,8 @@ module Bootstrap.Resolve where
     ESyntaxReference s key (LiteralSpelling name) -> if has-name key locals then (EVar s key, Nil)
       else (e, fail s (cat ["captured local `", name, "` is not in scope"]))
     ESyntaxCaptureUnder s key (LiteralSpelling name) body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
-      MkVisible lexical homes (CallerScope (MkLexicalScope order index aliases) names remaining) ->
-        let extended = MkLexicalScope order index (Cons (name, key) aliases) in
+      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
+        let extended = MkLexicalScope origin True order index (Cons (name, key) aliases) in
         rename-expr (MkVisible extended homes remaining) (without-spelling name names) body
       other -> (e, fail s "Syntax.captureUnder outside its expansion"))
     EDefinitionName s home spelling -> (case visible of
@@ -1036,7 +1041,8 @@ module Bootstrap.Resolve where
         Some definition -> rename-expr (MkVisible definition homes (CallerScope lexical locals caller)) Nil body
         None -> (e, fail s (cat ["macro definition module is unavailable: ", home])))
     EArgumentScope s body -> (case visible of
-      MkVisible lexical homes (CallerScope previous names remaining) -> rename-expr (MkVisible previous homes remaining) names body
+      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
+        rename-expr (MkVisible (MkLexicalScope origin True order index aliases) homes remaining) names body
       other -> (e, fail s "macro argument outside its expansion"))
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
@@ -1175,9 +1181,9 @@ module Bootstrap.Resolve where
     DGeneratedGroup s owner macro-name template -> (case visible of
       MkVisible insertion homes caller -> case find-home owner homes of
         None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))
-        Some (MkLexicalScope order index aliases) ->
+        Some (MkLexicalScope origin captured order index aliases) ->
           let group = decls-of template in let declared = own-bindings home group Nil in
-          let scoped = MkLexicalScope (declared <> order) (extend-generated declared index) aliases in
+          let scoped = MkLexicalScope origin captured (declared <> order) (extend-generated declared index) aliases in
           rename-decls home (MkVisible scoped homes (CallerScope insertion Nil caller)) group)
     DMacroBinding s name -> (Nil, Nil)
     DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
