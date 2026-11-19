@@ -1582,6 +1582,10 @@
     {
       "classes": "TTT",
       "symbol": "Data.Producer.prod-fold"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.List.foldr"
     }
   ]
 }
