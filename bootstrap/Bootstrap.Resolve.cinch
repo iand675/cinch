@@ -1090,9 +1090,11 @@ module Bootstrap.Resolve where
   -- These source heads have compiler-owned runtime representations, including
   -- the C spellings of machine scalars. An unrelated nominal cannot own one.
   reserved-primitive-name :: String -> Bool
-  reserved-primitive-name name = not (same name (c-scalar-name name)) || has-name name
+  reserved-primitive-name name = reserved-scalar-name name || has-name name ["Secret", "IoCap", "FileReadCap", "FileWriteCap", "ProcCap"]
+  reserved-scalar-name :: String -> Bool
+  reserved-scalar-name name = not (same name (c-scalar-name name)) || has-name name
     ["Int", "Nat", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "I128", "Isize",
-     "U8", "U16", "U32", "U64", "U128", "Usize", "F32", "F64", "Secret", "IoCap", "FileReadCap", "FileWriteCap", "ProcCap"]
+     "U8", "U16", "U32", "U64", "U128", "Usize", "F32", "F64"]
   reserved-primitive-message :: String -> String
   reserved-primitive-message name = if same name (c-scalar-name name) then name <> " is a builtin primitive type and cannot be redefined"
     else "a C ABI scalar cannot be redefined (builtin type " <> name <> ")"
@@ -1125,7 +1127,7 @@ module Bootstrap.Resolve where
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
     DData s name params ctors | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
-    DRecord s name params fields | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
+    DRecord s name params fields | reserved-scalar-name name -> (Nil, fail s (reserved-primitive-message name))
     DRefine s name params binder predicate | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
     DData s name params ctors | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
     DRecord s name params fields | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
