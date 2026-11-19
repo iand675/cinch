@@ -273,8 +273,8 @@ module Bootstrap.Foreign where
 
   register-placeholder :: String -> Bool
   register-placeholder value = let operand = string-strip value in
-    if 3 <= string-length operand && string-starts-with "${" operand && string-ends-with ":w}" operand then
-      decimal-digits (string-slice operand 2 (string-length operand - 3))
+    if string-starts-with "${" operand && string-ends-with ":w}" operand then
+      (let end = string-length operand in if 3 <= end then decimal-digits (string-slice operand 2 (end - 3)) else False)
     else string-starts-with "$" operand && decimal-digits (string-slice operand 1 (string-length operand))
 
   register-call-arguments :: String -> Bool
