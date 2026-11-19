@@ -452,6 +452,17 @@ module Main where
     let m = manifest_of("tier-justified", src, &TargetProfile::native());
     assert!(m.contains("\"tier\":\"justified\""), "{m}");
     assert!(m.contains("Main.twiceLaw"), "{m}");
+    let interface = |source: &str| {
+        common::source_frontend::check_source_interfaces(source, "justified-prim.cinch")
+            .unwrap().into_iter().find(|iface| iface.module == "Main").unwrap()
+    };
+    let original = interface(src);
+    assert!(original.assumptions.declared.iter().any(|law| law == "Main.twiceLaw"));
+    assert!(original.assumptions.primitives.is_empty());
+    let equivalent = src.replace("add i32 %0, %0", "shl i32 %0, 1");
+    assert_eq!(original.iface_hash(), interface(&equivalent).iface_hash());
+    let other_equation = src.replace("Eq (twice x)", "Eq (wrapping-add-u32 x x)");
+    expect_err("wrong-primitive-law", &other_equation, "equation");
 }
 
 #[test]
@@ -760,6 +771,24 @@ fn llvm_body_guards_follow_the_requested_target() {
                 "{triple}: unexpected selection for {marker}");
         }
     }
+}
+
+#[test]
+fn the_selected_assembly_worker_returns_its_machine_value() {
+    let source = r#"module Main where
+  prim advance :: U32 -> U32 where
+    llvm {
+      ret i32 %0
+    }
+    unsafe asm {
+      leal 1($1), $0
+    } when arch x86_64
+
+  main :: Int
+  main = if advance 41 == 42 then 42 else 41
+"#;
+    let expected = if cfg!(target_arch = "x86_64") { 42 } else { 41 };
+    assert_eq!(run_source(source).unwrap(), expected);
 }
 
 #[test]

@@ -1181,7 +1181,7 @@ module Bootstrap.Parse where
         POk value tail -> parse-prim-modifiers (MkPrimBody sp family fragment unverified (when <> [value]) selected justification uses immediates) tail src fix
         PBad -> PBad)
       else if string-compare label "justify" == 0 then (case (justification, parse-prim-clause rest src fix) of
-        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected (Some value) uses immediates) tail src fix
+        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected (Some (RewriteTerm value)) uses immediates) tail src fix
         other -> PBad)
       else if string-compare label "uses" == 0 then (case (uses, parse-prim-uses rest src Nil) of
         (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected justification values immediates) tail src fix

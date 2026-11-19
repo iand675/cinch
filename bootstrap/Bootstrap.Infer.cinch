@@ -2984,7 +2984,7 @@ module Bootstrap.Infer where
         (e, se) -> register all rows classes kinds rest e se
       DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
         (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-          (case (lookup-binding name env, primitive-plan name actual bodies) of
+          (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity all name)) of
             (Some prior, result) -> register all rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
             (None, Err error) -> register all rows classes kinds rest env (add-error s error checked)
             (None, Ok plan) -> register all rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
@@ -7343,6 +7343,32 @@ module Bootstrap.Infer where
         (second, done) -> (Nil, Some (first, second), include-effects (expr-span right) (core-effects second) (URow UEnd)
           (include-effects (expr-span left) (core-effects first) (URow UEnd) done))
     LawProposition ty -> (Nil, None, add-error (type-expr-span ty) "class law proposition form needs checked elaboration" st)
+
+  -- A law justifies this unit only when its checked equation starts with the
+  -- unit applied to every named binder, in order. The ordinary law pass checks
+  -- both operands and their effects in the complete declaration environment.
+  primitive-law-application :: String -> List String -> Expr -> Bool
+  primitive-law-application unit binders term = case (binders, term) of
+    (Nil, EVar site symbol) -> same symbol unit
+    (Cons last rest, EApp site function (EVar arg name)) ->
+      same last name && primitive-law-application unit rest function
+    other -> False
+
+  primitive-law-equation :: String -> Nat -> List String -> LawSyntax -> Bool
+  primitive-law-equation unit arity binders syntax = case syntax of
+    LawForall parameters body -> primitive-law-equation unit arity binders body
+    LawArrow (TBound site name ty tail) body ->
+      string-length name > 0 && not (has name binders) && primitive-law-equation unit arity (Cons name binders) body
+    LawEquation left right -> list-length binders == arity && primitive-law-application unit binders left
+    other -> False
+
+  primitive-law-identity :: List Decl -> String -> Nat -> RewriteJustification -> Result String String
+  primitive-law-identity declarations unit arity evidence = case evidence of
+    RewriteLaw site owner member Nil -> (case (declared-cited-law owner member declarations, law-assumption-identity owner member) of
+      (Some syntax, Some identity) -> if primitive-law-equation unit arity Nil syntax then Ok identity
+        else Err "the justification must state the primitive's equation over its own named arguments"
+      other -> Err "the primitive justification does not name a declared law")
+    other -> Err "a primitive justification must name a law stating its equation"
 
   source-cited-law :: String -> List Decl -> Option LawSyntax
   source-cited-law member declarations = case declarations of

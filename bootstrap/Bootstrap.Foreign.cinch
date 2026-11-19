@@ -3,9 +3,9 @@
 module Bootstrap.Foreign where
   import Bootstrap.Type
   import Bootstrap.Target (condition-render, primitive-target, when-vocabulary, host-profile)
-  import Bootstrap.Ast (PrimBody, MkPrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, Expr)
+  import Bootstrap.Ast (PrimBody, MkPrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, Expr)
   import Bootstrap.Core (contract-scheme-closed)
-  import Bootstrap.ExportType (export-type, export-global)
+  import Bootstrap.ExportType (export-type, export-global, export-display-scheme)
   import Bootstrap.Interface (fnv-source-hash)
   import Data.Json
   import Data.Nat (nat-to-int)
@@ -33,7 +33,7 @@ module Bootstrap.Foreign where
   data InlinePrimitive where
     InlinePrimitiveBody :: String -> String -> List Nat -> Option PrimitiveFragment -> Option PrimitiveFragment -> InlinePrimitive
   data ForeignPlan where
-    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, String, List String, Json) -> ForeignPlan
+    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, Option String, List String, Json) -> ForeignPlan
   foreign-symbol :: ForeignPlan -> String
   foreign-symbol plan = case plan of Plan symbol scheme params result inline -> symbol
   foreign-scheme :: ForeignPlan -> Scheme
@@ -55,7 +55,7 @@ module Bootstrap.Foreign where
     UFun domain result -> pure-primitive-arrows result
     UCon name KType -> True
     other -> False
-  foreign-primitive-assumptions :: ForeignPlan -> Option (String, List String)
+  foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
   foreign-primitive-assumptions plan = case plan of
     Plan symbol scheme params result inline ->
       (case inline of Some (body, identity, trust, selection) -> Some (identity, trust); None -> None)
@@ -418,10 +418,9 @@ module Bootstrap.Foreign where
       else if same family "asm" && not unverified then Err "an assembly fragment must mark it `unsafe`"
       else if same family "asm" && not (contained-assembly fragment) then Err "containment (no-escape): the assembly has an empty or escaping fragment"
       else if list-length uses /= 0 then Err "inline primitive uses entries need checked foreign contracts"
-      else (case (checked-target selected family when, justification) of
-        (Err message, other) -> Err message
-        (other, Some evidence) -> Err "inline primitive justification needs a checked law identity"
-        (Ok matched, None) ->
+      else (case checked-target selected family when of
+        Err message -> Err message
+        Ok matched ->
           let holds = case matched of ApplicablePrimitive -> True; other -> False in
           let reason = case matched of InapplicablePrimitive detail -> Cons detail missing; other -> missing in
           if same family "llvm" then (case contained-ir result unverified (string-split-on "\n" fragment) False Nil of
@@ -439,28 +438,50 @@ module Bootstrap.Foreign where
       Err "a prim declaration needs a monomorphic checked signature"
     else primitive-parameters (scheme-body scheme) Nil
   -- | Check a declared primitive body against its validated layout and containment rules.
-  primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
-  primitive-plan name scheme bodies =
+  primitive-plan :: String -> Scheme -> List PrimBody -> (Nat -> RewriteJustification -> Result String String) -> Result String ForeignPlan
+  primitive-plan name scheme bodies check-law =
     case (export-global name, primitive-layout scheme) of
-      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies symbol bodies (list-length arguments) (foreign-llvm-type result) (Candidates None None) (Candidates None None) Nil of
-        Ok (body, condition) -> let identity = primitive-identity symbol (primitive-body-text bodies) in
-          let trust = primitive-trust symbol bodies in
-          let family = case body of InlinePrimitiveBody owner chosen immediates llvm assembly -> chosen in
-          Ok (Plan (string-concat-all [symbol, ".", family]) scheme arguments result
-            (Some (body, identity, trust, selection-document body condition identity trust bodies)))
-        Err message -> Err message)
+      (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
+        (case (checked-prim-bodies symbol bodies arity (foreign-llvm-type result) (Candidates None None) (Candidates None None) Nil,
+               primitive-laws (check-law arity) bodies True Nil) of
+          (Ok (body, condition), Ok (justified, laws)) ->
+            let trust = primitive-trust symbol bodies in
+            let family = case body of InlinePrimitiveBody owner chosen immediates llvm assembly -> chosen in
+            (case primitive-contract symbol scheme bodies justified laws of
+              Err message -> Err message
+              Ok identity -> let assumed = if justified then None else Some identity in
+                let declared = if justified then laws <> trust else trust in
+                Ok (Plan (string-concat-all [symbol, ".", family]) scheme arguments result
+                  (Some (body, assumed, declared, selection-document body condition identity justified trust bodies))))
+          (Err message, other) -> Err message
+          (other, Err message) -> Err message)
       (Err message, other) -> Err message
       (other, Err message) -> Err message
+
+  primitive-laws :: (RewriteJustification -> Result String String) -> List PrimBody -> Bool -> List String -> Result String (Bool, List String)
+  primitive-laws check-law bodies justified laws = case bodies of
+    Nil -> Ok (justified, reverse laws)
+    Cons (MkPrimBody sp family fragment unverified clauses projected evidence uses immediates) rest -> case evidence of
+      None -> primitive-laws check-law rest False laws
+      Some citation -> (case check-law citation of
+        Err message -> Err message
+        Ok identity -> primitive-laws check-law rest justified (if has identity laws then laws else Cons identity laws))
+
+  primitive-contract :: String -> Scheme -> List PrimBody -> Bool -> List String -> Result String String
+  primitive-contract symbol scheme bodies justified laws = if justified then (case export-display-scheme scheme of
+    Ok signature-text -> Ok (string-concat-all ["prim:", symbol, ":", signature-text, ":laws[", strings "," laws, "]"])
+    Err message -> Err message) else Ok (primitive-identity symbol (primitive-body-text bodies))
+
   -- Keep target selection in the artifact manifest. Interface assumptions
   -- continue to use the target-independent identities of all checked bodies.
-  selection-document :: InlinePrimitive -> Option String -> String -> List String -> List PrimBody -> Json
-  selection-document body condition identity trust bodies = case body of
+  selection-document :: InlinePrimitive -> Option String -> String -> Bool -> List String -> List PrimBody -> Json
+  selection-document body condition identity justified trust bodies = case body of
     InlinePrimitiveBody owner family immediates llvm assembly ->
       let why = case condition of
             None -> string-concat-all ["the baseline `", family, "` body (the fallback when no `when` condition matches)"]
             Some clause -> string-concat-all ["the `", family, "` body's `when ", clause, "` condition holds in the target profile"] in
       JObj "family" (JStr family) (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
-        (JObj "identity" (JStr identity) (JObj "tier" (JStr "assumed") (JObj "why" (JStr why)
+        (JObj "identity" (JStr identity) (JObj "tier" (JStr (if justified then "justified" else "assumed")) (JObj "why" (JStr why)
           (JObj "trust" (trust-document bodies trust) (JObj "immarg" (immediate-document immediates)
             (JObj "uses" JArrEnd (JObj "validation" (validation-document bodies) JObjEnd))))))))
   trust-document :: List PrimBody -> List String -> Json

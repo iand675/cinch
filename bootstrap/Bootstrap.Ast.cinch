@@ -455,13 +455,17 @@ module Bootstrap.Ast where
     LawEquation :: Expr -> Expr -> LawSyntax
     LawProposition :: TypeExpr -> LawSyntax
 
+  data RewriteJustification where
+    RewriteTerm :: Expr -> RewriteJustification
+    RewriteLaw :: Span -> String -> String -> List Expr -> RewriteJustification
+
   data PrimTarget where
     UnprojectedPrimitive :: PrimTarget
     ApplicablePrimitive :: PrimTarget
     InapplicablePrimitive :: String -> PrimTarget
 
   data PrimBody where
-    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> PrimTarget -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
+    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> PrimTarget -> Option RewriteJustification -> List (String, TypeExpr) -> List Nat -> PrimBody
 
   -- A method keeps its ordinary declaration and slot. Its equality
   -- operands can be checked by the same term elaborator as an explicit law.
@@ -507,9 +511,6 @@ module Bootstrap.Ast where
       None -> None
     other -> None
 
-  data RewriteJustification where
-    RewriteTerm :: Expr -> RewriteJustification
-    RewriteLaw :: Span -> String -> String -> List Expr -> RewriteJustification
   data RewriteSyntax where
     MkRewriteSyntax :: Bool -> List TypeParam -> TypeExpr -> Expr -> Expr -> Option Expr -> RewriteJustification -> RewriteSyntax
 
@@ -977,7 +978,7 @@ module Bootstrap.Ast where
     Nil -> 0
     Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       exprs-unmodeled condition
-        + (case justification of Some value -> expr-unmodeled-count value; None -> 0)
+        + (case justification of Some (RewriteTerm value) -> expr-unmodeled-count value; Some (RewriteLaw site owner member args) -> exprs-unmodeled args; None -> 0)
         + ctors-unmodeled uses + prim-bodies-unmodeled rest
 
   law-unmodeled-count :: LawSyntax -> Nat

@@ -1279,7 +1279,7 @@ module Bootstrap.Resolve where
     Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       let (evidence, evidence-errors) = (case justification of
         None -> (None, Nil)
-        Some expression -> (case rename-expr visible Nil expression of (renamed, errors) -> (Some renamed, errors))) in
+        Some evidence -> (case rename-rewrite-evidence visible Nil evidence of (renamed, errors) -> (Some renamed, errors))) in
       (case rename-prim-bodies visible rest of
         (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition selected evidence
           (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))

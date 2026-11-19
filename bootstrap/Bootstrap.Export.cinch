@@ -1008,7 +1008,7 @@ module Bootstrap.Export where
     Cons binding rest -> case checked-foreign-plan binding of
       Some plan -> (case foreign-primitive-assumptions plan of
         Some (identity, body-trust) | has-symbol (checked-name binding) (field "declarations" context) ->
-          source-primitive-assumptions context rest (insert-string identity primitives) (primitive-trust-rows body-trust trust)
+          source-primitive-assumptions context rest (case identity of Some assumed -> insert-string assumed primitives; None -> primitives) (primitive-trust-rows body-trust trust)
         other -> source-primitive-assumptions context rest primitives trust)
       None -> source-primitive-assumptions context rest primitives trust
   assumptions :: Json -> Json -> Json -> Json
