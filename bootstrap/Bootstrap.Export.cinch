@@ -382,10 +382,10 @@ module Bootstrap.Export where
       Ok identity -> case imported-codata-row interfaces identity of
         Some row -> Ok (set-field "name" (JStr name) row)
         None -> case codata-label-contract owner declarations of
-          Some labels -> build-type-row name "codata" labels (data-nominal declaration) (codata-rows typed interfaces references name owner labels constructors)
+          Some labels -> build-type-row name "codata" labels (data-nominal declarations declaration) (codata-rows typed interfaces references name owner labels constructors)
           None -> case record-label-contract owner declarations of
-            Some labels -> build-type-row name "record" labels (data-nominal declaration) (constructor-rows typed interfaces references surface 0 constructors)
-            None -> build-type-row name "data" JArrEnd (data-nominal declaration) (constructor-rows typed interfaces references surface 0 constructors)
+            Some labels -> build-type-row name "record" labels (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
+            None -> build-type-row name "data" JArrEnd (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
   build-type-row :: String -> String -> Json -> Result String Json -> Result String Json -> Result String Json
   build-type-row name kind labels nominal constructors = case (nominal, constructors) of
       (Ok nominal, Ok constructors) ->

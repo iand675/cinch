@@ -7797,7 +7797,9 @@ module Bootstrap.Infer where
     let finished = case store-errors rewritten of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage rewritten); other -> rewritten in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
-    MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites temporal-rows
+    -- Checked Core retains contextual phantom regions. Source provenance retains
+    -- the defining header, so a later value signature cannot rewrite an export.
+    MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances unkinded law-observations rewrites temporal-rows
 
   -- Records use the ordinary independently checked single-constructor
   -- representation. Labels remain in a DRecord for source provenance;

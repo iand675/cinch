@@ -42,15 +42,36 @@ module Bootstrap.ExportNominal where
         (Ok name, Ok more) -> Ok (JArr (JStr name) more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
-  data-nominal :: CoreData -> Result String Json
-  data-nominal declaration = case (export-global (core-data-name declaration), export-parameters (core-data-params declaration), constructor-names (core-data-name declaration) (core-data-constructors declaration)) of
-    (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
-      (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
-        (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
-          (JObj "refinement" JNull (case usage-fields-json declaration of Some fields -> JObj "usage" fields JObjEnd; None -> JObjEnd)))))))
-    (Err error, other, more) -> Err error
-    (other, Err error, more) -> Err error
-    (other, more, Err error) -> Err error
+  declared-region-roles :: List TypeParam -> List Quant -> List Quant
+  declared-region-roles params quants = case (params, quants) of
+    (Cons parameter rest, Cons quant more) ->
+      let declared = case (param-kind parameter, quant-kind quant) of
+            (None, KRegion) -> MkQuant (quant-id quant) (quant-name quant) KType (quant-implicit quant)
+            other -> quant in
+      Cons declared (declared-region-roles rest more)
+    other -> quants
+  nominal-header-params :: String -> List Decl -> List Quant -> List Quant
+  nominal-header-params owner declarations quants = case declarations of
+    Nil -> quants
+    Cons (DData sp name params constructors) rest -> if same owner name then declared-region-roles params quants else nominal-header-params owner rest quants
+    Cons other rest -> nominal-header-params owner rest quants
+  has-region-quant :: List Quant -> Bool
+  has-region-quant quants = case quants of
+    Nil -> False
+    Cons first rest -> kind-equal (quant-kind first) KRegion || has-region-quant rest
+  data-nominal :: List Decl -> CoreData -> Result String Json
+  data-nominal declarations declaration =
+    let owner = core-data-name declaration in
+    let quants = core-data-params declaration in
+    let params = if has-region-quant quants then nominal-header-params owner declarations quants else quants in
+    case (export-global owner, export-parameters params, constructor-names (core-data-name declaration) (core-data-constructors declaration)) of
+      (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
+        (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
+          (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
+            (JObj "refinement" JNull (case usage-fields-json declaration of Some fields -> JObj "usage" fields JObjEnd; None -> JObjEnd)))))))
+      (Err error, other, more) -> Err error
+      (other, Err error, more) -> Err error
+      (other, more, Err error) -> Err error
   class-nominal :: CoreClass -> Result String Json
   class-nominal description = case (export-global (class-name description), export-parameters (class-params description)) of
     (Ok name, Ok parameters) -> Ok (JObj "identity" (JStr name)
@@ -91,6 +112,7 @@ module Bootstrap.ExportNominal where
         else combine (Ok [name]) (kind-references kind)
     UBound id name kind -> kind-references kind
     URigid id name level kind -> kind-references kind
+    UForall qs body -> combine (quant-references (quants-list qs)) (type-references body)
     UApp f x -> combine (type-references f) (type-references x)
     UFun a b -> combine (type-references a) (type-references b)
     UFunEff a row b -> combine (type-references a) (combine (type-references row) (type-references b))
@@ -160,7 +182,7 @@ module Bootstrap.ExportNominal where
   source-nominal name declarations datas classes = case datas of
     Nil -> case source-abstract-type declarations name of Some found -> found; None -> source-class-nominal name classes
     Cons declaration rest -> case export-global (core-data-name declaration) of
-      Ok identity -> if same identity name then data-nominal declaration else source-nominal name declarations rest classes
+      Ok identity -> if same identity name then data-nominal declarations declaration else source-nominal name declarations rest classes
       Err error -> Err error
   nominal-rows :: List String -> List Decl -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
   nominal-rows names declarations datas classes interfaces = case names of
