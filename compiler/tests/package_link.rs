@@ -260,7 +260,7 @@ fn the_empty_plan_says_so() {
 }
 
 #[test]
-fn the_target_profile_accepts_the_host_triple_and_refuses_another() {
+fn target_profiles_identify_the_host_and_wasm_and_refuse_unknown_triples() {
     let host = cinch::core::TargetProfile::native();
     let opts = DriverOptions {
         target: Some(host.triple.clone()),
@@ -277,8 +277,15 @@ fn the_target_profile_accepts_the_host_triple_and_refuses_another() {
         target: Some("wasm32-unknown-unknown".to_string()),
         ..DriverOptions::default()
     };
-    let err = target_profile(&opts).expect_err("a foreign triple is refused");
-    assert!(format!("{err}").contains("cross compilation"), "{err}");
+    let wasm = target_profile(&opts).expect("the freestanding WebAssembly target is supported");
+    assert_eq!(wasm.triple, "wasm32-unknown-unknown");
+    assert_eq!(wasm.word_size, 32);
+    assert_eq!(wasm.artifact, cinch::core::ArtifactProfile::CoreWasm);
+
+    let unknown = "sparc64-unknown-linux-gnu";
+    let opts = DriverOptions { target: Some(unknown.into()), ..DriverOptions::default() };
+    let err = target_profile(&opts).expect_err("unsupported triples are refused");
+    assert!(err.to_string().contains(&format!("unknown target `{unknown}`")), "{err}");
 }
 
 #[test]
