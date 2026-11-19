@@ -1,7 +1,6 @@
 //! Independent FNV checkpoints, persistent branches and inspectable hashing streams.
 mod common;
 
-use cinch::driver::Mode;
 use serde_json::Value;
 
 /// Compile actual source modules and verify normal reclamation separately from poisoned frees.
@@ -34,14 +33,7 @@ fn run(body: &str) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(exe.clone()),
-        &profile,
-    )
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
     .unwrap();
     for debug in [false, true] {
         let output = std::process::Command::new(&exe)

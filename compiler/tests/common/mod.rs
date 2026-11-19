@@ -318,6 +318,16 @@ pub fn build_executable(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, S
     build_fixture(dir, entry, out, true)
 }
 
+/// Build a runtime fixture under the requested profile without publishing unused interfaces.
+pub fn build_executable_with_profile(dir: &Path, entry: &str, exe: &Path, profile: &TargetProfile) -> Result<i32, String> {
+    if let Some(frontend) = external_frontend::configured()? {
+        let mut request = external_frontend::profile_request(Mode::Build, StageMode::Refresh, profile)?;
+        request.discard_interfaces = true;
+        return external_frontend::drive_profile(&frontend, Mode::Build, dir, entry, Some(exe.to_owned()), &request);
+    }
+    drive_with_profile(Mode::Build, StageMode::Refresh, dir, entry, Some(exe.to_owned()), profile)
+}
+
 fn build_fixture(dir: &Path, entry: &str, out: &str, executable_only: bool) -> Result<PathBuf, String> {
     let exe = dir.join(out);
     let code = match external_frontend::configured()? {

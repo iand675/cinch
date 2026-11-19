@@ -1,7 +1,6 @@
 //! Caller-buffer ASCII85 codecs, consumed-input progress and independent finite-capacity fixtures.
 mod common;
 
-use cinch::driver::Mode;
 use serde_json::Value;
 
 /// Quote a fixture's hex text without interpreting it through the codec under test.
@@ -37,14 +36,7 @@ fn run_observed(body: &str, extra: &str, allocation_budget: Option<u64>) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(exe.clone()),
-        &profile,
-    )
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
     .unwrap();
     for debug in [false, true] {
         let output = std::process::Command::new(&exe)

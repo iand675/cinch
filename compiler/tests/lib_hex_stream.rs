@@ -1,7 +1,6 @@
 //! Effectful hexadecimal codecs: independent wire results, progress, snapshots and finalization.
 mod common;
 
-use cinch::driver::Mode;
 use serde_json::Value;
 
 /// Create fixture input through base byte operations, independently of hexadecimal decoding.
@@ -44,14 +43,7 @@ fn run(body: &str) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(exe.clone()),
-        &profile,
-    )
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
     .unwrap();
     for debug in [false, true] {
         let output = std::process::Command::new(&exe)

@@ -1,7 +1,6 @@
 //! Independent fixtures, chunk invariance and lifetime checks for 128-bit FNV hashes.
 mod common;
 
-use cinch::driver::Mode;
 use serde_json::Value;
 
 /// Compile the real source modules and run a consumer with ownership validation.
@@ -34,14 +33,7 @@ fn run(checks: Vec<String>) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(exe.clone()),
-        &profile,
-    )
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
     .unwrap();
     let output = std::process::Command::new(&exe)
         .env("CINCH_RC_DEBUG", "1")

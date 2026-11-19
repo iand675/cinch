@@ -1,7 +1,6 @@
 //! Configurable byte Base64: independent wire/error fixtures, alias isolation and stream continuations.
 mod common;
 
-use cinch::driver::Mode;
 use std::path::PathBuf;
 
 /// Project a fixed offline fixture group without requiring a reference SDK during tests.
@@ -54,14 +53,7 @@ fn run(name: &str) {
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    common::drive_with_profile(
-        Mode::Build,
-        cinch::check::StageMode::Refresh,
-        directory.path(),
-        "Main.cinch",
-        Some(exe.clone()),
-        &profile,
-    )
+    common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
     .unwrap();
     for debug in [false, true] {
         let output = std::process::Command::new(&exe)

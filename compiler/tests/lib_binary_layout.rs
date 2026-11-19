@@ -109,14 +109,7 @@ fn run(checks: Vec<String>, contracts: bool, optimized: bool) {
             .unwrap()
             .unwrap();
     } else {
-        common::drive_with_profile(
-            Mode::Build,
-            cinch::check::StageMode::Refresh,
-            directory.path(),
-            "Main.cinch",
-            Some(exe.clone()),
-            &profile,
-        )
+        common::build_executable_with_profile(directory.path(), "Main.cinch", &exe, &profile)
         .unwrap();
     }
     for debug in [false, true] {
