@@ -31,7 +31,7 @@ module Bootstrap.Load where
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
   export load-interface-from-contract, load-interface-set-from-contracts
-  export load-interface-from-document, load-interface-set-from-documents
+  export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known
   export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known
@@ -1027,7 +1027,11 @@ module Bootstrap.Load where
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
   load-interface-set-from-documents :: List (String, String, Json) -> Result String (List LoadedInterface)
-  load-interface-set-from-documents inputs = case read-document-set Nil inputs Nil of
+  load-interface-set-from-documents = load-object-interfaces-with-known Nil
+  -- The object and the requested interface set often carry the same documents.
+  -- Reuse exact verified rows, then validate every dependency of this object.
+  load-object-interfaces-with-known :: List LoadedInterface -> List (String, String, Json) -> Result String (List LoadedInterface)
+  load-object-interfaces-with-known known inputs = case read-document-set known inputs Nil of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
 

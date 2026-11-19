@@ -1,7 +1,7 @@
 -- Checked physical library objects. Source visibility still comes exclusively
 -- from the independently loaded interface set, never from this unit inventory.
 module Bootstrap.Object where
-  import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-interface-set-from-documents, loaded-values, imported-symbol)
+  import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, loaded-values, imported-symbol)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Builtin (scalar-intrinsic)
@@ -359,7 +359,7 @@ module Bootstrap.Object where
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
           (case (units (field "units" doc) Nil, interface-files (field "interfaces" doc)) of
-            (Ok functions, Ok files) -> (case load-interface-set-from-documents files of
+            (Ok functions, Ok files) -> (case load-object-interfaces-with-known interfaces files of
                 Err message -> Err message
                 Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch")
             (Err message, other-files) -> Err message
