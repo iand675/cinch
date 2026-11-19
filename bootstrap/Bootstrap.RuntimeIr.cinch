@@ -927,6 +927,23 @@ module Bootstrap.RuntimeIr where
     CMethod sp ty name owner slot actuals evidence -> True
     other -> False
 
+  -- A generalized strict value still has one binding. Build the same checked
+  -- representation bundle as an explicit forall and project it at each use.
+  -- Generalization retains each metavariable's fresh id, so opening it here
+  -- cannot capture a rigid variable in an enclosing function.
+  bundled-let :: Span -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Option CoreTerm
+  bundled-let sp id sc rhs body = case (scheme-params sc, scheme-requirements sc, core-effects rhs) of
+    (Cons first rest, Nil, URow UEnd) -> let params = Cons first rest in
+      if type-param-count params /= list-length params then None else
+        let ty = scheme-body sc in let poly = UForall (quants-of params) ty in
+        let actuals = map (\q -> UBound (quant-id q) (quant-name q) KType) params in
+        let rigids = map (\q -> URigid (quant-id q) (quant-name q) 0 KType) params in
+        let opened = map-term-types (substitute-bound (actual-pairs params rigids)) rhs in
+        let bundle = CPolyIntro sp poly (quant-id-list params) opened in
+        let projection = CPolyElim sp ty (CLocal sp poly id "#let-bundle" Nil) actuals in
+        Some (CLet sp (core-type body) id "#let-bundle" (mono poly) bundle (specialize-local id sc projection body))
+    other -> None
+
   -- | Region-polymorphic values keep one representation and are evaluated once.
   -- Runtime identities remain checked statically and never become payload words.
   erased-region-parameters :: List Quant -> Bool
@@ -1353,7 +1370,9 @@ module Bootstrap.RuntimeIr where
         (case expression definitions locals w rhs of
           (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
             (done, result) -> (count-op False (scheme-body sc) value done, result))
-        else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
+        else (case bundled-let sp id sc rhs body of
+          Some bundled -> expression definitions locals w bundled
+          None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
@@ -3608,7 +3627,9 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "guarded where binding needs a runtime word"
     other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
       guarded-expression definitions locals w failed (specialize-local id sc rhs body)
-      else unsupported w sp "guarded where binding needs runtime specialization"
+      else (case bundled-let sp id sc rhs body of
+        Some bundled -> guarded-expression definitions locals w failed bundled
+        None -> unsupported w sp "guarded where binding needs runtime specialization")
   -- A case whose scrutinee is a saturated constructor application already
   -- knows its alternative. Evaluating the scrutinee allocates a cell the
   -- case takes apart at once, so the alternative is lowered with the
@@ -4979,7 +5000,9 @@ module Bootstrap.RuntimeIr where
           else tail-return definitions locals roots w failed term
         other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
           tail-result definitions locals roots context w failed (specialize-local id sc rhs body)
-          else tail-return definitions locals roots w failed term
+          else (case bundled-let sp id sc rhs body of
+            Some bundled -> tail-result definitions locals roots context w failed bundled
+            None -> tail-return definitions locals roots w failed term)
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) ->
         let bound = GivenLocal (given-symbol given) (given-type given) word in
