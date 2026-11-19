@@ -1658,7 +1658,9 @@ module Bootstrap.RuntimeIr where
   array-call definitions locals w sp name actuals givens args = case array-plan name of
     Some (operation, format, scheme) -> case class-vector (writer-context w) actuals of
       -- An array element is one scanned word.
-      Some classes -> if wide-code classes then unsupported w sp wide-refusal else if list-length givens /= 0 || list-length classes /= (if format /= 0 then 0 else if operation == 13 || operation == 17 || operation == 18 then 2 else 1) then
+      Some classes -> if wide-code classes then
+        unsupported w sp (if operation == 13 then "`columnarZip` requires a wide tuple layout bridge for an I128/U128 tuple field" else wide-refusal)
+        else if list-length givens /= 0 || list-length classes /= (if format /= 0 then 0 else if operation == 13 || operation == 17 || operation == 18 then 2 else 1) then
         unsupported w sp "array intrinsic needs its exact checked representation parameters" else
         let parameters = array-argument-classes operation classes in
         let count = list-length parameters in
@@ -4545,9 +4547,15 @@ module Bootstrap.RuntimeIr where
       else if same op "par-workers" then par-workers definitions locals w sp input
       else unsupported w sp "unary primitive needs runtime lowering"
     CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
-      if same op "par-both" then par-both definitions locals w sp ty first second
-      else if same op "par-tabulate" then par-tabulate definitions locals w sp ty first second
-      else if same op "par-map" then par-map definitions locals w sp ty first second
+      if same op "par-both" then (case pair-classes (writer-context w) ty of
+        Some classes | wide-code classes -> unsupported w sp wide-parallel-refusal
+        other -> par-both definitions locals w sp ty first second)
+      else if same op "par-tabulate" then
+        (if wide-array-element (writer-context w) ty then unsupported w sp wide-parallel-refusal
+         else par-tabulate definitions locals w sp ty first second)
+      else if same op "par-map" then
+        (if wide-array-element (writer-context w) (core-type second) || wide-array-element (writer-context w) ty then unsupported w sp wide-parallel-refusal
+         else par-map definitions locals w sp ty first second)
       else if same op "#handler-field" && wide-type (writer-context w) ty then unsupported w sp wide-refusal
       else if same op "#handler-field" then
         (case second of
@@ -4654,6 +4662,13 @@ module Bootstrap.RuntimeIr where
         (called, ignored) -> (count-op False (core-type count) count-word called, "0")
   -- The element class of an `Array a` result, as the scan code the array
   -- constructors take.
+  wide-parallel-refusal :: String
+  wide-parallel-refusal = "a parallel task's payload holds I128 or U128, which code generation does not lower yet"
+  wide-array-element :: RuntimeContext -> UType -> Bool
+  wide-array-element context ty = case ty of
+    UApp (UCon name kind) element -> same name "Array" && kind-equal kind (KFun KType KType) && wide-type context element
+    other -> False
+
   array-element-class :: RuntimeContext -> UType -> Option Nat
   array-element-class context ty = case ty of
     UApp (UCon name kind) element -> if same name "Array" && kind-equal kind (KFun KType KType) && not (wide-type context element) then word-class context element else None
