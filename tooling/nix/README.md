@@ -27,7 +27,10 @@ CINCH_BOOTSTRAP_BUILD=$(readlink -f build/ladder) \
   python3 tooling/run_stage_targets.py --stage 3 --out build/evidence ...
 ```
 
-`cinch-pins` is relocatable because its receipts hold hashes and no paths.
+`cinch-pins` can be copied because its receipts hold hashes and no paths.
+The seed inside it reads its runtime from the directory it was compiled in,
+which for these outputs is the `cinch-seed` store path, so that path stays
+in the closure and nothing has to be at a fixed location on the machine.
 `cinch-ladder` is not: a stage 2 or 3 receipt covers `objects.json`, which
 names the library object by absolute path, so the derivation builds with
 `CINCH_BOOTSTRAP_BUILD` set to its own output and the tree is valid only

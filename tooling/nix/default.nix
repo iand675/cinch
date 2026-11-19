@@ -18,8 +18,10 @@
 # stage 2 and 3 receipts cover `objects.json`, which names the library object
 # by absolute path, so the tree is only valid where it was built. Use it in
 # place (CINCH_BOOTSTRAP_BUILD=<store path>); it is read-only, so it serves
-# test runs, not rebuilds. `pins` is relocatable: `tooling/bootstrap.py
-# hydrate --from <store path>` copies it into a writable build tree.
+# test runs, not rebuilds. `pins` can be copied: `tooling/bootstrap.py
+# hydrate --from <store path>` puts it in a writable build tree. The seed in
+# it still reads its runtime from the `seed-compiler` store path it was
+# compiled in, which is part of the closure.
 { pkgs
   # The repository root, as a path.
 , src
@@ -49,6 +51,15 @@ let
 
   # One release build of a pinned revision's compiler. Nothing from the
   # current tree enters it.
+  #
+  # The driver finds its runtime sources where it was compiled
+  # (`env!("CARGO_MANIFEST_DIR")/runtime`) and links the release archive it
+  # finds there, rebuilding it when a source is newer. A binary compiled in
+  # the sandbox's build directory would look for a path that is gone by the
+  # time anything runs it. So the sources are copied into the output and the
+  # compiler and its runtime archive are built there: the path the binary
+  # remembers is its own store path, which a consumer's closure carries, and
+  # the archive is already as new as its sources.
   pinnedCompiler = name: lock:
     let tree = fetchPinned lock.revision; in
     pkgs.rustPlatform.buildRustPackage {
@@ -58,13 +69,31 @@ let
       sourceRoot = "source/compiler";
       cargoLock.lockFile = tree + "/compiler/Cargo.lock";
       nativeBuildInputs = [ pkgs.tree-sitter pkgs.nodejs ];
-      cargoBuildFlags = [ "--bin" "cinch" ];
-      # The grammar binding generates its parser beside the manifest.
       postUnpack = "chmod -R u+w source";
+      buildPhase = ''
+        runHook preBuild
+        mkdir -p $out/src/tooling
+        cp -r ../compiler $out/src/compiler
+        cp -r ../tooling/tree-sitter-cinch $out/src/tooling/tree-sitter-cinch
+        # The vendoring configuration was written for the unpacked tree, and
+        # Cargo looks for it upward from the directory it runs in.
+        vendored=$(grep -rls vendored-sources "$NIX_BUILD_TOP"/.cargo "$NIX_BUILD_TOP"/source/.cargo .cargo ''${CARGO_HOME:-} 2>/dev/null | head -1)
+        cd $out/src/compiler
+        cargo build --config "$vendored" --release --frozen --bin cinch --target-dir $TMPDIR/target -j $NIX_BUILD_CORES
+        cargo build --config "$vendored" --release --frozen --manifest-path runtime/Cargo.toml --target-dir runtime/target
+        runHook postBuild
+      '';
+      installPhase = ''
+        runHook preInstall
+        mkdir -p $out/bin
+        cp $TMPDIR/target/release/cinch $out/bin/cinch
+        find runtime/target -mindepth 1 -maxdepth 1 ! -name release -exec rm -rf {} +
+        find runtime/target/release -mindepth 1 -maxdepth 1 ! -name libcinchruntime.a -exec rm -rf {} +
+        runHook postInstall
+      '';
       doCheck = false;
-      # The driver reads its runtime sources at run time from the snapshot
-      # the bootstrap extracts, not from this output.
       dontStrip = true;
+      dontPatchShebangs = true;
     };
 
   seed-compiler = pinnedCompiler "seed" seedLock;

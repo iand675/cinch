@@ -566,8 +566,11 @@ def build_seed_runtime() -> Path:
 
 
 # The parts of a build tree that depend only on the pins (the seed, the
-# library producer and their sources), never on the compiler sources or on
-# where the tree lives: their receipts hold hashes, not paths. They are the
+# library producer and their sources), never on the compiler sources. Their
+# receipts hold hashes, not paths, so a copy still verifies. One path does
+# survive a copy: the seed's driver reads its runtime from the directory it
+# was compiled in, so the tree a copy came from (or, for a Nix build, the
+# seed's own store path) has to stay where it was. They are the
 # expensive, rarely-changing half of a cold chain (two release cargo builds),
 # so they are what a binary cache keeps across commits. Stage directories are
 # deliberately absent: a stage-2/3 receipt covers `objects.json`, which names
