@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with checked sequencing class methods and container instance heads.",
-  "revision": "e4532cb571634c5289432ecf66b3176fa6b35fa2",
+  "description": "ABI 10 provider with checked STM and MVar effect rows, sequencing methods and structural cell field contracts.",
+  "revision": "feb9f2ce62e8b0f6335c828983811c510fb39f8f",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "ac22bc71f4858ee53864167175cdf658738381f685a6991244eb29d7e624c87e"
+  "source_sha256": "9b5d4e1b9416c80497b6bcb60c2e2a1f6dee0598a19bf276e1298513f36bfdf3"
 }

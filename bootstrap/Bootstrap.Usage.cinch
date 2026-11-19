@@ -6,8 +6,8 @@ module Bootstrap.Usage where
   import Bootstrap.Kinds (scheme-well-formed, empty-type-scope)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Load (nominal-owner)
-  import Bootstrap.Nominal (interface-global, nominal-entry-valid)
-  import Bootstrap.Builtin (mvar-type-name)
+  import Bootstrap.Nominal (interface-global, nominal-entry-valid, global-data-core-list, global-data-core-option)
+  import Bootstrap.Builtin (cell-type-name)
   import Bootstrap.ExportType (export-global, export-parameters)
   import Data.Json
   import Text.Parse (ParseOutcome, Parsed)
@@ -102,6 +102,14 @@ module Bootstrap.Usage where
       && automatic == quant-implicit first && same role (kind-text (quant-kind first)) && binding-syntax-matches rest more
     other -> False
 
+  -- Keep the actual defining identity. Instantiation looks up structural
+  -- properties of the container and its element in the checked context.
+  usage-container :: String -> Option String
+  usage-container name = if cell-type-name name then Some name
+    else if same name "Data.Core.List" then Some (global-data-core-list)
+    else if same name "Data.Core.Option" then Some (global-data-core-option)
+    else None
+
   -- | Decode only closed first-order fields with actual kernel carrier kinds.
   field-type :: List Quant -> TypeExpr -> Option UType
   field-type params syntax = case syntax of
@@ -110,9 +118,11 @@ module Bootstrap.Usage where
       None -> if scalar name then Some (UCon name KType) else None)
     TTuple sp fields -> (case field-types params fields of Some values -> Some (UTuple values); None -> None)
     TApp sp (TName at name) (TArg arg value (TArgsEnd end)) ->
-      if mvar-type-name name then (case field-type params value of
-        Some carrier -> Some (UApp (UCon "MVarCell" (KFun KType KType)) carrier)
-        None -> None) else None
+      (case usage-container name of
+        Some owner -> (case field-type params value of
+          Some carrier -> Some (UApp (UCon owner (KFun KType KType)) carrier)
+          None -> None)
+        None -> None)
     TApp sp (TName at name) (TArg arg (TName rt region) (TArg vt value (TArgsEnd end))) ->
       if same name "Ref" || same name "Mut" then (case (parameter region params, field-type params value) of
         (Some bound, Some carrier) -> if kind-equal (quant-kind bound) KRegion then
@@ -366,8 +376,14 @@ module Bootstrap.Usage where
     UCon name KType -> if scalar name then Some name else None
     UBound id name KType -> bound-name id KType params names
     UTuple fields -> (case checked-tuple params names fields of Some text -> Some (string-concat-all ["(", text, ")"]); None -> None)
-    UApp (UCon name kind) carrier -> if mvar-type-name name && kind-equal kind (KFun KType KType) then
-      (case checked-field params names carrier of Some value -> Some (string-concat-all ["(MVarCell ", value, ")"]); None -> None) else None
+    UApp (UCon name kind) carrier -> if kind-equal kind (KFun KType KType) then
+      (case export-global name of
+        Ok public -> (case usage-container public of
+          Some owner | same name owner -> (case checked-field params names carrier of
+            Some value -> Some (string-concat-all ["(", public, " ", value, ")"])
+            None -> None)
+          other -> None)
+        Err text -> None) else None
     UApp (UApp (UCon name kind) (UBound id region KRegion)) carrier ->
       if (same name "Ref" || same name "Mut") && kind-equal kind borrow-constructor-kind then
         (case (bound-name id KRegion params names, checked-field params names carrier) of

@@ -88,7 +88,10 @@ module Bootstrap.Contracts where
   candidate-references :: List String -> List String -> List String
   candidate-references identities more = case identities of
     Nil -> more
-    Cons identity rest -> Cons (interface-global identity) (Cons (interface-global (nominal-owner identity)) (candidate-references rest more))
+    Cons identity rest -> let tail = candidate-references rest more in
+      let methods = if same identity "Effect.Sequencing.DirectSequencing.pure" then
+            map (\owner -> interface-global (string-concat owner ".pure")) sequencing-providers <> tail else tail in
+      Cons (interface-global identity) (Cons (interface-global (nominal-owner identity)) methods)
   sequencing-references :: List String -> List String
   sequencing-references providers = case providers of
     Nil -> [interface-global "Effect.Sequencing.SeqDirect"]

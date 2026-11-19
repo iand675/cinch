@@ -27,7 +27,7 @@ module Bootstrap.Infer where
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, mvar-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -442,7 +442,7 @@ module Bootstrap.Infer where
     else primitive-type name
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> mvar-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -469,8 +469,9 @@ module Bootstrap.Infer where
   array-kinds :: List (String, Kind)
   array-kinds = if array-type-name "Array" then [("Array", KFun KType KType), ("Tensor", KFun KType KType), ("Columnar", KFun KType KType)] else Nil
   -- | Install only the compiler-owned MVar carrier kind, without finite-array positivity authority.
-  mvar-kinds :: List (String, Kind)
-  mvar-kinds = if mvar-type-name "MVarCell" then [("MVarCell", KFun KType KType)] else Nil
+  cell-kinds :: List (String, Kind)
+  cell-kinds = (if cell-type-name "TVar" then [("TVar", KFun KType KType)] else Nil)
+    <> (if cell-type-name "MVarCell" then [("MVarCell", KFun KType KType)] else Nil)
 
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
@@ -716,7 +717,7 @@ module Bootstrap.Infer where
       None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
         else if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
-        else if mvar-type-name name || has name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then
+        else if cell-type-name name || has name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then
           (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
@@ -1320,10 +1321,10 @@ module Bootstrap.Infer where
     other -> bad (type-expr-span labels) "malformed effect label spine" st
   convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effect kinds locals label st = case label of
-    TName s name -> if same name "#kernel.MVar" && mvar-type-name "MVarCell" then (UCon "#kernel.MVar" KEffect, st)
-      else if same name "MVar" && mvar-type-name "MVarCell" then (case context-kind name kinds of
+    TName s name -> if (same name "#kernel.MVar" && cell-effect-name "MVar") || (same name "#kernel.STM" && cell-effect-name "STM") then (UCon name KEffect, st)
+      else if cell-effect-name name then (case context-kind name kinds of
         Some KEffect -> convert-declared-effect kinds locals label st
-        other -> (UCon "#kernel.MVar" KEffect, st))
+        other -> (UCon ("#kernel." <> name) KEffect, st))
       else if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
@@ -2210,77 +2211,77 @@ module Bootstrap.Infer where
     other -> False
 
   -- | Inspect actual kind carriers rather than granting effects from a display spelling.
-  imported-mvar-in-kind :: Kind -> Bool
-  imported-mvar-in-kind kind = case kind of
-    KFun domain result -> imported-mvar-in-kind domain || imported-mvar-in-kind result
-    KValue carrier -> imported-mvar-in-type carrier
+  imported-cell-effect-in-kind :: Kind -> Bool
+  imported-cell-effect-in-kind kind = case kind of
+    KFun domain result -> imported-cell-effect-in-kind domain || imported-cell-effect-in-kind result
+    KValue carrier -> imported-cell-effect-in-type carrier
     other -> False
 
   -- | Retain effects nested in the actual quantified kind carriers.
-  imported-mvar-in-quants :: List Quant -> Bool
-  imported-mvar-in-quants parameters = case parameters of
+  imported-cell-effect-in-quants :: List Quant -> Bool
+  imported-cell-effect-in-quants parameters = case parameters of
     Nil -> False
-    Cons parameter rest -> imported-mvar-in-kind (quant-kind parameter) || imported-mvar-in-quants rest
+    Cons parameter rest -> imported-cell-effect-in-kind (quant-kind parameter) || imported-cell-effect-in-quants rest
 
   -- | Require portable authority for every actual kernel MVar row, including latent callbacks.
-  imported-mvar-in-type :: UType -> Bool
-  imported-mvar-in-type ty = case ty of
-    UCon name kind -> (same name "#kernel.MVar" && kind-equal kind KEffect) || imported-mvar-in-kind kind
-    UBound id name kind -> imported-mvar-in-kind kind
-    URigid id name level kind -> imported-mvar-in-kind kind
-    UMeta id kind -> imported-mvar-in-kind kind
-    UCompare relation left right -> imported-mvar-in-type left || imported-mvar-in-type right
-    UPropAnd left right -> imported-mvar-in-type left || imported-mvar-in-type right
-    UPropOr left right -> imported-mvar-in-type left || imported-mvar-in-type right
-    UPropNot body -> imported-mvar-in-type body
-    UPropNonZero body -> imported-mvar-in-type body
-    UPropNonZeroPending body -> imported-mvar-in-type body
-    UPropNotNull body -> imported-mvar-in-type body
-    UPropAscii body -> imported-mvar-in-type body
-    UPropOrdered body -> imported-mvar-in-type body
-    URequire predicates body -> imported-mvar-in-type predicates || imported-mvar-in-type body
-    URefine id name carrier predicate -> imported-mvar-in-type carrier || imported-mvar-in-type predicate
-    URefineFormer name ids body -> imported-mvar-in-type body
-    UIndex carrier value -> imported-mvar-in-type carrier
-    UIndexForget body -> imported-mvar-in-type body
-    UIndexByteLength body -> imported-mvar-in-type body
-    UIndexBorrowRead body -> imported-mvar-in-type body
-    UIndexConstructor name arrow input -> imported-mvar-in-type arrow || imported-mvar-in-type input
-    UIndexList element fields -> imported-mvar-in-type element || imported-mvar-in-type fields
-    UIndexCall function arguments -> imported-mvar-in-type arguments
-    UIndexPromote body -> imported-mvar-in-type body
-    UIndexMath operation left right -> imported-mvar-in-type left || imported-mvar-in-type right
-    UPi id name domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
-    UApp function argument -> imported-mvar-in-type function || imported-mvar-in-type argument
-    UFun domain result -> imported-mvar-in-type domain || imported-mvar-in-type result
-    UFunEff domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
-    UProofFun domain row result -> imported-mvar-in-type domain || imported-mvar-in-type row || imported-mvar-in-type result
-    UUsageArrow usage arrow -> imported-mvar-in-type arrow
-    URow labels -> imported-mvar-in-type labels
-    URowJoin left right -> imported-mvar-in-type left || imported-mvar-in-type right
-    UTuple fields -> imported-mvar-in-type fields
-    UForall parameters body -> imported-mvar-in-quants (quants-list parameters) || imported-mvar-in-type body
-    UArg first rest -> imported-mvar-in-type first || imported-mvar-in-type rest
+  imported-cell-effect-in-type :: UType -> Bool
+  imported-cell-effect-in-type ty = case ty of
+    UCon name kind -> (has name ["#kernel.MVar", "#kernel.STM"] && kind-equal kind KEffect) || imported-cell-effect-in-kind kind
+    UBound id name kind -> imported-cell-effect-in-kind kind
+    URigid id name level kind -> imported-cell-effect-in-kind kind
+    UMeta id kind -> imported-cell-effect-in-kind kind
+    UCompare relation left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
+    UPropAnd left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
+    UPropOr left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
+    UPropNot body -> imported-cell-effect-in-type body
+    UPropNonZero body -> imported-cell-effect-in-type body
+    UPropNonZeroPending body -> imported-cell-effect-in-type body
+    UPropNotNull body -> imported-cell-effect-in-type body
+    UPropAscii body -> imported-cell-effect-in-type body
+    UPropOrdered body -> imported-cell-effect-in-type body
+    URequire predicates body -> imported-cell-effect-in-type predicates || imported-cell-effect-in-type body
+    URefine id name carrier predicate -> imported-cell-effect-in-type carrier || imported-cell-effect-in-type predicate
+    URefineFormer name ids body -> imported-cell-effect-in-type body
+    UIndex carrier value -> imported-cell-effect-in-type carrier
+    UIndexForget body -> imported-cell-effect-in-type body
+    UIndexByteLength body -> imported-cell-effect-in-type body
+    UIndexBorrowRead body -> imported-cell-effect-in-type body
+    UIndexConstructor name arrow input -> imported-cell-effect-in-type arrow || imported-cell-effect-in-type input
+    UIndexList element fields -> imported-cell-effect-in-type element || imported-cell-effect-in-type fields
+    UIndexCall function arguments -> imported-cell-effect-in-type arguments
+    UIndexPromote body -> imported-cell-effect-in-type body
+    UIndexMath operation left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
+    UPi id name domain row result -> imported-cell-effect-in-type domain || imported-cell-effect-in-type row || imported-cell-effect-in-type result
+    UApp function argument -> imported-cell-effect-in-type function || imported-cell-effect-in-type argument
+    UFun domain result -> imported-cell-effect-in-type domain || imported-cell-effect-in-type result
+    UFunEff domain row result -> imported-cell-effect-in-type domain || imported-cell-effect-in-type row || imported-cell-effect-in-type result
+    UProofFun domain row result -> imported-cell-effect-in-type domain || imported-cell-effect-in-type row || imported-cell-effect-in-type result
+    UUsageArrow usage arrow -> imported-cell-effect-in-type arrow
+    URow labels -> imported-cell-effect-in-type labels
+    URowJoin left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
+    UTuple fields -> imported-cell-effect-in-type fields
+    UForall parameters body -> imported-cell-effect-in-quants (quants-list parameters) || imported-cell-effect-in-type body
+    UArg first rest -> imported-cell-effect-in-type first || imported-cell-effect-in-type rest
     other -> False
 
   -- | Include latent class evidence when deciding whether a fallback scheme would create authority.
-  imported-mvar-in-requirements :: List Requirement -> Bool
-  imported-mvar-in-requirements requirements = case requirements of
+  imported-cell-effect-in-requirements :: List Requirement -> Bool
+  imported-cell-effect-in-requirements requirements = case requirements of
     Nil -> False
-    Cons requirement rest -> imported-mvar-in-type (requirement-type requirement) || imported-mvar-in-requirements rest
+    Cons requirement rest -> imported-cell-effect-in-type (requirement-type requirement) || imported-cell-effect-in-requirements rest
 
   -- | Scan the complete checked fallback scheme without changing its types or effects.
-  imported-mvar-in-scheme :: Scheme -> Bool
-  imported-mvar-in-scheme scheme = imported-mvar-in-type (scheme-body scheme)
-    || imported-mvar-in-quants (scheme-params scheme)
-    || imported-mvar-in-requirements (scheme-requirements scheme)
+  imported-cell-effect-in-scheme :: Scheme -> Bool
+  imported-cell-effect-in-scheme scheme = imported-cell-effect-in-type (scheme-body scheme)
+    || imported-cell-effect-in-quants (scheme-params scheme)
+    || imported-cell-effect-in-requirements (scheme-requirements scheme)
 
   -- | Retain genuine resolved contracts and refuse new MVar authority from an unresolved display.
   imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
   imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
     None -> (case make-scheme True classes kinds Nil fallback st of
-      (scheme, checked) -> if imported-mvar-in-scheme scheme then
-        (mono UError, add-error sp "imported MVar effect needs a checked defining portable scheme" checked)
+      (scheme, checked) -> if imported-cell-effect-in-scheme scheme then
+        (mono UError, add-error sp "imported MVar or STM effect needs a checked defining portable scheme" checked)
         else (scheme, checked))
     Some text -> case parse-scheme "resolved-interface" (string-to-bytes text) of
       Parsed ty Nil -> case qualify-resolved metadata ty of
@@ -3178,21 +3179,21 @@ module Bootstrap.Infer where
     TUsing sp bounds body -> TUsing sp (kernel-canonical-type bounds) (kernel-canonical-type body)
     TBound sp name ty rest -> TBound sp name (kernel-canonical-type ty) (kernel-canonical-type rest)
     TFun sp domain result -> TFun sp (kernel-canonical-type domain) (kernel-canonical-type result)
-    TFunEff sp domain row result -> TFunEff sp (kernel-canonical-type domain) (kernel-mvar-row row) (kernel-canonical-type result)
+    TFunEff sp domain row result -> TFunEff sp (kernel-canonical-type domain) (kernel-cell-row row) (kernel-canonical-type result)
     TApp sp head args -> TApp sp (kernel-canonical-type head) (kernel-canonical-arguments args)
     TTuple sp fields -> TTuple sp (kernel-canonical-arguments fields)
     other -> syntax
   -- | Canonical runtime contracts name the kernel effect even in a scope with a source effect named MVar.
-  kernel-mvar-row :: TypeExpr -> TypeExpr
-  kernel-mvar-row row = case row of
-    TRow sp labels tail -> TRow sp (kernel-mvar-labels labels) tail
+  kernel-cell-row :: TypeExpr -> TypeExpr
+  kernel-cell-row row = case row of
+    TRow sp labels tail -> TRow sp (kernel-cell-labels labels) tail
     other -> row
 
   -- | Preserve every other label while assigning the compiler-owned MVar identity.
-  kernel-mvar-labels :: TypeExpr -> TypeExpr
-  kernel-mvar-labels labels = case labels of
-    TArg sp (TName at name) rest -> TArg sp (if same name "MVar" then TName at "#kernel.MVar" else TName at name) (kernel-mvar-labels rest)
-    TArg sp label rest -> TArg sp label (kernel-mvar-labels rest)
+  kernel-cell-labels :: TypeExpr -> TypeExpr
+  kernel-cell-labels labels = case labels of
+    TArg sp (TName at name) rest -> TArg sp (if cell-effect-name name then TName at ("#kernel." <> name) else TName at name) (kernel-cell-labels rest)
+    TArg sp label rest -> TArg sp label (kernel-cell-labels rest)
     other -> labels
 
   kernel-canonical-arguments :: TypeExpr -> TypeExpr
@@ -3547,8 +3548,13 @@ module Bootstrap.Infer where
         None -> case select-provider givens of
           Err msg -> term-error sp msg st
           Ok owner -> let selected = string-concat owner ".pure" in
-            if has selected candidates then lookup-value sp (interface-global selected) env st
-            else term-error sp "the selected sequencing provider has no visible pure method" st)
+            let symbol = interface-global selected in
+            if has selected candidates then lookup-value sp symbol env st else
+              -- An explicitly supplied sequencing dictionary grants its own
+              -- pure projection even when the module exports only its class.
+              (case lookup-binding symbol env of
+                Some binding | has owner (provider-owners givens) && checked-method-matches binding symbol (interface-global owner) 0 -> lookup-value sp symbol env st
+                other -> term-error sp "the selected sequencing provider has no visible pure method" st))
     else term-error sp (string-concat "ambiguous imported value or method: " name) st
 
   lookup-value :: Span -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)

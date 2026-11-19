@@ -10,7 +10,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
   import Bootstrap.Foreign
-  import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
+  import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, cell-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some)
@@ -392,7 +392,7 @@ module Bootstrap.RuntimeIr where
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
-          else if (array-type-name name || mvar-type-name name) && kind-equal kind (KFun KType KType) then Some 1
+          else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name datas of
             Some d -> Some (data-word-class d)

@@ -227,6 +227,10 @@
     {
       "classes": "",
       "symbol": "Effect.Stm.SeqStm"
+    },
+    {
+      "classes": "",
+      "symbol": "Effect.Stm.Alternative_STM"
     }
   ],
   "methods": [
@@ -1582,6 +1586,154 @@
     {
       "classes": "TTT",
       "symbol": "Data.Producer.prod-fold"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.List.foldr"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-flush"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-peek"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-unget"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-write"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "R",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.atomically-or-cancel"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.or-else"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.retry"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Effect.Stm.stm-map"
+    },
+    {
+      "classes": "RO",
+      "symbol": "Effect.Stm.stm-then"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-modify"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-modify"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-new"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-new-io"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-read"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-read-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-read-io"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Effect.Stm.tvar-state"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-swap"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-write"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-write"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-length"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-write"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-new-empty-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-put"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-take"
     }
   ]
 }

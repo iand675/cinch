@@ -12,7 +12,7 @@ module Bootstrap.Builtin where
   import Text.Scan (string-starts-with, string-drop)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
-  export mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional
+  export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
   export scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-operation-scheme, scalar-intrinsic
@@ -439,6 +439,13 @@ module Bootstrap.Builtin where
   -- | Recognize the sealed carrier at its minimum ABI; runtime capability admission remains separate.
   mvar-type-name :: String -> Bool
   mvar-type-name name = runtime-abi-int >= 10 && string-compare name "MVarCell" == 0
+
+  cell-type-name :: String -> Bool
+  cell-type-name name = (runtime-abi-int >= 9 && string-compare name "TVar" == 0)
+    || mvar-type-name name
+  cell-effect-name :: String -> Bool
+  cell-effect-name name = (runtime-abi-int >= 9 && string-compare name "STM" == 0)
+    || (runtime-abi-int >= 10 && string-compare name "MVar" == 0)
 
   -- | Pair each checked MVar opcode with its complete canonical effectful scheme.
   mvar-plan :: String -> Option (Nat, String)
