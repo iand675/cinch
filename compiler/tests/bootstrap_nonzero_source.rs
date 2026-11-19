@@ -21,7 +21,7 @@ fn structural_nonzero_source_preserves_value_identity_and_contracts() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.NonZeroSource.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "nonzero-source").expect("build the named refinement checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "nonzero-source").expect("build the named refinement checker");
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     let cases = [
         ("structural predicate ignores same-spelled refinement template", "type NonZero a = refine (n :: Nat) with n > 5\n  one :: refined (NonZero n) Nat\n  one = 1", 0, ""),
