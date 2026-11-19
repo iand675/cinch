@@ -405,6 +405,7 @@ module Bootstrap.Infer where
     EHandler s label clauses -> True
     EIf s c a b -> expression-needs c || expression-needs a || expression-needs b
     ECase s value alts -> expression-needs value || expression-needs alts
+    EForget s atoms body -> True
     EAnn s body ty -> needs-type ty || expression-needs body
     EBin s op a b -> expression-needs a || expression-needs b
     ENeg s x -> expression-needs x
@@ -4371,6 +4372,14 @@ module Bootstrap.Infer where
           (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
+    EForget sp atoms value -> case infer classes kinds families env locals value st of
+      (body, checked) -> case refinement-view (normalize checked (core-type body)) of
+        URefine id name carrier original ->
+          let bound = UBound id name (value-kind carrier) in
+          case forget-predicates kinds (value-locals env locals) sp name bound (type-args-of atoms) (conjuncts original) checked of
+            (Nil, done) -> (case store-errors done of Nil -> term-error sp "`forget` keeps at least one conjunct; use unrefine to project the carrier" done; other -> (CError sp, done))
+            (Cons first rest, done) -> let weakened = URefine id name carrier (remaining-conjunction first rest) in refine-inferred env sp weakened carrier body done
+        other -> term-error sp "`forget` requires a value with a refinement predicate" checked
     EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
     EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
@@ -4543,6 +4552,33 @@ module Bootstrap.Infer where
               (fun, opened) -> apply-spine classes kinds families env locals fun args
                 (hint-application-result sp (core-type fun) args expected opened)
     other -> infer classes kinds families env locals expr st
+  conjuncts :: UType -> List UType
+  conjuncts predicate = case predicate of UPropAnd a b -> conjuncts a <> conjuncts b; other -> [predicate]
+  remaining-conjunction :: UType -> List UType -> UType
+  remaining-conjunction first rest = case rest of Nil -> first; Cons next more -> UPropAnd first (remaining-conjunction next more)
+  drop-conjunct :: UType -> List UType -> Option (List UType)
+  drop-conjunct atom original = case original of
+    Nil -> None
+    Cons first rest -> if same-shape atom first then Some rest else case drop-conjunct atom rest of
+      Some kept -> Some (Cons first kept)
+      None -> None
+  drop-conjuncts :: Span -> List UType -> List UType -> Store -> (List UType, Store)
+  drop-conjuncts sp atoms original st = case atoms of
+    Nil -> (original, st)
+    Cons atom rest -> (case drop-conjunct atom original of
+      Some kept -> drop-conjuncts sp rest kept st
+      None -> (Nil, add-error sp (obligation-text atom <> " is not a top-level conjunct of the refinement") st))
+  forget-predicates :: TypeContext -> List (String, UType) -> Span -> String -> UType -> List TypeExpr -> List UType -> Store -> (List UType, Store)
+  forget-predicates kinds locals sp name bound atoms original st = case atoms of
+    Nil -> (original, st)
+    Cons syntax rest -> let scope = Cons (name, bound) locals in
+      let applied = case syntax of
+            TName at head | has head ["Ascii", "NotNull", "Ordered", "NonZero"] -> TApp at syntax (type-arg-spine at [TName at name])
+            other -> syntax in
+      case convert-predicate False kinds scope applied st of
+        (predicate, checked) -> case drop-conjuncts sp (conjuncts (normalize checked predicate)) original checked of
+          (kept, done) -> forget-predicates kinds locals sp name bound rest kept done
+
   comparison-predicate :: UType -> Bool
   -- Only comparisons and their conjunctions widen to a carrier. Structural
   -- predicates such as NonZero keep their own class instances and must be
@@ -5265,6 +5301,7 @@ module Bootstrap.Infer where
     ELetScope sp body -> handled-do-error body
     ELet sp bindings body -> first-guard-error (handled-do-error bindings) (handled-do-error body)
     EBinding sp name value rest -> first-guard-error (handled-do-error value) (handled-do-error rest)
+    EForget sp atoms value -> handled-do-error value
     EAnn sp value ty -> handled-do-error value
     other -> None
   infer-handle :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
@@ -8349,6 +8386,7 @@ module Bootstrap.Infer where
   constructs-observations :: String -> Expr -> Bool
   constructs-observations owner expression = case expression of
     ERecord sp name fields -> same owner name
+    EForget sp atoms body -> constructs-observations owner body
     EAnn sp body annotation -> constructs-observations owner body
     ELet sp bindings body -> constructs-observations owner body
     ELetScope sp body -> constructs-observations owner body
@@ -8411,6 +8449,7 @@ module Bootstrap.Infer where
         other -> guarded-recursive-reference declarations group productive diverges
           (if is-later-flow flow then GuardedObservation else DeferredObservation) NoGuardFlow body)
       EApp sp first second -> first-guard-error (eager first) (eager second)
+      EForget sp atoms body -> nested flow body
       EAnn sp body annotation -> nested flow body
       EIf sp condition yes no -> first-guard-error (eager condition) (first-guard-error (nested flow yes) (nested flow no))
       ECase sp value alternatives -> first-guard-error (eager value) (nested flow alternatives)
@@ -8626,6 +8665,7 @@ module Bootstrap.Infer where
     EIf sp c a b -> EIf sp (record-expression all c) (record-expression all a) (record-expression all b)
     ECase sp value alternatives -> ECase sp (record-expression all value) (record-expression all alternatives)
     EGuarded sp guard body -> EGuarded sp (record-expression all guard) (record-expression all body)
+    EForget sp atoms value -> EForget sp atoms (record-expression all value)
     EAnn sp value ty -> EAnn sp (record-expression all value) ty
     EForall sp names body -> EForall sp names (record-expression all body)
     EUsing sp bounds body -> EUsing sp bounds (record-expression all body)
