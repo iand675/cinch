@@ -1852,7 +1852,12 @@ about a format or about what is checked rather than about speed:
   and then compares each against the one it already loaded from the
   manifest (`read-known-document`). A metadata file with the hash alone
   would remove about a fifth of the compile, and would turn a full
-  comparison into trust in a 64-bit contract hash.
+  comparison into trust in a 64-bit contract hash. There is a route that
+  keeps the comparison: all 66 interface files occur byte for byte inside
+  the metadata, so a scan that finds each embedded document's span could
+  compare bytes with the file the manifest named and parse only a document
+  that differs. It needs the loader to keep each interface's bytes and a
+  value-skipping scan in `Text.Json`.
 - **The emitter names by one counter.** Locals, string and number globals
   and lambdas all draw from the `Writer`'s single `next`, and the seed
   numbers lambdas the same way, so an edit renumbers every later function
