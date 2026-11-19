@@ -721,6 +721,7 @@ module Bootstrap.Infer where
           (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
+        else if same name "Type" then bad s "Type : Type is forbidden: a universe cannot fill a Type parameter" st
         else if external then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else case context-kind name kinds of Some k -> unfold-refinement s kinds (UCon name k) st; None -> bad s (string-concat "unknown type constructor or unbound type variable: " name) st
     TFun s a b -> convert-arrow external kinds locals s a None b st
@@ -3584,6 +3585,7 @@ module Bootstrap.Infer where
             term-error sp "a proof definition can only be used as erased evidence" ss
           MkSyntaxBinding symbol -> if same symbol "b.spawn" then
             term-error sp "spawn must be applied directly to check the task callback" ss
+            else if same symbol "b.Proof.search" then term-error sp "Proof.search needs an expected proposition" ss
             else if same symbol "b.parWorkers" then term-error sp "parWorkers must be applied directly to its participant count" ss
             else if par-syntax-name symbol then
               term-error sp (string-concat (par-spelling symbol) " must be applied directly to check its parallel callback (design/parallel-evaluation.md section 4.1)") ss
@@ -4688,6 +4690,14 @@ module Bootstrap.Infer where
          EApp decision head input) | decision-syntax-head env head ->
           (case check classes kinds families env locals arg (decision-type predicate) st of
             (checked-decision, checked) -> introduce-refinement env sp result value checked)
+        -- A quoted expression may carry a type ascription from its producer.
+        -- Check that contract before accepting any evidence at the use site.
+        (callee, EAnn at body annotation) -> (case convert False kinds (value-locals env locals) annotation st of
+          (ty, opened) -> (case type-kind (normalize opened ty) of
+            KProp -> (case erased-argument at env body ty (unify at ty predicate opened) of
+              (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked)
+            other -> (case check classes kinds families env locals body ty (expect-type at ty opened) of
+              (value, checked) -> term-error at "an erased proof argument requires a proposition" checked)))
         other -> case erased-argument sp env arg predicate st of
           (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
       UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
@@ -4730,7 +4740,7 @@ module Bootstrap.Infer where
     EVar at name -> if same name "b.refl" then
       let predicate = normalize st expected in
       if reflexive-equality predicate then (CProofRefl at predicate, st)
-      else term-error at "refl requires definitionally equal operands" st
+      else term-error at (refl-failure (proof-context env st) predicate) st
       else (case lookup-binding name env of
         Some (MkErasedBinding display predicate id origin invalidated) -> (case invalidated of
           None -> (CProofRef at predicate id name, unify sp predicate expected st)
@@ -4794,7 +4804,8 @@ module Bootstrap.Infer where
           None -> case stale-proof-message env st (\prior ->
             case try-proof-tactics at gamma prior goal steps of Some witness -> True; None -> False) of
               Some message -> term-error at message st
-              None -> term-error at (string-concat-all ["tactic plan `", plan, "` could not prove `", type-text goal, "`"]) st
+              None -> if disproved-predicate gamma goal then term-error at ("obligation disproved: " <> obligation-text goal) st
+                else term-error at (string-concat-all ["tactic plan `", plan, "` could not prove `", obligation-text goal, "`"]) st
     other -> term-error at "Proof.search expects one literal tactic plan" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
@@ -7704,12 +7715,10 @@ module Bootstrap.Infer where
     Nil -> False
     Cons (DProof sp (DSig at symbol syntax)) rest -> same name symbol || proof-signature-present name rest
     Cons other rest -> proof-signature-present name rest
-  closed-proof-failure :: UType -> String
-  closed-proof-failure predicate = case predicate of
-    UCompare relation (UIndex first (IInteger left)) (UIndex second (IInteger right))
-      | same relation "Eq" && valid-type predicate && left /= right ->
-        "obligation disproved: " <> type-text predicate
-    other -> "kernel refl requires definitionally equal operands"
+  refl-failure :: ProofScope -> UType -> String
+  refl-failure scope predicate = if disproved-predicate scope predicate then
+    "kernel refl requires definitionally equal operands; obligation disproved: " <> obligation-text predicate
+    else "kernel refl requires definitionally equal operands"
   -- Closed named evidence is checked at its declaration. Its uses carry
   -- the same independently checked Core witness as an inline refl.
   register-source-proofs :: TypeContext -> List Decl -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -7726,7 +7735,7 @@ module Bootstrap.Infer where
             (case add-binding sp name (mono closed) "closed-proof" env checked of
               (more, ready) -> register-source-proofs kinds declarations rest more ready)
           else register-source-proofs kinds declarations rest env
-            (add-error location (closed-proof-failure closed) checked)
+            (add-error location (refl-failure (proof-context env checked) closed) checked)
         (clauses, (predicate, checked)) -> register-source-proofs kinds declarations rest env
           (add-error sp "a closed proof needs exactly one argument-free proof equation" checked)
     Cons (DProof sp (DFun at name clauses)) rest ->
