@@ -873,10 +873,174 @@ module Text.Json where
 
   parse-json :: String -> Bytes -> ParseOutcome Json
   parse-json name src =
+    case fast-value src (fast-skip-ws src 0) of
+      JFastOk v end -> if fast-skip-ws src end == bytes-len src then Parsed v Nil else parse-json-checked name src
+      JFastNo -> parse-json-checked name src
+
+  -- The combinator runner: every refusal and its position come from here.
+  parse-json-checked :: String -> Bytes -> ParseOutcome Json
+  parse-json-checked name src =
     let s0 = skip-ws (JState src 0 1 1) in
     case run-jparser-fn (parse-bind json-value (\v -> parse-fmap (\_ -> v) expect-eof-trailing)) s0 of
       JErr c e -> Failed (Bundle name src (Cons e Nil))
       JOk c v s1 e -> Parsed v Nil
+
+
+  -- ---------------------------------------------------------------------------
+  -- The offset scanner: the same grammar for a well-formed document, with
+  -- nothing kept that only a refusal needs.
+  --
+  -- The combinator scanner above carries a cursor (buffer, offset, line,
+  -- column) and answers every step with a reply, so a value costs a cursor
+  -- and a reply per token and an `Option` per peeked byte, all of it to be
+  -- able to say where a malformed document went wrong. A compile reads
+  -- megabytes of interface JSON that is well formed every time, and those
+  -- blocks were most of what reading it allocated
+  -- (design/compilation-speed.md section 2.23).
+  --
+  -- This scanner threads the bare byte offset and decides only documents it
+  -- can accept: `JFastOk` carries the value and the offset after it, and
+  -- `JFastNo` means "not decided here", never "malformed". `parse-json`
+  -- then runs the combinator scanner from the start, which produces the
+  -- refusal with its span, or the value if this scanner was merely being
+  -- cautious. So a refusal is byte for byte what it was, and the two
+  -- scanners can only differ by this one declining.
+  --
+  -- It builds values with the combinator scanner's own pieces wherever the
+  -- piece is not the hot path: an escaped or non-ASCII string goes to
+  -- `scan-string-at`, a number to `scan-number`, a keyword to
+  -- `scan-literal`, a duplicate key to `duplicate-key`. What it owns is the
+  -- plain ASCII string, the punctuation and the spines.
+  -- ---------------------------------------------------------------------------
+
+  data JFast where
+    JFastOk :: Json -> Nat -> JFast
+    JFastNo :: JFast
+
+  data JFastText where
+    JFastText :: String -> Nat -> JFastText
+    JFastTextNo :: JFastText
+
+  fast-skip-ws :: Bytes -> Nat -> Nat
+  fast-skip-ws src i =
+    if i < bytes-len src then (if is-ws (bytes-get src i) then fast-skip-ws src (i + 1) else i)
+    else i
+
+  -- The offset of the quotation mark that closes the plain ASCII body
+  -- starting at `i`, or 0 when the body is not plain (an escape, a control
+  -- byte, a byte above ASCII, or the end of input). A body starts after its
+  -- opening mark, so a closing mark is never at offset 0.
+  fast-string-end :: Bytes -> Nat -> Nat
+  fast-string-end src i =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then i
+      else if nat-cmp b 92 == 0 then 0
+      else if nat-cmp b 32 < 0 then 0
+      else if nat-cmp b 128 < 0 then fast-string-end src (i + 1)
+      else 0
+    else 0
+
+  -- The string whose opening quotation mark is at `quote`.
+  fast-string :: Bytes -> Nat -> JFastText
+  fast-string src quote =
+    let start = quote + 1 in
+    let end = fast-string-end src start in
+    if end == 0 then
+      case scan-string-at (JState src quote 1 1) of
+        JOk c text after e -> JFastText text (state-off after)
+        JErr c e -> JFastTextNo
+    else if end <= bytes-len src then
+      case string-from-bytes (bytes-slice src start end) of
+        Some text -> JFastText text (end + 1)
+        None -> JFastTextNo
+    else JFastTextNo
+
+  fast-reply :: JReply Json -> JFast
+  fast-reply reply = case reply of
+    JOk c v after e -> JFastOk v (state-off after)
+    JErr c e -> JFastNo
+
+  -- The value starting at `i`, which is not whitespace.
+  fast-value :: Bytes -> Nat -> JFast
+  fast-value src i =
+    if i < bytes-len src then
+      let b = bytes-get src i in
+      if nat-cmp b 34 == 0 then
+        case fast-string src i of
+          JFastText text after -> JFastOk (JStr text) after
+          JFastTextNo -> JFastNo
+      else if nat-cmp b 123 == 0 then fast-object src (fast-skip-ws src (i + 1))
+      else if nat-cmp b 91 == 0 then fast-array src (fast-skip-ws src (i + 1))
+      else if nat-cmp b 45 == 0 then fast-reply (scan-number (JState src i 1 1))
+      else if is-digit b then fast-reply (scan-number (JState src i 1 1))
+      else if nat-cmp b 116 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "true") (JBool True))
+      else if nat-cmp b 102 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "false") (JBool False))
+      else if nat-cmp b 110 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "null") JNull)
+      else JFastNo
+    else JFastNo
+
+  -- An object whose opening brace and following whitespace are behind `i`.
+  fast-object :: Bytes -> Nat -> JFast
+  fast-object src i =
+    if i < bytes-len src then
+      (if nat-cmp (bytes-get src i) 125 == 0 then JFastOk JObjEnd (i + 1) else fast-entries src i Nil)
+    else JFastNo
+
+  -- The entries from the key whose opening quotation mark is at `i`.
+  fast-entries :: Bytes -> Nat -> List JEntry -> JFast
+  fast-entries src i acc =
+    if i < bytes-len src then
+      (if nat-cmp (bytes-get src i) 34 == 0 then
+        (case fast-string src i of
+          JFastTextNo -> JFastNo
+          JFastText key after -> fast-entry-value src key (fast-skip-ws src after) acc)
+       else JFastNo)
+    else JFastNo
+
+  fast-entry-value :: Bytes -> String -> Nat -> List JEntry -> JFast
+  fast-entry-value src key colon acc =
+    if colon < bytes-len src then
+      (if nat-cmp (bytes-get src colon) 58 == 0 then
+        (case fast-value src (fast-skip-ws src (colon + 1)) of
+          JFastNo -> JFastNo
+          JFastOk value next -> fast-entry-close src (fast-skip-ws src next) (Cons (JEntry key value) acc))
+       else JFastNo)
+    else JFastNo
+
+  fast-entry-close :: Bytes -> Nat -> List JEntry -> JFast
+  fast-entry-close src close acc =
+    if close < bytes-len src then
+      let b = bytes-get src close in
+      if nat-cmp b 44 == 0 then fast-entries src (fast-skip-ws src (close + 1)) acc
+      else if nat-cmp b 125 == 0 then
+        (let es = reverse acc in
+         case duplicate-key es of
+           Some k -> JFastNo
+           None -> JFastOk (build-obj es) (close + 1))
+      else JFastNo
+    else JFastNo
+
+  -- An array whose opening bracket and following whitespace are behind `i`.
+  fast-array :: Bytes -> Nat -> JFast
+  fast-array src i =
+    if i < bytes-len src then
+      (if nat-cmp (bytes-get src i) 93 == 0 then JFastOk JArrEnd (i + 1) else fast-elements src i Nil)
+    else JFastNo
+
+  fast-elements :: Bytes -> Nat -> List Json -> JFast
+  fast-elements src i acc = case fast-value src i of
+    JFastNo -> JFastNo
+    JFastOk value next -> fast-element-close src (fast-skip-ws src next) (Cons value acc)
+
+  fast-element-close :: Bytes -> Nat -> List Json -> JFast
+  fast-element-close src close acc =
+    if close < bytes-len src then
+      let b = bytes-get src close in
+      if nat-cmp b 44 == 0 then fast-elements src (fast-skip-ws src (close + 1)) acc
+      else if nat-cmp b 93 == 0 then JFastOk (build-arr (reverse acc)) (close + 1)
+      else JFastNo
+    else JFastNo
 
   -- The runner's trailing end-of-input guard: insignificant
   -- whitespace may follow the document (RFC 8259 section 2).
