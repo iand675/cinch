@@ -4294,7 +4294,8 @@ module Bootstrap.Infer where
     ERange s args -> infer classes kinds families env locals (range-expression env s args) st
     EList s args -> infer-collection classes kinds families env locals s args None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
-    ELitInt s text -> checked-literal s (primitive-type "Int") text st
+    ELitInt s text -> (case fresh-meta KType st of
+      (carrier, fresh) -> checked-literal s carrier text fresh)
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     ELitSym s text -> (CSymbol s (primitive-type "Sym") text, st)
@@ -4337,8 +4338,9 @@ module Bootstrap.Infer where
     EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
     EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
-    ENeg s value -> case check classes kinds families env locals value (primitive-type "Int") st of
-      (term, ss) -> (CPrimitive s (primitive-type "Int") "negate" (CArgument s term (CArgumentsEnd s)), ss)
+    ENeg s (ELitInt at text) -> (case fresh-meta KType st of
+      (carrier, fresh) -> checked-literal s carrier (string-concat "-" text) fresh)
+    ENeg s value -> infer classes kinds families env locals (EApp s (EVar s (source-method-symbol "Algebra.Arithmetic.Neg" "negate")) value) st
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
   check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -4678,6 +4680,7 @@ module Bootstrap.Infer where
                   (case (value, predicate) of
                     (CInt at ty numeral, UPropNonZero (UIndex carrier (IInteger zero))) | zero == 0 && (case index-number numeral of Some n -> n == 0; None -> False) && same-type ty carrier ->
                       term-error sp (message <> " because integer literal " <> numeral <> " is not a NonZero " <> display-type-text carrier) st
+                    (CInt at ty numeral, other) -> term-error sp (message <> " because its predicate `" <> obligation-text predicate <> "` is false for integer literal " <> numeral) st
                     other -> term-error sp (message <> " because the obligation `" <> obligation-text predicate <> "` is false for this value") st)
                   else term-error sp (missing-obligation message predicate) st
                 None -> term-error sp message st)
@@ -4687,6 +4690,9 @@ module Bootstrap.Infer where
     UCompare relation left right -> if same relation "Eq" then
       string-concat-all ["Eq ", obligation-text left, " ", obligation-text right]
       else string-concat-all [obligation-text left, " ", relation, " ", obligation-text right]
+    UPropAnd left right -> string-concat-all ["(", obligation-text left, " && ", obligation-text right, ")"]
+    UPropOr left right -> string-concat-all ["(", obligation-text left, " || ", obligation-text right, ")"]
+    UIndex carrier (IInteger value) -> int-to-string value
     UPropNonZero body -> "NonZero " <> obligation-text body
     UPropNonZeroPending body -> "NonZero " <> obligation-text body
     UPropNotNull body -> "NotNull " <> obligation-text body
@@ -5984,6 +5990,7 @@ module Bootstrap.Infer where
         (bound, pattern, ss) -> (bound, CPAs s expected id name pattern, ss)
     PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
+    PLitInt s text | (case normalize st expected of UCon name KType -> has name ["F32", "F64"]; other -> False) -> (env, CPWild s UError, add-error s "floats have no Eq instance for literal patterns" st)
     PLitInt s text -> let actual = normalize st expected in
       let carrier = if integer-carrier actual || wide-carrier actual || (case actual of UMeta id KType -> True; other -> False) then expected else primitive-type "Int" in
       case checked-literal s carrier text (unify s expected carrier st) of

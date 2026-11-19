@@ -611,6 +611,8 @@ module Main where
 
 #[test]
 fn unconstrained_literal_is_an_error() {
+    let source = "module Main where\n  discard :: forall a. a -> Int\n  discard x = 0\n  main :: Int\n  main = discard [1, 2]\n";
+    check_sources(source, "lit-collection-default").expect("the FromList factory selects List Int");
     expect_err(
         "lit-undetermined",
         r#"
@@ -730,6 +732,25 @@ module Main where
   main = 0
 "#,
         "no instance for Ord F32",
+    );
+}
+
+#[test]
+fn prefix_negation_uses_the_operands_own_dictionary() {
+    run_ok(
+        "user-negation",
+        r#"module Main where
+  data Compass where
+    East :: Compass
+    West :: Compass
+  implicit instance Neg_Compass :: Neg Compass where
+    negate x = case x of { East -> West; West -> East }
+  opposite :: forall a. using (n :: Neg a) => a -> a
+  opposite x = -x
+  main :: Int
+  main = case opposite East of { East -> 0; West -> 42 }
+"#,
+        42,
     );
 }
 
