@@ -36,6 +36,47 @@ fn fixture_sources(dir: &Path) -> std::collections::BTreeMap<std::ffi::OsString,
         .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "cinch"))
         .map(|p| (p.file_name().unwrap().to_owned(), std::fs::read(p).unwrap())).collect()
 }
+/// A stage that reproduced its own executable has already linked this exact
+/// compiler. Only reuse it when this fixture and every selected input match.
+fn fixed_point_compiler(
+    files: &std::collections::BTreeMap<String, String>,
+    frontend: &common::external_frontend::Frontend,
+) -> Option<std::path::PathBuf> {
+    use sha2::{Digest, Sha256};
+    let standalone = std::path::PathBuf::from(std::env::var_os("CINCH_TEST_STANDALONE")?);
+    let compiler = standalone.join("cinch").canonicalize().ok()?;
+    let bytes = std::fs::read(compiler.parent()?.join("stage.json")).ok()?;
+    let receipt: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    let inputs = &receipt["inputs"];
+    if receipt["status"] != "built" || inputs["built_by_stage"] != 2 {
+        return None;
+    }
+    let mut sources = Sha256::new();
+    for (name, text) in files {
+        sources.update(name.as_bytes());
+        sources.update([0]);
+        sources.update(text.len().to_string().as_bytes());
+        sources.update([0]);
+        sources.update(text.as_bytes());
+    }
+    if inputs["source_sha256"] != format!("{:x}", sources.finalize()) {
+        return None;
+    }
+    let executable_hash = sha256(&compiler);
+    if receipt["executable_sha256"] != executable_hash || inputs["builder_sha256"] != executable_hash {
+        return None;
+    }
+    for (key, path) in [
+        ("interface_set_sha256", frontend.interfaces.clone()),
+        ("object_configuration_sha256", std::env::var_os("CINCH_TEST_OBJECTS")?.into()),
+        ("runtime_archive_sha256", std::env::var_os("CINCH_TEST_RUNTIME_ARCHIVE")?.into()),
+    ] {
+        if inputs[key] != sha256(&path) {
+            return None;
+        }
+    }
+    Some(compiler)
+}
 fn run(exe: &Path, args: &[&Path], mode: &str, manifest: &Path, objects: &Path) -> std::process::Output {
     // Quarantining every freed parser/metadata node turns a large compiler
     // run into a cumulative allocation budget. Keep normal reclamation and
@@ -311,7 +352,16 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
             assert!(cached[&file] == contents, "cached compiler module changed: {}", file.to_string_lossy());
         }
         compiler
-    } else { common::build_executable(&dir, "Main.cinch", "object-compiler").expect("build actual Cinch CLI") };
+    } else if let Some(compiler) = common::external_frontend::configured().unwrap()
+        .and_then(|frontend| fixed_point_compiler(&compiler_sources, &frontend))
+    {
+        // The receipt already covers the compiler sources. Exercise the selected
+        // project frontend on the fixture's provider before using its object.
+        common::check_diagnostics(&provider, "Provider.cinch").expect("check provider through the selected CLI");
+        compiler
+    } else {
+        common::build_executable(&dir, "Main.cinch", "object-compiler").expect("build actual Cinch CLI")
+    };
     let retained = std::env::var_os("CINCH_TEST_LIBRARY_OBJECT_ARTIFACTS");
     if let Some(path) = &retained {
         std::fs::write(path, Json::obj(vec![("compiler", Json::Str(compiler.display().to_string())), ("compiler_sha256", Json::Str(sha256(&compiler))), ("project", Json::Str(dir.display().to_string())), ("provider", Json::Str(provider.display().to_string()))]).to_text()).unwrap();
