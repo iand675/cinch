@@ -42,7 +42,7 @@ module Bootstrap.Core where
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-resumption-count, handler-body-direct, handler-performs
   export CProofRef, CProofRefl, CProofSearch, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
   export prove-erased-goal, scoped-erased-witness
-  export scoped-list-index, checked-length-index
+  export scoped-list-index, checked-length-index, exact-refined-length
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export string-length-function
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract

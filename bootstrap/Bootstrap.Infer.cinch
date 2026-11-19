@@ -3967,6 +3967,28 @@ module Bootstrap.Infer where
     -- find one; other heads skip the environment scan.
     EVar sp name -> same name "b.decide" && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol "b.decide"; other -> False)
     other -> False
+  -- A global refinement need not have a total index definition. In an
+  -- eliminator, its projected payload can instead be evaluated once, at
+  -- the first strict operand, with the decision and both arms in scope.
+  -- Leave already reifiable subjects alone so their witnesses retain the
+  -- original index. No value moves ahead of a short-circuiting test.
+  measured-case-binding :: List CheckedBinding -> Span -> Expr -> Expr -> Option Expr
+  measured-case-binding env site scrutinee arms = case scrutinee of
+    EApp decision head (EBin test op (EApp measure (EVar at name) (EApp projection get (EVar use global))) rhs)
+      | same name "#kernel.length" && has op ["<", "<=", "==", "/=", ">=", ">"] && decision-syntax-head env head ->
+      (case (projection-syntax-head env get, lookup-binding global env) of
+        (Some intrinsic, Some (MkCheckedBinding symbol scheme role)) | same intrinsic "b.unrefine" ->
+          (case refinement-view (scheme-body scheme) of
+            URefine id display carrier predicate | length-carrier carrier -> (case exact-refined-length (scheme-body scheme) of
+              Some known -> None
+              None -> let local = "#decision-subject" in
+                let subject = EApp projection get (EVar use global) in
+                let reading = EApp measure (EVar at name) (EVar projection local) in
+                let branch = ECase site (EApp decision head (EBin test op reading rhs)) arms in
+                Some (ELet site (EBinding projection local subject (EBindingsEnd site)) branch))
+            other -> None)
+        other -> None)
+    other -> None
   decision-boolean :: Span -> Bool -> CoreTerm
   decision-boolean sp value = CPrimitive sp (primitive-type "Bool") (if value then "decision-true" else "decision-false") (CArgumentsEnd sp)
   decision-call-name :: Expr -> Option String
@@ -4362,10 +4384,12 @@ module Bootstrap.Infer where
         (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes ty sc of
           (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no ty sa of
             (b, sb) -> (CIf s ty c a b, sb)
-    ECase s value alts -> case infer classes kinds families env locals value st of
-      (scrut, sv) -> case fresh-meta KType sv of
-        (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-match-coverage s families env (core-type scrut) alts so) of
-          (alternatives, ss) -> (CCase s out scrut alternatives, ss)
+    ECase s value alts -> case measured-case-binding env s value alts of
+      Some scoped -> infer classes kinds families env locals scoped st
+      None -> case infer classes kinds families env locals value st of
+        (scrut, sv) -> case fresh-meta KType sv of
+          (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-match-coverage s families env (core-type scrut) alts so) of
+            (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
     EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
@@ -4423,9 +4447,11 @@ module Bootstrap.Infer where
       (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
           (b, sb) -> (CIf s expected c a b, sb)
-    ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
-        (branches, done) -> (CCase s expected scrutinee branches, done)
+    ECase s value alternatives -> case measured-case-binding env s value alternatives of
+      Some scoped -> check classes kinds families env locals scoped expected st
+      None -> case infer classes kinds families env locals value st of
+        (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
+          (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
     ELam s ps body -> check-lambda-patterns None classes (handling-context False kinds) families env locals s ps body expected st
@@ -4630,9 +4656,11 @@ module Bootstrap.Infer where
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
     EGuarded s guard body -> check-alt-body classes kinds families env locals expr expected st
-    ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
-        (branches, done) -> (CCase s expected scrutinee branches, done)
+    ECase s value alternatives -> case measured-case-binding env s value alternatives of
+      Some scoped -> check classes kinds families env locals scoped expected st
+      None -> case infer classes kinds families env locals value st of
+        (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
+          (branches, done) -> (CCase s expected scrutinee branches, done)
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
@@ -4721,7 +4749,7 @@ module Bootstrap.Infer where
                     (CInt at ty numeral, UPropNonZero (UIndex carrier (IInteger zero))) | zero == 0 && (case index-number numeral of Some n -> n == 0; None -> False) && same-type ty carrier ->
                       term-error sp (message <> " because integer literal " <> numeral <> " is not a NonZero " <> display-type-text carrier) st
                     (CInt at ty numeral, other) -> term-error sp (message <> " because its predicate `" <> obligation-text predicate <> "` is false for integer literal " <> numeral) st
-                    other -> term-error sp (message <> " because the obligation `" <> obligation-text predicate <> "` is false for this value") st)
+                    other -> term-error sp (message <> " because the obligation `" <> obligation-text predicate <> "` is false for this value, so the discharge fails") st)
                   else term-error sp (missing-obligation message predicate) st
                 None -> term-error sp message st)
 
