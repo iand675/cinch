@@ -1,7 +1,7 @@
 module Main where
   import Bootstrap.Ast
   import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
+  import Bootstrap.Check (check-and-retain, checked-elaboration)
   import Bootstrap.Resolve (resolve-program)
   import Bootstrap.Infer
   import Bootstrap.Core
@@ -79,12 +79,12 @@ module Main where
   run source = if not (kernel (340282366920938463463374607431768211456 + bytes-len source)) then (95, "effect kernel accepted a forged declaration") else
     case parse-program "effect-source" source of
       Parsed program Nil -> case resolve-program program of
-        (resolved, Nil) -> case check-program resolved of
-          Nil -> let result = elaborate-program "effect-source" resolved in
-            case elaboration-errors result of
-              Nil -> if list-length (elaboration-effects result) > 0 && effects-closed (elaboration-effects result) && closed (elaboration-core result) then (0, "") else (94, "typed effect declaration was not retained")
-              errors -> (4, render-diagnostics errors)
-          errors -> (4, render-diagnostics errors)
+        (resolved, Nil) -> case check-and-retain resolved of
+          Err errors -> (4, render-diagnostics errors)
+          Ok checked -> let result = checked-elaboration checked in
+            let effects = elaboration-effects result in
+            if list-length effects > 0 && effects-closed effects && closed (elaboration-core result) then (0, "")
+            else (94, "typed effect declaration was not retained")
         (resolved, errors) -> (4, render-diagnostics errors)
       other -> (2, "effect source parse failed")
   main :: Unit ->{IO r} Int
