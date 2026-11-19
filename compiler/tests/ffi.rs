@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::source_frontend::{check_sources, run_source_objects};
+use common::source_frontend::{check_sources, expect_source_object_fault, run_source_objects};
 use cinch::core::TargetProfile;
 
 /// Compile a C fixture to an object file and return its path.
@@ -564,8 +564,7 @@ fn non_null_contract_violation_faults_without_unwinding() {
 void* fix_null(void) { return 0; }
 "#,
     );
-    expect_ok(
-        "null-result-fault",
+    expect_source_object_fault(
         r#"
 module Main where
   foreign import ccall "fix_null" nullPtr :: () ->{Foreign Fix, Diverge} RawPtr U8
@@ -574,6 +573,6 @@ module Main where
   main _ = let p = nullPtr () in 0
 "#,
         &[&o],
-        71,
-    );
+        "cinchruntime: a foreign boundary contract was violated: null pointer where the binding requires non-null",
+    ).expect("null-result-fault");
 }

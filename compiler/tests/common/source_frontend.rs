@@ -148,6 +148,44 @@ fn required_path(name: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| format!("{name} is required for the selected Cinch frontend"))
 }
 
+fn link_source_objects(
+    frontend: &external_frontend::Frontend, dir: &Path, entry: &str, objects: &[&str], program: &Path,
+) -> Result<(), String> {
+    let ir = dir.join("program.ll");
+    let mut request = external_frontend::Request::default();
+    request.discard_interfaces = true;
+    external_frontend::drive_profile(frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
+    let mut linker = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()));
+    linker.arg(&ir).arg(required_path("CINCH_TEST_LIBRARY_OBJECT")?).args(objects)
+        .arg(required_path("CINCH_TEST_RUNTIME_ARCHIVE")?).arg("-o").arg(program);
+    if cfg!(target_os = "linux") {
+        linker.args(["-ldl", "-lpthread", "-lm"]);
+    }
+    let linked = linker.output().map_err(|error| error.to_string())?;
+    if !linked.status.success() {
+        return Err(format!("clang failed for {}: {}", dir.display(), String::from_utf8_lossy(&linked.stderr)));
+    }
+    Ok(())
+}
+
+/// A runtime fault exits immediately, before the normal shutdown leak report.
+pub fn expect_source_object_fault(source: &str, objects: &[&str], diagnostic: &str) -> Result<(), String> {
+    source_project("Main.cinch", source, |dir, entry| {
+        let program = dir.join("program");
+        match external_frontend::configured()? {
+            Some(frontend) => link_source_objects(&frontend, dir, entry, objects, &program)?,
+            None => driver::build_source_objects(source, objects, &program).map_err(|error| error.to_string())?,
+        }
+        let output = Command::new(&program).env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1")
+            .output().map_err(|error| error.to_string())?;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.code() != Some(71) || !stderr.lines().any(|line| line == diagnostic) {
+            return Err(format!("expected runtime fault 71 with {diagnostic:?}, got {}: {stderr}", output.status));
+        }
+        Ok(())
+    })
+}
+
 fn run_linked_source(
     frontend: &external_frontend::Frontend,
     source: &str,
@@ -155,21 +193,8 @@ fn run_linked_source(
     objects: &[&str],
 ) -> Result<(i32, String), String> {
     source_project("Main.cinch", source, |dir, entry| {
-        let ir = dir.join("program.ll");
-        let mut request = external_frontend::Request::default();
-        request.discard_interfaces = true;
-        external_frontend::drive_profile(frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
         let program = dir.join("program");
-        let mut linker = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()));
-        linker.arg(&ir).arg(required_path("CINCH_TEST_LIBRARY_OBJECT")?).args(objects)
-            .arg(required_path("CINCH_TEST_RUNTIME_ARCHIVE")?).arg("-o").arg(&program);
-        if cfg!(target_os = "linux") {
-            linker.args(["-ldl", "-lpthread", "-lm"]);
-        }
-        let linked = linker.output().map_err(|error| error.to_string())?;
-        if !linked.status.success() {
-            return Err(format!("clang failed for {}: {}", dir.display(), String::from_utf8_lossy(&linked.stderr)));
-        }
+        link_source_objects(frontend, dir, entry, objects, &program)?;
         let mut child = Command::new(&program)
             .env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1")
             .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
