@@ -1,4 +1,4 @@
-//! The ladder as one project: every artifact in `bootstrap/` type-checks when
+//! The ladder as one project: every compiler module in `bootstrap/` type-checks when
 //! assembled with the toolkit the package does not embed, and they can all be
 //! imported together (no ladder module collides with another).
 //!
@@ -16,7 +16,7 @@ fn bootstrap_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../bootstrap")
 }
 
-/// The top-level `bootstrap/*.cinch` modules as (file name, source, module
+/// The top-level `bootstrap/Bootstrap.*.cinch` modules as (file name, source, module
 /// name), read at run time so the test cannot hold a stale copy of a file a
 /// stream is editing.
 fn ladder_modules() -> Vec<(String, String, String)> {
@@ -24,7 +24,9 @@ fn ladder_modules() -> Vec<(String, String, String)> {
     let mut out: Vec<(String, String, String)> = Vec::new();
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())) {
         let path: PathBuf = entry.expect("directory entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("cinch") {
+        if path.extension().and_then(|e| e.to_str()) != Some("cinch")
+            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Bootstrap."))
+        {
             continue;
         }
         let name = path.file_name().expect("file name").to_string_lossy().to_string();
