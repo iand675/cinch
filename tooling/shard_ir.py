@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import concurrent.futures
+import hashlib
 import heapq
 import json
 import os
@@ -461,18 +462,60 @@ def _assignment(module: Module, count: int) -> list[int]:
     return shards
 
 
-def split_module(text: str, count: int) -> list[str]:
-    """K shard texts. Pure function of (text, count)."""
+def _bucket(text: str, count: int) -> int:
+    return int.from_bytes(hashlib.sha256(text.encode()).digest()[:8], "big") % count
+
+
+def _stable_assignment(module: Module, count: int) -> list[int]:
+    """A placement that an edit elsewhere does not move.
+
+    The balanced assignment above packs groups onto the least loaded shard,
+    so one function growing by a line can shift every later group and change
+    every shard's text. That is right for a build that compiles every shard
+    anyway and wrong for one that reuses objects by content (`ObjectCache`):
+    there a shard's text should depend on the functions placed in it and on
+    nothing else.
+
+    Here a function's shard is a hash of its group's name, so it moves only
+    when the function is renamed. Shard 0 holds the module-level content and
+    no functions, which keeps a new string constant from recompiling code. A
+    group above the fair share is cut into a power-of-two number of pieces by
+    a hash of each function's own name; the piece count changes only when the
+    group doubles or halves against the share, not on every edit. The price
+    is balance: the shards are as even as the hash, not as even as possible.
+    """
+    if count < 2:
+        raise ShardError("a stable partition needs at least two shards")
+    buckets = count - 1
+    line_counts = [unit.lines() for unit in module.functions]
+    share = max(1, -(-sum(line_counts) // buckets))
+    sizes: dict[str, int] = {}
+    groups = [group_of(unit.name) for unit in module.functions]
+    for group, lines in zip(groups, line_counts):
+        sizes[group] = sizes.get(group, 0) + lines
+    pieces = {group: 1 if size <= share else 1 << (-(-size // share) - 1).bit_length()
+              for group, size in sizes.items()}
+    shards = []
+    for unit, group in zip(module.functions, groups):
+        piece = 0
+        if pieces[group] > 1:
+            piece = _bucket(GENERATED_SUFFIX.sub("", unit.name), pieces[group])
+        shards.append(1 + _bucket(f"{group}#{piece}", buckets))
+    return shards
+
+
+def split_module(text: str, count: int, stable: bool = False) -> list[str]:
+    """K shard texts. Pure function of (text, count, stable)."""
     if count < 1:
         raise ShardError("shard count must be positive")
     if count == 1:
         return [text]
-    return ["".join(parts) for parts in _shard_parts(parse_module(text), count)]
+    return ["".join(parts) for parts in _shard_parts(parse_module(text), count, stable)]
 
 
-def _shard_parts(module: Module, count: int) -> Iterator[list[str]]:
+def _shard_parts(module: Module, count: int, stable: bool = False) -> Iterator[list[str]]:
     """Yield references to the original IR blocks for one shard at a time."""
-    shard_of_function = _assignment(module, count)
+    shard_of_function = _stable_assignment(module, count) if stable else _assignment(module, count)
     definitions: dict[str, Unit] = {unit.name: unit for unit in module.functions}
     definitions.update({unit.name: unit for unit in module.globals})
     per_shard: list[list[Unit]] = [[] for _ in range(count)]
@@ -524,7 +567,7 @@ def _shard_parts(module: Module, count: int) -> Iterator[list[str]]:
 
 
 def write_shards(ir_path: Path, directory: Path, count: int,
-                 stem: str = "compiler") -> list[Path]:
+                 stem: str = "compiler", stable: bool = False) -> list[Path]:
     """Write `<stem>.shard<k>.ll`; K=1 returns the original IR untouched."""
     if count == 1:
         return [ir_path]
@@ -535,7 +578,7 @@ def write_shards(ir_path: Path, directory: Path, count: int,
     # A later shard can still discover an invalid reference. Finish the
     # entire split before replacing any files from a previous build.
     with tempfile.TemporaryDirectory(dir=directory) as temporary:
-        for path, parts in zip(paths, _shard_parts(module, count)):
+        for path, parts in zip(paths, _shard_parts(module, count, stable)):
             with (Path(temporary) / path.name).open("w") as output:
                 output.writelines(parts)
         for path in paths:
@@ -564,17 +607,87 @@ def run_parallel(commands: list[list[str]], jobs: int, cwd: Path,
     return results
 
 
+class ObjectCache:
+    """Shard objects kept by what determines them.
+
+    A shard's object is a function of its IR text, the clang that compiles
+    it and the flags. The key is exactly those, so a hit is the object this
+    compile would have produced, and the cache is advisory: deleting it costs
+    time and nothing else. Two cases stay out of it. A profile-instrumented
+    or profile-use compile also depends on the path clang is handed (see
+    `shard_directory`), so it is never keyed here. And an audited chain does
+    not set a cache at all: each stage compiling its own IR is part of what
+    the fixed point claims.
+    """
+
+    def __init__(self, directory: Path, clang: str):
+        self.directory = directory
+        self.directory.mkdir(parents=True, exist_ok=True)
+        version = subprocess.run([clang, "--version"], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT).stdout
+        self.toolchain = hashlib.sha256(str(clang).encode() + b"\0" + version).hexdigest()
+        self.hits = 0
+        self.misses = 0
+
+    @staticmethod
+    def admits(flags: tuple[str, ...]) -> bool:
+        return not any(word.startswith(("-fprofile", "-fcs-profile", "-fcoverage"))
+                       for word in flags)
+
+    def key(self, shard: Path, flags: list[str]) -> Path:
+        identity = "\0".join([self.toolchain, file_digest(shard), *flags])
+        return self.directory / (hashlib.sha256(identity.encode()).hexdigest() + ".o")
+
+    def fetch(self, entry: Path, obj: Path) -> bool:
+        if not entry.is_file():
+            self.misses += 1
+            return False
+        obj.unlink(missing_ok=True)
+        try:
+            os.link(entry, obj)
+        except OSError:
+            shutil.copyfile(entry, obj)
+        self.hits += 1
+        return True
+
+    def store(self, entry: Path, obj: Path) -> None:
+        temporary = entry.with_name(f"{entry.name}.{os.getpid()}.tmp")
+        shutil.copyfile(obj, temporary)
+        temporary.replace(entry)
+
+
+def object_cache(clang: str, flags: tuple[str, ...]) -> ObjectCache | None:
+    """The cache CINCH_SHARD_CACHE names, when these flags may use one."""
+    directory = os.environ.get("CINCH_SHARD_CACHE")
+    if not directory or not ObjectCache.admits(flags):
+        return None
+    return ObjectCache(Path(directory), clang)
+
+
 def compile_shards(shards: list[Path], objects: list[Path], clang: str,
                    opt_level: int, jobs: int, cwd: Path,
                    env: dict[str, str] | None = None,
-                   extra: tuple[str, ...] = ()) -> tuple[int, str]:
+                   extra: tuple[str, ...] = (),
+                   cache: ObjectCache | None = None) -> tuple[int, str]:
     """Compile every shard to its object; return (first failure, combined log)."""
-    commands = [[clang, f"-O{opt_level}", "-Wno-override-module", *extra,
-                 "-c", str(shard), "-o", str(obj)]
-                for shard, obj in zip(shards, objects)]
-    results = run_parallel(commands, jobs, cwd, env)
+    flags = [f"-O{opt_level}", "-Wno-override-module", *extra]
+    entries = [cache.key(shard, flags) if cache else None for shard in shards]
+    pending = [k for k, (obj, entry) in enumerate(zip(objects, entries))
+               if entry is None or not cache.fetch(entry, obj)]
+    commands = [[clang, *flags, "-c", str(shards[k]), "-o", str(objects[k])] for k in pending]
+    results: list[tuple[int, str]] = [(0, "reused from the object cache\n")] * len(shards)
+    # Largest first: the pool then ends on small jobs instead of waiting on
+    # one big shard that was queued last.
+    order = sorted(range(len(pending)), key=lambda at: -shards[pending[at]].stat().st_size)
+    ran = run_parallel([commands[at] for at in order], jobs, cwd, env)
+    for at, result in zip(order, ran):
+        results[pending[at]] = result
+        if cache and result[0] == 0:
+            cache.store(entries[pending[at]], objects[pending[at]])
     log = "".join(f"shard{k}: exit {code}\n{output}"
                   for k, (code, output) in enumerate(results))
+    if cache:
+        log += f"object cache: {cache.hits} reused, {cache.misses} compiled\n"
     failure = next((code for code, _ in results if code), 0)
     return failure, log
 
@@ -663,10 +776,14 @@ def clang_main(argv: list[str]) -> int:
     append = _append_flags()
     record_invocation(argv)
     jobs = int(os.environ.get("CINCH_BOOTSTRAP_JOBS", "1"))
+    # The shard count is the job count unless the caller separates them: a
+    # cached build wants many small stable shards and a few workers.
+    count = int(os.environ.get("CINCH_BOOTSTRAP_SHARDS") or jobs)
+    stable = os.environ.get("CINCH_SHARD_PARTITION") == "stable"
     threshold = int(os.environ.get("CINCH_SHARD_MIN_BYTES", str(4 << 20)))
     ir_inputs = [Path(word) for word in inputs if word.endswith(".ll")]
     compile_only = "-c" in argv or "-S" in argv or "-E" in argv
-    if (compile_only or jobs <= 1 or len(ir_inputs) != 1
+    if (compile_only or count <= 1 or len(ir_inputs) != 1
             or any(word.partition("=")[0] in ("-target", "--target", "-arch") for word in argv)
             or ir_inputs[0].stat().st_size < threshold
             or output is None):
@@ -689,14 +806,16 @@ def clang_main(argv: list[str]) -> int:
     shutil.rmtree(directory, ignore_errors=True)
     directory.mkdir(parents=True)
     try:
-        shards = write_shards(ir_path, directory, jobs)
-        objects = object_paths(directory, jobs)
+        shards = write_shards(ir_path, directory, count, stable=stable)
+        objects = object_paths(directory, count)
         failure, log = compile_shards(shards, objects, real, opt_level,
                                       jobs, directory, os.environ.copy(),
-                                      compile_flags)
+                                      compile_flags, object_cache(real, compile_flags))
         if failure:
             sys.stderr.write(log)
             return failure
+        if log.rstrip().endswith("compiled"):
+            sys.stderr.write(log.rstrip().rsplit("\n", 1)[-1] + "\n")
         return subprocess.run([real, *[str(obj) for obj in objects], *link_inputs,
                                "-o", str(output), *append, *link_flags]).returncode
     finally:

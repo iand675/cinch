@@ -43,6 +43,16 @@ RUNTIME_ABIS = (5, 6, 7, 8, 9, 10)
 # Parallel clang jobs for the stage link. 1 keeps the single-module
 # translation unit; above 1 the module is sharded (see tooling/shard_ir.py).
 JOBS = 1
+# How many shards the stage module is cut into, and how. By default the count
+# is JOBS and the partition is the balanced one. A development build
+# (`--dev`) separates the two: many shards placed by a hash of their module's
+# name, so an edit changes the text of the shards it touches and no others,
+# and tooling/shard_ir.py's object cache (CINCH_SHARD_CACHE) recompiles only
+# those. Both are part of a stage's cache identity, because the linked
+# binary depends on where the module was cut.
+SHARDS = 1
+STABLE_SHARDS = False
+DEV_SHARDS = 48
 # Profile-guided optimization of the stage links (see tooling/pgo.py). The
 # shipped default is on. `main` resolves --pgo/--no-pgo or
 # CINCH_BOOTSTRAP_PGO into PGO, so a caller that never resolved it builds the
@@ -129,6 +139,16 @@ def git_root() -> Path:
 
 
 def native_source_archive(revision: str) -> bytes:
+    # A sandboxed build (Nix) has no git history. CINCH_SOURCE_ARCHIVES names
+    # a directory of `<revision>.tar` files to read instead; the callers
+    # check the extracted tree against the pinned source hash either way, so
+    # an archive from elsewhere cannot stand in for the pinned one.
+    supplied = os.environ.get("CINCH_SOURCE_ARCHIVES")
+    if supplied:
+        archive = Path(supplied) / f"{revision}.tar"
+        if not archive.is_file():
+            raise BootstrapError(f"CINCH_SOURCE_ARCHIVES has no archive for the pinned revision: {archive}")
+        return archive.read_bytes()
     paths = ["compiler"]
     where = git_root()
     build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", NATIVE_BUILD_SCRIPT],
@@ -154,8 +174,11 @@ def extract_sources(archive: bytes, directory: Path) -> None:
 def environment() -> dict[str, str]:
     env = os.environ.copy()
     # Root-launched tools do not read compiler/.cargo/config.toml. Keep
-    # stage builds and any test subprocesses serial here as well.
-    env["CARGO_BUILD_JOBS"] = "1"
+    # stage builds and any test subprocesses serial here as well, unless the
+    # caller owns the machine and says otherwise: CINCH_CARGO_JOBS widens the
+    # Cargo worker pool (dependency crates build side by side; the outputs
+    # are the same, since the codegen-unit count below is still pinned).
+    env["CARGO_BUILD_JOBS"] = os.environ.get("CINCH_CARGO_JOBS") or "1"
     env["RUST_TEST_THREADS"] = "1"
     for profile in ("DEV", "TEST", "RELEASE"):
         env[f"CARGO_PROFILE_{profile}_CODEGEN_UNITS"] = "1"
@@ -360,19 +383,25 @@ def stage_link_environment(append: str | None = None,
     clang for everything else. JOBS == 1 and no appended flags leaves the
     seed untouched, because then the wrapper has nothing to do.
     """
-    if JOBS <= 1 and append is None:
+    if SHARDS <= 1 and append is None:
         return {}
     wrapper = (ROOT / "tooling" / "shard_ir.py").resolve()
     real = os.environ.get("CINCH_CLANG") or shutil.which("clang") or "clang"
     if Path(real).resolve() == wrapper:
         real = shutil.which("clang") or "clang"
     env = {"CINCH_CLANG": str(wrapper), "CINCH_CLANG_REAL": str(real),
-           "CINCH_BOOTSTRAP_JOBS": str(JOBS)}
+           "CINCH_BOOTSTRAP_JOBS": str(JOBS), "CINCH_BOOTSTRAP_SHARDS": str(SHARDS),
+           "CINCH_SHARD_PARTITION": "stable" if STABLE_SHARDS else "balanced"}
     if append is not None:
         env["CINCH_CLANG_APPEND"] = append
     if record is not None:
         env["CINCH_CLANG_RECORD"] = str(record)
     return env
+
+
+def shard_identity() -> dict:
+    # Absent for the balanced partition, so existing receipts stay valid.
+    return {"shard_partition": "stable"} if STABLE_SHARDS else {}
 
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
@@ -453,6 +482,26 @@ def library_provider_lock() -> dict:
     return lock
 
 
+def prebuilt_compiler(revision: str) -> Path | None:
+    """A pinned Rust compiler somebody else already built, or None.
+
+    CINCH_PREBUILT_COMPILERS names a directory of `<revision>/cinch`
+    executables. It exists for builds where the cargo step is its own cached
+    unit (the Nix derivations in tooling/nix): the release build of a pinned
+    revision is a function of that revision and the toolchain, so it should
+    not be repeated because a file in tooling/ changed. Whoever sets the
+    variable vouches for the binary; the source snapshot is still checked
+    against the pin, and the default (unset) builds from it as before.
+    """
+    supplied = os.environ.get("CINCH_PREBUILT_COMPILERS")
+    if not supplied:
+        return None
+    product = Path(supplied) / revision / "cinch"
+    if not (product.is_file() and os.access(product, os.X_OK)):
+        raise BootstrapError(f"CINCH_PREBUILT_COMPILERS has no executable for the pinned revision: {product}")
+    return product
+
+
 def build_seed() -> Path:
     lock, patch = seed_inputs()
     inputs = {"protocol": PROTOCOL, "host": HOST, "seed": lock}
@@ -479,9 +528,14 @@ def build_seed() -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     target = BUILD / "cargo" / snapshot_id
     log = directory / "build.log"
-    code = run(["cargo", "build", "--locked", "--release", "--bin", "cinch",
-                "--target-dir", target], snapshot / "compiler", log)
-    product = target / "release" / "cinch"
+    product = prebuilt_compiler(lock["revision"])
+    if product is not None:
+        log.write_text(f"prebuilt pinned compiler: {product}\n")
+        code = 0
+    else:
+        code = run(["cargo", "build", "--locked", "--release", "--bin", "cinch",
+                    "--target-dir", target], snapshot / "compiler", log)
+        product = target / "release" / "cinch"
     if code == 0 and product.is_file():
         shutil.copy2(product, directory / "cinch")
     else:
@@ -509,6 +563,62 @@ def build_seed_runtime() -> Path:
     if any(p.stat().st_mtime_ns > archive.stat().st_mtime_ns for p in sources):
         raise BootstrapError("the optimized seed runtime is older than its source")
     return archive
+
+
+# The parts of a build tree that depend only on the pins (the seed, the
+# library producer and their sources), never on the compiler sources or on
+# where the tree lives: their receipts hold hashes, not paths. They are the
+# expensive, rarely-changing half of a cold chain (two release cargo builds),
+# so they are what a binary cache keeps across commits. Stage directories are
+# deliberately absent: a stage-2/3 receipt covers `objects.json`, which names
+# the library object by absolute path.
+PIN_KEYED = ("stage0", "seed-sources", "library-sources", "library-provider")
+# Cargo's own target directories are rebuilt inputs, not artifacts. The seed
+# runtime's target stays: `build_seed_runtime` and the seed's own driver read
+# the archive in place, and it is a few megabytes.
+PIN_SCRATCH = ("cargo", "library-cargo", "library-runtime")
+
+
+def build_pins() -> None:
+    """Build everything the pins determine, and nothing the sources do."""
+    build_seed()
+    build_seed_runtime()
+    runtime_provider()
+    print("bootstrap: pin-keyed artifacts built", flush=True)
+
+
+def hydrate(source: Path) -> None:
+    """Copy pin-keyed artifacts from a prebuilt tree into this build tree.
+
+    The copy is advisory: every consumer re-verifies what it finds against
+    the pins (`cached`, `source_hash`, the provider receipt), so a tree
+    built for other pins is rebuilt rather than trusted. Existing entries
+    are kept, which makes the command safe to repeat.
+    """
+    if not source.is_dir():
+        raise BootstrapError(f"no prebuilt bootstrap tree at {source}")
+    copied = []
+    for name in PIN_KEYED:
+        origin, target = source / name, BUILD / name
+        if not origin.is_dir():
+            continue
+        children = [origin] if name == "stage0" else sorted(p for p in origin.iterdir() if p.is_dir())
+        for child in children:
+            destination = target if name == "stage0" else target / child.name
+            if destination.exists():
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_name(destination.name + ".hydrating")
+            shutil.rmtree(temporary, ignore_errors=True)
+            # Preserve modification times: the seed runtime check compares
+            # the archive's against its sources'.
+            shutil.copytree(origin if name == "stage0" else child, temporary, symlinks=True)
+            for path in [temporary, *temporary.rglob("*")]:
+                if not path.is_symlink():
+                    path.chmod(path.stat().st_mode | 0o200 | (0o100 if path.is_dir() else 0))
+            temporary.rename(destination)
+            copied.append(str(destination.relative_to(BUILD)))
+    print("bootstrap: hydrated " + (", ".join(copied) if copied else "nothing (already present)"), flush=True)
 
 
 def runtime_abi_source(abi: int) -> bytes:
@@ -663,7 +773,7 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     runtime = build_seed_runtime()
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": stage - 1,
-              "shard_count": JOBS, "seed_flags": seed_flags(),
+              "shard_count": SHARDS, **shard_identity(), "seed_flags": seed_flags(),
               "seed_runtime_profile": "release", "seed_runtime_sha256": file_hash(runtime)}
     directory = BUILD / f"stage{stage}"
     compiler = directory / "cinch"
@@ -739,7 +849,7 @@ def link_directory(ir: Path, fingerprint: str) -> Path:
 # The bootstrap lock covers the shared IR directory throughout a stage chain.
 # Record only the bytes split by this process. Each stage still compiles its
 # own emitted IR into native objects and links its own executable.
-_link_shards: dict[tuple[Path, str, int], dict[Path, str]] = {}
+_link_shards: dict[tuple[Path, str, int, bool], dict[Path, str]] = {}
 
 
 def prepare_link_ir(ir: Path, jobs: int) -> tuple[Path, list[Path]]:
@@ -749,12 +859,12 @@ def prepare_link_ir(ir: Path, jobs: int) -> tuple[Path, list[Path]]:
     shared = link_directory(ir, fingerprint)
     if jobs == 1:
         return shared, [shared]
-    key = (shared, fingerprint, jobs)
+    key = (shared, fingerprint, jobs, STABLE_SHARDS)
     previous = _link_shards.get(key)
     if previous and all(path.is_file() and file_hash(path) == expected
                         for path, expected in previous.items()):
         return shared, list(previous)
-    shards = write_shards(shared, shared.parent, jobs)
+    shards = write_shards(shared, shared.parent, jobs, stable=STABLE_SHARDS)
     _link_shards.clear()
     _link_shards[key] = {path: file_hash(path) for path in shards}
     return shared, shards
@@ -772,7 +882,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     sources = source_hash(files)
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": sources,
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
-              "shard_count": JOBS,
+              "shard_count": SHARDS, **shard_identity(),
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
               "interface_output": "checked-schema10" if publish_interfaces else "none",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
@@ -831,10 +941,10 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         # object and the runtime archive are native Mach-O, not bitcode, so
         # 25,390 of the module's 203,698 call sites stay cross-object calls.
         # design/compilation-speed.md section 8 has the tables.
-        from shard_ir import compile_shards, object_paths
+        from shard_ir import compile_shards, object_cache, object_paths
         clang = os.environ.get("CINCH_CLANG", "clang")
-        link_ir, shards = prepare_link_ir(ir, JOBS)
-        shard_objects = object_paths(directory, JOBS) if JOBS > 1 else None
+        link_ir, shards = prepare_link_ir(ir, SHARDS)
+        shard_objects = object_paths(directory, SHARDS) if SHARDS > 1 else None
 
         def link(output: Path, flags: tuple[str, ...], sharded: bool = True) -> int:
             """Compile the emitted IR and link it into output.
@@ -845,9 +955,10 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
             the same link as one unit runs the workload, so the one link
             whose speed does not matter is built the way that works.
             """
-            if sharded and JOBS > 1:
+            if sharded and SHARDS > 1:
                 failure, shard_log = compile_shards(shards, shard_objects, clang, opt_level, JOBS,
-                                                    directory, environment(), flags)
+                                                    directory, environment(), flags,
+                                                    object_cache(clang, flags))
                 with log.open("ab") as stream:
                     stream.write(shard_log.encode())
                 if failure:
@@ -1091,11 +1202,19 @@ def check_changed_source() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("build", "smoke", "check", "status"))
+    parser.add_argument("command", choices=("build", "smoke", "check", "status", "pins", "hydrate"))
+    parser.add_argument("--from", dest="prebuilt", type=Path,
+                        help="hydrate: a prebuilt bootstrap tree (for example a Nix output) to copy pin-keyed artifacts from")
     parser.add_argument("--stage", type=int, choices=range(4), default=1)
     parser.add_argument("-j", "--jobs", type=int, default=None,
                         help="parallel clang shard jobs (default: half the cores; "
                              "CINCH_BOOTSTRAP_JOBS; 1 keeps the single module)")
+    parser.add_argument("--dev", action="store_true",
+                        help="development build: no PGO, a stable partition into "
+                             f"{DEV_SHARDS} shards, and shard objects reused by content from "
+                             "CINCH_SHARD_CACHE (default: <build>/shard-cache). Not for an audited chain")
+    parser.add_argument("--shards", type=int, default=None,
+                        help="shard count when it should differ from --jobs (CINCH_BOOTSTRAP_SHARDS)")
     parser.add_argument("--pgo", dest="pgo", action="store_true", default=None,
                         help="link the stage compilers with a source-keyed profile "
                              f"(default: {'on' if PGO_DEFAULT else 'off'}; CINCH_BOOTSTRAP_PGO)")
@@ -1105,10 +1224,21 @@ def main() -> int:
                         help="verified current-source base receipt for stages 2/3; leaves the seed and library pins unchanged")
     args = parser.parse_args()
     try:
-        global JOBS, PGO, LIBRARY_ARTIFACT
+        global JOBS, PGO, LIBRARY_ARTIFACT, SHARDS, STABLE_SHARDS
         LIBRARY_ARTIFACT = args.library_artifact.resolve() if args.library_artifact is not None else None
         JOBS = resolve_jobs(args.jobs)
         PGO = resolve_pgo(args.pgo)
+        requested = args.shards if args.shards is not None else os.environ.get("CINCH_BOOTSTRAP_SHARDS")
+        SHARDS = int(requested) if requested else JOBS
+        STABLE_SHARDS = os.environ.get("CINCH_SHARD_PARTITION") == "stable"
+        if args.dev:
+            if args.pgo:
+                raise BootstrapError("--dev builds without a profile; drop --pgo")
+            PGO, STABLE_SHARDS = False, True
+            SHARDS = int(requested) if requested else DEV_SHARDS
+            os.environ.setdefault("CINCH_SHARD_CACHE", str(BUILD / "shard-cache"))
+        if not 1 <= SHARDS <= 4096 or (STABLE_SHARDS and SHARDS < 2):
+            raise BootstrapError("--shards must be between 1 and 4096, and at least 2 for a stable partition")
         environment()
         BUILD.mkdir(parents=True, exist_ok=True)
         # Serialize mutations of the stage cache; ordinary cargo test runs
@@ -1132,6 +1262,12 @@ def main() -> int:
             FROZEN_SOURCES = collect_compiler_sources()
         if args.command == "build":
             build_stage(args.stage)
+        elif args.command == "pins":
+            build_pins()
+        elif args.command == "hydrate":
+            if args.prebuilt is None:
+                raise BootstrapError("hydrate needs --from DIR")
+            hydrate(args.prebuilt.resolve())
         elif args.command == "smoke":
             smoke(args.stage, build_stage(args.stage))
         elif args.command == "check":

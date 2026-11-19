@@ -77,3 +77,82 @@ class DeclarationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _module(bodies):
+    """Twelve one-function groups and a string constant, each calling the next."""
+    names = [f"M{k}.f" for k in range(12)]
+    parts = ['@text = private constant [2 x i8] c"a\\00"\n']
+    for k, name in enumerate(names):
+        callee = names[(k + 1) % len(names)]
+        parts.append(f"define i32 @{name}(i32 %x) {{\n  %y = call i32 @{callee}(i32 %x)\n"
+                     f"  ret i32 {bodies.get(name, k)}\n}}\n")
+    return "".join(parts)
+
+
+class StablePartitionTests(unittest.TestCase):
+    def test_a_body_edit_changes_one_shard(self):
+        before = shard_ir.split_module(_module({}), 8, stable=True)
+        after = shard_ir.split_module(_module({"M5.f": 99}), 8, stable=True)
+        self.assertEqual(len(before), 8)
+        self.assertEqual(sum(a != b for a, b in zip(before, after)), 1)
+        # The balanced partition is still what an unmarked split gets.
+        self.assertEqual(shard_ir.split_module(_module({}), 8),
+                         shard_ir.split_module(_module({}), 8, stable=False))
+
+    def test_module_level_content_has_its_own_shard(self):
+        shards = shard_ir.split_module(_module({}), 8, stable=True)
+        self.assertIn("@text = private constant", shards[0])
+        self.assertNotIn("define", shards[0])
+        defined = sorted(name for shard in shards for name in
+                         (unit.name for unit in shard_ir.parse_module(shard).functions))
+        self.assertEqual(defined, sorted(f"M{k}.f" for k in range(12)))
+
+    def test_one_shard_cannot_be_stable(self):
+        with self.assertRaisesRegex(shard_ir.ShardError, "at least two"):
+            shard_ir._stable_assignment(shard_ir.parse_module(_module({})), 1)
+
+
+class ObjectCacheTests(unittest.TestCase):
+    def compile(self, directory, texts, cache_directory, flags=()):
+        """Compile shard texts with a counting stand-in for clang."""
+        clang = directory / "clang"
+        clang.write_text("#!/bin/sh\n"
+                         'if [ "$1" = --version ]; then echo fake clang 1; exit 0; fi\n'
+                         f'echo run >> "{directory}/calls"\n'
+                         'while [ "$1" != -c ]; do shift; done\n'
+                         'cp "$2" "$4"\n')
+        clang.chmod(0o755)
+        shards, objects = [], []
+        for k, text in enumerate(texts):
+            shards.append(directory / f"s{k}.ll")
+            shards[-1].write_text(text)
+            objects.append(directory / f"s{k}.o")
+            objects[-1].unlink(missing_ok=True)
+        with patch.dict(os.environ, CINCH_SHARD_CACHE=str(cache_directory)):
+            cache = shard_ir.object_cache(str(clang), tuple(flags))
+        code, log = shard_ir.compile_shards(shards, objects, str(clang), 2, 2, directory,
+                                            None, tuple(flags), cache)
+        self.assertEqual(code, 0, log)
+        calls = directory / "calls"
+        count = len(calls.read_text().splitlines()) if calls.exists() else 0
+        calls.unlink(missing_ok=True)
+        return count, [obj.read_text() for obj in objects]
+
+    def test_unchanged_shards_are_reused_and_changed_ones_compiled(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            cache = directory / "cache"
+            self.assertEqual(self.compile(directory, ["a", "b", "c"], cache), (3, ["a", "b", "c"]))
+            self.assertEqual(self.compile(directory, ["a", "b", "c"], cache), (0, ["a", "b", "c"]))
+            self.assertEqual(self.compile(directory, ["a", "B", "c"], cache), (1, ["a", "B", "c"]))
+            # Different flags are a different object.
+            self.assertEqual(self.compile(directory, ["a"], cache, ("-fno-inline",))[0], 1)
+
+    def test_profile_compiles_never_use_the_cache(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            flags = ("-fprofile-use=x.profdata",)
+            self.assertEqual(self.compile(directory, ["a"], directory / "cache", flags)[0], 1)
+            self.assertEqual(self.compile(directory, ["a"], directory / "cache", flags)[0], 1)
+            self.assertFalse((directory / "cache").exists())
