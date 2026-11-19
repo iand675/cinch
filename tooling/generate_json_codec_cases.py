@@ -391,7 +391,7 @@ def program(suite: str, fixture: dict) -> str:
             "JsonRawMessage": ("json-raw-type", '(json-raw-from-bytes (string-to-bytes "{\\\"before\\\":true}"))'),
             "ApplicationRecord": ("(app-type ())", '(App 7 "before" False 9 0)'),
         }
-        labels = {"map[string]int64":"JsonMap String I64","map[int64]string":"JsonMap I64 String","map[uint64]string":"JsonMap U64 String","map[bool]int64":"JsonMap Bool I64","map[main.foldKey]int64":"JsonMap TextKey I64","main.foldKey":"TextKey","int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float32":"F32","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
+        labels = {"map[string]int64":"JsonMap String I64","map[int64]string":"JsonMap I64 String","map[uint64]string":"JsonMap U64 String","map[bool]int64":"JsonMap Bool I64","map[main.foldKey]int64":"JsonMap TextKey I64","main.foldKey":"TextKey","int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float32":"F32","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array 3 I64", "main.applicationRecord":"ApplicationRecord"}
         for row in fixture["typed"]:
             if row["type"] not in descriptors:
                 continue

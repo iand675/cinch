@@ -219,7 +219,7 @@ module Main where
       (typed-case (json-slice-type json-int64-type) (string-to-bytes "[null,2]") (Some [7,8,9]) (string-to-bytes "[7,2]") "" 0 "" "" ""),
       (typed-case (json-fixed-array-type json-int64-type 3) (string-to-bytes "[null,2]") (array-from-list [7,8,9]) (string-to-bytes "[7,2,0]") "" 0 "" "" ""),
       (typed-case (json-slice-type json-int64-type) (string-to-bytes "{}") (Some [7,8,9]) (string-to-bytes "[7,8,9]") "type" 1 "object" "List I64" ""),
-      (typed-case (json-fixed-array-type json-int64-type 3) (string-to-bytes "{}") (array-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 1 "object" "Array" ""),
+      (typed-case (json-fixed-array-type json-int64-type 3) (string-to-bytes "{}") (array-from-list [7,8,9]) (string-to-bytes "[7,8,9]") "type" 1 "object" "Array 3 I64" ""),
       (typed-case (app-type ()) (string-to-bytes "null") (App 7 "before" False 9 0) (string-to-bytes "{\"id\":7,\"name\":\"before\",\"quoted\":\"9\"}") "" 0 "" "" "")] 37
 
   -- | Evaluate bounded independent typed checks with global failure indexes.
