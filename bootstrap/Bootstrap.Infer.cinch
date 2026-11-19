@@ -823,7 +823,7 @@ module Bootstrap.Infer where
     -- A bare closed predicate applies to this refinement's own fresh value,
     -- never to a same-spelled source binding or surrounding argument.
     let applied = case predicate of
-          TName at name -> if same name "NonZero" then TApp at predicate (TArg at (TName at "#result") (TArgsEnd at)) else predicate
+          TName at name -> if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then TApp at predicate (TArg at (TName at "#result") (TArgsEnd at)) else predicate
           other -> predicate in
     convert-refined-predicate external kinds locals sp applied syntax st
   convert-refined-predicate :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
@@ -4666,7 +4666,9 @@ module Bootstrap.Infer where
     other -> case refinement-view (normalize st (core-type term)) of
       URefine id name domain predicate -> let direct = unify sp (core-type term) expected st in
         if list-length (store-errors direct) == list-length (store-errors st) then (term, direct)
-        else materialize-refinement env sp expected carrier term st
+        else (case term of
+          CLocal at ty local display Nil -> introduce-refinement env sp expected (CForget sp domain term) (unify sp domain carrier st)
+          other -> materialize-refinement env sp expected carrier term st)
       other -> let unified = unify sp (core-type term) carrier st in
         case introduce-refinement env sp expected term unified of
           (result, done) -> if list-length (store-errors done) == list-length (store-errors unified) || not (certified-arithmetic-operand term) then (result, done)
@@ -4696,7 +4698,9 @@ module Bootstrap.Infer where
       let binding = MkLocalBinding name scheme id (store-level fresh) in
       let bound = proof-let-env env binding id scheme term fresh in
       let local = CLocal sp actual id name Nil in
-      let value = project-comparison sp local fresh in
+      let value = case refinement-view actual of
+            URefine binder display domain predicate -> CForget sp domain local
+            other -> local in
       case introduce-refinement bound sp expected value (unify sp (core-type value) carrier fresh) of
         (result, checked) -> (CLet sp expected id name scheme term result, checked)
   introduce-refinement :: List CheckedBinding -> Span -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
@@ -4711,7 +4715,9 @@ module Bootstrap.Infer where
         None -> case stale-proof-message env st (\prior ->
           case scoped-prove-refinement gamma prior refined value of Some evidence -> True; None -> False) of
             Some message -> term-error sp message st
-            None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
+            None -> let message = case term of
+                          CForget at _ body -> "the source refinement does not flow to the target (undischarged refinement obligation)"
+                          other -> "refinement predicate is not established for this value (undischarged refinement obligation)" in
               (case scoped-refinement-predicate gamma facts refined value of
                 Some predicate -> if disproved-predicate gamma predicate then
                   (case (value, predicate) of

@@ -2851,7 +2851,7 @@ module Bootstrap.Core where
     Nil -> Nil
     Cons (local, ty) rest -> let more = refinement-facts gamma rest in case refinement-view ty of
       URefine id name carrier predicate ->
-        if valid-type ty && not (volatile-borrow-index ty) && (integer-index-carrier carrier || byte-buffer-type carrier) then
+        if valid-type ty && not (volatile-borrow-index ty) && (integer-index-carrier carrier || length-carrier carrier || ascii-carrier carrier) then
           (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex ty (IRigid local name 0)))] predicate) of
             Some fact -> Cons fact more
             None -> more) else more
@@ -3125,6 +3125,10 @@ module Bootstrap.Core where
     Some carrier | ascii-carrier carrier && typed-index-admissible value -> (case value of
       UIndexList element UEnd -> Some PTruth
       UIndexList element (UArg (UIndex ty (ICharacter c)) rest) -> if char-code c < 128 then ascii-predicate gamma rest else Some PFalsehood
+      UIndexForget (UIndex refined (IRigid id name level)) -> (case proof-local id gamma of
+        Some declared | contract-equal refined declared ->
+          Some (PCompare Equal (ACall "#kernel.ascii" (AArgument (AVariable ("#nominal-value:" <> nat-to-string id)) AArgumentsEnd)) (AInteger 1))
+        other -> None)
       UIndex declared (IRigid id name level) -> (case scope-value id gamma of
         Some alias -> ascii-predicate (scope-without-value id gamma) alias
         None -> case nominal-index-key gamma carrier value of
@@ -3146,6 +3150,9 @@ module Bootstrap.Core where
     UPropAscii value -> ascii-predicate gamma value
     UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
     UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
+    UPropNotNull (UIndexForget input) -> case length-reading gamma (UIndexForget input) of
+      Some count -> Some (PCompare Greater count (AInteger 0))
+      None -> None
     UPropNotNull value -> case list-shape-reading gamma value of
       Some actual -> Some (PCompare Equal actual (AInteger 1))
       None -> None
