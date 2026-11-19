@@ -816,9 +816,11 @@ module Bootstrap.Typing where
   data UseInterruptions where
     Uninterrupted :: UseInterruptions
     MayInterrupt :: UseInterruptions
+    CountingPlace :: List Nat -> UseInterruptions -> UseInterruptions
     ResumingContext :: TypingContext -> UType -> UseInterruptions
   interrupts-usage :: UseInterruptions -> UType -> Bool
   interrupts-usage policy performed = case policy of
+    CountingPlace path inner -> interrupts-usage inner performed
     Uninterrupted -> False
     MayInterrupt -> not (effects-fit performed empty-row)
     ResumingContext context allowed -> not (effects-fit performed allowed)
@@ -826,6 +828,7 @@ module Bootstrap.Typing where
   -- its label non-interrupting. Its clause effects still escape.
   resuming-context :: Span -> UseInterruptions -> UType -> CoreTerm -> UseInterruptions
   resuming-context sp policy label handled-by = case (policy, handled-by) of
+    (CountingPlace path inner, installed) -> CountingPlace path (resuming-context sp inner label installed)
     (ResumingContext context allowed, CHandler at ty returned operations) -> (case handler-parts ty of
       Some (actual, input, output, latent) -> if equal-type actual label && effects-fit latent allowed then
         (case handler-usage-error context sp True handled-by of
@@ -849,7 +852,13 @@ module Bootstrap.Typing where
     CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else use-count interrupted id body
     other -> use-count interrupted id callback
   use-count :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
-  use-count interrupted id term = case term of
+  use-count interrupted id term = case interrupted of
+    CountingPlace path inner -> (case record-place id term of
+      Some actual -> if place-prefix actual path then Some (1, 1) else Some (0, 0)
+      None -> use-count-term interrupted id term)
+    other -> use-count-term interrupted id term
+  use-count-term :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-term interrupted id term = case term of
     CLocal sp ty key name actuals -> if id == key then Some (1, 1) else Some (0, 0)
     CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else (case use-count interrupted id body of Some (0, 0) -> Some (0, 0); other -> None)
     CLet sp ty key name sc rhs body -> use-count-after interrupted rhs (use-count interrupted id rhs) (if id == key then Some (0, 0) else use-count interrupted id body)
@@ -916,12 +925,64 @@ module Bootstrap.Typing where
   -- A variable, or an alias for a wildcard, instead exposes that value to
   -- the body. Other alias forms need joint accounting for the alias and
   -- the inner pattern before they can check a restricted argument.
+  -- A generated record projection selects exactly one field by binder
+  -- identity. Field positions, including each enclosing projection, decide
+  -- whether two places overlap. Display labels alone are insufficient.
+  projected-slot :: Nat -> Nat -> CorePattern -> Option Nat
+  projected-slot binder index fields = case fields of
+    CPField sp (CPVar at ty id name) rest | id == binder && string-starts-with "#record-field:" name ->
+      if remaining-wild-fields rest then Some index else None
+    CPField sp (CPWild at ty) rest -> projected-slot binder (index + 1) rest
+    other -> None
+  remaining-wild-fields :: CorePattern -> Bool
+  remaining-wild-fields fields = case fields of
+    CPDone end -> True
+    CPField sp (CPWild at ty) rest -> remaining-wild-fields rest
+    other -> False
+  record-place :: Nat -> CoreTerm -> Option (List Nat)
+  record-place root term = case term of
+    CLocal sp ty id name Nil -> if id == root then Some Nil else None
+    CCase sp ty source (CAlternative at (CPConstructor site carrier ctor actuals scheme fields)
+      (CLocal field-site field-type binder name Nil) (CAlternativesEnd end)) | string-starts-with "#record-field:" name ->
+      (case (projected-slot binder 0 fields, record-place root source) of
+        (Some index, Some path) -> Some (path <> [index])
+        other -> None)
+    other -> None
+  place-prefix :: List Nat -> List Nat -> Bool
+  place-prefix first second = case (first, second) of
+    (Nil, rest) -> True
+    (Cons a more, Cons b tail) -> a == b && place-prefix more tail
+    other -> False
+  projected-places :: Nat -> List CoreTerm -> List (List Nat)
+  projected-places root terms = case terms of
+    Nil -> Nil
+    Cons first rest -> (case record-place root first of
+      Some Nil -> projected-places root rest
+      Some path -> Cons path (projected-places root rest)
+      None -> projected-places root (runtime-term-children first) <> projected-places root rest)
+  max-place-uses :: UseInterruptions -> Nat -> CoreTerm -> List (List Nat) -> Nat -> Option Nat
+  max-place-uses policy id body paths maximum = case paths of
+    Nil -> Some maximum
+    Cons path rest -> case use-count (CountingPlace path policy) id body of
+      Some (low, high) -> max-place-uses policy id body rest (if high > maximum then high else maximum)
+      None -> None
+  -- Any use consumes the root at least once. On each path the most-used
+  -- field counts repeated transfers, while disjoint fields share one split.
+  local-use-count :: TypingContext -> Nat -> CoreTerm -> Option (Nat, Nat)
+  local-use-count context id body = let policy = ResumingContext context empty-row in
+    let direct = use-count policy id body in case direct of
+      Some (low, high) | high > 1 -> (case projected-places id [body] of
+        Nil -> direct
+        paths -> (case max-place-uses policy id body paths 0 of
+          Some most -> Some (if low == 0 then 0 else 1, most)
+          None -> None))
+      other -> direct
   pattern-use-count :: TypingContext -> CorePattern -> CoreTerm -> Option (Nat, Nat)
   pattern-use-count context pattern body = case pattern of
-    CPVar sp ty id name -> use-count (ResumingContext context empty-row) id body
-    CPErasedValue sp ty id name -> use-count (ResumingContext context empty-row) id body
+    CPVar sp ty id name -> local-use-count context id body
+    CPErasedValue sp ty id name -> local-use-count context id body
     CPWild sp ty -> Some (0, 0)
-    CPAs sp ty id name (CPWild at inner) -> use-count (ResumingContext context empty-row) id body
+    CPAs sp ty id name (CPWild at inner) -> local-use-count context id body
     CPAs sp ty id name inner -> None
     CPConstructor sp ty name actuals ctor fields -> Some (1, 1)
     CPTuple sp ty fields -> Some (1, 1)
@@ -948,7 +1009,7 @@ module Bootstrap.Typing where
   alias-usage-error :: TypingContext -> ArrowUsage -> Nat -> CoreTerm -> Option (Span, String)
   alias-usage-error context usage id term = case term of
     CLet sp ty key name sc (CLocal at carrier original display Nil) body | id == original ->
-      let count = use-count (ResumingContext context empty-row) key body in
+      let count = local-use-count context key body in
       if not (use-count-fits usage count) then Some (sp, usage-message usage <> usage-detail count)
       else (case alias-usage-error context usage key body of
         Some error -> Some error
