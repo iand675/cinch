@@ -8039,40 +8039,58 @@ module Bootstrap.Infer where
     Cons (DProof sp (DFun at symbol clauses)) rest ->
       if same name symbol then clauses <> proof-clauses name rest else proof-clauses name rest
     Cons other rest -> proof-clauses name rest
-  proof-signature-present :: String -> List Decl -> Bool
-  proof-signature-present name declarations = case declarations of
-    Nil -> False
-    Cons (DProof sp (DSig at symbol syntax)) rest -> same name symbol || proof-signature-present name rest
-    Cons other rest -> proof-signature-present name rest
+  proof-declarations :: List Decl -> List Decl
+  proof-declarations declarations = case declarations of
+    Nil -> Nil
+    Cons (DProof sp body) rest -> Cons (DProof sp body) (proof-declarations rest)
+    Cons other rest -> proof-declarations rest
+  proof-signatures :: List Decl -> HashMap String TypeExpr -> HashMap String TypeExpr
+  proof-signatures declarations index = case declarations of
+    Nil -> index
+    Cons (DProof sp (DSig at name syntax)) rest -> proof-signatures rest (hash-map-insert name syntax index)
+    Cons other rest -> proof-signatures rest index
   refl-failure :: ProofScope -> UType -> String
   refl-failure scope predicate = if disproved-predicate scope predicate then
     "kernel refl requires definitionally equal operands; obligation disproved: " <> obligation-text predicate
     else "kernel refl requires definitionally equal operands"
-  -- Closed named evidence is checked at its declaration. Its uses carry
-  -- the same independently checked Core witness as an inline refl.
-  register-source-proofs :: TypeContext -> List Decl -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-source-proofs kinds declarations remaining env st = case remaining of
+  -- Resolve forward and backward aliases to the same checked, erased witness.
+  -- Only a completed proof can supply evidence to another declaration.
+  check-closed-proof :: TypeContext -> List Decl -> HashMap String TypeExpr -> List String -> List CheckedBinding -> String -> Span -> TypeExpr -> Store -> (Option UType, Store)
+  check-closed-proof kinds declarations signatures path env name at syntax st =
+    case (proof-clauses name declarations, convert-predicate False kinds Nil syntax st) of
+      ([(Nil, EVar location witness)], (predicate, checked)) ->
+        let closed = normalize checked predicate in
+        if same witness "b.refl" then
+          (if reflexive-equality closed then (Some closed, checked)
+           else (None, add-error location (refl-failure (proof-context env checked) closed) checked))
+        else if same witness name || has witness path then
+          (None, add-error location "mutually recursive or self-referential proofs must terminate" checked)
+        else (case known-closed-proof kinds declarations signatures (Cons name path) env witness location checked of
+          (Some actual, ready) ->
+            if reflexive-equality closed && same-type closed actual then (Some closed, ready)
+            else (None, add-error location "proof alias has a different proposition from its witness" ready)
+          missing -> missing)
+      (clauses, (predicate, checked)) -> (None, add-error at "a closed proof needs exactly one argument-free proof equation" checked)
+  known-closed-proof :: TypeContext -> List Decl -> HashMap String TypeExpr -> List String -> List CheckedBinding -> String -> Span -> Store -> (Option UType, Store)
+  known-closed-proof kinds declarations signatures path env name at st = case lookup-binding name env of
+    Some (MkCheckedBinding symbol sc role) | same role "closed-proof" -> (Some (scheme-body sc), st)
+    other -> case hash-map-lookup name signatures of
+      Some syntax -> check-closed-proof kinds declarations signatures path env name at syntax st
+      None -> (None, add-error at "a closed proof needs kernel refl or a checked proof declaration" st)
+  register-source-proofs :: TypeContext -> List Decl -> HashMap String TypeExpr -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-source-proofs kinds declarations signatures remaining env st = case remaining of
     Nil -> (env, st)
     Cons (DProof sp (DSig at name syntax)) rest ->
-      case (proof-clauses name declarations, convert-predicate False kinds Nil syntax st) of
-        ([(Nil, EVar location witness)], (predicate, checked)) ->
-          let closed = normalize checked predicate in
-          if not (same witness "b.refl") then
-            register-source-proofs kinds declarations rest env
-              (add-error location "a closed proof requires kernel refl" checked)
-          else if reflexive-equality closed then
-            (case add-binding sp name (mono closed) "closed-proof" env checked of
-              (more, ready) -> register-source-proofs kinds declarations rest more ready)
-          else register-source-proofs kinds declarations rest env
-            (add-error location (refl-failure (proof-context env checked) closed) checked)
-        (clauses, (predicate, checked)) -> register-source-proofs kinds declarations rest env
-          (add-error sp "a closed proof needs exactly one argument-free proof equation" checked)
+      case check-closed-proof kinds declarations signatures Nil env name at syntax st of
+        (Some closed, checked) -> case add-binding sp name (mono closed) "closed-proof" env checked of
+          (more, ready) -> register-source-proofs kinds declarations signatures rest more ready
+        (None, checked) -> register-source-proofs kinds declarations signatures rest env checked
     Cons (DProof sp (DFun at name clauses)) rest ->
-      register-source-proofs kinds declarations rest env
-        (if proof-signature-present name declarations then st else add-error sp "proof equation has no proof signature" st)
+      register-source-proofs kinds declarations signatures rest env (case hash-map-lookup name signatures of
+        Some syntax -> st; None -> add-error sp "proof equation has no proof signature" st)
     Cons (DProof sp other) rest ->
-      register-source-proofs kinds declarations rest env (add-error sp "invalid proof declaration" st)
-    Cons other rest -> register-source-proofs kinds declarations rest env st
+      register-source-proofs kinds declarations signatures rest env (add-error sp "invalid proof declaration" st)
+    Cons other rest -> register-source-proofs kinds declarations signatures rest env st
 
   elaborate-module :: List LoadedInterface -> String -> Module -> Elaboration
   elaborate-module known label m =
@@ -8109,7 +8127,8 @@ module Bootstrap.Infer where
     let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
     let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies interfaces label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register ds rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
-    let (proofs, proof-store) = register-source-proofs kinds ds ds values sv in
+    let named-proofs = proof-declarations ds in
+    let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
     let (env, conditional-store) = cache-body-context uncached-env registration-store in

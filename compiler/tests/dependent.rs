@@ -330,6 +330,29 @@ module Main where
 }
 
 #[test]
+fn closed_proof_aliases_follow_their_declared_proposition() {
+    let source = r#"module Main where
+  proof early :: Eq 3 3
+  proof early = base
+  proof base :: Eq 3 3
+  proof base = refl
+  proof late :: Eq 3 3
+  proof late = early
+
+  use :: Eq 3 3 -> Int -> Int
+  use _ value = value
+  main :: Int
+  main = use late 42
+"#;
+    expect_ok("closed proof alias chain", source, 42);
+    let wrong = source.replace("late :: Eq 3 3", "late :: Eq 4 4")
+        .replace("use :: Eq 3 3", "use :: Eq 4 4");
+    assert!(check_sources(&wrong, "wrong-proof-alias.cinch").is_err());
+    let cycle = source.replace("base = refl", "base = late");
+    expect_err("cyclic proof alias", &cycle, "mutually recursive");
+}
+
+#[test]
 fn non_positive_data_is_rejected() {
     // The positivity discipline applies to ordinary `data` too (core
     // specification section 2; roadmap gap A1).
