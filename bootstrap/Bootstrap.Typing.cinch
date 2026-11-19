@@ -28,23 +28,36 @@ module Bootstrap.Typing where
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> TypingContext
+    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> List UType -> TypingContext
   context-data :: TypingContext -> List CoreData
-  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> datas
+  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> datas
   context-declarations :: TypingContext -> List CoreGlobal
-  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-declarations globals
+  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-declarations globals
   context-effects :: TypingContext -> List CoreEffect
-  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> effects
+  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> effects
   context-bodies :: TypingContext -> List BodyBinding
-  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-bodies globals
+  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-bodies globals
   context-body-context :: TypingContext -> BodyBindings
-  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-body-context globals
+  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-body-context globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> globals-guarded-bodies globals
+  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> List (String, Kind)
-  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> kinds
+  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> kinds
   context-task-forwarder :: TypingContext -> String -> Bool
-  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> has name forwarders
+  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> has name forwarders
+  -- Only checked nominal Copy dictionaries introduce an assumption. Keep it
+  -- lexical so another definition or the supplier of a with cannot use it.
+  with-copy-givens :: TypingContext -> List CoreGiven -> TypingContext
+  with-copy-givens context givens = case givens of
+    Nil -> context
+    Cons given rest -> case given-type given of
+      UApp (UCon name (KFun KType KType)) carrier | same name "Copy" ->
+        (case context of
+          CheckedTypingContext kinds globals effects datas forwarders usage copies -> with-copy-givens (CheckedTypingContext kinds globals effects datas forwarders usage (Cons carrier copies)) rest)
+      other -> with-copy-givens context rest
+  scoped-copy :: TypingContext -> UType -> Bool
+  scoped-copy context carrier = case context of
+    CheckedTypingContext kinds globals effects datas forwarders usage copies -> task-seen-type carrier copies
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   poly-rigid-pairs :: List Quant -> List Nat -> List (Nat, UType)
@@ -145,7 +158,7 @@ module Bootstrap.Typing where
     let all = declared <> constructor-index-kinds datas in
     if nominal-kinds-closed declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
         && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
-      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage); None -> None)
+      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage Nil); None -> None)
     else None
   -- | Require unique owners and recheck every field's scope without adding runtime data or constructors.
   usage-context-closed :: List (String, Kind) -> List UsageShape -> List String -> Bool
@@ -184,7 +197,7 @@ module Bootstrap.Typing where
     Cons first rest -> usage-scheme-agrees rows (core-constructor-name first) (core-constructor-scheme first) && usage-constructors-closed rows rest
   -- | Obtain only the structural field table; source-visible constructor and runtime contexts stay separate.
   context-usage :: TypingContext -> List UsageShape
-  context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage -> usage
+  context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> usage
   -- | Instantiate a validated defining proof, failing closed when either the owner or roles are unavailable.
   task-usage-fields :: TypingContext -> String -> List UType -> Option (List UType)
   task-usage-fields context owner actuals = usage-field-lookup owner actuals (context-usage context)
@@ -269,7 +282,7 @@ module Bootstrap.Typing where
     CPWild sp ty -> Some scope
     CPVar sp ty id name -> add-local-scheme id (mono ty) scope
     CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
-    CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected constructor fields else None
+    CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected (pattern-constructor-type expected constructor) fields else None
     CPTuple sp ty fields -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
     CPInt sp ty text -> if integer-carrier ty || wide-carrier ty then Some scope else None
     CPString sp ty text -> if string-type ty then Some scope else None
@@ -455,7 +468,7 @@ module Bootstrap.Typing where
     CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
     CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
       && equal-type ty (core-type body) && checked-term context scope gamma facts value
-      && checked-term context scope (proof-after-writes gamma (core-mutable-writes value)) (facts-after-writes gamma facts (core-mutable-writes value)) body
+      && checked-term (with-copy-givens context [given]) scope (proof-after-writes gamma (core-mutable-writes value)) (facts-after-writes gamma facts (core-mutable-writes value)) body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
     CRecursiveFunctions sp ty members body -> equal-type ty (core-type body)
       && (case recursive-type-scope context scope members of
@@ -574,7 +587,7 @@ module Bootstrap.Typing where
     Cons first rest -> copyable-type context seen fuel (substitute-bound pairs first) && copyable-fields context seen fuel pairs rest
   copy-out-checked :: TypingContext -> UType -> CoreTerm -> Bool
   copy-out-checked context result args = case args of
-    CArgument sp value (CArgumentsEnd end) -> equal-type result (copy-out-type (core-type value)) && copyable-type context Nil 64 result
+    CArgument sp value (CArgumentsEnd end) -> equal-type result (copy-out-type (core-type value)) && (scoped-copy context result || copyable-type context Nil 64 result)
     other -> False
   borrow-checked :: TypeScope -> Bool -> UType -> CoreTerm -> Bool
   borrow-checked scope mutable result args = case (borrow-type-parts result, args) of
@@ -1373,7 +1386,7 @@ module Bootstrap.Typing where
       CQualifiedUse sp ty name role actuals evidence -> task-global-trace context env scopes sp ty term evidence
       CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
       CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
-        let result = task-trace context env scopes consuming body in
+        let result = task-trace (with-copy-givens context [given]) env scopes consuming body in
         let failure = first-task-error (task-trace-error supplied) (first-task-error (knot-escape sp (task-trace-regions supplied)) (task-trace-error result)) in
         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
       other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
@@ -1463,7 +1476,7 @@ module Bootstrap.Typing where
     case (if annotated then usage-equations-error context opened clauses else None) of
       Some error -> Some error
       None -> if context-task-forwarder context (core-name d) && task-source-forwarder d then None
-        else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) opened clauses
+        else task-clauses-error (with-copy-givens context (core-givens d)) (opening-value-patterns (Span 0 0 1 1) (core-openings d)) opened clauses
   -- The capture rule for parallel callbacks (design/parallel-evaluation.md
   -- section 2.3), applied at the definition's end where the checked data
   -- declarations that decide Share are in scope. The seed's
@@ -1871,12 +1884,12 @@ module Bootstrap.Typing where
           None -> if definition-structure-closed context definition then None
             else Some (at, "independent Core typing disagrees with the declaration or term: " <> core-name definition)
   definition-structure-closed :: TypingContext -> CoreDefinition -> Bool
-  definition-structure-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage -> global-definition-closed globals definition)
+  definition-structure-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> global-definition-closed globals definition)
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of
         Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)
           && (case value-parameters-scope scope (opening-value-types (core-openings definition)) of
-            Some values -> clauses-typed-with context values (opening-value-types (core-openings definition)) (substitute-bound (core-openings definition) (scheme-body (core-scheme definition))) (core-clauses definition)
+            Some values -> clauses-typed-with (with-copy-givens context (core-givens definition)) values (opening-value-types (core-openings definition)) (substitute-bound (core-openings definition) (scheme-body (core-scheme definition))) (core-clauses definition)
             None -> False)
         None -> False)
       None -> False)

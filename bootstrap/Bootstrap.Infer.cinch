@@ -6006,17 +6006,17 @@ module Bootstrap.Infer where
     PTuple s args -> case pattern-fields args st of
       (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (check-tuple-pattern-type s expected fields sf) of
         (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
-    PFamilyCon sp fallback candidate args -> bind-pattern classes kinds families env locals (PCon sp (expected-constructor st expected fallback candidate) args) expected st
+    PFamilyCon sp fallback candidate args -> bind-pattern classes kinds families env locals (PCon sp (expected-constructor st (shared-pattern-carrier (normalize st expected)) fallback candidate) args) expected st
     PCon s name args -> case lookup-binding name env of
       Some b ->
         if same (checked-role b) "constructor" then
           case open-scheme False (checked-scheme b) st of
-            (ty, pairs, ss) -> case foreign-constructor-family families (normalize ss (result-type ty)) (normalize ss expected) of
+            (ty, pairs, ss) -> case foreign-constructor-family families (normalize ss (result-type ty)) (shared-pattern-carrier (normalize ss expected)) of
               Some owner -> (env, CPWild s UError, add-error s (string-concat-all
                 ["constructor ", diagnostic-member-name name, " does not belong to type ", diagnostic-member-name owner]) ss)
-              None | coverage-index-apart (normalize ss (result-type ty)) (normalize ss expected) ->
+              None | coverage-index-apart (normalize ss (result-type ty)) (shared-pattern-carrier (normalize ss expected)) ->
                 (env, CPWild s UError, add-error s ("impossible arm: constructor " <> diagnostic-member-name name <> " is excluded by the scrutinee index") ss)
-              None -> case bind-constructor classes kinds families env locals s args ty expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
+              None -> case bind-constructor classes kinds families env locals s args (pattern-constructor-type (normalize ss expected) ty) expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
                 (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
         else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
       None -> if codata-name name (context-aliases kinds) then
@@ -6639,7 +6639,7 @@ module Bootstrap.Infer where
     Nil -> coverage-result (has-empty-row rows)
     Cons ty rest -> (case (case normalize st ty of
       UMeta id KType -> coverage-pattern-head env ty rows st
-      actual -> (actual, st)) of
+      actual -> (shared-pattern-carrier actual, st)) of
         (head, shaped) -> covers-head families env head rest rows shaped)
   covers-head :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> Store -> PatternCoverage
   covers-head families env ty rest rows st = if empty-family (normalize st ty) families then MatrixComplete else case rows of

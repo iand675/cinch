@@ -3629,11 +3629,11 @@ module Bootstrap.RuntimeIr where
         other -> let (ready, pointer) = fresh w "%ptr" in
           match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]))
       CPConstructor sp ty name actuals sc fields ->
-        if decision-word-type ty && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
+        if decision-word-type (shared-pattern-carrier ty) && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
           (case constructor-tag w value of
             (loaded, actual) -> case compare-word loaded "eq" actual (if same name "b.Yes" then "0" else "1") of
               (compared, condition) -> (continue-if compared condition failed, Nil))
-        else if named ty "Bool" && (same name "True" || same name "False") then
+        else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-program w) of
@@ -4221,8 +4221,8 @@ module Bootstrap.RuntimeIr where
       -- not the 0/1 the chain's kernel test compares, so the switch keeps
       -- the chain for it rather than naming cases no value can have.
       CPConstructor sp ty name actuals sc fields ->
-        if decision-word-type ty then NoArm
-        else if named ty "Bool" && (same name "True" || same name "False") then
+        if decision-word-type (shared-pattern-carrier ty) then NoArm
+        else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> if uniform-owner owner w && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
