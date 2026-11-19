@@ -581,7 +581,7 @@ fn named_refusals_refuse_by_name() {
         "r27", "r28", "r29", "r30", "r31", "r32", "r33",
     ];
     let src = format!(
-        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String\n  import Data.Nat\n  import Data.Option\n\n{REFUSAL_DEFS}\n  main :: Int\n  main = {}\n",
+        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String hiding (string-join)\n  import Data.Nat\n  import Data.Option\n\n{REFUSAL_DEFS}\n  main :: Int\n  main = {}\n",
         chain(checks)
     );
     expect_exit("named-refusals", &src, 0);
@@ -803,7 +803,7 @@ fn scanning_and_formatting_utilities() {
         "s40",
     ];
     let src = format!(
-        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String\n  import Data.Nat\n  import Data.Option\n  import Data.List\n\n{SCAN_DEFS}\n  main :: Int\n  main = {}\n",
+        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String hiding (string-join)\n  import Data.Nat\n  import Data.Option\n  import Data.List\n\n{SCAN_DEFS}\n  main :: Int\n  main = {}\n",
         chain(checks)
     );
     expect_exit("scan-format", &src, 0);
@@ -1114,7 +1114,7 @@ fn unicode_scalars_flow_through_matching() {
     .replace("@CAFE_UPPER@", &cafe_upper)
     .replace("@CAFE@", &cafe);
     let src = format!(
-        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String\n  import Data.Nat\n  import Data.Option\n  import Data.List\n  import Data.Bytes\n\n{BYTE_HELPERS}\n{LANGUAGE_HELPERS}{defs}\n  main :: Int\n  main = {}\n",
+        "module Main where\n  import Text.Regex\n  import Text.Scan\n  import Data.String hiding (string-join)\n  import Data.Nat\n  import Data.Option\n  import Data.List\n  import Data.Bytes\n\n{BYTE_HELPERS}\n{LANGUAGE_HELPERS}{defs}\n  main :: Int\n  main = {}\n",
         chain(checks)
     );
     expect_exit("unicode-scope", &src, 0);

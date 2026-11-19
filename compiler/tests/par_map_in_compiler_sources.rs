@@ -26,7 +26,7 @@ fn prelude_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("prelude")
 }
 
-/// Every top-level `bootstrap/*.cinch` module plus the entry, as the bundle
+/// Every top-level `bootstrap/Bootstrap.*.cinch` module plus the entry, as the bundle
 /// `collect_compiler_sources` assembles. `Data.Array` is included, because
 /// that is the change under test; the negative control below removes it.
 fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
@@ -34,7 +34,9 @@ fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())) {
         let path = entry.expect("directory entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("cinch") {
+        if path.extension().and_then(|e| e.to_str()) != Some("cinch")
+            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Bootstrap."))
+        {
             continue;
         }
         let name = path.file_name().expect("file name").to_string_lossy().to_string();

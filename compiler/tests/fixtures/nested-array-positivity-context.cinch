@@ -4,8 +4,8 @@
   -- | Remove primitive evidence while keeping identical nominal kind headers.
   context-without-payloads :: TypeContext -> TypeContext
   context-without-payloads context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes payloads ->
-      MkTypeContext kinds aliases active observers effects source-classes Nil
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads ->
+      MkTypeContext handling kinds aliases active observers effects source-classes Nil
 
   -- | Return the stable one-based index of the first failed private authority condition.
   payload-context-first-failure :: Unit -> Int
