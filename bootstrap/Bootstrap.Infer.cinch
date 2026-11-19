@@ -4226,24 +4226,26 @@ module Bootstrap.Infer where
   refinement-constructor sp kinds name st = case (find-refinement name (context-aliases kinds), context-kind name kinds) of
     (Some (DRefine at owner parameters binder predicate), Some kind) -> (case refinement-constructor-arguments kinds parameters Nil (UCon name kind) st of
       (applied, opened) -> (case unfold-refinement sp kinds applied opened of
-        (refined, checked) -> (case refinement-view (normalize checked refined) of
-          URefine id display carrier condition -> (case fresh-for-types [refined] checked of
-            (argument, fresh) -> (case fresh-id fresh of
-              (local, next) -> (case fresh-id next of
-                (proof-id, ready) ->
-                  let row = URow UEnd in
-                  let formal = UIndex carrier (IBound argument "#refinement-value") in
-                  let actual = UIndex carrier (IRigid local "#refinement-value" (store-level ready)) in
-                  let required = substitute-bound [(id, formal)] condition in
-                  let opened-required = substitute-bound [(id, actual)] condition in
-                  let ty = UPi argument "#refinement-value" carrier row (UProofFun required row refined) in
-                  let payload = CLocal sp carrier local "#refinement-value" Nil in
-                  let witness = CProofRef sp opened-required proof-id "#refinement-proof" in
-                  let body = CRefineProof sp refined witness payload in
-                  (CLambda sp ty (CPVar sp carrier local "#refinement-value")
-                    (CLambda sp (UProofFun opened-required row refined) (CPProof sp opened-required proof-id "#refinement-proof") body), ready))))
-          other -> term-error sp "named refinement has no checked constructor template" checked)))
+        (refined, checked) -> refinement-proof-constructor sp refined checked))
     other -> term-error sp "transparent constructor needs its actual defining refinement" st
+  refinement-proof-constructor :: Span -> UType -> Store -> (CoreTerm, Store)
+  refinement-proof-constructor sp refined checked = case refinement-view (normalize checked refined) of
+    URefine id display carrier condition -> (case fresh-for-types [refined] checked of
+      (argument, fresh) -> (case fresh-id fresh of
+        (local, next) -> (case fresh-id next of
+          (proof-id, ready) ->
+            let row = URow UEnd in
+            let formal = UIndex carrier (IBound argument "#refinement-value") in
+            let actual = UIndex carrier (IRigid local "#refinement-value" (store-level ready)) in
+            let required = substitute-bound [(id, formal)] condition in
+            let opened-required = substitute-bound [(id, actual)] condition in
+            let ty = UPi argument "#refinement-value" carrier row (UProofFun required row refined) in
+            let payload = CLocal sp carrier local "#refinement-value" Nil in
+            let witness = CProofRef sp opened-required proof-id "#refinement-proof" in
+            let body = CRefineProof sp refined witness payload in
+            (CLambda sp ty (CPVar sp carrier local "#refinement-value")
+              (CLambda sp (UProofFun opened-required row refined) (CPProof sp opened-required proof-id "#refinement-proof") body), ready))))
+    other -> term-error sp "the target must be a checked refinement" checked
   lookup-expression-value :: Span -> TypeContext -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
   lookup-expression-value sp kinds name env st = case lookup-binding name env of
     Some (MkMemoBinding source ty id) -> let cell = CLocal sp ty id source Nil in
@@ -4386,17 +4388,9 @@ module Bootstrap.Infer where
     ENarrow sp input annotation witness -> case infer classes kinds families env locals input st of
       (value, checked) -> (case refinement-view (normalize checked (core-type value)) of
         URefine id name carrier predicate -> (case convert False kinds (value-locals env locals) annotation checked of
-          (refined, opened) -> (case refinement-view (normalize opened refined) of
-            URefine binder display base condition -> let payload = CForget sp carrier value in
-              (case reify-argument sp env payload (unify sp base carrier opened) of
-                (index, ready) -> let goal = substitute-bound [(binder, index)] condition in
-                  case witness of
-                    EApp site head args | decision-syntax-head env head ->
-                      (case infer-decision-expected classes kinds families env locals site args (decision-type goal) ready of
-                        (decision, done) -> introduce-refinement env sp refined payload done)
-                    other -> (case erased-argument sp env witness goal ready of
-                      (evidence, done) -> (CRefineProof sp refined evidence payload, done)))
-            other -> term-error sp "the target must be a checked refinement" opened))
+          (refined, opened) -> (case refinement-proof-constructor sp refined opened of
+            (ctor, ready) -> case apply-runtime-argument (context-handling kinds) classes sp env ctor (CForget sp carrier value) ready of
+              (applied, prepared) -> apply-argument classes kinds families env locals sp applied witness prepared))
         other -> term-error sp "`narrow` takes a refined value" checked)
     EForget sp atoms value -> case infer classes kinds families env locals value st of
       (body, checked) -> case refinement-view (normalize checked (core-type body)) of
