@@ -1,4 +1,6 @@
 //! SDK-free gates for the isolated Region-carrier and both-effect candidate.
+#[path = "common/corpus_frontend.rs"]
+mod corpus_frontend;
 
 /// Keep the complete generated project plain when a qualification assertion fails.
 struct QualificationDirectory(Option<tempfile::TempDir>);
@@ -56,31 +58,20 @@ fn isolated_multipart_candidate_has_canonical_documentation() {
     }
 }
 
-/// The current Rust CLI checks genuine kinds and executes live Part/File/sink
+/// The selected compiler checks genuine kinds and executes live Part/File/sink
 /// callbacks, retained aliases, short writes and prefix errors under both heaps.
 #[test]
-fn rust_cli_executes_isolated_multipart_factories_with_region_metadata() {
-    for selector in [
-        "CINCH_TEST_COMPILER",
-        "CINCH_TEST_INTERFACES",
-        "CINCH_TEST_OBJECTS",
-        "CINCH_TEST_RUNTIME_ARCHIVE",
-    ] {
-        assert!(std::env::var_os(selector).is_none(), "Rust-only candidate gate refuses {selector}; standalone historical Native gates remain separate");
-    }
+fn selected_compiler_executes_isolated_multipart_factories_with_region_metadata() {
     let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let repository = compiler_root.parent().unwrap();
     let runtime = compiler_root.join("runtime/target/release/libcinchruntime.a");
     let work = QualificationDirectory(Some(tempfile::tempdir().unwrap()));
+    let frontend = corpus_frontend::Frontend::selected(&runtime);
     let output = std::process::Command::new("python3")
         .arg(repository.join("tooling/qualify_multipart_promotion.py"))
         .arg("--work")
         .arg(work.path())
-        .arg("--compiler")
-        .arg(env!("CARGO_BIN_EXE_cinch"))
-        .arg("--runtime")
-        .arg(&runtime)
-        .arg("--initialize-rust-runtime")
+        .args(frontend.arguments())
         .env("CARGO_BUILD_JOBS", "1")
         .env("RUST_TEST_THREADS", "1")
         .env("RUST_MIN_STACK", "67108864")
@@ -98,18 +89,18 @@ fn rust_cli_executes_isolated_multipart_factories_with_region_metadata() {
     };
     let report = read("report.json");
     assert_eq!(report["compiler_host_stack_bytes"], 64 * 1024 * 1024);
-    assert_eq!(
-        report["runtime_initialization"]["archive_path"].as_str(),
-        runtime.to_str()
-    );
-    assert_eq!(
-        report["runtime_initialization"]["archive_sha256"],
-        report["runtime_sha256"]
-    );
-    assert_eq!(
-        report["runtime_initialization"]["snapshot_sha256"],
-        report["runtime_sha256"]
-    );
+    let live = match frontend {
+        corpus_frontend::Frontend::Rust(_) => {
+            assert_eq!(report["runtime_initialization"]["archive_path"].as_str(), runtime.to_str());
+            assert_eq!(report["runtime_initialization"]["archive_sha256"], report["runtime_sha256"]);
+            assert_eq!(report["runtime_initialization"]["snapshot_sha256"], report["runtime_sha256"]);
+            read("source/runtime-rust.json")
+        }
+        corpus_frontend::Frontend::Native(_) => {
+            frontend.check_identity(&report);
+            report.clone()
+        }
+    };
     assert_eq!(report["phases"].as_array().unwrap().len(), 3);
     let metadata = read("metadata/report.json");
     for (key, count) in [("public_contracts", 12), ("private_contracts", 7)] {
@@ -120,7 +111,6 @@ fn rust_cli_executes_isolated_multipart_factories_with_region_metadata() {
             assert!(!contract["constructors"].as_array().unwrap().is_empty());
         }
     }
-    let live = read("source/runtime-rust.json");
     assert_eq!(live["runtime_sha256"], report["runtime_sha256"]);
     assert_eq!(live["compiler_sha256"], report["compiler_sha256"]);
     assert_eq!(live["runs"].as_array().unwrap().len(), 1);

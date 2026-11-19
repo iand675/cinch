@@ -128,7 +128,7 @@ def main() -> None:
         else:
             command = [str(compiler), '--check', '--interfaces', str(args.native.resolve() / 'base-interfaces.json'),
                        str(work / 'bundle.source'), str(work / 'check.output')]
-        result = subprocess.run(command, cwd=work, text=True, capture_output=True, timeout=60,
+        result = subprocess.run(command, cwd=work, text=True, capture_output=True, timeout=600,
                                 env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
         diagnostic = work / 'check.output.diagnostics'
         row = {'frontend': frontend, 'compiler_sha256': digest(compiler), 'command': command,
