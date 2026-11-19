@@ -31,7 +31,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code, global-stage-str-nat)
+  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-data-string-length, global-stage-code, global-stage-str-nat)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -58,6 +58,7 @@ module Bootstrap.Infer where
   -- Core and the type engine continue to contain typed terms exclusively.
   data ByteObservation where
     ByteObservation :: String -> Option String -> ByteObservation
+    StringLengthObservation :: ByteObservation
     TotalObservation :: String -> BodyBinding -> ByteObservation
     IdentityObservation :: String -> Scheme -> ByteObservation
     ArrayObservation :: String -> Json -> ByteObservation
@@ -688,7 +689,7 @@ module Bootstrap.Infer where
     -- The prefix `Eq a b` former is the comparison the elaborator reads as
     -- index equality, so both of its operands are in predicate scope.
     TApp sp (TName at name) (TArg s1 x (TArg s2 y (TArgsEnd end))) -> same name "Eq" && refinement-predicate-scope kinds names x && refinement-predicate-scope kinds names y
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || byte-length-binding name kinds || string-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -888,6 +889,32 @@ module Bootstrap.Infer where
   context-byte-observation name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> byte-observation name observers
   byte-length-binding :: String -> TypeContext -> Bool
   byte-length-binding name context = case context-byte-observation name context of Some observer -> True; None -> False
+  string-length-binding :: String -> TypeContext -> Bool
+  string-length-binding name context = same name global-data-string-length && (case context of
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> has-string-length-observer observers)
+  has-string-length-observer :: List ByteObservation -> Bool
+  has-string-length-observer observers = case observers of
+    Cons StringLengthObservation rest -> True
+    Cons other rest -> has-string-length-observer rest
+    Nil -> False
+  -- Only the defining interface can introduce this opaque observation.
+  import-string-observation :: String -> Json -> TypeContext -> TypeContext
+  import-string-observation owner metadata context = if same owner "Data.String" && string-length-row (field "values" (field "exports" metadata)) then
+    (case context of
+      MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling kinds aliases active (Cons StringLengthObservation observers) effects source-classes payloads)
+    else context
+  string-length-row :: Json -> Bool
+  string-length-row rows = case rows of
+    JArr row rest -> (case (field "name" row, field "symbol" row, field "arity" row) of
+      (JStr name, JStr symbol, JNum 1) | same name "string-length" && same symbol "Data.String.string-length" -> (case resolved-text row of
+        Some text -> (case parse-scheme "resolved-interface" (string-to-bytes text) of
+          Parsed syntax Nil -> (case qualify-resolved row syntax of
+            (TFun at (TName a domain) (TName b result), Nil) -> same domain global-data-string-string && same result "Nat"
+            other -> False)
+          other -> False)
+        None -> False)
+      other -> string-length-row rest)
+    other -> False
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
   imported-observation-scheme name metadata context = case (context-byte-observation name context, field "scheme" metadata) of
     (Some (ByteObservation binding (Some declared)), JStr actual) -> same declared actual
@@ -1053,6 +1080,10 @@ module Bootstrap.Infer where
   convert-total-call external kinds locals sp name arguments st = case context-total-observation name kinds of
     Some binding -> (case convert-total-arguments external kinds locals (total-parameters (binding-function binding)) arguments st of
       (values, checked) -> checked-typed-source-index sp (UIndexCall (binding-function binding) values) checked)
+    None | string-length-binding name kinds -> (case (lookup-local name locals, arguments) of
+      (None, TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals (UCon global-data-string-string KType) input st of
+        (value, checked) -> checked-typed-source-index sp (UIndexStringLength value) checked)
+      other -> bad sp "string-length index needs its defining unary binding" st)
     None -> (case (lookup-local name locals, source-constructor-arrow kinds name, arguments) of
       (None, Some (UFun domain result), TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals domain input st of
         (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
@@ -1147,6 +1178,9 @@ module Bootstrap.Infer where
       if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" && (case normalize st function of UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (primitive-type "Nat"); other -> False) then
         (case reify-argument sp env input st of
           (value, checked) -> checked-typed-source-index sp (UIndexByteLength value) checked)
+      else if string-length-function (normalize st ty) (normalize st function) symbol role then
+        (case reify-argument sp env input st of
+          (value, checked) -> checked-typed-source-index sp (UIndexStringLength value) checked)
       else bad sp "argument call needs checked pure total reification or a checked observation contract" st
     CForget source carrier body -> case refinement-view (normalize st (core-type body)) of
       URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body))) then bad sp "refinement projection needs checked mathematical semantics" st
@@ -1985,7 +2019,7 @@ module Bootstrap.Infer where
       (more, checked) -> case imported-array-observers sp owner (field "foreign" (field "exports" metadata)) more checked of
         (complete, ready) -> case imported-mvar-observers sp owner (field "foreign" (field "exports" metadata)) complete ready of
           (with-mvar, checked-mvar) -> case foreign-opaque-kinds sp owner (field "types" (field "exports" metadata)) with-mvar checked-mvar of
-            (with-opaque, checked-opaque) -> collect-kinds rest (context-add-alias (DInterface sp owner hash metadata) with-opaque) checked-opaque
+            (with-opaque, checked-opaque) -> collect-kinds rest (context-add-alias (DInterface sp owner hash metadata) (import-string-observation owner metadata with-opaque)) checked-opaque
     Cons d rest -> case d of
       -- An abstract carrier supplies a checked kind, never a constructor
       -- family. In particular it cannot justify an empty-case proof.
@@ -2319,6 +2353,7 @@ module Bootstrap.Infer where
     UIndex carrier value -> imported-cell-effect-in-type carrier
     UIndexForget body -> imported-cell-effect-in-type body
     UIndexByteLength body -> imported-cell-effect-in-type body
+    UIndexStringLength body -> imported-cell-effect-in-type body
     UIndexBorrowRead body -> imported-cell-effect-in-type body
     UIndexConstructor name arrow input -> imported-cell-effect-in-type arrow || imported-cell-effect-in-type input
     UIndexList element fields -> imported-cell-effect-in-type element || imported-cell-effect-in-type fields
@@ -3886,7 +3921,7 @@ module Bootstrap.Infer where
       other -> term-error sp "decision operands need actual scoped numeric values" st)
     EApp sp function input -> (case decision-call-name function of
       None -> term-error sp "decision calls need checked pure total body authority" st
-      Some name -> if not (decision-copy-out env function || byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
+      Some name -> if not (decision-copy-out env function || byte-length-binding name kinds || string-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
         (case infer classes kinds families env locals syntax st of
           (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked)))
     other -> term-error (expr-span syntax) "decision operands need checked pure total reification" st
@@ -4558,6 +4593,7 @@ module Bootstrap.Infer where
     UPropOrdered body -> "Ordered " <> obligation-text body
     UIndexForget value -> obligation-text value
     UIndexPromote value -> obligation-text value
+    UIndexStringLength value -> string-concat-all ["(Data.String.string-length ", obligation-text value, ")"]
     UIndexByteLength value -> string-concat-all ["(Data.Bytes.bytes-len ", obligation-text value, ")"]
     UIndexMath op left right -> string-concat-all ["(", obligation-text left, " ", op, " ", obligation-text right, ")"]
     other -> display-type-text ty
@@ -4596,6 +4632,7 @@ module Bootstrap.Infer where
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexStringLength value -> UIndexStringLength (relocate-local-index binding new-level value)
     UIndexBorrowRead value -> UIndexBorrowRead (relocate-local-index binding new-level value)
     UIndexConstructor name arrow input -> UIndexConstructor name (relocate-local-index binding new-level arrow) (relocate-local-index binding new-level input)
     UIndexList element fields ->
@@ -8754,7 +8791,7 @@ module Bootstrap.Infer where
     TName s name -> case lookup-local name locals of Some ty -> value-carrier (type-kind ty); None -> None
     TApp sp (TName at name) arguments -> (case lookup-local name locals of
       Some shadow -> None
-      None -> if byte-length-binding name kinds then Some (primitive-type "Nat") else
+      None -> if byte-length-binding name kinds || string-length-binding name kinds then Some (primitive-type "Nat") else
         (case context-total-observation name kinds of
           Some binding -> Some (primitive-type (total-result (binding-function binding)))
           None -> None))
@@ -8782,7 +8819,7 @@ module Bootstrap.Infer where
     None -> primitive-type "Int"
   predicate-arithmetic-input :: TypeContext -> List (String, UType) -> TypeExpr -> Bool
   predicate-arithmetic-input kinds locals syntax = case syntax of
-    TApp sp (TName at name) arguments -> byte-length-binding name kinds || (case context-total-observation name kinds of
+    TApp sp (TName at name) arguments -> byte-length-binding name kinds || string-length-binding name kinds || (case context-total-observation name kinds of
       Some binding -> has (total-result (binding-function binding)) ["Nat", "Int"]
       None -> False)
     -- A local fixed-width value can be read as mathematical Int in a type

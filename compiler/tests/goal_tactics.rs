@@ -164,6 +164,10 @@ fn arithmetic_tactics_keep_opaque_measure_goals_in_the_facts_scope() {
   safe name i = if {fact} then Some (Fin i (Proof.search "{plan}")) else None
 "#));
     }
+    refuses(r#"
+  outside :: (name :: String) -> (other :: String) -> (i :: Nat) -> Option (Fin (string-length name))
+  outside name other i = if i < string-length other then Some (Fin i (Proof.search "assumption")) else None
+"#, "could not prove");
 }
 
 #[test]

@@ -13,7 +13,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, cell-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
-  import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some)
+  import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some, global-data-string-length)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Report
@@ -2427,6 +2427,10 @@ module Bootstrap.RuntimeIr where
       (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
         (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of
           (done, result) -> (case value-carrier (type-kind input) of Some carrier -> (count-op False carrier bytes done, result); None -> unsupported done sp "byte index input has no actual carrier"))
+    UIndexStringLength (UIndex carrier (IRigid id name level)) -> (case external-binding global-data-string-length (program-bindings (writer-program w)) of
+      Some binding | string-length-function (UCon "Nat" KType) (scheme-body (checked-scheme binding)) (checked-name binding) (checked-role binding) ->
+        external-call Nil locals w sp global-data-string-length Nil Nil [CLocal sp carrier id name Nil]
+      other -> unsupported w sp "string length needs its defining String -> Nat provider")
     UIndexForget input -> index-expression locals w sp input
     UIndexPromote input -> (case value-carrier (type-kind input) of
       Some carrier -> if named carrier "Nat" then (case index-expression locals w sp input of

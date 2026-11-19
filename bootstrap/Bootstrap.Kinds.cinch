@@ -124,6 +124,7 @@ module Bootstrap.Kinds where
     UIndexForget body -> type-level body
     UIndexPromote body -> type-level body
     UIndexByteLength body -> type-level body
+    UIndexStringLength body -> type-level body
     UIndexBorrowRead body -> type-level body
     UIndexConstructor name arrow input -> highest (type-level arrow) (type-level input)
     UIndexList element fields -> highest (type-level element) (type-level fields)
@@ -189,6 +190,7 @@ module Bootstrap.Kinds where
     UIndexForget value -> type-well-formed kinds scope value
     UIndexPromote value -> type-well-formed kinds scope value
     UIndexByteLength value -> type-well-formed kinds scope value
+    UIndexStringLength value -> type-well-formed kinds scope value
     UIndexBorrowRead value -> type-well-formed kinds scope value
     UIndexConstructor name arrow input -> (case lookup-kind (constructor-index-key name) kinds of
       Some (KValue declared) -> same-shape arrow declared && type-well-formed kinds scope arrow && type-well-formed kinds scope input

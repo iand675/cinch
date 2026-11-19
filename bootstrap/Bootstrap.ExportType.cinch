@@ -257,6 +257,8 @@ module Bootstrap.ExportType where
         other -> Err "exported effect row has independent unresolved tails"
   -- Resolved contracts keep Native canonical binary applications. Public
   -- source schemes flatten application spines without changing binder scope.
+  nonportable-string-length :: String
+  nonportable-string-length = "opaque string length has no resolved interface encoding"
   nonportable-machine-arithmetic :: String
   nonportable-machine-arithmetic = "fixed-width operands in type arithmetic have no resolved interface encoding"
   portable-arithmetic-operand :: UType -> Bool
@@ -288,6 +290,7 @@ module Bootstrap.ExportType where
     UIndexForget value -> type-in-style display scope value
     UIndexPromote value -> type-in-style display scope value
     UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
+    UIndexStringLength value -> if display then join [Ok "(Data.String.string-length ", type-in-style display scope value, Ok ")"] else Err nonportable-string-length
     UIndexBorrowRead value -> Err "local borrow observation cannot appear in a published contract"
     UIndexConstructor name scheme UEnd -> export-global name
     UIndexConstructor name arrow input -> join [Ok "(", export-global name, Ok " ", type-in-style display scope input, Ok ")"]
@@ -515,7 +518,7 @@ module Bootstrap.ExportType where
   export-resolved-value-scheme :: Scheme -> Result String (Option String)
   export-resolved-value-scheme scheme = case value-scheme-style False False scheme of
     Ok spelling -> Ok (Some spelling)
-    Err error -> if same error nonportable-machine-arithmetic then Ok None else Err error
+    Err error -> if same error nonportable-machine-arithmetic || same error nonportable-string-length then Ok None else Err error
   has-preconditions :: UType -> Bool
   has-preconditions ty = case ty of
     UPi id name domain row result -> has-preconditions result

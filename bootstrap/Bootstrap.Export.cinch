@@ -79,6 +79,7 @@ module Bootstrap.Export where
     UIndexForget input -> type-measures input
     UIndexPromote input -> type-measures input
     UIndexByteLength input -> type-measures input
+    UIndexStringLength input -> type-measures input
     UIndexBorrowRead input -> type-measures input
     UIndexMath operation a b -> type-measures a <> type-measures b
     UCompare relation a b -> type-measures a <> type-measures b

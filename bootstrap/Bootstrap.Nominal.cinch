@@ -13,7 +13,7 @@ module Bootstrap.Nominal where
 
   export interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
-  export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
+  export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-string-length, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
   export stage-quotation-module, stage-code-type-name, global-stage-code, global-stage-str-nat
   export nominal-entry-valid
 
@@ -163,6 +163,8 @@ module Bootstrap.Nominal where
   global-data-core-ok = "i.Data$2eCore$2eOk"  -- Data.Core.Ok
   global-data-core-err :: String
   global-data-core-err = "i.Data$2eCore$2eErr"  -- Data.Core.Err
+  global-data-string-length :: String
+  global-data-string-length = "i.Data$2eString$2estring$2dlength"
   global-data-string-string :: String
   global-data-string-string = "i.Data$2eString$2eString"  -- Data.String.String
   global-data-fromlist-fromlist :: String

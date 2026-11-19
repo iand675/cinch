@@ -53,3 +53,18 @@ fn implicit_nominal_indices_pass_the_selected_constructor_to_the_worker() {
 "#;
     assert_eq!(run_source(source).unwrap(), 42);
 }
+
+#[test]
+fn implicit_string_length_indices_use_the_unicode_length_provider() {
+    let source = r#"module Main where
+  data Mark (n :: Nat) where
+    Mark :: Mark n
+  observe :: forall (n :: Nat). Mark n -> Int
+  observe tag = if n == 2 then 42 else 1
+  measure :: String -> Int
+  measure value = observe (Mark :: Mark (string-length value))
+  main :: Int
+  main = measure "éa"
+"#;
+    assert_eq!(run_source(source).unwrap(), 42);
+}
