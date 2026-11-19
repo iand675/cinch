@@ -326,16 +326,19 @@ fn native_record_erased_fields_keep_proof_obligations() {
 
 #[test]
 fn native_record_fields_bind_the_record_itself() {
-    run(r#"module Main where
+    let source = r#"module Main where
   macro declare :: Name -> Syntax -> Declarations
   macro declare name fields = Syntax.recordDeclaration name fields
   generate do
-    emit (declare!(Node, {next :: Option Node}))
+    emit (declare!(Node, {next :: Unit -> Node; payload :: Int}))
+  node :: Int -> Node
+  node n = Node {next = \u -> node (n + 1), payload = n}
   main :: Int
-  main = let row = Node {next = None} in case row.next of
-    None -> 42
-    Some next -> 0
-"#);
+  main = let next = (node 41).next in (next ()).payload
+"#;
+    run(source);
+    // An unverified container around the recursive field must still be refused.
+    refuses(&source.replace("Unit -> Node", "Option Node"), &["positivity"]);
 }
 
 #[test]
