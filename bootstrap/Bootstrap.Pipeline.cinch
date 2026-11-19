@@ -17,7 +17,7 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, Decl, DClass)
-  import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface, checked-elaboration)
+  import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface, checked-elaboration, checked-generated, with-generated)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
@@ -31,9 +31,9 @@ module Bootstrap.Pipeline where
   import Bootstrap.Inputs (read-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
-  import Bootstrap.Stage (expand-stages-with, explain-expansion-errors)
+  import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Bootstrap.Export (export-interfaces, interface-hash, build-profile-manifest)
+  import Bootstrap.Export (export-interfaces, interface-hash, build-generated-manifest)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.TargetLiterals (target-literal-errors)
   import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
@@ -257,7 +257,7 @@ module Bootstrap.Pipeline where
             other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
               let entry = path-stem (path-from-string source) in
               let exported = export-interfaces checked admitted src in
-              case serialize-exported profile entry admitted Nil exported of
+              case serialize-exported (checked-generated checked) profile entry admitted Nil exported of
                 done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
       Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
@@ -270,7 +270,7 @@ module Bootstrap.Pipeline where
       Ok rows -> case write-interface-output ir (Ok rows) of
         0 -> case write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider)) of
           0 -> (case fs-write (build-manifest-path ir)
-              (canonical-bytes (build-profile-manifest entry (manifest-target profile) admitted rows)) of
+              (canonical-bytes (build-generated-manifest (checked-generated checked) entry (manifest-target profile) admitted rows)) of
             Ok written -> pipeline-ok
             Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
           code -> code
@@ -319,11 +319,11 @@ module Bootstrap.Pipeline where
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = check-source-phase profile (\input -> resolve-program-with input interfaces) (\unit -> interface-headers interfaces) program
   check-source-phase :: TargetProfile -> (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) CheckedProgram
-  check-source-phase profile resolve headers program = case expand-stages-with resolve headers program of
+  check-source-phase profile resolve headers program = case expand-stages-with-report resolve headers program of
     Err errors -> Err errors
-    Ok expanded -> case retain-resolved-source profile (resolve expanded) of
+    Ok (expanded, generated) -> case retain-resolved-source profile (resolve expanded) of
       Err errors -> Err (explain-expansion-errors expanded errors)
-      Ok checked -> Ok checked
+      Ok checked -> Ok (with-generated generated checked)
   retain-resolved-source :: TargetProfile -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
   retain-resolved-source profile result = case result of
     (resolved, Nil) -> case check-and-retain resolved of
@@ -496,7 +496,7 @@ module Bootstrap.Pipeline where
           Err message -> write-failure ir message pipeline-check-refused
           Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
             (Nil, Cons first rest) -> (case mode of
-              CheckOnly -> case serialize-artifacts profile (path-stem (path-from-string name)) effective replaced of
+              CheckOnly -> case serialize-artifacts Nil profile (path-stem (path-from-string name)) effective replaced of
                 done -> write-interface-output ir (Ok Nil)
               other -> write-interface-output ir (Ok Nil))
             other -> after-check-artifacts profile inlining reclaim mode name src effective replaced (checked-source profile remaining effective) ir exe report
@@ -525,7 +525,7 @@ module Bootstrap.Pipeline where
     (BodiesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Err found) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
-      case serialize-exported profile (path-stem (path-from-string name)) admitted replaced (export-interfaces checked admitted src) of
+      case serialize-exported (checked-generated checked) profile (path-stem (path-from-string name)) admitted replaced (export-interfaces checked admitted src) of
         done -> after-check profile inlining reclaim mode src result ir exe report
 
   -- The artifact set is best effort: the frontend's own refusal codes stay
@@ -554,15 +554,15 @@ module Bootstrap.Pipeline where
   -- `CINCH_ARENA=1` enables the scope; unset makes both entries no-ops,
   -- so the same build measures the same phase with every block back on
   -- the counted heap.
-  serialize-exported :: forall r. using (io :: Io r) => TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
-  serialize-exported profile entry admitted replaced exported = case exported of
+  serialize-exported :: forall r. using (io :: Io r) => List (String, List String) -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
+  serialize-exported generated profile entry admitted replaced exported = case exported of
     Err message -> ()
-    Ok rows -> serialize-artifacts profile entry admitted (replaced <> rows)
+    Ok rows -> serialize-artifacts generated profile entry admitted (replaced <> rows)
 
-  serialize-artifacts :: forall r. using (io :: Io r) => TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
-  serialize-artifacts profile entry admitted rows =
+  serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
+  serialize-artifacts generated profile entry admitted rows =
     let arena = arena-new arena-first-chunk in
-    let written = ignore-artifact-outcome (write-build-artifacts profile entry admitted rows) in
+    let written = ignore-artifact-outcome (write-build-artifacts generated profile entry admitted rows) in
     case arena-leave arena of _ -> written
 
   -- The artifact write's outcome is already reported through the files it
@@ -573,13 +573,13 @@ module Bootstrap.Pipeline where
     Err message -> ()
     Ok done -> ()
 
-  write-build-artifacts :: forall r. using (io :: Io r) => TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
-  write-build-artifacts profile entry interfaces rows =
+  write-build-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
+  write-build-artifacts generated profile entry interfaces rows =
     case process-run (command (path-from-string "mkdir") ["-p", "build"]) "" of
       Ok (0, output) -> (case write-build-interfaces (admitted-rows interfaces <> rows) of
         Err message -> Err message
         Ok done -> case fs-write (path-from-string (string-concat "build/" (string-concat entry ".manifest.json")))
-            (canonical-bytes (build-profile-manifest entry (manifest-target profile) interfaces rows)) of
+            (canonical-bytes (build-generated-manifest generated entry (manifest-target profile) interfaces rows)) of
           Ok written -> Ok ()
           Err error -> Err "cannot write build manifest")
       other -> Err "cannot create the build directory"

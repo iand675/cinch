@@ -16,7 +16,7 @@ module Bootstrap.ExportNominal where
   import Text.Json (json-eq)
 
   export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names
-  export declaration-reference-index, source-effect-contract
+  export sorted, declaration-reference-index, source-effect-contract
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0

@@ -27,7 +27,7 @@ module Bootstrap.Export where
   import Text.Lex (bytes-slice, Span)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export export-interfaces, interface-hash, build-manifest, build-profile-manifest
+  export export-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
@@ -1062,14 +1062,20 @@ module Bootstrap.Export where
     build-profile-manifest entry target-facts interfaces rows
 
   build-profile-manifest :: String -> Json -> List LoadedInterface -> List (String, Json) -> Json
-  build-profile-manifest entry target-facts interfaces rows =
+  build-profile-manifest entry target-facts interfaces rows = build-generated-manifest Nil entry target-facts interfaces rows
+  generated-modules :: List (String, List String) -> Json
+  generated-modules reports = case reports of
+    Nil -> JObjEnd
+    Cons (owner, names) rest -> JObj owner (sort-list (sorted names Nil)) (generated-modules rest)
+  build-generated-manifest :: List (String, List String) -> String -> Json -> List LoadedInterface -> List (String, Json) -> Json
+  build-generated-manifest generated entry target-facts interfaces rows =
     let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
     let trust = JObj "primitives" (build-assumptions "primitives" contracts)
           (JObj "foreign" (build-assumptions "foreign" contracts)
             (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in
     JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
-      (JObj "modules" (sort-rows "module" (build-module-rows contracts))
-        (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "target" target-facts JObjEnd)))))
+      (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
+        (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "target" target-facts JObjEnd))))))
 
   source-build-contracts :: List (String, Json) -> List (String, String, Json)
   source-build-contracts rows = case rows of

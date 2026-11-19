@@ -124,6 +124,8 @@ fn generated_nominal_names_and_constructors_reach_the_driver_manifest() {
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join("Main.cinch");
     std::fs::write(&path, r#"module Main where
+  data Handwritten where
+    Ordinary :: Handwritten
   generate do
     emit (quoteDecls where
       record Envelope where

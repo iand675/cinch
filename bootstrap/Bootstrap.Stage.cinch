@@ -20,7 +20,7 @@ module Bootstrap.Stage where
   import Text.Lex (Span, span-start, span-end, LToken)
   import Text.Show (int-to-string, nat-to-string)
 
-  export expand-stages, expand-stages-with, explain-expansion-errors
+  export expand-stages, expand-stages-with, expand-stages-with-report, explain-expansion-errors
 
   -- The generated group leaves the surface during lexical resolution. Keep
   -- its template range and call site until ordinary checking has diagnosed
@@ -872,14 +872,39 @@ module Bootstrap.Stage where
   --   a name anywhere in the module. A suffix would answer a different
   --   question and miss a declaration the walk has already passed.
   --   `declarations` is only the walk's remaining work.
-  expand-declarations :: Option CheckedProgram -> MacroSite -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declarations :: Option CheckedProgram -> MacroSite -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, List String, Nat)
   expand-declarations evaluator site-context owner module-decls declarations fuel = case declarations of
-    Nil -> Ok (Nil, fuel)
+    Nil -> Ok (Nil, Nil, fuel)
     Cons first rest -> case expand-declaration evaluator site-context owner module-decls first fuel of
       Err errors -> Err errors
       Ok (local, remaining) -> case expand-declarations evaluator site-context owner module-decls rest remaining of
         Err errors -> Err errors
-        Ok (more, done) -> Ok (local <> more, done)
+        Ok (more, names, done) -> let emitted = (case first of
+              DGenerate at actions -> generated-binding-names local
+              DEmitMacro at path tokens -> generated-binding-names local
+              other -> Nil) in Ok (local <> more, emitted <> names, done)
+
+  -- Only declarations actually emitted by an action enter the driver report.
+  generated-binding-names :: List Decl -> List String
+  generated-binding-names ds = case ds of
+    Nil -> Nil
+    Cons declaration rest -> let more = generated-binding-names rest in
+      case declaration of
+        DGeneratedGroup site home origin group -> generated-binding-names (decls-of group) <> more
+        DConditional site conditions group -> generated-binding-names (decls-of group) <> more
+        DData site name params ctors -> Cons name (map (\pair -> case pair of (name, ty) -> name) ctors <> more)
+        DEffect site name params ops -> Cons name (map (\pair -> case pair of (name, ty) -> name) ops <> more)
+        DClass site name params members -> Cons name (generated-binding-names (decls-of members) <> more)
+        DMethod site label name ty -> Cons name more
+        DFun site name clauses -> Cons name more
+        DSig site name ty -> Cons name more
+        DForeign site direction abi external name ty -> Cons name more
+        DRecord site name params fields -> Cons name more
+        DCodata site name params fields -> Cons name more
+        DOpaque site name params kind -> Cons name more
+        DRefine site name params binder predicate -> Cons name more
+        DInstance site is-implicit name params head members -> Cons name more
+        other -> more
 
   -- Diagnose a failure to resolve the stage program using the source
   -- declarations that produce its missing names. Only a path returning
@@ -987,14 +1012,14 @@ module Bootstrap.Stage where
         (None, seen) -> staged-cycle (StageDependencies nodes rest))
       None -> staged-cycle (StageDependencies nodes rest))
 
-  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, Nat)
+  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, List String, Nat)
   expand-module resolve program headers names current fuel =
     let declarations = module-decls current in
-    if not (stage-work declarations) then Ok (current, fuel) else
+    if not (stage-work declarations) then Ok (current, Nil, fuel) else
       let owner = module-name current in
       let finish = \evaluator -> case expand-declarations evaluator (MkMacroSite owner (module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
             Err errors -> Err errors
-            Ok (body, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), remaining) in
+            Ok (body, emitted, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), emitted, remaining) in
       if not (needs-stage-check declarations) then finish None else case stage-modules owner (program-modules program) of
         Err errors -> Err errors
         Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
@@ -1005,14 +1030,14 @@ module Bootstrap.Stage where
             Nil -> Err errors
             cycle -> Err cycle)
 
-  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, Nat)
+  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, List (String, List String), Nat)
   expand-modules resolve program headers names modules fuel = case modules of
-    Nil -> Ok (Nil, fuel)
+    Nil -> Ok (Nil, Nil, fuel)
     Cons first rest -> case expand-module resolve program headers names first fuel of
       Err errors -> Err errors
-      Ok (expanded, remaining) -> case expand-modules resolve program headers names rest remaining of
+      Ok (expanded, names-here, remaining) -> case expand-modules resolve program headers names rest remaining of
         Err errors -> Err errors
-        Ok (tail, done) -> Ok (Cons expanded tail, done)
+        Ok (tail, reports, done) -> Ok (Cons expanded tail, (case names-here of Nil -> reports; other -> Cons (module-name first, names-here) reports), done)
 
   modules-have-stage-work :: List Module -> Bool
   modules-have-stage-work modules = case modules of
@@ -1052,10 +1077,14 @@ module Bootstrap.Stage where
       let site = module-span m in MkModule site home (decl-spine site (map (prepare-stage-code home (stage-operation-available names home) declarations) declarations))
 
   expand-stages-with :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) Program
-  expand-stages-with resolve import-headers program = let modules = program-modules program in
-    if not (modules-have-stage-work modules) then Ok program else
+  expand-stages-with resolve import-headers program = case expand-stages-with-report resolve import-headers program of
+    Err errors -> Err errors
+    Ok (expanded, generated) -> Ok expanded
+  expand-stages-with-report :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) (Program, List (String, List String))
+  expand-stages-with-report resolve import-headers program = let modules = program-modules program in
+    if not (modules-have-stage-work modules) then Ok (program, Nil) else
       let imports = import-headers () in let names = macro-namespaces modules imports in
       let prepared = map (prepare-stage-module names) modules in
       case expand-modules resolve (MkProgram (program-span program) prepared) (prepared <> imports) names prepared macro-budget of
         Err errors -> Err errors
-        Ok (expanded, fuel) -> Ok (MkProgram (program-span program) expanded)
+        Ok (expanded, reports, fuel) -> Ok (MkProgram (program-span program) expanded, reports)
