@@ -392,6 +392,9 @@ module Bootstrap.Stage where
   code-application checked owner scope site original expression args fuel = if fuel == 0 || fuel > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else case expression of
     EApp at function argument -> code-application checked owner scope site original function (Cons argument args) (fuel - 1)
     EQuote at body -> (case args of Nil -> expand-clause checked owner scope body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
+    EMacroCall at path tokens -> (case args of
+      Nil -> expand-call (scope-site scope) at path tokens (fuel - 1)
+      other -> stage-error site "a macro quotation does not take runtime arguments")
     EVar at name -> (case surface-template (scope-site scope) name of
       Some (CodeTemplate home parameters ty body) -> (case hygienic-term body (macro-budget - fuel) of
         (renamed, serial) -> if serial + 1 > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else
@@ -415,12 +418,34 @@ module Bootstrap.Stage where
       Some carrier -> (case expand-code checked owner scope (expr-span argument) argument fuel of
         Ok (value, next) -> let key = cat ["#stage-operand-", nat-to-string (span-start site), "-", nat-to-string (list-length rest)] in
           (case apply-code-template checked owner scope home site rest result more (Cons (name, key) names) body next of
-            Ok (expanded, remaining) -> let thunk = ELam site [PAnn site (PWild site) (TName site "Unit")] (EAnn site (EArgumentScope site value) carrier) in
-              Ok (ELet site (EBinding site key thunk (EBindingsEnd site)) expanded, remaining)
+            Ok (expanded, remaining) ->
+              let operand = EAnn site (EArgumentScope site value) carrier in
+              let thunk = ELam site [PAnn site (PWild site) (TName site "Unit")] operand in
+              let suspended = ELet site (EBinding site key thunk (EBindingsEnd site)) expanded in
+              if quoted-reference value then (case inline-code-reference key operand expanded False of
+                Ok (direct, True) -> Ok (direct, remaining)
+                other -> Ok (suspended, remaining))
+              else Ok (suspended, remaining)
             Err errors -> Err errors)
         Err errors -> Err errors)
       None -> stage-error site "a quotation parameter must have a Code carrier")
     other -> stage-error site "quotation arguments disagree with the stage definition"
+
+  -- A reference has no evaluation to suspend. Keeping its checked identity
+  -- at the application lets a lexical handler recognize its own operation.
+  -- An unused operand still passes through the checked thunk above.
+  quoted-reference :: Expr -> Bool
+  quoted-reference value = case value of
+    EVar site name -> True
+    EArgumentScope site body -> quoted-reference body
+    ETemplateScope site owner body -> quoted-reference body
+    EAnn site body ty -> quoted-reference body
+    other -> False
+
+  inline-code-reference :: String -> Expr -> Expr -> Bool -> Result (List Diagnostic) (Expr, Bool)
+  inline-code-reference key operand term used = case term of
+    EApp site (EVar at name) (EUnit arg) | same key name -> Ok (operand, True)
+    other -> walk-children (inline-code-reference key operand) term used
 
   template-holes :: CheckedProgram -> String -> ExpandScope -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   template-holes checked home scope names term fuel = case term of
@@ -812,6 +837,7 @@ module Bootstrap.Stage where
     DSig site name ty -> Ok (declaration, fuel)
     DData site name params constructors -> Ok (declaration, fuel)
     DRecord site name params fields -> Ok (declaration, fuel)
+    DEffect site name params operations -> Ok (declaration, fuel)
     other -> expand-error (decl-span declaration) (if generated-phase-declaration declaration then "a generator cannot emit `generate`, `stage` or `macro`" else "unsupported declaration in a quoted group")
 
   fill-declared-clauses :: MacroSite -> List (String, Fix) -> MacroOperands -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
@@ -917,9 +943,12 @@ module Bootstrap.Stage where
     Nil -> graph
     Cons (DFun at name clauses) rest -> fold-generated owner key rest (generated-node owner key name graph)
     Cons (DRecord at name params fields) rest -> fold-generated owner key rest (generated-node owner key name graph)
-    Cons (DData at name params constructors) rest ->
-      fold-generated owner key rest (foldr (\field found -> case field of (ctor, ty) -> generated-node owner key ctor found) graph constructors)
+    Cons (DEffect at name params operations) rest -> fold-generated owner key rest (generated-members owner key operations graph)
+    Cons (DData at name params constructors) rest -> fold-generated owner key rest (generated-members owner key constructors graph)
     Cons other rest -> fold-generated owner key rest graph
+
+  generated-members :: String -> String -> List (String, TypeExpr) -> StageDependencies -> StageDependencies
+  generated-members owner key members graph = foldr (\member found -> case member of (name, ty) -> generated-node owner key name found) graph members
 
   generated-node :: String -> String -> String -> StageDependencies -> StageDependencies
   generated-node owner key name = dependency-node owner name (cat ["`", name, "`"]) [key]
@@ -998,11 +1027,21 @@ module Bootstrap.Stage where
     Some ty -> code-carrier ty
     None -> None
 
+  stage-code-inputs :: List Pat -> TypeExpr -> Option (List String)
+  stage-code-inputs patterns syntax = case (patterns, syntax) of
+    (Nil, result) -> (case code-carrier result of Some carrier -> Some Nil; None -> None)
+    (Cons (PVar site name) rest, TFun arrow domain result) -> (case (code-carrier domain, stage-code-inputs rest result) of
+      (Some carrier, Some names) -> Some (Cons name names)
+      other -> None)
+    other -> None
+
   prepare-stage-code :: String -> (String -> Bool) -> List Decl -> Decl -> Decl
   prepare-stage-code home available declarations declaration = case declaration of
-    DStage site (DFun at name [(Nil, body)]) -> (case stage-code-carrier name declarations of
-      Some carrier -> (case closed-code-template home available (\spelling -> case stage-code-carrier spelling declarations of Some actual -> True; None -> False) body of
-        Some template -> DStage site (DFun at name [(Nil, EQuote at template)])
+    DStage site (DFun at name [(params, body)]) -> (case stage-signature name declarations of
+      Some annotation -> (case stage-code-inputs params annotation of
+        Some inputs -> (case closed-code-template home available (\spelling -> runtime-value-name spelling inputs || (case stage-code-carrier spelling declarations of Some actual -> True; None -> False)) body of
+          Some template -> DStage site (DFun at name [(params, EQuote at template)])
+          None -> declaration)
         None -> declaration)
       None -> declaration)
     other -> declaration

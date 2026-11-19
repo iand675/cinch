@@ -234,10 +234,16 @@ module Bootstrap.Expand where
   -- gives it a distinct lexical identity each time the template is used.
   data SyntaxHandle where
     SyntaxHandle :: String -> BindingSpelling -> SyntaxHandle
-  find-handle :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
-  find-handle name bindings = case bindings of
+    SyntaxCode :: Expr -> SyntaxHandle
+  find-syntax-local :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
+  find-syntax-local name bindings = case bindings of
     Nil -> None
-    Cons (local, binding-value) rest -> if same local name then Some binding-value else find-handle name rest
+    Cons (local, binding-value) rest -> if same local name then Some binding-value else find-syntax-local name rest
+
+  find-handle :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
+  find-handle name bindings = case find-syntax-local name bindings of
+    Some (SyntaxHandle key spelling) -> Some (SyntaxHandle key spelling)
+    other -> None
 
   syntax-handle :: (String -> Bool) -> List String -> List (String, SyntaxHandle) -> Expr -> Option SyntaxHandle
   syntax-handle available names handles value = case value of
@@ -263,15 +269,20 @@ module Bootstrap.Expand where
     let code = scoped-template home available stage-value names inputs handles introduced in
     let handle-of = syntax-handle available names handles in case rhs of
       ELetScope at body -> code body
-      ELet at (EBinding site local value (EBindingsEnd end)) body -> (case handle-of value of
-        Some binding-value -> scoped-template home available stage-value (without-spelling local names) (without-spelling local inputs) (Cons (local, binding-value) handles) introduced body
-        None -> None)
+      ELet at (EBinding site local value (EBindingsEnd end)) body ->
+        let within = \bound -> scoped-template home available stage-value (without-spelling local names) (without-spelling local inputs) (Cons (local, bound) handles) introduced body in
+        (case handle-of value of
+          Some binding-value -> within binding-value
+          None -> (case code value of Some fragment -> within (SyntaxCode fragment); None -> None))
       EQuote at (ESplice site (EVar occurrence name)) | (case find-handle name handles of Some binding-value -> True; None -> False) ->
         Some (EUnmodeled site "SyntaxBinding cannot be spliced as Code")
       EQuote at body -> (case fill-splices-with (quotation-hole code handles) body Nil Nil of
         Ok filled -> Some filled
         Err errors -> None)
-      EVar at name | stage-value name -> Some (ESplice at rhs)
+      EVar at name -> (case find-syntax-local name handles of
+        Some (SyntaxCode fragment) -> Some fragment
+        None -> if stage-value name then Some (ESplice at rhs) else None
+        other -> None)
       EMacroCall at path tokens -> Some rhs
       EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
         Some (ESplice at (EDefinitionName sp home param))
@@ -279,22 +290,22 @@ module Bootstrap.Expand where
         Some (ESplice at (EVar arg param))
       EApp at (EVar site op) arg | same op "Syntax.reference" && available op -> (case handle-of arg of
         Some (SyntaxHandle key name) -> Some (ESyntaxReference at key name)
-        None -> None)
+        other -> None)
       EApp at (EApp inner (EVar sp op) binding-value) (EVar arg param) | same op "Syntax.captureUnder" && available op && syntax-input param inputs -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> Some (ESyntaxCaptureUnder at key name (EVar arg param))
-        None -> None)
+        other -> None)
       EApp at (EApp inner (EVar sp op) binding-value) body | same op "Syntax.lambda" && available op -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
           (case scoped-template home available stage-value names inputs handles (Cons key introduced) body of
             Some result -> Some (ELam at [PVar at key] result)
             None -> None)
-        None -> None)
+        other -> None)
       EApp at (EApp inner (EApp head (EVar sp op) binding-value) value) body | same op "Syntax.letIn" && available op -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
           (case (code value, scoped-template home available stage-value names inputs handles (Cons key introduced) body) of
             (Some bound, Some result) -> Some (ELet at (EBinding at key bound (EBindingsEnd at)) result)
             other -> None)
-        None -> None)
+        other -> None)
       EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
         (case (code function, code argument) of
           (Some head, Some value) -> Some (EApp at head value)
