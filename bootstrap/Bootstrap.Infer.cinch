@@ -1013,11 +1013,21 @@ module Bootstrap.Infer where
     else None
   index-observer-name :: String -> TypeContext -> Bool
   index-observer-name name kinds = case builtin-index-measure name of Some measure -> True; None -> byte-length-binding name kinds
+  -- The baked length has its own domain. A byte observer still checks its
+  -- exact primitive argument and cannot acquire list semantics.
+  convert-length-operand :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  convert-length-operand external kinds locals sp input st = case known-observation-input-type locals input of
+    Some ty -> let carrier = predicate-base-carrier ty in
+      if not (length-carrier carrier) then bad sp "length index operand needs Bytes or a list-shaped carrier" st
+      else (case core-list-element carrier of
+        Some element -> convert-predicate-index external kinds locals carrier input st
+        None -> convert-byte-operand external kinds locals sp input st)
+    None -> convert-byte-operand external kinds locals sp input st
   convert-index-application :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
   convert-index-application external kinds locals sp name args st = case (builtin-index-measure name, args) of
     (Some WordToNat, TArg arg input (TArgsEnd end)) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
       (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
-    (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-byte-operand external kinds locals sp input st of
+    (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-length-operand external kinds locals sp input st of
       (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
     (Some measure, other) -> bad sp "builtin index measure needs exactly one operand" st
     (None, TArg arg input (TArgsEnd end)) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
@@ -1203,6 +1213,18 @@ module Bootstrap.Infer where
           None -> reify-ordinary-argument sp env term st
   reify-ordinary-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-ordinary-argument sp env term st = case term of
+    CPrimitive at ty op (CArgument arg value (CArgumentsEnd end)) | same op "#kernel.length" ->
+      (case value of
+        CForget at base body -> (case checked-length-index (proof-context env st) (proof-facts env) (normalize st ty) (map-term-types (normalize st) value) of
+          Some index -> checked-typed-source-index sp index st
+          None -> case reify-argument sp env body st of
+            (input, checked) -> (case predicate-index-value sp (normalize checked base) input checked of
+              (projected, done) -> checked-typed-source-index sp (UIndexMeasure BufferLength projected) done))
+        CLocal at carrier id name actuals -> (case reify-argument sp env value st of
+          (input, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength input) checked)
+        other -> (case checked-length-index (proof-context env st) (proof-facts env) (normalize st ty) (map-term-types (normalize st) value) of
+          Some index -> checked-typed-source-index sp index st
+          None -> bad sp "length needs a checked pure container operand" st))
     CApply source ty (CUse at function symbol role Nil) input ->
       if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" && (case normalize st function of UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (primitive-type "Nat"); other -> False) then
         (case reify-argument sp env input st of
@@ -3966,6 +3988,7 @@ module Bootstrap.Infer where
     EAnn sp value (TName at name) -> if primitive name && integer-carrier (primitive-type name) then Some (primitive-type name) else decision-hint env value
     EBin sp operation left right -> (case decision-hint env left of Some carrier -> Some carrier; None -> decision-hint env right)
     ENeg sp input -> decision-hint env input
+    EApp sp (EVar at name) input | same name "#kernel.length" -> Some (primitive-type "Nat")
     EApp sp function (EVar at name) | decision-copy-out env function -> (case lookup-binding name env of
       Some binding -> (case borrowed-carrier (scheme-body (checked-scheme binding)) of
         Some carrier -> if integer-carrier carrier then Some carrier else None
@@ -4001,6 +4024,13 @@ module Bootstrap.Infer where
       Some (MkLocalBinding display sc id level) -> decision-local sp name carrier env st
       Some (MkValueBinding display sc id level index) -> decision-local sp name carrier env st
       other -> term-error sp "decision operands need actual scoped numeric values" st)
+    EApp sp (EVar at name) input | same name "#kernel.length" ->
+      (case infer classes kinds families env locals input st of
+        (value, checked) -> let actual = normalize checked (core-type value) in
+          let base = predicate-base-carrier actual in
+          if not (length-carrier base) then term-error sp "length index operand needs Bytes or a list-shaped carrier" checked
+          else let operand = (case refinement-view actual of URefine id binder domain predicate -> CForget sp domain value; other -> value) in
+            (CPrimitive sp (primitive-type "Nat") "#kernel.length" (CArgument sp operand (CArgumentsEnd sp)), unify sp carrier (primitive-type "Nat") checked))
     EApp sp function input -> (case decision-call-name function of
       None -> term-error sp "decision calls need checked pure total body authority" st
       Some name -> if not (decision-copy-out env function || byte-length-binding name kinds || string-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
@@ -4962,6 +4992,16 @@ module Bootstrap.Infer where
          EApp decision head input) | decision-syntax-head env head ->
           (case check classes kinds families env locals arg (decision-type predicate) st of
             (checked-decision, checked) -> introduce-refinement env sp result value checked)
+        (callee, EApp decision head input) | decision-syntax-head env head ->
+          (case infer-decision-expected classes kinds families env locals decision input (decision-type predicate) st of
+            (CDecision at goal actual test, checked) -> let expected = normalize checked predicate in
+              let gamma = proof-context env checked in let facts = proof-facts env in
+              if not (scoped-decision-valid gamma facts (decision-type expected) expected test) then
+                term-error sp "decision test does not establish the erased argument's proposition" checked
+              else (case prove-erased-goal gamma facts expected False of
+                Some certificate -> discharge-call classes sp env (CErasedApply sp result effects fun (CProofSearch at expected False certificate)) checked
+                None -> term-error sp (if disproved-predicate gamma expected then "obligation disproved" else "decision needs static proof at this erased argument") checked)
+            (other, checked) -> term-error sp "erased argument requires a checked decision" checked)
         -- A quoted expression may carry a type ascription from its producer.
         -- Check that contract before accepting any evidence at the use site.
         (callee, EAnn at body annotation) -> (case convert False kinds (value-locals env locals) annotation st of

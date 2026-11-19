@@ -2489,7 +2489,9 @@ module Bootstrap.RuntimeIr where
         && runtime-type-equal (scheme-body (core-constructor-scheme ctor)) (UCon owner KType) ->
           direct-call Nil locals w sp name Nil Nil
       other -> unsupported w sp "nullary index constructor needs its checked defining family")
-    UIndexMeasure BufferLength input -> index-expression locals w sp (UIndexByteLength input)
+    UIndexMeasure BufferLength input -> (case typed-index-carrier input of
+      Some carrier -> (case index-expression locals w sp input of (ready, word) -> length-word ready sp carrier word)
+      None -> unsupported w sp "length needs its checked operand carrier")
     UIndexMeasure WordToNat input -> (case index-expression locals w sp input of
       (ready, word) -> call ready "@cinch_nat_from_i64" [word])
     UIndexByteLength input -> (case index-expression locals w sp input of
@@ -4606,11 +4608,36 @@ module Bootstrap.RuntimeIr where
   wide-knot context members = case members of
     CRecursiveBinding id name value rest -> wide-type context (core-type value) || wide-knot context rest
     other -> False
+  -- Hold the root throughout the walk. Each next pointer is a borrow
+  -- from that root; only the root is released when the walk finishes.
+  length-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  length-word w sp carrier root = if named carrier "Bytes" then (case call w "@cinch_bytes_len" [root] of
+    (measured, length) -> call (count-op False carrier root measured) "@cinch_nat_from_i64" [length])
+    else case core-list-element carrier of
+      Some element | array-list-abi w ->
+        let (a, entry) = fresh w "length-entry" in let (b, loop) = fresh a "length-loop" in
+        let (c, step) = fresh b "length-step" in let (d, end) = fresh c "length-end" in
+        let (e, cell) = fresh d "%v" in let (f, next) = fresh e "%v" in
+        let (g, count) = fresh f "%v" in let (h, more) = fresh g "%v" in
+        let start = emit-lines h [cat ["  br label %", entry], cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"],
+          cat ["  ", cell, " = phi i64 [ ", root, ", %", entry, " ], [ ", next, ", %", step, " ]"],
+          cat ["  ", count, " = phi i64 [ 0, %", entry, " ], [ ", more, ", %", step, " ]"]] in
+        (case constructor-tag start cell of
+          (tagged, tag) -> let (i, empty) = fresh tagged "%v" in let (j, ptr) = fresh i "%ptr" in let (k, slot) = fresh j "%ptr" in
+            let walked = emit-lines k [cat ["  ", empty, " = icmp eq i64 ", tag, ", 0"], cat ["  br i1 ", empty, ", label %", end, ", label %", step],
+              cat [step, ":"], cat ["  ", ptr, " = inttoptr i64 ", cell, " to ptr"],
+              cat ["  ", slot, " = getelementptr i64, ptr ", ptr, ", i64 ", if wide-type (writer-context w) element then "2" else "1"],
+              cat ["  ", next, " = load i64, ptr ", slot], cat ["  ", more, " = add i64 ", count, ", 1"],
+              cat ["  br label %", loop], cat [end, ":"]] in
+            call (count-op False carrier root walked) "@cinch_nat_from_i64" [count])
+      other -> unsupported w sp "length needs its checked list layout"
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args = case args of
     CArgumentsEnd at | same op "#unhandled-operation" -> let (ready, dead) = fresh w "afterfault" in
       (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.length" -> (case expression definitions locals w input of
+      (ready, value) -> length-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
       else if same op "memo-demand" then memo-demand definitions locals w sp ty input
       else if same op "borrow" || same op "thunk-delay" then expression definitions locals w input

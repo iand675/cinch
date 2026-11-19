@@ -21,13 +21,13 @@ module Bootstrap.Type where
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UForall, UArg, UEnd, UError
   export copy-marker-carrier
   export foreign-pointer
-  export core-list-type, core-list-element, ascii-carrier, ordered-carrier
+  export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
   export shared-pattern-carrier, pattern-constructor-type
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
   export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
   export lazy-kind, lazy-type, lazy-parts
-  export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
+  export without-index-levels, index-of-type, typed-index-carrier, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
   export type-free-bound
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
@@ -821,6 +821,8 @@ module Bootstrap.Type where
     UApp (UCon name (KFun KType KType)) element ->
       if same-tag name (global-data-core-list) && carrier-type element then Some element else None
     other -> None
+  length-carrier :: UType -> Bool
+  length-carrier carrier = same-shape carrier (UCon "Bytes" KType) || not-null-carrier carrier
   not-null-carrier :: UType -> Bool
   not-null-carrier carrier = case core-list-element carrier of Some element -> True; None -> False
   -- `Ascii` decides text and lists of chars: a `String` carrier, or a list
@@ -877,7 +879,7 @@ module Bootstrap.Type where
       Some refined -> case refinement-view refined of URefine id name carrier predicate -> carrier-type carrier; other -> False
       None -> False)
     UIndexByteLength value -> valid-type value && (case typed-index-carrier value of Some carrier -> same-shape carrier (UCon "Bytes" KType); None -> False)
-    UIndexMeasure measure value -> valid-type value && (case typed-index-carrier value of Some carrier -> same-shape carrier (UCon (case measure of WordToNat -> "U32"; BufferLength -> "Bytes") KType); None -> False)
+    UIndexMeasure measure value -> valid-type value && (case typed-index-carrier value of Some carrier -> (case measure of WordToNat -> same-shape carrier (UCon "U32" KType); BufferLength -> length-carrier carrier); None -> False)
     UIndexStringLength value -> valid-type value && (case typed-index-carrier value of Some carrier -> same-shape carrier (UCon global-data-string-string KType); None -> False)
     UIndexBorrowRead value -> valid-type value && (case borrow-index-parts value of
       Some (mutable, region, carrier) -> integer-carrier carrier

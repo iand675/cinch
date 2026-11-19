@@ -911,6 +911,8 @@ module Bootstrap.Resolve where
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
     EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not"] then
       (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
+    EApp sp (EVar at name) input | same name "length" -> (case rename-expr visible locals input of
+      (argument, errors) -> (EApp sp (EVar at "#kernel.length") argument, errors))
     EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
     EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
       (case rename-decision-syntax visible locals first of (left, errors) -> case rename-decision-syntax visible locals second of (right, more) -> (EBin sp operation left right, errors <> more)) else rename-expr visible locals syntax
