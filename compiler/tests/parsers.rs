@@ -278,7 +278,7 @@ fn expect_exit(name: &str, main: &str, expected: i32) {
 
 /// The shared corpus: every lexical rule of "Layout and lexing" and
 /// the local amendments, plus the real example files the bootstrap
-/// grammar test parses. Case order is the failure code order (1-based).
+/// grammar test parses.
 fn drift_corpus() -> Vec<(&'static str, String)> {
     let mut cases: Vec<(&'static str, String)> = Vec::new();
     let mut push = |name: &'static str, src: String| cases.push((name, src));
@@ -343,77 +343,65 @@ fn drift_corpus() -> Vec<(&'static str, String)> {
 /// stream for every corpus entry.
 #[test]
 fn lex_agrees_with_compiler_token_stream() {
-    let corpus = drift_corpus();
-    // One program per batch of cases: the checker recurses over a
-    // program's elaborated code, so a giant program overflows a test
-    // thread's stack while batches stay small.
-    for (batch_idx, batch) in corpus.chunks(1).enumerate() {
-        let mut program = program_header();
-        program.push_str("  render-all :: List LToken -> String\n");
-        program.push_str("  render-all ts = case ts of\n");
-        program.push_str("    Nil -> empty-string\n");
-        program.push_str("    Cons t rest -> case rest of\n");
-        program.push_str("      Nil -> render-token t\n");
-        program.push_str("      _ -> string-concat (render-token t)\n");
-        program.push_str("            (string-concat (\"\\n\") (render-all rest))\n\n");
-        program.push_str("  run-cases :: List (Bytes, List String) -> Nat -> Int\n");
-        program.push_str("  run-cases cs i = case cs of\n");
-        program.push_str("    Nil -> 0\n");
-        program.push_str("    Cons p rest -> case p of\n");
-        program.push_str("      (src, expected) ->\n");
-        program.push_str("        case lex-source src of\n");
-        program.push_str("          LexedFail sp k -> int-of (i + 50)\n");
-        program.push_str("          LexedTokens toks ->\n");
-        program.push_str("            case first-diff (render-each toks) expected 0 of\n");
-        program.push_str("              None -> run-cases rest (i + 1)\n");
-        program.push_str("              Some d -> int-of (d + 1)\n\n");
-        program.push_str("  render-each :: List LToken -> List String\n");
-        program.push_str("  render-each ts = case ts of\n");
-        program.push_str("    Nil -> Nil\n");
-        program.push_str("    Cons t rest -> Cons (render-token t) (render-each rest)\n\n");
-        program.push_str("  first-diff :: List String -> List String -> Nat -> Option Nat\n");
-        program.push_str("  first-diff a b i = case a of\n");
-        program.push_str("    Nil -> case b of\n");
-        program.push_str("      Nil -> None\n");
-        program.push_str("      Cons y ys -> Some i\n");
-        program.push_str("    Cons x xs -> case b of\n");
-        program.push_str("      Nil -> Some i\n");
-        program.push_str("      Cons y ys ->\n");
-        program.push_str("        if string-compare x y == 0 then first-diff xs ys (i + 1) else Some i\n\n");
-        program.push_str("  main :: Int\n");
-        program.push_str("  main = run-cases [\n");
-        let mut entries: Vec<String> = Vec::new();
-        for (name, src) in batch {
-            let toks: Vec<String> = expected_stream(src).lines().map(|l| string_lit(l)).collect();
-            entries.push(format!(
-                "    -- {name}\n    ({}, [{}])",
-                bytes_lit(src),
-                toks.join(", ")
-            ));
-        }
-        program.push_str(&entries.join(",\n"));
-        program.push_str("\n  ] 1\n");
+    let program = r#"module Main where
+  import Text.Lex
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
 
-        let code = run_main("lex-drift", &program);
-        if code != 0 {
-            let (name, src) = &batch[0];
-            let expected_str = expected_stream(src);
-            let expected: Vec<&str> = expected_str.lines().collect();
-            if code == 51 {
-                panic!(
-                    "lex drift in batch {} ({name}): Text.Lex rejected the source the compiler accepts:\n--- source ---\n{src}",
-                    batch_idx + 1
-                );
-            }
-            let tok_idx = (code - 1) as usize;
+  render-all :: List LToken -> String
+  render-all ts = case ts of
+    Nil -> ""
+    Cons t Nil -> render-token t
+    Cons t rest -> string-concat (render-token t) (string-concat "\n" (render-all rest))
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "input.txt") of
+    Err error -> 1
+    Ok src -> (case lex-source src of
+      LexedFail sp k -> 2
+      LexedTokens toks -> (case fs-write (path-from-string "tokens.txt") (string-to-bytes (render-all toks)) of
+        Err error -> 3
+        Ok done -> 0))
+"#;
+    let dir = write_project("lex-drift", program);
+    let project = dir.clone();
+    let exe = std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || common::build_executable(&project, "main.cinch", "lex-drift"))
+        .expect("spawn compiler thread")
+        .join()
+        .expect("compiler thread")
+        .expect("compile Text.Lex drift fixture");
+    for (name, src) in drift_corpus() {
+        std::fs::write(dir.join("input.txt"), &src).expect("write corpus input");
+        let output = std::process::Command::new(&exe)
+            .current_dir(&dir)
+            .output()
+            .expect("run Text.Lex");
+        assert!(
+            output.status.success(),
+            "{name}: Text.Lex exited {}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let report = dir.join("tokens.txt");
+        let actual = std::fs::read_to_string(&report).expect("read rendered token stream");
+        std::fs::remove_file(report).expect("clear token stream for next case");
+        let expected = expected_stream(&src);
+        if actual != expected {
+            let index = expected.split('\n')
+                .zip(actual.split('\n'))
+                .take_while(|(e, a)| e == a)
+                .count();
             panic!(
-                "lex drift in batch {} ({name}) at rendered token {tok_idx} (of {}):\n--- source ---\n{src}\n--- expected token ---\n{:?}",
-                batch_idx + 1,
-                expected.len(),
-                expected.get(tok_idx).copied().unwrap_or("<past the end of the expected stream>")
+                "{name}: lexer drift at token {index}\nexpected {:?}\n  actual {:?}\nsource:\n{src}",
+                expected.split('\n').nth(index),
+                actual.split('\n').nth(index)
             );
         }
     }
+    std::fs::remove_dir_all(dir).expect("remove drift fixture");
 }
 
 /// Layout and lexing refusals and errors are named, not silent: the
