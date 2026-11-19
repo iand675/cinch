@@ -94,32 +94,24 @@ fn run(optimized: bool) {
     let expressions = checks();
     assert_eq!(expressions.len(), 1607);
     let directory = project(&consumer(&expressions, 8));
-    let entry = directory.path().join("Main.cinch");
     let executable = directory.path().join("consumer");
     let profile = cinch::core::TargetProfile {
         reclaim: true,
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
-    let output = executable.clone();
-    let compiled = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || {
-            cinch::driver::driver_with_profile_opts(
-                Mode::Build,
-                cinch::check::StageMode::Refresh,
-                &entry,
-                Some(&output),
-                &profile,
-                &cinch::driver::DriverOptions {
-                    opt_level: optimized.then_some(2),
-                    ..Default::default()
-                },
-            )
-        })
-        .unwrap()
-        .join()
-        .unwrap();
+    let compiled = common::drive_with_profile_opts(
+        Mode::Build,
+        cinch::check::StageMode::Refresh,
+        directory.path(),
+        "Main.cinch",
+        Some(executable.clone()),
+        &profile,
+        &cinch::driver::DriverOptions {
+            opt_level: optimized.then_some(2),
+            ..Default::default()
+        },
+    );
     if let Err(error) = compiled {
         let retained = directory.keep();
         panic!(
