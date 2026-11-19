@@ -58,6 +58,25 @@ module Main where
         clean together && equal (normalize together a) r && equal (normalize together b) r
           && clean apart && not (equal (normalize apart a) (normalize apart b))
           && equal (normalize apart (row [io a, io b])) (row [io r, io s])
+  extend-rows :: UType -> UType -> Bool
+  extend-rows r s = case fresh-meta KRow (empty-store "row extension") of
+    (tail, start) ->
+      let left = union-effects (row [io r]) tail in
+      let both = row [io r, io s] in
+      let forward = unify sp left both start in
+      let backward = unify sp both left start in
+      let rejected = unify sp left (row [io s]) start in
+      clean forward && clean backward
+        && equal (normalize forward tail) (row [io s]) && equal (normalize backward tail) (row [io s])
+        && not (clean rejected) && same-shape (normalize rejected tail) tail
+        && (case fresh-meta KRow start of
+          (other, next) ->
+            let right = union-effects (row [io s]) other in
+            let opened = unify sp left right next in
+            let closed = unify sp tail (row [io s, divergence]) opened in
+            clean closed && equal (normalize closed other) (row [io r, divergence])
+              && equal (normalize closed left) (normalize closed right))
+
   scope-check :: Nat -> Bool
   scope-check id = case fresh-meta KRow (empty-store "effect-types") of
     (outer, start) ->
@@ -156,7 +175,7 @@ module Main where
   tests id =
     let r = URigid id "r" 0 KRegion in
     let s = URigid (id + 1) "s" 0 KRegion in
-    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization
+    basic r s && transactional r s && coalescing r s && extend-rows r s && scope-check id && opening r && generalization
       && core-check r && joined-meta r && arrow-application False r && arrow-application True r && open-rows id r s
 
   main :: Unit ->{IO r} Int

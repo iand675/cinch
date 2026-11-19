@@ -1265,6 +1265,7 @@ module Bootstrap.Type where
       URow effects -> if valid-effects labels && valid-effects effects then
         (case match-effects sp True labels effects labels effects st of Some solved -> solved; None -> mismatch sp a b st)
         else add-error sp "malformed closed effect row" st
+      URowJoin first second -> unify-open-rows sp b a st
       other -> mismatch sp a b st
     URowJoin first second -> if valid-type a && valid-type b && kind-equal (type-kind b) KRow then
       unify-open-rows sp a b st
@@ -1275,14 +1276,38 @@ module Bootstrap.Type where
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
     other -> mismatch sp a b st
 
-  -- Equal explicit labels can share a tail. Try that equation before
-  -- inclusion, which requires the tail identities to be known already.
+  -- A flexible tail absorbs the labels not already present on its side.
+  -- Both operands have been normalized, so each explicit part is a set.
+  residual-labels :: UType -> UType -> UType
+  residual-labels labels known = case labels of
+    UArg first rest -> if has-effect first known then residual-labels rest known
+      else UArg first (residual-labels rest known)
+    other -> UEnd
+  extend-row :: Span -> UType -> UType -> UType -> UType -> Store -> Store
+  extend-row sp labels tail required rest st =
+    case match-effects sp False labels required UEnd UEnd st of
+      Some matched ->
+        let extra = residual-labels (normalize matched required) (normalize matched labels) in
+        unify sp tail (union-effects (URow extra) rest) matched
+      None -> mismatch sp (union-effects (URow labels) tail) (union-effects (URow required) rest) st
   unify-open-rows :: Span -> UType -> UType -> Store -> Store
   unify-open-rows sp a b st = case (a, b) of
+    (URowJoin (URow labels) (UMeta id KRow), URow required) ->
+      extend-row sp labels (UMeta id KRow) required (URow UEnd) st
     (URowJoin (URow left) tail, URowJoin (URow right) other-tail) ->
-      let trial = unify sp tail other-tail (unify sp (URow left) (URow right) st) in
-      if list-length (store-errors trial) == list-length (store-errors st) then trial
-      else include-effects sp b a (include-effects sp a b st)
+      (case match-effects sp True left right left right st of
+        Some matched -> unify sp tail other-tail matched
+        None -> case (tail, other-tail) of
+          (UMeta id KRow, UMeta key KRow) | id /= key ->
+            let x = residual-labels left right in
+            let y = residual-labels right left in
+            case fresh-meta KRow st of
+              (shared, next) ->
+                unify sp other-tail (union-effects (URow x) shared)
+                  (unify sp tail (union-effects (URow y) shared) next)
+          (UMeta id KRow, other) -> extend-row sp left tail right other-tail st
+          (other, UMeta id KRow) -> extend-row sp right other-tail left tail st
+          other -> include-effects sp b a (include-effects sp a b st))
     other -> include-effects sp b a (include-effects sp a b st)
 
   -- Closed rows are sets, including when region variables later coincide.
