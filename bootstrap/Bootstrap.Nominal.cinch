@@ -309,6 +309,18 @@ module Bootstrap.Nominal where
   measure-reference name rows = case rows of
     JArr row rest -> (same name (text (field "identity" row)) && same "measure" (text (field "kind" row))) || measure-reference name rest
     other -> False
+  -- In an argument position a name can denote a constructor index. The
+  -- elaborator subsequently checks its carrier and defining public table.
+  qualify-argument :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-argument refs locals argument = case argument of
+    TName at name -> case qualify-name refs locals at name of
+      (ty, Nil) -> (ty, Nil)
+      (ty, errors) -> if constructor-reference name refs then (TName at (interface-global name), Nil) else (ty, errors)
+    other -> qualify refs locals argument
+  constructor-reference :: String -> Json -> Bool
+  constructor-reference name rows = case rows of
+    JArr row rest -> usage-member name (field "constructors" row) || constructor-reference name rest
+    other -> False
   singleton-reference :: String -> Json -> Bool
   singleton-reference name rows = case rows of
     JArr row rest -> (case field "constructors" row of
@@ -398,7 +410,7 @@ module Bootstrap.Nominal where
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
       ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
     TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
-    TArg s x rest -> case (qualify refs locals x, qualify refs locals rest) of
+    TArg s x rest -> case (qualify-argument refs locals x, qualify refs locals rest) of
       ((a, ea), (xs, es)) -> (TArg s a xs, ea <> es)
     TArgsEnd s -> (ty, Nil)
     TForall s qs body -> case (qualify-quantifiers refs locals qs, qualify refs (quantified-names qs <> locals) body) of

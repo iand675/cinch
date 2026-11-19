@@ -79,6 +79,8 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
         ("existential constructor declaration", "data Exists where\n    Pack :: forall a. a -> Exists", true),
         ("existential constructor introduction", "data Exists where\n    Pack :: forall a. a -> Exists\n  make :: Int -> Exists\n  make x = Pack x", true),
         ("family and constructor binders retain distinct kinds", "data Tagged a where\n    Pack :: forall (n :: Nat). a -> Tagged a", true),
+        ("constructor result distinguishes enum indices", "data Mode where\n    Clock :: Mode\n    Calendar :: Mode\n  data Tagged (m :: Mode) where\n    Tag :: Int -> Tagged m\n  make :: (m :: Mode) -> Tagged m\n  make m = Tag 42\n  clock :: Tagged Clock\n  clock = make Clock", true),
+        ("constructor result cannot substitute another enum index", "data Mode where\n    Clock :: Mode\n    Calendar :: Mode\n  data Tagged (m :: Mode) where\n    Tag :: Int -> Tagged m\n  make :: (m :: Mode) -> Tagged m\n  make m = Tag 42\n  clock :: Tagged Clock\n  clock = make Calendar", false),
         ("fixed indexed constructor result", "data Vec (n :: Nat) a where\n    VNil :: Vec 0 a", true),
         ("computed indexed constructor result", "data Vec (n :: Nat) a where\n    VCons :: forall (k :: Nat). a -> Vec k a -> Vec (k + 1) a", true),
         ("constructor cannot return another family", "data Other where\n    End :: Other\n  data Box a where\n    Wrong :: a -> Other", false),

@@ -128,7 +128,16 @@ module Bootstrap.Typing where
           (case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
             (Nil, Nil, UFun domain (UCon owner KType)) -> if same owner (core-data-name d)
               then Cons (constructor-index-key (core-constructor-name constructor), KValue (scheme-body sc)) more else more
-            other -> more)
+            other -> nullary-index-kinds (core-data-name d) [constructor] more)
+        (KType, Nil, constructors) -> nullary-index-kinds (core-data-name d) constructors more
+        other -> more)
+  nullary-index-kinds :: String -> List CoreConstructor -> List (String, Kind) -> List (String, Kind)
+  nullary-index-kinds owner constructors kinds = case constructors of
+    Nil -> kinds
+    Cons ctor rest -> let more = nullary-index-kinds owner rest kinds in
+      let sc = core-constructor-scheme ctor in
+      (case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
+        (Nil, Nil, UCon result KType) | same owner result -> Cons (constructor-index-key (core-constructor-name ctor), KValue (scheme-body sc)) more
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
   close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in

@@ -31,7 +31,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
+  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
   import Data.Json
   import Text.Lex (Span, span-line, span-col)
@@ -981,18 +981,30 @@ module Bootstrap.Infer where
 
   -- Only the defining module's complete, public constructor table supplies
   -- the arrow. Nominal references inside a client's predicate carry no such authority.
+  nullary-owner :: TypeContext -> String -> TypeExpr -> Option UType
+  nullary-owner kinds owner syntax = case (syntax, context-kind owner kinds) of
+    (TName sp name, Some KType) | same owner name -> Some (UCon owner KType)
+    other -> None
+  imported-index-constructor :: TypeContext -> String -> String -> Bool -> Json -> Option UType
+  imported-index-constructor kinds owner identity singleton rows = case rows of
+    JArr ctor rest -> (case field "symbol" ctor of
+      JStr name | same identity name -> (case resolved-text ctor of
+        Some text -> (case parse-scheme "constructor index" (string-to-bytes text) of
+          Parsed ty Nil -> (case qualify-resolved ctor ty of
+            (qualified, Nil) -> (case nullary-owner kinds owner qualified of
+              Some result -> Some result
+              None -> if singleton then singleton-arrow kinds owner qualified else None)
+            other -> None)
+          other -> None)
+        None -> None)
+      other -> imported-index-constructor kinds owner identity singleton rest)
+    other -> None
   imported-singleton-arrow :: TypeContext -> String -> Json -> Option UType
   imported-singleton-arrow kinds identity types = case types of
     JArr row more -> case (field "identity" row, field "ctors" row) of
-      (JStr owner, JArr ctor JArrEnd) | (case field "symbol" ctor of JStr symbol -> same identity symbol; other -> False) ->
-        if not (runtime-constructors-complete (interface-global owner) (field "ctors" row)) then None
-        else (case resolved-text ctor of
-          Some text -> (case parse-scheme "constructor index" (string-to-bytes text) of
-            Parsed ty Nil -> (case qualify-resolved ctor ty of
-              (qualified, Nil) -> singleton-arrow kinds (interface-global owner) qualified
-              other -> None)
-            other -> None)
-          None -> None)
+      (JStr owner, JArr ctor rest) -> (case imported-index-constructor kinds (interface-global owner) identity (case rest of JArrEnd -> True; other -> False) (field "ctors" row) of
+        Some result -> if runtime-constructors-complete (interface-global owner) (field "ctors" row) then Some result else None
+        None -> imported-singleton-arrow kinds identity more)
       other -> imported-singleton-arrow kinds identity more
     other -> None
 
@@ -1003,9 +1015,22 @@ module Bootstrap.Infer where
     Cons other rest -> imported-constructor-arrow kinds home identity rest
     Nil -> None
 
+  has-nullary-constructor :: String -> List (String, TypeExpr) -> Bool
+  has-nullary-constructor owner constructors = case constructors of
+    Cons (symbol, TName at result) rest -> same owner result || has-nullary-constructor owner rest
+    Cons other rest -> has-nullary-constructor owner rest
+    Nil -> False
+  local-nullary-owner :: TypeContext -> String -> String -> List (String, TypeExpr) -> Option UType
+  local-nullary-owner kinds owner name constructors = case constructors of
+    Cons (symbol, syntax) rest -> if same name symbol then nullary-owner kinds owner syntax else local-nullary-owner kinds owner name rest
+    Nil -> None
   local-constructor-arrow :: TypeContext -> String -> List Decl -> Option UType
   local-constructor-arrow kinds name declarations = case declarations of
-    Cons (DData sp owner Nil [(symbol, syntax)]) rest | same name symbol -> singleton-arrow kinds owner syntax
+    Cons (DData sp owner Nil constructors) rest -> (case local-nullary-owner kinds owner name constructors of
+      Some result -> Some result
+      None -> case constructors of
+        [(symbol, syntax)] | same name symbol -> singleton-arrow kinds owner syntax
+        other -> local-constructor-arrow kinds name rest)
     Cons other rest -> local-constructor-arrow kinds name rest
     Nil -> None
 
@@ -1038,7 +1063,9 @@ module Bootstrap.Infer where
   constant-index kinds name = case context-total-observation name kinds of
     Some binding -> let function = binding-function binding in
       (case total-parameters function of Nil -> Some (UIndexCall function UEnd); other -> None)
-    None -> None
+    None -> (case source-constructor-arrow kinds name of
+      Some (UCon owner KType) -> Some (UIndexConstructor name (UCon owner KType) UEnd)
+      other -> None)
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TUnmodeled at message | not (same message "") -> bad at message st
@@ -1103,7 +1130,9 @@ module Bootstrap.Infer where
     case constructor-index-parts checked of
       Some (name, function, child) -> (case reify-argument sp env child st of
         (input, prepared) -> checked-typed-source-index sp (UIndexConstructor name function input) prepared)
-      None -> reify-observed-argument sp env gamma facts checked term st
+      None -> (case nullary-constructor-index checked of
+      Some value -> checked-typed-source-index sp value st
+      None -> reify-observed-argument sp env gamma facts checked term st)
   reify-observed-argument :: Span -> List CheckedBinding -> ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Store -> (UType, Store)
   reify-observed-argument sp env gamma facts checked term st = case scoped-total-call-index gamma facts checked of
       Some value -> checked-typed-source-index sp value st
@@ -1724,7 +1753,7 @@ module Bootstrap.Infer where
   refine-phantom-data-kinds :: HashMap String (List TypeExpr) -> List Decl -> TypeContext -> Store -> Store -> (List Decl, TypeContext, Store)
   refine-phantom-data-kinds groups declarations kinds seed checked = case phantom-data-declarations kinds groups declarations of
     (refined, False) -> (declarations, kinds, checked)
-    (refined, True) -> case collect-kinds refined primitive-kinds seed of
+    (refined, True) -> case collect-kinds refined (imported-carrier-kinds refined primitive-kinds) seed of
       (next-kinds, next-store) -> refine-phantom-data-kinds groups refined next-kinds seed next-store
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
@@ -1767,6 +1796,16 @@ module Bootstrap.Infer where
     Nil -> qs
     Cons name rest -> implicit-row-regions (if quantified-name name qs then qs else qs <> [MkQuant (list-length qs) name KRegion True]) rest
 
+  -- Parameter metadata spells nominal carriers with their defining identity.
+  -- Only a registered proper type may supply the carrier of a value binder.
+  imported-parameter-kind :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (Kind, Store)
+  imported-parameter-kind kinds locals syntax st = case syntax of
+    TName sp name | not (kind-form syntax || kernel-type-name name) -> case lookup-local name locals of
+      None -> let canonical = interface-global name in case context-kind canonical kinds of
+        Some KType -> carrier-kind False kinds locals (TName sp canonical) st
+        other -> kind-of True kinds locals syntax st
+      Some bound -> kind-of True kinds locals syntax st
+    other -> kind-of True kinds locals syntax st
   imported-kinds :: TypeContext -> Json -> Store -> (List Quant, Store)
   imported-kinds kinds rows st = case imported-kinds-from kinds Nil 0 Nil rows st of
     (qs, checked) -> (qs, declaration-kind-errors zero qs checked)
@@ -1776,7 +1815,7 @@ module Bootstrap.Infer where
       (JStr name, JStr text, JBool only) -> case parse-scheme "interface-kind" (string-to-bytes text) of
         Parsed ast Nil ->
           let distinct = if has name seen then add-error zero "duplicate imported declaration parameter" st else st in
-          case kind-of True kinds locals ast distinct of
+          case imported-parameter-kind kinds locals ast distinct of
             (k, sk) -> case imported-kinds-from kinds (Cons (name, UBound next name k) locals) (next + 1) (Cons name seen) rest sk of
               (qs, sr) -> (Cons (MkQuant next name k only) qs, sr)
         other -> (Nil, add-error zero "invalid imported declaration kind" st)
@@ -1916,6 +1955,24 @@ module Bootstrap.Infer where
       other -> imported-byte-observers sp owner rest kinds st
     JArrEnd -> (kinds, st)
     other -> (kinds, st)
+  -- A public data family may precede its index carrier in a sorted interface.
+  -- Seed just the kind of each defining, parameterless data header. Its
+  -- constructors and term-level authority are checked from the complete table.
+  imported-carrier-headers :: String -> Json -> TypeContext -> TypeContext
+  imported-carrier-headers owner rows kinds = case rows of
+    JArr row rest -> case (field "identity" row, field "kind" row, field "parameters" row) of
+      (JStr identity, JStr variety, JArrEnd) | same variety "data" && same owner (nominal-owner identity) ->
+        let name = interface-global identity in case context-kind name kinds of
+          None -> imported-carrier-headers owner rest (context-add-kind name KType kinds)
+          Some prior -> imported-carrier-headers owner rest kinds
+      other -> imported-carrier-headers owner rest kinds
+    other -> kinds
+  imported-carrier-kinds :: List Decl -> TypeContext -> TypeContext
+  imported-carrier-kinds ds kinds = case ds of
+    Cons (DInterface sp owner hash metadata) rest -> imported-carrier-kinds rest
+      (imported-carrier-headers owner (field "types" (field "exports" metadata)) kinds)
+    Cons other rest -> imported-carrier-kinds rest kinds
+    Nil -> kinds
   collect-kinds :: List Decl -> TypeContext -> Store -> (TypeContext, Store)
   collect-kinds ds kinds st = case ds of
     Nil -> (kinds, st)
@@ -1942,6 +1999,7 @@ module Bootstrap.Infer where
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
           (ks, sk) -> collect-kinds rest (case (qs, cs) of
             (Nil, [(symbol, TFun site (TName arg field) (TName end result))]) | same name result -> context-add-alias d ks
+            (Nil, _) | has-nullary-constructor name cs -> context-add-alias d ks
             other -> ks) sk
       -- The generated single-constructor data has already checked the
       -- kind. Keep the defining labels as separate source provenance.
@@ -2320,22 +2378,22 @@ module Bootstrap.Infer where
     (Nil, Nil) -> True
     (Cons a rest, Cons b more) -> kind-equal (quant-kind a) (quant-kind b) && same-quant-kinds rest more
     other -> False
-  regular-imported-constructor :: Span -> String -> Scheme -> Json -> Store -> Store
-  regular-imported-constructor sp owner sc description st = case imported-kinds primitive-kinds (field "parameters" description) st of
+  regular-imported-constructor :: TypeContext -> Span -> String -> Scheme -> Json -> Store -> Store
+  regular-imported-constructor kinds sp owner sc description st = case imported-kinds kinds (field "parameters" description) st of
     (parameters, checked) ->
       let expected = applied-family owner (kind-arrow parameters) (scheme-params sc) in
       let result-check = unify sp (result-type (scheme-body sc)) expected (empty-store "constructor-shape") in
       if same-quant-kinds parameters (scheme-params sc) && (case store-errors result-check of Nil -> True; other -> False)
         then checked
         else add-error sp "imported constructor needs existential or indexed elaboration" checked
-  check-imported-constructor :: Span -> String -> Scheme -> Json -> Store -> Store
-  check-imported-constructor sp name sc metadata st =
+  check-imported-constructor :: TypeContext -> Span -> String -> Scheme -> Json -> Store -> Store
+  check-imported-constructor kinds sp name sc metadata st =
     let sa = if scheme-arity sc == json-length (field "fields" metadata)
           && constructor-erasure-matches (constructor-field-erasure (scheme-body sc)) (field "erased" metadata) then st
           else add-error sp "imported constructor arity or erasure disagrees with its resolved scheme" st in
     case (ctor-description name (resolved-nominals metadata), root-name (result-type (scheme-body sc))) of
       (Some description, Some result) -> let owner = interface-global (case field "identity" description of JStr identity -> identity; other -> "") in
-        if same owner result then regular-imported-constructor sp owner sc description sa
+        if same owner result then regular-imported-constructor kinds sp owner sc description sa
         else add-error sp "imported constructor returns a different defining type" sa
       other -> add-error sp "imported constructor has no defining family contract" sa
   check-imported-value :: Span -> Scheme -> Json -> Store -> Store
@@ -2346,9 +2404,9 @@ module Bootstrap.Infer where
       let count = scheme-arity sc + list-length (scheme-requirements sc) in
       if arity == nat-to-int count then st else add-error sp "imported arity disagrees with its checked scheme" st
     other -> add-error sp "imported value has no arity metadata" st
-  check-imported-contract :: Span -> String -> String -> Scheme -> Json -> Store -> Store
-  check-imported-contract sp name category sc metadata st = if valid-type (scheme-body sc) then
-    (if same category "constructor" then check-imported-constructor sp name sc metadata st else check-imported-value sp sc metadata st)
+  check-imported-contract :: TypeContext -> Span -> String -> String -> Scheme -> Json -> Store -> Store
+  check-imported-contract kinds sp name category sc metadata st = if valid-type (scheme-body sc) then
+    (if same category "constructor" then check-imported-constructor kinds sp name sc metadata st else check-imported-value sp sc metadata st)
     else st
   -- | Read an independently checked total-body observation.
   context-total-observation :: String -> TypeContext -> Option BodyBinding
@@ -2447,7 +2505,7 @@ module Bootstrap.Infer where
     else if same category "value" || (same category "constructor" && (case resolved-text metadata of Some text -> True; other -> False)) then
       case imported-scheme sp classes kinds ty metadata st of
         (sc, ss) ->
-          let checked = check-imported-contract sp name category sc metadata ss in
+          let checked = check-imported-contract kinds sp name category sc metadata ss in
           if same category "value" && (case context-mvar-observation name kinds of Some row -> True; None -> False) then register-imported-mvar sp name sc classes kinds env checked
           else if same category "value" && array-import-binding name kinds then register-imported-array sp name sc classes kinds env checked
           else if same category "value" && byte-length-binding name kinds then
@@ -2913,7 +2971,7 @@ module Bootstrap.Infer where
   register-imported-codata sp owner classes kinds metadata env st =
     case field "ctors" metadata of
       JArr row JArrEnd -> case imported-scheme sp classes kinds (TUnmodeled sp "missing codata observation scheme") row st of
-        (sc, checked) -> let valid = check-imported-constructor sp owner sc row checked in
+        (sc, checked) -> let valid = check-imported-constructor kinds sp owner sc row checked in
           case (scheme-requirements sc, storage-observation-body (json-length (field "fields" metadata)) (scheme-body sc)) of
             (Nil, Some body) -> add-binding sp (record-storage-name True owner)
               (MkScheme (scheme-params sc) body) "constructor" env
@@ -6936,7 +6994,7 @@ module Bootstrap.Infer where
       (JStr symbol, JNum tag, Some text) -> let name = interface-global symbol in
         let tagged = if tag == nat-to-int index then st else add-error sp "imported runtime constructor tag disagrees with defining order" st in
         (case imported-scheme sp classes kinds (TName sp "Int") row tagged of
-          (sc, checked) -> let valid = check-imported-constructor sp name sc row checked in
+          (sc, checked) -> let valid = check-imported-constructor kinds sp name sc row checked in
             case checked-imported-runtime-constructors sp owner classes kinds (index + 1) rest valid of
               (more, done) -> (Cons (MkCoreConstructor sp name sc) more, done))
       other -> (Nil, add-error sp "imported runtime constructor lacks a resolved scheme or tag" st)
@@ -7804,7 +7862,7 @@ module Bootstrap.Infer where
     -- (`collect-kinds`), so a data declaration may name one written later;
     -- `register` judges each declaration's strongly connected group
     -- (core specification section 2, mutual inductive groups).
-    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded primitive-kinds contracts in
+    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded (imported-carrier-kinds unkinded primitive-kinds) contracts in
     let groups = phantom-signature-groups unkinded hash-map-empty in
     let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded preliminary-kinds contracts preliminary-store in
     let rows = class-rows ds in

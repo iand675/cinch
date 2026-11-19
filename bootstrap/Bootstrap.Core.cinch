@@ -52,7 +52,7 @@ module Bootstrap.Core where
   export scoped-refinement-predicate
   export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
-  export constructor-index-parts, scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
+  export nullary-constructor-index, constructor-index-parts, scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
@@ -3065,6 +3065,11 @@ module Bootstrap.Core where
       Some value -> Some value
       None -> case scoped-constructor-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
 
+  nullary-constructor-index :: CoreTerm -> Option UType
+  nullary-constructor-index term = case term of
+    CUse sp (UCon owner KType) name role Nil | string-compare role "constructor" == 0 ->
+      Some (UIndexConstructor name (UCon owner KType) UEnd)
+    other -> None
   constructor-index-parts :: CoreTerm -> Option (String, UType, CoreTerm)
   constructor-index-parts term = case term of
     CApply sp result (CUse at (UFun domain (UCon owner KType)) name role Nil) child ->
@@ -3079,7 +3084,9 @@ module Bootstrap.Core where
           if typed-index-admissible index then Some index else None
         None -> None)
       else None
-    None -> None
+    None -> (case nullary-constructor-index term of
+      Some value -> if proof-term gamma facts term then Some value else None
+      None -> None)
   scoped-list-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-list-index gamma facts term = case term of
     CUse sp ty name role actuals | string-compare name (global-data-core-nil) == 0 && string-compare role "constructor" == 0 ->
