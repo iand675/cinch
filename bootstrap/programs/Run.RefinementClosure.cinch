@@ -4,7 +4,7 @@ module Main where
   import Bootstrap.Inputs (read-interfaces)
   import Bootstrap.Load (LoadedInterface)
   import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Check (check-program)
+  import Bootstrap.Check (check-and-retain, checked-elaboration)
   import Bootstrap.Resolve (resolve-program-with)
   import Bootstrap.Infer
   import Bootstrap.Core
@@ -18,12 +18,10 @@ module Main where
   run :: List LoadedInterface -> Bytes -> (Int, String)
   run interfaces source = case parse-program-with "refinement-source" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
-      (resolved, Nil) -> case check-program resolved of
-        Nil -> let result = elaborate-program "refinement-source" resolved in
-          case elaboration-errors result of
-            Nil -> if closed (elaboration-core result) then (0, "") else (94, "refinement Core did not retain checked evidence")
-            errors -> (4, render-diagnostics errors)
-        errors -> (4, render-diagnostics errors)
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, render-diagnostics errors)
+        Ok checked -> if closed (elaboration-core (checked-elaboration checked)) then (0, "")
+          else (94, "refinement Core did not retain checked evidence")
       (resolved, errors) -> (4, render-diagnostics errors)
     other -> (2, "refinement source parse failed")
   main :: Unit ->{IO r} Int

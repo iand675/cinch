@@ -21,7 +21,7 @@ fn named_refinements_preserve_scope_bounds_and_proof_obligations() {
         ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.NamedRefinements.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "named-refinements").expect("build the named refinement checker");
+    let exe = common::build_executable(&dir, "Main.cinch", "named-refinements").expect("build the named refinement checker");
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     let cases = [
         ("generic structural direct result keeps NonZero", "type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZ -> NZ\n  copy value = identity value", 0, ""),
