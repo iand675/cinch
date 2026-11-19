@@ -1784,13 +1784,21 @@ point.
 | the sealed environment is a balanced tree | 108.8 | a name below the module's cache entry resolved to a position, and the position was walked down a list of thousands of bindings |
 | a defining ownership row is decoded once per elaboration | 94.8 | an interface repeats a type's ownership table in every entry that names the type, and each copy was lexed and parsed again |
 | well-formed JSON is scanned by offset (section 2.23) | 92.2 | |
+| only the foreign tables an identity's owner can hold are read | 87.6 | every imported value walked every interface's foreign table, each row building its qualified name |
 
 The first row is a profile-guided binary and the rest are development
-builds without a profile, so the table understates the change. The chain
-with the first two changes built and checked in about 30 minutes while
-sharing the machine with a test run.
+builds without a profile, so the table understates the change. The audited
+chain with the first four changes (`1dd765f8`) reached the fixed point in
+22 m 24 s on the same machine, against 41 m 11 s: each stage frontend ran
+for about two and a half minutes instead of seven and a half. What that
+chain spends now is mostly links: Stage 1 is the seed's 305 MB module
+compiled twice for its profile (about seven minutes of the nine it takes),
+and Stage 2 is one unsharded instrumented link, a training run and the
+relink (about five minutes). A chain without profiles would be about
+twelve.
 
-What the profile says is left, as inclusive shares of the 108.8 s run:
+What the profile said was left, as inclusive shares of the 108.8 s run
+(the usage decode and the foreign tables have since gone from it):
 
 - **The totality retry, 42%.** A self-compile runs 92 module elaborations:
   the real one, one joint preliminary and 90 retries, one per name the joint
