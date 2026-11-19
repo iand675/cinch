@@ -34,7 +34,6 @@
 
 mod common;
 
-use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -49,7 +48,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main.cinch");
-    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
+    match common::run_executable(&dir, "Main.cinch") {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
