@@ -583,43 +583,26 @@ impl Store {
         let dir = self.entry_dir(pkg, &key);
         let manifest_path = dir.join(ENTRY_MANIFEST);
         let manifest = entry_manifest(pkg, &key, profile, &expected);
-        // The driver has already rendered and checked these interfaces. Compare
-        // its bytes directly on a warm build, without decoding the whole family.
-        if !rebuild && bodies.is_empty() && !rendered.is_empty()
+        // A warm entry must contain exactly the artifacts this compile would
+        // write. The contract hash excludes details such as compiled units.
+        // Reuse the driver's rendered interfaces when they are available.
+        if !rebuild
             && std::fs::read(&manifest_path).is_ok_and(|bytes| bytes == manifest.as_bytes())
             && selected.iter().all(|iface| {
-                rendered.get(iface.module.as_str()).is_some_and(|artifact|
-                    std::fs::read(Kind::Interface.path_in(&dir, &iface.module))
-                        .is_ok_and(|bytes| bytes == artifact.json.as_bytes()))
+                let Ok(stored) = std::fs::read(Kind::Interface.path_in(&dir, &iface.module)) else {
+                    return false;
+                };
+                match rendered.get(iface.module.as_str()) {
+                    Some(artifact) => stored == artifact.json.as_bytes(),
+                    None => stored == iface.to_json().as_bytes(),
+                }
+            })
+            && bodies.iter().all(|body| {
+                std::fs::read(body.kind.path_in(&dir, &body.module))
+                    .is_ok_and(|stored| stored == body.bytes)
             })
         {
             return Ok(Outcome::Verified(key));
-        }
-        // The compile path WRITES the store; it never trusts an entry to
-        // decide whether to fail. An entry is kept only when it is both
-        // intact and exactly the set this compile produced, and anything
-        // else (a cold cache, an aborted write, a truncated artifact, a
-        // recorded identity the current compiler no longer agrees with)
-        // is repaired by writing the artifacts this compile just
-        // produced. A store that could fail an ordinary build is worse
-        // than no store: the prelude is edited constantly, so the entry
-        // under one key goes stale for reasons that have nothing to do
-        // with the build in hand.
-        //
-        // The hard errors a genuinely corrupt entry produces belong to
-        // [`Store::load`], the consuming path, where the reason is
-        // reported to whoever is about to rely on the artifacts.
-        if !rebuild {
-            if let Ok(loaded) = self.load(pkg, &key) {
-                if self.agrees_with_compile(&loaded, &selected, &expected)
-                    && bodies.iter().all(|body| {
-                        std::fs::read(body.kind.path_in(&dir, &body.module))
-                            .is_ok_and(|stored| stored == body.bytes)
-                    })
-                {
-                    return Ok(Outcome::Verified(key));
-                }
-            }
         }
         let prior_entry = manifest_path.exists();
         // Write this compile's set into a directory of this writer's own
@@ -893,38 +876,7 @@ impl Store {
         self.load(pkg, &key)
     }
 
-    /// Check an existing entry against the artifact set a compile just
-    /// produced. The entry has already verified itself in
-    /// [`Store::load`]; this is the additional comparison that makes the
-    /// entry the same compilation, so a recompile that renders contracts
-    /// differently under an unchanged key refreshes the entry instead of
-    /// leaving artifacts behind that no longer match the compiler.
-    fn agrees_with_compile(
-        &self,
-        loaded: &PackageArtifacts,
-        selected: &[&Iface],
-        expected: &[ModuleRecord],
-    ) -> bool {
-        // The entry has to be about exactly the modules this compile
-        // produced, not merely about ones that agree where they overlap.
-        // The recorded order is the manifest's check order, not this
-        // map's sorted one, so membership is what is compared.
-        if loaded.kinds.len() != selected.len() {
-            return false;
-        }
-        for (iface, record) in selected.iter().zip(expected) {
-            if loaded.kinds.get(&iface.module) != Some(&record.kinds) {
-                return false;
-            }
-            let Some(prior) = loaded.iface(&iface.module) else {
-                return false;
-            };
-            if prior.iface_hash() != record.iface_hash || prior.source_hash != iface.source_hash {
-                return false;
-            }
-        }
-        true
-    }
+
 }
 
 /// A loaded entry: the interfaces, and the paths of the body artifacts

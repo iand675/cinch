@@ -714,6 +714,15 @@ fn the_cli_repairs_a_corrupt_entry_and_accepts_rebuild() {
         "the next check rewrites the corrupted artifact"
     );
 
+    std::fs::write(&victim, format!("{text}\n")).expect("write valid noncanonical JSON");
+    let out = run(&["check", "Main.cinch"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(
+        std::fs::read_to_string(&victim).expect("the canonical interface"),
+        text,
+        "a warm check restores the compiler's exact bytes even when the contract hash agrees"
+    );
+
     let out = run(&["check", "Main.cinch", "--rebuild"]);
     assert!(
         out.status.success(),
