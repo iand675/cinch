@@ -40,12 +40,14 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
     emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
-    if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", *PROFILE_FLAGS):
+    if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", "--check-platform", *PROFILE_FLAGS):
         return subprocess.call([compiler, *args], env=env)
     profile = []
     end = 1
     while end < len(args):
-        if args[end] in PROFILE_FLAGS:
+        if args[end] == "--check-platform" and end + 7 < len(args):
+            width = 8
+        elif args[end] in PROFILE_FLAGS:
             width = 1
         elif args[end] in ("--require-capability", "--target-feature", "--target") and end + 1 < len(args):
             width = 2

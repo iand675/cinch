@@ -21,6 +21,7 @@ pub struct Request {
     pub discard_interfaces: bool,
     pub flags: Vec<String>,
     pub program_args: Vec<String>,
+    source_profile: Option<TargetProfile>,
     link: Option<DriverOptions>,
     unit_roots: Vec<(String, String)>,
 }
@@ -53,10 +54,13 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     if stage != StageMode::Refresh {
         return Err(format!("external frontend lacks compile-time I/O stage mode {stage:?}"));
     }
-    // The profile the selected compiler builds for this target. A triple it
-    // does not support has no profile at all, and the refusal is the CLI's
-    // own: the triple is passed through and the compiler names its set.
-    let host = implemented_profile(Some(profile.triple.as_str()))?;
+    let backend = implemented_profile(Some(profile.triple.as_str()));
+    let has_backend = backend.is_ok();
+    let host = match backend {
+        Ok(target) => target,
+        Err(_) if mode == Mode::Check => implemented_profile(None)?,
+        Err(message) => return Err(message),
+    };
     // Destructured whole, so a new profile field fails to compile here
     // until the selector decides how the selected compiler meets it.
     let TargetProfile {
@@ -78,16 +82,16 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     let foreign_triple = *triple != TargetProfile::native().triple;
     let core_wasm = host.artifact == cinch::core::ArtifactProfile::CoreWasm
         && *name == TargetProfile::wasm32(host.artifact).name;
+    let same_platform = has_backend
+        && (!foreign_triple || *name == host.name || core_wasm)
+        && *triple == host.triple && *os == host.os
+        && (*arch == host.arch || arch == "portable") && *libc == host.libc
+        && *word_size == host.word_size && *endian == host.endian;
+    let check_platform = mode == Mode::Check && !same_platform;
     let mut lacking = Vec::new();
     for (field, same) in [
-        ("name", !foreign_triple || *name == host.name || core_wasm),
-        ("triple", *triple == host.triple),
-        ("os", *os == host.os),
-        ("arch", *arch == host.arch || arch == "portable"),
-        ("libc", *libc == host.libc),
+        ("platform", same_platform || check_platform),
         ("os_version", *os_version == host.os_version),
-        ("word_size", *word_size == host.word_size),
-        ("endian", *endian == host.endian),
         ("vector_shape", *vector_shape == host.vector_shape),
         ("allow_eval", *allow_eval == host.allow_eval),
         ("artifact", *artifact == host.artifact),
@@ -110,14 +114,19 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     // The CLI names the target it was asked for; without the flag it builds
     // the host's own target, which is the same profile.
     let mut flags = Vec::new();
-    if host.triple != TargetProfile::native().triple {
+    if check_platform {
+        flags.extend([
+            "--check-platform".to_owned(), name.clone(), triple.clone(), os.clone(),
+            arch.clone(), libc.clone(), word_size.to_string(), endian.clone(),
+        ]);
+    } else if host.triple != TargetProfile::native().triple {
         flags.push("--target".to_owned());
         flags.push(host.triple.clone());
     }
     if arch == "portable" {
         flags.push("--portable-isa".to_owned());
     }
-    if *features != host.features {
+    if check_platform || *features != host.features {
         flags.push("--clear-features".to_owned());
         for feature in features {
             flags.extend(["--target-feature".to_owned(), feature.clone()]);
@@ -137,7 +146,7 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     let link = (foreign_triple && matches!(mode, Mode::Build | Mode::Run)).then(|| DriverOptions {
         target: Some(host.triple.clone()), ..Default::default()
     });
-    Ok(Request { flags, link, ..Request::default() })
+    Ok(Request { flags, link, source_profile: Some(profile.clone()), ..Request::default() })
 }
 
 pub fn profile_options_request(mode: Mode, stage: StageMode, profile: &TargetProfile, opts: &DriverOptions) -> Result<Request, String> {
@@ -439,19 +448,10 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let mut files = Vec::new(); sources(&dir, &dir, &mut files)?; files.sort();
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
     let triple = request.flags.windows(2).find(|words| words[0] == "--target").map(|words| words[1].as_str());
-    let mut profile = implemented_profile(triple)?;
-    if request.flags.iter().any(|flag| flag == "--portable-isa") {
-        profile.arch = "portable".into();
-    }
-    if request.flags.iter().any(|flag| flag == "--clear-features") {
-        profile.features = request.flags.windows(2)
-            .filter(|words| words[0] == "--target-feature")
-            .map(|words| words[1].clone())
-            .collect();
-    }
-    profile.required = request.flags.windows(2)
-        .filter(|words| words[0] == "--require-capability")
-        .map(|words| words[1].clone()).collect();
+    let profile = match &request.source_profile {
+        Some(profile) => profile.clone(),
+        None => implemented_profile(triple)?,
+    };
     let files = reachable_sources(&files, &entry, &profile);
     let invocation_id = next_invocation_id();
     let work = dir.join(".cinch-self-tests").join(&invocation_id);

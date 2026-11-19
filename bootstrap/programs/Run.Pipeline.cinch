@@ -8,6 +8,9 @@
 -- dense typed Core body document (types in a side table) for every checked
 -- definition; it writes no interfaces.
 -- Either mode accepts --interfaces MANIFEST before the source paths.
+-- --check-platform NAME TRIPLE OS ARCH LIBC WORD-SIZE ENDIAN supplies the
+-- platform facts for --check and --check-types using those interfaces.
+-- --target continues to select an installed compilation target.
 -- --inline copies small units into their call sites. It is off by default:
 -- measured on the ladder it removes 30 workers and 0.9 % more IR, and the
 -- stage compiler it builds checks the toolkit 0.6 % faster inside the noise
@@ -23,13 +26,27 @@ module Main where
   import Bootstrap.Report (render-diagnostic)
   import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode, compile-manifest-profile-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Bootstrap.Pipeline (run-source-with-object-at, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
-  import Bootstrap.Target (TargetProfile, configured-profile, profile-triple, host-profile)
+  import Bootstrap.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
-  run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
-  run-words ws = run-options None CompileAndRun None None (None, False, Nil, None) False True False False ws
+  data RequestedPlatform where
+    CompilerTarget :: Option String -> RequestedPlatform
+    CheckPlatform :: TargetProfile -> RequestedPlatform
 
-  run-options :: forall r. using (io :: Io r) => Option String -> PipelineMode -> Option String -> Option String -> (Option String, Bool, List String, Option (List String)) -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
+  -- A caller can check conditional source against an explicit platform and
+  -- interface set even when this installation has no backend for the triple.
+  resolve-platform :: PipelineMode -> (RequestedPlatform, Bool, List String, Option (List String)) -> Result String TargetProfile
+  resolve-platform mode options = case options of
+    (CompilerTarget requested, portable, required, features) -> configured-profile (requested, portable, required, features)
+    (CheckPlatform platform, portable, required, features) -> case mode of
+      CheckOnly -> Ok (configure-platform platform portable required features)
+      TypesOnly -> Ok (configure-platform platform portable required features)
+      other -> Err "--check-platform requires --check or --check-types"
+
+  run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
+  run-words ws = run-options None CompileAndRun None None (CompilerTarget None, False, Nil, None) False True False False ws
+
+  run-options :: forall r. using (io :: Io r) => Option String -> PipelineMode -> Option String -> Option String -> (RequestedPlatform, Bool, List String, Option (List String)) -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
   run-options roots mode manifest object-config wanted debug reclaim inlining selected ws = case ws of
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
@@ -68,9 +85,17 @@ module Main where
         case (object-config, rest) of
           (None, Cons file more) -> run-options roots mode manifest (Some file) wanted debug reclaim inlining selected more
           other -> pipeline-bad-args
+      else if string-compare flag "--check-platform" == 0 then
+        case (wanted, rest) of
+          ((CompilerTarget None, portable, required, features), Cons name (Cons triple (Cons os (Cons arch (Cons libc (Cons width (Cons endian more))))))) ->
+            if name == "" || triple == "" || os == "" || arch == "" || libc == "" || (width /= "32" && width /= "64") || (endian /= "little" && endian /= "big") then pipeline-bad-args
+            else let bits = if width == "32" then (32 :: Nat) else (64 :: Nat) in
+              let platform = MkTargetProfile name triple os arch libc bits endian False Nil Nil in
+              run-options roots mode manifest object-config (CheckPlatform platform, portable, required, features) debug reclaim inlining selected more
+          other -> pipeline-bad-args
       else if string-compare flag "--target" == 0 then
         case (wanted, rest) of
-          ((None, portable, required, features), Cons triple more) -> run-options roots mode manifest object-config (Some triple, portable, required, features) debug reclaim inlining selected more
+          ((CompilerTarget None, portable, required, features), Cons triple more) -> run-options roots mode manifest object-config (CompilerTarget (Some triple), portable, required, features) debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--require-capability" == 0 then
         case (wanted, rest) of
@@ -94,16 +119,16 @@ module Main where
       else if string-compare flag "run" == 0 then
         case (roots, selected, manifest, object-config, rest) of
           (None, False, Some contracts, Some provider, Cons runtime (Cons prefix (Cons source words))) ->
-            (case configured-profile wanted of
+            (case resolve-platform mode wanted of
               Err message -> report-target-refusal (path-from-string prefix) message
               Ok profile -> if string-compare (profile-triple profile) (profile-triple host-profile) == 0 then
                 run-source-with-object-at inlining debug reclaim profile contracts provider runtime prefix source (program-words words)
                 else report-target-refusal (path-from-string prefix) "a foreign target cannot run on this host")
           other -> pipeline-bad-args
       else case (roots, mode, debug, reclaim, manifest, object-config, ws) of
-        (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected mode manifest object-config (configured-profile wanted) debug reclaim inlining ws
+        (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected mode manifest object-config (resolve-platform mode wanted) debug reclaim inlining ws
         (Some path, ObjectOnly, False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
-          (case configured-profile wanted of
+          (case resolve-platform mode wanted of
             Err message -> report-target-refusal (path-from-string ir) message
             Ok profile -> compile-requested-library-object inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix)
         other -> pipeline-bad-args

@@ -41,7 +41,7 @@ module Bootstrap.Target where
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
 
-  export TargetProfile, MkTargetProfile, selectable-profile, requested-profile, configured-profile, selection-arch, profile-required, profile-features
+  export TargetProfile, MkTargetProfile, selectable-profile, requested-profile, configured-profile, configure-platform, selection-arch, profile-required, profile-features
   export profile-name, profile-triple, profile-os, profile-arch, profile-libc, profile-word-size, profile-endian
   export supported-targets, profile-of-triple, host-profile, target-profile
   export target-triple-of, unsupported-target, target-ir-header
@@ -108,10 +108,14 @@ module Bootstrap.Target where
   configured-profile options = case options of
     (wanted, portable, required, features) -> case target-profile wanted of
       Err message -> Err message
-      Ok (MkTargetProfile name triple os arch libc bits endian flag prior defaults) ->
-        let chosen = case features of None -> defaults; Some explicit -> reverse explicit in
-        Ok (MkTargetProfile (if portable then name <> "-portable" else name)
-          triple os arch libc bits endian portable (reverse required) chosen)
+      Ok profile -> Ok (configure-platform profile portable required features)
+
+  configure-platform :: TargetProfile -> Bool -> List String -> Option (List String) -> TargetProfile
+  configure-platform profile portable required features = case profile of
+    MkTargetProfile name triple os arch libc bits endian flag prior defaults ->
+      let chosen = case features of None -> defaults; Some explicit -> reverse explicit in
+      MkTargetProfile (if portable then name <> "-portable" else name)
+        triple os arch libc bits endian portable (reverse required) chosen
 
   -- LLVM layouts for the triples accepted by profile-of-triple.
   target-ir-header :: TargetProfile -> String

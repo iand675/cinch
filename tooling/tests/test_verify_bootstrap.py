@@ -220,6 +220,15 @@ class FrozenVerification(unittest.TestCase):
             self.assertEqual(link[:6], ["clang", ir, str(library), str(runtime), "-o", exe])
             self.assertEqual(report.read_text(), "clang-exit: 0\n")
 
+    def test_check_platform_reaches_the_checker_with_all_platform_facts(self):
+        facts = ["--check-platform", "portable32", "i686-unknown-linux-gnu", "linux",
+                 "x86", "glibc", "32", "little"]
+        args = ["--check-types", *facts, "--interfaces", "inputs.json", "Main.cinch", "out"]
+        with patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
+            code = verify_stage3.compile_client("cinch", "objects.json", "runtime.a", args)
+        self.assertEqual(code, 0)
+        self.assertEqual(run.call_args.args[0], ["cinch", *facts, "--check-types", *args[9:]])
+
     def test_uncounted_client_compiles_and_links_with_the_selected_library(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
