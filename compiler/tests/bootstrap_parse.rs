@@ -54,6 +54,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Core", 0),
     ("Bootstrap.CoreBody", 0),
     ("Bootstrap.Dictionary", 0),
+    ("Bootstrap.Eager", 0),
     ("Bootstrap.Driver", 0),
     ("Bootstrap.Eval", 0),
     ("Bootstrap.Expand", 0),
@@ -68,8 +69,10 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Global", 0),
     ("Bootstrap.Guarded", 0),
     ("Bootstrap.Kinds", 0),
+    ("Bootstrap.Layout", 0),
     ("Bootstrap.Typing", 0),
     ("Bootstrap.Target", 0),
+    ("Bootstrap.TargetLiterals", 0),
     ("Bootstrap.Usage", 0),
     ("Bootstrap.Interface", 0),
     ("Bootstrap.Ir", 0),
@@ -92,6 +95,8 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Total", 0),
     ("Bootstrap.TotalSemantics", 0),
     ("Bootstrap.Type", 0),
+    ("Bootstrap.Unpack", 0),
+    ("Bootstrap.UnpackMatch", 0),
     ("Text.Lex", 0),
     ("Text.Scan", 0),
     ("Text.Parse", 0),
@@ -343,7 +348,7 @@ fn built_program(tag: &str) -> (PathBuf, PathBuf) {
     std::fs::write(dir.join("Bootstrap.Report.cinch"), REPORT_SRC).expect("write report");
     std::fs::write(dir.join("Bootstrap.Parse.cinch"), PARSE_SRC).expect("write parse module");
     std::fs::write(dir.join("Main.cinch"), RUN.replace("__DIR__", &lit)).expect("write run");
-    let exe = common::build(&dir, "Main.cinch", "parse")
+    let exe = common::build_executable(&dir, "Main.cinch", "parse")
         .unwrap_or_else(|e| panic!("building the parse program failed: {e}"));
     std::fs::write(dir.join("fib.cinch"), FIB).expect("write fib");
     std::fs::write(dir.join("classes.cinch"), CLASSES).expect("write classes");
@@ -457,7 +462,7 @@ fn record_syntax_keeps_labels_order_patterns_and_nested_values() {
         ("Bootstrap.Parse.cinch", PARSE_SRC),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RecordSyntax.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "record-syntax").expect("build record parser");
+    let exe = common::build_executable(&dir, "Main.cinch", "record-syntax").expect("build record parser");
     let source = "module Records where\n  record Box a where\n    zed :: Int\n    value :: a\n    name :: String\n  make = Box { value = 42, name = \"kept\", zed = 7 }\n  nested = use (Box { value = Other.Pair { second = 2, first = 1 }, zed = 0, name = \"nested\" })\n  read (Box { value = x, zed = n }) = x\n  project box = (box).value\n  direct box = box.value\n  qualified = Module.value.field\n  applied = (make 42).value\n  empty = Box {}\n  duplicates = Box { value = 1, value = 2 }\n";
     let prelude = cinch::driver::parse_prelude(&[]).unwrap();
     let native = cinch::driver::parse_source(source, "records", &prelude.base, &prelude.exported_fixities)
