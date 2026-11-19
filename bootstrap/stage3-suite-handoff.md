@@ -2,23 +2,35 @@
 
 The goal is to pass every compiler integration target against one self-built Stage 3, including ignored tests. Keep the existing assertions, public-interface round trips, reference-counting and leak checks. Instance and proof dictionaries must retain their actual wrapper type and select the declared factory across module boundaries.
 
-## State on 2026-11-19, 19:40 UTC
+## State on 2026-11-19, 23:40 UTC
 
 This section is newer than the ones below it. Work continues on
 `claude/affectionate-goldberg-yxn29v`, which is `lane/stage3-repr` at
-`697c6f93` plus build tooling and five frontend speed changes. No test,
+`697c6f93` plus build tooling and six frontend speed changes. No test,
 assertion or language rule changed.
 
-### The integration tip has its own fixed point and its own results
+### The whole matrix has run once, on one compiler
 
-`697c6f93` was bootstrapped from the seed on a fresh 4-core x86_64 Linux
-machine with LLVM 20.1.8. Stages 2 and 3 are identical in executable, IR
-and interfaces, the interface consumer and changed-source checks pass, all
-347 Rust library tests and all 123 tooling tests pass. The chain took
-41 m 11 s. Hashes are specific to a host and a build path, so they are not
-comparable with the ones recorded below.
+`tooling/run_stage_targets.py --stage 3 --all-integration`, ignored tests
+included, against the Stage 3 built from `1dd765f8`:
 
-The handoff's seven targets, run against that Stage 3:
+| | |
+| --- | ---: |
+| targets | 345 |
+| targets passing | 271 |
+| tests passing | 2130 |
+| tests failing | 335 |
+| selected-compiler invocations | 3054 |
+
+`bootstrap/current-stage3-matrix-results.json` lists every failing target
+with its failing tests. The run took 3 h 31 min on four cores it shared with
+other builds.
+
+`1dd765f8` differs from the integration tip only by speed changes, so each
+of the 74 failing targets was also run against the Stage 3 built from the
+tip itself (`697c6f93`). All 74 fail there with the same tests: nothing in
+the list is a regression from this branch, and nothing in it was fixed by
+it. The seven targets the earlier handoff named:
 
 | Target | Passing | Failing tests |
 | --- | ---: | --- |
@@ -30,30 +42,35 @@ The handoff's seven targets, run against that Stage 3:
 | `ffi` | 9/15 | `foreign_signature_contradicting_repr_facts_is_rejected`, `opaque_values_are_unprojectable_and_foreign_only`, `out_cells_are_one_word`, `owned_borrowed_roles_and_the_deallocator_rule`, `packed_boundary_fields_marshal_without_padding_reads`, `repr_c_field_access_uses_the_recorded_offsets` |
 | `stage_code_expectations` | 4/11 | `generic_declaration_producers_cannot_freshen_an_int_caller_to_bool`, `generic_declaration_producers_keep_the_bool_callers_type`, `one_monomorphic_code_value_cannot_choose_two_parameter_types`, `partial_application_retains_the_generic_callers_type`, `returned_stage_closures_cannot_capture_affine_arguments`, `returned_stage_closures_retain_the_generic_callers_type`, `separate_stage_instantiations_can_choose_different_types` |
 
-The next-work column of the table further down still describes these
-failures. The two lanes it names (`lane/stage3-scoped-narrow`,
-`lane/stage3-compiler-fixture-interfaces`) were not touched.
+The next-work column of the table further down still describes these. The
+two lanes it names (`lane/stage3-scoped-narrow`,
+`lane/stage3-compiler-fixture-interfaces`) were not touched. Many of the
+other 67 failing targets were never reached by the earlier run; a number of
+the `bootstrap_*` ones fail on what look like stale expectations (a module
+count, a diagnostic's wording) and have not been triaged.
 
-### The frontend changes and their own fixed point
+### Three compilers, three fixed points
 
-`1dd765f8` carries four of the five frontend changes (the data reference
-graph, the balanced binding index, one decode per ownership row, the JSON
-offset scanner). It reached the fixed point on the same machine in
-22 m 24 s, with every check above passing again. The fifth
-(`imported-foreign-row`'s owner test, the commit after it) was verified the
-way each of them was while being written: a development Stage 1 built with
-it compiles the unchanged Stage 1 bundle to the byte-identical Stage 2
-module. It has not had a chain of its own.
+Each was bootstrapped from the seed on a fresh 4-core x86_64 Linux machine
+with LLVM 20.1.8. Stages 2 and 3 are identical in executable, IR and
+interfaces, and the interface consumer and changed-source checks pass. A
+hash is specific to a host and a build path, so none is comparable with
+the ones recorded below.
 
-The full `--all-integration` run on the `1dd765f8` Stage 3 was started at
-19:39 UTC with four jobs. Its evidence is under
-`build/full-stage3-evidence/` on the machine that ran it, which a new
-session will not have: read `summary.json` there if it exists, and
-otherwise run it again with the commands below.
+| Source | What it adds | Chain |
+| --- | --- | ---: |
+| `697c6f93` | the integration tip | 41 m 11 s |
+| `1dd765f8` | the data reference graph, the balanced binding index, one decode per ownership row, the JSON offset scanner | 22 m 24 s |
+| `15965558` | the foreign-table owner test, the carved object read | 27 m 52 s on two jobs, sharing the machine |
 
-`design/compilation-speed.md` sections 2.22 to 2.24 have the measurements,
-what the profile says is left, and two findings that were recorded and not
-acted on because they are decisions about a format and about naming.
+All 347 Rust library tests and the tooling tests pass at the branch head.
+`15965558` was not given the whole matrix. It was run on 39 targets (the
+seven above and every target that reads the library object or an
+interface), and each matches the tip test for test.
+
+`design/compilation-speed.md` sections 2.22 to 2.25 have the measurements,
+what the profile says is left, the naming change an incremental backend
+needs, and a probe of a per-module build of the compiler.
 
 ### A fresh machine
 
