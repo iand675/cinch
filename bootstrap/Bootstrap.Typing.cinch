@@ -503,7 +503,10 @@ module Bootstrap.Typing where
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
     CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
     CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
-    CForget sp ty body -> (case refinement-view (core-type body) of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
+    CForget sp ty body -> (case (refinement-view (core-type body), ty) of
+      (URefine id name carrier predicate, requested) -> equal-type carrier requested
+      (UTuple fields, UTuple requested) -> forgotten-tuple-fields fields requested
+      other -> False) && checked-term context scope gamma facts body
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body

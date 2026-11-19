@@ -1010,6 +1010,22 @@ module Main where
 }
 
 #[test]
+fn inferred_tuple_fields_keep_the_consumers_machine_carriers() {
+    let source = r#"module Main where
+  import Data.Machine
+  take :: (U32, U8) -> Int
+  take pair = case pair of (number, byte) -> if number == 42 && byte == 255 then 42 else 9
+  main :: Int
+  main = let number = u16-to-u32 42 in let pair = (number, 255) in take pair
+"#;
+    run_ok("inferred-machine-tuple", source, 42);
+    expect_err("inferred-tuple-literal-range", &source.replace("number, 255", "number, 256"),
+               "integer literal 256 is out of range for U8");
+    expect_err("inferred-tuple-width", &source.replace("u16-to-u32 42", "(42 :: U16)"),
+               "type mismatch");
+}
+
+#[test]
 fn literal_patterns_at_nat_and_int_fall_through() {
     run_ok(
         "nat-lit-pats",

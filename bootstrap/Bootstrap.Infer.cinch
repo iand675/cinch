@@ -4385,9 +4385,27 @@ module Bootstrap.Infer where
   subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
   subsume-term sp term expected st = case refinement-view (normalize st expected) of
     URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
+    UTuple wanted -> (case normalize st (core-type term) of
+      UTuple actual -> (case project-tuple-fields wanted actual of
+        (fields, True) -> let result = UTuple fields in (CForget sp result term, unify sp result expected st)
+        other -> (term, unify sp (core-type term) expected st))
+      other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st))
     other -> case forget-function-result sp term expected st of
       Some (value, opened) -> (value, unify sp (core-type value) expected opened)
       None -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
+  -- An immutable tuple can forget an element's comparison bounds when a
+  -- consumer requests its underlying carrier. Keep all other element types
+  -- so ordinary unification still checks widths, identities and tuple arity.
+  project-tuple-fields :: UType -> UType -> (UType, Bool)
+  project-tuple-fields wanted actual = case (wanted, actual) of
+    (UArg requested more, UArg field rest) -> (case project-tuple-fields more rest of
+      (tail, changed) -> case (requested, refinement-view field) of
+        (UTuple expected, UTuple inputs) -> (case project-tuple-fields expected inputs of
+          (fields, nested) -> (UArg (UTuple fields) tail, nested || changed))
+        (UCon name kind, URefine id binder base predicate) | comparison-refinement field && same-type requested base -> (UArg base tail, True)
+        other -> (UArg field tail, changed))
+    other -> (actual, False)
+
   -- A function value whose result is a comparison refinement flows into an
   -- arrow expecting its plain numbers (a plain result or an unsolved one):
   -- eta-expand once, applying the same value and forgetting the result's
@@ -4694,7 +4712,10 @@ module Bootstrap.Infer where
   infer-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
   infer-fields classes kinds families env locals args st = case args of
     EArgsEnd s -> (UEnd, CArgumentsEnd s, st)
-    EArg s x rest -> case infer classes kinds families env locals x st of
+    EArg s x rest -> case (case x of
+        ELitInt at text -> (case fresh-meta KType st of (ty, opened) -> checked-literal at ty text opened)
+        ENeg at (ELitInt lit text) -> (case fresh-meta KType st of (ty, opened) -> checked-literal at ty ("-" <> text) opened)
+        other -> infer classes kinds families env locals x st) of
       (term, sx) -> case infer-fields classes kinds families (proof-env-after-term env term sx) locals rest sx of
         (types, terms, ss) -> (UArg (core-type term) types, CArgument s term terms, ss)
     other -> (UEnd, CError (expr-span args), add-error (expr-span args) "malformed tuple expression spine" st)

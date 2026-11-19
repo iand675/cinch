@@ -45,7 +45,7 @@ module Bootstrap.Core where
   export scoped-list-index
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
-  export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
+  export CRefine, CForget, forgotten-tuple-fields, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, guarded-call-spine, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation, numeric-method-for-types, selected-method-function
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
@@ -2799,6 +2799,18 @@ module Bootstrap.Core where
   forgotten :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   forgotten gamma facts carrier body = case refinement-view (core-type body) of
     URefine id name domain predicate -> valid-type (core-type body) && contract-equal carrier domain && proof-term gamma facts body
+    UTuple fields -> (case carrier of
+      UTuple targets -> valid-type (core-type body) && valid-type carrier && forgotten-tuple-fields fields targets && proof-term gamma facts body
+      other -> False)
+    other -> False
+
+  forgotten-tuple-fields :: UType -> UType -> Bool
+  forgotten-tuple-fields fields targets = case (fields, targets) of
+    (UEnd, UEnd) -> True
+    (UArg field more, UArg requested rest) -> (case (refinement-view field, requested) of
+      (UTuple inputs, UTuple outputs) -> forgotten-tuple-fields inputs outputs
+      (URefine id name base predicate, other) -> contract-equal field requested || contract-equal base requested
+      other -> contract-equal field requested) && forgotten-tuple-fields more rest
     other -> False
   -- Every path producing a refinement retains either its checked producer
   -- or an introduction certificate. A literal's annotated type is no proof.
