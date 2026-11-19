@@ -38,10 +38,12 @@ fn literal_divisors_compile_unchanged_and_compute() {
 module Main where
   bit :: Bool -> Int -> Int
   bit ok b = if ok then 0 else b
+  after-remainder :: Nat -> Int
+  after-remainder i = nat-to-int (1 + nat-rem i 250)
 
   main :: Int
   main =
-    bit (nat-div 100 10 == 10) 1
+    bit (after-remainder 291 == 42 && nat-div 100 10 == 10) 1
       + bit (nat-rem 103 10 == 3) 2
       + bit (int-div (-17) 5 == -3) 4
       + bit (int-rem (-17) 5 == -2) 8

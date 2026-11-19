@@ -1226,7 +1226,12 @@ module Bootstrap.Infer where
     let st = check-discard sp (same name "_") (scheme-body sc) (check-borrow-binding sp env (scheme-body sc) before) in
     if volatile-borrow-index (normalize st (scheme-body sc)) then
       (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
-    else if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
+    else index-let-binding sp env name sc id level value st
+  -- Reopening an already checked let around a dependent application must
+  -- preserve the same index definition that Core reconstructs from its RHS.
+  index-let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
+  index-let-binding sp env name sc id level value st =
+    if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
     else (case (scheme-params sc, scheme-requirements sc) of
       (Nil, Nil) -> case reify-argument sp env value st of
         (index, checked) -> case (store-errors checked, index-of-type index) of
@@ -9310,10 +9315,11 @@ module Bootstrap.Infer where
           case fresh-id ready of
             (id, next) -> let sc = mono (core-type left) in
               let name = "#arithmetic-left" in
-              let bound = proof-let-env outer (MkLocalBinding name sc id (store-level next)) id sc left next in
-              let prefix = CApply at ty method (CLocal at (core-type left) id name Nil) in
-              case projected-operand sp bound right (\inner operand prepared -> apply-checked-runtime classes sp inner prefix operand prepared) next of
-                (result, done) -> (CLet at (core-type result) id name sc left result, done)) st))
+              case let-binding at outer name sc id (store-level next) left next of
+                (binding, checked) -> let bound = proof-let-env outer binding id sc left checked in
+                  let prefix = CApply at ty method (CLocal at (core-type left) id name Nil) in
+                  case projected-operand sp bound right (\inner operand prepared -> apply-checked-runtime classes sp inner prefix operand prepared) checked of
+                    (result, done) -> (CLet at (core-type result) id name sc left result, done)) st))
     other -> None
   -- An argument can retain private witness lets in its result contract.
   -- Evaluate the function first, then open those existing strict scopes
@@ -9340,10 +9346,10 @@ module Bootstrap.Infer where
   apply-argument-lets classes sp env fun value st = case value of
     CLet source ty id display sc rhs body ->
       let hidden = string-concat "#argument-let:" (int-to-string (nat-to-int id)) in
-      let binding = MkLocalBinding hidden sc id (store-level st) in
-      let bound = proof-let-env env binding id sc rhs st in
-      case apply-argument-lets classes sp bound fun body st of
-        (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
+      case index-let-binding source env hidden sc id (store-level st) rhs st of
+        (binding, checked) -> let bound = proof-let-env env binding id sc rhs checked in
+          case apply-argument-lets classes sp bound fun body checked of
+            (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
     other -> apply-checked-runtime classes sp env fun value st
   apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-checked-runtime classes sp env fun value st =
