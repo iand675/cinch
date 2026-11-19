@@ -2111,7 +2111,8 @@ module Bootstrap.RuntimeIr where
   -- `i16 -1234` reached C as 64302.
   foreign-c-type :: ForeignParameter -> String
   foreign-c-type parameter = let ty = foreign-llvm-type parameter in
-    if same ty "i8" || same ty "i16" then cat [ty, if foreign-signed parameter then " signext" else " zeroext"] else ty
+    if same ty "i8" || same ty "i16" then cat [ty, if foreign-signed parameter then " signext" else " zeroext"]
+    else if same (foreign-role parameter) "borrowed" then "ptr nocapture" else ty
   foreign-c-result :: ForeignParameter -> String
   foreign-c-result parameter = let ty = foreign-llvm-type parameter in
     if same ty "i8" || same ty "i16" then cat [if foreign-signed parameter then "signext " else "zeroext ", ty] else ty
@@ -2170,8 +2171,8 @@ module Bootstrap.RuntimeIr where
         else global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
       Nil -> refuse w (Span 0 0 1 1) "inline intrinsic is missing its checked result width")
   foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
-  foreign-abi-compatible first second = same (foreign-llvm-type (foreign-result first)) (foreign-llvm-type (foreign-result second))
-    && same (join (foreign-parameter-types (foreign-parameters first))) (join (foreign-parameter-types (foreign-parameters second)))
+  foreign-abi-compatible first second = same (foreign-c-result (foreign-result first)) (foreign-c-result (foreign-result second))
+    && same (join (foreign-c-parameter-types (foreign-parameters first))) (join (foreign-c-parameter-types (foreign-parameters second)))
   foreign-abi-coherent :: ForeignPlan -> List ForeignPlan -> Bool
   foreign-abi-coherent plan plans = case plans of
     Nil -> True

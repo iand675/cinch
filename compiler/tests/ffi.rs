@@ -5,8 +5,7 @@
 
 mod common;
 
-use common::source_frontend::{check_sources, expect_source_object_fault, run_source_objects};
-use cinch::core::TargetProfile;
+use common::source_frontend::{check_sources, emit_ir, expect_source_object_fault, run_source_objects};
 
 /// Compile a C fixture to an object file and return its path.
 fn c_fixture(name: &str, src: &str) -> String {
@@ -153,9 +152,7 @@ module Main where
     else if pu16 (mu16 ()) /= 42 then 6
     else 0
 "#;
-    let target = TargetProfile::native();
-    let program = cinch::driver::check_sources_profile(src, "<test>", &target).expect("the program checks");
-    let ir = cinch::codegen::emit_for(&target, &program).expect("IR emission");
+    let ir = emit_ir(src).expect("IR emission");
     for needed in ["i16 signext", "i16 zeroext", "i8 signext", "i8 zeroext", "call signext i16", "call zeroext i16"] {
         assert!(ir.contains(needed), "the boundary carries `{needed}`:\n{ir}");
     }
@@ -178,9 +175,7 @@ module Main where
   main :: Unit ->{Foreign Fix} Int
   main _ = if read-handle (open ()) == 42 then 0 else 1
 "#;
-    let target = TargetProfile::native();
-    let program = cinch::driver::check_sources_profile(src, "<test>", &target).expect("the program checks");
-    let ir = cinch::codegen::emit_for(&target, &program).expect("IR emission");
+    let ir = emit_ir(src).expect("IR emission");
     assert!(ir.contains("ptr nocapture"), "a borrowed pointer is `nocapture`:\n{ir}");
     assert!(!ir.contains("captures("), "no LLVM-20-only spelling:\n{ir}");
 }
