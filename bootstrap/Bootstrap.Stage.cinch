@@ -14,7 +14,7 @@ module Bootstrap.Stage where
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Int (int-neg)
-  import Data.List (list-length)
+  import Data.List (list-length, foldr)
   import Text.Lex (Span, span-start, span-end, LToken)
   import Text.Show (int-to-string, nat-to-string)
 
@@ -812,6 +812,8 @@ module Bootstrap.Stage where
   dependency-terms :: Bool -> Expr -> List String -> Result (List Diagnostic) (Expr, List String)
   dependency-terms active term names = case term of
     EVar site name | active -> Ok (term, Cons name names)
+    ERecord site name fields | active -> walk-children (dependency-terms True) term (Cons name names)
+    ECon site name fields | active -> walk-children (dependency-terms True) term (Cons name names)
     EBin site op left right | active -> walk-children (dependency-terms True) term (Cons op names)
     EQuote site body -> dependency-terms False body names
     ESplice site body -> dependency-terms True body names
@@ -863,8 +865,14 @@ module Bootstrap.Stage where
   fold-generated :: String -> String -> List Decl -> StageDependencies -> StageDependencies
   fold-generated owner key declarations graph = case declarations of
     Nil -> graph
-    Cons (DFun at name clauses) rest -> fold-generated owner key rest (dependency-node owner name (cat ["`", name, "`"]) [key] graph)
+    Cons (DFun at name clauses) rest -> fold-generated owner key rest (generated-node owner key name graph)
+    Cons (DRecord at name params fields) rest -> fold-generated owner key rest (generated-node owner key name graph)
+    Cons (DData at name params constructors) rest ->
+      fold-generated owner key rest (foldr (\field found -> case field of (ctor, ty) -> generated-node owner key ctor found) graph constructors)
     Cons other rest -> fold-generated owner key rest graph
+
+  generated-node :: String -> String -> String -> StageDependencies -> StageDependencies
+  generated-node owner key name = dependency-node owner name (cat ["`", name, "`"]) [key]
 
   stage-dependency-graph :: String -> List Decl -> StageDependencies
   stage-dependency-graph owner declarations = case declarations of
