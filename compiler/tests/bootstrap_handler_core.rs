@@ -12,7 +12,7 @@ fn handlers_recheck_actual_slots_rows_and_one_shot_resumptions() {
         ("Bootstrap.Typing.cinch", include_str!("../../bootstrap/Bootstrap.Typing.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.HandlerCore.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "handler-core")
+    let exe = common::build_executable(&dir, "Main.cinch", "handler-core")
         .expect("build independent handler Core checker");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();

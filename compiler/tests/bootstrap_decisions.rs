@@ -12,7 +12,7 @@ fn core_decisions_recheck_tests_constructor_authority_and_branch_evidence() {
         ("Bootstrap.Typing.cinch", include_str!("../../bootstrap/Bootstrap.Typing.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.Decisions.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "core-decisions")
+    let exe = common::build_executable(&dir, "Main.cinch", "core-decisions")
         .expect("build fixed-semantics decision checker");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();

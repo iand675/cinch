@@ -67,7 +67,7 @@ uint64_t cinch_test_f64_bits(double value) { uint64_t bits; memcpy(&bits, &value
     std::fs::copy(&object, dir.join("provider.o")).unwrap();
     std::fs::copy(object.with_extension("abi.json"), dir.join("provider.abi.json")).unwrap();
     std::fs::write(dir.join("target.txt"), &profile.triple).unwrap();
-    let compiler = common::build(&dir, "Main.cinch", "array-float-emitter").expect("build actual Cinch object and array emitter");
+    let compiler = common::build_executable(&dir, "Main.cinch", "array-float-emitter").expect("build actual Cinch object and array emitter");
     let cases = [
         (32, vec![0_u64, 0x80000000, 0x3fa00000, 0x7f800000, 0xff800000, 0x7fc01234, 0x7f801234, 1, 0x007fffff, 0x7f7fffff]),
         (64, vec![0_u64, 0x8000000000000000, 0x3ff4000000000000, 0x7ff0000000000000, 0xfff0000000000000, 0x7ff8123412345678, 0x7ff0123412345678, 1, 0x000fffffffffffff, 0x7fefffffffffffff]),

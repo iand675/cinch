@@ -29,7 +29,7 @@ fn typed_indices_preserve_carriers_scope_and_runtime_witnesses() {
         ],
     );
     let exe =
-        common::build(&dir, "Main.cinch", "value-indices").expect("build typed index engine");
+        common::build_executable(&dir, "Main.cinch", "value-indices").expect("build typed index engine");
     let run = |name: &str, input: &[u8], expected: i32| {
         std::fs::write(dir.join("case.txt"), input).unwrap();
         let output = std::process::Command::new(&exe)

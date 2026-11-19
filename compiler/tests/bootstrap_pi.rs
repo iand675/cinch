@@ -29,7 +29,7 @@ fn dependent_functions_preserve_binding_scope_effects_and_application() {
         ],
     );
     let exe =
-        common::build(&dir, "Main.cinch", "pi").expect("build dependent Pi engine");
+        common::build_executable(&dir, "Main.cinch", "pi").expect("build dependent Pi engine");
     let run = |name: &str, input: &[u8], expected: i32| {
         std::fs::write(dir.join("case.txt"), input).unwrap();
         let output = std::process::Command::new(&exe)

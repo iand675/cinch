@@ -12,7 +12,7 @@ fn core_proof_scopes_preserve_effects_and_refuse_runtime_elimination() {
         ("Bootstrap.Typing.cinch", include_str!("../../bootstrap/Bootstrap.Typing.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.ProofTerms.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "proof-terms")
+    let exe = common::build_executable(&dir, "Main.cinch", "proof-terms")
         .expect("build erased proof term checker");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();

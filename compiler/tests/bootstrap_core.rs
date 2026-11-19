@@ -16,7 +16,7 @@ fn typed_terms_retain_instantiation_patterns_and_polymorphic_scope() {
         ("Bootstrap.Parse.cinch", include_str!("../../bootstrap/Bootstrap.Parse.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.Core.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "core").expect("build Cinch typed-core reader");
+    let exe = common::build_executable(&dir, "Main.cinch", "core").expect("build Cinch typed-core reader");
     let mut cases = vec![
         ("evidence", "module Main where\n  main :: Int\n  main = 0\n", None),
         ("data", "module Main where\n  export Empty, Box, Wrap, main\n  data Empty a where {}\n  data Box a where\n    Hide :: a -> Box a\n    Keep :: Box a\n  data Wrap (f :: Type -> Type) a where\n    Wrap :: f a -> Wrap f a\n  main :: Int\n  main = 0\n", None),

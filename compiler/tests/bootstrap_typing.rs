@@ -13,7 +13,7 @@ fn core_typing_rechecks_annotations_with_actual_declarations_and_scopes() {
         ("Bootstrap.Typing.cinch", include_str!("../../bootstrap/Bootstrap.Typing.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.CoreTyping.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "core-typing")
+    let exe = common::build_executable(&dir, "Main.cinch", "core-typing")
         .expect("build independent Core type checker");
     for size in [0, 1, 17, 129, 4096] {
         std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();

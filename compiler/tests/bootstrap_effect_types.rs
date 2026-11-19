@@ -11,7 +11,7 @@ fn closed_effect_rows_regions_and_scope_are_checked_in_cinch() {
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.EffectTypes.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "effect-types").expect("build Cinch effect type runner");
+    let exe = common::build_executable(&dir, "Main.cinch", "effect-types").expect("build Cinch effect type runner");
     for input in ["", "a", "region", "distinct regions"] {
         std::fs::write(dir.join("case.txt"), input).unwrap();
         let out = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
