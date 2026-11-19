@@ -1129,6 +1129,7 @@ module Bootstrap.Infer where
   -- explicit instantiation before it can appear in a source type annotation.
   value-locals :: List CheckedBinding -> List (String, UType) -> List (String, UType)
   value-locals env locals = case env of
+    Cons (MkBodyContext context names cache) rest -> locals
     Nil -> locals
     Cons (MkValueBinding name sc id level value) rest -> Cons (name, value) (value-locals rest locals)
     Cons (MkLocalBinding name sc id level) rest -> case (scheme-params sc, scheme-requirements sc) of
@@ -1137,6 +1138,7 @@ module Bootstrap.Infer where
     Cons binding rest -> value-locals rest locals
   find-local-id :: Nat -> List CheckedBinding -> Option CheckedBinding
   find-local-id id env = case env of
+    Cons (MkBodyContext context names cache) rest -> None
     Nil -> None
     Cons (MkLocalBinding name sc key level) rest -> if id == key then Some (MkLocalBinding name sc key level) else find-local-id id rest
     Cons (MkValueBinding name sc key level value) rest -> if id == key then Some (MkValueBinding name sc key level value) else find-local-id id rest
@@ -3726,6 +3728,7 @@ module Bootstrap.Infer where
   env-metas env st = case env of Nil -> Nil; Cons b rest -> scheme-metas st (checked-scheme b) <> env-metas rest st
   proof-gamma :: List CheckedBinding -> Store -> List (Nat, UType)
   proof-gamma env st = case env of
+    Cons (MkBodyContext context names cache) rest -> Nil
     Nil -> Nil
     Cons (MkLocalBinding name sc id level) rest -> proof-gamma-local sc id (proof-gamma rest st) st
     Cons (MkValueBinding name sc id level value) rest -> proof-gamma-local sc id (proof-gamma rest st) st
@@ -3744,8 +3747,20 @@ module Bootstrap.Infer where
     Cons other rest -> env-body-context rest
   cache-body-context :: List CheckedBinding -> Store -> (List CheckedBinding, Store)
   cache-body-context env st = case check-body-bindings (env-body-bindings env) of
-    Some context -> (Cons (MkBodyContext context (binding-names env) (env-cache env)) env, st)
+    Some context -> if contains-lexical-binding env then (env, st)
+      else (Cons (MkBodyContext context (binding-names env) (env-cache env)) env, st)
     None -> (env, add-error zero "conflicting body contracts in proof context" st)
+  -- The marker seals module declarations. A lexical environment still uses
+  -- the ordinary walks so every proof keeps its identity and write history.
+  contains-lexical-binding :: List CheckedBinding -> Bool
+  contains-lexical-binding env = case env of
+    Nil -> False
+    Cons binding rest -> (case binding of
+      MkLocalBinding name scheme id level -> True
+      MkValueBinding name scheme id level value -> True
+      MkErasedBinding name predicate id origin write -> True
+      MkProofBinding origin write fact -> True
+      other -> contains-lexical-binding rest)
   -- The position of the first binding of each name in `env`.
   binding-names :: List CheckedBinding -> HashMap String Nat
   binding-names env = binding-positions env 0
@@ -3760,11 +3775,13 @@ module Bootstrap.Infer where
   env-body-bindings env = case env of Nil -> Nil; Cons (MkBodyBinding binding) rest -> Cons binding (env-body-bindings rest); Cons other rest -> env-body-bindings rest
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
   proof-erased env st gamma = case env of
+    Cons (MkBodyContext context names cache) rest -> gamma
     Nil -> gamma
     Cons (MkErasedBinding name predicate id origin None) rest -> scope-erased id (normalize st predicate) (proof-erased rest st gamma)
     Cons other rest -> proof-erased rest st gamma
   proof-values :: List CheckedBinding -> Store -> List (Nat, UType)
   proof-values env st = case env of
+    Cons (MkBodyContext context names cache) rest -> Nil
     Nil -> Nil
     Cons (MkValueBinding name sc id level value) rest -> case (scheme-params sc, scheme-requirements sc) of
       (Nil, Nil) -> Cons (id, normalize st value) (proof-values rest st)
@@ -3772,6 +3789,7 @@ module Bootstrap.Infer where
     Cons binding rest -> proof-values rest st
   proof-facts :: List CheckedBinding -> List Proposition
   proof-facts env = case env of
+    Cons (MkBodyContext context names cache) rest -> Nil
     Nil -> Nil
     Cons (MkProofBinding origin None fact) rest -> Cons fact (proof-facts rest)
     Cons other rest -> proof-facts rest
@@ -3780,6 +3798,7 @@ module Bootstrap.Infer where
   -- would decide it is skipped instead of run and thrown away.
   proof-env-invalidatable :: List CheckedBinding -> Bool
   proof-env-invalidatable env = case env of
+    Cons (MkBodyContext context names cache) rest -> False
     Nil -> False
     Cons (MkProofBinding origin None fact) rest -> True
     Cons (MkErasedBinding name predicate id origin None) rest -> True
@@ -3790,6 +3809,7 @@ module Bootstrap.Infer where
     other -> if proof-env-invalidatable env then invalidate-proof-bindings (proof-context env st) env writes st else env
   invalidate-proof-bindings :: ProofScope -> List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
   invalidate-proof-bindings gamma env writes st = case env of
+    Cons (MkBodyContext context names cache) rest -> env
     Nil -> Nil
     Cons entry rest -> let next = invalidate-proof-bindings gamma rest writes st in
       (case entry of
@@ -3839,6 +3859,7 @@ module Bootstrap.Infer where
   proof-position sp = string-concat-all [int-to-string (nat-to-int (span-line sp)), ":", int-to-string (nat-to-int (span-col sp))]
   stale-proof-notes :: ProofScope -> List CheckedBinding -> Store -> List (Span, Span, Proposition)
   stale-proof-notes gamma env st = case env of
+    Cons (MkBodyContext context names cache) rest -> Nil
     Nil -> Nil
     Cons (MkProofBinding origin (Some write) fact) rest -> Cons (origin, write, fact) (stale-proof-notes gamma rest st)
     Cons (MkErasedBinding name predicate id origin (Some write)) rest ->
@@ -4603,6 +4624,7 @@ module Bootstrap.Infer where
       ") of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `", shown, "` is in scope here"]
   wrong-named-evidence :: List CheckedBinding -> List CheckedBinding -> UType -> Store -> Option String
   wrong-named-evidence remaining env wanted st = case remaining of
+    Cons (MkBodyContext context names cache) rest -> None
     Nil -> None
     Cons (MkErasedBinding name predicate id origin None) rest ->
       (case lookup-binding name env of
