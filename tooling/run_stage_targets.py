@@ -7,9 +7,11 @@ Each target's source checks, builds and runs go to build/bootstrap/stage<N>/cinc
 (or $CINCH_BOOTSTRAP_BUILD) through the CINCH_TEST_COMPILER selector, linked
 against the pinned library object and runtime. --all selects every test target
 that uses the shared selectors. Writes one log per target and DIR/summary.json.
+--all-integration includes every Cargo integration target, even those exercising
+the Rust tooling directly. Its summary records actual selected frontend calls.
 This is a development runner; tooling/verify_stage3.py is the audited gate.
 """
-import argparse, fcntl, json, os, re, subprocess, sys, concurrent.futures as cf
+import argparse, fcntl, json, os, re, subprocess, sys, tempfile, concurrent.futures as cf
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,21 +21,48 @@ import bootstrap  # noqa
 from verify_stage3 import standalone_inputs, supports_check_types, write_wrapper  # noqa
 
 
+def selected_stage_inputs(stage, directory, compiler):
+    if stage < 2:
+        # The seed and the compiler built by the seed predate object receipts.
+        provider = bootstrap.runtime_provider()
+        encode = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+        return encode(provider['interfaces']), encode(provider['configuration']), provider['object'], provider['runtime']
+
+    receipt = bootstrap.read_json(directory / 'stage.json')
+    if receipt.get('status') != 'built':
+        raise bootstrap.BootstrapError(f'missing build receipt for stage {stage}')
+    inputs = receipt['inputs']
+    manifest, objects = directory / 'base-interfaces.json', directory / 'objects.json'
+    config = bootstrap.read_json(objects)
+    if not all(key in config for key in ('object', 'metadata', 'object_sha256', 'metadata_sha256')):
+        raise bootstrap.BootstrapError(f'incomplete object configuration for stage {stage}')
+    library, metadata = Path(config['object']), Path(config['metadata'])
+    runtime = metadata.with_name('libcinchruntime.a')
+    for path, digest in ((compiler, receipt['executable_sha256']),
+                         (manifest, inputs['interface_set_sha256']), (objects, inputs['object_configuration_sha256']),
+                         (library, config['object_sha256']), (metadata, config['metadata_sha256']),
+                         (runtime, inputs['runtime_archive_sha256'])):
+        if not path.is_file() or bootstrap.file_hash(path) != digest:
+            raise bootstrap.BootstrapError(f'stage {stage} input differs from its receipt: {path}')
+    return manifest.read_bytes(), objects.read_bytes(), library, runtime
+
+
 def setup(stage, out, tree):
-    compiler = bootstrap.BUILD / f'stage{stage}' / 'cinch'
-    provider = bootstrap.runtime_provider()
+    directory = bootstrap.BUILD / f'stage{stage}'
+    compiler = directory / 'cinch'
+    manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(stage, directory, compiler)
     manifest = out / 'base-interfaces.json'
-    manifest.write_bytes(json.dumps(provider['interfaces'], sort_keys=True, separators=(',', ':')).encode())
+    manifest.write_bytes(manifest_bytes)
     objects = out / 'objects.json'
-    objects.write_bytes(json.dumps(provider['configuration'], sort_keys=True, separators=(',', ':')).encode())
+    objects.write_bytes(object_bytes)
     wrapper = out / 'frontend.py'
-    write_wrapper(wrapper, compiler, objects, provider['runtime'])
+    write_wrapper(wrapper, compiler, objects, runtime)
     env = {k: v for k, v in bootstrap.environment().items() if not k.startswith('CINCH_TEST_')}
-    env.update(CINCH_TEST_STANDALONE=standalone_inputs(out / "standalone", compiler, manifest, objects, provider["runtime"]),
+    env.update(CINCH_TEST_STANDALONE=standalone_inputs(out / "standalone", compiler, manifest, objects, runtime),
                CINCH_TEST_CHECK_TYPES="1" if supports_check_types(compiler) else "0",
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
-               CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(provider['runtime']),
-               CINCH_TEST_LIBRARY_OBJECT=str(provider['object']),
+               CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
+               CINCH_TEST_LIBRARY_OBJECT=str(library),
                CINCH_TEST_SOURCE_ROOT=str(tree / 'compiler'), PYTHONDONTWRITEBYTECODE='1')
     return env
 
@@ -81,6 +110,21 @@ def all_targets(tree):
     return sorted(targets)
 
 
+def integration_targets(tree):
+    metadata = json.loads(subprocess.check_output(
+        ['cargo', 'metadata', '--locked', '--format-version', '1', '--no-deps'],
+        cwd=tree / 'compiler', env=bootstrap.environment()))
+    package = next(pkg for pkg in metadata['packages'] if pkg['name'] == 'cinch')
+    return sorted(target['name'] for target in package['targets'] if 'test' in target['kind'])
+
+
+def run_with_receipts(target, env, out, cargo_target, receipts):
+    directory = receipts / target
+    row = run(target, dict(env, CINCH_TEST_INVOCATIONS=str(directory)), out, cargo_target)
+    row['selected_invocations'] = sum(1 for _ in directory.glob('*.json'))
+    return row
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--stage', type=int, default=3)
@@ -88,7 +132,9 @@ def main():
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--cargo-target', type=Path, default=None)
     p.add_argument('--tree', type=Path, default=ROOT)
-    p.add_argument('--all', action='store_true')
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument('--all', action='store_true')
+    selection.add_argument('--all-integration', action='store_true', help='run every Cargo integration test target')
     p.add_argument('--allow-dirty', action='store_true',
                    help='measure a tree with uncommitted changes instead of refusing')
     p.add_argument('targets', nargs='*')
@@ -105,10 +151,12 @@ def main():
         sys.stderr.write(f'refusing to measure a dirty tree: {" ".join(dirty[:8])}\n'
                          f'commit the change or pass --allow-dirty\n')
         return 2
-    if a.all:
+    if a.all_integration:
+        a.targets = integration_targets(a.tree)
+    elif a.all:
         a.targets = all_targets(a.tree)
     if not a.targets:
-        p.error('name targets or pass --all')
+        p.error('name targets, pass --all, or pass --all-integration')
     # Hold this tree's stage lock for the whole run, so a rebuild cannot
     # replace the compiler under the suite (that produced two void runs on
     # 2026-11-11: targets failing with a missing stage binary or a Core shape
@@ -130,7 +178,11 @@ def main():
     # worker can start its suite as soon as that executable is ready.
     rows = []
     with cf.ThreadPoolExecutor(a.jobs) as pool:
-        futures = [pool.submit(run, t, env, a.out.resolve(), a.cargo_target) for t in a.targets]
+        if a.all_integration:
+            receipts = Path(tempfile.mkdtemp(prefix='invocations-', dir=a.out.resolve()))
+            futures = [pool.submit(run_with_receipts, t, env, a.out.resolve(), a.cargo_target, receipts) for t in a.targets]
+        else:
+            futures = [pool.submit(run, t, env, a.out.resolve(), a.cargo_target) for t in a.targets]
         for future in cf.as_completed(futures):
             row = future.result()
             rows.append(row)

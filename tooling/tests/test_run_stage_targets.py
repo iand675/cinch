@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,30 @@ class StageTargetCounts(unittest.TestCase):
                            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out;\n", 101)
         self.assertEqual(row["failed"], ["failed_case"])
         self.assertEqual(row["failed_count"], 1)
+
+
+class StageTargetInputs(unittest.TestCase):
+    def test_later_stages_use_the_recorded_inputs_even_when_the_lane_pin_changes(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(runner.bootstrap, 'runtime_provider') as prepare:
+            directory = Path(temp)
+            compiler, manifest, objects, library, metadata, runtime = (
+                directory / name for name in ('cinch', 'base-interfaces.json', 'objects.json', 'library.o',
+                                               'library.abi.json', 'libcinchruntime.a'))
+            for path in (compiler, manifest, library, metadata, runtime):
+                path.write_bytes(path.name.encode())
+            digest = runner.bootstrap.file_hash
+            objects.write_text(json.dumps(dict(object=str(library), metadata=str(metadata),
+                                               object_sha256=digest(library), metadata_sha256=digest(metadata))))
+            inputs = dict(interface_set_sha256=digest(manifest), object_configuration_sha256=digest(objects),
+                          runtime_archive_sha256=digest(runtime))
+            (directory / 'stage.json').write_text(json.dumps(dict(status='built', inputs=inputs,
+                                                                  executable_sha256=digest(compiler))))
+            self.assertEqual(runner.selected_stage_inputs(3, directory, compiler),
+                             (manifest.read_bytes(), objects.read_bytes(), library, runtime))
+            library.write_bytes(b'a different generation')
+            with self.assertRaisesRegex(runner.bootstrap.BootstrapError, 'differs from its receipt'):
+                runner.selected_stage_inputs(3, directory, compiler)
+            prepare.assert_not_called()
 
 
 class CorpusEmitMode(unittest.TestCase):

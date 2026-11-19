@@ -114,7 +114,7 @@ def stage3_artifacts():
     return compiler, manifest, objects, runtime, hashes
 
 
-def test_target_inputs(directory, objects, triple, *, reclaim=True):
+def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receipt=None):
     """Build only the base library for the requested target using its pinned producer."""
     from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
 
@@ -125,14 +125,25 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True):
         triple = configuration["target"]
     if triple not in supported:
         raise ValueError(f"unsupported target {triple!r}")
-    pinned = bootstrap.runtime_provider()
-    if (pinned["identity"].get("kind") == "current-base-artifact"
-            or configuration != pinned["configuration"]):
+    if stage_receipt is None:
+        pinned = bootstrap.runtime_provider()
+        if configuration != pinned["configuration"]:
+            raise ValueError("target inputs differ from the pinned base library")
+        identity = pinned["identity"]
+    else:
+        inputs = bootstrap.read_json(Path(stage_receipt))["inputs"]
+        if bootstrap.file_hash(Path(objects)) != inputs["object_configuration_sha256"]:
+            raise ValueError("target inputs differ from the selected stage receipt")
+        identity = inputs["library_provider"]
+    if identity.get("kind") == "current-base-artifact":
         raise ValueError("cross compilation requires a pinned base library producer")
-    native = pinned["object"].parent
-    producer = native / "cinch"
-    roots = native / "roots.json"
-    output = Path(directory) / "target-libraries" / configuration["object_sha256"] / triple
+    native = Path(configuration["object"]).parent
+    producer, roots = native / "cinch", native / "roots.json"
+    if bootstrap.file_hash(producer) != identity["artifacts"]["cinch"] or bootstrap.file_hash(roots) != identity["roots_sha256"]:
+        raise ValueError("target producer or roots differ from the selected base library")
+    key = bootstrap.digest(json.dumps([configuration["object_sha256"], identity["artifacts"]["cinch"],
+                                       identity["roots_sha256"]]).encode())
+    output = Path(directory) / "target-libraries" / key / triple
     if not reclaim:
         output = output / "no-reclaim"
     project = output / "library"
@@ -152,7 +163,7 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True):
             document = bootstrap.read_json(metadata)
             if document.get("target") != triple or document.get("reclaim") is not reclaim:
                 raise ValueError("base library producer emitted a different target or ownership mode")
-            snapshot = source_snapshot(bootstrap, bootstrap.library_provider_lock())
+            snapshot = source_snapshot(bootstrap, identity["producer"])
             package = bootstrap.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
             bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
             library = output / "library.o"
@@ -189,13 +200,15 @@ def standalone_inputs(directory, compiler, manifest, objects, runtime):
 
 def write_wrapper(wrapper, compiler, objects, runtime):
     ir_only = supports_source_mode(compiler, "--emit-ir-only")
+    receipt = Path(compiler).parent / "stage.json"
+    stage_receipt = str(receipt.resolve()) if receipt.is_file() and "library_provider" in bootstrap.read_json(receipt).get("inputs", {}) else None
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
         "from verify_stage3 import compile_client, test_target_inputs\n"
         f"compiler={str(compiler)!r}\n"
         "if sys.argv[1:2] == ['--test-target-inputs'] and len(sys.argv) >= 3 and sys.argv[3:] in ([], ['--no-reclaim']):\n"
-        f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3))\n"
+        f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3, stage_receipt={stage_receipt!r}))\n"
         f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], ir_only={ir_only!r}))\n"
     )
     wrapper.chmod(0o755)
