@@ -117,8 +117,10 @@ module Bootstrap.Type where
     -- A checked executable body and typed argument spine retain the evidence
     -- lost by a bare IApply/IGlobal. This node does not license a source call
     -- until Core also matches its actual defining function and arguments.
-    -- Nil has an empty spine. Cons records the typed head and tail.
+    -- The defining constructor scheme is either a unary arrow with its
+    -- typed operand or a nominal result with UEnd for a nullary constructor.
     UIndexConstructor :: String -> UType -> UType -> UType
+    -- Nil has an empty spine. Cons records the typed head and tail.
     UIndexList :: UType -> UType -> UType
     UIndexCall :: TotalFunction -> UType -> UType
     UIndexPromote :: UType -> UType
@@ -751,7 +753,7 @@ module Bootstrap.Type where
     UIndexBorrowRead value -> (case borrow-index-parts value of
       Some (mutable, region, carrier) -> value-kind carrier
       None -> KType)
-    UIndexConstructor name arrow input -> (case arrow of UFun domain result -> value-kind result; other -> KType)
+    UIndexConstructor name arrow input -> (case arrow of UFun domain result -> value-kind result; UCon owner KType -> value-kind arrow; other -> KType)
     UIndexList element fields -> value-kind (core-list-type element)
     UIndexCall function args -> value-kind (UCon (total-result function) KType)
     UIndexPromote value -> value-kind (UCon "Int" KType)
@@ -848,6 +850,7 @@ module Bootstrap.Type where
     UIndexBorrowRead value -> valid-type value && (case borrow-index-parts value of
       Some (mutable, region, carrier) -> integer-carrier carrier
       None -> False)
+    UIndexConstructor name (UCon owner KType) UEnd -> string-length name > 0 && string-length owner > 0
     UIndexConstructor name arrow input -> (case (arrow, typed-index-carrier input) of
       (UFun domain (UCon owner KType), Some actual) -> string-length name > 0 && valid-type arrow && typed-index-admissible input && same-shape domain actual
       other -> False)
@@ -928,6 +931,7 @@ module Bootstrap.Type where
     UIndexForget value -> string-concat "forget-index " (type-text value)
     UIndexByteLength value -> string-concat "bytes-length-index " (type-text value)
     UIndexBorrowRead value -> string-concat "copyOut " (type-text value)
+    UIndexConstructor name scheme UEnd -> name
     UIndexConstructor name arrow input -> string-concat-all ["(", name, " ", type-text input, ")"]
     UIndexList element fields -> case fields of
       UEnd -> "Nil"
@@ -1821,7 +1825,7 @@ module Bootstrap.Type where
     UIndexBorrowRead value -> case borrow-index-parts value of
       Some (mutable, region, carrier) -> Some carrier
       None -> None
-    UIndexConstructor name arrow input -> (case arrow of UFun domain result -> Some result; other -> None)
+    UIndexConstructor name arrow input -> (case arrow of UFun domain result -> Some result; UCon owner KType -> Some arrow; other -> None)
     UIndexList element fields -> Some (core-list-type element)
     UIndexCall function args -> Some (UCon (total-result function) KType)
     UIndexPromote value -> Some (UCon "Int" KType)
