@@ -14,6 +14,41 @@ import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_seed_frontend_exits_before_the_checked_host_link(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            sources = root / "sources"
+            (sources / "build").mkdir(parents=True)
+            runtime = root / "target" / "release" / "libcinchruntime.a"
+            runtime.parent.mkdir(parents=True)
+            runner, compiler, log = root / "seed", root / "cinch", root / "build.log"
+            manifest = sources / "build" / "Main.manifest.json"
+            env = {"CINCH_CLANG": "shard-clang"}
+
+            def emit(command, *args, **kwargs):
+                if command[0] == runner:
+                    bootstrap.write_json(manifest, {"link": {"words": ["-lchecked"],
+                                                             "native_objects": [], "shared": False}})
+                return 0
+
+            with patch.object(bootstrap, "run", side_effect=emit) as run:
+                code = bootstrap.compile_seed_stage(runner, sources, compiler, runtime, log, [], env)
+            self.assertEqual(code, 0)
+            frontend, link = run.call_args_list
+            self.assertEqual(frontend.args[0], [runner, "emit-ir", sources / "Main.cinch", "-o", compiler.with_suffix(".ll")])
+            self.assertEqual(link.args[0][:7], ["shard-clang", compiler.with_suffix(".ll"), "-O2", runtime,
+                                                  "-o", compiler, "-lchecked"])
+            self.assertEqual(link.kwargs["env_extra"], env)
+            self.assertTrue(link.kwargs["append"])
+
+            with patch.object(bootstrap, "run", return_value=4) as failed:
+                self.assertEqual(bootstrap.compile_seed_stage(runner, sources, compiler, runtime, log, [], env), 4)
+                failed.assert_called_once()
+            with patch.object(bootstrap, "run", return_value=0) as custom:
+                bootstrap.compile_seed_stage(runner, sources, compiler, runtime, log, ["--no-stack-alloc"], env)
+                self.assertEqual(custom.call_args.args[0][1], "build")
+                self.assertIn("--no-stack-alloc", custom.call_args.args[0])
+
     def test_identical_stage_ir_reuses_only_intact_shard_text(self):
         import shard_ir
 
@@ -126,15 +161,22 @@ class BootstrapContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             build = Path(temp)
             builder, runtime, files = self.stage_fixture(build)
+            archive = build / "target/release/libcinchruntime.a"
+            archive.parent.mkdir(parents=True)
+            runtime.rename(archive)
+            runtime = archive
             compiler = build / "stage1/cinch"
             seed_ir = compiler.with_suffix(".ll")
 
             def seed_build(command, cwd, log, **kwargs):
-                seed_ir.write_bytes(b"linker input")
-                compiler.write_bytes(b"linked compiler")
-                compiler.chmod(0o755)
-                (cwd / "build").mkdir()
-                (cwd / "build/Main.manifest.json").write_text("{}")
+                if command[0] == builder:
+                    seed_ir.write_bytes(b"linker input")
+                    bootstrap.write_json(cwd / "build/Main.manifest.json",
+                                         {"link": {"words": [], "native_objects": [], "shared": False}})
+                else:
+                    self.assertTrue(seed_ir.is_file())
+                    compiler.write_bytes(b"linked compiler")
+                    compiler.chmod(0o755)
                 log.write_text("")
                 return 0
 

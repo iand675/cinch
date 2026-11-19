@@ -355,8 +355,8 @@ def stage_link_environment(append: str | None = None,
                            record: Path | None = None) -> dict[str, str]:
     """Point the seed's own clang call at the sharding wrapper.
 
-    Stage1's link happens inside the pinned Rust seed, which honours only
-    `CINCH_CLANG`. The wrapper shards one huge `.ll` link and execs the real
+    The pinned seed and the separate host link both honour `CINCH_CLANG`.
+    The wrapper shards one huge `.ll` link and execs the real
     clang for everything else. JOBS == 1 and no appended flags leaves the
     seed untouched, because then the wrapper has nothing to do.
     """
@@ -622,6 +622,37 @@ def build_stage(stage: int) -> Path:
     return build_next_stage(stage, build_stage(stage - 1))
 
 
+def compile_seed_stage(builder: Path, sources: Path, compiler: Path, runtime: Path, log: Path,
+                       flags: list[str], link_env: dict[str, str]) -> int:
+    if flags:
+        # Custom seed options can select their own target, objects and linker.
+        return run([builder, "build", sources / "Main.cinch", "-o", compiler,
+                    "--opt-level", "2", *flags], sources, log, env_extra=link_env)
+
+    # Let the pinned frontend exit before clang optimizes the module. The
+    # seed otherwise holds the checked compiler and its IR throughout linking.
+    ir = compiler.with_suffix(".ll")
+    code = run([builder, "emit-ir", sources / "Main.cinch", "-o", ir], sources, log)
+    if code:
+        return code
+    manifest = read_json(sources / "build" / "Main.manifest.json")
+    plan = manifest.get("link", {})
+    words = plan.get("words") if isinstance(plan, dict) else None
+    if (not isinstance(words, list) or not all(isinstance(word, str) for word in words)
+            or plan.get("native_objects") != [] or plan.get("shared") is not False):
+        with log.open("a") as stream:
+            stream.write("the seed emitted an unsupported compiler link plan\n")
+        return 1
+    clang = link_env.get("CINCH_CLANG") or os.environ.get("CINCH_CLANG") or "clang"
+    command = [clang, ir, "-O2", runtime, "-o", compiler, *words]
+    if HOST["system"] == "Linux":
+        command.extend(["-ldl", "-lpthread", "-lm"])
+    # Use the pinned driver's lock while clang reads its runtime archive.
+    with (runtime.parent.parent / ".cinch-runtime.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_SH)
+        return run(command, sources, log, append=True, env_extra=link_env)
+
+
 def build_next_stage(stage: int, builder: Path) -> Path:
     files = compiler_sources()
     if stage >= 2:
@@ -656,7 +687,7 @@ def build_next_stage(stage: int, builder: Path) -> Path:
         (sources / name).write_bytes(data)
     (directory / "compiler.cinch").write_bytes(bundle(files))
     # Stage1 does the largest compile of the chain (it builds Stage2), so the
-    # seed links it optimized. Above one job the seed's own clang call goes
+    # seed links it optimized. Above one job the clang call goes
     # through tooling/shard_ir.py, which shards its single `.ll` module. With
     # PGO the seed links an instrumented module, the resulting compiler trains
     # the profile, and the recorded seed command is replayed with it.
@@ -665,11 +696,9 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     if PGO:
         record.unlink(missing_ok=True)
         append = shlex.join(pgo.generate_flags(directory / "pgo" / "raw"))
-    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2", *seed_flags()],
-               sources, log, env_extra=stage_link_environment(append, record if PGO else None))
+    code = compile_seed_stage(builder, sources, compiler, runtime, log, inputs["seed_flags"],
+                              stage_link_environment(append, record if PGO else None))
     if code == 0 and PGO:
-        # The seed's instrumented link is inside the seed's own command, so
-        # the record cannot report it separately from the frontend.
         profile = pgo_relink(compiler, seed_ir, record, inputs["source_sha256"],
                              directory, log,
                              pgo_base_interfaces(directory,
