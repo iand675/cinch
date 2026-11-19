@@ -4871,6 +4871,17 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
     ret.widen(b, &r)
 }
 
+/// Transfer evaluated argument words to a closure's apply stub.
+fn apply_words(b: &mut Builder, closure: &str, words: &[String]) -> String {
+    let frame = b.alloca_words(words.len());
+    for (i, word) in words.iter().enumerate() {
+        b.store_at(&frame, i * 8, word);
+    }
+    let result = b.reg();
+    b.line(&format!("{result} = call i64 @__apply(i64 {closure}, i64 {}, ptr {frame})", words.len()));
+    result
+}
+
 /// After an owned-convention call of `name` with the words `args`: drop
 /// the arguments the unit only borrows. Borrow inference
 /// (`crate::rc::borrow_modes`) gives a unit lent parameters whatever
@@ -9454,7 +9465,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     for (i, p) in plan.params.iter().enumerate() {
         let n = format!("%c{i}");
         match &p.class {
-            AbiClass::Unit => {}
+            AbiClass::Unit => words.push("0".to_string()),
             AbiClass::Scalar(s) => {
                 params.push(format!("{}{} {n}", abi_llvm_ty(p), param_attrs(p, true)));
                 // The C side's argument is foreign input (an `undef`
@@ -9520,7 +9531,22 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             }
         }
     }
-    let r = call_unit(&mut b, reg, &plan.unit, &words);
+    let arity = reg.arity_of(&plan.unit)?;
+    if arity > words.len() {
+        return err(format!("foreign export {} supplies too few arguments for {}", plan.symbol, plan.unit));
+    }
+    let (prefix, extra) = words.split_at(arity);
+    let mut r = call_unit(&mut b, reg, &plan.unit, prefix);
+    if !extra.is_empty() {
+        // A source definition can return the rest of its arrow spine as
+        // a closure. The C caller supplies all arguments in a single call.
+        if plan.params[arity..].iter().chain(std::iter::once(&plan.result))
+            .any(|p| matches!(&p.class, AbiClass::Scalar(s) if s.is_wide()))
+        {
+            return err(format!("foreign export {} needs a wide value across a word-sized closure frame", plan.symbol));
+        }
+        r = apply_words(&mut b, &r, extra);
+    }
     let ret_ty = match &crossing.result {
         Some(ResultPass::Sret) => "void".to_string(),
         Some(ResultPass::Direct { ty, .. }) => ty.clone(),
@@ -11319,17 +11345,7 @@ impl CoreEmitter<'_, '_> {
         for a in args {
             vals.push(self.emit_expr(a)?);
         }
-        let buf = self.b.alloca_words(args.len());
-        for (i, v) in vals.iter().enumerate() {
-            let p = self.b.gep(&buf, i * 8);
-            self.b.line(&format!("store i64 {v}, ptr {p}"));
-        }
-        let r = self.b.reg();
-        self.b.line(&format!(
-            "{r} = call i64 @__apply(i64 {fv}, i64 {}, ptr {buf})",
-            args.len()
-        ));
-        Ok(r)
+        Ok(apply_words(self.b, &fv, &vals))
     }
 
     /// Emit `e` in tail position: the unit returns whatever `e` produces

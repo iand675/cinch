@@ -15,7 +15,7 @@ module Bootstrap.Foreign where
   import Text.Scan (string-contains, string-split-on, string-starts-with, string-ends-with, string-strip, string-words, string-unwords)
   import Algebra.Semigroup
 
-  export ForeignPlan, ForeignParameter, foreign-plan, foreign-parameters, foreign-result
+  export ForeignPlan, ForeignParameter, foreign-plan, foreign-export-plan, foreign-parameters, foreign-result
   export foreign-symbol, foreign-scheme, foreign-parameter-type, foreign-class
   export foreign-blocking, foreign-width, foreign-signed, foreign-nullable, foreign-role
   export foreign-pointer, foreign-document, foreign-display-scheme
@@ -134,19 +134,19 @@ module Bootstrap.Foreign where
     other -> False
   foreign-blocking :: ForeignPlan -> Bool
   foreign-blocking plan = blocking-arrow (scheme-body (foreign-scheme plan))
-  envelope-error :: UType -> Option String
-  envelope-error ty = case ty of
-    UFun domain result -> arrow-envelope-error (URow UEnd) result
-    UFunEff domain row result -> arrow-envelope-error row result
-    UPi id name domain row result -> arrow-envelope-error row result
+  envelope-error :: Bool -> UType -> Option String
+  envelope-error importing ty = case ty of
+    UFun domain result -> arrow-envelope-error importing (URow UEnd) result
+    UFunEff domain row result -> arrow-envelope-error importing row result
+    UPi id name domain row result -> arrow-envelope-error importing row result
     other -> Some "foreign import needs a function type"
-  arrow-envelope-error :: UType -> UType -> Option String
-  arrow-envelope-error row result = case row of
+  arrow-envelope-error :: Bool -> UType -> UType -> Option String
+  arrow-envelope-error importing row result = case row of
     URow labels -> case result of
-      UFun domain more -> if closed-row row then envelope-error result else Some "foreign effect rows must be closed and explicit"
-      UFunEff domain effects more -> if closed-row row then envelope-error result else Some "foreign effect rows must be closed and explicit"
-      UPi id name domain effects more -> if closed-row row then envelope-error result else Some "foreign effect rows must be closed and explicit"
-      other -> if not (accounted-labels labels) then Some "foreign import needs a function type, closed explicit rows and accounted result effects: a foreign import must declare its effects because an external function is not pure"
+      UFun domain more -> if closed-row row then envelope-error importing result else Some "foreign effect rows must be closed and explicit"
+      UFunEff domain effects more -> if closed-row row then envelope-error importing result else Some "foreign effect rows must be closed and explicit"
+      UPi id name domain effects more -> if closed-row row then envelope-error importing result else Some "foreign effect rows must be closed and explicit"
+      other -> if importing && not (accounted-labels labels) then Some "foreign import needs a function type, closed explicit rows and accounted result effects: a foreign import must declare its effects because an external function is not pure"
         else if closed-row row then None else Some "foreign effect rows must be closed and explicit"
     other -> Some "foreign effect rows must be closed and explicit"
   parameters :: List String -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
@@ -165,10 +165,16 @@ module Bootstrap.Foreign where
   reserved-symbol :: String -> Bool
   reserved-symbol name = string-starts-with "cinch.prim." name || string-starts-with "cinch.runtime." name
   foreign-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
-  foreign-plan word-bits abstracts symbol scheme = if word-bits /= 64 then Err "foreign boundary target ABI is not supported"
+  foreign-plan = checked-foreign-plan-for True
+  foreign-export-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
+  foreign-export-plan = checked-foreign-plan-for False
+
+  checked-foreign-plan-for :: Bool -> Nat -> List String -> String -> Scheme -> Result String ForeignPlan
+  checked-foreign-plan-for importing word-bits abstracts symbol scheme = if word-bits /= 64 then Err "foreign boundary target ABI is not supported"
     else if reserved-symbol symbol then Err (string-concat-all ["foreign symbol ", symbol, " is not a cinch intrinsic; only cinch.prim.* and cinch.runtime.* intrinsics are supported in the bootstrap slice"])
     else if string-length symbol == 0 then Err "foreign symbol is empty"
-    else case envelope-error (scheme-body scheme) of
+    else if not importing && (string-starts-with "llvm." symbol || string-starts-with "cinch." symbol || string-starts-with "cinch_" symbol) then Err "reserved foreign export symbol"
+    else case envelope-error importing (scheme-body scheme) of
       Some error -> Err error
       None -> if not (contract-scheme-closed scheme) then Err "foreign scheme has an unbound or unresolved contract"
         else if not (region-quantifiers (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then Err "foreign binding cannot be polymorphic or constrained"

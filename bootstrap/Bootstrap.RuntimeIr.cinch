@@ -5,7 +5,7 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-intrinsic-symbol, scalar-intrinsic-scheme)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
@@ -23,6 +23,7 @@ module Bootstrap.RuntimeIr where
   import Text.Scan (string-split-on, string-lines, string-unlines, string-index-of, string-take, string-drop, string-starts-with)
   import Text.Lex (Span)
   import Data.Json
+  import Data.List (split-at)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
@@ -2209,6 +2210,59 @@ module Bootstrap.RuntimeIr where
   foreign-abi-coherent plan plans = case plans of
     Nil -> True
     Cons other rest -> (not (same (foreign-symbol plan) (foreign-symbol other)) || foreign-abi-compatible plan other) && foreign-abi-coherent plan rest
+  foreign-export-declarations :: List ForeignParameter -> Nat -> List String
+  foreign-export-declarations parameters index = case parameters of
+    Nil -> Nil
+    Cons first rest -> let tail = foreign-export-declarations rest (index + 1) in
+      if same (foreign-class first) "unit" then tail else Cons (cat [foreign-c-type first, " %c", nat-to-string index]) tail
+
+  -- C supplies the incoming bits. Freeze them before a pointer check or
+  -- conversion can use them in the checked worker. Unit has only a Cinch slot.
+  foreign-export-arguments :: Writer -> List ForeignParameter -> Nat -> (Writer, List (String, String))
+  foreign-export-arguments w parameters index = case parameters of
+    Nil -> (w, Nil)
+    Cons first rest -> let ty = foreign-llvm-type first in
+      let (converted, value) = if same ty "void" then (w, "0") else
+            (let (ready, safe) = fresh w "%foreign" in
+              foreign-result-word (line ready (cat ["  ", safe, " = freeze ", ty, " %c", nat-to-string index])) first safe) in
+      (case foreign-export-arguments converted rest (index + 1) of
+        (done, tail) -> (done, Cons (if same ty "i128" then "i128" else "i64", value) tail))
+
+  foreign-export-roots :: List (String, ForeignPlan) -> List (String, List Nat)
+  foreign-export-roots exports = map (\pair -> case pair of (name, plan) -> (name, Nil)) exports
+
+  foreign-word-arguments :: List (String, String) -> Bool
+  foreign-word-arguments args = case args of
+    Nil -> True
+    Cons (ty, value) rest -> same ty "i64" && foreign-word-arguments rest
+
+  -- A curried source definition may return a closure before the C
+  -- argument list is exhausted. Only word-sized values can cross __apply.
+  call-export-worker :: Writer -> String -> ForeignParameter -> List (String, String) -> (Writer, String)
+  call-export-worker w name result args = case worker-definition name w of
+    None -> unsupported w (Span 0 0 1 1) "foreign export has no checked worker"
+    Some d -> let arity = list-length (definition-parameters d) in
+      case split-at arity args of
+        (prefix, Nil) -> if list-length prefix /= arity then unsupported w (Span 0 0 1 1) "foreign export has too few arguments for its worker"
+          else typed-call w (definition-result-llvm (writer-context w) d) (symbol name) prefix
+        (prefix, rest) -> if same (foreign-llvm-type result) "i128" || not (foreign-word-arguments rest) then
+          unsupported w (Span 0 0 1 1) wide-refusal
+          else (case typed-call w "i64" (symbol name) prefix of
+            (called, closure) -> apply-words called closure (map (\arg -> case arg of (ty, value) -> value) rest))
+
+  foreign-export-bridges :: List (String, ForeignPlan) -> Writer -> Writer
+  foreign-export-bridges exports w = case exports of
+    Nil -> w
+    Cons (name, plan) rest -> let result = foreign-result plan in let params = foreign-parameters plan in
+      let started = emit-lines w [cat ["define ", foreign-c-result result, " ", llvm-object-symbol (foreign-symbol plan), "(", join (foreign-export-declarations params 0), ") nounwind {"], "entry:"] in
+      let (ready, args) = foreign-export-arguments started params 0 in
+      let (called, word) = call-export-worker ready name result args in
+      let ty = foreign-llvm-type result in
+      let returned = if same ty "void" then line called "  ret void" else
+            (let (converted, value) = foreign-marshal-one called result word in
+              line (if same ty "ptr" then foreign-pointer-check converted result value else converted) (cat ["  ret ", ty, " ", value])) in
+      foreign-export-bridges rest (line returned "}")
+
   foreign-argument-types :: List ForeignParameter -> List CoreTerm -> Bool
   foreign-argument-types params args = case (params, args) of
     (Nil, Nil) -> True
@@ -5396,15 +5450,34 @@ module Bootstrap.RuntimeIr where
     n > 7 && bytes-get bytes 0 == 109 && bytes-get bytes 1 == 46 &&
       bytes-get bytes (n - 5) == 46 && bytes-get bytes (n - 4) == 109 && bytes-get bytes (n - 3) == 97 &&
       bytes-get bytes (n - 2) == 105 && bytes-get bytes (n - 1) == 110
+  export-symbol-conflict :: String -> List CheckedBinding -> Bool
+  export-symbol-conflict symbol bindings = case bindings of
+    Nil -> False
+    Cons binding rest -> (case checked-foreign-plan binding of
+      Some plan | same symbol (foreign-symbol plan) -> True
+      other -> export-symbol-conflict symbol rest)
+
+  check-c-export-symbols :: List (String, ForeignPlan) -> List String -> List CheckedBinding -> List Diagnostic
+  check-c-export-symbols exports claimed bindings = case exports of
+    Nil -> Nil
+    Cons (name, plan) rest -> let tag = foreign-symbol plan in
+      if name-listed tag claimed || export-symbol-conflict tag bindings then
+        [MkDiagnostic "bootstrap.check" (Span 0 0 1 1) (cat ["conflicting C symbol for foreign export: ", tag])]
+      else check-c-export-symbols rest (Cons tag claimed) bindings
+
   check-runtime-entry :: CheckedProgram -> Result (List Diagnostic) CheckedProgram
-  check-runtime-entry checked = case runtime-entry (elaboration-core (checked-elaboration checked)) None of
-    Err errors -> Err errors
-    Ok None -> Ok checked
-    Ok (Some d) -> case entry-mode d of
-      Some mode -> Ok checked
-      None -> case d of
-        MkCoreDefinition sp name scheme openings givens private clauses ->
-          Err [MkDiagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"]
+  check-runtime-entry checked = let typed = checked-elaboration checked in
+    let bindings = elaboration-bindings typed in
+    case runtime-entry (elaboration-core typed) None of
+      Err errors -> Err errors
+      Ok chosen -> (case check-c-export-symbols (checked-c-exports bindings) (case chosen of Some entry -> ["main"]; None -> Nil) bindings of
+        Cons error rest -> Err (Cons error rest)
+        Nil -> (case chosen of
+          None -> Ok checked
+          Some d -> (case entry-mode d of
+            Some mode -> Ok checked
+            None -> (case d of
+              MkCoreDefinition sp name scheme openings givens private clauses -> Err [MkDiagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"]))))
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
@@ -5578,7 +5651,8 @@ module Bootstrap.RuntimeIr where
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
     let plan = inline-plan inlining definitions info in
-    case settled-workers-with-plan plan definitions roots info of
+    let exports = checked-c-exports (elaboration-bindings typed) in
+    case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage False "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
@@ -5850,7 +5924,8 @@ module Bootstrap.RuntimeIr where
     let selected = library-selected-roots roots in
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
     let plan = inline-plan inlining definitions info in
-    case library-bridges definitions roots Nil (settled-workers-with-plan plan definitions selected info) of
+    let exports = checked-c-exports (elaboration-bindings typed) in
+    case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
           let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "internal ", builder-run code] in
@@ -5879,15 +5954,20 @@ module Bootstrap.RuntimeIr where
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
     let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
+    let exports = checked-c-exports (elaboration-bindings typed) in
+    let roots = foreign-export-roots exports in
+    let plan = inline-plan inlining definitions info in
+    let finish = \writer suffix -> case workers definitions (foreign-export-bridges exports writer) of
+          Writer next globals code Nil layouts context -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "", builder-run code, suffix])
+          Writer next globals code errors layouts context -> Err errors in
     case runtime-entry (elaboration-core typed) None of
       Err errors -> Err errors
-      Ok None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
+      Ok None -> (case exports of
+        Nil -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
+        other -> finish (settled-workers-with-plan plan definitions roots info) "")
       Ok (Some d) -> case entry-mode d of
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit -> Int, optionally effectful, without external evidence"]
-        -- The planning roots demand `main` as a worker unless a constructor
-        -- shares the name; only then does the entry need its own pass.
-        Some mode -> let name = core-name d in let plan = inline-plan inlining definitions info in
-          let settled = settled-workers-with-plan plan definitions [(name, Nil)] info in
-          case (case constructor name info of Some found -> workers definitions (demand-worker name Nil (empty-writer-with-plan (writer-program settled) plan)); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "", builder-run code, entry wasm32 name mode reclaim])
-            Writer next globals code errors layouts datas -> Err errors
+        Some mode -> let name = core-name d in
+          let settled = settled-workers-with-plan plan definitions (Cons (name, Nil) roots) info in
+          let ready = case constructor name info of Some found -> workers definitions (demand-worker name Nil settled); None -> settled in
+          finish ready (entry wasm32 name mode reclaim)

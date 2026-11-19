@@ -6,7 +6,7 @@ module Bootstrap.Infer where
   import Bootstrap.Ast
   import Bootstrap.Kinds (symbolic-effect-spelling)
   import Bootstrap.Type
-  import Bootstrap.Foreign (ForeignPlan, foreign-plan, foreign-document, primitive-plan)
+  import Bootstrap.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.BodyContract
@@ -47,7 +47,7 @@ module Bootstrap.Infer where
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export guarded-members, source-method-symbol, source-conditional-head
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
-  export checked-foreign-plan, checked-intrinsic-symbol
+  export checked-foreign-plan, checked-c-export, checked-c-exports, checked-intrinsic-symbol
   export scalar-intrinsic-scheme, scalar-promise-matches
   export scalar-interface-contract-matches
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
@@ -166,6 +166,7 @@ module Bootstrap.Infer where
 
   data CheckedBinding where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
+    MkForeignExport :: String -> ForeignPlan -> CheckedBinding
     MkForeignBinding :: String -> Scheme -> ForeignPlan -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
     -- The module environment's cache entry: the checked body contracts, the
@@ -188,11 +189,11 @@ module Bootstrap.Infer where
     MkOverloadBinding :: String -> List String -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context names cache -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names cache -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context names cache -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names cache -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context names cache -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names cache -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -209,6 +210,13 @@ module Bootstrap.Infer where
   checked-method-matches binding name owner slot = case binding of
     MkMethodBinding actual sc declaring index -> same name actual && same owner declaring && slot == index
     other -> False
+  checked-c-export :: CheckedBinding -> Option (String, ForeignPlan)
+  checked-c-export binding = case binding of MkForeignExport name plan -> Some (name, plan); other -> None
+  checked-c-exports :: List CheckedBinding -> List (String, ForeignPlan)
+  checked-c-exports bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> (case checked-c-export binding of Some entry -> Cons entry (checked-c-exports rest); None -> checked-c-exports rest)
+
   checked-foreign-plan :: CheckedBinding -> Option ForeignPlan
   checked-foreign-plan binding = case binding of MkForeignBinding name scheme plan -> Some plan; other -> None
   -- The runtime intrinsic a checked binding names, when it is one. The
@@ -2980,6 +2988,7 @@ module Bootstrap.Infer where
         (qs, sq) -> case register-ctors kinds owner (data-group all owner) qs cs env sq of (e, se) -> register all rows classes kinds rest e se
       DRecord s owner ps fields -> register all rows classes kinds rest env st
       DCodata s owner ps observations -> register all rows classes kinds rest env st
+      DForeign s direction abi symbol name ty | same direction "export" -> register all rows classes kinds rest env st
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
         (e, se) -> register all rows classes kinds rest e se
       DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
@@ -3293,6 +3302,25 @@ module Bootstrap.Infer where
               Some prior -> (env, add-error sp "duplicate imported wrapping intrinsic" prepared)
               None -> (Cons (MkIntrinsicBinding name actual symbol) env, check-imported-value sp actual metadata prepared)))
       other -> (env, add-error sp "incomplete imported wrapping intrinsic contract" st)
+  -- An export attaches a C entry to an already checked source definition.
+  -- Keep its plan outside the source namespace so Cinch calls still use
+  -- the original definition and its proof and ownership checks.
+  checked-export-declarations :: List Decl -> List (String, Kind) -> TypeContext -> List CoreDefinition -> Store -> (List CheckedBinding, Store)
+  checked-export-declarations declarations classes kinds core st = case declarations of
+    Nil -> (Nil, st)
+    Cons (DForeign site direction abi symbol name syntax) rest | same direction "export" ->
+      (case (same abi "ccall", find-core-definition name core) of
+        (True, Some definition) -> (case make-scheme False classes kinds Nil syntax st of
+          (claimed, checked) -> let actual = map-scheme-types (normalize checked) claimed in
+            if not (scheme-equivalent actual (core-scheme definition)) then (Nil, add-error site "a foreign export's type must match its defined function" checked)
+            else (case foreign-export-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+              Err message -> (Nil, add-error site message checked)
+              Ok plan -> (case checked-export-declarations rest classes kinds core checked of
+                (tail, done) -> (Cons (MkForeignExport name plan) tail, done))))
+        (False, other) -> (Nil, add-error site "foreign export requires ccall" st)
+        other -> (Nil, add-error site "a foreign export wraps a defined function" st))
+    Cons other rest -> checked-export-declarations rest classes kinds core st
+
   register-foreign :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-foreign sp symbol name syntax classes kinds env st = case make-scheme False classes kinds Nil syntax st of
     (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
@@ -6987,6 +7015,7 @@ module Bootstrap.Infer where
     MkErasedBinding name predicate id origin invalidated -> MkErasedBinding name (normalize st predicate) id origin invalidated
     MkOverloadBinding name candidates -> b
     MkSyntaxBinding name -> b
+    MkForeignExport name plan -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context names cache) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
   global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
@@ -8045,7 +8074,10 @@ module Bootstrap.Infer where
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
     -- Checked Core retains contextual phantom regions. Source provenance retains
     -- the defining header, so a later value signature cannot rewrite an export.
-    MkElaboration (store-errors temporal-store) (finish-bindings temporal-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances unkinded law-observations rewrites temporal-rows
+    let (exports, export-store) = case store-errors temporal-store of
+          Nil -> checked-export-declarations ds classes linked-kinds core temporal-store
+          other -> (Nil, temporal-store) in
+    MkElaboration (store-errors export-store) (exports <> finish-bindings export-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances unkinded law-observations rewrites temporal-rows
 
   -- Records use the ordinary independently checked single-constructor
   -- representation. Labels remain in a DRecord for source provenance;

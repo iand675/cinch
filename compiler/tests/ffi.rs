@@ -80,8 +80,22 @@ fn foreign_export_round_trips_through_c() {
     let o = c_fixture(
         "mul",
         r#"
-extern long long fix_mul(long long, long long);
-int main(void) { return fix_mul(6, 7) == 42 ? 0 : 3; }
+#include <stdint.h>
+extern int64_t cinch_exit_check(int64_t);
+extern int64_t fix_mul(int64_t, int64_t);
+extern int8_t fix_signed(int8_t);
+extern uint16_t fix_unsigned(uint16_t);
+extern int64_t fix_curried(int64_t, int64_t);
+extern int64_t fix_unit(void);
+int main(void) {
+    int code = 0;
+    if (fix_mul(6, 7) != 42) code = 1;
+    else if (fix_signed(-7) != -7) code = 2;
+    else if (fix_unsigned(60000) != 60000) code = 3;
+    else if (fix_curried(6, 7) != 42) code = 4;
+    else if (fix_unit() != 42) code = 5;
+    return (int)cinch_exit_check(code);
+}
 "#,
     );
     expect_ok(
@@ -92,9 +106,39 @@ module Main where
   fixMul x y = wrapping-mul-i64 x y
 
   foreign export ccall "fix_mul" fixMul :: I64 -> I64 -> I64
+
+  signed :: I8 -> I8
+  signed x = x
+  foreign export ccall "fix_signed" signed :: I8 -> I8
+
+  unsigned :: U16 -> U16
+  unsigned x = x
+  foreign export ccall "fix_unsigned" unsigned :: U16 -> U16
+
+  curried :: I64 -> I64 -> I64
+  curried x = \y -> wrapping-mul-i64 x y
+  foreign export ccall "fix_curried" curried :: I64 -> I64 -> I64
+
+  unitResult :: Unit -> I64
+  unitResult () = 42
+  foreign export ccall "fix_unit" unitResult :: Unit -> I64
 "#,
         &[&o],
         0,
+    );
+}
+
+#[test]
+fn foreign_export_requires_the_defined_functions_type() {
+    expect_err(
+        "export-type",
+        r#"
+module Main where
+  identity :: I32 -> I32
+  identity x = x
+  foreign export ccall "fix_identity" identity :: I64 -> I64
+"#,
+        "a foreign export's type",
     );
 }
 
