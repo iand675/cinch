@@ -1893,6 +1893,62 @@ point claims.
 ladder as separate derivations for a binary cache; `tooling/nix/README.md`
 has the commands.
 
+### 2.25 A per-module chain: what the object mode already does (2026-11-19)
+
+With the repetitions of section 2.22 gone, a stage frontend is two and a
+half minutes of checking spread thin, and its floor for an edit is the
+whole bundle: every module is flattened into one `Main` and elaborated
+together, 92 times over because of the totality retry. The lever that
+remains is to stop compiling the modules an edit did not reach.
+
+The pieces exist. `--emit-object` checks one source against an interface
+manifest and a provider object, and writes the module's checked interface,
+its own object (`<object>.new.o`) and a layer that is the provider plus
+that object with a merged ABI manifest. A probe compiled the compiler's
+modules that way, in import order, each layer the provider of the next:
+
+| Module | Lines | Seconds |
+| --- | ---: | ---: |
+| `Text.Lex` | 1720 | 4.3 |
+| `Bootstrap.Ast` | 1459 | 5.7 |
+| `Bootstrap.Index` | 202 | 2.8 |
+| `Text.Builder` | 196 | 3.2 |
+| `Text.Scan` | 446 | 3.4 |
+| `Text.Parse` | 620 | 3.7 |
+| `Text.Json` | 1225 | refused |
+
+The first six compile unchanged. A module costs about three seconds of
+interface and object loading (section 2.23) plus its own work, which is
+what makes the fixed cost the next thing to remove on this path too.
+`Text.Json` is refused by the library emitter: `constructor needs
+dependent, existential or extended runtime lowering`. The whole-program
+emitter lowers the same module, because it emits only the constructors a
+program reaches and a library roots every exported one.
+
+What a per-module build of the compiler needs, in order:
+
+1. The library emitter's constructor coverage, starting from that refusal.
+2. Roots. A client's demand for a specialisation the provider did not emit
+   is a diagnostic today (`tooling/bootstrap_objects.py`'s
+   `requested_roots` reads it), and the library's root list was grown that
+   way by hand. A build needs the demands as an output of a module's
+   compile, so a provider can be re-emitted with them.
+3. A graph instead of a chain. A layer embeds its provider, so a chain
+   rebuilds everything after an edited module whether or not it imports
+   it. The delta object is already written; the delta of the ABI manifest
+   is the same merge `object-manifest` does, run outside the compiler, and
+   a module's provider is then the merge of its imports' deltas. That is
+   also what lets independent modules compile at once. The import graph of
+   the 52 `Bootstrap` modules has 16 levels and its longest path holds
+   34,600 of 52,600 lines, so the gain is from reuse far more than from
+   width.
+4. Early cutoff. A dependent's key is its source, the compiler, and the
+   contract hashes and ABI deltas of its imports; a body edit that changes
+   neither recompiles one module and relinks.
+
+The audited chain stays whole-program: it is what the fixed point is a
+claim about. A per-module build is a development build, like `--dev`.
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
