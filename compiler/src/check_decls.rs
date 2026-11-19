@@ -18317,7 +18317,7 @@ pub fn check_program_multi_full_recorded(
         None,
         &HashMap::new(),
     )?;
-    let (mut program, _references, safety_records, searches) = prepared.finish_recorded()?;
+    let (mut program, safety_records, searches) = prepared.finish_recorded()?;
     report.safety = verify_safety_groups(&safety_records, &program)?;
     contract_facts(&safety_records, &mut program);
     Ok((program, ifaces, report, diags, searches))
@@ -18361,7 +18361,6 @@ pub(crate) struct PreparedCheck {
     checker: Checker,
     scx: StagingCx,
     prelude_name: String,
-    checked_references: Vec<CheckedReference>,
     safety_records: Vec<SafetyRecord>,
     /// The instance-search buckets the checks consulted, as
     /// `(declaration unit, class, head)`. These are the query graph's
@@ -18407,9 +18406,9 @@ impl PreparedCheck {
     }
 
     /// Fold the checked state into the ordinary program representation.
-    pub(crate) fn finish(self) -> Result<(Program, Vec<CheckedReference>, Vec<SafetyRecord>)> {
-        let (program, references, safety, _) = self.finish_recorded()?;
-        Ok((program, references, safety))
+    pub(crate) fn finish(self) -> Result<(Program, Vec<SafetyRecord>)> {
+        let (program, safety, _) = self.finish_recorded()?;
+        Ok((program, safety))
     }
 
     /// [`PreparedCheck::finish`] with the instance-search rows the checks
@@ -18419,7 +18418,6 @@ impl PreparedCheck {
         self,
     ) -> Result<(
         Program,
-        Vec<CheckedReference>,
         Vec<SafetyRecord>,
         Vec<(String, String, String)>,
     )> {
@@ -18427,7 +18425,6 @@ impl PreparedCheck {
         let program = checker.finish(&self.scx.entry_modules, &self.prelude_name)?;
         Ok((
             program,
-            self.checked_references,
             self.safety_records,
             self.instance_searches,
         ))
@@ -18935,13 +18932,14 @@ fn check_program_multi_full_prepared_impl(
         Some(p) => Some(c.probe_term(scx, p)),
         None => None,
     };
-    let checked_references = c.editor_references.get_mut().take().unwrap_or_default();
+    if let (Some(sink), Some(checked)) = (reference_sink, c.editor_references.get_mut().take()) {
+        sink.extend(checked);
+    }
     let instance_searches = c.take_instance_searches();
     let prepared = PreparedCheck {
         checker: c,
         scx: scx.clone(),
         prelude_name,
-        checked_references,
         safety_records,
         instance_searches,
     };
@@ -19007,18 +19005,16 @@ fn check_program_multi_full_impl(
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
     let phase_trace = checker_phase_clock();
     trace_checker_phase(phase_trace, "full", "begin", None);
-    // The preparation only needs to know whether editor references are
-    // requested; the actual references travel back inside the prepared
-    // state and are appended after the checker is finished.
+    // Publish references to the full-check caller only after final checks succeed.
     let mut editor_refs = Vec::new();
     let editor_sink = reference_sink.is_some().then_some(&mut editor_refs);
     let (prepared, ifaces, mut report, diags, probe_out) = check_program_multi_full_prepared_impl(
         prelude, modules, source_hashes, scx, wit, profile, probe, editor_sink, module_preludes,
     )?;
     // `finish` consumes the checker; the preparation captured the safety
-    // records and checked references that the final program needs.
+    // records that the final program needs.
     trace_checker_phase(phase_trace, "full", "prepared_finish.begin", None);
-    let (mut program, checked_references, safety_records) = prepared.finish()?;
+    let (mut program, safety_records) = prepared.finish()?;
     trace_checker_phase(phase_trace, "full", "prepared_finish.end", None);
     trace_checker_phase(phase_trace, "full", "safety.begin", None);
     // P20: the group-level safety claims verify over the finished
@@ -19028,7 +19024,7 @@ fn check_program_multi_full_impl(
     // The verified rows re-state as the LLVM contract surface's facts
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
-    if let Some(sink) = reference_sink { sink.extend(checked_references); }
+    if let Some(sink) = reference_sink { sink.extend(editor_refs); }
     trace_checker_phase(phase_trace, "full", "safety.end", None);
     trace_checker_phase(phase_trace, "full", "end", None);
     Ok((program, ifaces, report, diags, probe_out))
