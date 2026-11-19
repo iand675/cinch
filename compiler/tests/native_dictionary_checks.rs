@@ -5,9 +5,19 @@ use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 use cinch::driver::{driver_with_profile, Mode};
 use std::process::Command;
+
+// The external frontend records the invoking test's thread name on each receipt.
+fn test_worker() -> std::thread::Builder {
+    let builder = std::thread::Builder::new().stack_size(64 * 1024 * 1024);
+    match std::thread::current().name() {
+        Some(name) => builder.name(name.to_owned()),
+        None => builder,
+    }
+}
+
 #[test]
 fn dictionaries_use_actual_factories_and_reclaim_value_slots() {
-    std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+    test_worker().spawn(|| {
         let cases = [
             ("selected-dictionary", "module Main where\n  signature Choose a where\n    choose :: a -> Int\n  instance First :: Choose Int where\n    choose x = x + 1\n  instance Second :: Choose Int where\n    choose x = x + 2\n  run :: using (chosen :: Choose Int) => Int -> Int\n  run x = choose x\n  main :: Int\n  main = if (with (d = First) in run 18446744073709551616) == 18446744073709551617 && (with (d = Second) in run 18446744073709551616) == 18446744073709551618 then 101 else 1\n", 101),
             ("dictionary-slot-order", "module Main where\n  signature Ops a where\n    z-first :: a -> a\n    a-last :: a -> a\n  implicit instance OpsInt :: Ops Int where\n    a-last x = x + 2\n    z-first x = x + 1\n  main :: Int\n  main = if z-first 18446744073709551616 == 18446744073709551617 && a-last 18446744073709551616 == 18446744073709551618 then 103 else 1\n", 103),
@@ -78,7 +88,7 @@ fn dictionaries_use_actual_factories_and_reclaim_value_slots() {
 
 #[test]
 fn self_values_initialize_once_and_survive_escaping_methods() {
-    std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+    test_worker().spawn(|| {
         let dir = std::env::temp_dir().join(format!("cinch_native_dictionary_values_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let source = dir.join("Main.cinch");
@@ -133,7 +143,7 @@ int main(void) {
 
 #[test]
 fn incremental_sessions_keep_captured_dictionary_values_current() {
-    std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+    test_worker().spawn(|| {
         let dir = std::env::temp_dir().join(format!("cinch_dictionary_values_incremental_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let library = "module A where\n  data Box where\n    Box :: Int -> Box\n  signature Shared a where\n    duplicate :: a\n    stored :: a\n    observe :: Unit -> a\n    escape-value :: Unit -> Unit -> a\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  pair :: (Box, Box, Unit -> Box)\n  pair = with (chosen = SharedBox) in (duplicate, stored, escape-value ())\n";
