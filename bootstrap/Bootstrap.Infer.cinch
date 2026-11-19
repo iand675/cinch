@@ -8377,7 +8377,7 @@ module Bootstrap.Infer where
   record-field-error allowed labels seen = case labels of
     Nil -> missing-record-field allowed seen
     Cons name rest ->
-      if not (has name allowed) then Some (string-concat "unknown record field: " name)
+      if not (has name allowed) then Some (string-concat "unknown record field " name)
       else if has name seen then Some (string-concat "duplicate record field: " name)
       else record-field-error allowed rest (Cons name seen)
   missing-record-field :: List String -> List String -> Option String

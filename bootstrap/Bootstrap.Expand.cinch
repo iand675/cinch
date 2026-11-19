@@ -12,7 +12,7 @@
 -- afterwards.
 module Bootstrap.Expand where
   import Bootstrap.Ast
-  import Bootstrap.Parse (Ps, POk, PBad, Fix, parse-tree-term)
+  import Bootstrap.Parse (Ps, POk, PBad, Fix, parse-tree-term, parse-tree-value-fields)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Text.Lex (Span, span-start, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord, TTickName, TTickType)
   import Text.Show (nat-to-string)
@@ -264,6 +264,18 @@ module Bootstrap.Expand where
     EQuote at body -> None
     other -> scoped-template home available stage-value Nil Nil Nil Nil term
 
+  template-name :: (String -> Bool) -> List String -> Expr -> Option TemplateName
+  template-name available inputs expr = case expr of
+    EVar at param | syntax-input param inputs -> Some (NameInput param)
+    EApp at (EVar s op) (ELitSym lit spelling) | same op "sym-to-name" && available op -> Some (NameText spelling)
+    EApp at (EApp inner (EVar s op) (ELitStr lit prefix)) rest | same op "Name.prefix" && available op ->
+      (case template-name available inputs rest of Some name -> Some (NameJoin (NameText prefix) name); None -> None)
+    EApp at (EApp inner (EVar s op) a) b | same op "Name.append" && available op ->
+      (case (template-name available inputs a, template-name available inputs b) of
+        (Some first, Some second) -> Some (NameJoin first second)
+        other -> None)
+    other -> None
+
   scoped-template :: String -> (String -> Bool) -> (String -> Bool) -> List String -> List String -> List (String, SyntaxHandle) -> List String -> Expr -> Option Expr
   scoped-template home available stage-value names inputs handles introduced rhs =
     let code = scoped-template home available stage-value names inputs handles introduced in
@@ -284,8 +296,10 @@ module Bootstrap.Expand where
         None -> if stage-value name then Some (ESplice at rhs) else None
         other -> None)
       EMacroCall at path tokens -> Some rhs
-      EApp at (EVar sp op) (EVar arg param) | same op "Syntax.definition" && available op && syntax-input param names ->
-        Some (ESplice at (EDefinitionName sp home param))
+      EApp at (EVar sp op) requested | same op "Syntax.definition" && available op ->
+        (case template-name available names requested of Some name -> Some (ESyntaxNamed at home name None); None -> None)
+      EApp at (EApp inner (EVar sp op) requested) (EVar fs fields) | same op "Syntax.recordValue" && available op && syntax-input fields inputs ->
+        (case template-name available names requested of Some name -> Some (ESyntaxNamed at home name (Some fields)); None -> None)
       EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
         Some (ESplice at (EVar arg param))
       EApp at (EVar site op) arg | same op "Syntax.reference" && available op -> (case handle-of arg of
@@ -567,6 +581,24 @@ module Bootstrap.Expand where
       other -> expand-error site "a Name argument requires a single name")
     other -> expand-error site "a Name argument requires a single name"
 
+  fill-name :: Span -> TemplateName -> List (String, List LToken) -> Result (List Diagnostic) String
+  fill-name site name groups = case name of
+    NameText literal -> Ok literal
+    NameInput param -> (case take-group param groups of
+      Some tokens -> macro-name-argument site tokens
+      None -> expand-error site "missing Name argument for syntax construction")
+    NameJoin first second -> (case (fill-name site first groups, fill-name site second groups) of
+      (Ok a, Ok b) -> Ok (cat [a, b])
+      (Err errors, other) -> Err errors
+      (other, Err errors) -> Err errors)
+
+  -- Labels belong to the constructor's schema. Only field values cross
+  -- back into the caller's lexical, fixity and nested macro scope.
+  caller-fields :: Expr -> Expr
+  caller-fields fields = case fields of
+    ERecordField at label value rest -> ERecordField at label (EArgumentScope at value) (caller-fields rest)
+    other -> fields
+
   binding-spelling :: Span -> BindingSpelling -> List (String, List LToken) -> Result (List Diagnostic) BindingSpelling
   binding-spelling site origin groups = case origin of
     LiteralSpelling name -> Ok origin
@@ -589,6 +621,14 @@ module Bootstrap.Expand where
 
   fill-splices-with :: (Span -> Expr -> Result (List Diagnostic) (Option Expr)) -> Expr -> List (String, List LToken) -> List (String, Fix) -> Result (List Diagnostic) Expr
   fill-splices-with reify e groups fix = case e of
+    ESyntaxNamed site home name source -> (case (fill-name site name groups, source) of
+      (Err errors, other) -> Err errors
+      (Ok definition, None) -> Ok (EDefinitionName site home definition)
+      (Ok constructor, Some param) -> (case take-group param groups of
+        Some tokens -> (case parse-tree-value-fields tokens fix of
+          POk fields Nil -> Ok (ERecord site constructor (caller-fields fields))
+          other -> expand-error site "Syntax.recordValue requires a record field group")
+        None -> expand-error site "missing Syntax argument for record fields"))
     ESyntaxReference s key param -> (case binding-spelling s param groups of
       Ok name -> Ok (ESyntaxReference s key name)
       Err errors -> Err errors)

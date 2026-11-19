@@ -780,6 +780,7 @@ module Bootstrap.Ir where
     EAltsEnd s -> "alternative spine end"
     EQuote s body -> "quotation"
     ESplice s expression -> "quotation splice"
+    ESyntaxNamed s home name fields -> "unresolved syntax constructor"
     EDefinitionName s home name -> "unresolved macro definition reference"
     ESyntaxReference s key name -> "unresolved macro binding reference"
     ESyntaxCaptureUnder s key name body -> "unresolved macro scope"

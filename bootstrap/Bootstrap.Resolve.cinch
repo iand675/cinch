@@ -1032,6 +1032,7 @@ module Bootstrap.Resolve where
         let extended = MkLexicalScope origin True order index (Cons (name, key) aliases) in
         rename-expr (MkVisible extended homes remaining) (without-spelling name names) body
       other -> (e, fail s "Syntax.captureUnder outside its expansion"))
+    ESyntaxNamed s home spelling fields -> (e, fail s "unexpanded syntax constructor")
     EDefinitionName s home spelling -> (case visible of
       MkVisible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
         Some binding | not (macro-binding binding) -> (EVar s (binding-symbol binding), Nil)

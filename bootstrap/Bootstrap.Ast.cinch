@@ -266,6 +266,16 @@ module Bootstrap.Ast where
 
   -- ------------------------------------------------------------------- terms
 
+  data TemplateName where
+    NameInput :: String -> TemplateName
+    NameText :: String -> TemplateName
+    NameJoin :: TemplateName -> TemplateName -> TemplateName
+  template-name-identity :: TemplateName -> Json
+  template-name-identity name = case name of
+    NameInput param -> JArr (JStr "input") (JArr (JStr param) JArrEnd)
+    NameText text -> JArr (JStr "text") (JArr (JStr text) JArrEnd)
+    NameJoin a b -> JArr (JStr "join") (JArr (template-name-identity a) (JArr (template-name-identity b) JArrEnd))
+
   data BindingSpelling where
     ParameterSpelling :: String -> BindingSpelling
     LiteralSpelling :: String -> BindingSpelling
@@ -338,6 +348,7 @@ module Bootstrap.Ast where
     -- Internal boundaries for resolving hygienic expansion. The parser
     -- cannot construct either boundary from a user's term.
     ETemplateScope :: Span -> String -> Expr -> Expr
+    ESyntaxNamed :: Span -> String -> TemplateName -> Option String -> Expr
     EDefinitionName :: Span -> String -> String -> Expr
     ESyntaxReference :: Span -> String -> BindingSpelling -> Expr
     ESyntaxCaptureUnder :: Span -> String -> BindingSpelling -> Expr -> Expr
@@ -430,6 +441,7 @@ module Bootstrap.Ast where
     EAltsEnd s -> s
     EQuote s body -> s
     ESplice s expression -> s
+    ESyntaxNamed s owner name fields -> s
     EDefinitionName s owner name -> s
     ETemplateScope s owner body -> s
     ESyntaxReference s key name -> s
@@ -864,6 +876,7 @@ module Bootstrap.Ast where
     -- A macro call models its own form completely: the argument is a
     -- token tree the expander consumes, not an expression this rung owes
     -- a model of.
+    ESyntaxNamed s owner name fields -> 0
     EDefinitionName s owner name -> 0
     ETemplateScope s owner body -> expr-unmodeled-count body
     ESyntaxReference s key name -> 0
@@ -1108,6 +1121,7 @@ module Bootstrap.Ast where
     -- A macro call's identity is its name and its argument's token
     -- spellings: two calls are the same source when both agree, which is
     -- what the default-clause and interface identity comparisons need.
+    ESyntaxNamed sp owner name fields -> JArr (JStr "ESyntaxNamed") (JArr (JStr owner) (JArr (template-name-identity name) (JArr (source-identity-optional fields) JArrEnd)))
     EDefinitionName sp owner name -> JArr (JStr "EDefinitionName") (JArr (JStr owner) (JArr (JStr name) JArrEnd))
     ETemplateScope sp owner body -> JArr (JStr "ETemplateScope") (JArr (JStr owner) (JArr (source-identity-expr body) JArrEnd))
     ESyntaxReference sp key name -> JArr (JStr "ESyntaxReference") (JArr (JStr key) (JArr (binding-name-identity name) JArrEnd))

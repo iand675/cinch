@@ -579,6 +579,7 @@ module Bootstrap.Eval where
     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
     EQuote s body -> fail s "a quotation requires the typed checker"
     ESplice s expression -> fail s "a splice requires a compile-time quotation"
+    ESyntaxNamed s home name source -> fail s "unresolved syntax construction reached evaluation"
     EDefinitionName s home name -> fail s "unresolved macro definition reference reached evaluation"
     ESyntaxReference s key name -> fail s "unresolved macro binding reference reached evaluation"
     ESyntaxCaptureUnder s key name body -> fail s "unresolved macro scope reached evaluation"

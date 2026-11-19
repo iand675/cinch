@@ -53,7 +53,7 @@ module Bootstrap.Parse where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export parse-program, parse-program-with, parse-scheme, exported-fixities
-  export macro-argument-groups, parse-tree-record-fields, parse-tree-term, module-scope-fixes
+  export macro-argument-groups, parse-tree-value-fields, parse-tree-record-fields, parse-tree-term, module-scope-fixes
   export Ps, POk, PBad, Fix, MkFix, parse-expr
 
   -- ------------------------------------------------------------------
@@ -2387,6 +2387,12 @@ module Bootstrap.Parse where
   record-expr-spine sp fields = case fields of
     Nil -> EArgsEnd sp
     Cons (name, value) rest -> ERecordField (expr-span value) name value (record-expr-spine sp rest)
+  parse-tree-value-fields :: List LToken -> List (String, Fix) -> Ps Expr
+  parse-tree-value-fields tokens fix = case tokens of
+    Cons open fields | is-punct-t (lt-token open) "{" ->
+      parse-record-expr-fields (sp-of open) (\site values -> values) fields (string-to-bytes "") fix Nil
+    other -> PBad
+
   parse-record-expr-fields :: Span -> (Span -> Expr -> Expr) -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
   parse-record-expr-fields sp build toks src fix acc = case toks of
     Cons t rest -> if is-punct-t (lt-token t) "}" then

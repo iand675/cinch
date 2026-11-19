@@ -487,6 +487,7 @@ module Bootstrap.Check where
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
     EQuote s body -> (TyHole, fail s "a quotation requires the typed checker")
     ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
+    ESyntaxNamed s home name source -> (TyHole, fail s "unresolved syntax construction reached checking")
     EDefinitionName s home name -> (TyHole, fail s "unresolved macro definition reference reached checking")
     ESyntaxReference s key name -> (TyHole, fail s "unresolved macro binding reference reached checking")
     ESyntaxCaptureUnder s key name body -> (TyHole, fail s "unresolved macro scope reached type checking")
