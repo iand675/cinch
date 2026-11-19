@@ -253,6 +253,7 @@ module Bootstrap.CoreBody where
       let (doc, t1) = dense-type-doc dense ty table in
       let (givens, t2) = dense-givens dense scope t1 in
       (dense-node "evidence-needed" [doc, givens], t2)
+    CECopy s carrier -> let (doc, next) = dense-type-doc dense carrier table in (dense-node "evidence-copy" [doc], next)
     CEGiven s ty name -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "evidence-given" [doc, JStr name], t1)
     CEInstance s ty name actuals arguments ->
       let (doc, t1) = dense-type-doc dense ty table in
@@ -799,6 +800,11 @@ module Bootstrap.CoreBody where
           (case (dense-type-of types typeDoc, dense-givens-of types givensDoc) of
             (Some ty, Some givens) -> Some (CENeeded dense-zero ty givens)
             other -> None)
+        other -> None)
+      else if dense-same tag "evidence-copy" then (case rest of
+        JArr carrierDoc JArrEnd -> (case dense-type-of types carrierDoc of
+          Some carrier -> if copy-marker-carrier carrier then Some (CECopy dense-zero carrier) else None
+          None -> None)
         other -> None)
       else if dense-same tag "evidence-given" then (case rest of
         JArr typeDoc (JArr nameDoc JArrEnd) ->

@@ -95,7 +95,9 @@ module Bootstrap.Dictionary where
         Nil -> (CENeeded sp (normalize st wanted) allowed, st)
         other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
       else if capability-type (normalize st wanted) then fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary (normalize st wanted), " capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"]) st
-      else choose-instance context allowed sp wanted st
+      else (case normalize st wanted of
+        UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> checked-copy-marker sp carrier st
+        other -> choose-instance context allowed sp wanted st)
     Cons candidate rest -> case find-given (given-symbol candidate) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
       Some given ->
@@ -103,6 +105,10 @@ module Bootstrap.Dictionary where
         else let trial = unify sp wanted (given-type given) st in
           if clean trial then (CEGiven sp (normalize trial wanted) (given-symbol given), trial)
           else choose-given context allowed sp wanted rest st
+  checked-copy-marker :: Span -> UType -> Store -> (CoreEvidence, Store)
+  checked-copy-marker sp carrier st = if copy-marker-carrier carrier then (CECopy sp carrier, st)
+    else fail-evidence sp (UApp (UCon "Copy" (KFun KType KType)) carrier)
+      (string-concat "no Copy evidence for " (type-text carrier)) st
   resolve-evidence :: Resolution -> List CoreGiven -> CoreEvidence -> Store -> (CoreEvidence, Store)
   resolve-evidence context allowed evidence st = case evidence of
     CENeeded sp ty candidates -> if valid-goal (resolution-classes context) (normalize st ty) then
@@ -115,6 +121,7 @@ module Bootstrap.Dictionary where
         let trial = unify sp ty (given-type given) st in
         if clean trial then (CEGiven sp (normalize trial ty) name, trial) else fail-evidence sp ty "dictionary binder does not prove the requested constraint" st
         else fail-evidence sp ty "dictionary evidence has no checked signature type" st
+    CECopy sp carrier -> checked-copy-marker sp (normalize st carrier) st
     CEInstance sp ty name actuals args -> check-instance context allowed sp ty name actuals args st
     other -> fail-evidence (Span 0 0 1 1) UError "dictionary argument spine is not an evidence value" st
   resolve-evidences :: Resolution -> List CoreGiven -> List CoreEvidence -> Store -> (List CoreEvidence, Store)
@@ -164,13 +171,22 @@ module Bootstrap.Dictionary where
     CScope sp ty region evidence callback -> (case resolve-evidence context scope evidence st of
       (supplied, ready) -> case resolve-term context scope callback ready of
         (body, done) -> (CScope sp ty region supplied body, done))
-    CWith sp ty given value body -> case resolve-term context scope value st of
-      (out, checked) -> if string-length (given-symbol given) == 0 || (case find-given (given-symbol given) scope of Some old -> True; None -> False) then
-        (CError sp, add-error sp "capability scope has an empty or duplicate binder symbol" checked)
-        else if valid-goal (resolution-classes context) (normalize checked (given-type given)) then
-        let supplied = unify sp (given-type given) (core-type value) checked in
-        case resolve-term context (Cons given scope) body supplied of (result, done) -> (CWith sp ty given out result, unify sp ty (core-type result) done)
-        else (CError sp, add-error sp "dictionary scope needs a checked signature value" checked)
+    CWith sp ty given value body ->
+      if string-length (given-symbol given) == 0 || (case find-given (given-symbol given) scope of Some old -> True; None -> False) then
+        (CError sp, add-error sp "capability scope has an empty or duplicate binder symbol" st)
+      else if not (valid-goal (resolution-classes context) (normalize st (given-type given))) then
+        (CError sp, add-error sp "dictionary scope needs a checked signature value" st)
+      else let supplied = unify sp (given-type given) (core-type value) st in
+        case resolve-term context scope value supplied of
+          (out, checked) -> if clean supplied && not (clean checked) && (case free-metas supplied (given-type given) of Nil -> False; Cons first rest -> True) then
+            -- A polymorphic factory may need the carrier of a method used
+            -- inside the scope. Retry its prerequisites in the outer scope
+            -- after those method uses constrain the binder.
+            (case resolve-term context (Cons given scope) body supplied of
+              (result, constrained) -> case resolve-term context scope value constrained of
+                (factory, done) -> (CWith sp ty given factory result, unify sp ty (core-type result) done))
+            else (case resolve-term context (Cons given scope) body checked of
+              (result, done) -> (CWith sp ty given out result, unify sp ty (core-type result) done))
     CLambda sp ty pattern body -> case resolve-term context scope body st of (out, checked) -> (CLambda sp ty pattern out, checked)
     CLet sp ty id name scheme rhs body -> case resolve-term context scope rhs st of
       (value, sr) -> case resolve-term context scope body sr of (out, done) -> (CLet sp ty id name scheme value out, done)

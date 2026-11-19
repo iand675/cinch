@@ -1,4 +1,6 @@
 //! Actual source factories, strict dictionary values, scoped evidence and IO.
+mod common;
+
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 use cinch::driver::{driver_with_profile, Mode};
@@ -34,7 +36,7 @@ fn dictionaries_use_actual_factories_and_reclaim_value_slots() {
             std::fs::write(&input, source).unwrap();
             let output = dir.join("artifact");
             let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
-            driver_with_profile(Mode::Build, StageMode::Refresh, &input, Some(&output), &profile)
+            common::build_executable_with_profile(&dir, "Main.cinch", &output, &profile)
                 .unwrap_or_else(|error| panic!("{name}: {error}"));
             let ran = Command::new(&output).env("CINCH_HEAP_LIMIT", "32M").env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
             let stderr = String::from_utf8_lossy(&ran.stderr);
@@ -52,13 +54,13 @@ fn dictionaries_use_actual_factories_and_reclaim_value_slots() {
         std::fs::write(&input, scoped).unwrap();
         let output = dir.join("artifact");
         let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
-        driver_with_profile(Mode::Build, StageMode::Refresh, &input, Some(&output), &profile).expect("renamed exported instance");
+        common::build_executable_with_profile(&dir, "Main.cinch", &output, &profile).expect("renamed exported instance");
         let ran = Command::new(&output).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
         assert_eq!(ran.status.code(), Some(191), "{}", String::from_utf8_lossy(&ran.stderr));
         assert!(String::from_utf8_lossy(&ran.stderr).split_whitespace().any(|w| w == "leaked=0"));
         for unavailable in ["Explicit", "A.Explicit"] {
             std::fs::write(&input, scoped.replace("e = Selected", &format!("e = {unavailable}"))).unwrap();
-            assert!(driver_with_profile(Mode::Check, StageMode::Refresh, &input, None, &profile).is_err(), "original instance spelling escaped import rename: {unavailable}");
+            assert!(common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &profile).is_err(), "original instance spelling escaped import rename: {unavailable}");
         }
         let invalid = [
             "module Main where\n  main :: Int\n  main = with (fake = 1) in 0\n",
@@ -69,7 +71,7 @@ fn dictionaries_use_actual_factories_and_reclaim_value_slots() {
             let dir = std::env::temp_dir().join(format!("cinch_native_dictionary_invalid_{}_{}", std::process::id(), index));
             std::fs::create_dir_all(&dir).unwrap();
             let input = dir.join("Main.cinch"); std::fs::write(&input, source).unwrap();
-            assert!(driver_with_profile(Mode::Check, StageMode::Refresh, &input, None, &TargetProfile::native()).is_err(), "invalid dictionary case {index} accepted");
+            assert!(common::check_diagnostics(&dir, "Main.cinch").is_err(), "invalid dictionary case {index} accepted");
         }
     }).unwrap().join().unwrap();
 }
@@ -83,14 +85,16 @@ fn self_values_initialize_once_and_survive_escaping_methods() {
         std::fs::write(&source, "module Main where\n  data Box where\n    Box :: Int -> Box\n  signature Shared a where\n    duplicate :: a\n    stored :: a\n    observe :: Unit -> a\n    escape-value :: Unit -> Unit -> a\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  pair :: (Box, Box, Unit -> Box)\n  pair = with (chosen = SharedBox) in (duplicate, stored, escape-value ())\n  main :: Int\n  main = case pair of\n    (Box x, Box y, f) -> case f () of Box z -> if x == y && y == z then 197 else 1\n").unwrap();
         let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
         let artifact = dir.join("program");
-        driver_with_profile(Mode::Build, StageMode::Refresh, &source, Some(&artifact), &profile).expect("build shared strict values");
+        common::build_executable_with_profile(&dir, "Main.cinch", &artifact, &profile).expect("build shared strict values");
         let output = Command::new(&artifact).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
         assert_eq!(output.status.code(), Some(197), "{}", String::from_utf8_lossy(&output.stderr));
         assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|w| w == "leaked=0"));
         let llvm = dir.join("program.ll");
-        driver_with_profile(Mode::EmitIr, StageMode::Refresh, &source, Some(&llvm), &profile).expect("emit shared value ABI probe");
+        common::drive_with_profile(Mode::EmitIr, StageMode::Refresh, &dir, "Main.cinch", Some(llvm.clone()), &profile).expect("emit shared value ABI probe");
         let mut ir = std::fs::read_to_string(&llvm).unwrap().replace("define i32 @main(", "define i32 @cinch_program_main(");
-        ir.push_str("\ndefine i64 @cinch_abi_shared_pair() {\nentry:\n  %value = call i64 @\"Main.pair\"()\n  ret i64 %value\n}\n");
+        let staged = common::external_frontend::configured().expect("valid frontend selector").is_some();
+        let worker = if staged { "cinch.typed.m.Main.pair" } else { "Main.pair" };
+        ir.push_str(&format!("\ndefine i64 @cinch_abi_shared_pair() {{\nentry:\n  %value = call i64 @\"{worker}\"()\n  ret i64 %value\n}}\n"));
         std::fs::write(&llvm, ir).unwrap();
         std::fs::write(dir.join("probe.c"), r#"#include <stdint.h>
 extern uint64_t cinch_abi_shared_pair(void);
@@ -112,8 +116,13 @@ int main(void) {
   return (int)cinch_exit_check(good ? 0 : 239);
 }
 "#).unwrap();
-        let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/release/libcinchruntime.a");
-        let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&llvm).arg(dir.join("probe.c")).arg(runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("probe")).output().unwrap();
+        let mut link = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()));
+        link.arg(&llvm).arg(dir.join("probe.c"));
+        if staged {
+            link.arg(std::env::var_os("CINCH_TEST_LIBRARY_OBJECT").expect("selected dictionary probe needs its library object"));
+        }
+        let linked = link.arg(common::host_runtime_archive()).args(["-lpthread", "-ldl", "-lm", "-o"])
+            .arg(dir.join("probe")).output().unwrap();
         assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
         let output = Command::new(dir.join("probe")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
         assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
