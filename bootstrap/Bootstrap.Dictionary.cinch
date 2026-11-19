@@ -276,6 +276,15 @@ module Bootstrap.Dictionary where
           else let resolved = default-instance-literals (instance-types pairs trial) trial in
             case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize resolved) requirements) resolved of
               (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
+  -- Only factories for the requested nominal signature can unify with it.
+  -- Keep non-constructor heads for the full checker to resolve.
+  class-candidates :: String -> List (String, Scheme) -> List (String, Scheme)
+  class-candidates owner instances = case instances of
+    Nil -> Nil
+    Cons (symbol, sc) rest -> let more = class-candidates owner rest in
+      case class-root (scheme-body sc) of
+        Some (name, kind) | not (same name owner) -> more
+        other -> Cons (symbol, sc) more
   matching-heads :: Resolution -> Span -> UType -> List (String, Scheme) -> Store -> List (String, Scheme)
   matching-heads context sp wanted instances st = case instances of
     Nil -> Nil
@@ -322,10 +331,13 @@ module Bootstrap.Dictionary where
   choose-instance context allowed sp wanted st =
     if resolution-fuel context == 0 then fail-evidence sp wanted "dictionary instance resolution cycle or search depth exceeded" st
     else let defaulted = collection-default wanted st in
-      let heads = matching-heads context sp wanted (resolution-instances context) defaulted in
+      let candidates = case class-root (normalize defaulted wanted) of
+            Some (owner, kind) -> class-candidates owner (resolution-instances context)
+            None -> resolution-instances context in
+      let heads = matching-heads context sp wanted candidates defaulted in
       case heads of
         Cons first (Cons second rest) -> let numeric = default-numbers-for wanted defaulted in
-          select-instance-head context allowed sp wanted (matching-heads context sp wanted (resolution-instances context) numeric) numeric
+          select-instance-head context allowed sp wanted (matching-heads context sp wanted candidates numeric) numeric
         other -> select-instance-head context allowed sp wanted heads defaulted
   instance-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
   instance-actuals sp parameters actuals earlier st = case (parameters, actuals) of
