@@ -231,18 +231,6 @@
     {
       "classes": "",
       "symbol": "Effect.Stm.Alternative_STM"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-new"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-put"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-take"
     }
   ],
   "methods": [
@@ -1762,6 +1750,18 @@
     {
       "classes": "T",
       "symbol": "Effect.Clock.timeout"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-new"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-put"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-take"
     }
   ]
 }
