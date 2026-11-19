@@ -1153,7 +1153,7 @@ module Bootstrap.Parse where
       TVar family -> (case expect-punct-t rest "{" of
         POk at (Cons fragment after) -> (case (lt-token fragment, expect-punct-t after "}") of
           (TPrimFrag text, POk close tail) ->
-            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body Nil None None Nil Nil) tail src fix
+            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body Nil UnprojectedPrimitive None Nil Nil) tail src fix
           other -> PBad)
         other -> PBad)
       other -> PBad)

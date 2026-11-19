@@ -47,7 +47,7 @@ module Bootstrap.Target where
   export target-triple-of, unsupported-target, target-ir-header
   export WhenAtom, MkWhenAtom, atom-negated, atom-kind, atom-value
   export lower-atom, atom-holds, atom-render, atom-actual, atoms-contradict
-  export condition-holds, condition-render, condition-describe, overlap-reason
+  export condition-holds, condition-render, condition-describe, overlap-reason, primitive-target, when-vocabulary
   export target-view, target-view-program
 
   -- ------------------------------------------------------------------ profile
@@ -578,13 +578,28 @@ module Bootstrap.Target where
     Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       case when of Nil -> guarded-bodies rest; Cons clause remaining -> True
 
+  primitive-target :: String -> List Expr -> TargetProfile -> Result String PrimTarget
+  primitive-target family clauses profile = case condition-atoms clauses of
+    Err message -> Err message
+    Ok atoms -> (case failed-atoms atoms profile of
+      Nil -> Ok ApplicablePrimitive
+      reasons -> Ok (InapplicablePrimitive (string-concat-all ["the `", family, "` body's `when ", render-atoms atoms,
+        "` on ", profile-triple profile, ": ", join-with ", " reasons])))
+
+  failed-atoms :: List WhenAtom -> TargetProfile -> List String
+  failed-atoms atoms profile = case atoms of
+    Nil -> Nil
+    Cons atom rest -> case atom-unmet atom profile of
+      None -> failed-atoms rest profile
+      Some reason -> Cons reason (failed-atoms rest profile)
+
   select-bodies :: TargetProfile -> List PrimBody -> List PrimBody -> Result String (List PrimBody)
   select-bodies profile bodies acc = case bodies of
     Nil -> Ok (reverse acc)
     Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
-      case condition-holds when profile of
+      case primitive-target family when profile of
         Err message -> Err message
-        Ok holds -> select-bodies profile rest (Cons (MkPrimBody sp family fragment unverified when (Some holds) justification uses immediates) acc)
+        Ok projected -> select-bodies profile rest (Cons (MkPrimBody sp family fragment unverified when projected justification uses immediates) acc)
 
   conditioned-view :: TargetProfile -> Module -> Result String Module
   conditioned-view profile m = case check-definition-disjointness m of

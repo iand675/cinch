@@ -2,8 +2,8 @@
 -- string never supplies a calling convention, ownership fact or total body.
 module Bootstrap.Foreign where
   import Bootstrap.Type
-  import Bootstrap.Target (condition-render, condition-holds, host-profile)
-  import Bootstrap.Ast (PrimBody, MkPrimBody, Expr)
+  import Bootstrap.Target (condition-render, primitive-target, when-vocabulary, host-profile)
+  import Bootstrap.Ast (PrimBody, MkPrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, Expr)
   import Bootstrap.Core (contract-scheme-closed)
   import Bootstrap.ExportType (export-type, export-global)
   import Bootstrap.Interface (fnv-source-hash)
@@ -21,15 +21,17 @@ module Bootstrap.Foreign where
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
   export primitive-object-callable, foreign-primitive-selection
-  export PrimitiveAssembly, AssemblyFragment
+  export PrimitiveFragment, CheckedFragment
   export foreign-llvm-type, primitive-layout
 
   data ForeignParameter where
     Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
-  data PrimitiveAssembly where
-    AssemblyFragment :: String -> List Nat -> PrimitiveAssembly
+  data PrimitiveFragment where
+    CheckedFragment :: String -> List String -> List Nat -> PrimitiveFragment
+  data FamilyCandidates where
+    Candidates :: Option PrimitiveFragment -> Option (String, PrimitiveFragment) -> FamilyCandidates
   data InlinePrimitive where
-    InlinePrimitiveBody :: String -> List String -> List Nat -> Option PrimitiveAssembly -> InlinePrimitive
+    InlinePrimitiveBody :: String -> String -> List Nat -> Option PrimitiveFragment -> Option PrimitiveFragment -> InlinePrimitive
   data ForeignPlan where
     Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, String, List String, Json) -> ForeignPlan
   foreign-symbol :: ForeignPlan -> String
@@ -46,7 +48,7 @@ module Bootstrap.Foreign where
   -- must still be checked at a direct call with their actual literal values.
   primitive-object-callable :: ForeignPlan -> Bool
   primitive-object-callable plan = case foreign-inline plan of
-    Some (InlinePrimitiveBody fragment symbols Nil assembly) -> pure-primitive-arrows (scheme-body (foreign-scheme plan))
+    Some (InlinePrimitiveBody owner family Nil llvm assembly) -> pure-primitive-arrows (scheme-body (foreign-scheme plan))
     other -> False
   pure-primitive-arrows :: UType -> Bool
   pure-primitive-arrows ty = case ty of
@@ -346,10 +348,10 @@ module Bootstrap.Foreign where
             contained-ir result trusted rest False symbols
           else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
   -- Unprojected declarations can also enter through a host-side checked splice.
-  primitive-condition-holds :: Option Bool -> List Expr -> Bool
-  primitive-condition-holds selected clauses = case selected of
-    Some holds -> holds
-    None -> (case condition-holds clauses host-profile of Ok holds -> holds; Err message -> False)
+  checked-target :: PrimTarget -> String -> List Expr -> Result String PrimTarget
+  checked-target selected family clauses = case selected of
+    UnprojectedPrimitive -> primitive-target family clauses host-profile
+    other -> Ok selected
   condition-text :: List Expr -> String
   condition-text clauses = case condition-render clauses of Ok rendered -> rendered; Err message -> ""
   immediate-text :: List Nat -> String
@@ -379,38 +381,58 @@ module Bootstrap.Foreign where
   contained-assembly fragment = let words = string-words (pack (ir-token-chars (unpack fragment))) in
     list-length words /= 0 && not (ir-has-word ["syscall", "svc", "int", "udf", "brk", "hlt", "ud2", "trap",
       "call", "callq", "bl", "blr", "ret", "jmp", "br"] words)
-  -- | Prefer a matching target-specific body over the fallback regardless of order,
-  -- while rejecting duplicate defaults and ambiguous matching alternatives.
-  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Bool -> Option String -> Option PrimitiveAssembly -> String -> Result String (InlinePrimitive, Option String)
-  checked-prim-bodies bodies arity result baseline seen-default selected-condition assembly missing = case bodies of
-    Nil -> (case baseline of Some (fragment, symbols, immediates) -> Ok (InlinePrimitiveBody fragment symbols immediates assembly, selected-condition); None -> Err (string-concat "no LLVM baseline for " missing))
+  record-candidate :: String -> List Expr -> Bool -> PrimitiveFragment -> FamilyCandidates -> Result String FamilyCandidates
+  record-candidate family clauses holds fragment candidates = case candidates of
+    Candidates fallback matched -> case clauses of
+      Nil -> (case fallback of
+        Some prior -> Err (string-concat-all ["two baseline `", family, "` bodies overlap"])
+        None -> Ok (Candidates (Some fragment) matched))
+      other -> if not holds then Ok candidates else (case matched of
+        Some prior -> Err (string-concat-all ["overlapping `when` conditions in family `", family, "`"])
+        None -> Ok (Candidates fallback (Some (condition-text clauses, fragment))))
+
+  family-body :: FamilyCandidates -> Option PrimitiveFragment
+  family-body candidates = case candidates of
+    Candidates fallback (Some (condition, fragment)) -> Some fragment
+    Candidates fallback None -> fallback
+
+  -- Keep a worker for each applicable family. Calls prefer a guarded body
+  -- from either family before falling back to an unconditional body.
+  choose-primitive :: String -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
+  choose-primitive owner llvm assembly missing =
+    let finish = \family condition fragment -> case fragment of
+          CheckedFragment text symbols immediates -> Ok (InlinePrimitiveBody owner family immediates (family-body llvm) (family-body assembly), condition) in
+    case (llvm, assembly) of
+      (Candidates base (Some (clause, fragment)), other) -> finish "llvm" (Some clause) fragment
+      (other, Candidates base (Some (clause, fragment))) -> finish "asm" (Some clause) fragment
+      (Candidates (Some fragment) None, other) -> finish "llvm" None fragment
+      (other, Candidates (Some fragment) None) -> finish "asm" None fragment
+      other -> Err (string-concat-all ["no body applies to the current target profile: ", strings "; " (reverse missing), ". ", when-vocabulary])
+
+  checked-prim-bodies :: String -> List PrimBody -> Nat -> String -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
+  checked-prim-bodies owner bodies arity result llvm assembly missing = case bodies of
+    Nil -> choose-primitive owner llvm assembly missing
     Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
       else if has family ["clr", "jvm"] then Err (string-concat family " target-IR family is reserved")
       else if same family "asm" && not unverified then Err "an assembly fragment must mark it `unsafe`"
       else if same family "asm" && not (contained-assembly fragment) then Err "containment (no-escape): the assembly has an empty or escaping fragment"
       else if list-length uses /= 0 then Err "inline primitive uses entries need checked foreign contracts"
-      else if (case condition-render when of Err message -> True; Ok rendered -> False) then
-        Err "unsupported target condition in a primitive body"
-      else (case justification of
-        Some evidence -> Err "inline primitive justification needs a checked law identity"
-        None -> if same family "llvm" then (case contained-ir result unverified (string-split-on "\n" fragment) False Nil of
-          Err message -> Err message
-          Ok symbols -> (case when of
-            Nil -> if seen-default then Err "duplicate LLVM baseline in an inline primitive"
-              else checked-prim-bodies rest arity result (case selected-condition of Some clause -> baseline; None -> Some (fragment, symbols, immediates)) True selected-condition assembly missing
-            Cons first rest-conditions ->
-              if primitive-condition-holds selected when then
-                (case selected-condition of
-                  Some prior -> Err "ambiguous matching LLVM bodies in an inline primitive"
-                  None -> checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) seen-default (Some (condition-text when)) assembly missing)
-              else checked-prim-bodies rest arity result baseline seen-default selected-condition assembly (condition-text when)))
-          else if same family "asm" then (case (when, assembly) of
-            (Cons first rest-conditions, prior) -> checked-prim-bodies rest arity result baseline seen-default selected-condition prior (condition-text when)
-            (Nil, None) -> checked-prim-bodies rest arity result baseline seen-default selected-condition (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
-            (Nil, Some prior) -> Err "duplicate unconditional assembly body in an inline primitive")
-          else Err (string-concat "unsupported inline target-IR family " family))
-  -- | Derive scalar operand and result layouts from a closed monomorphic signature without granting executable code authority.
+      else (case (checked-target selected family when, justification) of
+        (Err message, other) -> Err message
+        (other, Some evidence) -> Err "inline primitive justification needs a checked law identity"
+        (Ok matched, None) ->
+          let holds = case matched of ApplicablePrimitive -> True; other -> False in
+          let reason = case matched of InapplicablePrimitive detail -> Cons detail missing; other -> missing in
+          if same family "llvm" then (case contained-ir result unverified (string-split-on "\n" fragment) False Nil of
+            Err message -> Err message
+            Ok symbols -> (case record-candidate family when holds (CheckedFragment fragment symbols immediates) llvm of
+              Err message -> Err message
+              Ok next -> checked-prim-bodies owner rest arity result next assembly reason))
+          else if same family "asm" then (case record-candidate family when holds (CheckedFragment fragment Nil immediates) assembly of
+            Err message -> Err message
+            Ok next -> checked-prim-bodies owner rest arity result llvm next reason)
+          else Err (string-concat "unsupported inline primitive family " family))
   primitive-layout :: Scheme -> Result String (List ForeignParameter, ForeignParameter)
   primitive-layout scheme =
     if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
@@ -420,10 +442,11 @@ module Bootstrap.Foreign where
   primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
   primitive-plan name scheme bodies =
     case (export-global name, primitive-layout scheme) of
-      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None False None None "the current target profile" of
+      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies symbol bodies (list-length arguments) (foreign-llvm-type result) (Candidates None None) (Candidates None None) Nil of
         Ok (body, condition) -> let identity = primitive-identity symbol (primitive-body-text bodies) in
           let trust = primitive-trust symbol bodies in
-          Ok (Plan (string-concat symbol ".llvm") scheme arguments result
+          let family = case body of InlinePrimitiveBody owner chosen immediates llvm assembly -> chosen in
+          Ok (Plan (string-concat-all [symbol, ".", family]) scheme arguments result
             (Some (body, identity, trust, selection-document body condition identity trust bodies)))
         Err message -> Err message)
       (Err message, other) -> Err message
@@ -432,11 +455,11 @@ module Bootstrap.Foreign where
   -- continue to use the target-independent identities of all checked bodies.
   selection-document :: InlinePrimitive -> Option String -> String -> List String -> List PrimBody -> Json
   selection-document body condition identity trust bodies = case body of
-    InlinePrimitiveBody fragment symbols immediates assembly ->
+    InlinePrimitiveBody owner family immediates llvm assembly ->
       let why = case condition of
-            None -> "the baseline `llvm` body (the fallback when no `when` condition matches)"
-            Some clause -> string-concat-all ["the `llvm` body's `when ", clause, "` condition holds in the target profile"] in
-      JObj "family" (JStr "llvm") (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
+            None -> string-concat-all ["the baseline `", family, "` body (the fallback when no `when` condition matches)"]
+            Some clause -> string-concat-all ["the `", family, "` body's `when ", clause, "` condition holds in the target profile"] in
+      JObj "family" (JStr family) (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
         (JObj "identity" (JStr identity) (JObj "tier" (JStr "assumed") (JObj "why" (JStr why)
           (JObj "trust" (trust-document trust) (JObj "immarg" (immediate-document immediates)
             (JObj "uses" JArrEnd (JObj "validation" (validation-document bodies) JObjEnd))))))))

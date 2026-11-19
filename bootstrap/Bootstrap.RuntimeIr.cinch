@@ -2157,19 +2157,18 @@ module Bootstrap.RuntimeIr where
     let symbol = foreign-symbol plan in
     case foreign-inline plan of
       None -> global w (cat ["declare ", foreign-c-result (foreign-result plan), " ", llvm-object-symbol symbol, "(", join (foreign-c-parameter-types (foreign-parameters plan)), ")"])
-      Some (InlinePrimitiveBody fragment symbols immediates assembly) ->
-        let required = primitive-intrinsics symbols w in
-        let defined = primitive-worker symbol result arguments fragment immediates required in
+      Some (InlinePrimitiveBody owner family selected llvm assembly) ->
+        let defined = case llvm of
+              None -> w
+              Some (CheckedFragment fragment symbols indices) ->
+                primitive-worker (cat [owner, ".llvm"]) result arguments fragment indices (primitive-intrinsics symbols w) in
         case assembly of
           None -> defined
-          Some (AssemblyFragment template indices) ->
-            let owner = string-drop-llvm-suffix symbol in
+          Some (CheckedFragment template symbols indices) ->
             let constraints = string-concat-all ["=", primitive-register result, primitive-registers arguments] in
             let body = cat ["  call void @llvm.sideeffect()\n  %asmresult = call ", result, " asm sideeffect \"",
               llvm-data-bytes template, "\", \"", constraints, "\"(", join (primitive-arguments arguments 0), ")\n  ret ", result, " %asmresult"] in
             primitive-worker (cat [owner, ".asm"]) result arguments body indices (request-demand (PrimitiveIntrinsicDemand "@llvm.sideeffect") defined)
-  string-drop-llvm-suffix :: String -> String
-  string-drop-llvm-suffix symbol = pack (reverse (drop 5 (reverse (unpack symbol))))
   primitive-register :: String -> String
   primitive-register ty = if same ty "float" || same ty "double" then "f" else "r"
   primitive-registers :: List String -> String
@@ -2337,7 +2336,7 @@ module Bootstrap.RuntimeIr where
   primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
   primitive-immediate-arguments plan args = case plan of
     None -> True
-    Some (InlinePrimitiveBody fragment symbols indices assembly) -> immediate-operands indices args
+    Some (InlinePrimitiveBody owner family indices llvm assembly) -> immediate-operands indices args
   immediate-operands :: List Nat -> List CoreTerm -> Bool
   immediate-operands indices args = case indices of
     Nil -> True

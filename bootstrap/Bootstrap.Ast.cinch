@@ -455,8 +455,13 @@ module Bootstrap.Ast where
     LawEquation :: Expr -> Expr -> LawSyntax
     LawProposition :: TypeExpr -> LawSyntax
 
+  data PrimTarget where
+    UnprojectedPrimitive :: PrimTarget
+    ApplicablePrimitive :: PrimTarget
+    InapplicablePrimitive :: String -> PrimTarget
+
   data PrimBody where
-    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> Option Bool -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
+    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> PrimTarget -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
 
   -- A method keeps its ordinary declaration and slot. Its equality
   -- operands can be checked by the same term elaborator as an explicit law.
