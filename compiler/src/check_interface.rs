@@ -791,8 +791,11 @@ impl Checker {
                 .collect::<Option<Vec<_>>>()?.join(", "))),
             // Adt carries the checked defining identity here. Registration reserves this
             // kernel head; a qualified source nominal never acquires its bare identity.
-            Ty::Adt(name, arguments) if name.as_str() == "MVarCell" && arguments.len() == 1 =>
-                Some(format!("(MVarCell {})", self.interface_usage_field(&arguments[0], parameters)?)),
+            Ty::Adt(name, arguments) if matches!(name.as_str(), "TVar" | "MVarCell" | crate::known::LIST | crate::known::OPTION) =>
+                match arguments.as_slice() {
+                    [element] => Some(format!("({name} {})", self.interface_usage_field(element, parameters)?)),
+                    _ => None,
+                },
             Ty::Ref(name, carrier) | Ty::Mut(name, carrier) if region(name.as_str()) =>
                 Some(format!("({} {name} {})", if matches!(ty, Ty::Ref(..)) { "Ref" } else { "Mut" },
                     self.interface_usage_field(carrier, parameters)?)),
@@ -931,6 +934,17 @@ mod mvar_effect_contract_tests {
         ] {
             assert!(checker.resolved_checked_kernel_effect_row(&source, &wrong, &scheme, &vars).is_none());
         }
+    }
+
+    #[test]
+    fn usage_contracts_preserve_cell_element_owners() {
+        let checker = Checker::new();
+        let cell = |owner: &str| Ty::Adt("TVar".into(), vec![Ty::Adt(owner.into(), vec![Ty::Bytes])]);
+        for owner in [crate::known::LIST, crate::known::OPTION] {
+            assert_eq!(checker.interface_usage_field(&cell(owner), &[]), Some(format!("(TVar ({owner} Bytes))")));
+        }
+        assert!(checker.interface_usage_field(&cell("Other.List"), &[]).is_none());
+        assert!(checker.interface_usage_field(&Ty::Adt("TVar".into(), vec![]), &[]).is_none());
     }
 
     #[test]
