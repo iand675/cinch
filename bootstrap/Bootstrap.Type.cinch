@@ -826,7 +826,7 @@ module Bootstrap.Type where
   not-null-carrier :: UType -> Bool
   not-null-carrier carrier = case core-list-element carrier of Some element -> True; None -> False
   -- `Ascii` decides text and lists of chars: a `String` carrier, or a list
-  -- whose element is `Char`. `Ordered` decides lists of numerics.
+  -- whose element is `Char`. `Ordered` uses mathematical Nat ordering.
   ascii-carrier :: UType -> Bool
   ascii-carrier carrier = case carrier of
     UCon name KType -> same-tag name "String" || same-tag name global-data-string-string
@@ -835,7 +835,7 @@ module Bootstrap.Type where
       None -> False
   ordered-carrier :: UType -> Bool
   ordered-carrier carrier = case core-list-element carrier of
-    Some element -> mathematical-carrier element || promotable-carrier element
+    Some element -> same-shape element (UCon "Nat" KType)
     None -> False
   list-index-field :: UType -> UType -> Bool
   list-index-field expected value = typed-index-admissible value &&

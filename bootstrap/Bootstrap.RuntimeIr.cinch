@@ -4667,11 +4667,39 @@ module Bootstrap.RuntimeIr where
        cat [end, ":"], cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]]) in
     (count-op False carrier root scanned, result)
 
+  -- Compare adjacent borrowed heads while the root keeps the whole spine
+  -- alive. Mathematical integers use their arbitrary-precision comparison.
+  ordered-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  ordered-word w sp carrier root = case core-list-element carrier of
+    Some element | ordered-carrier carrier && array-list-abi w ->
+      let (a, entry) = fresh w "ordered-entry" in let (b, loop) = fresh a "ordered-loop" in
+      let (c, read) = fresh b "ordered-read" in let (d, step) = fresh c "ordered-step" in
+      let (e, yes) = fresh d "ordered-yes" in let (f, no) = fresh e "ordered-no" in
+      let (g, end) = fresh f "ordered-end" in let (h, cell) = fresh g "%v" in
+      let (i, next) = fresh h "%v" in let (j, empty) = fresh i "%v" in let (k, last) = fresh j "%v" in
+      let (m, ptr) = fresh k "%ptr" in let (n, slot) = fresh m "%ptr" in
+      let (tagged, tag) = constructor-tag n root in
+      let start = emit-lines tagged [cat ["  ", empty, " = icmp eq i64 ", tag, ", 0"], cat ["  br i1 ", empty, ", label %", yes, ", label %", entry],
+        cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"], cat ["  ", cell, " = phi i64 [ ", root, ", %", entry, " ], [ ", next, ", %", step, " ]"],
+        cat ["  ", ptr, " = inttoptr i64 ", cell, " to ptr"], cat ["  ", slot, " = getelementptr i64, ptr ", ptr, ", i64 1"], cat ["  ", next, " = load i64, ptr ", slot]] in
+      let (found, next-tag) = constructor-tag start next in
+      let (o, next-ptr) = fresh found "%ptr" in let (p, left) = fresh o "%v" in let (q, right) = fresh p "%v" in
+      let pair = emit-lines q [cat ["  ", last, " = icmp eq i64 ", next-tag, ", 0"], cat ["  br i1 ", last, ", label %", yes, ", label %", read],
+        cat [read, ":"], cat ["  ", next-ptr, " = inttoptr i64 ", next, " to ptr"], cat ["  ", left, " = load i64, ptr ", ptr], cat ["  ", right, " = load i64, ptr ", next-ptr]] in
+      let (compared, order) = call pair "@cinch_nat_cmp" [left, right] in
+      let (r, ok) = fresh compared "%v" in let (t, result) = fresh r "%v" in
+      let finished = emit-lines t [cat ["  ", ok, " = icmp sle i64 ", order, ", 0"], cat ["  br i1 ", ok, ", label %", step, ", label %", no],
+        cat [step, ":"], cat ["  br label %", loop], cat [yes, ":"], cat ["  br label %", end], cat [no, ":"], cat ["  br label %", end], cat [end, ":"],
+        cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]] in (count-op False carrier root finished, result)
+    other -> unsupported w sp "Ordered needs its checked numeric-list layout"
+
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args = case args of
     CArgumentsEnd at | same op "#unhandled-operation" -> let (ready, dead) = fresh w "afterfault" in
       (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.ordered" -> (case expression definitions locals w input of
+      (ready, value) -> ordered-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) | same op "#kernel.ascii" -> (case expression definitions locals w input of
       (ready, value) -> ascii-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) | same op "#kernel.length" -> (case expression definitions locals w input of

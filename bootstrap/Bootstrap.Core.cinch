@@ -2160,10 +2160,8 @@ module Bootstrap.Core where
   decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   decision-predicate-test gamma facts predicate condition = case predicate of
     UPropLit value -> decision-constant value condition
-    UPropAscii input -> (case condition of
-      CPrimitive sp result op (CArgument at value (CArgumentsEnd end)) | string-compare op "#kernel.ascii" == 0 && ascii-carrier (core-type value) ->
-        (case actual-index gamma facts value of Some actual -> contract-equal input actual; None -> False)
-      other -> False)
+    UPropOrdered input -> structural-decision-test gamma facts input condition "#kernel.ordered" ordered-carrier
+    UPropAscii input -> structural-decision-test gamma facts input condition "#kernel.ascii" ascii-carrier
     UPropNotNull input -> (case decision-not-null-index gamma facts condition of
       Some actual -> contract-equal input actual
       None -> False)
@@ -2177,6 +2175,11 @@ module Bootstrap.Core where
             && same-decision-reading gamma facts a left && same-decision-reading gamma facts b right
           other -> False)
       other -> False)
+  structural-decision-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> String -> (UType -> Bool) -> Bool
+  structural-decision-test gamma facts input condition operation admits = case condition of
+    CPrimitive sp result op (CArgument at value (CArgumentsEnd end)) | string-compare op operation == 0 && admits (core-type value) ->
+      (case actual-index gamma facts value of Some actual -> contract-equal input actual; None -> False)
+    other -> False
   scoped-decision-valid :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
   scoped-decision-valid gamma facts ty predicate condition = valid-type predicate && kind-equal (type-kind predicate) KProp && valid-type ty
     && contract-equal ty (decision-type predicate) && bool-type (core-type condition)
@@ -3125,16 +3128,31 @@ module Bootstrap.Core where
     Some carrier | ascii-carrier carrier && typed-index-admissible value -> (case value of
       UIndexList element UEnd -> Some PTruth
       UIndexList element (UArg (UIndex ty (ICharacter c)) rest) -> if char-code c < 128 then ascii-predicate gamma rest else Some PFalsehood
-      UIndexForget (UIndex refined (IRigid id name level)) -> (case proof-local id gamma of
-        Some declared | contract-equal refined declared ->
-          Some (PCompare Equal (ACall "#kernel.ascii" (AArgument (AVariable ("#nominal-value:" <> nat-to-string id)) AArgumentsEnd)) (AInteger 1))
+      other -> structural-local-predicate gamma carrier value "#kernel.ascii" ascii-predicate)
+    other -> None
+  ordered-predicate :: ProofScope -> UType -> Option Proposition
+  ordered-predicate gamma value = case typed-index-carrier value of
+    Some carrier | ordered-carrier carrier && typed-index-admissible value -> (case value of
+      UIndexList element UEnd -> Some PTruth
+      UIndexList element (UArg first (UIndexList second UEnd)) -> Some PTruth
+      UIndexList element (UArg first tail) -> (case tail of
+        UIndexList second (UArg next rest) -> (case (typed-index-arithmetic gamma first, typed-index-arithmetic gamma next, ordered-predicate gamma tail) of
+          (Some a, Some b, Some suffix) -> Some (PBoth (PCompare AtMost a b) suffix)
+          other -> None)
         other -> None)
-      UIndex declared (IRigid id name level) -> (case scope-value id gamma of
-        Some alias -> ascii-predicate (scope-without-value id gamma) alias
-        None -> case nominal-index-key gamma carrier value of
-          Some key -> Some (PCompare Equal (ACall "#kernel.ascii" (AArgument key AArgumentsEnd)) (AInteger 1))
-          None -> None)
+      other -> structural-local-predicate gamma carrier value "#kernel.ordered" ordered-predicate)
+    other -> None
+  structural-local-predicate :: ProofScope -> UType -> UType -> String -> (ProofScope -> UType -> Option Proposition) -> Option Proposition
+  structural-local-predicate gamma carrier value op recurse = case value of
+    UIndexForget (UIndex refined (IRigid id name level)) -> (case proof-local id gamma of
+      Some declared | contract-equal refined declared ->
+        Some (PCompare Equal (ACall op (AArgument (AVariable ("#nominal-value:" <> nat-to-string id)) AArgumentsEnd)) (AInteger 1))
       other -> None)
+    UIndex declared (IRigid id name level) -> (case scope-value id gamma of
+      Some alias -> recurse (scope-without-value id gamma) alias
+      None -> case nominal-index-key gamma carrier value of
+        Some key -> Some (PCompare Equal (ACall op (AArgument key AArgumentsEnd)) (AInteger 1))
+        None -> None)
     other -> None
   core-predicate :: ProofScope -> UType -> Option Proposition
   core-predicate gamma predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
@@ -3147,6 +3165,7 @@ module Bootstrap.Core where
     UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropOrdered value -> ordered-predicate gamma value
     UPropAscii value -> ascii-predicate gamma value
     UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
     UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
