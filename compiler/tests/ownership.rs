@@ -435,6 +435,21 @@ module Main where
 "#,
         &["multiplicity %1", "copyOut"],
     );
+    expect_err(
+        "copy-out-affine-alias",
+        "module Main where\n  steal :: Nat %aff -> Nat\n  steal x = let y = x in copyOut y\n  main :: Int\n  main = 0\n",
+        &["multiplicity %aff", "copyOut"],
+    );
+    expect_err(
+        "copy-out-linear-projection",
+        "module Main where\n  record Pair where\n    first :: Nat\n    second :: Nat\n  get :: Pair %1 -> Nat\n  get p = copyOut p.first\n  main :: Int\n  main = 0\n",
+        &["multiplicity %1", "copyOut"],
+    );
+    expect_ok(
+        "copy-out-borrowed-linear-argument",
+        "module Main where\n  get :: forall r. Ref r Nat %1 -> Nat\n  get x = copyOut x\n  main :: Int\n  main = if get (borrow 42) == 42 then 0 else 1\n",
+        0,
+    );
 }
 
 // ------------------------------------------------------------ regions and borrows
