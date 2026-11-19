@@ -1258,8 +1258,11 @@ def main() -> int:
                     "a test suite holds this tree's stage lock "
                     f"({BUILD / '.lock'}); wait for tooling/run_stage_targets.py to finish, "
                     "or build with CINCH_BOOTSTRAP_BUILD set to another directory")
-            global FROZEN_SOURCES
-            FROZEN_SOURCES = collect_compiler_sources()
+            # The pin-keyed commands read no compiler sources, and a build
+            # that selects only their inputs (tooling/nix) has none.
+            if args.command not in ("pins", "hydrate"):
+                global FROZEN_SOURCES
+                FROZEN_SOURCES = collect_compiler_sources()
         if args.command == "build":
             build_stage(args.stage)
         elif args.command == "pins":
