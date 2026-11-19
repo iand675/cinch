@@ -14,6 +14,7 @@
 module Data.Int where
 
   import Data.Core
+  import Data.Enum
   import Algebra.Arithmetic
   import Algebra.Group
   import Algebra.Semiring
