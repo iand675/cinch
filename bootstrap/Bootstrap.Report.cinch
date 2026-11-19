@@ -9,7 +9,8 @@ module Bootstrap.Report where
 
   import Text.Lex (Span, span-line, span-col, bytes-slice)
   import Data.String (utf8-valid-from)
-  import Text.Scan (string-starts-with, string-drop)
+  import Data.Char (is-ascii-lower)
+  import Text.Scan (string-starts-with, string-drop, string-contains)
   import Text.Show (nat-to-string)
   import Bootstrap.Ast (span-join, span-here)
 
@@ -53,7 +54,9 @@ module Bootstrap.Report where
     let rendered = (if string-starts-with "name is not in scope: " message then
       string-concat-all ["unknown name ", string-drop (string-length "name is not in scope: ") message, " (", message, ")"] else
       if string-starts-with "unknown type constructor or unbound type variable: " message then
-        string-concat-all ["unknown type ", string-drop (string-length "unknown type constructor or unbound type variable: ") message, " (", message, ")"] else message) in
+        let name = string-drop (string-length "unknown type constructor or unbound type variable: ") message in
+        let variable = case unpack name of Cons first rest -> is-ascii-lower first && not (string-contains "." name); Nil -> False in
+        string-concat-all [if variable then "unknown type variable " else "unknown type ", name, " (", message, ")"] else message) in
     string-concat rung (string-concat ":" (string-concat pos (string-concat ": " rendered)))
 
   diagnostics-count :: List Diagnostic -> Nat
