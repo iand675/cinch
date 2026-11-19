@@ -6,7 +6,7 @@ module Bootstrap.Stage where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, value-macro, take-group, DeclarationProducer, QuotedDeclarations, ConstructDeclarations, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Bootstrap.Parse (Ps, POk, PBad, parse-tree-record-fields, Fix, macro-argument-groups, module-scope-fixes)
-  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle)
+  import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle, source-import-closure)
   import Bootstrap.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
   import Bootstrap.StageEval
   import Bootstrap.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
@@ -303,11 +303,12 @@ module Bootstrap.Stage where
         DExport site text items -> if owner then Ok tail else Ok (Cons (DExport site text (stage-exports runtime items)) tail)
         other -> Ok (Cons first tail)
 
-  stage-modules :: String -> List Module -> Result (List Diagnostic) (List Module)
-  stage-modules owner modules = case modules of
+  stage-modules :: String -> List String -> List Module -> Result (List Diagnostic) (List Module)
+  stage-modules owner reachable modules = case modules of
     Nil -> Ok Nil
+    Cons first rest | not (runtime-value-name (module-name first) reachable) -> stage-modules owner reachable rest
     Cons first rest -> let name = module-name first in let body = module-decls first in
-      case (stage-declarations (same owner name) (runtime-value-names body) body body, stage-modules owner rest) of
+      case (stage-declarations (same owner name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
         (Ok declarations, Ok tail) -> let site = module-span first in
           let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
           Ok (Cons (MkModule site name (decl-spine site visible)) tail)
@@ -1020,7 +1021,7 @@ module Bootstrap.Stage where
       let finish = \evaluator -> case expand-declarations evaluator (MkMacroSite owner (module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
             Err errors -> Err errors
             Ok (body, emitted, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), emitted, remaining) in
-      if not (needs-stage-check declarations) then finish None else case stage-modules owner (program-modules program) of
+      if not (needs-stage-check declarations) then finish None else let modules = program-modules program in case stage-modules owner (source-import-closure owner modules) modules of
         Err errors -> Err errors
         Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
           (resolved, Nil) -> case check-and-retain resolved of

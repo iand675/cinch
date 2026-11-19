@@ -19,6 +19,7 @@ module Bootstrap.Resolve where
   import Algebra.Semigroup
 
   export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle
+  export source-import-closure
   export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
@@ -1592,6 +1593,19 @@ module Bootstrap.Resolve where
     Nil -> reverse seen
     Cons (DImport sp name mods alias members hidden arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
     Cons other rest -> declared-imports rest seen
+  -- A compile-time evaluator sees its producer, the source Prelude when present,
+  -- and their transitive imports. Runtime clients may import names that the
+  -- producer has yet to generate. The expanded program checks those imports.
+  source-import-closure :: String -> List Module -> List String
+  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] modules Nil
+
+  walk-source-imports :: List String -> List Module -> List String -> List String
+  walk-source-imports pending modules seen = case pending of
+    Nil -> seen
+    Cons name rest -> if has-name name seen then walk-source-imports rest modules seen else
+      let imports = declared-imports (module-declarations name modules) Nil in
+      walk-source-imports (imports <> rest) modules (Cons name seen)
+
   module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
   module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
     (if prelude && not (same name "Prelude") then ["Prelude"] else case base of
