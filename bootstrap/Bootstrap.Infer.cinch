@@ -2895,7 +2895,7 @@ module Bootstrap.Infer where
       -- A temporal contract binds no value: it is verified after the
       -- definition it names has been elaborated (its write log and its
       -- recursion), which is the pass `temporal-contracts` runs.
-      DUnboxed s name label -> register all rows classes kinds rest env st
+      DWrapperLayout s name repr label -> register all rows classes kinds rest env st
       DUnpackFields s name fields -> register all rows classes kinds rest env st
       DInlineHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
       DUnrollHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)

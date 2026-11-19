@@ -68,7 +68,7 @@ module Bootstrap.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, UnpackedRecord, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
@@ -234,6 +234,7 @@ module Bootstrap.Core where
 
   data DataLayout where
     UniformData :: DataLayout
+    TransparentData :: String -> Nat -> Nat -> DataLayout
     UnpackedRecord :: List RecordSlot -> DataLayout
     -- Represented field name, runtime word class, ABI size and alignment.
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
