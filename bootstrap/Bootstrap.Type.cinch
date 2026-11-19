@@ -829,7 +829,7 @@ module Bootstrap.Type where
   -- whose element is `Char`. `Ordered` decides lists of numerics.
   ascii-carrier :: UType -> Bool
   ascii-carrier carrier = case carrier of
-    UCon name KType -> same-tag name "String"
+    UCon name KType -> same-tag name "String" || same-tag name global-data-string-string
     other -> case core-list-element carrier of
       Some element -> same-shape element (UCon "Char" KType)
       None -> False
@@ -1737,6 +1737,7 @@ module Bootstrap.Type where
 
   index-display :: IndexTerm -> String
   index-display value = case value of
+    ICharacter c -> string-concat-all ["char(", nat-to-string (char-code c), ")"]
     IInteger n -> int-to-string n
     IBound id name -> name
     IRigid id name level -> name
@@ -1844,6 +1845,7 @@ module Bootstrap.Type where
               Some (if value < 0 then word + sign else word))
   index-shape :: UType -> IndexTerm -> Bool
   index-shape carrier value = case value of
+    ICharacter c -> same-shape carrier (UCon "Char" KType)
     IInteger n -> integer-literal-valid carrier n
     IAdd a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b
     ISubtract a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b && (not (natural-carrier carrier) || natural-subtraction-defined carrier a b)

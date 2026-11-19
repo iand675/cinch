@@ -133,6 +133,7 @@ module Bootstrap.CoreBody where
 
   dense-index-digest :: IndexTerm -> Nat
   dense-index-digest term = case term of
+    ICharacter c -> dense-mix 283 (char-code c) 0
     IInteger n -> 233
     IBound id name -> dense-mix 239 id (string-length name)
     IRigid id name level -> dense-mix 241 (id + level) (string-length name)

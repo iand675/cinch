@@ -152,6 +152,7 @@ module Bootstrap.Kinds where
     None -> False
   index-well-formed :: List (String, Kind) -> TypeScope -> UType -> IndexTerm -> Bool
   index-well-formed kinds scope carrier value = case value of
+    ICharacter c -> same-shape carrier (UCon "Char" KType)
     IInteger n -> integer-literal-valid carrier n
     IBound id name -> index-binding carrier id (scope-bound scope)
     IRigid id name level -> index-binding carrier id (scope-rigid scope) || local-carrier carrier id scope

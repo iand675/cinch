@@ -126,6 +126,7 @@ module Bootstrap.Core where
     && effect-proper-value carrier && effect-type-scope qs carrier && effect-type-scope (Cons (MkQuant id name (value-kind carrier) False) qs) body
   effect-index-scope :: List Quant -> UType -> IndexTerm -> Bool
   effect-index-scope qs carrier value = case value of
+    ICharacter c -> contract-equal carrier (UCon "Char" KType)
     IInteger n -> integer-literal-valid carrier n
     IBound id name -> case effect-quant id qs of
       Some q -> (case value-carrier (quant-kind q) of Some declared -> contract-equal carrier declared; None -> False)
@@ -1946,6 +1947,8 @@ module Bootstrap.Core where
   stable-index-source term = case term of
     CLocal sp ty id name Nil -> True
     CInt sp ty text -> True
+    CChar sp ty text -> True
+    CUse sp ty name role actuals -> string-compare name (global-data-core-nil) == 0 && string-compare role "constructor" == 0
     CRefine sp ty certificate body -> stable-index-source body
     CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
@@ -2157,6 +2160,10 @@ module Bootstrap.Core where
   decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   decision-predicate-test gamma facts predicate condition = case predicate of
     UPropLit value -> decision-constant value condition
+    UPropAscii input -> (case condition of
+      CPrimitive sp result op (CArgument at value (CArgumentsEnd end)) | string-compare op "#kernel.ascii" == 0 && ascii-carrier (core-type value) ->
+        (case actual-index gamma facts value of Some actual -> contract-equal input actual; None -> False)
+      other -> False)
     UPropNotNull input -> (case decision-not-null-index gamma facts condition of
       Some actual -> contract-equal input actual
       None -> False)
@@ -3113,6 +3120,18 @@ module Bootstrap.Core where
       (Some a, Some b) -> Some (if string-compare op "+" == 0 then APlus a b else if string-compare op "*" == 0 then ATimes a b else AMinus a b)
       other -> None
     other -> None
+  ascii-predicate :: ProofScope -> UType -> Option Proposition
+  ascii-predicate gamma value = case typed-index-carrier value of
+    Some carrier | ascii-carrier carrier && typed-index-admissible value -> (case value of
+      UIndexList element UEnd -> Some PTruth
+      UIndexList element (UArg (UIndex ty (ICharacter c)) rest) -> if char-code c < 128 then ascii-predicate gamma rest else Some PFalsehood
+      UIndex declared (IRigid id name level) -> (case scope-value id gamma of
+        Some alias -> ascii-predicate (scope-without-value id gamma) alias
+        None -> case nominal-index-key gamma carrier value of
+          Some key -> Some (PCompare Equal (ACall "#kernel.ascii" (AArgument key AArgumentsEnd)) (AInteger 1))
+          None -> None)
+      other -> None)
+    other -> None
   core-predicate :: ProofScope -> UType -> Option Proposition
   core-predicate gamma predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
     UPropLit value -> Some (if value then PTruth else PFalsehood)
@@ -3124,6 +3143,7 @@ module Bootstrap.Core where
     UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropAscii value -> ascii-predicate gamma value
     UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
     UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
     UPropNotNull value -> case list-shape-reading gamma value of
@@ -3272,6 +3292,7 @@ module Bootstrap.Core where
     CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then (case body of
       CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> actual-math-index gamma facts operation first second
       other -> None) else None
+    CChar s ty text -> if contract-equal ty (UCon "Char" KType) then (case unpack text of [c] -> Some (UIndex ty (ICharacter c)); other -> None) else None
     CInt s ty text -> case decimal-value text of Some n -> if integer-literal-valid ty n then Some (UIndex ty (IInteger n)) else None; None -> None
     CLocal s ty id name Nil -> scope-index gamma id name ty
     other -> case core-arithmetic gamma facts term of
