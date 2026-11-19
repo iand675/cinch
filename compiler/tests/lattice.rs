@@ -1035,3 +1035,25 @@ module Main where
         0,
     );
 }
+
+#[test]
+fn ordered_compares_adjacent_arbitrary_precision_naturals() {
+    expect_run(
+        "ordered-bignats",
+        r#"
+module Main where
+  ordered :: List Nat -> Bool
+  ordered xs = case decide (Ordered xs) of
+    Yes _ -> True
+    No _ -> False
+
+  main :: Int
+  main =
+    let lo = 18446744073709551619 :: Nat in
+    let hi = 18446744073709551620 :: Nat in
+    if ordered Nil && ordered (Cons hi Nil) && ordered (Cons lo (Cons lo (Cons hi Nil)))
+      && not (ordered (Cons lo (Cons hi (Cons lo Nil)))) then 42 else 1
+"#,
+        42,
+    );
+}

@@ -4124,7 +4124,14 @@ module Bootstrap.Infer where
         if not (ascii-carrier (core-type operand)) then decision-failure sp "Ascii decides String or List Char" checked
         else case reify-argument sp env operand checked of
           (index, done) -> (UPropAscii index, CPrimitive sp (primitive-type "Bool") "#kernel.ascii" (CArgument sp operand (CArgumentsEnd sp)), done))
-    else if same name "Ordered" then decision-failure sp "`decide (Ordered ...)` needs a checked recursive scan over the value, which this tier does not build: discharge `Ordered` statically (a constructor form) or carry it as a refinement predicate" st
+    else if same name "Ordered" then (case infer classes kinds families env locals input st of
+      (value, checked) -> let actual = map-term-types (normalize checked) value in
+        let operand = case refinement-view (core-type actual) of
+              URefine id display carrier predicate -> CForget sp carrier actual
+              other -> actual in
+        if not (ordered-carrier (core-type operand)) then decision-failure sp "Ordered decides List Nat" checked
+        else case reify-argument sp env operand checked of
+          (index, done) -> (UPropOrdered index, CPrimitive sp (primitive-type "Bool") "#kernel.ordered" (CArgument sp operand (CArgumentsEnd sp)), done))
     else decision-failure sp "unknown executable predicate former" st
   decision-not-null :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-not-null classes kinds families env locals sp input st = case fresh-meta KType st of
