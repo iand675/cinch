@@ -497,6 +497,7 @@ module Bootstrap.Check where
     ETemplateScope s home body -> (TyHole, fail s "unresolved macro scope reached type checking")
     EArgumentScope s body -> (TyHole, fail s "unresolved macro scope reached type checking")
     EMacroCall s path tokens -> (TyHole, fail s "a macro invocation requires compile-time expansion")
+    EForget s atoms x -> (TyHole, fail s "named conjunct weakening needs the refinement checker")
     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
 
   infer-tuple-fields :: List (String, Ty) -> List Expr -> (Ty, List Diagnostic)

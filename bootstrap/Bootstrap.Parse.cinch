@@ -2608,6 +2608,7 @@ module Bootstrap.Parse where
         None -> POk (ELitChar (sp-of t) empty-string) rest
       TVar s ->
         if string-compare s "handler" == 0 then parse-handler (sp-of t) rest src fix
+        else if string-compare s "forget" == 0 then parse-forget (sp-of t) rest src fix Nil
         else POk (EVar (sp-of t) s) rest
       TCon s -> name-atom (sp-of t) rest (Cons s Nil)
       TPunct p ->
@@ -2631,6 +2632,34 @@ module Bootstrap.Parse where
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  -- Find the contextual delimiter outside nested predicate applications.
+  parse-forget :: Span -> List LToken -> Bytes -> List (String, Fix) -> List LToken -> Ps Expr
+  parse-forget site toks src fix reversed = case toks of
+    Cons first rest | stage-word-t (lt-token first) "from" ->
+      (case reverse reversed of
+        Cons open tail -> (case forget-atom-types (forget-token-groups open tail) src Nil of
+            Some atoms -> (case parse-expr rest src fix of
+              POk value more -> POk (EForget (span-join site (expr-span value)) (type-arg-spine site atoms) value) more
+              PBad -> PBad)
+            None -> PBad)
+        Nil -> PBad)
+    Cons first rest | group-opens (lt-token first) -> (case parse-token-tree first rest of
+      POk tree more -> parse-forget site more src fix (reverse tree <> reversed)
+      PBad -> PBad)
+    Cons first rest -> if is-any-tree-close (lt-token first) || is-eof-t (lt-token first) || is-punct-t (lt-token first) ";" then PBad
+      else parse-forget site rest src fix (Cons first reversed)
+    Nil -> PBad
+  forget-token-groups :: LToken -> List LToken -> List (List LToken)
+  forget-token-groups open tail = if is-punct-t (lt-token open) "[" then
+    (case parse-token-tree open tail of POk tree Nil -> macro-argument-groups tree 1; other -> Nil)
+    else [Cons open tail]
+  forget-atom-types :: List (List LToken) -> Bytes -> List TypeExpr -> Option (List TypeExpr)
+  forget-atom-types groups src reversed = case groups of
+    Nil -> (case reversed of Nil -> None; other -> Some (reverse reversed))
+    Cons tokens rest -> (case parse-type tokens src of
+      POk predicate Nil -> forget-atom-types rest src (Cons predicate reversed)
+      other -> None)
 
   -- `[| e |]`: the body is an ordinary expression, so the whole expression
   -- grammar (including a nested quotation and a splice) applies inside it.

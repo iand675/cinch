@@ -170,6 +170,7 @@ module Bootstrap.Ir where
     EIf s c t f -> gen-if g c t f
     ELet s bs body -> gen-let g bs body
     ELetScope sp body -> gen-expr g body
+    EForget s atoms x -> gen-expr g x
     EAnn s x t -> gen-expr g x
     EUnit s -> (g, "0")
     other -> (gen-text g "  ; unsupported expression\n", "0")
@@ -499,6 +500,7 @@ module Bootstrap.Ir where
     EBin s op a b -> append-diags (value-refusals fns locals a) (value-refusals fns locals b)
     ENeg s x -> value-refusals fns locals x
     EIf s c a b -> append-diags (value-refusals fns locals c) (append-diags (value-refusals fns locals a) (value-refusals fns locals b))
+    EForget s atoms x -> value-refusals fns locals x
     EAnn s x ty -> value-refusals fns locals x
     ELet s bs body -> case binding-value-refusals fns locals bs of
       (names, errors) -> append-diags errors (value-refusals fns names body)
@@ -687,6 +689,7 @@ module Bootstrap.Ir where
     EIf s c t f -> append-diags (expr-refusals fns c) (append-diags (expr-refusals fns t) (expr-refusals fns f))
     ELet s bs body -> append-diags (bindings-refusals fns (bindings-of bs)) (expr-refusals fns body)
     ELetScope sp body -> expr-refusals fns body
+    EForget s atoms x -> expr-refusals fns x
     EAnn s x t -> expr-refusals fns x
     EUnit s -> Nil
     other -> Cons (diag (expr-span other) (cat ["the emitter cannot lower this ", expr-node-name other])) Nil
@@ -766,6 +769,7 @@ module Bootstrap.Ir where
     EIf s c t f -> "if"
     ECase s scrut alts -> "case"
     EGuarded s guard body -> "guarded alternative"
+    EForget s atoms x -> "refinement weakening"
     EAnn s x t -> "ascription"
     EForall s vs body -> "forall expression"
     EUsing s bounds body -> "using expression"

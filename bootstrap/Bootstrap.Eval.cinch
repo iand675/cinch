@@ -552,6 +552,7 @@ module Bootstrap.Eval where
     EIf s c t f -> eval-if globals env s c t f
     ECase s scrut alts -> eval-case globals env s scrut alts
     EGuarded s guard body -> fail s "a guarded body is valid only inside a case alternative"
+    EForget s atoms x -> eval-expr globals env x
     EAnn s x t -> eval-expr globals env x
     ELitFloat s text -> fail s "unsupported expression: float literal"
     ETuple s xs -> eval-tuple globals env s xs
