@@ -125,16 +125,32 @@ fn closed_selected_ordering_retains_its_actual_body_and_unknown_providers_stay_o
 fn changed_ordering_cannot_reuse_the_embedded_string_proofs() {
     let original = include_str!("../prelude/Data/Nat.cinch");
     let method = "(<) x y = lt-i64 (nat-cmp x y) 0";
-    for replacement in ["(<) x y = False", "(<) x y = True"] {
+    for (replacement, consumer) in [
+        ("(<) x y = False", "Data.Bytes"),
+        ("(<) x y = True", "Data.Bytes"),
+        ("(<) x y = False", "Data.String"),
+        ("(<) x y = True", "Data.String"),
+    ] {
         let mut family = cinch::driver::parse_prelude(&[]).unwrap();
         numeric_provider::replace_method(&mut family, "Data.Nat", original, method, replacement).unwrap();
+        if consumer == "Data.String" {
+            // In the complete family, byte-list writers encounter the changed
+            // ordering first. Prove their bounds with the independent Nat
+            // comparison so the checker reaches the original String bodies.
+            let bytes = include_str!("../prelude/Data/Bytes.cinch");
+            let guarded = bytes.replace("if i < bytes-len out then", "if i + 1 <= bytes-len out then");
+            assert_ne!(guarded, bytes);
+            let parsed = cinch::driver::parse_source(&guarded, "Data.Bytes", &family.base, &family.exported_fixities).unwrap();
+            *family.modules.iter_mut().find(|module| module.name.text == "Data.Bytes").unwrap() =
+                parsed.modules.into_iter().next().unwrap();
+        }
         let user = cinch::driver::parse_source("module Main where\n  main :: Int\n  main = 0\n", "changed-standard-ordering.cinch", &family.base, &family.exported_fixities).unwrap();
         let mut context = cinch::driver::StagingCx::default();
         context.fixities = family.fixities;
         context.fixities.extend(user.fixities);
         let error = cinch::check::check_program_multi(&family.modules, &user.modules,
-            &std::collections::HashMap::new(), &context).err().expect("changed ordering must recheck its real dependent string proofs");
-        assert!(error.message.contains("Data.String") && error.message.contains("obligation"), "{replacement}: {}", error.message);
+            &std::collections::HashMap::new(), &context).err().expect("changed ordering must recheck its dependent buffer bounds");
+        assert!(error.message.contains(&format!("(in {consumer})")) && error.message.contains("obligation"), "{replacement}: {}", error.message);
     }
 }
 
