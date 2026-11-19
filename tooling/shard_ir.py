@@ -74,10 +74,7 @@ class ShardError(RuntimeError):
     pass
 
 
-def _balanced(text: str) -> bool:
-    depth = 0
-    in_string = False
-    escaped = False
+def _balance(text: str, depth: int, in_string: bool, escaped: bool) -> tuple[int, bool, bool]:
     for ch in text:
         if in_string:
             if escaped:
@@ -93,7 +90,7 @@ def _balanced(text: str) -> bool:
             depth += 1
         elif ch in ")]}":
             depth -= 1
-    return depth == 0 and not in_string
+    return depth, in_string, escaped
 
 
 def _symbol_text(match: re.Match[str]) -> str:
@@ -157,76 +154,83 @@ def _global_fields(text: str) -> tuple[str, str]:
 def parse_module(text: str) -> Module:
     """Split IR text into top-level units without interpreting their bodies."""
     module = Module()
-    lines = text.splitlines(keepends=True)
-    index = 0
-    while index < len(lines):
-        line = lines[index]
+    # Only the function header and closing brace have top-level syntax.
+    # Walk by offsets so a large function body stays one slice of IR.
+    # Match splitlines(keepends=True) for callers supplying other line
+    # endings directly. Path.read_text normalizes CRLF for bootstrap files.
+    separators = "\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+    mixed = any(separator in text for separator in separators)
+    breaks = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+    closing_line = re.compile(r"[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]}")
+
+    def line_number(start: int) -> int:
+        if mixed:
+            return len(text[:start].splitlines()) + 1
+        return text.count("\n", 0, start) + 1
+
+    def line_end(start: int) -> int:
+        if mixed:
+            end = breaks.search(text, start)
+            return end.end() if end else len(text)
+        newline = text.find("\n", start)
+        return len(text) if newline < 0 else newline + 1
+
+    cursor = 0
+    while cursor < len(text):
+        start = cursor
+        cursor = line_end(start)
+        line = text[start:cursor]
         if not line.strip():
-            index += 1
             continue
         if line.startswith("define"):
-            start = index
-            index += 1
-            while index < len(lines) and not lines[index].startswith("}"):
-                index += 1
-            if index >= len(lines):
-                raise ShardError(f"function at line {start + 1} has no closing brace")
-            index += 1
-            block = "".join(lines[start:index])
-            match = SYMBOL_RE.search(lines[start])
+            if mixed:
+                match = closing_line.search(text, cursor - 1)
+                closing = match.start() if match else -1
+            else:
+                closing = text.find("\n}", cursor - 1)
+            if closing < 0:
+                raise ShardError(f"function at line {line_number(start)} has no closing brace")
+            cursor = line_end(closing + 1)
+            match = SYMBOL_RE.search(line)
             if match is None:
-                raise ShardError(f"function at line {start + 1} has no symbol")
+                raise ShardError(f"function at line {line_number(start)} has no symbol")
             linkage = ""
-            for word in lines[start].split()[1:]:
+            for word in line.split()[1:]:
                 if word not in STRIP_TOKENS:
                     break
                 if word in ("internal", "private", "linkonce", "linkonce_odr",
                             "weak", "weak_odr", "available_externally"):
                     linkage = word
             module.functions.append(Unit("function", _symbol_text(match),
-                                         _symbol_name(match), block, linkage))
+                                         _symbol_name(match), text[start:cursor], linkage))
             continue
-        if line.startswith("declare"):
-            block = line
-            index += 1
-            while not _balanced(block):
-                if index >= len(lines):
-                    raise ShardError("unterminated declare")
-                block += lines[index]
-                index += 1
-            match = SYMBOL_RE.search(block)
-            if match is None:
-                raise ShardError("declare without a symbol")
-            module.declares[_symbol_name(match)] = block
-            continue
-        if line.startswith("@"):
-            block = line
-            index += 1
-            while not _balanced(block):
-                if index >= len(lines):
-                    raise ShardError("unterminated global")
-                block += lines[index]
-                index += 1
-            match = SYMBOL_RE.match(block)
-            if match is None:
-                raise ShardError(f"global without a symbol: {block[:80]!r}")
-            linkage, kind = _global_fields(block)
-            module.globals.append(Unit("global", _symbol_text(match),
-                                       _symbol_name(match), block, linkage, kind))
+        if line.startswith(("declare", "@", "!")):
+            depth, quoted, escaped = _balance(line, 0, False, False)
+            while depth or quoted:
+                if cursor >= len(text):
+                    kind = {"@": "global", "!": "metadata", "d": "declare"}[line[0]]
+                    raise ShardError(f"unterminated {kind}")
+                following = line_end(cursor)
+                depth, quoted, escaped = _balance(text[cursor:following], depth, quoted, escaped)
+                cursor = following
+            block = text[start:cursor]
+            if line.startswith("declare"):
+                match = SYMBOL_RE.search(block)
+                if match is None:
+                    raise ShardError("declare without a symbol")
+                module.declares[_symbol_name(match)] = block
+            elif line.startswith("@"):
+                match = SYMBOL_RE.match(block)
+                if match is None:
+                    raise ShardError(f"global without a symbol: {block[:80]!r}")
+                linkage, kind = _global_fields(block)
+                module.globals.append(Unit("global", _symbol_text(match),
+                                           _symbol_name(match), block, linkage, kind))
+            else:
+                module.metadata.append(block)
             continue
         if line.startswith("attributes"):
             module.header.append(line)
-            index += 1
-            continue
-        if line.startswith("!"):
-            block = line
-            index += 1
-            while not _balanced(block):
-                if index >= len(lines):
-                    raise ShardError("unterminated metadata")
-                block += lines[index]
-                index += 1
-            module.metadata.append(block)
             continue
         word = _first_word(line)
         if (line.startswith(";") or word in ("target", "source_filename")
@@ -236,8 +240,7 @@ def parse_module(text: str) -> Module:
               or line.startswith("module ")):
             module.other.append(line)
         else:
-            raise ShardError(f"unrecognised top-level line {index + 1}: {line[:80]!r}")
-        index += 1
+            raise ShardError(f"unrecognised top-level line {line_number(start)}: {line[:80]!r}")
     # Metadata attachments inside a body are numeric and cross-reference other
     # metadata definitions. The emitter does not produce them today; when a
     # later mode does, every shard must carry the whole metadata block.

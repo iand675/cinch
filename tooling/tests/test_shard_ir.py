@@ -30,6 +30,20 @@ class ClangWrapperTests(unittest.TestCase):
                 compile_shards.assert_not_called()
 
 
+class ModuleTests(unittest.TestCase):
+    def test_function_boundaries_and_multiline_units(self):
+        for newline in ("\n", "\r\n", "\r"):
+            with self.subTest(newline=newline):
+                body = newline.join(["define i32 @main() {", "  ret i32 0", "}", ""])
+                declaration = newline.join(["declare i32 @call(", "  i32)", ""])
+                module = shard_ir.parse_module(declaration + body + "!0 = !{}")
+                self.assertEqual(module.functions[0].text, body)
+                self.assertEqual(module.declares["call"], declaration)
+                self.assertEqual(module.metadata, ["!0 = !{}"])
+                with self.assertRaisesRegex(shard_ir.ShardError, "line 4 has no closing brace"):
+                    shard_ir.parse_module(declaration + newline + body.split("}")[0])
+
+
 class DeclarationTests(unittest.TestCase):
     def test_function_data_stays_with_the_definition(self):
         # An apply stub carries its tailcc twin's address in prefix data; a
