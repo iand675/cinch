@@ -4,8 +4,8 @@
 module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
-  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
-  import Bootstrap.Parse (Fix, macro-argument-groups, module-scope-fixes)
+  import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, value-macro, take-group, DeclarationProducer, QuotedDeclarations, ConstructDeclarations, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
+  import Bootstrap.Parse (Ps, POk, PBad, parse-tree-record-fields, Fix, macro-argument-groups, module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle)
   import Bootstrap.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
   import Bootstrap.StageEval
@@ -13,6 +13,8 @@ module Bootstrap.Stage where
   import Bootstrap.Type (Scheme, UType, UApp, UCon, scheme-body)
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
+  import Data.Char (is-ascii-upper)
+  import Data.String (string-char-at)
   import Data.Int (int-neg)
   import Data.List (list-length, foldr)
   import Text.Lex (Span, span-start, span-end, LToken)
@@ -35,7 +37,7 @@ module Bootstrap.Stage where
   module-expansions ds sites = case ds of
     Nil -> sites
     Cons (DGeneratedGroup caller home name template) rest ->
-      Cons (decl-span template, caller, home <> "." <> name) (module-expansions rest sites)
+      Cons (decl-span template, caller, name) (module-expansions rest sites)
     Cons other rest -> module-expansions rest sites
   within-span :: Span -> Span -> Bool
   within-span location range = span-start location >= span-start range && span-start location < span-end range
@@ -477,7 +479,7 @@ module Bootstrap.Stage where
               Err errors -> Err errors
               Ok (expanded, remaining) -> (case fill-declarations (scope-site destination) fix (MacroOperands Nil Nil) expanded remaining of
                 Err errors -> Err errors
-                Ok (filled, done) -> Ok ([DGeneratedGroup site home name (decl-spine (decl-span template) filled)], done)))
+                Ok (filled, done) -> Ok ([DGeneratedGroup site home (home <> "." <> name) (decl-spine (decl-span template) filled)], done)))
           other -> stage-error site "emit requires a stage value of type Declarations")
         None -> stage-error site "stage declaration module is unavailable")
       None -> stage-error site "stage declaration value is not in scope")
@@ -735,9 +737,46 @@ module Bootstrap.Stage where
               let scope = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
               (case bind-operands site params groups of
                 Err errors -> Err errors
-                Ok operands -> case fill-declarations scope fix operands (decls-of template) (fuel - 1) of
-                  Err errors -> Err errors
-                  Ok (decls, remaining) -> Ok ([DGeneratedGroup site home name (decl-spine (decl-span template) decls)], remaining)))
+                Ok operands -> case template of
+                  QuotedDeclarations block -> (case fill-declarations scope fix operands (decls-of block) (fuel - 1) of
+                    Err errors -> Err errors
+                    Ok (decls, remaining) -> Ok ([DGeneratedGroup site home (home <> "." <> name) (decl-spine (decl-span block) decls)], remaining))
+                  ConstructDeclarations expression -> construct-declarations scope operands owner name site expression (fuel - 1)))
+
+  -- Token-tree syntax keeps the module where the tokens were written.
+  -- A Syntax-valued helper may forward an operand without parsing it as a term.
+  field-syntax :: MacroSite -> MacroOperands -> String -> Expr -> Nat -> Result (List Diagnostic) (String, List LToken, Nat)
+  field-syntax scope operands argument-home expression fuel = if fuel == 0 then expand-error (expr-span expression) "macro expansion exhausted its work budget" else
+    case (scope, operands, expression) of
+      (current, MacroOperands names syntax, EVar at param) -> (case take-group param syntax of
+        Some tokens -> Ok (argument-home, tokens, fuel)
+        None -> expand-error at "record fields require a Syntax operand")
+      (MkMacroSite owner fix modules namespaces parent, args, EMacroCall at path tokens) -> (case lookup-macro namespaces owner path of
+        Some (home, name) -> (case macro-module home modules of
+          Some definition -> (case value-macro "Syntax" name (module-decls definition) of
+            Some (params, body) -> (case bind-operands at params (macro-argument-groups tokens (list-length params)) of
+              Ok nested -> field-syntax (MkMacroSite home (module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
+              Err errors -> Err errors)
+            None -> expand-error at "record fields require a macro producing Syntax")
+          None -> expand-error at ("unavailable macro module " <> home))
+        None -> expand-error at ("macro is not in scope: " <> path))
+      other -> expand-error (expr-span expression) "record fields require captured field signatures"
+
+  construct-declarations :: MacroSite -> MacroOperands -> String -> String -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  construct-declarations scope operands argument-home macro-name site expression fuel = case (scope, expression) of
+    (MkMacroSite home fix modules namespaces parent, EApp at (EApp inner (EVar op-site op) requested) field-value) | same op "Syntax.recordDeclaration" && stage-operation-available namespaces home op ->
+      (case reify-name scope operands requested fuel of
+        Ok (Some (NameValue name)) -> (case string-char-at name 0 of
+          Some first | is-ascii-upper first -> (case field-syntax scope operands argument-home field-value fuel of
+            Ok (origin, tokens, remaining) -> (case parse-tree-record-fields tokens of
+              POk fields Nil -> let generated = DRecord at name Nil fields in
+                Ok ([DGeneratedGroup site origin (home <> "." <> macro-name) (decl-spine at [generated])], remaining)
+              other -> expand-error at "expected a braced group of record field signatures")
+            Err errors -> Err errors)
+          other -> expand-error at "a generated record's name must be a constructor identifier")
+        Err errors -> Err errors
+        other -> expand-error at "Syntax.recordDeclaration requires a descriptive type Name")
+    other -> expand-error (expr-span expression) "emit requires a macro producing Declarations"
 
   fill-declarations :: MacroSite -> List (String, Fix) -> MacroOperands -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   fill-declarations scope fix operands declarations fuel = case declarations of

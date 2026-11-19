@@ -156,6 +156,11 @@ module Bootstrap.Resolve where
     None -> Cons (MkBinding name home ("#macro." <> name)) entries
   macro-binding :: Binding -> Bool
   macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
+  -- Global symbols include their module. Stage symbols carry it in the owner.
+  same-declaration :: Binding -> Binding -> Bool
+  same-declaration left right = same (binding-symbol left) (binding-symbol right)
+    && (not (macro-binding left) || same (binding-owner left) (binding-owner right))
+
   select-phase :: Bool -> List Binding -> List Binding
   select-phase macros bindings = case bindings of
     Nil -> Nil
@@ -312,7 +317,8 @@ module Bootstrap.Resolve where
     Cons b rest -> case b of
       MkBinding name home symbol -> case lookup-binding name acc of
         None -> merge-imports sp rest (Cons b acc)
-        Some (MkBinding old previous prior) -> case merge-imports sp rest acc of
+        Some prior | same-declaration prior b -> merge-imports sp rest acc
+        Some (MkBinding old previous symbol-before) -> case merge-imports sp rest acc of
           -- Both ways out are named, as the seed's refusal does: a selection
           -- renames one side, and a hiding list leaves one out.
           (entries, errors) -> (entries, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
@@ -328,7 +334,7 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons b rest -> case lookup-binding (binding-name b) seen of
       None -> qualified-duplicates sp rest (Cons b seen)
-      Some old -> (if same (binding-symbol old) (binding-symbol b) && (not (macro-binding b) || same (binding-owner old) (binding-owner b)) then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
+      Some old -> (if same-declaration old b then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
         <> qualified-duplicates sp rest seen
 
   export-items :: List Decl -> List ExportItem
@@ -368,7 +374,7 @@ module Bootstrap.Resolve where
     Cons b rest -> case lookup-binding (binding-name b) acc of
       None -> add-exports sp rest (Cons b acc)
       Some old -> case add-exports sp rest acc of
-        (entries, errors) -> (entries, (if same (binding-symbol old) (binding-symbol b) && (not (macro-binding b) || same (binding-owner old) (binding-owner b)) then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+        (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
 
   build-exports :: List ExportItem -> List Binding -> List View -> List Binding -> (List Binding, List Diagnostic)
   build-exports items visible views acc = case items of
@@ -701,7 +707,7 @@ module Bootstrap.Resolve where
   resolve-global-use sp constructor visible name = case visible-lookup name visible of
       Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
       Some b -> (binding-symbol b, Nil)
-      None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.captureType"] ->
+      None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.recordDeclaration", "Syntax.lambda", "Syntax.captureType"] ->
         (name, fail sp (cat [name, " is compile-time only"]))
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else let qualifier = name-qualifier name in

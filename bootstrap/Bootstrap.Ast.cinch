@@ -563,6 +563,7 @@ module Bootstrap.Ast where
     DNamedDeclaration :: Span -> Expr -> Decl -> Decl
     DDeclarationMacro :: Span -> String -> List Pat -> Decl -> Decl
     DEmitMacro :: Span -> String -> List LToken -> Decl
+    -- Lexical owner of the generated syntax and qualified macro name for diagnostics.
     DGeneratedGroup :: Span -> String -> String -> Decl -> Decl
     DMacro :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
