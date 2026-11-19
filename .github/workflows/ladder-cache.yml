@@ -1,0 +1,56 @@
+name: Bootstrap ladder cache
+
+# Builds the bootstrap ladder as Nix outputs and pushes them to a Cachix
+# binary cache, so a later session substitutes the stages for its commit
+# instead of rebuilding them. tooling/nix/README.md has the consumer side.
+
+on:
+  push:
+    branches: [main, "lane/**", "claude/**"]
+    paths:
+      - "bootstrap/**"
+      - "tooling/**"
+      - "compiler/prelude/**"
+      - "examples/compiler/fib.cinch"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/ladder-cache.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ladder-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ladder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+    steps:
+      - name: Explain the missing cache
+        if: env.CACHIX_CACHE == ''
+        run: echo "Set the CACHIX_CACHE repository variable and the CACHIX_AUTH_TOKEN secret to publish the ladder."
+      - uses: actions/checkout@v4
+        if: env.CACHIX_CACHE != ''
+      - name: Fetch the pinned seed and library producer revisions
+        if: env.CACHIX_CACHE != ''
+        run: |
+          git fetch --depth=1 origin \
+            "$(jq -r .revision bootstrap/stage0.lock.json)" \
+            "$(jq -r .revision bootstrap/library-provider.lock.json)"
+      - uses: cachix/install-nix-action@v31
+        if: env.CACHIX_CACHE != ''
+      - uses: cachix/cachix-action@v16
+        if: env.CACHIX_CACHE != ''
+        with:
+          name: ${{ vars.CACHIX_CACHE }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      # The pin-keyed tree first: it is the part every commit shares, so it
+      # is worth having in the cache even when the ladder below fails.
+      - name: Build the pin-keyed tree
+        if: env.CACHIX_CACHE != ''
+        run: nix build --impure -L -f tooling/nix/local.nix pins
+      - name: Build and check the ladder
+        if: env.CACHIX_CACHE != ''
+        run: nix build --impure -L -f tooling/nix/local.nix ladder

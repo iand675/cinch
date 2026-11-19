@@ -167,13 +167,16 @@ def main():
     # that existed for a few minutes). bootstrap.py takes the same lock
     # exclusively and refuses rather than blocking.
     lock_path = bootstrap.BUILD / '.lock'
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    suite_lock = lock_path.open('a')
-    try:
-        fcntl.flock(suite_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
-    except OSError:
-        sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
-        return 3
+    # A read-only build tree (a Nix store path, see tooling/nix) cannot be
+    # rebuilt under the suite, so it needs no lock and cannot hold one.
+    if os.access(bootstrap.BUILD, os.W_OK) or not bootstrap.BUILD.exists():
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        suite_lock = lock_path.open('a')
+        try:
+            fcntl.flock(suite_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError:
+            sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
+            return 3
     a.out.mkdir(parents=True, exist_ok=True)
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
     env = setup(a.stage, a.out.resolve(), a.tree)
