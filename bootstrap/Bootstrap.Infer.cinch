@@ -26,7 +26,7 @@ module Bootstrap.Infer where
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
   import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, interface-set-body, interface-set-has-body, contract-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
-  import Text.Json (canonical-bytes)
+  import Text.Json (canonical-bytes, json-eq)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
@@ -7307,29 +7307,53 @@ module Bootstrap.Infer where
     Cons first rest -> if same (usage-name shape) (usage-name first) then
       (if usage-equal shape first then Ok rows else Err "conflicting checked private-field proofs")
       else (case insert-usage shape rest of Ok more -> Ok (Cons first more); Err error -> Err error)
+  -- | Decode a defining row once per elaboration, whatever the number of copies.
+  --
+  -- An interface repeats a data type's ownership table in every entry whose
+  -- resolved scheme names the type, so one elaboration met the same row
+  -- hundreds of times and lexed and parsed its field spellings each time.
+  -- The decode is a function of the row and of this elaboration's kinds, so
+  -- its outcome is kept under the row's identity and a later copy that is
+  -- structurally the same row takes that outcome, refusal included. Each
+  -- copy still goes through `insert-usage`, which is where two rows for one
+  -- owner are compared, so the shapes and the diagnostics are unchanged.
+  decode-usage-row :: List (String, Kind) -> Json -> HashMap String (List (Json, Result String UsageShape)) -> (Result String UsageShape, HashMap String (List (Json, Result String UsageShape)))
+  decode-usage-row kinds row memo =
+    let key = (case field "identity" row of JStr identity -> identity; other -> "") in
+    let seen = (case hash-map-lookup key memo of Some rows -> rows; None -> Nil) in
+    case decoded-usage-row row seen of
+      Some outcome -> (outcome, memo)
+      None -> let outcome = read-usage-shape kinds row in (outcome, hash-map-insert key (Cons (row, outcome) seen) memo)
+  decoded-usage-row :: Json -> List (Json, Result String UsageShape) -> Option (Result String UsageShape)
+  decoded-usage-row row seen = case seen of
+    Nil -> None
+    Cons (prior, outcome) rest -> if json-eq prior row then Some outcome else decoded-usage-row row rest
   -- | Decode optional fields only after the whole supplied interface set has passed ordinary admission.
-  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> List UsageShape -> Store -> (List UsageShape, Store)
-  collect-usage-rows sp kinds rows shapes st = case rows of
-    Nil -> (shapes, st)
-    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest shapes st else
-      (case read-usage-shape kinds first of
-        Err error -> (shapes, add-error sp error st)
-        Ok shape -> (case insert-usage shape shapes of
-          Err error -> (shapes, add-error sp error st)
-          Ok more -> collect-usage-rows sp kinds rest more st))
+  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> HashMap String (List (Json, Result String UsageShape)) -> List UsageShape -> Store -> (HashMap String (List (Json, Result String UsageShape)), List UsageShape, Store)
+  collect-usage-rows sp kinds rows memo shapes st = case rows of
+    Nil -> (memo, shapes, st)
+    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest memo shapes st else
+      (case decode-usage-row kinds first memo of
+        (Err error, known) -> (known, shapes, add-error sp error st)
+        (Ok shape, known) -> (case insert-usage shape shapes of
+          Err error -> (known, shapes, add-error sp error st)
+          Ok more -> collect-usage-rows sp kinds rest known more st))
   -- | Recognize optional proof presence so malformed null rows cannot silently become absence.
   has-json-field :: String -> Json -> Bool
   has-json-field name row = case row of JObj key value rest -> same name key || has-json-field name rest; other -> False
   -- | Retain header-only and resolved-use proofs independently of public method demand or declaration order.
   collect-usage :: List Decl -> List (String, Kind) -> List UsageShape -> Store -> (List UsageShape, Store)
-  collect-usage declarations kinds shapes st = case declarations of
-    Nil -> (shapes, st)
-    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-nominals metadata) shapes st of
-      (more, checked) -> collect-usage rest kinds more checked)
+  collect-usage declarations kinds shapes st = case collect-usage-from declarations kinds hash-map-empty shapes st of
+    (memo, more, checked) -> (more, checked)
+  collect-usage-from :: List Decl -> List (String, Kind) -> HashMap String (List (Json, Result String UsageShape)) -> List UsageShape -> Store -> (HashMap String (List (Json, Result String UsageShape)), List UsageShape, Store)
+  collect-usage-from declarations kinds memo shapes st = case declarations of
+    Nil -> (memo, shapes, st)
+    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-nominals metadata) memo shapes st of
+      (known, more, checked) -> collect-usage-from rest kinds known more checked)
     Cons (DExternal sp name category syntax metadata) rest ->
       let rows = (if same category "type" && has-json-field "ownership" metadata then [field "ownership" metadata] else Nil) <> json-rows (resolved-nominals metadata) in
-      (case collect-usage-rows sp kinds rows shapes st of (more, checked) -> collect-usage rest kinds more checked)
-    Cons other rest -> collect-usage rest kinds shapes st
+      (case collect-usage-rows sp kinds rows memo shapes st of (known, more, checked) -> collect-usage-from rest kinds known more checked)
+    Cons other rest -> collect-usage-from rest kinds memo shapes st
   -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
