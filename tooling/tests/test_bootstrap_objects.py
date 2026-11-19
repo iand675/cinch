@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -80,8 +81,12 @@ class LibraryProviderContract(unittest.TestCase):
                     patch.object(bootstrap, "seed_inputs", side_effect=AssertionError("library builds must not read the seed lock")), \
                     patch.object(bootstrap_objects, "source_snapshot", return_value=snapshot), \
                     patch.object(bootstrap, "run", side_effect=run):
-                provider = bootstrap_objects.provider(bootstrap)
-                self.assertEqual(len(calls), 3)
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    requests = [pool.submit(bootstrap_objects.provider, bootstrap) for _ in range(4)]
+                    results = [request.result(timeout=10) for request in requests]
+                provider = results[0]
+                self.assertTrue(all(row == provider for row in results))
+                self.assertEqual(len(calls), 3, "concurrent requests must share one construction")
                 self.assertEqual([row[0] for row in provider["interfaces"]["interfaces"]], ["Data.Core"])
                 self.assertEqual(provider["configuration"]["object_sha256"], bootstrap.file_hash(provider["object"]))
                 bootstrap_objects.provider(bootstrap)
