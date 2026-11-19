@@ -77,7 +77,8 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         ("dependent result", "next :: (n :: Nat) -> refined (r > n) Nat\n  next n = n + 1", 0, ""),
         ("effectful caller retains row", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  use :: Unit ->{Diverge} Nat\n  use unit = next unit", 0, ""),
         ("own operator gives no mathematical fact", "infix 3 >\n  (>) :: Nat -> Nat -> Bool\n  (>) x y = True\n  bad :: Nat -> refined (r > 0) Nat\n  bad n = if n > 0 then n else 1", 4, "refinement predicate is not established"),
-        ("global name is not a result binder", "zeroGlobal :: Nat\n  zeroGlobal = 0\n  bad :: refined (zeroGlobal > 0) Nat\n  bad = 1", 4, "source index has no checked local binding"),
+        // A defined nullary index stays bound to its global even when the result is positive.
+        ("global name is not a result binder", "zeroGlobal :: Nat\n  zeroGlobal = 0\n  bad :: refined (zeroGlobal > 0) Nat\n  bad = 1", 4, "checked-call Main.zeroGlobal"),
         ("argument name is not a result binder", "bad :: (r :: Nat) -> refined (r > 0) Nat\n  bad n = 1", 4, "refinement predicate is not established"),
         ("scalar annotation enters typed checking", "one :: Int\n  one = (1 :: refined (r > 0) Int)", 0, ""),
         ("annotation cannot erase failure", "bad :: Int\n  bad = (0 :: refined (r > 0) Int)", 4, "refinement predicate is not established"),
