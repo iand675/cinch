@@ -719,7 +719,7 @@ module Bootstrap.RuntimeIr where
   regular-parameters expected actual = case (expected, actual) of
     (Nil, Nil) -> True
     (Cons q rest, Cons p more) -> if quant-id q == quant-id p then
-      kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || kind-equal (quant-kind q) KRegion || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
+      kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || former-kind (quant-kind q) || kind-equal (quant-kind q) KRegion || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
       else (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest actual; None -> False)
     (Cons q rest, Nil) -> (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest Nil; None -> False)
     other -> False

@@ -1562,17 +1562,13 @@ module Bootstrap.Infer where
     TForall sp binders body -> unshadowed-region-names (nominal-region-names kinds params body) (parameter-names-for-check (forall-params-of binders))
     other -> Nil
 
-  -- | Gather runtime identities used by constructor callbacks and nested region-indexed carriers.
-  constructor-region-names :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List String
-  constructor-region-names kinds params constructors = case constructors of
-    Nil -> Nil
-    Cons (name, annotation) rest -> region-names annotation <> nominal-region-names kinds params annotation <> constructor-region-names kinds params rest
-
-  -- | Give unannotated runtime identity parameters their Region kind before any constructor checks.
+  -- | Infer datatype parameters from all defining constructor signatures.
+  -- As in a forall, explicit annotations and nested binders keep their scope.
   inferred-data-parameters :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List TypeParam
   inferred-data-parameters kinds params constructors = case params of
     Nil -> Nil
-    other -> region-parameters params (constructor-region-names kinds params constructors)
+    other -> let signatures = type-arg-spine zero (map (\entry -> case entry of (name, annotation) -> annotation) constructors) in
+      inferred-forall-parameters kinds Nil (region-parameters params (region-names signatures)) signatures
 
   -- | Group only source-owned declaration signatures by their canonical defining module.
   -- Imported interface schemes never rewrite a source datatype's parameter kinds.
