@@ -582,6 +582,7 @@ module Bootstrap.Ast where
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
     DPrim :: Span -> String -> TypeExpr -> List PrimBody -> Decl
     DProof :: Span -> Decl -> Decl
+    DSpec :: Span -> Decl -> Decl
     DCorec :: Span -> Decl -> Decl
     -- `macro name :: ty` and `macro name patterns = body`: a compile-time
     -- declaration. It carries no runtime presence; expansion marks its uses.
@@ -655,6 +656,7 @@ module Bootstrap.Ast where
     DForeign s direction conv symbol foreign-name t -> s
     DPrim s name ty bodies -> s
     DProof s body -> s
+    DSpec s body -> s
     DCorec s body -> s
     DConditional s clauses inner -> s
     DMacroBinding s name -> s
@@ -710,6 +712,7 @@ module Bootstrap.Ast where
     DUnrollHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
+    DSpec s body -> decl-name body
     DCorec s body -> decl-name body
     DConditional s clauses inner -> decl-name inner
     DMacroBinding s name -> None
@@ -971,6 +974,7 @@ module Bootstrap.Ast where
     DUnrollHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
+    DSpec s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body
     DConditional s clauses inner -> exprs-unmodeled clauses + decl-unmodeled-count inner
     DMacroBinding s name -> 0

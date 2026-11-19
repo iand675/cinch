@@ -1033,6 +1033,7 @@ module Bootstrap.Parse where
     else if string-compare w "stage" == 0 then parse-compile-time-declaration True toks src fix
     else if string-compare w "macro" == 0 then parse-compile-time-declaration False toks src fix
     else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
+    else if string-compare w "spec" == 0 then parse-marked-decl DSpec toks src fix
     else if string-compare w "corec" == 0 then parse-marked-decl DCorec toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
     else if string-compare w "contract" == 0 then parse-contract toks src fix

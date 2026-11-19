@@ -1,0 +1,113 @@
+-- Structural termination for erased specification definitions.
+module Bootstrap.Logical where
+  import Bootstrap.Ast
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Algebra.Semigroup
+
+  export specification-names, split-specifications, check-specification
+
+  specification-names :: List Decl -> List String
+  specification-names declarations = case declarations of
+    Nil -> Nil
+    Cons (DSpec sp body) rest -> case decl-name body of
+      Some name -> Cons name (specification-names rest)
+      None -> specification-names rest
+    Cons other rest -> specification-names rest
+  marked :: String -> List String -> Bool
+  marked name names = case names of
+    Nil -> False
+    Cons first rest -> string-compare first name == 0 || marked name rest
+  split-specifications :: List String -> List Decl -> (List Decl, List Decl)
+  split-specifications names declarations = case (names, declarations) of
+    (Nil, ds) -> (Nil, ds)
+    (markers, Nil) -> (Nil, Nil)
+    (markers, Cons declaration rest) ->
+      let (logical, ordinary) = split-specifications names rest in
+      case declaration of
+        DSpec sp body -> (Cons body logical, ordinary)
+        DFun sp name clauses | marked name names -> (Cons declaration logical, ordinary)
+        DSig sp name ty | marked name names -> (Cons declaration logical, ordinary)
+        other -> (logical, Cons declaration ordinary)
+
+  -- Each variable denotes the parameter at its original position, or one
+  -- of its proper subcomponents. A let alias never creates a decrease.
+  data Origin where
+    Origin :: Nat -> Bool -> Origin
+  remember :: CorePattern -> Nat -> Bool -> List (Nat, Origin) -> List (Nat, Origin)
+  remember pattern pos strict locals = case pattern of
+    CPVar sp ty id name -> Cons (id, Origin pos strict) locals
+    CPAs sp ty id name body -> Cons (id, Origin pos strict) (remember body pos strict locals)
+    CPConstructor sp ty symbol args result fields -> remember fields pos True locals
+    CPTuple sp ty fields -> remember fields pos True locals
+    CPField sp field rest -> remember field pos strict (remember rest pos strict locals)
+    other -> locals
+  parameters :: List CorePattern -> Nat -> List (Nat, Origin)
+  parameters patterns pos = case patterns of
+    Nil -> Nil
+    Cons pattern rest -> remember pattern pos False (parameters rest (pos + 1))
+  origin :: Nat -> List (Nat, Origin) -> Option Origin
+  origin id locals = case locals of
+    Nil -> None
+    Cons (key, value) rest -> if key == id then Some value else origin id rest
+  argument-origin :: CoreTerm -> List (Nat, Origin) -> Option Origin
+  argument-origin argument locals = case argument of
+    CLocal sp ty id name actuals -> origin id locals
+    CForget sp ty value -> argument-origin value locals
+    other -> None
+  -- A fully saturated recursive call keeps each argument inside its own
+  -- parameter's tree and strictly decreases at least one of them.
+  decreases :: List CoreTerm -> List (Nat, Origin) -> Nat -> Nat -> Bool -> Bool
+  decreases arguments locals pos arity strict = case arguments of
+    Nil -> pos == arity && strict
+    Cons arg rest -> case argument-origin arg locals of
+      Some (Origin owner smaller) -> owner == pos && decreases rest locals (pos + 1) arity (strict || smaller)
+      None -> False
+  safe-call :: String -> Nat -> List (Nat, Origin) -> CoreTerm -> List CoreTerm -> Bool
+  safe-call name arity locals head args = case head of
+    CApply sp ty f x -> safe-call name arity locals f (Cons x args)
+    CUse sp ty symbol role actuals | string-compare symbol name == 0 -> decreases args locals 0 arity False
+    other -> safe-term name arity locals other && safe-terms name arity locals args
+  safe-terms :: String -> Nat -> List (Nat, Origin) -> List CoreTerm -> Bool
+  safe-terms name arity locals terms = case terms of
+    Nil -> True
+    Cons first rest -> safe-term name arity locals first && safe-terms name arity locals rest
+  safe-alternatives :: String -> Nat -> List (Nat, Origin) -> Option Origin -> CoreTerm -> Bool
+  safe-alternatives name arity locals parent arms = case arms of
+    CAlternativesEnd sp -> True
+    CAlternative sp pattern body rest ->
+      let inner = case parent of Some (Origin pos strict) -> remember pattern pos strict locals; None -> locals in
+      safe-term name arity inner body && safe-alternatives name arity locals parent rest
+    other -> False
+  safe-term :: String -> Nat -> List (Nat, Origin) -> CoreTerm -> Bool
+  safe-term name arity locals term = case term of
+    CUse sp ty symbol role actuals -> string-compare symbol name /= 0
+    CQualifiedUse sp ty symbol role actuals evidence -> string-compare symbol name /= 0
+    CApply sp ty f x -> safe-call name arity locals f [x]
+    CApplyEff sp ty row f x -> False
+    CRecursiveFunctions sp ty members body -> False
+    CRecursiveValues sp ty region members body -> False
+    CCase sp ty value arms -> safe-term name arity locals value && safe-alternatives name arity locals (argument-origin value locals) arms
+    CLet sp ty id source scheme value body ->
+      let inner = case argument-origin value locals of Some owner -> Cons (id, owner) locals; None -> locals in
+      safe-term name arity locals value && safe-term name arity inner body
+    other -> safe-terms name arity locals (term-children term)
+  pure-signature :: UType -> Bool
+  pure-signature ty = case ty of
+    UFun domain result -> pure-signature result
+    UPi id name domain (URow UEnd) result -> pure-signature result
+    UPi id name domain row result -> False
+    UFunEff domain row result -> False
+    UUsageArrow usage arrow -> pure-signature arrow
+    other -> True
+  check-clauses :: String -> List CoreClause -> Store -> Store
+  check-clauses name clauses st = case clauses of
+    Nil -> st
+    Cons (MkCoreClause sp patterns body) rest ->
+      let valid = safe-term name (list-length patterns) (parameters patterns 0) body in
+      check-clauses name rest (if valid then st else add-error sp "a spec definition must terminate by structural descent and must be pure" st)
+  check-specification :: CoreDefinition -> Store -> Store
+  check-specification definition st = case definition of
+    MkCoreDefinition sp name sc openings givens private clauses ->
+      if pure-signature (scheme-body sc) then check-clauses name clauses st
+      else add-error sp "a spec definition must be pure" st

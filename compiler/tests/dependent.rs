@@ -773,6 +773,22 @@ module Main where
 "#,
         "must terminate",
     );
+    expect_err(
+        "one decreasing call does not justify another",
+        r#"
+module Main where
+  data Three where
+    Z :: Three
+    S :: Three -> Three
+  spec size :: Three -> Nat
+  size t = case t of
+    Z -> 0
+    S u -> size u + size t
+  main :: Int
+  main = 0
+"#,
+        "must terminate",
+    );
     // Mutual recursion between logical definitions is a cycle, not a
     // termination argument.
     expect_err(

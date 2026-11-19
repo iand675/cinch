@@ -993,6 +993,7 @@ module Bootstrap.Check where
     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
     DPrim s name ty bodies -> fail s "inline primitives require checked signatures and target containment"
     DProof s body -> fail s "a proof declaration requires erased checking"
+    DSpec s body -> fail s "a spec declaration requires erased checking"
     DMacroBinding s name -> fail s "unresolved macro declaration"
     DMacro s body -> fail s "a macro declaration requires compile-time expansion"
     DStage s body -> fail s "a stage declaration requires compile-time checking"

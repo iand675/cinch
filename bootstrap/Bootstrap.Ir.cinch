@@ -560,6 +560,7 @@ module Bootstrap.Ir where
     DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
     DForeign s direction conv symbol fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
     DProof s body -> Cons (diag s "a proof declaration requires typed erasure") Nil
+    DSpec s body -> Cons (diag s "a spec declaration requires typed erasure") Nil
     DMacroBinding s name -> Cons (diag s "unresolved macro declaration") Nil
     DMacro s body -> Cons (diag s "a macro declaration requires compile-time expansion") Nil
     DStage s body -> Cons (diag s "a stage declaration requires compile-time checking") Nil
