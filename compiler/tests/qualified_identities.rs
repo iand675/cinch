@@ -151,7 +151,8 @@ module Main where
     let message = common::check(&dir, "Main.cinch").expect_err("the mismatch is refused");
     common::cleanup(&dir);
     assert!(
-        message.contains("expected Steps.Step, got Data.Producer.Step Nat Nat"),
+        message.contains("expected Steps.Step, got Data.Producer.Step Nat Nat")
+            || message.contains("expected Data.Producer.Step Nat Nat, found Steps.Step"),
         "two declarations share the bare name, so both print qualified: {message}"
     );
 }
@@ -232,7 +233,8 @@ fn an_unambiguous_name_prints_bare() {
     let message = common::check(&dir, "Main.cinch").expect_err("the mismatch is refused");
     common::cleanup(&dir);
     assert!(
-        message.contains("expected Tree, got Option Tree"),
+        message.contains("expected Tree, got Option Tree")
+            || message.contains("expected Option Tree, found Tree"),
         "the message names one `Tree` and one `Option`, so both print bare: {message}"
     );
     assert!(

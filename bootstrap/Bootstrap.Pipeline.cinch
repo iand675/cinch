@@ -493,7 +493,7 @@ module Bootstrap.Pipeline where
     Parsed prog Nil -> case target-view-program profile prog of
       Err message -> write-failure ir message pipeline-check-refused
       Ok view -> (if checks-only mode then case recheck-source-overlays profile src view interfaces interfaces Nil of
-          Err message -> write-failure ir message pipeline-check-refused
+          Err message -> write-failure ir (source-overlay-error profile src view interfaces message) pipeline-check-refused
           Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
             (Nil, Cons first rest) -> (case mode of
               CheckOnly -> case serialize-artifacts Nil profile (path-stem (path-from-string name)) effective replaced of
@@ -502,6 +502,16 @@ module Bootstrap.Pipeline where
             other -> after-check-artifacts profile inlining reclaim mode name src effective replaced (checked-source profile remaining effective) ir exe report
         else after-check-artifacts profile inlining reclaim mode name src interfaces Nil (checked-source profile view interfaces) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+
+  -- A changed library module can invalidate a cached dependent while the
+  -- client also contains a source error. Include the error from checking the
+  -- original source group, where both defining nominal identities are visible.
+  source-overlay-error :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> String -> String
+  source-overlay-error profile bytes program interfaces message =
+    if string-contains "stale interface dependency:" message then case checked-source profile program interfaces of
+      Err errors -> message <> "\n" <> render-source-diagnostics bytes errors
+      Ok checked -> message
+    else message
 
   -- Check-only modes validate source overlays against the admitted interfaces.
   checks-only :: PipelineMode -> Bool

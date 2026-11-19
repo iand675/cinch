@@ -1140,28 +1140,51 @@ module Bootstrap.Type where
   mismatch-message :: UType -> UType -> String
   mismatch-message a b = let prefix = if kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow then "effect row type mismatch: expected " else "type mismatch: expected " in
     let pointer-cast = (foreign-pointer b && (integer-carrier a || wide-carrier a)) || (foreign-pointer a && (integer-carrier b || wide-carrier b)) in
-    string-concat-all [prefix, display-type-text b, ", found ", display-type-text a,
+    let types = string-concat-all [diagnostic-type-application b, ", found ", diagnostic-type-application a] in
+    string-concat-all [prefix, readable-identities types,
       if pointer-cast then " (a boundary pointer role is never constructed from an integer)" else ""]
-  -- Diagnostic text only: every encoded nominal identity `i.` reads as the
-  -- unqualified source name it encodes (Bootstrap.Nominal.decode-identity).
-  -- type-text itself, and so every interface and IR spelling, keeps the
-  -- encoded identity.
+  -- Flatten the left spine of an application. A nested argument keeps the
+  -- parentheses supplied by type-text, so the application remains unambiguous.
+  diagnostic-type-application :: UType -> String
+  diagnostic-type-application ty = case ty of
+    UApp head arg -> string-concat-all [diagnostic-type-application head, " ", type-text arg]
+    other -> type-text ty
   display-type-text :: UType -> String
   display-type-text ty = readable-identities (type-text ty)
-  readable-identities :: String -> String
-  readable-identities text = pack (readable-chars True (unpack text))
-  readable-chars :: Bool -> List Char -> List Char
-  readable-chars boundary chars = case chars of
+  -- Source globals encode the defining module and member separately. Interface
+  -- globals encode their complete identity in one run. Render both with the
+  -- same spelling, retaining qualification when a message names two owners.
+  diagnostic-identity :: List Char -> Option (String, List Char)
+  diagnostic-identity chars = case chars of
+    Cons prefix (Cons dot rest) | char-code dot == 46 -> if char-code prefix == 105 then decode-identity rest
+      else if char-code prefix == 109 then (case decode-identity rest of
+        Some (owner, Cons separator member) | char-code separator == 46 -> (case decode-identity member of
+          Some (name, after) -> Some (string-concat-all [owner, ".", name], after)
+          None -> None)
+        other -> None)
+      else None
+    other -> None
+  diagnostic-names :: Bool -> List Char -> List (String, String)
+  diagnostic-names boundary chars = case chars of
     Nil -> Nil
-    Cons c rest -> if boundary && char-code c == 105 then
-      (case rest of
-        Cons dot more -> if char-code dot == 46 then
-          (case decode-identity more of
-            Some (name, after) -> unqualified (unpack name) Nil <> readable-chars False after
-            None -> Cons c (readable-chars False rest))
-          else Cons c (readable-chars False rest)
-        Nil -> [c])
-      else Cons c (readable-chars (not (identifier-char c)) rest)
+    Cons c rest -> case (if boundary then diagnostic-identity chars else None) of
+      Some (name, after) -> Cons (pack (unqualified (unpack name) Nil), name) (diagnostic-names False after)
+      None -> diagnostic-names (not (identifier-char c)) rest
+  diagnostic-ambiguous :: String -> String -> List (String, String) -> Bool
+  diagnostic-ambiguous label owner names = case names of
+    Nil -> False
+    Cons (short, full) rest -> (same-tag label short && not (same-tag owner full)) || diagnostic-ambiguous label owner rest
+  readable-identities :: String -> String
+  readable-identities text = let chars = unpack text in case diagnostic-names True chars of
+    Nil -> text
+    names -> pack (readable-chars names True chars)
+  readable-chars :: List (String, String) -> Bool -> List Char -> List Char
+  readable-chars names boundary chars = case chars of
+    Nil -> Nil
+    Cons c rest -> case (if boundary then diagnostic-identity chars else None) of
+      Some (full, after) -> let bare = unqualified (unpack full) Nil in
+        (if diagnostic-ambiguous (pack bare) full names then unpack full else bare) <> readable-chars names False after
+      None -> Cons c (readable-chars names (not (identifier-char c)) rest)
   identifier-char :: Char -> Bool
   identifier-char c = let code = char-code c in
     (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 45 || code == 95 || code == 46
@@ -1169,8 +1192,9 @@ module Bootstrap.Type where
   unqualified :: List Char -> List Char -> List Char
   unqualified chars segment = case chars of
     Nil -> reverse segment
-    Cons c rest -> if char-code c == 46 && list-length rest > 0 && list-length segment > 0 then unqualified rest Nil
-      else unqualified rest (Cons c segment)
+    Cons c rest -> case (rest, segment) of
+      (Cons next tail, Cons prior before) | char-code c == 46 -> unqualified rest Nil
+      other -> unqualified rest (Cons c segment)
   -- The partial (->) constructor can represent an ordinary arrow only.
   -- An inferred row may be solved to empty before matching its application.
   unify-pure-arrow-application :: Span -> UType -> UType -> UType -> Store -> Store
