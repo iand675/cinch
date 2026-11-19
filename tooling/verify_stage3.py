@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import errno
 import fcntl
 import json
 import os
@@ -114,6 +115,18 @@ def stage3_artifacts():
     return compiler, manifest, objects, runtime, hashes
 
 
+def target_artifacts_match(output, record):
+    """Check the paths and contents handed to a previous cross-target test run."""
+    if not isinstance(record, dict) or record.get("directory") != str(output.resolve()):
+        return False
+    hashes = record.get("sha256")
+    required = {"objects.json", "interfaces.json", "library.abi.json", "library.o"}
+    if not isinstance(hashes, dict) or not required.issubset(hashes):
+        return False
+    return all((output / name).is_file() and bootstrap.file_hash(output / name) == digest
+               for name, digest in hashes.items())
+
+
 def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receipt=None):
     """Build only the base library for the requested target using its pinned producer."""
     from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
@@ -141,9 +154,26 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
     producer, roots = native / "cinch", native / "roots.json"
     if bootstrap.file_hash(producer) != identity["artifacts"]["cinch"] or bootstrap.file_hash(roots) != identity["roots_sha256"]:
         raise ValueError("target producer or roots differ from the selected base library")
-    key = bootstrap.digest(json.dumps([configuration["object_sha256"], identity["artifacts"]["cinch"],
-                                       identity["roots_sha256"]]).encode())
-    output = Path(directory) / "target-libraries" / key / triple
+    clang = shutil.which(os.environ.get("CINCH_CLANG", "clang"))
+    if not clang:
+        raise ValueError("missing clang for the requested target")
+    key = bootstrap.digest(json.dumps([
+        configuration["object_sha256"], identity["artifacts"]["cinch"], identity["roots_sha256"],
+        identity["producer"], bootstrap.digest(ENTRY), clang, subprocess.check_output([clang, "--version"]).decode(),
+    ], sort_keys=True).encode())
+    root = Path(directory) / "target-libraries"
+    if stage_receipt:
+        # Test runs for the same installed stage share its target builds.
+        # Standalone/read-only installations can still use the run directory.
+        shared = Path(stage_receipt).parent.parent / "target-libraries"
+        try:
+            shared.mkdir(exist_ok=True)
+            if os.access(shared, os.W_OK):
+                root = shared
+        except OSError as error:
+            if error.errno not in (errno.EACCES, errno.EPERM, errno.EROFS):
+                raise
+    output = root / key / triple
     if not reclaim:
         output = output / "no-reclaim"
     project = output / "library"
@@ -151,7 +181,8 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
     manifest, config = output / "interfaces.json", output / "objects.json"
     with (output / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if not config.exists():
+        receipt = output / "artifacts.json"
+        if not target_artifacts_match(output, bootstrap.read_json(receipt)):
             source = project / "CinchBaseObject.cinch"
             source.write_bytes(ENTRY)
             code = bootstrap.run([producer, "emit-object", source, "--target", triple,
@@ -170,6 +201,9 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
             bootstrap.write_json(config, dict(schema=1, target=triple, object=str(library),
                                               metadata=str(metadata), object_sha256=bootstrap.file_hash(library),
                                               metadata_sha256=bootstrap.file_hash(metadata)))
+            paths = [config, manifest, metadata, library, *(project / "build").glob("*.cinchif")]
+            hashes = {str(path.relative_to(output)): bootstrap.file_hash(path) for path in paths}
+            bootstrap.write_json(receipt, {"directory": str(output.resolve()), "sha256": hashes})
     print(json.dumps({"interfaces": str(manifest), "objects": str(config)}))
     return 0
 

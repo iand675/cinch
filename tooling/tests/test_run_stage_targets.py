@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_compare
 import run_stage_targets as runner
+from verify_stage3 import target_artifacts_match
 
 
 class StageTargetCounts(unittest.TestCase):
@@ -43,6 +44,23 @@ class StageTargetCounts(unittest.TestCase):
 
 
 class StageTargetInputs(unittest.TestCase):
+    def test_reused_target_checks_interface_files_and_absolute_manifest_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            paths = [output / name for name in ("objects.json", "interfaces.json", "library.abi.json",
+                                                "library.o", "library/build/Example.cinchif")]
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name)
+            record = {"directory": str(output.resolve()),
+                      "sha256": {str(path.relative_to(output)): runner.bootstrap.file_hash(path) for path in paths}}
+            self.assertTrue(target_artifacts_match(output, record))
+            self.assertFalse(target_artifacts_match(output, dict(record, directory="moved")))
+            paths[-1].write_text("a different producer interface")
+            self.assertFalse(target_artifacts_match(output, record))
+            paths[-1].unlink()
+            self.assertFalse(target_artifacts_match(output, record))
+
     def test_later_stages_use_the_recorded_inputs_even_when_the_lane_pin_changes(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(runner.bootstrap, 'runtime_provider') as prepare:
             directory = Path(temp)
