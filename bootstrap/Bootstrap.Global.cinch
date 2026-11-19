@@ -319,8 +319,8 @@ module Bootstrap.Global where
   bind-local id sc locals = case lookup-local id locals of Some prior -> None; None -> Some (Cons (id, sc) locals)
   -- A pattern cannot instantiate a hidden constructor parameter as a
   -- convenient concrete type. Ordinary family parameters are determined by
-  -- direct result slots. Existentials and computed indices need explicit
-  -- scoped openings/refinement evidence before elimination is admitted.
+  -- direct result slots or injective natural offsets. Other hidden parameters
+  -- require a scoped opening before their fields can be eliminated.
   constructor-result :: UType -> UType
   constructor-result ty = case ty of
     UFun argument result -> constructor-result result
@@ -334,7 +334,13 @@ module Bootstrap.Global where
     UApp head actual -> constructor-result-parameters head <> (case actual of
       UBound id name kind -> [id]
       UIndex carrier (IBound id name) -> [id]
+      UIndex (UCon spelling KType) term | same spelling "Nat" -> natural-offset-parameter term
       other -> Nil)
+    other -> Nil
+  natural-offset-parameter :: IndexTerm -> List Nat
+  natural-offset-parameter term = case term of
+    IAdd (IBound id name) (IInteger n) | n >= 0 -> [id]
+    IAdd (IInteger n) (IBound id name) | n >= 0 -> [id]
     other -> Nil
   constructor-visible-parameters :: List Quant -> List Nat -> Bool
   constructor-visible-parameters parameters visible = case parameters of

@@ -345,6 +345,7 @@ module Bootstrap.Nominal where
     else if same name "Scope" then (TName sp "b.Scope", Nil)
     else if same name "Task" then (TName sp "b.Task", Nil)
     else if same name "Fin" then (TName sp "b.Fin", Nil)
+    else if same name "Vec" then (TName sp "b.Vec", Nil)
     else if has name locals || kernel-type-name name then (TName sp name, Nil)
     else if contains-identity name refs then (TName sp (interface-global name), Nil)
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)

@@ -1989,7 +1989,21 @@ module Bootstrap.Type where
     UIndex actual term -> UIndex actual (normalize-index actual term)
     other -> normalize st other
 
-  -- Index conversion solves only sorted first-order structural equations.
+  -- When a closed natural fixes a sum with one unknown addend, bind the
+  -- index meta to its unique natural solution. Rigid variables and symbolic
+  -- arithmetic still compare structurally.
+  solve-natural-sum :: Span -> UType -> IndexTerm -> IndexTerm -> Int -> Store -> Store
+  solve-natural-sum sp carrier first second total st =
+    let addend = case (first, second) of
+          (IMeta id, IInteger known) -> Some (id, known)
+          (IInteger known, IMeta id) -> Some (id, known)
+          other -> None in
+    case addend of
+      Some (id, known) | natural-carrier carrier && known >= 0 && total >= known ->
+        bind-meta sp id (value-kind carrier) (UIndex carrier (IInteger (total - known))) st
+      other -> add-error sp (mismatch-message (UIndex carrier (IAdd first second)) (UIndex carrier (IInteger total)) <> " (index mismatch)") st
+
+  -- Index conversion solves sorted first-order equations.
   -- Opaque applications/lambdas compare by alpha identity; their argument
   -- carriers and purity must be checked by the dependent elaborator.
   unify-index :: Span -> UType -> IndexTerm -> IndexTerm -> Store -> Store
@@ -1999,6 +2013,8 @@ module Bootstrap.Type where
     if index-equal a b then st else case (a, b) of
       (IMeta id, right) -> bind-meta sp id (value-kind carrier) (UIndex carrier b) st
       (left, IMeta id) -> bind-meta sp id (value-kind carrier) (UIndex carrier a) st
+      (IAdd x y, IInteger total) -> solve-natural-sum sp carrier x y total st
+      (IInteger total, IAdd x y) -> solve-natural-sum sp carrier x y total st
       (IAdd x y, IAdd u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
       (ISubtract x y, ISubtract u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
       (IMultiply x y, IMultiply u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)

@@ -16,6 +16,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some, global-data-string-length)
   import Bootstrap.Instance
   import Bootstrap.Type
+  import Bootstrap.Global (constructor-pattern-supported)
   import Bootstrap.Report
   import Algebra.Semigroup
   import Text.Builder
@@ -726,6 +727,12 @@ module Bootstrap.RuntimeIr where
       else (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest actual; None -> False)
     (Cons q rest, Nil) -> (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest Nil; None -> False)
     other -> False
+  without-natural-indices :: List Quant -> List Quant
+  without-natural-indices parameters = case parameters of
+    Nil -> Nil
+    Cons q rest -> let tail = without-natural-indices rest in
+      if kind-equal (quant-kind q) (value-kind (UCon "Nat" KType)) then tail else Cons q tail
+
   data-result :: CoreData -> UType
   data-result d = data-result-args (UCon (core-data-name d) (core-data-kind d)) (core-data-params d)
   data-result-args :: UType -> List Quant -> UType
@@ -762,7 +769,9 @@ module Bootstrap.RuntimeIr where
   -- Their packed identity reserves sixteen bits for the physical word count.
   constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
   constructor-supported context d c = let sc = core-constructor-scheme c in
-    regular-parameters (core-data-params d) (scheme-params sc)
+    (regular-parameters (core-data-params d) (scheme-params sc) ||
+      (constructor-pattern-supported sc && regular-parameters (core-data-params d)
+        (without-natural-indices (scheme-params sc))))
     && (case scheme-requirements sc of Nil -> True; other -> False)
     && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) < 65536
   storage-fields :: CoreData -> CoreConstructor -> List UType

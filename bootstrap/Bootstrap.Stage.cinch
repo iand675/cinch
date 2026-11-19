@@ -686,6 +686,7 @@ module Bootstrap.Stage where
   walk-children :: forall s. (Expr -> s -> Result (List Diagnostic) (Expr, s)) -> Expr -> s -> Result (List Diagnostic) (Expr, s)
   walk-children visit e state = case e of
     ESplice s operand -> walk-one visit (ESplice s) operand state
+    EFamilyCon s fallback candidate args -> walk-one visit (EFamilyCon s fallback candidate) args state
     ECon s name args -> walk-one visit (ECon s name) args state
     ERecord s name fields -> walk-one visit (ERecord s name) fields state
     EProject s value name -> walk-one visit (\x -> EProject s x name) value state

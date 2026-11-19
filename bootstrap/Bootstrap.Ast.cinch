@@ -220,6 +220,7 @@ module Bootstrap.Ast where
     PWild :: Span -> Pat
     PVar :: Span -> String -> Pat
     PCon :: Span -> String -> Pat -> Pat
+    PFamilyCon :: Span -> String -> String -> Pat -> Pat
     PRecord :: Span -> String -> Pat -> Pat
     PRecordField :: Span -> String -> Pat -> Pat -> Pat
     PLitInt :: Span -> String -> Pat
@@ -250,6 +251,7 @@ module Bootstrap.Ast where
     PWild s -> s
     PVar s n -> s
     PCon s n args -> s
+    PFamilyCon s fallback candidate args -> s
     PRecord s n fields -> s
     PRecordField s name value rest -> s
     PLitInt s text -> s
@@ -288,6 +290,7 @@ module Bootstrap.Ast where
   data Expr where
     EVar :: Span -> String -> Expr
     ECon :: Span -> String -> Expr -> Expr
+    EFamilyCon :: Span -> String -> String -> Expr -> Expr
     ERecord :: Span -> String -> Expr -> Expr
     ERecordField :: Span -> String -> Expr -> Expr -> Expr
     EProject :: Span -> Expr -> String -> Expr
@@ -395,6 +398,7 @@ module Bootstrap.Ast where
   expr-span e = case e of
     EVar s n -> s
     ECon s n args -> s
+    EFamilyCon s fallback candidate args -> s
     ERecord s n fields -> s
     ERecordField s name value rest -> s
     EProject s value name -> s
@@ -803,6 +807,7 @@ module Bootstrap.Ast where
     PWild s -> 0
     PVar s n -> 0
     PCon s n args -> pats-unmodeled (pats-of args)
+    PFamilyCon s fallback candidate args -> pats-unmodeled (pats-of args)
     PRecord s name fields -> pat-unmodeled-count fields
     PRecordField s name value rest -> pat-unmodeled-count value + pat-unmodeled-count rest
     PLitInt s text -> 0
@@ -826,6 +831,7 @@ module Bootstrap.Ast where
   expr-unmodeled-count e = case e of
     EVar s n -> 0
     ECon s n args -> exprs-unmodeled (exprs-of args)
+    EFamilyCon s fallback candidate args -> exprs-unmodeled (exprs-of args)
     ERecord s name fields -> expr-unmodeled-count fields
     ERecordField s name value rest -> expr-unmodeled-count value + expr-unmodeled-count rest
     EProject s value name -> expr-unmodeled-count value
@@ -1053,6 +1059,7 @@ module Bootstrap.Ast where
   source-identity-pat value = case value of
     PWild part0 -> JArr (JStr "PWild") (JArrEnd)
     PVar part0 part1 -> JArr (JStr "PVar") (JArr (JStr part1) (JArrEnd))
+    PFamilyCon sp fallback candidate args -> JArr (JStr "PFamilyCon") (JArr (JStr fallback) (JArr (JStr candidate) (JArr (source-identity-pat args) JArrEnd)))
     PCon part0 part1 part2 -> JArr (JStr "PCon") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
     PRecord part0 part1 part2 -> JArr (JStr "PRecord") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
     PRecordField part0 part1 part2 part3 -> JArr (JStr "PRecordField") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArr (source-identity-pat part3) (JArrEnd))))
@@ -1071,6 +1078,7 @@ module Bootstrap.Ast where
   source-identity-expr :: Expr -> Json
   source-identity-expr value = case value of
     EVar part0 part1 -> JArr (JStr "EVar") (JArr (JStr part1) (JArrEnd))
+    EFamilyCon sp fallback candidate args -> JArr (JStr "EFamilyCon") (JArr (JStr fallback) (JArr (JStr candidate) (JArr (source-identity-expr args) JArrEnd)))
     ECon part0 part1 part2 -> JArr (JStr "ECon") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     ERecord part0 part1 part2 -> JArr (JStr "ERecord") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     ERecordField part0 part1 part2 part3 -> JArr (JStr "ERecordField") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
@@ -1201,6 +1209,7 @@ module Bootstrap.Ast where
   default-global-tag :: String -> Bool
   default-global-tag tag =
     default-tag tag "EVar" || default-tag tag "ECon" || default-tag tag "PCon"
+    || default-tag tag "EFamilyCon" || default-tag tag "PFamilyCon"
     || default-tag tag "ERecord" || default-tag tag "PRecord" || default-tag tag "TName"
 
   -- The interface body is syntax, never checked Core. Decode only the
@@ -1222,6 +1231,13 @@ module Bootstrap.Ast where
   default-reference :: (String -> Option String) -> List String -> String -> Option String
   default-reference globals bound name = if default-bound name bound then Some name else globals name
 
+  -- The portable syntax may retain only the kernel alternatives associated
+  -- with these two public Data.Core constructors.
+  default-vector-pair :: String -> String -> Bool
+  default-vector-pair source candidate =
+    (default-tag source "Data.Core.Nil" && default-tag candidate "b.Vec.Nil") ||
+    (default-tag source "Data.Core.Cons" && default-tag candidate "b.Vec.Cons")
+
   default-pattern :: Span -> (String -> Option String) -> Json -> Option (Pat, List String)
   default-pattern sp globals syntax = case syntax of
     JArr (JStr tag) JArrEnd ->
@@ -1238,6 +1254,10 @@ module Bootstrap.Ast where
       Some (pattern, bound) -> if default-tag tag "PTuple" then Some (PTuple sp pattern, bound)
         else if default-tag tag "PList" then Some (PList sp pattern, bound) else None
       None -> None
+    JArr (JStr tag) (JArr (JStr name) (JArr (JStr candidate) (JArr fields JArrEnd))) | default-tag tag "PFamilyCon" && default-vector-pair name candidate ->
+      (case (globals name, default-pattern sp globals fields) of
+        (Some identity, Some (args, bound)) -> Some (PFamilyCon sp identity candidate args, bound)
+        other -> None)
     JArr (JStr tag) (JArr (JStr name) (JArr body JArrEnd)) -> case default-pattern sp globals body of
       Some (pattern, bound) ->
         if default-tag tag "PAs" && default-local name then Some (PAs sp name pattern, Cons name bound)
@@ -1301,6 +1321,10 @@ module Bootstrap.Ast where
         else if default-tag tag "EList" then Some (EList sp body)
         else if default-tag tag "ENeg" then Some (ENeg sp body) else None
       None -> None
+    JArr (JStr tag) (JArr (JStr name) (JArr (JStr candidate) (JArr fields JArrEnd))) | default-tag tag "EFamilyCon" && default-vector-pair name candidate ->
+      (case (globals name, default-expression sp globals bound fields) of
+        (Some identity, Some args) -> Some (EFamilyCon sp identity candidate args)
+        other -> None)
     JArr (JStr tag) (JArr (JStr name) (JArr arguments JArrEnd)) -> if not (default-tag tag "ECon") then None else
       (case (globals name, default-expression sp globals bound arguments) of
         (Some identity, Some args) -> Some (ECon sp identity args)

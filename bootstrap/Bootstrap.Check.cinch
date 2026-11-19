@@ -436,6 +436,7 @@ module Bootstrap.Check where
     EVar s n -> case env-lookup n env of
       None -> (TyHole, fail s (string-concat "unbound variable: " n))
       Some t -> (t, Nil)
+    EFamilyCon s fallback candidate args -> infer-con env s fallback args
     ECon s n args -> infer-con env s n args
     ERecord s name fields -> (TyHole, fail s "record construction requires typed record elaboration")
     ERecordField s name value rest -> (TyHole, fail s "record field spine is not an expression")
@@ -727,6 +728,7 @@ module Bootstrap.Check where
     PLitStr s text -> (env, ty-compare s TyStr expected)
     PLitSym s text -> (env, ty-compare s (TyCon "Sym" (TyArgsEnd s)) expected)
     PLitChar s text -> (env, ty-compare s TyChr expected)
+    PFamilyCon s fallback candidate args -> check-con-pat env s fallback args expected
     PCon s n args -> check-con-pat env s n args expected
     PRecord s name fields -> (env, fail s "record pattern requires typed record elaboration")
     PRecordField s name value rest -> (env, fail s "record field spine is not a pattern")

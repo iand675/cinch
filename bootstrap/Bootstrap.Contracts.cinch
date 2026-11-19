@@ -260,6 +260,7 @@ module Bootstrap.Contracts where
 
   pat-references :: Pat -> List String
   pat-references p = case p of
+    PFamilyCon sp fallback candidate args -> Cons fallback (pat-references args)
     PCon s name args -> Cons name (pat-references args)
     PRecord s name fields -> Cons name (pat-references fields)
     PRecordField s name value rest -> pat-references value <> pat-references rest
@@ -280,6 +281,7 @@ module Bootstrap.Contracts where
     -- Elaborating that test needs the checked list constructors in scope.
     ECon s name args | same name "NotNull" ->
       [global-data-core-nil, global-data-core-cons] <> expr-references args
+    EFamilyCon sp fallback candidate args -> Cons fallback (expr-references args)
     ECon s name args -> Cons name (expr-references args)
     ERecord s name fields -> Cons name (expr-references fields)
     ERecordField s name value rest -> expr-references value <> expr-references rest

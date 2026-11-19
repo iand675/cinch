@@ -6,7 +6,7 @@ module Bootstrap.Resolve where
 
   import Bootstrap.Ast
   import Bootstrap.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
-  import Bootstrap.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration)
+  import Bootstrap.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
@@ -747,6 +747,14 @@ module Bootstrap.Resolve where
             (name, fail sp (scope-diagnostic visible (cat ["unknown constructor ", name, ": not exported into this scope"])))
           else (name, fail sp (scope-diagnostic visible (cat ["name is not in scope: ", name])))
 
+  -- Qualified and explicitly resolved constructors have one identity. Only a
+  -- bare prelude list constructor also denotes an indexed Vec constructor.
+  vector-alternative :: String -> String -> Option String
+  vector-alternative written resolved =
+    if same written "Nil" && (same resolved global-data-core-nil || same resolved "m.Data.Core.Nil") then Some "b.Vec.Nil"
+    else if same written "Cons" && (same resolved global-data-core-cons || same resolved "m.Data.Core.Cons") then Some "b.Vec.Cons"
+    else None
+
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
     PArgsEnd at -> PCon sp (global-data-core-nil) (PArgsEnd sp)
@@ -762,7 +770,9 @@ module Bootstrap.Resolve where
         (more, others) -> (PRecordField s name renamed more, errors <> others)
     PCon s name args -> case resolve-use s True visible Nil name of
       (symbol, errors) -> case rename-pat visible args of
-        (renamed, more) -> (PCon s symbol renamed, errors <> more)
+        (renamed, more) -> (case vector-alternative name symbol of
+          Some candidate -> (PFamilyCon s symbol candidate renamed, errors <> more)
+          None -> (PCon s symbol renamed, errors <> more))
     PTuple s args -> case rename-pat visible args of
       (renamed, errors) -> (PTuple s renamed, errors)
     PList s args -> case rename-pat visible args of
@@ -944,7 +954,9 @@ module Bootstrap.Resolve where
       (symbol, errors) -> (EVar s symbol, errors)
     ECon s name args -> case resolve-use s True visible Nil name of
       (symbol, errors) -> case rename-expr visible locals args of
-        (renamed, more) -> (ECon s symbol renamed, errors <> more)
+        (renamed, more) -> (case vector-alternative name symbol of
+          Some candidate -> (EFamilyCon s symbol candidate renamed, errors <> more)
+          None -> (ECon s symbol renamed, errors <> more))
     ELitInt s digits -> (e, Nil)
     ELitFloat s digits -> (e, Nil)
     ELitStr s text -> (e, Nil)
@@ -1477,7 +1489,8 @@ module Bootstrap.Resolve where
           -- names `Parallelism` or one of its methods keeps it, exactly as
           -- a source mention of a prelude family would.
           let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
-          case materialize-externals all-reference-set admitted Nil of
+          let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
+          case materialize-externals all-reference-set families Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)

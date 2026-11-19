@@ -162,6 +162,7 @@ module Bootstrap.Ir where
   gen-expr g e = case e of
     EVar s name -> gen-use g name
     ELitInt s text -> (g, text)
+    EFamilyCon s fallback candidate args -> gen-con g fallback args
     ECon s name args -> gen-con g name args
     EApp s f a -> gen-app g e
     EBin s op l r -> gen-bin-expr g op l r
@@ -675,6 +676,7 @@ module Bootstrap.Ir where
   expr-refusals fns e = case e of
     EVar s name -> Nil
     ELitInt s text -> Nil
+    EFamilyCon s fallback candidate args -> expr-refusals fns (ECon s fallback args)
     ECon s name args -> append-diags (con-refusal s name) (case exprs-of args of
       Nil -> Nil
       Cons arg rest -> Cons (diag s "the fragment's Boolean constructors take no arguments") Nil)
@@ -733,6 +735,7 @@ module Bootstrap.Ir where
   expr-node-name :: Expr -> String
   expr-node-name e = case e of
     EVar s n -> "variable"
+    EFamilyCon s fallback candidate args -> "constructor application"
     ECon s n args -> "constructor application"
     ERecord s name fields -> "record construction"
     ERecordField s name value rest -> "record field spine"

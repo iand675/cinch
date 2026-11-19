@@ -160,6 +160,47 @@ module Main where
 // ------------------------------------------------------------ indexed families
 
 #[test]
+fn natural_successor_indices_refine_user_defined_constructors() {
+    let source = r#"
+module Main where
+  data Chain (n :: Nat) where
+    Empty :: Chain 0
+    Step :: forall (k :: Nat). Chain k -> Chain (k + 1)
+
+  empty :: Chain 0 -> Int
+  empty chain = case chain of Empty -> 42
+
+  one :: Chain 1 -> Int
+  one chain = case chain of Step tail -> empty tail
+
+  main :: Int
+  main = one (Step Empty)
+"#;
+    expect_ok("indexed-successor", source, 42);
+    expect_err("impossible-successor", &source.replace(
+        "case chain of Empty -> 42",
+        "case chain of { Empty -> 42; Step tail -> 1 }",
+    ), "impossible arm");
+}
+
+#[test]
+fn qualified_list_constructors_keep_their_family() {
+    let source = r#"
+module Main where
+  import Data.Core as Core
+  only :: Vec 0 Int -> Int
+  only xs = case xs of Nil -> 42
+  main :: Int
+  main = case (Core.Nil :: List Int) of
+    Core.Nil -> only Nil
+    Core.Cons x xs -> 1
+"#;
+    expect_ok("qualified-list", source, 42);
+    expect_err_any("qualified-list-as-vector", &source.replace("only Nil", "only Core.Nil"), &["Vec", "List"]);
+    expect_err_any("qualified-list-pattern", &source.replace("case xs of Nil", "case xs of Core.Nil"), &["Vec", "List"]);
+}
+
+#[test]
 fn index_refuted_constructor_needs_no_branch() {
     // `Vec 0` has no `Cons`: matching `Nil` alone is exhaustive because
     // the indices refute the other constructor (core specification

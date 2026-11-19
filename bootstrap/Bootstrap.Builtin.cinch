@@ -3,7 +3,7 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
+  import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Parse (parse-program, parse-scheme)
   import Data.Json
@@ -11,7 +11,7 @@ module Bootstrap.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
@@ -277,7 +277,7 @@ module Bootstrap.Builtin where
     , ("ignore", "b.ignore"), ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
     , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
-    , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Proof.search", "b.Proof.search")
+    , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Vec", "b.Vec"), ("Proof.search", "b.Proof.search")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl
@@ -410,6 +410,20 @@ module Bootstrap.Builtin where
     DData sp "b.Fin" [MkTypeParam sp "n" (Some nat) False]
       [("b.Fin", TFun sp (TBound sp "i" nat (TBoundsEnd sp))
         (TFun sp (TBound sp "bound" bound (TBoundsEnd sp)) result))]
+
+  vector-declaration :: Decl
+  vector-declaration =
+    let sp = Span 0 0 1 1 in
+    let element = TName sp "a" in
+    let nat = TName sp "Nat" in
+    let vector = \index -> TApp sp (TName sp "b.Vec") (type-arg-spine sp [index, element]) in
+    let k = TName sp "k" in
+    let tail = vector k in
+    let result = vector (TInfix sp "+" k (TIndex sp "1")) in
+    DData sp "b.Vec" [MkTypeParam sp "n" (Some nat) False, MkTypeParam sp "a" None False]
+      [("b.Vec.Nil", vector (TIndex sp "0")),
+       ("b.Vec.Cons", TForall sp (forall-param-spine sp [MkTypeParam sp "k" (Some nat) False])
+         (TFun sp element (TFun sp tail result)))]
 
   builtin-declarations :: List Decl
   builtin-declarations =
