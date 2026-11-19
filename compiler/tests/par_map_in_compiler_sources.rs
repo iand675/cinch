@@ -11,8 +11,9 @@
 //! The source set is read from disk at run time, the way
 //! `bootstrap_ladder.rs` reads the ladder, so this cannot hold a stale copy of
 //! a module another stream is editing. The probe is a `parMap` over a
-//! compiler-shaped value: `Bootstrap.Export`'s `List (String, Json)` row list,
-//! which is the exact type the survey named.
+//! compiler-owned value: `Bootstrap.Manifest.ManifestSurvey`, whose fields
+//! are all structurally shareable. The parallel suite covers rejection of
+//! elements containing a buffer-backed `String`.
 
 mod common;
 
@@ -74,11 +75,11 @@ fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
     out
 }
 
-/// The probe: a `parMap` over `List (String, Json)` in a module of the
+/// The probe maps the manifest survey records in their defining module of the
 /// compiler, with `Data.Array` imported so the lowering's two conversions
 /// resolve by their bare names, as `Bootstrap.Infer` calls them.
 const PROBE: &str = r#"
-  probe :: List (String, Json) -> List (String, Json)
+  probe :: List ManifestSurvey -> List ManifestSurvey
   probe rows = parMap (\row -> row) rows
 "#;
 
