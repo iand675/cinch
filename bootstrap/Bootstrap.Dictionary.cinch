@@ -96,7 +96,11 @@ module Bootstrap.Dictionary where
         other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
       else if capability-type (normalize st wanted) then fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary (normalize st wanted), " capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"]) st
       else (case normalize st wanted of
-        UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> checked-copy-marker sp carrier st
+        UApp (UCon name (KFun KType KType)) carrier | same name "Copy" ->
+          (case carrier of
+            UMeta id KType -> let defaulted = default-numbers-for carrier st in
+              checked-copy-marker sp (normalize defaulted carrier) defaulted
+            other -> checked-copy-marker sp carrier st)
         other -> choose-instance context allowed sp wanted st)
     Cons candidate rest -> case find-given (given-symbol candidate) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st

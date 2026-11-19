@@ -599,6 +599,25 @@ module Main where
 }
 
 #[test]
+fn nested_borrowed_patterns_preserve_the_field_region_and_require_copy() {
+    let source = r#"
+module Main where
+  data Box a where
+    Box :: a -> Box a
+
+  field :: forall a region. Ref region (Box (Box a)) -> Ref region a
+  field pair = case pair of
+    Box (Box value) -> value
+
+  main :: Int
+  main = copyOut (field (borrow (Box (Box 42))))
+"#;
+    expect_ok("nested-shared-field", source, 42);
+    let owned = source.replace("-> Ref region a\n", "-> a\n");
+    expect_err("borrowed-field-is-not-an-owned-value", &owned, &["mismatch", "Ref"]);
+}
+
+#[test]
 fn exclusive_borrows_are_lexically_unique() {
     expect_err(
         "two-mut-borrows",

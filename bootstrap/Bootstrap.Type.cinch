@@ -22,6 +22,7 @@ module Bootstrap.Type where
   export copy-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, ascii-carrier, ordered-carrier
+  export shared-pattern-carrier, pattern-constructor-type
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
   export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
@@ -1926,6 +1927,24 @@ module Bootstrap.Type where
         && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType
       then Some (same-tag name "Mut", region, carrier) else None
     other -> None
+  -- Matching a shared borrow observes the original tag. Every stored field
+  -- is a borrow in the scrutinee's region. Erased evidence stays a proof.
+  shared-pattern-carrier :: UType -> UType
+  shared-pattern-carrier subject = case borrow-type-parts subject of
+    Some (False, region, carrier) -> carrier
+    other -> subject
+  pattern-constructor-type :: UType -> UType -> UType
+  pattern-constructor-type subject constructor = case borrow-type-parts subject of
+    Some (False, region, carrier) -> borrowed-constructor-fields (UApp (UCon "Ref" borrow-constructor-kind) region) constructor
+    other -> constructor
+  borrowed-constructor-fields :: UType -> UType -> UType
+  borrowed-constructor-fields ref constructor = case constructor of
+    UFun field result -> UFun (UApp ref field) (borrowed-constructor-fields ref result)
+    UProofFun predicate row result -> UProofFun predicate row (borrowed-constructor-fields ref result)
+    UPi id name domain row result -> if pi-dependent constructor then UError
+      else UPi id name (UApp ref domain) row (borrowed-constructor-fields ref result)
+    other -> UApp ref constructor
+
   borrow-regions :: UType -> List (Bool, UType)
   borrow-regions ty = case borrow-type-parts ty of
     Some (mutable, region, carrier) -> Cons (mutable, region) (borrow-regions carrier)
