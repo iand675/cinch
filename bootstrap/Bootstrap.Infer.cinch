@@ -9160,6 +9160,30 @@ module Bootstrap.Infer where
     Some (Cons p Nil) -> disproved p
     other -> False
 
+  -- A strict argument has a fresh identity during proof checking. Recover
+  -- its source spelling for diagnostics without adding it to the index language.
+  diagnostic-intrinsic :: String -> List CheckedBinding -> Option String
+  diagnostic-intrinsic symbol env = case env of
+    Nil -> None
+    Cons (MkIntrinsicBinding name sc actual) rest | same symbol actual ->
+      (case export-global name of Ok identity -> Some identity; Err message -> None)
+    Cons other rest -> diagnostic-intrinsic symbol rest
+
+  diagnostic-argument :: Nat -> List CheckedBinding -> CoreTerm -> Option String
+  diagnostic-argument depth env term = if depth == 0 then None else case term of
+    CInt at ty text -> Some text
+    CLocal at ty id name actuals -> Some name
+    CUse at ty name role actuals -> if same role "intrinsic" then diagnostic-intrinsic name env
+      else (case export-global name of Ok identity -> Some identity; Err message -> None)
+    CApply at ty f x -> (case (diagnostic-argument (depth - 1) env f, diagnostic-argument (depth - 1) env x) of
+      (Some function, Some argument) -> Some ("(" <> function <> " " <> argument <> ")")
+      other -> None)
+    CApplyEff at ty row f x -> diagnostic-argument depth env (CApply at ty f x)
+    CDischarge at ty evidence x -> diagnostic-argument (depth - 1) env x
+    CRefine at ty evidence x -> diagnostic-argument (depth - 1) env x
+    CForget at ty x -> diagnostic-argument (depth - 1) env x
+    other -> None
+
   apply-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-dependent classes sp env fun value st = case reify-argument sp env value st of
     (index, checked) -> case store-errors checked of
@@ -9205,7 +9229,8 @@ module Bootstrap.Infer where
         let functions = Cons (MkLocalBinding function-name function-scheme function-id level) env in
         let binding = MkLocalBinding value-name value-scheme value-id level in
         let bound = proof-let-env functions binding value-id value-scheme value sv in
-        let local = CLocal sp (core-type value) value-id value-name Nil in
+        let display = (case diagnostic-argument 8 env value of Some text -> text; None -> value-name) in
+        let local = CLocal sp (core-type value) value-id display Nil in
         let actual = case projection of None -> local; Some carrier -> CForget sp carrier local in
         let callee = CLocal sp (core-type fun) function-id function-name Nil in
         case reify-argument sp bound actual sv of
