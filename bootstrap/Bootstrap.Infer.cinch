@@ -1562,13 +1562,22 @@ module Bootstrap.Infer where
     TForall sp binders body -> unshadowed-region-names (nominal-region-names kinds params body) (parameter-names-for-check (forall-params-of binders))
     other -> Nil
 
-  -- | Infer datatype parameters from all defining constructor signatures.
-  -- As in a forall, explicit annotations and nested binders keep their scope.
-  inferred-data-parameters :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List TypeParam
-  inferred-data-parameters kinds params constructors = case params of
+  -- | Infer a family's parameters across all of its defining signatures.
+  -- Explicit annotations and nested forall binders retain their lexical scope.
+  inferred-owner-parameters :: TypeContext -> List TypeParam -> List TypeExpr -> List TypeParam
+  inferred-owner-parameters kinds params signatures = case params of
     Nil -> Nil
-    other -> let signatures = type-arg-spine zero (map (\entry -> case entry of (name, annotation) -> annotation) constructors) in
-      inferred-forall-parameters kinds Nil (region-parameters params (region-names signatures)) signatures
+    other -> let body = type-arg-spine zero signatures in
+      inferred-forall-parameters kinds Nil (region-parameters params (region-names body)) body
+  inferred-data-parameters :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List TypeParam
+  inferred-data-parameters kinds params constructors =
+    inferred-owner-parameters kinds params (map (\entry -> case entry of (name, annotation) -> annotation) constructors)
+  class-signature-types :: List Decl -> List TypeExpr
+  class-signature-types declarations = case declarations of
+    Nil -> Nil
+    Cons (DMethod sp label symbol annotation) rest -> Cons annotation (class-signature-types rest)
+    Cons (DSig sp name annotation) rest -> Cons annotation (class-signature-types rest)
+    Cons other rest -> class-signature-types rest
 
   -- | Group only source-owned declaration signatures by their canonical defining module.
   -- Imported interface schemes never rewrite a source datatype's parameter kinds.
@@ -1931,7 +1940,7 @@ module Bootstrap.Infer where
       DSource s name metadata -> (case field "record_scope" metadata of
         JArr first more -> collect-kinds rest (context-add-alias d kinds) st
         other -> collect-kinds rest kinds st)
-      DClass s name ps members -> case parameters False kinds Nil ps 0 Nil st of
+      DClass s name ps members -> case parameters False kinds Nil (inferred-owner-parameters kinds ps (class-signature-types (decls-of members))) 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DExternal s name category scheme metadata ->
         if same category "signature" then
@@ -2636,8 +2645,10 @@ module Bootstrap.Infer where
   collect-source-classes :: List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-source-classes ds classes kinds st = case ds of
     Nil -> (kinds, st)
-    Cons (DClass sp name ps members) rest -> case parameters False kinds Nil ps 0 Nil st of
-      (qs, prepared) -> case source-class-methods name ps classes kinds 0 (decls-of members) prepared of
+    Cons (DClass sp name ps members) rest -> let declarations = decls-of members in
+      let inferred = inferred-owner-parameters kinds ps (class-signature-types declarations) in
+      case parameters False kinds Nil inferred 0 Nil st of
+       (qs, prepared) -> case source-class-methods name inferred classes kinds 0 declarations prepared of
         (methods, checked) -> let description = MkCoreClass sp name (kind-arrow qs) qs methods in
           if class-closed description then collect-source-classes rest classes (context-with-source-class description kinds) checked
           else collect-source-classes rest classes kinds (add-error sp "source signature has duplicate methods or an invalid defining scheme" checked)
