@@ -698,6 +698,7 @@ module Bootstrap.Stage where
     ELam s ps body -> walk-one visit (ELam s ps) body state
     ELetScope s body -> walk-one visit (ELetScope s) body state
     ELocalSignature s name ty rest -> walk-one visit (ELocalSignature s name ty) rest state
+    ENarrow s x ty w -> walk-two visit (\v evidence -> ENarrow s v ty evidence) x w state
     EForget s atoms x -> walk-one visit (\y -> EForget s atoms y) x state
     EAnn s x ty -> walk-one visit (\y -> EAnn s y ty) x state
     EForall s vs body -> walk-one visit (EForall s vs) body state

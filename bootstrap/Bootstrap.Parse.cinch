@@ -2608,6 +2608,7 @@ module Bootstrap.Parse where
         None -> POk (ELitChar (sp-of t) empty-string) rest
       TVar s ->
         if string-compare s "handler" == 0 then parse-handler (sp-of t) rest src fix
+        else if string-compare s "narrow" == 0 then parse-narrow (sp-of t) rest src fix
         else if string-compare s "forget" == 0 then parse-forget (sp-of t) rest src fix Nil
         else POk (EVar (sp-of t) s) rest
       TCon s -> name-atom (sp-of t) rest (Cons s Nil)
@@ -2632,6 +2633,18 @@ module Bootstrap.Parse where
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  parse-narrow :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-narrow site toks src fix = case parse-expr toks src fix of
+    POk value rest -> (case expect-word-t rest "to" of
+      POk at syntax -> (case parse-type syntax src of
+        POk ty (Cons word more) | is-word-t (lt-token word) "with" -> (case parse-expr more src fix of
+          POk witness tail -> POk (ENarrow (span-join site (expr-span witness)) value ty witness) tail
+          PBad -> PBad)
+        POk ty more -> POk (ENarrow (span-join site (type-expr-span ty)) value ty (EArgsEnd site)) more
+        PBad -> PBad)
+      PBad -> PBad)
+    PBad -> PBad
 
   -- Find the contextual delimiter outside nested predicate applications.
   parse-forget :: Span -> List LToken -> Bytes -> List (String, Fix) -> List LToken -> Ps Expr

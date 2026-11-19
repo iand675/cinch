@@ -170,6 +170,7 @@ module Bootstrap.Ir where
     EIf s c t f -> gen-if g c t f
     ELet s bs body -> gen-let g bs body
     ELetScope sp body -> gen-expr g body
+    ENarrow s x ty witness -> gen-expr g x
     EForget s atoms x -> gen-expr g x
     EAnn s x t -> gen-expr g x
     EUnit s -> (g, "0")
@@ -500,6 +501,7 @@ module Bootstrap.Ir where
     EBin s op a b -> append-diags (value-refusals fns locals a) (value-refusals fns locals b)
     ENeg s x -> value-refusals fns locals x
     EIf s c a b -> append-diags (value-refusals fns locals c) (append-diags (value-refusals fns locals a) (value-refusals fns locals b))
+    ENarrow s x ty witness -> value-refusals fns locals x
     EForget s atoms x -> value-refusals fns locals x
     EAnn s x ty -> value-refusals fns locals x
     ELet s bs body -> case binding-value-refusals fns locals bs of
@@ -689,6 +691,7 @@ module Bootstrap.Ir where
     EIf s c t f -> append-diags (expr-refusals fns c) (append-diags (expr-refusals fns t) (expr-refusals fns f))
     ELet s bs body -> append-diags (bindings-refusals fns (bindings-of bs)) (expr-refusals fns body)
     ELetScope sp body -> expr-refusals fns body
+    ENarrow s x ty witness -> expr-refusals fns x
     EForget s atoms x -> expr-refusals fns x
     EAnn s x t -> expr-refusals fns x
     EUnit s -> Nil
@@ -769,6 +772,7 @@ module Bootstrap.Ir where
     EIf s c t f -> "if"
     ECase s scrut alts -> "case"
     EGuarded s guard body -> "guarded alternative"
+    ENarrow s x ty witness -> "checked refinement strengthening"
     EForget s atoms x -> "refinement weakening"
     EAnn s x t -> "ascription"
     EForall s vs body -> "forall expression"

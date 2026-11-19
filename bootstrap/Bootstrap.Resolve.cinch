@@ -1035,6 +1035,9 @@ module Bootstrap.Resolve where
     EGuarded s guard body -> case rename-branch-value visible locals guard of
       (condition, errors) -> case rename-expr visible locals body of
         (rhs, more) -> (EGuarded s condition rhs, errors <> more)
+    ENarrow s x ty w -> case rename-expr visible locals x of
+      (value, errors) -> case rename-expr visible locals w of
+        (witness, more) -> (ENarrow s value (rename-type visible locals ty) witness, errors <> more)
     EForget s atoms x -> case rename-expr visible locals x of
       (value, errors) -> (EForget s (type-arg-spine s (map (rename-predicate visible locals) (type-args-of atoms))) value, errors)
     EAnn s x ty -> case rename-expr visible (annotation-type-locals ty <> locals) x of

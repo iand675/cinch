@@ -405,6 +405,7 @@ module Bootstrap.Infer where
     EHandler s label clauses -> True
     EIf s c a b -> expression-needs c || expression-needs a || expression-needs b
     ECase s value alts -> expression-needs value || expression-needs alts
+    ENarrow s value ty witness -> True
     EForget s atoms body -> True
     EAnn s body ty -> needs-type ty || expression-needs body
     EBin s op a b -> expression-needs a || expression-needs b
@@ -1216,6 +1217,11 @@ module Bootstrap.Infer where
   reify-ordinary-argument sp env term st = case term of
     CPrimitive at ty op (CArgument arg value (CArgumentsEnd end)) | same op "#kernel.length" ->
       (case value of
+        -- The Core proof scope canonicalizes binding levels. During inference
+        -- keep the level of a lexical operand so a decision can supply its
+        -- witness to another dependent application on that same local.
+        CForget at base (CLocal site ty id name actuals) -> (case reify-argument sp env value st of
+          (projected, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength projected) checked)
         CForget at base body -> (case checked-length-index (proof-context env st) (proof-facts env) (normalize st ty) (map-term-types (normalize st) value) of
           Some index -> checked-typed-source-index sp index st
           None -> case reify-argument sp env body st of
@@ -1235,9 +1241,10 @@ module Bootstrap.Infer where
           (value, checked) -> checked-typed-source-index sp (UIndexStringLength value) checked)
       else bad sp "argument call needs checked pure total reification or a checked observation contract" st
     CForget source carrier body -> case refinement-view (normalize st (core-type body)) of
-      URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body))) then bad sp "refinement projection needs checked mathematical semantics" st
+      URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body)) || length-carrier domain || ascii-carrier domain) then bad sp "refinement projection needs a checked index carrier" st
         else case body of
           CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
+          CRefineProof at ty witness actual -> reify-argument sp env actual (unify sp carrier domain st)
           CApply at result (CUse source function symbol role Nil) input ->
             if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" then reify-argument sp env body (unify sp carrier domain st)
             else (case reify-argument sp env body st of
@@ -4098,7 +4105,10 @@ module Bootstrap.Infer where
            (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
     else if same name "NotNull" then decision-not-null classes kinds families env locals sp input st
     else if same name "Ascii" then (case infer classes kinds families env locals input st of
-      (value, checked) -> let operand = map-term-types (normalize checked) value in
+      (value, checked) -> let actual = map-term-types (normalize checked) value in
+        let operand = case refinement-view (core-type actual) of
+              URefine id display carrier predicate -> CForget sp carrier actual
+              other -> actual in
         if not (ascii-carrier (core-type operand)) then decision-failure sp "Ascii decides String or List Char" checked
         else case reify-argument sp env operand checked of
           (index, done) -> (UPropAscii index, CPrimitive sp (primitive-type "Bool") "#kernel.ascii" (CArgument sp operand (CArgumentsEnd sp)), done))
@@ -4372,6 +4382,22 @@ module Bootstrap.Infer where
           (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
+    ENarrow sp input annotation (EArgsEnd end) -> term-error sp "`narrow` carries a `Dec` of the stronger predicate" st
+    ENarrow sp input annotation witness -> case infer classes kinds families env locals input st of
+      (value, checked) -> (case refinement-view (normalize checked (core-type value)) of
+        URefine id name carrier predicate -> (case convert False kinds (value-locals env locals) annotation checked of
+          (refined, opened) -> (case refinement-view (normalize opened refined) of
+            URefine binder display base condition -> let payload = CForget sp carrier value in
+              (case reify-argument sp env payload (unify sp base carrier opened) of
+                (index, ready) -> let goal = substitute-bound [(binder, index)] condition in
+                  case witness of
+                    EApp site head args | decision-syntax-head env head ->
+                      (case infer-decision-expected classes kinds families env locals site args (decision-type goal) ready of
+                        (decision, done) -> introduce-refinement env sp refined payload done)
+                    other -> (case erased-argument sp env witness goal ready of
+                      (evidence, done) -> (CRefineProof sp refined evidence payload, done)))
+            other -> term-error sp "the target must be a checked refinement" opened))
+        other -> term-error sp "`narrow` takes a refined value" checked)
     EForget sp atoms value -> case infer classes kinds families env locals value st of
       (body, checked) -> case refinement-view (normalize checked (core-type body)) of
         URefine id name carrier original ->
@@ -5100,7 +5126,9 @@ module Bootstrap.Infer where
       else term-error at (refl-failure (proof-context env st) predicate) st
       else (case lookup-binding name env of
         Some (MkErasedBinding display predicate id origin invalidated) -> (case invalidated of
-          None -> (CProofRef at predicate id name, unify sp predicate expected st)
+          None -> let checked = unify sp predicate expected st in
+            if list-length (store-errors checked) == list-length (store-errors st) then (CProofRef at predicate id name, checked)
+            else term-error at (display <> " is evidence of " <> obligation-text (normalize st predicate) <> ", but this argument requires " <> obligation-text (normalize st expected)) checked
           Some write -> term-error at (stale-evidence-message origin write) st)
         Some (MkCheckedBinding symbol sc role) | same role "closed-proof" ->
           let predicate = scheme-body sc in
@@ -5301,6 +5329,7 @@ module Bootstrap.Infer where
     ELetScope sp body -> handled-do-error body
     ELet sp bindings body -> first-guard-error (handled-do-error bindings) (handled-do-error body)
     EBinding sp name value rest -> first-guard-error (handled-do-error value) (handled-do-error rest)
+    ENarrow sp value ty witness -> first-guard-error (handled-do-error value) (handled-do-error witness)
     EForget sp atoms value -> handled-do-error value
     EAnn sp value ty -> handled-do-error value
     other -> None
@@ -8386,6 +8415,7 @@ module Bootstrap.Infer where
   constructs-observations :: String -> Expr -> Bool
   constructs-observations owner expression = case expression of
     ERecord sp name fields -> same owner name
+    ENarrow sp body ty witness -> constructs-observations owner body || constructs-observations owner witness
     EForget sp atoms body -> constructs-observations owner body
     EAnn sp body annotation -> constructs-observations owner body
     ELet sp bindings body -> constructs-observations owner body
@@ -8449,6 +8479,7 @@ module Bootstrap.Infer where
         other -> guarded-recursive-reference declarations group productive diverges
           (if is-later-flow flow then GuardedObservation else DeferredObservation) NoGuardFlow body)
       EApp sp first second -> first-guard-error (eager first) (eager second)
+      ENarrow sp body ty witness -> first-guard-error (eager witness) (nested flow body)
       EForget sp atoms body -> nested flow body
       EAnn sp body annotation -> nested flow body
       EIf sp condition yes no -> first-guard-error (eager condition) (first-guard-error (nested flow yes) (nested flow no))
@@ -8665,6 +8696,7 @@ module Bootstrap.Infer where
     EIf sp c a b -> EIf sp (record-expression all c) (record-expression all a) (record-expression all b)
     ECase sp value alternatives -> ECase sp (record-expression all value) (record-expression all alternatives)
     EGuarded sp guard body -> EGuarded sp (record-expression all guard) (record-expression all body)
+    ENarrow sp value ty witness -> ENarrow sp (record-expression all value) ty (record-expression all witness)
     EForget sp atoms value -> EForget sp atoms (record-expression all value)
     EAnn sp value ty -> EAnn sp (record-expression all value) ty
     EForall sp names body -> EForall sp names (record-expression all body)

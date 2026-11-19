@@ -67,6 +67,7 @@ module Bootstrap.Expand where
     EIf s c t f -> term-has-macro-call c || term-has-macro-call t || term-has-macro-call f
     ECase s scrut alts -> term-has-macro-call scrut || term-has-macro-call alts
     EGuarded s guard body -> term-has-macro-call guard || term-has-macro-call body
+    ENarrow s x ty w -> term-has-macro-call x || term-has-macro-call w
     EForget s atoms x -> term-has-macro-call x
     EAnn s x ty -> term-has-macro-call x
     EForall s vs body -> term-has-macro-call body
@@ -464,6 +465,9 @@ module Bootstrap.Expand where
     EGuarded s guard body -> case hygiene guard renames serial of
       (renamed-guard, more) -> case hygiene body renames more of
         (renamed-body, after) -> (EGuarded s renamed-guard renamed-body, after)
+    ENarrow s x ty w -> case hygiene x renames serial of
+      (value, more) -> case hygiene w renames more of
+        (witness, after) -> (ENarrow s value ty witness, after)
     EForget s atoms x -> case hygiene x renames serial of
       (renamed, after) -> (EForget s atoms renamed, after)
     EAnn s x ty -> case hygiene x renames serial of
@@ -674,6 +678,7 @@ module Bootstrap.Expand where
     ELocalSignature s name ty rest -> case fill-splices-with reify rest groups fix of
       Err errors -> Err errors
       Ok filled -> Ok (ELocalSignature s name ty filled)
+    ENarrow s x ty w -> fill-two reify (\v evidence -> ENarrow s v ty evidence) x w groups fix
     EForget s atoms x -> case fill-splices-with reify x groups fix of
       Err errors -> Err errors
       Ok filled -> Ok (EForget s atoms filled)

@@ -360,6 +360,7 @@ module Bootstrap.Ast where
     EArgumentScope :: Span -> Expr -> Expr
     EMacroCall :: Span -> String -> List LToken -> Expr
     EForget :: Span -> TypeExpr -> Expr -> Expr
+    ENarrow :: Span -> Expr -> TypeExpr -> Expr -> Expr
     EUnmodeled :: Span -> String -> Expr
 
   expr-spine :: Span -> List Expr -> Expr
@@ -430,6 +431,7 @@ module Bootstrap.Ast where
     EIf s c t f -> s
     ECase s scrut alts -> s
     EGuarded s guard body -> s
+    ENarrow s value ty witness -> s
     EForget s atoms x -> s
     EAnn s x t -> s
     EForall s vs body -> s
@@ -869,6 +871,7 @@ module Bootstrap.Ast where
     EIf s c t f -> expr-unmodeled-count c + expr-unmodeled-count t + expr-unmodeled-count f
     ECase s scrut alts -> expr-unmodeled-count scrut + alts-unmodeled (alts-of alts)
     EGuarded s guard body -> expr-unmodeled-count guard + expr-unmodeled-count body
+    ENarrow s value ty witness -> expr-unmodeled-count value + type-unmodeled-count ty + expr-unmodeled-count witness
     EForget s atoms x -> type-unmodeled-count atoms + expr-unmodeled-count x
     EAnn s x t -> expr-unmodeled-count x + type-unmodeled-count t
     EForall s vs body -> expr-unmodeled-count body
@@ -1121,6 +1124,7 @@ module Bootstrap.Ast where
     EIf part0 part1 part2 part3 -> JArr (JStr "EIf") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     ECase part0 part1 part2 -> JArr (JStr "ECase") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EGuarded part0 part1 part2 -> JArr (JStr "EGuarded") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    ENarrow s x ty w -> JArr (JStr "ENarrow") (JArr (source-identity-expr x) (JArr (source-identity-type ty) (JArr (source-identity-expr w) JArrEnd)))
     EForget s atoms x -> JArr (JStr "EForget") (JArr (source-identity-type atoms) (JArr (source-identity-expr x) JArrEnd))
     EAnn part0 part1 part2 -> JArr (JStr "EAnn") (JArr (source-identity-expr part1) (JArr (source-identity-type part2) (JArrEnd)))
     EForall part0 part1 part2 -> JArr (JStr "EForall") (JArr (source-identity-names part1) (JArr (source-identity-expr part2) (JArrEnd)))
