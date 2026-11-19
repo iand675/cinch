@@ -40,10 +40,20 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
     emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
-    profile = [arg for arg in args if arg in PROFILE_FLAGS]
-    args = [arg for arg in args if arg not in PROFILE_FLAGS]
-    if args[0:1] == ["--interfaces"] and args[2:3] == ["--objects"] and args[4:5] == ["run"]:
-        return subprocess.call([compiler, *profile, *args], env=env)
+    if args and args[0] in ("--interfaces", "--target", "--require-capability", *PROFILE_FLAGS):
+        return subprocess.call([compiler, *args], env=env)
+    profile = []
+    end = 1
+    while end < len(args):
+        if args[end] in PROFILE_FLAGS:
+            width = 1
+        elif args[end] in ("--require-capability", "--target") and end + 1 < len(args):
+            width = 2
+        else:
+            break
+        profile.extend(args[end:end + width])
+        end += width
+    args = args[:1] + args[end:]
     if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"], ["--check-types"]):
         return subprocess.call([compiler, *profile, *args], env=env)
     if args[0:1] == ["--emit-object"]:

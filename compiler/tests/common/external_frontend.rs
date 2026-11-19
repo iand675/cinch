@@ -92,7 +92,6 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
         ("features", *features == host.features),
         ("allow_eval", *allow_eval == host.allow_eval),
         ("artifact", *artifact == host.artifact),
-        ("required", *required == host.required),
         ("jpl", *jpl == host.jpl),
         // `reclaim` is absent on purpose: the selected compiler counts
         // references by default and `--no-reclaim` selects the other arm, so
@@ -118,6 +117,9 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     }
     if arch == "portable" {
         flags.push("--portable-isa".to_owned());
+    }
+    for capability in required {
+        flags.extend(["--require-capability".to_owned(), capability.clone()]);
     }
     if *rc_debug {
         flags.push("--rc-debug".to_owned());
@@ -436,6 +438,9 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     if request.flags.iter().any(|flag| flag == "--portable-isa") {
         profile.arch = "portable".into();
     }
+    profile.required = request.flags.windows(2)
+        .filter(|words| words[0] == "--require-capability")
+        .map(|words| words[1].clone()).collect();
     let files = reachable_sources(&files, &entry, &profile);
     let invocation_id = next_invocation_id();
     let work = dir.join(".cinch-self-tests").join(&invocation_id);

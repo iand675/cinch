@@ -36,7 +36,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Export (export-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.TargetLiterals (target-literal-errors)
-  import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
+  import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-required, profile-features, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Data.Json
@@ -604,11 +604,17 @@ module Bootstrap.Pipeline where
       Err error -> Err "cannot write checked interface"
       Ok done -> write-build-interfaces rest
 
+  capability-array :: List String -> Json
+  capability-array values = case values of
+    Nil -> JArrEnd
+    Cons value rest -> JArr (JStr value) (capability-array rest)
+
   manifest-target :: TargetProfile -> Json
   manifest-target profile = JObj "triple" (JStr (profile-triple profile))
     (JObj "os" (JStr (profile-os profile)) (JObj "arch" (JStr (selection-arch profile))
       (JObj "libc" (JStr (profile-libc profile)) (JObj "word_size" (JNum (nat-to-int (profile-word-size profile)))
-        (JObj "endian" (JStr (profile-endian profile)) JObjEnd)))))
+        (JObj "endian" (JStr (profile-endian profile)) (JObj "features" (capability-array (profile-features profile))
+          (JObj "required" (capability-array (profile-required profile)) JObjEnd)))))))
 
   provider-matches-profile :: Json -> TargetProfile -> Bool
   provider-matches-profile document profile = case object-field "target" document of

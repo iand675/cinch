@@ -226,12 +226,13 @@ class FrozenVerification(unittest.TestCase):
             objects = root / "uncounted.json"
             library = root / "uncounted.o"
             objects.write_text(json.dumps({"object": str(library)}))
-            args = ["--compile-only", "--no-reclaim", "--interfaces", "interfaces.json",
+            args = ["--compile-only", "--require-capability", "VecU32Target", "--no-reclaim", "--interfaces", "interfaces.json",
                     "--objects", str(objects), "Main.cinch", "out.ll", "program", str(root / "report")]
             with patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
                 self.assertEqual(verify_stage3.compile_client("cinch", root / "default.json", "runtime.a", args), 0)
             emission, link = [call.args[0] for call in run.call_args_list]
             self.assertIn("--no-reclaim", emission)
+            self.assertEqual(emission[emission.index("--require-capability") + 1], "VecU32Target")
             self.assertEqual(emission[emission.index("--objects") + 1], str(objects))
             self.assertIn(str(library), link)
 
