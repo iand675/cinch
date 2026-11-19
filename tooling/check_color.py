@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute committed public color/model/palette fixtures with an explicit Rust compiler/runtime."""
+"""Execute committed public color/model/palette fixtures with an explicit compiler and its matching runtime."""
 from __future__ import annotations
 import argparse
 import json
@@ -10,7 +10,7 @@ import resource
 import shutil
 import subprocess
 import time
-from check_compare import digest
+from check_compare import corpus_emit_mode, digest
 from prepare_color_fixtures import prepare
 
 
@@ -24,13 +24,17 @@ def main() -> None:
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--consumer', type=Path, default=ROOT / 'experiments/image-color-v1/consumer.cinch')
     parser.add_argument('--vectors', type=Path, default=ROOT / 'experiments/image-color-v1/vectors.json')
-    parser.add_argument('--compiler', type=Path, required=True)
-    parser.add_argument('--runtime', type=Path, required=True)
+    frontend = parser.add_mutually_exclusive_group(required=True)
+    frontend.add_argument('--compiler', type=Path)
+    frontend.add_argument('--native', type=Path, help='Standalone stage compiler and matching provider manifests')
+    parser.add_argument('--runtime', type=Path)
     parser.add_argument('--work', type=Path, required=True)
-    parser.add_argument('--cpu', type=int, required=True)
+    parser.add_argument('--cpu', type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument('--opt', type=int, choices=(0, 2), default=2)
     parser.add_argument('--check-only', action='store_true')
     args = parser.parse_args()
+    if bool(args.compiler) != bool(args.runtime):
+        parser.error('--compiler requires a matching --runtime')
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=False)
     initial = shutil.disk_usage(work).free
@@ -40,7 +44,9 @@ def main() -> None:
         raise RuntimeError('350 MiB initial guard')
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
-    compiler, runtime = args.compiler.resolve(), args.runtime.resolve()
+    snapshot = args.native.resolve() if args.native else None
+    compiler = snapshot / 'cinch' if snapshot else args.compiler.resolve()
+    runtime = snapshot / 'libcinchruntime.a' if snapshot else args.runtime.resolve()
     report = {'scope': __doc__, 'compiler': str(compiler), 'compiler_sha256': digest(compiler),
               'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'opt': args.opt,
               'compiler_host_stack_bytes': 67108864, 'cpu_affinity': [args.cpu],
@@ -67,6 +73,10 @@ def main() -> None:
         try:
             completed = subprocess.run(command, cwd=work, text=True, capture_output=True, timeout=timeout, env=env)
             row.update(returncode=completed.returncode, stdout=completed.stdout, stderr=completed.stderr)
+            if completed.returncode and snapshot and command[0] == str(compiler):
+                diagnostics = work / 'consumer.ll.diagnostics'
+                if diagnostics.is_file():
+                    row['diagnostics'] = diagnostics.read_text()
         except subprocess.TimeoutExpired as error:
             row.update(timeout_seconds=timeout, failure=repr(error))
             raise
@@ -84,22 +94,49 @@ def main() -> None:
         shutil.copyfile(args.consumer, work / 'Main.cinch')
         shutil.copyfile(args.vectors, work / 'vectors.json')
         host_env = {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'}
-        execute([str(compiler), 'check', str(work / 'Main.cinch')], host_env)
-        report['defining_interfaces'] = {path.name: digest(path) for path in sorted((work / 'build').glob('*.cinchif'))}
+        link_objects = []
+        if snapshot:
+            objects = snapshot / 'objects.json'
+            interfaces = snapshot / 'base-interfaces.json'
+            configuration = json.loads(objects.read_text())
+            provider = Path(configuration['object'])
+            identity = {'compiler_sha256': report['compiler_sha256'], 'runtime_sha256': report['runtime_sha256'],
+                        'provider_sha256': digest(provider), 'base-interfaces.json': digest(interfaces),
+                        'objects.json': digest(objects)}
+            if identity['provider_sha256'] != configuration['object_sha256']:
+                raise RuntimeError('color provider hash disagrees with its object manifest')
+            report['frontends'] = {'native': identity}
+            bundle = work / 'bundle.source'
+            bundle.write_bytes(args.source.read_bytes() + b'\n' + args.consumer.read_bytes())
+            mode = '--check-types' if args.check_only else corpus_emit_mode(compiler, [])
+            command = [str(compiler), mode, '--interfaces', str(interfaces), '--objects', str(objects),
+                       str(bundle), str(work / 'consumer.ll')]
+            row = execute(command, host_env, timeout=300)
+            if not args.check_only:
+                report['runs'] = [{'frontend': 'native', 'command': command, 'seconds': row['seconds'],
+                                   'ir_sha256': digest(work / 'consumer.ll')}]
+            link_objects.append(str(provider))
+        else:
+            execute([str(compiler), 'check', str(work / 'Main.cinch')], host_env)
+            report['defining_interfaces'] = {path.name: digest(path) for path in sorted((work / 'build').glob('*.cinchif'))}
         if args.check_only:
             report['status'] = 'source-check-passed'
             return
         report['foreign_fixture'] = prepare(args.vectors, work / 'fixture.c')
         clang = os.environ.get('CINCH_CLANG', 'clang')
         execute([clang, '-O2', '-fno-vectorize', '-fno-slp-vectorize', '-c', str(work / 'fixture.c'), '-o', str(work / 'fixture.o')], host_env)
-        execute([str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(work / 'consumer.ll')], host_env)
+        if not snapshot:
+            execute([str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(work / 'consumer.ll')], host_env)
         report.update(ir_sha256=digest(work / 'consumer.ll'), fixture_object_sha256=digest(work / 'fixture.o'))
         triple = re.search(r'^target triple = "([^"]+)"', (work / 'consumer.ll').read_text(), re.M)
-        if triple is None:
+        if triple:
+            report['target_triple'] = triple.group(1)
+        elif snapshot:
+            report['target_triple'] = configuration['target']
+        else:
             raise RuntimeError('missing actual emitted target triple')
-        report['target_triple'] = triple.group(1)
-        execute([clang, '-O' + str(args.opt), '--target=' + triple.group(1), str(work / 'consumer.ll'), str(work / 'fixture.o'),
-                 str(runtime), '-ldl', '-lpthread', '-lm', '-o', str(work / 'consumer')], host_env)
+        execute([clang, '-O' + str(args.opt), '--target=' + report['target_triple'], str(work / 'consumer.ll'), str(work / 'fixture.o'),
+                 *link_objects, str(runtime), '-ldl', '-lpthread', '-lm', '-o', str(work / 'consumer')], host_env)
         report['executable_sha256'] = digest(work / 'consumer')
         for poison, heap in [('0', '32M'), ('1', '256M')]:
             env = {**os.environ, 'CINCH_HEAP_LIMIT': heap, 'CINCH_STACK_SIZE': '8M',

@@ -1762,6 +1762,18 @@
     {
       "classes": "O",
       "symbol": "Effect.Concurrent.MVar.mvar-take"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Option.is-some"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Option.is-some"
     }
   ]
 }
