@@ -21,7 +21,7 @@ module Bootstrap.Proof where
   export Citation, Hypothesis, NegatedGoal, Alternative
   export Certificate, Farkas, Split
   export Proof, Refutation, Conjunction, Trivial
-  export prove, check-proof, arithmetic-equal, proposition-equal, disproved
+  export prove, check-proof, arithmetic-equal, comparison-equal, proposition-equal, disproved
 
   data Arithmetic where
     AInteger :: Int -> Arithmetic

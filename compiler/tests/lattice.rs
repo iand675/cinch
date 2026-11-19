@@ -990,3 +990,23 @@ module Main where
   main = 0
 "#, &["length index operand needs Bytes or a list-shaped carrier"]);
 }
+
+#[test]
+fn a_length_witness_keeps_its_operands_and_relation() {
+    for predicate in ["length xs == 3", "3 == 3", "length xs >= 2"] {
+        let source = format!(r#"
+module Main where
+  type Two = refine (xs :: List Char) with length xs == 2
+  wrap :: List Char -> Option Two
+  wrap xs = case decide ({predicate}) of
+    Yes witness -> Some (Two xs witness)
+    No _ -> None
+  main :: Int
+  main = 0
+"#);
+        assert!(
+            common::source_frontend::check_sources(&source, "different-length-proposition").is_err(),
+            "accepted evidence of {predicate} for length xs == 2"
+        );
+    }
+}
