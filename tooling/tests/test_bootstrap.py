@@ -14,6 +14,29 @@ import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_identical_stage_ir_reuses_only_intact_shard_text(self):
+        import shard_ir
+
+        with tempfile.TemporaryDirectory() as temp, patch.object(bootstrap, "BUILD", Path(temp)):
+            first, second = Path(temp) / "stage2", Path(temp) / "stage3"
+            first.mkdir()
+            second.mkdir()
+            ir = "define i32 @foo() {\n  ret i32 1\n}\n"
+            for stage in [first, second]:
+                (stage / "compiler.ll").write_text(ir)
+            with patch.object(shard_ir, "write_shards", wraps=shard_ir.write_shards) as split:
+                _, paths = bootstrap.prepare_link_ir(first / "compiler.ll", 2)
+                expected = [path.read_bytes() for path in paths]
+                self.assertEqual(bootstrap.prepare_link_ir(second / "compiler.ll", 2)[1], paths)
+                split.assert_called_once()
+                paths[0].write_bytes(b"changed")
+                bootstrap.prepare_link_ir(second / "compiler.ll", 2)
+                self.assertEqual([path.read_bytes() for path in paths], expected)
+                (second / "compiler.ll").write_text(ir.replace("ret i32 1", "ret i32 2"))
+                _, changed = bootstrap.prepare_link_ir(second / "compiler.ll", 2)
+                self.assertNotEqual([path.read_bytes() for path in changed], expected)
+                self.assertEqual(split.call_count, 3)
+
     def test_compiler_snapshot_excludes_neighboring_reproduction_clients(self):
         """A retained Main client beside the compiler cannot alter its source closure or aliases."""
         original = bootstrap.ROOT

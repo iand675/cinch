@@ -682,7 +682,7 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     return compiler
 
 
-def link_directory(ir: Path) -> Path:
+def link_directory(ir: Path, fingerprint: str) -> Path:
     """The one path every stage hands clang for this IR module.
 
     A profile-use compile of identical bytes from two different paths
@@ -693,7 +693,6 @@ def link_directory(ir: Path) -> Path:
     directory is keyed by the IR digest, which keeps the choice content
     addressed; the older directories in it can never be used again.
     """
-    fingerprint = file_hash(ir)
     root = BUILD / "shards"
     root.mkdir(parents=True, exist_ok=True)
     directory = root / fingerprint[:16]
@@ -706,6 +705,30 @@ def link_directory(ir: Path) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ir, shared)
     return shared
+
+
+# The bootstrap lock covers the shared IR directory throughout a stage chain.
+# Record only the bytes split by this process. Each stage still compiles its
+# own emitted IR into native objects and links its own executable.
+_link_shards: dict[tuple[Path, str, int], dict[Path, str]] = {}
+
+
+def prepare_link_ir(ir: Path, jobs: int) -> tuple[Path, list[Path]]:
+    from shard_ir import write_shards
+
+    fingerprint = file_hash(ir)
+    shared = link_directory(ir, fingerprint)
+    if jobs == 1:
+        return shared, [shared]
+    key = (shared, fingerprint, jobs)
+    previous = _link_shards.get(key)
+    if previous and all(path.is_file() and file_hash(path) == expected
+                        for path, expected in previous.items()):
+        return shared, list(previous)
+    shards = write_shards(shared, shared.parent, jobs)
+    _link_shards.clear()
+    _link_shards[key] = {path: file_hash(path) for path in shards}
+    return shared, shards
 
 
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,
@@ -779,10 +802,9 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         # object and the runtime archive are native Mach-O, not bitcode, so
         # 25,390 of the module's 203,698 call sites stay cross-object calls.
         # design/compilation-speed.md section 8 has the tables.
-        from shard_ir import compile_shards, object_paths, write_shards
+        from shard_ir import compile_shards, object_paths
         clang = os.environ.get("CINCH_CLANG", "clang")
-        link_ir = link_directory(ir)
-        shards = write_shards(link_ir, link_ir.parent, JOBS) if JOBS > 1 else None
+        link_ir, shards = prepare_link_ir(ir, JOBS)
         shard_objects = object_paths(directory, JOBS) if JOBS > 1 else None
 
         def link(output: Path, flags: tuple[str, ...], sharded: bool = True) -> int:
