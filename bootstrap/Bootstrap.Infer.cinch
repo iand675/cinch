@@ -3216,11 +3216,27 @@ module Bootstrap.Infer where
             None -> (case (field "total_body" metadata, resolved-text metadata) of (JNull, Some checked) -> True; other -> False))
           other -> False)
         else True
+  -- An entry defines `identity` only when the identity is the entry's owner,
+  -- a full stop and the entry's local name, so only an interface whose name
+  -- is such a prefix of the identity can hold it. Asking that of the name
+  -- first keeps every other interface's foreign table unread: every imported
+  -- value asks this question, and each table row answers it by building its
+  -- qualified name.
   imported-foreign-row :: String -> List Decl -> Option Json
-  imported-foreign-row identity declarations = case declarations of
+  imported-foreign-row identity declarations = imported-foreign-row-among identity (identity-owners (unpack identity) Nil) declarations
+  imported-foreign-row-among :: String -> List String -> List Decl -> Option Json
+  imported-foreign-row-among identity owners declarations = case declarations of
     Nil -> None
-    Cons (DInterface sp owner hash metadata) rest -> (case imported-foreign-entry identity owner (field "foreign" (field "exports" metadata)) of Some row -> Some row; None -> imported-foreign-row identity rest)
-    Cons other rest -> imported-foreign-row identity rest
+    Cons (DInterface sp owner hash metadata) rest -> if has owner owners then
+      (case imported-foreign-entry identity owner (field "foreign" (field "exports" metadata)) of Some row -> Some row; None -> imported-foreign-row-among identity owners rest)
+      else imported-foreign-row-among identity owners rest
+    Cons other rest -> imported-foreign-row-among identity owners rest
+  -- | Every prefix of an identity that a full stop follows, which is every owner able to define it.
+  identity-owners :: List Char -> List Char -> List String
+  identity-owners remaining before = case remaining of
+    Nil -> Nil
+    Cons first rest -> if char-code first == 46 then Cons (pack (reverse before)) (identity-owners rest (Cons first before))
+      else identity-owners rest (Cons first before)
   foreign-import-nominal :: String -> List Decl -> Option String
   foreign-import-nominal identity declarations = case declarations of
     Nil -> None
