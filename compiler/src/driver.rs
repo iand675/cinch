@@ -2625,10 +2625,19 @@ fn write_artifacts(
     } else {
         None
     };
+    let package = base_package();
+    let package_modules: std::collections::HashSet<&str> = package.order.iter().map(String::as_str).collect();
+    let mut rendered = std::collections::BTreeMap::new();
     for iface in ifaces {
         let p = out_dir.join(format!("{}.cinchif", iface.module));
-        std::fs::write(&p, iface.to_json())
+        let json = iface.to_json();
+        std::fs::write(&p, &json)
             .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
+        if package_modules.contains(iface.module.as_str()) {
+            if let Some(contract_hash) = contract_hashes.get(iface.module.as_str()) {
+                rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
+            }
+        }
         let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
         match &unfoldable {
             None => {
@@ -3287,7 +3296,7 @@ fn write_artifacts(
     // would hide a real inconsistency.
     let store = crate::store::Store::user();
     if store.ensure_root().is_ok() {
-        if let Err(e) = store.write(base_package(), profile, wit, ifaces, opts.rebuild_store) {
+        if let Err(e) = store.write_rendered(package, profile, wit, ifaces, &[], opts.rebuild_store, &rendered) {
             if matches!(&e, crate::store::StoreError::Package { .. }) {
                 return Err(Error::plain(e.to_string()));
             }

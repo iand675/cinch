@@ -566,6 +566,19 @@ fn object_and_ir_artifacts_ride_in_the_entry() {
     assert!(manifest.contains("\"object\""), "{manifest}");
     assert!(manifest.contains("\"ir\""), "{manifest}");
 
+    // A well-formed previous object can still differ from the one just built.
+    let mut changed = bodies.clone();
+    changed[0].bytes.push(0);
+    assert_eq!(
+        store.write_with_bodies(pkg, &profile, &[], ifaces, &changed, false).unwrap(),
+        Outcome::Repaired(key.clone())
+    );
+    assert_eq!(std::fs::read(loaded.object(&module).unwrap()).unwrap(), changed[0].bytes);
+    assert_eq!(
+        store.write_with_bodies(pkg, &profile, &[], ifaces, &bodies, false).unwrap(),
+        Outcome::Repaired(key.clone())
+    );
+
     // A body file that no longer hashes to its record is a hard error to
     // load, exactly like a truncated interface; the compile path repairs
     // it from the artifacts it holds.
