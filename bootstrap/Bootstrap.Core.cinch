@@ -2096,9 +2096,12 @@ module Bootstrap.Core where
       if string-compare operation "copy-out" == 0 then
         (case local-borrow-index gamma ty first of Some reading -> True; None -> False)
       else string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
-    CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) ->
-      (byte-length-function ty function symbol role && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False))
-      || decision-total-operand gamma facts term
+    CApply sp ty (CUse at function symbol role Nil) input ->
+      if byte-length-function ty function symbol role then
+        proof-term gamma facts input && (case ordinary-index gamma facts term of
+          Some (UIndexByteLength value) -> True
+          other -> False)
+      else decision-total-operand gamma facts term
     other -> decision-total-operand gamma facts term
   decision-index-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   decision-index-reading gamma facts term = case actual-index gamma facts term of

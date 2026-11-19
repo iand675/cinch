@@ -40,6 +40,17 @@ fn signature_preconditions_keep_quantified_value_parameters_in_scope() {
     expect_err("quantified-result-cannot-be-captured-by-pattern", "module Main where\n  probe :: forall (limit :: Nat). (x :: Nat) -> refined (out <= limit) Nat\n  probe limit = limit\n  main :: Int\n  main = 0\n", &["needs `Dec` evidence"]);
 }
 
+#[test]
+fn decision_reads_byte_length_through_a_refinement_projection() {
+    expect_run("refined-buffer-length", r#"module Main where
+  import Data.Bytes
+  main :: Int
+  main = let buffer = bytes-new 3 in case decide (bytes-len buffer == 3) of
+    Yes evidence -> 42
+    No evidence -> 0
+"#, 42);
+}
+
 /// Assert that checking the program fails with errors containing every
 /// `needle`.
 fn expect_err(name: &str, src: &str, needles: &[&str]) {

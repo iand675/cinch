@@ -1021,9 +1021,9 @@ module Bootstrap.Infer where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (case lookup-local name locals of
       None -> (case source-constructor-arrow kinds name of
         Some (UFun field result) -> Some result
-        other -> predicate-carrier locals syntax)
-      other -> predicate-carrier locals syntax)
-    other -> predicate-carrier locals syntax
+        other -> predicate-carrier kinds locals syntax)
+      other -> predicate-carrier kinds locals syntax)
+    other -> predicate-carrier kinds locals syntax
   convert-total-call :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
   convert-total-call external kinds locals sp name arguments st = case context-total-observation name kinds of
     Some binding -> (case convert-total-arguments external kinds locals (total-parameters (binding-function binding)) arguments st of
@@ -8637,11 +8637,17 @@ module Bootstrap.Infer where
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
     other -> False
-  predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
-  predicate-carrier locals syntax = case syntax of
+  predicate-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> Option UType
+  predicate-carrier kinds locals syntax = case syntax of
     TName s name -> case lookup-local name locals of Some ty -> value-carrier (type-kind ty); None -> None
-    TInfix s op a b -> merge-predicate-carriers (predicate-carrier locals a) (predicate-carrier locals b)
-    TNegate s a -> predicate-carrier locals a
+    TApp sp (TName at name) arguments -> (case lookup-local name locals of
+      Some shadow -> None
+      None -> if byte-length-binding name kinds then Some (primitive-type "Nat") else
+        (case context-total-observation name kinds of
+          Some binding -> Some (primitive-type (total-result (binding-function binding)))
+          None -> None))
+    TInfix s op a b -> merge-predicate-carriers (predicate-carrier kinds locals a) (predicate-carrier kinds locals b)
+    TNegate s a -> predicate-carrier kinds locals a
     other -> None
   predicate-base-carrier :: UType -> UType
   predicate-base-carrier carrier = case refinement-view carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
@@ -8657,8 +8663,8 @@ module Bootstrap.Infer where
       else Some (if predicate-math-carrier a then b else a)
     (Some a, None) -> Some a
     other -> second
-  predicate-comparison-carrier :: List (String, UType) -> TypeExpr -> TypeExpr -> UType
-  predicate-comparison-carrier locals first second = case merge-predicate-carriers (predicate-carrier locals first) (predicate-carrier locals second) of
+  predicate-comparison-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> TypeExpr -> UType
+  predicate-comparison-carrier kinds locals first second = case merge-predicate-carriers (predicate-carrier kinds locals first) (predicate-carrier kinds locals second) of
     Some carrier -> if predicate-math-carrier carrier then
       (if same-type (predicate-base-carrier carrier) (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int") else carrier
     None -> primitive-type "Int"
@@ -8780,7 +8786,7 @@ module Bootstrap.Infer where
       else if same name "Ascii" then convert-structural sp locals input "Ascii" UPropAscii st
       else if same name "Ordered" then convert-structural sp locals input "Ordered" UPropOrdered st
       else if not (same name "NonZero") then named-predicate external kinds locals sp name [input] st
-      else let carrier = predicate-comparison-carrier locals input input in
+      else let carrier = predicate-comparison-carrier kinds locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of
           (value, checked) -> let predicate = UPropNonZero value in
             (predicate, if valid-type predicate then checked else add-error sp "ill-sorted structural NonZero predicate" checked))
@@ -8808,7 +8814,7 @@ module Bootstrap.Infer where
             (left, sa) -> case convert-predicate-index external kinds locals (primitive-type "Int") b sa of
               (right, sb) -> let out = UCompare "Eq" left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb)))
       else if has op ["<", "<=", "==", "/=", ">=", ">"] then
-        (let carrier = predicate-comparison-carrier locals a b in
+        (let carrier = predicate-comparison-carrier kinds locals a b in
          if math-carrier carrier then (case convert-predicate-index external kinds locals carrier a st of
            (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of
              (right, sb) -> let out = UCompare op left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb))
