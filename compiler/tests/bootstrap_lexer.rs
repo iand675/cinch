@@ -300,7 +300,7 @@ fn lex_and_compare(tag: &str, corpus: &[(String, String)], min_compared: usize) 
     proj.push(("Main.cinch", RUN));
     let dir = common::project(tag, &proj);
     std::fs::create_dir_all(dir.join("corpus")).unwrap();
-    let exe = common::build(&dir, "Main.cinch", "program")
+    let exe = common::build_executable(&dir, "Main.cinch", "program")
         .unwrap_or_else(|e| panic!("build Run.Lex: {e}"));
 
     let mut compared = 0usize;
@@ -368,7 +368,7 @@ fn the_self_hosting_forms_lex_to_carrying_tokens() {
     std::fs::write(dir.join("attrs.cinch"), ATTRS).unwrap();
     std::fs::write(dir.join("ticks.cinch"), TICKS).unwrap();
     std::fs::write(dir.join("corpus.txt"), "attrs.cinch\nticks.cinch\nMain.cinch\n").unwrap();
-    let exe = common::build(&dir, "Main.cinch", "program")
+    let exe = common::build_executable(&dir, "Main.cinch", "program")
         .unwrap_or_else(|e| panic!("build Run.Lex: {e}"));
     let code = run_program(&exe, &dir, "the self-hosting forms");
     assert_eq!(code, 0, "the self-hosting forms must all lex");
