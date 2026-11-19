@@ -1407,7 +1407,7 @@ module Bootstrap.Resolve where
   unshadowed-interfaces modules interfaces = case interfaces of
     Nil -> Nil
     Cons i rest ->
-      if embedded-library-home (loaded-module i) && has-module (loaded-module i) modules
+      if has-module (loaded-module i) modules && embedded-library-home (loaded-module i)
         then unshadowed-interfaces modules rest
         else Cons i (unshadowed-interfaces modules rest)
 

@@ -17,7 +17,7 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, Decl, DClass)
-  import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, checked-surface, checked-elaboration, checked-generated, with-generated)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
@@ -317,16 +317,16 @@ module Bootstrap.Pipeline where
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
-  checked-source profile program interfaces = check-source-phase profile (\input -> resolve-program-with input interfaces) (\unit -> interface-headers interfaces) program
-  check-source-phase :: TargetProfile -> (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) CheckedProgram
-  check-source-phase profile resolve headers program = case expand-stages-with-report resolve headers program of
+  checked-source profile program interfaces = check-source-phase profile interfaces (\input -> resolve-program-with input interfaces) program
+  check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-source-phase profile interfaces resolve program = case expand-stages-with-report resolve (\unit -> interface-headers interfaces) program of
     Err errors -> Err errors
-    Ok (expanded, generated) -> case retain-resolved-source profile (resolve expanded) of
+    Ok (expanded, generated) -> case retain-resolved-source profile interfaces (resolve expanded) of
       Err errors -> Err (explain-expansion-errors expanded errors)
       Ok checked -> Ok (with-generated generated checked)
-  retain-resolved-source :: TargetProfile -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
-  retain-resolved-source profile result = case result of
-    (resolved, Nil) -> case check-and-retain resolved of
+  retain-resolved-source :: TargetProfile -> List LoadedInterface -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
+  retain-resolved-source profile interfaces result = case result of
+    (resolved, Nil) -> case check-and-retain-with-interfaces interfaces resolved of
       Ok checked -> (case target-literal-errors (profile-word-size profile) (checked-elaboration checked) of
         Nil -> check-runtime-entry checked
         errors -> Err errors)
@@ -356,7 +356,7 @@ module Bootstrap.Pipeline where
       else Cons previous (replace-overlay-interface fresh rest)
   checked-overlay-source :: TargetProfile -> Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-overlay-source profile program dependencies facade = case facade of
-    Some entry -> check-source-phase profile (\input -> resolve-overlay-with input dependencies entry) (\unit -> interface-headers dependencies) program
+    Some entry -> check-source-phase profile dependencies (\input -> resolve-overlay-with input dependencies entry) program
     None -> checked-source profile program dependencies
   rebuild-source-interface :: TargetProfile -> Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
   rebuild-source-interface profile source program name dependencies facade = case checked-overlay-source profile program dependencies facade of
@@ -431,7 +431,7 @@ module Bootstrap.Pipeline where
     if not (has-signature-overlay (program-modules program)) then checked-source profile program interfaces else
       case recheck-source-overlays profile source program interfaces interfaces Nil of
         Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
-          Some (Cons first rest) -> check-source-phase profile (\input -> resolve-signature-overlays input interfaces (Cons first rest)) (\unit -> interface-headers interfaces) program
+          Some (Cons first rest) -> check-source-phase profile interfaces (\input -> resolve-signature-overlays input interfaces (Cons first rest)) program
           other -> checked-source profile program interfaces)
         Err message -> checked-source profile program interfaces
 
@@ -610,7 +610,7 @@ module Bootstrap.Pipeline where
     emit-runtime-program-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) inlining debug reclaim checked provider
 
   after-resolve :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-resolve profile inlining reclaim mode src prog ir exe report = after-check profile inlining reclaim mode src (check-source-phase profile resolve-program (\unit -> Nil) prog) ir exe report
+  after-resolve profile inlining reclaim mode src prog ir exe report = after-check profile inlining reclaim mode src (check-source-phase profile Nil resolve-program prog) ir exe report
 
   -- The dense body artifact: every checked definition, each with its own
   -- type side table. A consumer decodes one definition at a time.

@@ -55,11 +55,14 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
 
     def fixture(name: str, selected: dict, *, count: int | None = None,
                 present: tuple[str, ...] = (), absent: tuple[str, ...] = (),
-                body: str | None = 'NatAdd', error: str | None = None) -> None:
+                body: str | None = 'NatAdd', error: str | None = None,
+                known: list | None = None, verified: bool = True) -> None:
         """State an external semantic expectation for one independent loader observation."""
         manifest = {'inputs': list(selected.values()), 'expected_error': error,
                     'member_count': count, 'present_members': list(present),
                     'absent_members': list(absent), 'bodies': [[NAT_ADD, body]]}
+        if known is not None:
+            manifest.update(known_inputs=[known], known_verified=verified)
         path = artifacts / f'{name}.json'
         write_json(path, manifest)
         fixtures.append({'name': name, 'manifest': str(path), 'manifest_sha256': sha(path), 'expected': manifest})
@@ -71,6 +74,7 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
         return {**selected, home: [home, interface_hash(document), str(path)]}
 
     fixture('intact', rows, count=65, present=('Data.Nat', 'Data.Machine', 'Prelude'))
+    fixture('intact-known-row', rows, count=len(rows), present=('Data.Nat',), known=rows['Data.Nat'])
     projected = {k: v for k, v in rows.items() if k not in {'Data.Json', 'Text.Codec'}}
     fixture('source-overlays', projected, count=48, present=('Data.Nat', 'Data.Hash'),
             absent=('Data.Json', 'Text.Codec', 'Data.Bool', 'Data.Machine', 'Prelude'))
@@ -87,6 +91,12 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
     bad_hash = copy.deepcopy(projected)
     bad_hash['Data.Machine'][1] = '0'
     fixture('bad-hash-in-excluded-home', bad_hash, error='Data.Machine: interface contract identity mismatch')
+
+    fixture('unverified-claimed-identity', bad_hash, known=bad_hash['Data.Machine'], verified=False,
+            error='Data.Machine: interface contract identity mismatch')
+    changed = {**rows, 'Data.Nat': [*rows['Data.Nat'][:2], str(artifacts / 'stale-nat-dependency.cinchif')]}
+    fixture('changed-since-admission', changed, known=rows['Data.Nat'],
+            error='Data.Nat: interface contract identity mismatch')
 
     malformed = copy.deepcopy(documents['Data.Machine'])
     malformed['exports']['values'][0]['total_body'] = {'version': 999, 'definitions': []}
@@ -107,7 +117,11 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
 
     nominal = copy.deepcopy(documents['Data.Option'])
     mention = next(row for row in nominal['exports']['instances'][0]['resolved']['nominals'] if row['identity'] == 'Data.Core.Option')
+    previous = mention['constructors'][0]
     mention['constructors'][0] = 'Data.Core.ForgedNone'
+    for usage in mention.get('usage', []):
+        if usage['identity'] == previous:
+            usage['identity'] = 'Data.Core.ForgedNone'
     fixture('conflicting-retained-nominal', replace(rows, 'Data.Option', nominal, 'forged-option-nominal'),
             error='Data.Option: conflicting defining nominal contracts: Data.Core.Option')
 

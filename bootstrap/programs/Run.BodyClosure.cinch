@@ -71,8 +71,8 @@ module Main where
     Err error -> 2
 
   -- | Distinguish named contract refusals from successful, semantically checked body observations.
-  observe :: forall r. using (io :: Io r) => Json -> List (String, String, Json) ->{IO r} Int
-  observe manifest inputs = case load-checked-body-interface-set-from-documents inputs of
+  observe :: forall r. using (io :: Io r) => Json -> List LoadedInterface -> List (String, String, Json) ->{IO r} Int
+  observe manifest known inputs = case load-body-interfaces-with-known known inputs of
     Err message -> (case field "expected_error" manifest of
       JStr expected -> if string-compare expected "" /= 0 && string-compare message expected == 0 then 0 else failure message
       other -> failure message)
@@ -85,6 +85,16 @@ module Main where
         else failure "accepted body closure failed semantic observations"
       other -> failure "damaged body closure was accepted")
 
+  -- Preload one row independently of the set being checked. A synthetic
+  -- envelope omits identity verification even when its document is well formed.
+  preload :: forall r. using (io :: Io r) => Json ->{IO r} Result String (List LoadedInterface)
+  preload manifest = case field "known_inputs" manifest of
+    JNull -> Ok Nil
+    rows -> (case read-inputs rows of
+      Ok [(name, hash, doc)] -> let load = (case field "known_verified" manifest of { JBool True -> load-interface-from-document; other -> load-interface-from-contract }) in
+        (case load name hash doc of Ok member -> Ok [member]; Err message -> Err message)
+      other -> Err "invalid known interface fixture")
+
   -- | Load one independent observation so poisoned allocations cannot accumulate between fixtures.
   run-fixture :: forall r. using (io :: Io r) => String ->{IO r} Int
   run-fixture path = case fs-read (path-from-string path) of
@@ -92,7 +102,7 @@ module Main where
     Ok bytes -> case parse-json path bytes of
       Parsed manifest Nil -> (case read-inputs (field "inputs" manifest) of
         Err error -> failure error
-        Ok inputs -> observe manifest inputs)
+        Ok inputs -> (case preload manifest of Err error -> failure error; Ok known -> observe manifest known inputs))
       other -> failure "cannot parse fixture manifest"
 
   -- | Select exactly one fixture through the public process argument boundary.
