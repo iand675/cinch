@@ -18,7 +18,7 @@ import resource
 import shutil
 import time
 from bench_stdlib import source_closure
-from check_compare import digest, initialize_runtime, list_of, run
+from check_compare import corpus_emit_mode, digest, initialize_runtime, list_of, run
 from check_quoted_printable import byte_literal, literal
 
 #: Repository root for immutable source and fixture inputs.
@@ -414,6 +414,7 @@ def main() -> None:
         identity = {"compiler": str(compiler), "compiler_sha256": digest(compiler), "runtime": str(runtime),
                     "runtime_sha256": digest(runtime), "compile_rc_debug": label == "native"}
         if label == "native":
+            mode = corpus_emit_mode(compiler, report["runs"])
             config = json.loads((snap / "objects.json").read_text()); provider = Path(config["object"])
             identity.update({name: digest(snap / name) for name in ("objects.json", "base-interfaces.json")})
             identity["provider_sha256"] = digest(provider)
@@ -432,7 +433,7 @@ def main() -> None:
             row = next((entry for entry in report["runs"] if entry["frontend"] == label and entry["case"] == name), None)
             if row is None:
                 guard("emit-" + label + "-" + name)
-                command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), "--emit-ir", "--rc-debug", "--interfaces", str(snap / "base-interfaces.json"), "--objects", str(snap / "objects.json"), str(work / "bundle.source"), str(ir)]
+                command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), mode, "--rc-debug", "--interfaces", str(snap / "base-interfaces.json"), "--objects", str(snap / "objects.json"), str(work / "bundle.source"), str(ir)]
                 started = time.monotonic()
                 result = execute(command, {**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"})
                 target = re.search(r'target triple = "([^"]+)"', ir.read_text())
