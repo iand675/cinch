@@ -757,11 +757,13 @@ module Bootstrap.RuntimeIr where
   erased-layout-index actual parameter = case (value-carrier (type-kind actual), value-carrier (type-kind parameter)) of
     (Some carrier, Some expected) -> typed-index-admissible actual && runtime-type-equal carrier expected
     other -> False
+  -- Escaped descriptors carry as many mask words as the payload needs.
+  -- Their packed identity reserves sixteen bits for the physical word count.
   constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
   constructor-supported context d c = let sc = core-constructor-scheme c in
     regular-parameters (core-data-params d) (scheme-params sc)
     && (case scheme-requirements sc of Nil -> True; other -> False)
-    && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) <= 16
+    && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) < 65536
   storage-fields :: CoreData -> CoreConstructor -> List UType
   storage-fields d c = case core-data-layout d of UnpackedRecord slots -> physical-fields slots; other -> core-constructor-fields c
   -- Each constructor's description, by tag. A constructor the lowering
@@ -3569,7 +3571,7 @@ module Bootstrap.RuntimeIr where
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
             Some d -> case core-data-layout d of
               UnboxedData label word bytes align -> match-unboxed fields value failed w
-              layout -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then
+              layout -> if tag < 16777216 then
                 (case constructor-tag w value of
                   (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
                     (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
@@ -3776,7 +3778,7 @@ module Bootstrap.RuntimeIr where
     if named ty "Bool" && (same name "True" || same name "False") then Some 0
     else if decision-word-type ty && (same name "b.Yes" || same name "b.No") then Some 0
     else case constructor name (writer-program w) of
-      Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then Some (list-length (core-constructor-fields c)) else None
+      Some (owner, tag, c) -> if tag < 16777216 then Some (list-length (core-constructor-fields c)) else None
       None -> None
   fold-alternatives :: CoreTerm -> String -> Nat -> CaseFold
   fold-alternatives alternatives name count = case alternatives of
@@ -4154,7 +4156,7 @@ module Bootstrap.RuntimeIr where
         else if named ty "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
         else case constructor name (writer-program w) of
-          Some (owner, tag, c) -> if uniform-owner owner w && list-length (core-constructor-fields c) <= 16 && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
+          Some (owner, tag, c) -> if uniform-owner owner w && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
           None -> NoArm
       other -> NoArm
   -- The dispatch a case can use. The switch's case list is fixed before any

@@ -83,6 +83,25 @@ fn expect_leaked_project(tag: &str, src: &str, extra: &[(&str, &str)], code: i32
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn large_constructor_reclaims_fields_in_multiple_mask_words() {
+    // The two references straddle the descriptor's 64-bit mask boundary.
+    let mut fields = vec!["I64"; 66];
+    fields[16] = "Int";
+    fields[65] = "Int";
+    let mut values = vec!["0"; fields.len()];
+    values[16] = "value";
+    values[65] = "value";
+    let mut patterns = vec!["_"; fields.len()];
+    patterns[16] = "a";
+    patterns[65] = "b";
+    let source = format!(
+        "module Main where\n  data Packet where\n    Empty :: Packet\n    Full :: {} -> Packet\n  make :: Int -> Packet\n  make value = Full {}\n  inspect :: Packet -> Int\n  inspect Empty = 0\n  inspect (Full {}) = if a + b == 36893488147419103232 then 42 else 1\n  main :: Int\n  main = inspect (make 18446744073709551616)\n",
+        fields.join(" -> "), values.join(" "), patterns.join(" "),
+    );
+    expect_leaked("large-constructor", &source, 42, 0);
+}
+
 const LISTS: &str = r#"
 module Main where
   import Data.List
