@@ -36,7 +36,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Export (export-interfaces, interface-hash, build-profile-manifest)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.TargetLiterals (target-literal-errors)
-  import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
+  import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Data.Json
@@ -142,7 +142,10 @@ module Bootstrap.Pipeline where
   compile-source-mode inlining reclaim mode source ir exe report = compile-source-mode-at inlining reclaim None mode source ir exe report
 
   compile-source-mode-at :: forall r. using (io :: Io r) => Bool -> Bool -> Option String -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
-  compile-source-mode-at inlining reclaim wanted mode source ir exe report = case target-profile wanted of
+  compile-source-mode-at inlining reclaim wanted mode source ir exe report =
+    compile-source-profile-mode inlining reclaim (target-profile wanted) mode source ir exe report
+  compile-source-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-profile-mode inlining reclaim selection mode source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case mode of
       InterfacesOnly -> compile-source-interfaces profile Nil source ir
@@ -159,7 +162,10 @@ module Bootstrap.Pipeline where
   compile-source-with-manifest-mode inlining reclaim mode manifest source ir exe report = compile-source-with-manifest-mode-at inlining reclaim None mode manifest source ir exe report
 
   compile-source-with-manifest-mode-at :: forall r. using (io :: Io r) => Bool -> Bool -> Option String -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
-  compile-source-with-manifest-mode-at inlining reclaim wanted mode manifest source ir exe report = case target-profile wanted of
+  compile-source-with-manifest-mode-at inlining reclaim wanted mode manifest source ir exe report =
+    compile-manifest-profile-mode inlining reclaim (target-profile wanted) mode manifest source ir exe report
+  compile-manifest-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-manifest-profile-mode inlining reclaim selection mode manifest source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case read-interfaces manifest of
       Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
@@ -184,7 +190,10 @@ module Bootstrap.Pipeline where
   compile-source-object inlining debug reclaim wanted publish manifest object-config source ir =
     compile-source-object-mode inlining debug reclaim wanted (if publish then EmitWithInterfaces else EmitOnly) manifest object-config source ir
   compile-source-object-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Option String -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-source-object-mode inlining debug reclaim wanted mode manifest object-config source ir = case target-profile wanted of
+  compile-source-object-mode inlining debug reclaim wanted mode manifest object-config source ir =
+    compile-object-profile-mode inlining debug reclaim (target-profile wanted) mode manifest object-config source ir
+  compile-object-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-object-profile-mode inlining debug reclaim selection mode manifest object-config source ir = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case mode of
       EmitWithInterfaces -> publish-object-client inlining debug reclaim profile manifest object-config source ir
@@ -587,7 +596,7 @@ module Bootstrap.Pipeline where
 
   manifest-target :: TargetProfile -> Json
   manifest-target profile = JObj "triple" (JStr (profile-triple profile))
-    (JObj "os" (JStr (profile-os profile)) (JObj "arch" (JStr (profile-arch profile))
+    (JObj "os" (JStr (profile-os profile)) (JObj "arch" (JStr (selection-arch profile))
       (JObj "libc" (JStr (profile-libc profile)) (JObj "word_size" (JNum (nat-to-int (profile-word-size profile)))
         (JObj "endian" (JStr (profile-endian profile)) JObjEnd)))))
 

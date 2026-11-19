@@ -41,7 +41,7 @@ module Bootstrap.Target where
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
 
-  export TargetProfile, MkTargetProfile
+  export TargetProfile, MkTargetProfile, selectable-profile, selection-arch
   export profile-name, profile-triple, profile-os, profile-arch, profile-libc, profile-word-size, profile-endian
   export supported-targets, profile-of-triple, host-profile, target-profile
   export target-triple-of, unsupported-target, target-ir-header
@@ -58,28 +58,42 @@ module Bootstrap.Target where
   -- store key, so it is kept distinct from the triple it derives from.
   data TargetProfile where
     MkTargetProfile ::
-      String -> String -> String -> String -> String -> Nat -> String -> TargetProfile
+      String -> String -> String -> String -> String -> Nat -> String -> Bool -> TargetProfile
 
   profile-name :: TargetProfile -> String
-  profile-name p = case p of MkTargetProfile name triple os arch libc bits endian -> name
+  profile-name p = case p of MkTargetProfile name triple os arch libc bits endian portable -> name
 
   profile-triple :: TargetProfile -> String
-  profile-triple p = case p of MkTargetProfile name triple os arch libc bits endian -> triple
+  profile-triple p = case p of MkTargetProfile name triple os arch libc bits endian portable -> triple
 
   profile-os :: TargetProfile -> String
-  profile-os p = case p of MkTargetProfile name triple os arch libc bits endian -> os
+  profile-os p = case p of MkTargetProfile name triple os arch libc bits endian portable -> os
 
   profile-arch :: TargetProfile -> String
-  profile-arch p = case p of MkTargetProfile name triple os arch libc bits endian -> arch
+  profile-arch p = case p of MkTargetProfile name triple os arch libc bits endian portable -> arch
 
   profile-libc :: TargetProfile -> String
-  profile-libc p = case p of MkTargetProfile name triple os arch libc bits endian -> libc
+  profile-libc p = case p of MkTargetProfile name triple os arch libc bits endian portable -> libc
 
   profile-word-size :: TargetProfile -> Nat
-  profile-word-size p = case p of MkTargetProfile name triple os arch libc bits endian -> bits
+  profile-word-size p = case p of MkTargetProfile name triple os arch libc bits endian portable -> bits
 
   profile-endian :: TargetProfile -> String
-  profile-endian p = case p of MkTargetProfile name triple os arch libc bits endian -> endian
+  profile-endian p = case p of MkTargetProfile name triple os arch libc bits endian portable -> endian
+
+  -- Portable instruction selection retains the target ABI, data layout and
+  -- linker triple while compiling the source's architecture-neutral alternatives.
+  selection-arch :: TargetProfile -> String
+  selection-arch p = case p of
+    MkTargetProfile name triple os arch libc bits endian portable -> if portable then "portable" else arch
+
+  selectable-profile :: (Option String, Bool) -> Result String TargetProfile
+  selectable-profile options = case options of
+    (wanted, False) -> target-profile wanted
+    (wanted, True) -> case target-profile wanted of
+      Err message -> Err message
+      Ok (MkTargetProfile name triple os arch libc bits endian flag) ->
+        Ok (MkTargetProfile (name <> "-portable") triple os arch libc bits endian True)
 
   -- LLVM layouts for the triples accepted by profile-of-triple.
   target-ir-header :: TargetProfile -> String
@@ -142,15 +156,15 @@ module Bootstrap.Target where
     Some (arch, os, libc) ->
       -- The freestanding Wasm target is the one 32-bit entry in the table.
       if string-compare arch "wasm32" == 0 then
-        Ok (MkTargetProfile triple triple os arch libc 32 "little")
-      else Ok (MkTargetProfile triple triple os arch libc 64 "little")
+        Ok (MkTargetProfile triple triple os arch libc 32 "little" False)
+      else Ok (MkTargetProfile triple triple os arch libc 64 "little" False)
 
   -- The profile of the machine this compiler runs on. `Bootstrap.Host` is
   -- rendered from the build host before the sources are hashed, the same
   -- way `Bootstrap.RuntimeAbi` is, because a compiled program cannot ask
   -- Rust for its own triple.
   host-profile :: TargetProfile
-  host-profile = MkTargetProfile host-triple host-triple host-os host-arch host-libc 64 "little"
+  host-profile = MkTargetProfile host-triple host-triple host-os host-arch host-libc 64 "little" False
 
   -- The profile a caller asked for: the host's own target, or the profile of
   -- one supported triple. `--target` defaults to the host, so a compile that
@@ -277,7 +291,7 @@ module Bootstrap.Target where
   atom-actual :: WhenAtom -> TargetProfile -> String
   atom-actual atom profile = case atom of
     MkWhenAtom negated kind value ->
-      if string-compare kind "arch" == 0 then string-concat-all ["the target's arch is `", profile-arch profile, "`"]
+      if string-compare kind "arch" == 0 then string-concat-all ["the target's arch is `", selection-arch profile, "`"]
       else if string-compare kind "os" == 0 then string-concat-all ["the target's os is `", profile-os profile, "`"]
       else if string-compare kind "libc" == 0 then string-concat-all ["the target links `", profile-libc profile, "`"]
       else if string-compare kind "endian" == 0 then string-concat-all ["the target's endian is `", profile-endian profile, "`"]
@@ -290,7 +304,7 @@ module Bootstrap.Target where
   atom-holds :: WhenAtom -> TargetProfile -> Bool
   atom-holds atom profile = case atom of
     MkWhenAtom negated kind value ->
-      (if string-compare kind "arch" == 0 then string-compare value (profile-arch profile) == 0
+      (if string-compare kind "arch" == 0 then string-compare value (selection-arch profile) == 0
       else if string-compare kind "os" == 0 then string-compare value (profile-os profile) == 0
       else if string-compare kind "libc" == 0 then string-compare value (profile-libc profile) == 0
       else if string-compare kind "endian" == 0 then string-compare value (profile-endian profile) == 0

@@ -30,7 +30,7 @@ def publish_interfaces(manifest, source, prefix):
 # paths. The selectors in compiler/tests/common put them after the mode word.
 # `--no-reclaim` is one of them: it is a word, not a path, so a caller that
 # leaves it in the argument list would hand it to the compiler as a source.
-PROFILE_FLAGS = ("--rc-debug", "--no-reclaim")
+PROFILE_FLAGS = ("--rc-debug", "--no-reclaim", "--portable-isa")
 
 
 def compile_client(compiler, objects, runtime, args, *, ir_only=False):

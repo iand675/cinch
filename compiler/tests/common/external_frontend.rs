@@ -82,7 +82,7 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
         ("name", !foreign_triple || *name == host.name || core_wasm),
         ("triple", *triple == host.triple),
         ("os", *os == host.os),
-        ("arch", *arch == host.arch),
+        ("arch", *arch == host.arch || arch == "portable"),
         ("libc", *libc == host.libc),
         ("os_version", *os_version == host.os_version),
         ("word_size", *word_size == host.word_size),
@@ -114,6 +114,9 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     if host.triple != TargetProfile::native().triple {
         flags.push("--target".to_owned());
         flags.push(host.triple.clone());
+    }
+    if arch == "portable" {
+        flags.push("--portable-isa".to_owned());
     }
     if *rc_debug {
         flags.push("--rc-debug".to_owned());
@@ -412,7 +415,11 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     let mut files = Vec::new(); sources(&dir, &dir, &mut files)?; files.sort();
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
     let triple = request.flags.windows(2).find(|words| words[0] == "--target").map(|words| words[1].as_str());
-    let files = reachable_sources(&files, &entry, &implemented_profile(triple)?);
+    let mut profile = implemented_profile(triple)?;
+    if request.flags.iter().any(|flag| flag == "--portable-isa") {
+        profile.arch = "portable".into();
+    }
+    let files = reachable_sources(&files, &entry, &profile);
     let invocation_id = next_invocation_id();
     let work = dir.join(".cinch-self-tests").join(&invocation_id);
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;

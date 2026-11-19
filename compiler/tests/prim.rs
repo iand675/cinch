@@ -739,17 +739,21 @@ fn llvm_body_guards_follow_the_requested_target() {
   main :: Int
   main = if same-word (guarded 0) 101 then 0 else 1
 "#;
-    for (triple, selected) in [
-        ("aarch64-unknown-linux-gnu", 101),
-        ("aarch64-apple-darwin", 202),
-        ("x86_64-unknown-linux-gnu", 303),
+    for (triple, portable, selected) in [
+        ("aarch64-unknown-linux-gnu", false, 101),
+        ("aarch64-unknown-linux-gnu", true, 202),
+        ("aarch64-apple-darwin", false, 202),
+        ("x86_64-unknown-linux-gnu", false, 303),
+        ("x86_64-unknown-linux-gnu", true, 202),
     ] {
-        let profile = target_profile(&DriverOptions {
+        let mut profile = target_profile(&DriverOptions {
             target: Some(triple.into()),
             ..Default::default()
         }).unwrap();
+        if portable { profile.arch = "portable".into(); }
         let ir = common::source_frontend::emit_ir_profile(source, &profile)
             .unwrap_or_else(|error| panic!("{triple}: {error}"));
+        assert!(ir.lines().any(|line| line == format!(r#"target triple = "{triple}""#)), "{triple}");
         for marker in [101, 202, 303] {
             let instruction = format!("ret i32 {marker}");
             assert_eq!(ir.lines().any(|line| line.trim() == instruction), marker == selected,

@@ -21,15 +21,15 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode-at, compile-source-with-manifest-mode-at, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (run-source-with-object, compile-source-object-mode, compile-source-library-object-at, report-target-refusal)
-  import Bootstrap.Target (target-profile)
+  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode, compile-manifest-profile-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (run-source-with-object-at, compile-object-profile-mode, compile-source-library-object-at, report-target-refusal)
+  import Bootstrap.Target (TargetProfile, selectable-profile, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
   run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
-  run-words ws = run-options CompileAndRun None None None False True False False ws
+  run-words ws = run-options CompileAndRun None None (None, False) False True False False ws
 
-  run-options :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
+  run-options :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> (Option String, Bool) -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
   run-options mode manifest object-config wanted debug reclaim inlining selected ws = case ws of
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
@@ -66,14 +66,22 @@ module Main where
           other -> pipeline-bad-args
       else if string-compare flag "--target" == 0 then
         case (wanted, rest) of
-          (None, Cons triple more) -> run-options mode manifest object-config (Some triple) debug reclaim inlining selected more
+          ((None, portable), Cons triple more) -> run-options mode manifest object-config (Some triple, portable) debug reclaim inlining selected more
+          other -> pipeline-bad-args
+      else if string-compare flag "--portable-isa" == 0 then
+        case wanted of
+          (triple, False) -> run-options mode manifest object-config (triple, True) debug reclaim inlining selected rest
           other -> pipeline-bad-args
       else if string-compare flag "run" == 0 then
         case (selected, manifest, object-config, rest) of
           (False, Some contracts, Some provider, Cons runtime (Cons prefix (Cons source words))) ->
-            run-source-with-object inlining debug reclaim contracts provider runtime prefix source (program-words words)
+            (case selectable-profile wanted of
+              Err message -> report-target-refusal (path-from-string prefix) message
+              Ok profile -> if string-compare (profile-triple profile) (profile-triple host-profile) == 0 then
+                run-source-with-object-at inlining debug reclaim profile contracts provider runtime prefix source (program-words words)
+                else report-target-refusal (path-from-string prefix) "a foreign target cannot run on this host")
           other -> pipeline-bad-args
-      else run-selected mode manifest object-config wanted debug reclaim inlining ws
+      else run-selected mode manifest object-config (selectable-profile wanted) debug reclaim inlining ws
     Nil -> pipeline-bad-args
 
   program-words :: List String -> List String
@@ -84,11 +92,11 @@ module Main where
   -- Debug counting changes only the typed runtime emission. Checking emits
   -- no count operations, so it ignores the flag; a mode that emits code
   -- without a runtime object refuses it.
-  run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
+  run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
   run-selected mode manifest object-config wanted debug reclaim inlining ws = case mode of
     ObjectOnly -> case (debug, reclaim, manifest, object-config, ws) of
       (False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
-        case target-profile wanted of
+        case wanted of
           Err message -> report-target-refusal (path-from-string ir) message
           Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix
       other -> pipeline-bad-args
@@ -117,16 +125,16 @@ module Main where
       None -> pipeline-bad-args
       Some (source, ir, exe, report) -> run-source mode manifest object-config wanted debug reclaim inlining source ir exe report
 
-  run-source :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Option String -> Bool -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
+  run-source :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
   run-source mode manifest object-config wanted debug reclaim inlining source ir exe report = case object-config of
     Some configuration -> (case (mode, manifest) of
-      (IrOnly, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
-      (EmitOnly, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
-      (EmitWithInterfaces, Some file) -> compile-source-object-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (IrOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitWithInterfaces, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       other -> pipeline-bad-args)
     None -> if debug && emits-code mode then pipeline-bad-args else case manifest of
-      None -> compile-source-mode-at inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
-      Some file -> compile-source-with-manifest-mode-at inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
+      None -> compile-source-profile-mode inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
+      Some file -> compile-manifest-profile-mode inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
 
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of
