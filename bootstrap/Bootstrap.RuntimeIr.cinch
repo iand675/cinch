@@ -2064,6 +2064,16 @@ module Bootstrap.RuntimeIr where
   allocate-constructor :: CoreData -> Writer -> Nat -> List (String, String) -> (Writer, String)
   allocate-constructor d w descriptor values = case core-data-layout d of
     UnpackedRecord slots -> (case flatten-values slots values w of (ready, physical) -> allocate-typed ready descriptor physical)
+    TransparentData label bytes align | bytes < 8 -> (case values of
+      [(_, value)] -> let (one, ptr) = fresh w "%ptr" in
+        let allocated = shaped-allocation one ptr (nat-to-string bytes) 1 descriptor in
+        let filled = (if bytes == 0 then allocated else
+          let ty = "i" <> nat-to-string (8 * bytes) in
+          let (two, bits) = fresh allocated "%v" in
+          line (line two (cat ["  ", bits, " = trunc i64 ", value, " to ", ty])) (cat ["  store ", ty, " ", bits, ", ptr ", ptr, ", align ", nat-to-string align])) in
+        let (done, result) = fresh filled "%v" in
+        (line done (cat ["  ", result, " = ptrtoint ptr ", ptr, " to i64"]), result)
+      other -> unsupported w (Span 0 0 1 1) "transparent constructor lacks its checked field")
     other -> allocate-typed w descriptor values
   -- The source constructor consumes every argument. A flattened product
   -- transfers one owned reference per slot before releasing its old block.
@@ -3546,13 +3556,19 @@ module Bootstrap.RuntimeIr where
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-program w) of
-          Some (owner, tag, c) | unboxed-owner owner w -> match-unboxed fields value failed w
-          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then
-            (case constructor-tag w value of
-              (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
-                (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
-                  match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])))
-            else (refuse w sp "constructor pattern needs a specialized runtime representation", Nil)
+          Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
+            Some d -> case core-data-layout d of
+              UnboxedData label word bytes align -> match-unboxed fields value failed w
+              layout -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then
+                (case constructor-tag w value of
+                  (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
+                    (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
+                      let pointed = line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
+                      (case layout of
+                        TransparentData field bytes align | bytes < 8 -> match-transparent fields pointer bytes align failed pointed
+                        other -> match-fields fields pointer 0 failed pointed))
+                else (refuse w sp "constructor pattern needs a specialized runtime representation", Nil)
+            None -> (refuse w sp "constructor pattern has no defining runtime declaration", Nil))
           None -> (refuse w sp "constructor pattern has no defining runtime declaration", Nil)
       CPInt sp ty text -> if number ty then
         (case decimal w ty text of
@@ -3570,6 +3586,18 @@ module Bootstrap.RuntimeIr where
         None -> (refuse w sp "invalid typed character pattern", Nil)) else (refuse w sp "character pattern has no checked Char carrier", Nil)
       CPString sp ty text -> string-pattern w sp ty value text failed
       other -> (refuse w (Span 0 0 1 1) "pattern form needs typed runtime match lowering", Nil)
+  match-transparent :: CorePattern -> String -> Nat -> Nat -> String -> Writer -> (Writer, List Local)
+  match-transparent fields pointer bytes align failed w = case fields of
+    CPField sp (CPProof at predicate id name) rest -> match-transparent rest pointer bytes align failed w
+    CPField sp first rest -> if bytes == 0 then match-pattern first "0" failed w else
+      let ty = "i" <> nat-to-string (8 * bytes) in
+      let (one, bits) = fresh w "%v" in
+      let loaded = line one (cat ["  ", bits, " = load ", ty, ", ptr ", pointer, ", align ", nat-to-string align]) in
+      let (two, value) = fresh loaded "%v" in
+      let field = pattern-type first in
+      let extend = (if named field "I8" || named field "I16" || named field "I32" then "sext" else "zext") in
+      match-pattern first value failed (line two (cat ["  ", value, " = ", extend, " ", ty, " ", bits, " to i64"]))
+    other -> (refuse w (Span 0 0 1 1) "transparent pattern lacks its checked field", Nil)
   match-unboxed :: CorePattern -> String -> String -> Writer -> (Writer, List Local)
   match-unboxed fields value failed w = case fields of
     CPField sp (CPProof at predicate id name) rest -> match-unboxed rest value failed w

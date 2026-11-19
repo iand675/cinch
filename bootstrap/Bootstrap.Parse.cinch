@@ -790,9 +790,11 @@ module Bootstrap.Parse where
         else if string-compare p "}" == 0 then POk (reverse acc) rest
         else decl-step toks src fix acc
       TAttr text -> (case repr-arguments text of
-        Some args | string-compare args "unboxed" == 0 -> unboxed-decl (sp-of t) rest src fix acc
-        Some args | has-unboxed-item (string-split-on "," args) -> unboxed-decl (sp-of t) rest src fix
+        Some args | string-compare args "unboxed" == 0 || string-compare args "transparent" == 0 -> wrapper-decl (sp-of t) args rest src fix acc
+        Some args | has-repr-item "unboxed" (string-split-on "," args) -> wrapper-decl (sp-of t) "unboxed" rest src fix
           (Cons (DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") acc)
+        Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
+          (Cons (DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") acc)
         other -> (case inline-attribute text of
           Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] rest src fix acc
           None -> decl-step toks src fix acc))
@@ -808,19 +810,19 @@ module Bootstrap.Parse where
           && string-compare (string-drop (end - 1) trimmed) ")" == 0
         then Some (string-strip (string-take (end - open - 2) (string-drop (open + 1) trimmed))) else None
       None -> None
-  has-unboxed-item :: List String -> Bool
-  has-unboxed-item args = case args of
+  has-repr-item :: String -> List String -> Bool
+  has-repr-item item args = case args of
     Nil -> False
-    Cons arg rest -> string-compare (string-strip arg) "unboxed" == 0 || has-unboxed-item rest
+    Cons arg rest -> string-compare (string-strip arg) item == 0 || has-repr-item item rest
 
-  unboxed-decl :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
-  unboxed-decl site toks src fix acc = case toks of
-    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then unboxed-decl site rest src fix acc else
+  wrapper-decl :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  wrapper-decl site repr toks src fix acc = case toks of
+    Cons t rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then wrapper-decl site repr rest src fix acc else
       (case parse-decl-recover toks src fix of
         POk d tail -> (case d of
-          DData sp name params constructors -> decls-loop tail src fix (Cons d (Cons (DUnboxed site name Nil) acc))
-          DRecord sp name params fields -> decls-loop tail src fix (Cons d (Cons (DUnboxed site name (map (\field -> case field of (label, ty) -> label) fields)) acc))
-          other -> decls-loop tail src fix (Cons d (Cons (DUnmodeled site "repr(unboxed) requires a data or record declaration") acc)))
+          DData sp name params constructors -> decls-loop tail src fix (Cons d (Cons (DWrapperLayout site name repr Nil) acc))
+          DRecord sp name params fields -> decls-loop tail src fix (Cons d (Cons (DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) acc))
+          other -> decls-loop tail src fix (Cons d (Cons (DUnmodeled site ("repr(" <> repr <> ") requires a data or record declaration")) acc)))
         PBad -> PBad)
     Nil -> PBad
 

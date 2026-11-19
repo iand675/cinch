@@ -859,12 +859,15 @@ module Bootstrap.Export where
       UniformData -> more
       layout -> (case export-global (core-data-name d) of Ok identity -> hash-map-insert identity layout more; Err message -> more)
 
+  wrapper-abi :: String -> String -> Nat -> Nat -> Json
+  wrapper-abi repr label size align = let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
+    JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr repr) JObjEnd)))
   layouts :: HashMap String DataLayout -> Json -> Json
   layouts index types = case types of
     JArr row rest -> let layout = (case hash-map-lookup (text (field "identity" row)) index of
           Some (UnpackedRecord slots) -> unpacked-abi slots
-          Some (UnboxedData label word size align) -> let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
-            JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr "unboxed") JObjEnd)))
+          Some (UnboxedData label word size align) -> wrapper-abi "unboxed" label size align
+          Some (TransparentData label size align) -> wrapper-abi "transparent" label size align
           other -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd)))) in
       JArr (JObj "type" (field "name" row) layout) (layouts index rest)
     other -> JArrEnd

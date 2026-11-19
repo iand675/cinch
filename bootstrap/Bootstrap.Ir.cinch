@@ -565,7 +565,7 @@ module Bootstrap.Ir where
     DGenerate s actions -> Cons (diag s "a generate block requires compile-time expansion") Nil
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
-    DUnboxed s name label -> Nil
+    DWrapperLayout s name repr label -> Nil
     DUnpackFields s name fields -> Nil
     DInlineHint s name hint -> Nil
     DUnrollHint s name hint -> Nil

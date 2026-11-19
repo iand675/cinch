@@ -889,6 +889,20 @@ module Main where
   record W where
     x :: U32
 
+  #[repr(transparent)]
+  data Signed where
+    Signed :: I16 -> Signed
+
+  #[repr(transparent)]
+  data Empty where
+    Empty :: Unit -> Empty
+
+  signed-value :: Signed -> I16
+  signed-value (Signed n) = n
+
+  empty-value :: Empty -> Bool
+  empty-value (Empty ()) = True
+
   wrap :: U32 -> W
   wrap n = W { x = n }
 
@@ -896,7 +910,8 @@ module Main where
   unwrap w = w.x
 
   main :: Int
-  main = if unwrap (wrap 7) == 7 then 0 else 1
+  main = if unwrap (wrap 4294967295) == 4294967295
+    && signed-value (Signed (-317)) == -317 && empty-value (Empty ()) then 0 else 1
 "#,
         0,
     );

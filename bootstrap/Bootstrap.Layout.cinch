@@ -14,7 +14,7 @@ module Bootstrap.Layout where
   export check-layouts
 
   data Request where
-    Requested :: Span -> String -> List String -> Option Json -> Request
+    Requested :: Span -> String -> String -> List String -> Option Json -> Request
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -32,7 +32,7 @@ module Bootstrap.Layout where
   requests :: List Decl -> List Request
   requests ds = case ds of
     Nil -> Nil
-    Cons (DUnboxed site name label) rest -> Cons (Requested site name label None) (requests rest)
+    Cons (DWrapperLayout site name repr label) rest -> Cons (Requested site name repr label None) (requests rest)
     Cons (DInterface site home hash doc) rest ->
       abi-requests site home (field "types" (field "exports" doc)) (field "layouts" (field "abi" doc)) (requests rest)
     Cons other rest -> requests rest
@@ -41,10 +41,10 @@ module Bootstrap.Layout where
   abi-requests site home types layouts tail = case layouts of
     JArr row more -> let rest = abi-requests site home types more tail in
       (case (field "repr" row, field "type" row) of
-        (JStr repr, JStr name) | same repr "unboxed" -> (case named-row name types of
+        (JStr repr, JStr name) | same repr "unboxed" || same repr "transparent" -> (case named-row name types of
           Some ty -> (case field "identity" ty of
             JStr identity | same identity (home <> "." <> name) ->
-              Cons (Requested site (interface-global identity) (field-labels (field "fields" ty)) (Some row)) rest
+              Cons (Requested site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) rest
             other -> rest)
           None -> rest)
         other -> rest)
@@ -71,7 +71,7 @@ module Bootstrap.Layout where
   requested :: String -> List Request -> Option Request
   requested name layouts = case layouts of
     Nil -> None
-    Cons (Requested site owner label published) rest -> if same name owner then Some (Requested site owner label published) else requested name rest
+    Cons (Requested site owner repr label published) rest -> if same name owner then Some (Requested site owner repr label published) else requested name rest
   data-for :: String -> List CoreData -> Option CoreData
   data-for name datas = case datas of
     Nil -> None
@@ -108,9 +108,21 @@ module Bootstrap.Layout where
         Some name -> (case scalar-layout name of
           Some physical -> Ok physical
           None -> (case (requested name layouts, data-for name datas) of
-            (Some hint, Some nested) -> physical-layout layouts datas shapes (Cons owner seen) nested
+            (Some (Requested at wrapper repr labels row), Some nested) | same repr "unboxed" -> physical-layout layouts datas shapes (Cons owner seen) nested
             other -> Err "repr(unboxed) requires a fixed single-word payload"))
         None -> Err "repr(unboxed) requires a fixed single-word payload")
+
+  -- Boundary wrappers keep their heap object. Their payload has the single
+  -- field's physical width, including a zero-byte Unit field.
+  transparent-layout :: CoreData -> List UsageShape -> Result String (Nat, Nat, Nat)
+  transparent-layout d shapes = case represented-field d shapes of
+    None -> Err "repr(transparent) needs exactly one represented field"
+    Some payload -> (case head-name payload of
+      Some name -> (case scalar-layout name of
+        Some physical -> Ok physical
+        None -> if member name ["I128", "U128"] then Ok (3, 16, 16)
+          else Err "repr(transparent) field needs a known boundary layout")
+      None -> Err "repr(transparent) field needs a fixed layout")
 
   matches-published :: Json -> String -> Nat -> Nat -> Bool
   matches-published row label size alignment = case (field "size" row, field "align" row, field "fields" row) of
@@ -131,8 +143,8 @@ module Bootstrap.Layout where
     Cons d rest -> case attach-layouts layouts all shapes rest st of
       (more, checked) -> (case requested (core-data-name d) layouts of
         None -> (Cons d more, checked)
-        Some (Requested site owner labels published) -> let label = layout-label labels published d in (case physical-layout layouts all shapes Nil d of
+        Some (Requested site owner repr labels published) -> let label = layout-label labels published d in (case (if same repr "transparent" then transparent-layout d shapes else physical-layout layouts all shapes Nil d) of
           Err message -> (Cons d more, add-error site message checked)
           Ok (word, bytes, align) -> (case published of
-            Some row | not (matches-published row label bytes align) -> (Cons d more, add-error site "unboxed ABI layout disagrees with its represented field" checked)
-            other -> (Cons (with-data-layout (UnboxedData label word bytes align) d) more, checked))))
+            Some row | not (matches-published row label bytes align) -> (Cons d more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
+            other -> (Cons (with-data-layout (if same repr "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) more, checked))))
