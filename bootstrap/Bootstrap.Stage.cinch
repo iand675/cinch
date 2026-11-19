@@ -166,9 +166,20 @@ module Bootstrap.Stage where
       Err errors -> walk-children stage-splice-probes term probes)
     other -> walk-children stage-splice-probes term probes
 
+  generated-phase-declaration :: Decl -> Bool
+  generated-phase-declaration declaration = case declaration of
+    DGenerate site body -> True
+    DStage site body -> True
+    DMacro site body -> True
+    DDeclarationMacro site name patterns body -> True
+    DConditional site clauses inner -> generated-phase-declaration inner
+    DDecl site first rest -> generated-phase-declaration first || generated-phase-declaration rest
+    other -> False
+
   template-probes :: List Decl -> Result (List Diagnostic) (List Decl)
   template-probes declarations = case declarations of
     Nil -> Ok Nil
+    Cons first rest | generated-phase-declaration first -> stage-error (decl-span first) "a generator cannot emit `generate`, `stage` or `macro`"
     Cons first rest -> case template-probes rest of
       Err errors -> Err errors
       Ok more -> case first of
@@ -801,7 +812,7 @@ module Bootstrap.Stage where
     DSig site name ty -> Ok (declaration, fuel)
     DData site name params constructors -> Ok (declaration, fuel)
     DRecord site name params fields -> Ok (declaration, fuel)
-    other -> expand-error (decl-span declaration) "unsupported declaration in a quoted group"
+    other -> expand-error (decl-span declaration) (if generated-phase-declaration declaration then "a generator cannot emit `generate`, `stage` or `macro`" else "unsupported declaration in a quoted group")
 
   fill-declared-clauses :: MacroSite -> List (String, Fix) -> MacroOperands -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
   fill-declared-clauses scope fix operands clauses fuel = if fuel > macro-budget then expand-error (Span 0 0 1 1) "macro expansion exhausted its work budget" else case clauses of

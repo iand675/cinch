@@ -1032,6 +1032,7 @@ module Bootstrap.Infer where
       other -> bad sp "index application has no actual defining total body declaration" st)
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
+    TUnmodeled at message | not (same message "") -> bad at message st
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
       (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
         (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
@@ -1929,7 +1930,7 @@ module Bootstrap.Infer where
       -- The generated single-constructor data has already checked the
       -- kind. Keep the defining labels as separate source provenance.
       DRecord s name ps fields -> collect-kinds rest (context-add-alias d kinds)
-        (duplicate-names s (record-labels fields) Nil st)
+        (duplicate-names-with (string-concat "duplicate record field ") s (record-labels fields) Nil st)
       DCodata s name ps observations -> collect-kinds rest (context-add-alias d kinds) st
       DSource s name metadata -> (case field "record_scope" metadata of
         JArr first more -> collect-kinds rest (context-add-alias d kinds) st
@@ -5666,10 +5667,12 @@ module Bootstrap.Infer where
     PArg s x rest -> pattern-names x <> pattern-names rest
     other -> Nil
   duplicate-names :: Span -> List String -> List String -> Store -> Store
-  duplicate-names sp names seen st = case names of
+  duplicate-names = duplicate-names-with (\name -> string-concat-all ["duplicate pattern binder: ", name, " is bound twice"])
+  duplicate-names-with :: (String -> String) -> Span -> List String -> List String -> Store -> Store
+  duplicate-names-with message sp names seen st = case names of
     Nil -> st
-    Cons name rest -> duplicate-names sp rest (Cons name seen)
-      (if has name seen then add-error sp (string-concat-all ["duplicate pattern binder: ", name, " is bound twice"]) st else st)
+    Cons name rest -> duplicate-names-with message sp rest (Cons name seen)
+      (if has name seen then add-error sp (message name) st else st)
   patterns-names :: List Pat -> List String
   patterns-names ps = case ps of Nil -> Nil; Cons p rest -> pattern-names p <> patterns-names rest
   bind-proof-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
