@@ -620,15 +620,23 @@ module Main where
 "#,
         "obligation disproved",
     );
-    // Unsupported: no decision procedure applies.
+    // Negation can reuse a checked runtime decision, including a nested one.
+    expect_ok("runtime-negation", r#"
+module Main where
+  f :: Nat -> Nat
+  f x = case decide (Not (Not (x < 5))) of
+    Yes _ -> 1
+    No _ -> 0
+  main :: Int
+  main = if f 4 == 1 && f 5 == 0 then 0 else 1
+"#, 0);
+    // An abstract proposition carries no decision procedure.
     expect_err(
         "status-unsupported",
         r#"
 module Main where
-  f :: Nat -> Nat
-  f x = case decide (Not (x < 5)) of
-    Yes _ -> 1
-    No _ -> 0
+  choose :: forall (p :: Prop). Dec p
+  choose = decide p
 
   main :: Int
   main = 0

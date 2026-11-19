@@ -3480,11 +3480,9 @@ impl Checker {
                 Ok(Some(match comp_of(cc) {
                     Comp::Yes => (no, dty),
                     Comp::No => (yes, dty),
-                    Comp::Test(_) => {
-                        return Err(Error::at(
-                            span,
-                            "obligation status: unsupported: `decide` has no decision procedure for a negated proposition",
-                        ))
+                    Comp::Test(test) => {
+                        let negated = ECore::If(test, CBranch::new(ECore::Bool(false)), CBranch::new(ECore::Bool(true)));
+                        (ECore::If(Box::new(negated), CBranch::new(yes), CBranch::new(no)), dty)
                     }
                 }))
             }

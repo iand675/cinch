@@ -3829,7 +3829,20 @@ module Bootstrap.Infer where
   decision-index sp env carrier value st = case reify-argument sp env (map-term-types (normalize st) value) st of
     (index, checked) -> predicate-index-value sp (if same-type carrier (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int") index checked
   decision-failure :: Span -> String -> Store -> (UType, CoreTerm, Store)
-  decision-failure sp message st = (UError, CError sp, add-error sp message st)
+  decision-failure sp message st = (UError, CError sp, add-error sp ("obligation status: unsupported: " <> message) st)
+  -- A comparison observes each normalized operand with the same 32 reduction
+  -- steps as the reference checker. Variables are stuck; an exhausted branch
+  -- is a timeout even when the other operand cannot reduce.
+  decision-index-timeout :: Nat -> IndexTerm -> Bool
+  decision-index-timeout fuel index = if fuel == 0 then True else case index of
+    IAdd left right -> decision-index-timeout (fuel - 1) left || decision-index-timeout (fuel - 1) right
+    ISubtract left right -> decision-index-timeout (fuel - 1) left || decision-index-timeout (fuel - 1) right
+    IMultiply left right -> decision-index-timeout (fuel - 1) left || decision-index-timeout (fuel - 1) right
+    other -> False
+  decision-operand-timeout :: Nat -> UType -> Bool
+  decision-operand-timeout fuel value = if fuel == 0 then True else case value of
+    UIndexMath op a b -> decision-operand-timeout (fuel - 1) a || decision-operand-timeout (fuel - 1) b
+    other -> (case index-of-type value of Some index -> decision-index-timeout fuel index; None -> False)
   decision-predicate :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-predicate classes kinds families env locals syntax st = case syntax of
     ECon sp name (EArgsEnd end) -> if same name "True" || same name "False" then (UPropLit (same name "True"), decision-boolean sp (same name "True"), st) else decision-failure sp "predicate needs an executable checked decision procedure" st
@@ -3852,7 +3865,9 @@ module Bootstrap.Infer where
            (left, sl) -> case decision-value classes kinds families env locals carrier second sl of
              (right, sr) -> case decision-index sp env carrier left sr of
                (x, sx) -> case decision-index sp env carrier right sx of
-                 (y, done) -> (UCompare operation x y, CPrimitive sp (primitive-type "Bool") operation (CArgument sp left (CArgument sp right (CArgumentsEnd sp))), done))
+                 (y, done) -> if decision-operand-timeout 32 x || decision-operand-timeout 32 y then
+                   (UError, CError sp, add-error sp "obligation status: timeout: deciding the comparison ran out of reduction steps" done)
+                   else (UCompare operation x y, CPrimitive sp (primitive-type "Bool") operation (CArgument sp left (CArgument sp right (CArgumentsEnd sp))), done))
       else decision-failure sp "predicate operator has no checked decision semantics" st
     other -> decision-failure (expr-span syntax) "predicate needs an executable checked decision procedure" st
   decision-unary :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Store -> (UType, CoreTerm, Store)
