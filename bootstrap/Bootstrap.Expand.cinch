@@ -88,6 +88,7 @@ module Bootstrap.Expand where
     DFun s name clauses -> clauses-have-macro-call clauses
     DConditional s clauses inner -> decl-has-macro-call inner
     DProof s inner -> decl-has-macro-call inner
+    DSpec s inner -> decl-has-macro-call inner
     DCorec s inner -> decl-has-macro-call inner
     DDecl s x rest -> decl-has-macro-call x || decl-has-macro-call rest
     other -> False

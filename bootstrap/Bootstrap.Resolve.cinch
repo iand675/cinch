@@ -1200,6 +1200,9 @@ module Bootstrap.Resolve where
     DProof s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DProof s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
+    DSpec s body -> case rename-decl home visible declarations body of
+      ([checked], errors) -> ([DSpec s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a spec requires one signature or equation")
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")

@@ -18,6 +18,7 @@ module Bootstrap.Infer where
   import Data.Bytes (bytes-len)
   import Bootstrap.Core
   import Bootstrap.Layout (check-layouts)
+  import Bootstrap.Logical (specification-names, split-specifications, check-specification)
   import Bootstrap.Unpack (check-unpacked-records)
   import Bootstrap.Instance
   import Bootstrap.Global
@@ -375,6 +376,7 @@ module Bootstrap.Infer where
       DForeign s direction abi symbol name ty -> True
       DPrim s name ty bodies -> True
       DProof s body -> True
+      DSpec s body -> True
       DRewrite s name syntax -> True
       -- A temporal contract's formulas are compared over the definition's
       -- parameters (core specification section 10), which is typed work:
@@ -8083,7 +8085,8 @@ module Bootstrap.Infer where
   elaborate-module-with-source-bodies interfaces enable label m =
     let original = module-decls m in
     let has-codata = codata-present original in
-    let declarations = if has-codata then unwrap-corec-declarations original else original in
+    let unmarked = if has-codata then unwrap-corec-declarations original else original in
+    let (specs, declarations) = split-specifications (specification-names unmarked) unmarked in
     let unkinded = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
     let initial = empty-store label in
     let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
@@ -8142,14 +8145,39 @@ module Bootstrap.Infer where
       Nil -> check-source-rewrites classes linked-kinds families env ds rows ds Nil done
       other -> (Nil, done)) in
     let finished = case store-errors rewritten of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage rewritten); other -> rewritten in
-    let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
-    let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core finished in
+    let verified = case (specs, store-errors finished) of
+          (Cons first more, Nil) -> check-logical-declarations classes linked-kinds families env rows instances datas usage core specs finished
+          other -> finished in
+    let retained-classes = case store-errors verified of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
+    let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core verified in
     -- Checked Core retains contextual phantom regions. Source provenance retains
     -- the defining header, so a later value signature cannot rewrite an export.
     let (exports, export-store) = case store-errors temporal-store of
           Nil -> checked-export-declarations ds classes linked-kinds core temporal-store
           other -> (Nil, temporal-store) in
     MkElaboration (store-errors export-store) (exports <> finish-bindings export-store env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances unkinded law-observations rewrites temporal-rows
+
+  -- The ordinary checker has no specification bindings. Only the logical
+  -- pass can resolve them, and its definitions never become executable Core.
+  check-logical-declarations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreInstance -> List CoreData -> List UsageShape -> List CoreDefinition -> List Decl -> Store -> Store
+  check-logical-declarations classes kinds families env rows instances datas usage ordinary specs st =
+    let (logical, registered) = register specs rows classes kinds specs env st in
+    let (definitions, checked) = check-bodies classes kinds families logical Nil specs specs registered in
+    let graph = codata-call-graph specs in
+    let total = check-logical-definitions graph definitions checked in
+    case store-errors total of Nil -> check-global-core kinds logical instances datas (ordinary <> definitions) usage total; other -> total
+  other-logical-name :: String -> List String -> Bool
+  other-logical-name name names = case names of
+    Nil -> False
+    Cons first rest -> not (same name first) || other-logical-name name rest
+  check-logical-definitions :: List (String, List String) -> List CoreDefinition -> Store -> Store
+  check-logical-definitions graph definitions st = case definitions of
+    Nil -> st
+    Cons definition rest -> case definition of
+      MkCoreDefinition sp name sc openings givens private clauses ->
+        let mutual = other-logical-name name (codata-component name graph graph) in
+        let checked = if mutual then add-error sp "mutually recursive logical definitions must terminate" st else check-specification definition st in
+        check-logical-definitions graph rest checked
 
   -- Records use the ordinary independently checked single-constructor
   -- representation. Labels remain in a DRecord for source provenance;
