@@ -2,6 +2,94 @@
 
 The goal is to pass every compiler integration target against one self-built Stage 3, including ignored tests. Keep the existing assertions, public-interface round trips, reference-counting and leak checks. Instance and proof dictionaries must retain their actual wrapper type and select the declared factory across module boundaries.
 
+## State on 2026-11-19, 19:40 UTC
+
+This section is newer than the ones below it. Work continues on
+`claude/affectionate-goldberg-yxn29v`, which is `lane/stage3-repr` at
+`697c6f93` plus build tooling and five frontend speed changes. No test,
+assertion or language rule changed.
+
+### The integration tip has its own fixed point and its own results
+
+`697c6f93` was bootstrapped from the seed on a fresh 4-core x86_64 Linux
+machine with LLVM 20.1.8. Stages 2 and 3 are identical in executable, IR
+and interfaces, the interface consumer and changed-source checks pass, all
+347 Rust library tests and all 123 tooling tests pass. The chain took
+41 m 11 s. Hashes are specific to a host and a build path, so they are not
+comparable with the ones recorded below.
+
+The handoff's seven targets, run against that Stage 3:
+
+| Target | Passing | Failing tests |
+| --- | ---: | --- |
+| `native_dictionary_checks` | 3/3 | |
+| `ownership` | 31/31 | |
+| `lattice` | 15/26 | `generic_preserves_transfer_works_where_the_method_preserves`, `incomparable_heads_at_a_common_refinement_are_a_coherence_error`, `narrow_back_up_is_accepted_with_a_dec`, `narrow_back_up_is_refused_without_a_dec`, `narrow_rejects_forged_dec_evidence`, `postcondition_rows_round_trip_through_the_interface`, `signature_obligations_constrain_callers_identically`, `specialized_sorted_merge_wins_by_most_specific_resolution`, `transfer_accepts_non_empty_with_preservation_evidence`, `transfer_rejects_sized_ascii_naming_the_conjunct`, `using_obligations_discharge_through_the_dec_evidence_path` |
+| `dependent` | 20/22 | `acceptance_probe_01_bounded_index_runs`, `pi_sigma_construction_and_elimination` |
+| `syntax_objects` | 74/78 | the four `native_captured_index_*` cases |
+| `ffi` | 9/15 | `foreign_signature_contradicting_repr_facts_is_rejected`, `opaque_values_are_unprojectable_and_foreign_only`, `out_cells_are_one_word`, `owned_borrowed_roles_and_the_deallocator_rule`, `packed_boundary_fields_marshal_without_padding_reads`, `repr_c_field_access_uses_the_recorded_offsets` |
+| `stage_code_expectations` | 4/11 | `generic_declaration_producers_cannot_freshen_an_int_caller_to_bool`, `generic_declaration_producers_keep_the_bool_callers_type`, `one_monomorphic_code_value_cannot_choose_two_parameter_types`, `partial_application_retains_the_generic_callers_type`, `returned_stage_closures_cannot_capture_affine_arguments`, `returned_stage_closures_retain_the_generic_callers_type`, `separate_stage_instantiations_can_choose_different_types` |
+
+The next-work column of the table further down still describes these
+failures. The two lanes it names (`lane/stage3-scoped-narrow`,
+`lane/stage3-compiler-fixture-interfaces`) were not touched.
+
+### The frontend changes and their own fixed point
+
+`1dd765f8` carries four of the five frontend changes (the data reference
+graph, the balanced binding index, one decode per ownership row, the JSON
+offset scanner). It reached the fixed point on the same machine in
+22 m 24 s, with every check above passing again. The fifth
+(`imported-foreign-row`'s owner test, the commit after it) was verified the
+way each of them was while being written: a development Stage 1 built with
+it compiles the unchanged Stage 1 bundle to the byte-identical Stage 2
+module. It has not had a chain of its own.
+
+The full `--all-integration` run on the `1dd765f8` Stage 3 was started at
+19:39 UTC with four jobs. Its evidence is under
+`build/full-stage3-evidence/` on the machine that ran it, which a new
+session will not have: read `summary.json` there if it exists, and
+otherwise run it again with the commands below.
+
+`design/compilation-speed.md` sections 2.22 to 2.24 have the measurements,
+what the profile says is left, and two findings that were recorded and not
+acted on because they are decisions about a format and about naming.
+
+### A fresh machine
+
+The seed and library-producer pins are not in a shallow clone, the emitted
+IR needs clang 19 or newer, and the grammar binding runs the `tree-sitter`
+CLI at build time. On a machine with Nix:
+
+```sh
+git fetch origin "$(jq -r .revision bootstrap/stage0.lock.json)" \
+                 "$(jq -r .revision bootstrap/library-provider.lock.json)"
+nix build nixpkgs#llvmPackages_20.clang --out-link build/clang
+nix build nixpkgs#llvmPackages_20.llvm  --out-link build/llvm   # llvm-profdata
+npm install --prefix build/ts tree-sitter-cli@0.25
+export CINCH_CLANG=$PWD/build/clang/bin/clang
+export PATH=$PWD/build/llvm/bin:$PWD/build/ts/node_modules/.bin:$PATH
+export CINCH_CARGO_JOBS=4 CINCH_BUILD_SLOTS=3    # a machine nobody else is using
+```
+
+With a binary cache configured (`tooling/nix/README.md`), `nix build
+.#cinch-pins` and `tooling/bootstrap.py hydrate --from` replace the two
+release cargo builds and the library object, and `nix build .#cinch-ladder`
+is the checked chain for a commit. No cache exists yet: the workflow that
+fills one needs the `CACHIX_CACHE` variable and the `CACHIX_AUTH_TOKEN`
+secret.
+
+Never edit `tooling/` under a running chain: the driver imports its helper
+modules lazily, so a chain started from one revision can load the next
+one's code. Run a chain or a suite from a worktree at a commit, with
+`CINCH_BOOTSTRAP_BUILD` naming the build tree.
+
+To iterate on the compiler's sources:
+
+```sh
+python3 tooling/bootstrap.py build --stage 1 --dev -j 4   # about 20 s to a type error, 2 to 4 min to a compiler
+```
+
 ## Starting point
 
 Fetch `origin/main` and `origin/lane/stage3-repr`. The latter is the integration branch to continue from. Use a separate worktree and Cargo target directory for each test checkout. Several test binaries compile their source paths into the harness and reject a different worktree. Old test reports can prioritize a run but cannot establish a pass on a newer compiler.
