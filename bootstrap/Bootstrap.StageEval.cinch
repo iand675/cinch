@@ -16,7 +16,9 @@ module Bootstrap.StageEval where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.TotalSemantics (total-numeric-operation, total-numeric-comparison, arithmetic-constant)
   import Bootstrap.Total (parse-decimal-value, total-decimal-value)
-  import Bootstrap.Type (UType, UCon, KType, integer-literal-valid)
+  import Bootstrap.Type (UType, UCon, KType, integer-literal-valid, mono, scheme-arity)
+  import Data.List (list-length)
+  import Text.Show (nat-to-string)
   import Data.Int (int-add, int-sub, int-mul, int-neg)
   import Text.Lex (Span)
 
@@ -49,6 +51,10 @@ module Bootstrap.StageEval where
     StageConversion :: String -> String -> StageValue
     StageBoolean :: Bool -> StageValue
     StageString :: String -> StageValue
+    StageCallable :: String -> String -> UType -> StageValue -> StageValue
+    StageNominal :: String -> StageValue -> StageValue
+    StageField :: StageValue -> StageValue -> StageValue
+    StageFieldsEnd :: StageValue
     StageUnit :: StageValue
     -- A checked scalar the stage evaluator computed, reified back into a
     -- term at its splice site.
@@ -107,12 +113,19 @@ module Bootstrap.StageEval where
     CPString site ty text -> case value of
       StageString actual -> if same text actual then Match locals else NoMatch
       other -> NoMatch
-    CPConstructor site (UCon carrier KType) name actuals ty (CPDone end) ->
-      if same carrier "Bool" && (same name "True" || same name "False") then (case value of
-        StageBoolean actual -> if actual == same name "True" then Match locals else NoMatch
-        other -> NoMatch)
-      else UnavailablePattern site
+    CPConstructor site result name actuals ty fields -> case value of
+      StageBoolean actual -> if same name (if actual then "True" else "False") then match-stage-fields fields StageFieldsEnd locals else NoMatch
+      StageNominal constructor values -> if same name constructor then match-stage-fields fields values locals else NoMatch
+      other -> NoMatch
     other -> UnavailablePattern (Span 0 0 0 0)
+
+  match-stage-fields :: CorePattern -> StageValue -> List (Nat, StageValue) -> StageMatch
+  match-stage-fields fields values locals = case (fields, values) of
+    (CPDone site, StageFieldsEnd) -> Match locals
+    (CPField at pattern tail, StageField first rest) -> (case match-stage-pattern pattern first locals of
+      Match found -> match-stage-fields tail rest found
+      other -> other)
+    other -> NoMatch
 
   match-stage-patterns :: List CorePattern -> List StageValue -> List (Nat, StageValue) -> StageMatch
   match-stage-patterns patterns values locals = case (patterns, values) of
@@ -130,16 +143,16 @@ module Bootstrap.StageEval where
 
   evaluate-definition :: StageEnvironment -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-definition definitions site definition values fuel = case core-givens definition of
-    Nil -> evaluate-clauses definitions site (core-clauses definition) values fuel
+    Nil -> evaluate-clauses definitions site (core-name definition) (core-clauses definition) values fuel
     other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
 
-  evaluate-clauses :: StageEnvironment -> Span -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
-  evaluate-clauses definitions site clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
+  evaluate-clauses :: StageEnvironment -> Span -> String -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-clauses definitions site name clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case clauses of
-      Nil -> stage-error site "no checked compile-time clause matches this call"
+      Nil -> stage-error site (string-concat-all ["no checked compile-time clause matches ", name, " with ", nat-to-string (list-length values), " arguments"])
       Cons (MkCoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
         Match locals -> evaluate-term definitions locals clause-site body (fuel - 1)
-        NoMatch -> evaluate-clauses definitions site rest values (fuel - 1)
+        NoMatch -> evaluate-clauses definitions site name rest values (fuel - 1)
         UnavailablePattern pattern-site -> stage-error pattern-site "pattern is unavailable in compile-time evaluation"
 
   -- Calls evaluate operands before invoking the checked target. A refused
@@ -165,9 +178,14 @@ module Bootstrap.StageEval where
         Some negative -> stage-error site "`strNat` rejects a negative `Nat`"
         None -> stage-error site (string-concat-all ["`strNat` needs decimal digits, got `", text, "`"])
       other -> stage-error site "`strNat` requires one string")
-    else if same role "constructor" then evaluate-constructor site ty name values fuel
+    else if same role "constructor" then
+      (if list-length values < scheme-arity (mono ty) then Ok (StageCallable name role ty (stage-fields values), fuel)
+       else evaluate-constructor site ty name values fuel)
     else case definition-for name (stage-definitions definitions) of
-      Some definition -> evaluate-definition definitions site definition values fuel
+      Some definition -> (case core-clauses definition of
+        Cons (MkCoreClause at patterns body) rest | list-length values < list-length patterns ->
+          Ok (StageCallable name role ty (stage-fields values), fuel)
+        other -> evaluate-definition definitions site definition values fuel)
       None -> case (definitions, export-global name) of
         (StageEnvironment core declarations scope instances self, Ok identity) | same role "external" ->
           (case imported-conversion identity declarations of
@@ -201,15 +219,34 @@ module Bootstrap.StageEval where
       None -> imported-conversion identity rest)
     Cons other rest -> imported-conversion identity rest
 
+  stage-fields :: List StageValue -> StageValue
+  stage-fields values = case values of
+    Nil -> StageFieldsEnd
+    Cons first rest -> StageField first (stage-fields rest)
+
+  prepend-stage-fields :: StageValue -> List StageValue -> List StageValue
+  prepend-stage-fields fields values = case fields of
+    StageField first rest -> Cons first (prepend-stage-fields rest values)
+    other -> values
+
   evaluate-constructor :: Span -> UType -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
-  evaluate-constructor site ty name values fuel = case (ty, values) of
-    (UCon carrier KType, Nil) -> if same carrier "Bool" && (same name "True" || same name "False") then Ok (StageBoolean (same name "True"), fuel)
-      else stage-error site "constructor is unavailable in compile-time evaluation"
-    (other, Cons value Nil) -> case export-global name of
-      Ok identity -> if same identity (string-concat-all [stage-quotation-module, ".", stage-quotation-constructor]) then Ok (StageQuoted value, fuel)
-        else stage-error site "constructor is unavailable in compile-time evaluation"
-      Err message -> stage-error site "constructor is unavailable in compile-time evaluation"
-    other -> stage-error site "constructor is unavailable in compile-time evaluation"
+  evaluate-constructor site ty name values fuel =
+    if not (scheme-arity (mono ty) == list-length values) then stage-error site "unsaturated compile-time constructor"
+    else case (ty, values) of
+      (UCon carrier KType, Nil) | same carrier "Bool" && (same name "True" || same name "False") -> Ok (StageBoolean (same name "True"), fuel)
+      (other, [value]) -> (case export-global name of
+        Ok identity | same identity (string-concat-all [stage-quotation-module, ".", stage-quotation-constructor]) -> Ok (StageQuoted value, fuel)
+        other -> Ok (StageNominal name (stage-fields values), fuel))
+      other -> Ok (StageNominal name (stage-fields values), fuel)
+
+  evaluate-alternatives :: StageEnvironment -> List (Nat, StageValue) -> Span -> StageValue -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-alternatives definitions locals site value arms fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
+    case arms of
+      CAlternative at pattern body rest -> (case match-stage-pattern pattern value locals of
+        Match found -> evaluate-term definitions found at body (fuel - 1)
+        NoMatch -> evaluate-alternatives definitions locals site value rest (fuel - 1)
+        UnavailablePattern sp -> stage-error sp "pattern is unavailable in compile-time evaluation")
+      other -> stage-error site "no checked compile-time case alternative matches"
 
   evaluate-application :: StageEnvironment -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-application definitions locals site term arguments fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
@@ -222,6 +259,9 @@ module Bootstrap.StageEval where
         Ok (values, remaining) -> evaluate-method definitions at term slot evidence arguments values remaining
         Err errors -> Err errors)
       other -> case evaluate-term definitions locals site term (fuel - 1) of
+        Ok (StageCallable name role ty captured, next) -> (case evaluate-terms definitions locals site arguments next of
+          Ok (values, remaining) -> evaluate-use definitions site ty name role (prepend-stage-fields captured values) remaining
+          Err errors -> Err errors)
         Ok (StageConversion source result, next) -> (case evaluate-terms definitions locals site arguments next of
           Ok (values, remaining) -> apply-conversion site source result values remaining
           Err errors -> Err errors)
@@ -241,7 +281,7 @@ module Bootstrap.StageEval where
         Some dictionary -> (case field-at slot (instance-fields dictionary) of
           Some field -> let definition = dictionary-field-definition field in (case core-givens definition of
             [given] -> evaluate-clauses (StageEnvironment core declarations scope instances (Some (given-symbol given, dictionary)))
-              site (core-clauses definition) values fuel
+              site (core-name definition) (core-clauses definition) values fuel
             other -> stage-error site "selected compile-time method requires additional dictionary arguments")
           None -> stage-error site "selected compile-time dictionary has no method at this slot")
         None -> (case arguments of
@@ -321,6 +361,9 @@ module Bootstrap.StageEval where
       CLet at ty id name sc rhs body -> case evaluate-term definitions locals at rhs remaining of
         Err errors -> Err errors
         Ok (value, next) -> evaluate-term definitions (Cons (id, value) locals) at body next
+      CCase at ty subject arms -> (case evaluate-term definitions locals at subject remaining of
+        Ok (value, next) -> evaluate-alternatives definitions locals at value arms next
+        Err errors -> Err errors)
       CIf at ty condition yes no -> case evaluate-term definitions locals at condition remaining of
         Err errors -> Err errors
         Ok (StageBoolean branch, next) -> evaluate-term definitions locals at (if branch then yes else no) next

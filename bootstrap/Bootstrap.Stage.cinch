@@ -242,6 +242,67 @@ module Bootstrap.Stage where
       ExportName site (Cons name Nil) -> if runtime-value-name name runtime then tail else Cons first tail
       other -> Cons first tail
 
+  -- Unconditional generators that only declare nominal headers have no
+  -- evaluator prerequisites. Their headers can be checked with the helpers
+  -- a later generator calls, using the same declarations emitted at runtime.
+  nominal-headers :: List Decl -> Bool
+  nominal-headers declarations = case declarations of
+    Nil -> True
+    Cons (DRecord site name parameters fields) rest -> nominal-headers rest
+    Cons (DData site name parameters constructors) rest -> nominal-headers rest
+    other -> False
+
+  static-generator-headers :: List Decl -> Option (List Decl)
+  static-generator-headers actions = case actions of
+    Nil -> Some Nil
+    Cons (DStageEmit site template) rest -> let declarations = decls-of template in
+      if nominal-headers declarations then (case static-generator-headers rest of
+        Some more -> Some (declarations <> more)
+        None -> None) else None
+    other -> None
+
+  -- Generator probes may call ordinary source helpers. Keep their transitive
+  -- definitions, respecting local binders and the quote/splice boundary.
+  generator-references :: List Decl -> List String
+  generator-references declarations = case declarations of
+    Nil -> Nil
+    Cons (DGenerate site actions) rest -> clause-dependencies True [(Nil, generator-expression site (decls-of actions))] (generator-references rest)
+    Cons other rest -> generator-references rest
+
+  helper-definitions :: String -> List Decl -> HashMap String (List (List Pat, Expr))
+  helper-definitions owner declarations = case declarations of
+    Nil -> hash-map-empty
+    Cons (DFun site name clauses) rest -> hash-map-insert name clauses (hash-map-insert (cat [owner, ".", name]) clauses (helper-definitions owner rest))
+    Cons other rest -> helper-definitions owner rest
+
+  helper-closure :: HashMap String (List (List Pat, Expr)) -> List String -> HashMap String Unit -> HashMap String Unit
+  helper-closure nodes pending seen = case pending of
+    Nil -> seen
+    Cons name rest -> (case hash-map-lookup name seen of
+      Some visited -> helper-closure nodes rest seen
+      None -> let found = hash-map-insert name () seen in (case hash-map-lookup name nodes of
+        Some clauses -> helper-closure nodes (clause-dependencies True clauses rest) found
+        None -> helper-closure nodes rest found))
+
+  generator-helpers :: String -> List Decl -> HashMap String Unit
+  generator-helpers owner declarations = case generator-references declarations of
+    Nil -> hash-map-empty
+    names -> helper-closure (helper-definitions owner declarations) names hash-map-empty
+
+  needed-helper :: String -> String -> HashMap String Unit -> Bool
+  needed-helper owner name helpers = case hash-map-lookup name helpers of
+    Some found -> True
+    None -> (case hash-map-lookup (cat [owner, ".", name]) helpers of Some found -> True; None -> False)
+
+  generator-needs-header :: String -> HashMap String Unit -> List Decl -> Bool
+  generator-needs-header home helpers headers = case headers of
+    Nil -> False
+    Cons (DRecord site name params fields) rest -> needed-helper home name helpers || generator-needs-header home helpers rest
+    Cons (DData site name params constructors) rest -> needed-helper home name helpers
+      || foldr (\entry used -> case entry of (constructor, ty) -> needed-helper home constructor helpers || used) False constructors
+      || generator-needs-header home helpers rest
+    Cons other rest -> generator-needs-header home helpers rest
+
   -- A stage declaration whose body is a quotation has no stage computation in
   -- it: the template is checked where the code lands (modules specification
   -- section 7), so the stage namespace keeps only its signature. Resolving
@@ -283,10 +344,10 @@ module Bootstrap.Stage where
   -- declaration and its signature are separate marked declarations, and both
   -- have to leave the stage namespace together: the template is checked where
   -- the code lands, so neither the body nor the signature is stage code.
-  stage-declarations :: Bool -> List String -> List Decl -> List Decl -> Result (List Diagnostic) (List Decl)
-  stage-declarations owner runtime all declarations = case declarations of
+  stage-declarations :: String -> HashMap String Unit -> Bool -> List String -> List Decl -> List Decl -> Result (List Diagnostic) (List Decl)
+  stage-declarations home helpers owner runtime all declarations = case declarations of
     Nil -> Ok Nil
-    Cons first rest -> case stage-declarations owner runtime all rest of
+    Cons first rest -> case stage-declarations home helpers owner runtime all rest of
       Err errors -> Err errors
       Ok tail -> case first of
         -- A macro declaration is compile-time only: it names no runtime
@@ -304,9 +365,11 @@ module Bootstrap.Stage where
           else Ok (Cons body tail)
         DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
           Err errors -> Err errors
-          Ok probes -> Ok (probes <> tail)) else Ok tail
-        DSig site name ty -> Ok tail
-        DFun site name body -> Ok tail
+          Ok probes -> (case static-generator-headers (decls-of actions) of
+            Some headers | generator-needs-header home helpers headers -> Ok (headers <> probes <> tail)
+            other -> Ok (probes <> tail))) else Ok tail
+        DSig site name ty -> Ok (if needed-helper home name helpers then Cons first tail else tail)
+        DFun site name body -> Ok (if needed-helper home name helpers then Cons first tail else tail)
         DExport site text items -> if owner then Ok tail else Ok (Cons (DExport site text (stage-exports runtime items)) tail)
         other -> Ok (Cons first tail)
 
@@ -315,7 +378,8 @@ module Bootstrap.Stage where
     Nil -> Ok Nil
     Cons first rest | not (runtime-value-name (module-name first) reachable) -> stage-modules owner reachable rest
     Cons first rest -> let name = module-name first in let body = module-decls first in
-      case (stage-declarations (same owner name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
+      let helpers = if same owner name then generator-helpers name body else hash-map-empty in
+      case (stage-declarations name helpers (same owner name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
         (Ok declarations, Ok tail) -> let site = module-span first in
           let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
           Ok (Cons (MkModule site name (decl-spine site visible)) tail)
