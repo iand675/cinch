@@ -1843,21 +1843,26 @@ threads a bare byte offset and builds the value, and declines anything it
 cannot accept, at which point the combinator scanner runs from the start
 and reports exactly what it always reported.
 
-Two findings are recorded and not acted on, because each is a decision
-about a format or about what is checked rather than about speed:
+A third change removed a whole second read of the interfaces. The object's
+metadata embeds every interface document beside its hash: 2.2 MB of its
+2.8 MB is the `interfaces` member. The compiler parsed those documents and
+then compared each tree with the one it had already loaded from the
+manifest (`read-known-document`). All 66 files occur byte for byte inside
+the metadata, so a client compile now carves it: a walk over the bytes
+finds each embedded document's span (`Text.Json.json-value-end`), the
+metadata is parsed with `null` in its place, and each span goes to
+`Bootstrap.Load.read-known-source`, which keeps the bytes of every
+interface it read and takes the loaded interface when the bytes are equal.
+A span that differs is parsed and takes the document path as before, and a
+client that cannot carve, or whose carved read fails for any reason, reads
+the metadata whole, so a refusal comes from the path that always produced
+it. The development build's fib compile went from 1.16 s to 1.06 s. What a
+metadata format without the embedded documents would save beyond this is
+the walk itself, about 5%.
 
-- **The object's metadata embeds every interface a second time.** 2.2 MB of
-  the 2.8 MB is the `interfaces` member, whose rows carry the whole
-  interface document beside its hash. The compiler parses those documents
-  and then compares each against the one it already loaded from the
-  manifest (`read-known-document`). A metadata file with the hash alone
-  would remove about a fifth of the compile, and would turn a full
-  comparison into trust in a 64-bit contract hash. There is a route that
-  keeps the comparison: all 66 interface files occur byte for byte inside
-  the metadata, so a scan that finds each embedded document's span could
-  compare bytes with the file the manifest named and parse only a document
-  that differs. It needs the loader to keep each interface's bytes and a
-  value-skipping scan in `Text.Json`.
+One finding is recorded and not acted on, because it is a decision about
+naming rather than about speed:
+
 - **The emitter names by one counter.** Locals, string and number globals
   and lambdas all draw from the `Writer`'s single `next`, and the seed
   numbers lambdas the same way, so an edit renumbers every later function
