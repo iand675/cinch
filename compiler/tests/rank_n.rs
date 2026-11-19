@@ -18,7 +18,7 @@ use std::process::Command;
 
 fn run_leak_checked(tag: &str, source: &str) {
     let dir = common::project(tag, &[("Main.cinch", source)]);
-    let exe = common::build(&dir, "Main.cinch", "rank-n").unwrap_or_else(|e| panic!("{tag}: {e}"));
+    let exe = common::build_executable(&dir, "Main.cinch", "rank-n").unwrap_or_else(|e| panic!("{tag}: {e}"));
     let out = Command::new(&exe)
         .env("CINCH_LEAK_CHECK", "1")
         .env("CINCH_RC_DEBUG", "1")
