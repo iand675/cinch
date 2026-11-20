@@ -785,7 +785,7 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons c rest ->
       let (checked, description) = (if not (constructor-supported context d c) then
-          (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering", 0)
+          (refuse w (Span 0 0 1 1) (cat ["constructor ", core-constructor-name c, " needs dependent, existential or extended runtime lowering"]), 0)
         else case class-vector context (storage-fields d c) of
           None -> (refuse w (Span 0 0 1 1) "constructor field representation is unknown", 0)
           Some codes -> (w, shape-description 1 tag (word-codes codes))) in

@@ -7477,17 +7477,37 @@ module Bootstrap.Infer where
       (JStr identity, JStr variety) -> let name = interface-global identity in
         if (same variety "data" || same variety "record") && runtime-data-present name datas && runtime-constructors-complete name (field "ctors" row) then
           (case checked-data-declaration classes kinds Nil (DExternal zero name "type" None row) st of
-            (Some actual, checked) -> complete-runtime-data-rows rest classes kinds (replace-runtime-data actual datas) checked
+            (Some actual, checked) -> (case constructor-carrier-data (field "ctors" row) kinds (replace-runtime-data actual datas) checked of
+              (more, seeded) -> complete-runtime-data-rows rest classes kinds more seeded)
             (None, checked) -> complete-runtime-data-rows rest classes kinds datas checked)
         else complete-runtime-data-rows rest classes kinds datas st
       other -> complete-runtime-data-rows rest classes kinds datas st)
     other -> (datas, st)
+  -- A completed table names the carriers of its constructors' fields, and a
+  -- program can reach one of those only through the constructor: it builds
+  -- `ILabel`, and the family's description then covers `ITok`, whose field
+  -- is a `Token` no declaration of the program mentions. Each constructor's
+  -- resolved contract already proves those carriers are objects, exactly as
+  -- a value's does (`nominal-runtime-data`), so they are registered the same
+  -- way, and the next pass completes the public ones.
+  constructor-carrier-data :: Json -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  constructor-carrier-data rows kinds datas st = case rows of
+    JArr row rest -> (case nominal-runtime-data (resolved-nominals row) kinds datas st of
+      (more, checked) -> constructor-carrier-data rest kinds more checked)
+    other -> (datas, st)
+  -- Completing a table can register carriers whose own tables then need
+  -- completing, in an interface already passed, so the walk repeats until it
+  -- registers nothing. A program whose tables name no new carrier pays the
+  -- one walk it always did.
   complete-runtime-data :: List Decl -> List (String, Kind) -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
-  complete-runtime-data ds classes kinds datas st = case ds of
+  complete-runtime-data ds classes kinds datas st = case complete-runtime-data-once ds classes kinds datas st of
+    (more, checked) -> if list-length more == list-length datas then (more, checked) else complete-runtime-data ds classes kinds more checked
+  complete-runtime-data-once :: List Decl -> List (String, Kind) -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  complete-runtime-data-once ds classes kinds datas st = case ds of
     Nil -> (datas, st)
     Cons (DInterface sp name hash metadata) rest -> (case complete-runtime-data-rows (field "types" (field "exports" metadata)) classes kinds datas st of
-      (more, checked) -> complete-runtime-data rest classes kinds more checked)
-    Cons other rest -> complete-runtime-data rest classes kinds datas st
+      (more, checked) -> complete-runtime-data-once rest classes kinds more checked)
+    Cons other rest -> complete-runtime-data-once rest classes kinds datas st
   check-data-closed :: List CoreData -> Store -> Store
   check-data-closed datas st = case datas of
     Nil -> st
