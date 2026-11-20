@@ -173,6 +173,41 @@ larger.
 - `profile_build.py`: measures where the ladder spends its time and writes
   `bootstrap/speed-baseline.json` (see below).
 
+## Development builds
+
+Two ways to get a compiler from edited sources without paying for the
+audited chain. Neither is evidence of a fixed point; `bootstrap.py check`
+is.
+
+`bootstrap.py build --stage N --dev` builds stages the usual way with no
+profile, the module cut into 48 shards by a stable partition, and each
+shard's object kept by content (`CINCH_SHARD_CACHE`, default
+`<build>/shard-cache`). The seed type-checks the bundle in about 20 s, so a
+type error surfaces then.
+
+`module_build.py` builds the compiler as a graph of modules:
+
+```sh
+python3 tooling/module_build.py --builder build/bootstrap/stage3/cinch \
+    --out build/modules -j 4            # links build/modules/cinch
+python3 tooling/run_stage_targets.py --compiler build/modules/cinch \
+    --out build/dev-evidence --allow-dirty ownership lattice
+```
+
+Each module is compiled alone against its imports' interfaces, keyed so
+that only what an edit reached is compiled again, with independent modules
+and all code generation running side by side. `--out` is the cache. The
+builder is any Cinch compiler recent enough to compile the sources: a
+stage, or the last `build/modules/cinch`. `--check <stage>/compiler.ll`
+has the result compile that chain's bundle and compares the module it
+emits. `design/compilation-speed.md` section 2.26 has the measurements and
+what the build relies on.
+
+A client that needs a representation of a polymorphic export which the
+exporting module did not emit asks for it; the build adds the request to
+`<out>/discovered-roots.json` and rebuilds that module. Copy a new request
+into `bootstrap/module-object-roots.json` so a clean build starts with it.
+
 ## Build profile
 
 `design/compilation-speed.md` sections 11 and 12 say what to measure. This
