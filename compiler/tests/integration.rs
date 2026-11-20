@@ -999,3 +999,57 @@ fn wrong_main_type_still_rejected() {
         "main must have type Int",
     );
 }
+
+/// `Nat` and `Int` arithmetic and comparison at the ends of the immediate
+/// range. An emitter may decide two immediates in place and send anything
+/// else to the runtime; the answer must not depend on which it did. Every
+/// operand passes through a call so that no check is folded away, and the
+/// exit code names the first check that failed.
+#[test]
+fn immediate_arithmetic_keeps_its_edges() {
+    expect_ok(
+        "immediate arithmetic edges",
+        r#"module Main where
+  -- Operands reach each operation through a call, so nothing is folded
+  -- before the emitted code runs.
+  keep-int :: Int -> Int -> Int
+  keep-int x y = if y == 0 then x else x
+  keep-nat :: Nat -> Nat -> Nat
+  keep-nat x y = if y == 0 then x else x
+
+  check :: Int -> Bool -> Int -> Int
+  check code ok rest = if ok then rest else code
+
+  main :: Int
+  main =
+    let top = keep-int 4611686018427387903 0 in
+    let bottom = keep-int (0 - 4611686018427387904) 0 in
+    let one = keep-int 1 0 in
+    let big = keep-nat 9223372036854775807 0 in
+    let unit = keep-nat 1 0 in
+    check 1 (top + one == 4611686018427387904)
+    (check 2 ((top + one) - one == top)
+    (check 3 (top + one > top)
+    (check 4 (bottom - one == 0 - 4611686018427387905)
+    (check 5 (bottom - one < bottom)
+    (check 6 ((bottom - one) + one == bottom)
+    (check 7 (top - bottom == 9223372036854775807)
+    (check 8 (bottom + bottom == 0 - 9223372036854775808)
+    (check 9 (keep-int (0 - 5) 0 + keep-int 3 0 == 0 - 2)
+    (check 10 (keep-int 3 0 - keep-int 5 0 == 0 - 2)
+    (check 11 (keep-int (0 - 3) 0 < keep-int 2 0)
+    (check 12 (not (keep-int 2 0 < keep-int (0 - 3) 0))
+    (check 13 (big + unit == 9223372036854775808)
+    (check 14 (big + unit > big)
+    (check 15 (big + big == 18446744073709551614)
+    (check 16 (big + unit /= big)
+    (check 17 (keep-nat 0 0 + keep-nat 0 0 == 0)
+    (check 18 (keep-nat 7 0 <= keep-nat 7 0 && keep-nat 7 0 >= keep-nat 7 0 && not (keep-nat 7 0 < keep-nat 7 0))
+    (check 19 (big + unit >= big + unit && big + unit <= big + unit)
+    (check 20 (top + top == 9223372036854775806)
+    (check 21 (keep-nat 3 0 < big && big > keep-nat 3 0)
+    0))))))))))))))))))))
+"#,
+        0,
+    );
+}

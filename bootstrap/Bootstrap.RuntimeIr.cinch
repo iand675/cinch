@@ -5,7 +5,9 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
+  import Bootstrap.BodyContract (binding-name, binding-native, binding-function)
+  import Bootstrap.Total (TotalFunction, total-body, total-parameters, total-result)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
@@ -25,6 +27,7 @@ module Bootstrap.RuntimeIr where
   import Text.Lex (Span)
   import Data.Json
   import Data.List (split-at)
+  import Data.Nat (nat-from-int)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
@@ -1477,7 +1480,10 @@ module Bootstrap.RuntimeIr where
             [CEInstance location receiver factory Nil (CEArgumentsEnd end)] ->
               (case closed-method-unit w name owner slot actuals factory of
                 Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
-                  external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
+                  (let noted = note-version owner slot Nil w in
+                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (program-bindings (writer-program w))) unit Nil (arguments term Nil) of
+                     Some lowered -> lowered
+                     None -> external-call-unit definitions locals noted sp unit (mono function) Nil (arguments term Nil))
                   else indirect-application definitions locals w f x
                 None -> indirect-application definitions locals w f x)
             other -> indirect-application definitions locals w f x)
@@ -2487,10 +2493,213 @@ module Bootstrap.RuntimeIr where
           Some (owner, dictionary, slot) -> object-conditional-unit owner dictionary slot name codes provider
           None -> object-variant name codes provider) in
           case variant of
-          Some unit -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args
+          Some unit -> (case inline-external definitions locals w name unit givens args of
+            Some lowered -> lowered
+            None -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args)
           None -> unsupported w sp (cat ["checked external variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
         None -> unsupported w sp "external function needs checked representation specialization")
       None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name]))
+  -- A saturated call to an imported unit whose interface publishes its
+  -- total body as a tree of primitives is that tree, emitted here.
+  --
+  -- `x == y` at `I64`, `n < m` at `Nat`, `not b` and `n + 1` are library
+  -- functions: an instance method or a one-line wrapper over a runtime
+  -- primitive. A client called each one in the library object, which no
+  -- optimiser can see into, so a loop over bytes made a dozen opaque calls
+  -- per byte. The interface already states what each computes
+  -- (`total_body`: `I64Eq(NatCmp(l0, l1), 0)` for `Eq_Nat.==`), and that
+  -- statement is a checked contract, so emitting it is emitting the callee.
+  --
+  -- Only a body made of the operations below, over its own parameters and
+  -- `I64` literals, each parameter used exactly once, is taken. One use
+  -- matters: a unit owns its arguments, and so does each operation here,
+  -- so a parameter used once is consumed once and the counts are the
+  -- call's. Anything else is called as before.
+  --
+  -- `Nat` and `Int` operations test for the immediate encoding the runtime
+  -- ABI fixes (an odd word is `value * 2 + 1`, compiler/runtime/src/abi.rs)
+  -- and decide those in place; a heap operand, or a sum that leaves the
+  -- immediate range, goes to the runtime entry that the library's own body
+  -- reaches.
+  inline-external :: List CoreDefinition -> List Local -> Writer -> String -> RuntimeUnit -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-external definitions locals w name unit givens args =
+    inline-total definitions locals w (imported-total-body name (program-bindings (writer-program w))) unit givens args
+  -- The same for a unit whose body was found: a value's by its checked
+  -- name, a closed instance method's by the unit it resolved to.
+  inline-total :: List CoreDefinition -> List Local -> Writer -> Option TotalFunction -> RuntimeUnit -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-total definitions locals w found unit givens args = case givens of
+    Nil -> if list-length args /= list-length (unit-params unit) then None else
+      (case found of
+        None -> None
+        Some function -> let body = total-body function in
+          let count = list-length (total-parameters function) in
+          if count /= list-length args || not (inline-sort (total-result function)) || not (inline-sorts (total-parameters function))
+            || not (inline-body body) || not (inline-linear (inline-slots body) count) then None
+          else (case expressions definitions locals w args of
+            (ready, values) -> Some (inline-term ready values body)))
+    other -> None
+  imported-total-body :: String -> List CheckedBinding -> Option TotalFunction
+  imported-total-body name bindings = case bindings of
+    Nil -> None
+    Cons first rest -> (case checked-body-binding first of
+      Some body -> if same name (binding-name body) then Some (binding-function body) else imported-total-body name rest
+      None -> imported-total-body name rest)
+  imported-native-body :: String -> List CheckedBinding -> Option TotalFunction
+  imported-native-body native bindings = case bindings of
+    Nil -> None
+    Cons first rest -> (case checked-body-binding first of
+      Some body -> if same native (binding-native body) then Some (binding-function body) else imported-native-body native rest
+      None -> imported-native-body native rest)
+  inline-sort :: String -> Bool
+  inline-sort sort = same sort "I64" || same sort "Nat" || same sort "Int" || same sort "Bool"
+  inline-sorts :: List String -> Bool
+  inline-sorts sorts = case sorts of Nil -> True; Cons first rest -> inline-sort first && inline-sorts rest
+  body-field :: String -> Json -> Json
+  body-field name doc = case doc of JObj key value rest -> if same name key then value else body-field name rest; other -> JNull
+  body-node :: Json -> String
+  body-node doc = case body-field "node" doc of JStr kind -> kind; other -> ""
+  body-operation :: Json -> String
+  body-operation doc = case body-field "operation" doc of JStr operation -> operation; other -> ""
+  -- The operations emitted in place, with the number of operands each takes.
+  inline-operation :: String -> Option Nat
+  inline-operation operation =
+    if same operation "I64Eq" || same operation "I64Ne" || same operation "I64Lt" || same operation "I64Le"
+      || same operation "I64Gt" || same operation "I64Ge" || same operation "BoolEq"
+      || same operation "NatCmp" || same operation "IntCmp" || same operation "NatAdd" || same operation "IntAdd" || same operation "IntSub" then Some 2
+    else if same operation "BoolNot" then Some 1
+    else None
+  inline-body :: Json -> Bool
+  inline-body body =
+    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> 0 <= slot; other -> False)
+    else if same (body-node body) "number" then (case (body-field "sort" body, body-field "decimal" body) of
+      (JStr sort, JStr decimal) -> same sort "I64" && constant-word decimal
+      other -> False)
+    else if same (body-node body) "primitive" then (case inline-operation (body-operation body) of
+      Some arity -> inline-arguments (body-field "arguments" body) arity
+      None -> False)
+    else False
+  inline-arguments :: Json -> Nat -> Bool
+  inline-arguments arguments arity = case arguments of
+    JArr first rest -> arity > 0 && inline-body first && inline-arguments rest (arity - 1)
+    JArrEnd -> arity == 0
+    other -> False
+  inline-slots :: Json -> List Nat
+  inline-slots body =
+    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> if 0 <= slot then [nat-from-int slot] else Nil; other -> Nil)
+    else if same (body-node body) "primitive" then inline-argument-slots (body-field "arguments" body)
+    else Nil
+  inline-argument-slots :: Json -> List Nat
+  inline-argument-slots arguments = case arguments of
+    JArr first rest -> inline-slots first <> inline-argument-slots rest
+    other -> Nil
+  -- Every parameter exactly once: as many uses as parameters, each in
+  -- range, none twice.
+  inline-linear :: List Nat -> Nat -> Bool
+  inline-linear slots count = list-length slots == count && inline-distinct slots count
+  inline-distinct :: List Nat -> Nat -> Bool
+  inline-distinct slots count = case slots of
+    Nil -> True
+    Cons first rest -> first < count && not (inline-slot-member first rest) && inline-distinct rest count
+  inline-slot-member :: Nat -> List Nat -> Bool
+  inline-slot-member slot slots = case slots of Nil -> False; Cons first rest -> first == slot || inline-slot-member slot rest
+  inline-value :: List String -> Nat -> String
+  inline-value values slot = case values of
+    Nil -> "0"
+    Cons first rest -> if slot == 0 then first else inline-value rest (slot - 1)
+  inline-term :: Writer -> List String -> Json -> (Writer, String)
+  inline-term w values body =
+    if same (body-node body) "local" then (case body-field "slot" body of
+      JNum slot -> if 0 <= slot then (w, inline-value values (nat-from-int slot)) else (w, "0")
+      other -> (w, "0"))
+    else if same (body-node body) "number" then (case body-field "decimal" body of JStr decimal -> (w, decimal); other -> (w, "0"))
+    else (case body-field "arguments" body of
+      JArr first (JArr second JArrEnd) -> (case inline-term w values first of
+        (one, left) -> case inline-term one values second of
+          (two, right) -> inline-binary two (body-operation body) left right)
+      JArr first JArrEnd -> (case inline-term w values first of
+        (one, operand) -> let (two, result) = fresh one "%v" in (line two (cat ["  ", result, " = xor i64 ", operand, ", 1"]), result))
+      other -> (w, "0"))
+  inline-binary :: Writer -> String -> String -> String -> (Writer, String)
+  inline-binary w operation left right =
+    if same operation "I64Eq" || same operation "BoolEq" then compare-word w "eq" left right
+    else if same operation "I64Ne" then compare-word w "ne" left right
+    else if same operation "I64Lt" then compare-word w "slt" left right
+    else if same operation "I64Le" then compare-word w "sle" left right
+    else if same operation "I64Gt" then compare-word w "sgt" left right
+    else if same operation "I64Ge" then compare-word w "sge" left right
+    else if same operation "NatCmp" then inline-ordering w (UCon "Nat" KType) "u" "@cinch_nat_cmp" left right
+    else if same operation "IntCmp" then inline-ordering w (UCon "Int" KType) "s" "@cinch_int_cmp" left right
+    else if same operation "NatAdd" then inline-arithmetic w (UCon "Nat" KType) operation "@cinch_nat_add" left right
+    else if same operation "IntAdd" then inline-arithmetic w (UCon "Int" KType) operation "@cinch_int_add" left right
+    else inline-arithmetic w (UCon "Int" KType) operation "@cinch_int_sub" left right
+  -- Both words odd means both are immediates. `fast` is where control goes
+  -- when they are and `slow` where it goes otherwise.
+  inline-immediates :: Writer -> String -> String -> String -> String -> Writer
+  inline-immediates w left right fast slow =
+    let (one, both) = fresh w "%v" in
+    let (two, tag) = fresh one "%v" in
+    let (three, immediate) = fresh two "%v" in
+    emit-lines three [cat ["  ", both, " = and i64 ", left, ", ", right], cat ["  ", tag, " = and i64 ", both, ", 1"],
+      cat ["  ", immediate, " = icmp ne i64 ", tag, ", 0"], cat ["  br i1 ", immediate, ", label %", fast, ", label %", slow]]
+  -- The runtime entry on the operands as they are, which it borrows, then
+  -- the two counts the operation owes.
+  inline-runtime :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-runtime w ty entry left right join-label = case call w entry [left, right] of
+    (called, result) -> (line (count-op False ty right (count-op False ty left called)) (cat ["  br label %", join-label]), result)
+  -- An immediate's word orders as its value does: unsigned for a `Nat`,
+  -- whose payload is the word's upper 63 bits, and signed for an `Int`.
+  -- The result is the ordering word the runtime answers with: -1, 0 or 1.
+  inline-ordering :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-ordering w ty sign entry left right =
+    let (one, fast) = fresh w "immediate" in
+    let (two, slow) = fresh one "boxed" in
+    let (three, joined) = fresh two "ordered" in
+    let (four, greater) = fresh (line (inline-immediates three left right fast slow) (cat [fast, ":"])) "%v" in
+    let (five, less) = fresh four "%v" in
+    let (six, above) = fresh five "%v" in
+    let (seven, below) = fresh six "%v" in
+    let (eight, quick) = fresh seven "%v" in
+    let decided = emit-lines eight [cat ["  ", greater, " = icmp ", sign, "gt i64 ", left, ", ", right], cat ["  ", less, " = icmp ", sign, "lt i64 ", left, ", ", right],
+      cat ["  ", above, " = zext i1 ", greater, " to i64"], cat ["  ", below, " = zext i1 ", less, " to i64"],
+      cat ["  ", quick, " = sub i64 ", above, ", ", below], cat ["  br label %", joined], cat [slow, ":"]] in
+    case inline-runtime decided ty entry left right joined of
+      (called, general) -> let (done, result) = fresh (line called (cat [joined, ":"])) "%v" in
+        (line done (cat ["  ", result, " = phi i64 [ ", quick, ", %", fast, " ], [ ", general, ", %", slow, " ]"]), result)
+  -- Two immediates add or subtract in place when the result is one too.
+  -- With `a = 2x + 1` and `b = 2y + 1`: `(a - 1) + b` is `2(x + y) + 1`, and
+  -- `(a - b) | 1` is `2(x - y) + 1`. The 64-bit operation overflows exactly
+  -- when the result leaves the immediate range (unsigned for a `Nat`,
+  -- signed for an `Int`), and then the runtime entry builds the answer.
+  inline-arithmetic :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-arithmetic w ty operation entry left right =
+    let (one, fast) = fresh w "immediate" in
+    let (two, slow) = fresh one "boxed" in
+    let (three, kept) = fresh two "small" in
+    let (four, joined) = fresh three "summed" in
+    let started = line (inline-immediates four left right fast slow) (cat [fast, ":"]) in
+    let (five, lowered) = fresh started "%v" in
+    let (six, total) = fresh five "%v" in
+    let (seven, overflow) = fresh six "%v" in
+    let subtraction = same operation "IntSub" in
+    let computed = (if subtraction then
+        emit-lines seven [cat ["  ", lowered, " = sub i64 ", left, ", ", right], cat ["  ", total, " = or i64 ", lowered, ", 1"]]
+      else emit-lines seven [cat ["  ", lowered, " = sub i64 ", left, ", 1"], cat ["  ", total, " = add i64 ", lowered, ", ", right]]) in
+    let (tested, quick) = (if same operation "NatAdd" then
+        (line computed (cat ["  ", overflow, " = icmp ult i64 ", total, ", ", right]), total)
+      else
+        -- Signed overflow: the operands' signs agree with each other (or,
+        -- for a difference, disagree) and not with the result's.
+        (let (eight, first) = fresh computed "%v" in
+         let (nine, second) = fresh eight "%v" in
+         let (ten, mixed) = fresh nine "%v" in
+         let checked = (if subtraction then
+             emit-lines ten [cat ["  ", first, " = xor i64 ", left, ", ", right], cat ["  ", second, " = xor i64 ", left, ", ", lowered]]
+           else emit-lines ten [cat ["  ", first, " = xor i64 ", lowered, ", ", total], cat ["  ", second, " = xor i64 ", right, ", ", total]]) in
+         (emit-lines checked [cat ["  ", mixed, " = and i64 ", first, ", ", second], cat ["  ", overflow, " = icmp slt i64 ", mixed, ", 0"]], total))) in
+    let branched = emit-lines tested [cat ["  br i1 ", overflow, ", label %", slow, ", label %", kept], cat [kept, ":"], cat ["  br label %", joined], cat [slow, ":"]] in
+    case inline-runtime branched ty entry left right joined of
+      (called, general) -> let (done, result) = fresh (line called (cat [joined, ":"])) "%v" in
+        (line done (cat ["  ", result, " = phi i64 [ ", quick, ", %", kept, " ], [ ", general, ", %", slow, " ]"]), result)
   external-call-unit :: List CoreDefinition -> List Local -> Writer -> Span -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> (Writer, String)
   external-call-unit definitions locals w sp unit sc givens args =
         let evidence-count = list-length (scheme-requirements sc) in
