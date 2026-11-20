@@ -28,7 +28,7 @@ def main() -> None:
     covered = set()
     matrix = []
     for name in names:
-        path = ROOT / f"bootstrap/stdlib-json-raw-number-{name}-results.json"
+        path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-raw-number-{name}-results.json"
         receipt = json.loads(path.read_text())
         frontend = receipt["frontend"]
         assert receipt["compiler_sha256"] == COMPILERS[frontend]
@@ -83,7 +83,7 @@ def main() -> None:
             assert not any(word in doc["markdown"].lower() for word in ["golang", "go's", "go "]), declaration["id"]
         documentation[module] = {"canonical_declarations": count, "extract_sha256": digest(path), "diagnostics": 0, "orphans": 0}
     assert sum(row["canonical_declarations"] for row in documentation.values()) == 652
-    foreign_path = ROOT / "bootstrap/stdlib-json-raw-number-foreign-results.json"
+    foreign_path = ROOT / "bootstrap/evidence/stdlib/stdlib-json-raw-number-foreign-results.json"
     foreign = json.loads(foreign_path.read_text())
     assert foreign["production_source_sha256"] == digest(ROOT / "compiler/prelude/Text/Json/Value.cinch")
     assert foreign["compiler_sha256"] == COMPILERS["rust"]
@@ -93,7 +93,7 @@ def main() -> None:
     edge = json.loads((ROOT / "compiler/tests/fixtures/json-codec-raw-number-edge-vectors.json").read_text())
     kernel = json.loads((ROOT / "compiler/tests/fixtures/json-codec-raw-number-kernel-vectors.json").read_text())
     assert (len(base["raw_number"]), len(base["typed"]), len(edge["raw_number"]), len(kernel["hex_rounding"])) == (285, 13, 6, 794)
-    plan = json.loads((ROOT / "bootstrap/stdlib-json-capability-plan.json").read_text())
+    plan = json.loads((ROOT / "bootstrap/evidence/stdlib/stdlib-json-capability-plan.json").read_text())
     assert plan["reference_declarations"] == len(plan["declarations"]) == 92
     report = {
         "status": "Raw numeric string casts/outcomes increment; full 92-record JSON package remains partial",
@@ -114,7 +114,7 @@ def main() -> None:
         "performance_status": "No JSON speedup claimed; paired public pipelines and lowering review remain open.",
         "full_scope_remaining": ["Dynamic JsonAny and legacy bridges", "Complete containing-record/error metadata and independent method capabilities", "Real bounded incremental Effect.Json Decoder/Encoder", "Paired public pipeline benchmarks and precise all-92-record final review"],
     }
-    output = ROOT / "bootstrap/stdlib-json-raw-number-evidence.json"
+    output = ROOT / "bootstrap/evidence/stdlib/stdlib-json-raw-number-evidence.json"
     output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"raw Number checkpoint: 652 canonical declarations, {len(matrix)*2} selected-source memory processes")
 

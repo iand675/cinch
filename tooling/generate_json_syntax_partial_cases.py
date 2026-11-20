@@ -237,5 +237,5 @@ for model in models:
  s+='    0\n\n  -- | Emit a normalized failing exit while keeping the complete original row/property code.\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in\n    let failed = status in\n    if failed == 0 then 0 else let printed = ioWrite (string-to-bytes (string-concat-all ["json-syntax-partial:", nat-to-string failed, "\\n"])) in 1\n'
  p=ROOT/f'compiler/tests/fixtures/json-syntax-partial-{model}-observations.cinch';p.write_text(s)
  manifest['consumers'].append({'model':model,'path':str(p.relative_to(ROOT)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'rows':len(selected),'indices':[i for i,_ in selected]})
-p=ROOT/'bootstrap/stdlib-json-syntax-partial-consumer-manifest-v1.json';p.write_text(json.dumps(manifest,indent=2)+'\n')
+p=ROOT/'bootstrap/evidence/stdlib/stdlib-json-syntax-partial-consumer-manifest-v1.json';p.write_text(json.dumps(manifest,indent=2)+'\n')
 print('Generated',sum(x['rows'] for x in manifest['consumers']),'unchanged rows across',len(models),'consumers')

@@ -178,7 +178,7 @@ per-container code in the compiler.
 Both declarations are **kernel declarations** installed by the checker
 (`Bootstrap.Builtin.parallelism-declarations`), not a new prelude module.
 The reason is a hard constraint, not a preference: the embedded base library
-is pinned. `bootstrap/library-provider.lock.json` fixes a `revision` and a
+is pinned. `bootstrap/pins/library-provider.lock.json` fixes a `revision` and a
 `source_sha256` over the whole `compiler/prelude` tree, and the ladder's
 `library_provider_lock()` refuses to run when
 `Bootstrap.RuntimeAbi.cinch` or the pinned source hash disagree. Adding

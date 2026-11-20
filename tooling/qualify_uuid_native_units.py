@@ -28,12 +28,12 @@ def main() -> None:
     path = ROOT / 'build/uuid-native-qualification-progress.json'
     ledger = json.loads(path.read_text()) if path.exists() else {
         'kind': 'partial-historical-Native-pure-UUID-matrix',
-        'pair_review_sha256': digest(ROOT / 'bootstrap/stdlib-uuid-native-pair-review.json'),
+        'pair_review_sha256': digest(ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json'),
         'fixture_sha256': digest(fixture),
         'source_sha256': digest(ROOT / 'experiments/uuid-candidate-v1/sources/Data.Uuid.cinch'),
         'candidate_selected': False, 'package_complete': False,
         'new66_family_relabelled': False, 'io_or_mvar_requested': False, 'units': {}}
-    assert ledger['pair_review_sha256'] == digest(ROOT / 'bootstrap/stdlib-uuid-native-pair-review.json')
+    assert ledger['pair_review_sha256'] == digest(ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json')
     assert ledger['source_sha256'] == digest(ROOT / 'experiments/uuid-candidate-v1/sources/Data.Uuid.cinch')
     assert ledger['source_sha256'] == digest(ROOT / 'compiler/prelude/Data/Uuid.cinch')
     first = ROOT / 'build/uuid-native-parse-0-a1-results.json'

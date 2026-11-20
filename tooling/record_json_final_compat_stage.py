@@ -13,7 +13,7 @@ def stream_hash(stream):
  return h.hexdigest()
 def verify(suite,epoch,rows,final_quoted=False):
  suffix=f'final-rust-v{epoch}' if final_quoted else f'rust-v{epoch}'
- name=f'bootstrap/stdlib-json-error-{suite}-{suffix}-results.json';r=load(name)
+ name=f'bootstrap/evidence/stdlib/stdlib-json-error-{suite}-{suffix}-results.json';r=load(name)
  assert r['status']=='passed' and r['frontend']=='rust' and r['compiler_sha256']==RUST and r['observed_runtime_archive_sha256']==RUNTIME
  assert r['independent_rows']==rows and r['reference_sha256']==reference_hash and r['cpu_affinity']==[2] and r['opt_level']==2
  assert r['artifact_bytes']<=r['new_output_limit_bytes']<=20*1024*1024 and r['consumer_stack_limit']=='8M'
@@ -26,7 +26,7 @@ def verify(suite,epoch,rows,final_quoted=False):
   assert row['poisoned_free_validation']==poisoned and row['heap_limit']==('256M' if poisoned else '32M')
   assert row['exit_code']==0 and row['stdout']=='' and row['stats']['live']==0 and row['leaked']==0
  assert len(r['runs'])==2
- ledger_name=f'bootstrap/stdlib-json-error-{suite}-{suffix}-functional-archive.json';ledger=load(ledger_name)
+ ledger_name=f'bootstrap/evidence/stdlib/stdlib-json-error-{suite}-{suffix}-functional-archive.json';ledger=load(ledger_name)
  assert ledger['execution_receipt_sha256']==digest(ROOT/name) and ledger['verified_before_unlink']
  archive=ROOT/ledger['archive_path'];assert digest(archive)==ledger['archive_sha256']
  with gzip.open(archive,'rb') as stream:assert stream_hash(stream)==ledger['decompressed_tar_sha256']
@@ -50,20 +50,20 @@ for suite in ['pointer','owner','bool','string','integer']:
 current=receipts['methods']['sources'];assert all(row['sources']==current for row in receipts.values())
 for module,expected in current.items():assert digest(ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch'))==expected
 for module in ['Value','Codec']:
- assert current['Text.Json.'+module]==load('bootstrap/stdlib-json-read-field-docs-v1.json')['modules'][module]['source_sha256']
+ assert current['Text.Json.'+module]==load('bootstrap/evidence/stdlib/stdlib-json-read-field-docs-v1.json')['modules'][module]['source_sha256']
 # Earlier observations remain attached to their actual frozen source epoch, never relabeled as current.
-quoted_name='bootstrap/stdlib-json-quoted-rust-stage-checkpoint.json';quoted=load(quoted_name)
+quoted_name='bootstrap/evidence/stdlib/stdlib-json-quoted-rust-stage-checkpoint.json';quoted=load(quoted_name)
 assert quoted['status']=='passed-rust-quoted-stage-only' and quoted['qualified_quoted_reference_rows']==1152 and quoted['bounded_memory_processes']==10
 assert quoted['sources']['Text.Json.Value']=='bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa'
 assert quoted['sources']['Text.Json.Codec']=='379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881'
 # Preserve every first genuine mismatch, including plain failed executable/LLVM bytes.
-failed=load('bootstrap/stdlib-json-method-v5-baseline.json')['immutable_failure_files']
+failed=load('bootstrap/evidence/stdlib/stdlib-json-method-v5-baseline.json')['immutable_failure_files']
 for name,expected in failed.items():
  p=ROOT/name;assert p.is_file() and p.stat().st_size==expected['bytes'] and stat.S_IMODE(p.stat().st_mode)==expected['mode'] and digest(p)==expected['sha256'],name
 
 def walk(rows):
  for row in rows:yield row;yield from walk(row.get('children',[]))
-docs=load('bootstrap/stdlib-json-read-field-docs-v1.json');assert docs['status']=='passed' and docs['compiler_sha256']==RUST
+docs=load('bootstrap/evidence/stdlib/stdlib-json-read-field-docs-v1.json');assert docs['status']=='passed' and docs['compiler_sha256']==RUST
 canonical=0;doc_rows={}
 for module in ['Value','Codec','Dynamic','Binary32','Legacy']:
  folder='json-read-field-context-v1/docs' if module in ['Value','Codec'] else 'json-method-protocol-docs-v1' if module=='Dynamic' else 'json-dynamic-docs'
@@ -73,7 +73,7 @@ for module in ['Value','Codec','Dynamic','Binary32','Legacy']:
  canonical+=len(rows);doc_rows[module]={'canonical_declarations':len(rows),'source_sha256':d['sourceSha256'],'docs_sha256':digest(p)}
 assert canonical==857
 assert digest(ROOT/'compiler/prelude/Text/Json/Dynamic.cinch')=='81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93'
-plan=load('bootstrap/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92 and plan['status'].startswith('partial-')
-report={'status':'passed-rust-final-compat-stage-only','compiler_sha256':RUST,'runtime_sha256':RUNTIME,'current_sources':current,'current_source_reference_rows':1494,'current_source_bounded_memory_processes':14,'additional_original_pending_row':1,'additional_owner_groups':4,'current_receipts':receipts,'canonical_docs':doc_rows,'required_Dynamic_source_sha256':digest(ROOT/'compiler/prelude/Text/Json/Dynamic.cinch'),'source_candidate':'5bf2e4b2bc8cd17629362119ce73f91073715e0e','Root_integration':'cbddb0c8; independently reported full33 release PASS134.95s; Root retains its own compiler/dependency/runtime epoch','canonical_json_declarations':canonical,'earlier_quoted_epoch':{'checkpoint':'c5a8c0ecef7b5b50a3be0abb2390900da7fdbc95','receipt':quoted_name,'receipt_sha256':digest(ROOT/quoted_name),'sources':quoted['sources'],'reference_rows':1152,'additional_original_pending_row':1,'additional_owner_groups':4,'bounded_memory_processes':10},'all_reference_rows_accounted_by_actual_epoch':1494,'matched_current_source_full1494_claim':True,'sdk_render_panic_outcomes_retained':12,'panic_adaptation':'Observe literal absent type and original error metadata; reference panic strings are preserved. No panic/prose equality or deliberate Cinch crash is claimed.','first_failure_epochs_preserved_plain':4,'failed_plain_files_verified':len(failed),'historical_methods_v5_receipt_preserved':'bootstrap/stdlib-json-error-methods-rust-v5-results.json','native_executed':False,'production_promoted':False,'full92_complete':False,'performance_claim':None,'remaining':['Value-sensitive nullable, interface and key method semantics','Reporting-disabled malformed-syntax partial updates remain unimplemented','Bounded Effect.Json source/decoder/encoder/token/More/Buffered and original IO causes','Actual public pipeline qualification and paired benchmarking','Native qualification and full92 reconciliation']}
-(ROOT/'bootstrap/stdlib-json-final-compat-stage-checkpoint.json').write_text(json.dumps(report,indent=2)+'\n')
+plan=load('bootstrap/evidence/stdlib/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92 and plan['status'].startswith('partial-')
+report={'status':'passed-rust-final-compat-stage-only','compiler_sha256':RUST,'runtime_sha256':RUNTIME,'current_sources':current,'current_source_reference_rows':1494,'current_source_bounded_memory_processes':14,'additional_original_pending_row':1,'additional_owner_groups':4,'current_receipts':receipts,'canonical_docs':doc_rows,'required_Dynamic_source_sha256':digest(ROOT/'compiler/prelude/Text/Json/Dynamic.cinch'),'source_candidate':'5bf2e4b2bc8cd17629362119ce73f91073715e0e','Root_integration':'cbddb0c8; independently reported full33 release PASS134.95s; Root retains its own compiler/dependency/runtime epoch','canonical_json_declarations':canonical,'earlier_quoted_epoch':{'checkpoint':'c5a8c0ecef7b5b50a3be0abb2390900da7fdbc95','receipt':quoted_name,'receipt_sha256':digest(ROOT/quoted_name),'sources':quoted['sources'],'reference_rows':1152,'additional_original_pending_row':1,'additional_owner_groups':4,'bounded_memory_processes':10},'all_reference_rows_accounted_by_actual_epoch':1494,'matched_current_source_full1494_claim':True,'sdk_render_panic_outcomes_retained':12,'panic_adaptation':'Observe literal absent type and original error metadata; reference panic strings are preserved. No panic/prose equality or deliberate Cinch crash is claimed.','first_failure_epochs_preserved_plain':4,'failed_plain_files_verified':len(failed),'historical_methods_v5_receipt_preserved':'bootstrap/evidence/stdlib/stdlib-json-error-methods-rust-v5-results.json','native_executed':False,'production_promoted':False,'full92_complete':False,'performance_claim':None,'remaining':['Value-sensitive nullable, interface and key method semantics','Reporting-disabled malformed-syntax partial updates remain unimplemented','Bounded Effect.Json source/decoder/encoder/token/More/Buffered and original IO causes','Actual public pipeline qualification and paired benchmarking','Native qualification and full92 reconciliation']}
+(ROOT/'bootstrap/evidence/stdlib/stdlib-json-final-compat-stage-checkpoint.json').write_text(json.dumps(report,indent=2)+'\n')
 print('PASS: current1494 reference rows+retained1+owner4/14 memory processes;857 canonical docs; historical epochs preserved, no promotion.')

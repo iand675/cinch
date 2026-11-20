@@ -14,7 +14,7 @@ receipts={};common=None;processes=0
 for stage,fixture in selected:
     for frontend in ['rust','native']:
         suffix='native-v1' if frontend=='native' else 'rust-v1'
-        path=f'bootstrap/stdlib-json-{stage}-{suffix}-results.json'
+        path=f'bootstrap/evidence/stdlib/stdlib-json-{stage}-{suffix}-results.json'
         report=load(path)
         assert report['status']=='passed',path
         assert report['compiler_sha256']==(native_sha if frontend=='native' else rust_sha),path
@@ -60,8 +60,8 @@ for name,rows in v1.items():
     assert rows==projected,name
 pending=load('compiler/tests/fixtures/json-codec-addressability-pending.json')
 assert len(pending['rows'])==1 and pending['rows'][0]['error']['cause']=='invalid use of `string` tag option'
-plan=load('bootstrap/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92
+plan=load('bootstrap/evidence/stdlib/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92
 assert plan['status'].startswith('partial-')
 report={'description':'Partial independent method/addressability/semantic ownership checkpoint; full92 remains open','source_sha256':common,'compiler_epochs':{'rust':rust_sha,'native':native_sha},'runtime_epochs':{'rust':runtime_rust,'native':runtime_native},'receipts':receipts,'bounded_memory_processes':processes,'canonical_docs':docs,'canonical_declarations':801,'independent_observations':1464,'original_observations_preserved':1160,'tested_increment':'Protocol7 +directional5/metadata-owner3 +79 successful addressability output/callback-count rows and typed-interface boundary, each on both exact frontends','mandatory_pending_descriptor_error_rows':1,'remaining':['Full builtin/descriptor error reporting and application field/record metadata','Complete method nil-interface/object-key adaptations and remaining1464 outcomes','Malformed-input partial updates with reporting disabled','Bounded Effect.Json with shared streaming operation checkpoints and advanced handles','Paired public pipeline benchmarks/lowering and final92-record reconciliation'],'performance_claim':None}
-output=ROOT/'bootstrap/stdlib-json-methods-checkpoint.json';output.write_text(json.dumps(report,indent=2)+'\n')
+output=ROOT/'bootstrap/evidence/stdlib/stdlib-json-methods-checkpoint.json';output.write_text(json.dumps(report,indent=2)+'\n')
 print(f'PASS: partial methods checkpoint, {processes} bounded processes,801 canonical declarations; full92 remains open.')

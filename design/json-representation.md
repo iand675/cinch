@@ -355,8 +355,8 @@ bundle for every case, and the two outputs must be byte identical.
 - **No new runtime primitive, so no lock bump in this lane.** The arena is
   `Bytes` and the node packing is `bytes-set`/`bytes-get`, both existing
   intrinsics, so the runtime ABI does not move and neither
-  `bootstrap/stage0.lock.json` nor
-  `bootstrap/library-provider.lock.json` needs a bump for what landed here.
+  `bootstrap/pins/stage0.lock.json` nor
+  `bootstrap/pins/library-provider.lock.json` needs a bump for what landed here.
   Everything below the 2.0 blocks-per-byte floor needs a runtime addition and
   therefore a lock bump, and there are two of them: an FNV-1a 64 over a
   `Bytes` (section 3, worth about 1.5 M blocks on one interface) and a

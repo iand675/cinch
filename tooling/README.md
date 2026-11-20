@@ -44,6 +44,10 @@ D198-D205, D221-D227 where the specs understate).
   With `--all-programs` it asks the design document's question of every
   rung: is the artifact runnable? It builds each `bootstrap/programs/Run.*.cinch`
   and reports its exit code, failing only when a program did not build.
+- `check-bootstrap-layout.py`: guards the `bootstrap/` layout. It fails when
+  a result, note or patch lands at the top level again, when a result sits in
+  the wrong `evidence/` subject directory, or when a tracked text file still
+  names a bootstrap file at its old path.
 - `shard_ir.py`: the deterministic IR splitter for the stage link
   (below), which also runs as a `CINCH_CLANG` wrapper so the pinned seed's
   own link of Stage1 gets the same treatment.
@@ -175,7 +179,7 @@ mangled names are long, so the symbol table in `__LINKEDIT` is 33k entries
 larger.
 \\\\\\\        to: qrutmztx 0052933a "Add a build profile harness for the ladder" (rebased revision)
 - `profile_build.py`: measures where the ladder spends its time and writes
-  `bootstrap/speed-baseline.json` (see below).
+  `bootstrap/evidence/other/speed-baseline.json` (see below).
 
 ## Development builds
 
@@ -210,7 +214,7 @@ what the build relies on.
 A client that needs a representation of a polymorphic export which the
 exporting module did not emit asks for it; the build adds the request to
 `<out>/discovered-roots.json` and rebuilds that module. Copy a new request
-into `bootstrap/module-object-roots.json` so a clean build starts with it.
+into `bootstrap/pins/module-object-roots.json` so a clean build starts with it.
 
 ## Build profile
 
@@ -267,7 +271,7 @@ the graph.
 Only the standard library, `clang` and `sample` are needed. Everything the
 run generates lands in `build/bootstrap-profile` or `build/bootstrap`, both ignored by
 git, so measuring never edits a source file. The one exception is the
-baseline itself, `bootstrap/speed-baseline.json`.
+baseline itself, `bootstrap/evidence/other/speed-baseline.json`.
 
 ## Drift check (CI)
 

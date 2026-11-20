@@ -260,7 +260,7 @@ def artifact_provider(driver, receipt_path):
         if ((directory / "library/CinchBaseObject.cinch").read_bytes() != ARTIFACT_ENTRY
                 or documents.get("CinchBaseObject", {}).get("source_hash") != content_hash(ARTIFACT_ENTRY)):
             refuse("artifact root source differs from its checked interface")
-        roots_sha256 = driver.file_hash(driver.ROOT / "bootstrap/library-object-roots.json")
+        roots_sha256 = driver.file_hash(driver.ROOT / "bootstrap/pins/library-object-roots.json")
         if artifacts["roots.json"] != roots_sha256:
             refuse("requested object roots differ from this compiler")
         roots = read_document(directory / "roots.json")
@@ -294,7 +294,7 @@ def artifact_provider(driver, receipt_path):
 
 def provider(driver):
     lock = driver.library_provider_lock()
-    roots = (driver.ROOT / "bootstrap/library-object-roots.json").read_bytes()
+    roots = (driver.ROOT / "bootstrap/pins/library-object-roots.json").read_bytes()
     inputs = {"protocol": 2, "host": driver.HOST, "producer": lock,
               "roots_sha256": driver.digest(roots), "entry_sha256": driver.digest(ENTRY)}
     snapshot = source_snapshot(driver, lock)

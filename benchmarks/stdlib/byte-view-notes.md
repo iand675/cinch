@@ -57,7 +57,7 @@ consumer tests; parent integration owns running Cargo. This checkpoint does not
 claim the full strings/bytes package surfaces are complete.
 
 Functional observations and exact artifact identities are recorded in
-`bootstrap/stdlib-byte-view-results.json`. Public changed-input scalar/packed
+`bootstrap/evidence/stdlib/stdlib-byte-view-results.json`. Public changed-input scalar/packed
 pipeline measurements are a separate follow-up and make no claim here.
 
 
@@ -113,4 +113,4 @@ operations, not vector SIMD. All original, intermediate, rejected-baseline and
 selected sources/samples are retained. The rejected scalar control incorrectly
 disabled prefix/suffix equality; the independent preflight caught it before
 performance measurement. Exact selected functional/performance/object identities
-are in `bootstrap/stdlib-byte-view-selected-results.json`.
+are in `bootstrap/evidence/stdlib/stdlib-byte-view-selected-results.json`.

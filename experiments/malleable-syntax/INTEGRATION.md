@@ -30,7 +30,7 @@ matching performs reduction separately. Another regression covers a string-lengt
 bound under both strategies.
 
 The experimental syntax frontend and tactic hook remain development Rust
-compiler features. `bootstrap/stage0.lock.json` and `bootstrap/seed/stage0.patch`
+compiler features. `bootstrap/pins/stage0.lock.json` and `bootstrap/seed/stage0.patch`
 retain the exact previously tested seed. This integration does not promote a
 new seed or claim equivalent syntax/tactic support in the self-hosted frontend.
 The bootstrap source itself does not depend on these experiment features.

@@ -13,7 +13,7 @@ from audit_stdlib_surface import declarations
 
 ROOT = Path(__file__).resolve().parents[1]
 BASIS = "bfb4cb57113016a6cb054fd5c460b6cea6fcf60d"
-OUTPUT = ROOT / "bootstrap/stdlib-maps-audit.json"
+OUTPUT = ROOT / "bootstrap/evidence/stdlib/stdlib-maps-audit.json"
 HOMES = (
     "Data.Map", "Data.HashMap", "Data.Mutable.HashTable",
     "Data.Mutable.BTree", "Data.Mutable.IndexMap",

@@ -149,7 +149,7 @@ def emit(output: Path, snapshot: Path, provenance_path: Path, repository: Path, 
         destination.write_bytes(files['compiler/prelude/' + module['path']])
         sources[module['name']] = {'path': relative, 'sha256': bootstrap.file_hash(destination)}
     shutil.copy2(package_path, output / 'base/cinch-base.cinchpkg')
-    shutil.copy2(bootstrap.ROOT / 'bootstrap/library-object-roots.json', output / 'roots.json')
+    shutil.copy2(bootstrap.ROOT / 'bootstrap/pins/library-object-roots.json', output / 'roots.json')
     library = output / 'library'
     library.mkdir()
     entry = library / 'CinchBaseObject.cinch'

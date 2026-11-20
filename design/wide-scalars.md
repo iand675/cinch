@@ -191,7 +191,7 @@ predates `W` must refuse such an interface rather than misread it, so
 
 The stage compiler (`bootstrap/*.cinch`) checks and lowers its own
 programs; it does not compile the base library, which comes from the
-pinned producer (`bootstrap/library-provider.lock.json`). Parity
+pinned producer (`bootstrap/pins/library-provider.lock.json`). Parity
 therefore has two halves:
 
 - **its own checker and backend**: `I128`/`U128` as kernel types with
@@ -201,7 +201,7 @@ therefore has two halves:
   at its word positions, and the foreign marshal at `i128`;
 - **its view of the library**: `Data.Wide` reaches stage programs once the
   provider lock and the seed pin move to a revision that contains it, with
-  `bootstrap/library-object-roots.json` entries for the units stage
+  `bootstrap/pins/library-object-roots.json` entries for the units stage
   programs reach.
 
 The fixed point (`tooling/bootstrap.sh check`) is the gate for both.

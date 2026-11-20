@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Profile Cinch build cost and write bootstrap/speed-baseline.json.
+"""Profile Cinch build cost and write bootstrap/evidence/other/speed-baseline.json.
 
 Three measurements, one JSON object, stable keys so later runs diff:
 
@@ -46,7 +46,7 @@ BOOTSTRAP = TOOLING / "bootstrap.py"
 RUNNER = TOOLING / "run_stage_targets.py"
 SCRATCH = ROOT / "build" / "bootstrap-profile"  # matched by the /build/bootstrap*/ ignore rule
 DEFAULT_BUILD = ROOT / "build" / "bootstrap"
-BASELINE = ROOT / "bootstrap" / "speed-baseline.json"
+BASELINE = ROOT / "bootstrap" / "evidence" / "other" / "speed-baseline.json"
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 
 # cargo reports its own elapsed time; the stage logs carry it verbatim.
@@ -705,7 +705,7 @@ def run_all(args) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="profile_build.py",
-        description="Measure the Cinch ladder and write bootstrap/speed-baseline.json.",
+        description="Measure the Cinch ladder and write bootstrap/evidence/other/speed-baseline.json.",
         epilog="Every subcommand leaves its artifacts under build/bootstrap-profile. "
                "The stage ladder is serial by construction (bootstrap.py pins CARGO_BUILD_JOBS=1), "
                "so --jobs only reaches the targets runner.")
@@ -737,7 +737,7 @@ def main() -> int:
     many.add_argument("targets", nargs="*")
     many.add_argument("--jobs", type=int, default=4)
 
-    everything = commands.add_parser("all", help="chain, check, targets, then bootstrap/speed-baseline.json")
+    everything = commands.add_parser("all", help="chain, check, targets, then bootstrap/evidence/other/speed-baseline.json")
     everything.add_argument("--stage", type=int, default=3, choices=range(4))
     everything.add_argument("--jobs", type=int, default=4)
     everything.add_argument("--repeat", type=int, default=5)

@@ -75,14 +75,14 @@ def main() -> None:
                            ("maps-855-baseline-source", ("Map", "HashTable", "Var", "LinkedList"))):
         for module in modules:
             historical.append(header(ROOT / f"build/{epoch}/source/build/Data.Mutable.{module}.cinchif"))
-    old_interface_receipt = ROOT / "bootstrap/stdlib-maps-interface-results.json"
+    old_interface_receipt = ROOT / "bootstrap/evidence/stdlib/stdlib-maps-interface-results.json"
     receipt = {"kind": "static-only-map-nominal-region-review", "compiler_invoked": False,
                "source_checks_executed": False, "runtime_executed": False, "candidate_selected": False,
                "production_sources_modified": False, "historical_interfaces_modified": False,
                "proposals": proposals, "patches": patch_paths, "actual_historical_headers": historical,
                "historical_refusals": {"path": str(old_interface_receipt.relative_to(ROOT)), "sha256": digest(old_interface_receipt)},
                "qualification": "Requires a new explicit nominal Region feature epoch; frozen855 source success cannot qualify these proposals."}
-    (ROOT / "bootstrap/stdlib-maps-nominal-region-static-results.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    (ROOT / "bootstrap/evidence/stdlib/stdlib-maps-nominal-region-static-results.json").write_text(json.dumps(receipt, indent=2) + "\n")
     output = OUTPUT / "ieee64/Main.cinch"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(float_source(64))
@@ -99,7 +99,7 @@ def main() -> None:
             "historical_consumer": str(old_consumer.relative_to(ROOT)), "historical_consumer_sha256": digest(old_consumer),
             "byte_identical_to_historical_fixture": True, "input_bit_patterns": [f"0x{pattern:016x}" for pattern in patterns],
             "remaining_gate": "Run both unchanged baseline and unselected C839 IEEE64 consumers on frozen855/c4 after the emission/runtime hold is released."}
-    (ROOT / "bootstrap/stdlib-maps-ieee64-preparation-results.json").write_text(json.dumps(ieee, indent=2) + "\n")
+    (ROOT / "bootstrap/evidence/stdlib/stdlib-maps-ieee64-preparation-results.json").write_text(json.dumps(ieee, indent=2) + "\n")
     print(json.dumps({"status": "static-preparation-complete", "nominal_declarations": sum(len(row[1]) for row in specifications),
                       "source_bytes": sum((OUTPUT / row[2]).stat().st_size for row in specifications),
                       "ieee64_sha256": digest(output)}))

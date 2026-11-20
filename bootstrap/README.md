@@ -4,8 +4,28 @@ Rust, Cinch and the bootstrap verifier require schema 10 for compiled
 interfaces. Rebuild older interfaces and their dependent objects from
 source. The pinned schema 10 library producer regenerated all 55 library
 interfaces. Run `tooling/bootstrap.sh check` to build the ladder and check
-the fixed point with the current pins. See [the cutover audit](current-schema10-family-and-cutover-results.json)
-and [the first schema 10 fixed point](current-schema10-bootstrap-results.json).
+the fixed point with the current pins. See [the cutover audit](evidence/current/current-schema10-family-and-cutover-results.json)
+and [the first schema 10 fixed point](evidence/current/current-schema10-bootstrap-results.json).
+
+## Layout
+
+The compiler's own modules are the `Bootstrap.*.cinch` files beside this
+README. Everything else is grouped by what it is:
+
+- `programs/`: rung programs and counterexample sources the ladder runs.
+- `pins/`: the inputs a build reads by path (the seed and provider locks,
+  and the object-root tables clients pass to `--object-roots`).
+- `evidence/`: recorded results, grouped by subject (`stdlib/`, `current/`,
+  `native/`, `runtime/`, `other/`) beside the older `*-evidence/` bundles.
+- `notes/`: working notes, plans and reviews.
+- `patches/`: development patches kept for review.
+- `repros/`, `proposals/`: reproducer bundles and proposed patches.
+- `seed/`, `status-ui/`: the seed patch and the status page.
+
+New evidence lands in `evidence/<subject>/`; the subject is the file's
+first name segment (`stdlib-`, `current-`, `native-`, `runtime-`), else
+`other/`. `tooling/check-bootstrap-layout.py` fails when a file lands at
+the top level again or when a tracked file still names a moved one.
 
 ## Rank-N polymorphism checkpoint
 
@@ -15,7 +35,7 @@ On x86_64 Linux with LLVM 20, `tooling/bootstrap.sh check` reaches the
 four-stage fixed point. Stage 3 compiles the twelve accepted rank-N
 fixtures, and each runs to exit 42 with zero leaks under RC debugging.
 It refuses the six rejected fixtures. See
-[rank-N Stage 3 results](current-rank-n-stage3-results.json). The seed
+[rank-N Stage 3 results](evidence/current/current-rank-n-stage3-results.json). The seed
 pin moved to 1665ebd, past its branch-release double free. The
 library-provider pin moved to f36dc5d, whose library object leaves out
 the unselected Darwin syscall backend. Stage 3 still leaks while
@@ -26,9 +46,9 @@ open.
 
 Matching4f/NativeE5 auxiliary suites pass171 runtime,43 tooling and39 Native
 editor tests, independently audited with zero skipped or filtered cases. See
-[current auxiliary evidence](current-record-indexed-auxiliary-results.json).
+[current auxiliary evidence](evidence/current/current-record-indexed-auxiliary-results.json).
 A reduced valid byte-size proof counterexample remains in
-[current observed-size evidence](current-observed-byte-size-counterexample.json).
+[current observed-size evidence](evidence/current/current-observed-byte-size-counterexample.json).
 Its private proof-search correction has passed the certificate test and is
 still validating; it is not part of the published4f compiler. Matching full
 bootstrap/frontend/external suites and Acceptance1-5 remain open.
@@ -38,7 +58,7 @@ projection inference, closed numeric indexed coverage and fixed-index runtime
 constructor layouts. Its complete runtime-IR group passes139 zero-leak reports;
 the actual compiler/object gate passes9 tests,17 C clients and50 zero-leak
 reports. All13 focused runtime clients and5 source refusals pass. See
-[current record/indexed runtime evidence](current-record-indexed-runtime-results.json).
+[current record/indexed runtime evidence](evidence/current/current-record-indexed-runtime-results.json).
 
 The unchanged34-case language suite now executes7/13 positives; all21 negatives
 refuse, but19 fail their original diagnostic assertions. Source-Prelude
@@ -54,7 +74,7 @@ no constructors, or all constructors actually refuted, permits elimination.
 Opaque/primitive/dictionary carriers and unknown equations remain refused.
 The complete pattern-field group passes4 tests with8 new source controls and
 4 poisoned32M zero-leak executions. See
-[Native coverage evidence](current-native-empty-data-coverage-results.json).
+[Native coverage evidence](evidence/current/current-native-empty-data-coverage-results.json).
 The pinned Native22 seed/library roles remain unchanged.
 
 Earlier compiler dd8d supports named source record construction, complete
@@ -65,19 +85,19 @@ pass16 tests,17 optimized C clients and50 zero-leak reports. Six fresh record
 runtime clients pass32M poisoning with12 further zero-leak reports. All44 exact
 inputs pass Native and the audited Cinch-built checker. All9 original API groups
 run unchanged:8 pass; source-Prelude replacement still fails. See
-[current record/constructor evidence](current-record-and-constructor-results.json).
+[current record/constructor evidence](evidence/current/current-record-and-constructor-results.json).
 
 Record interface transport and declared numeric field carrier propagation remain
 open. A valid Nat record literal still rejects; its unchanged positive source
 and real failure are retained in
-[the field-carrier counterexample](current-record-field-carrier-counterexample.json).
+[the field-carrier counterexample](evidence/current/current-record-field-carrier-counterexample.json).
 A private typed-initializer correction passes its complete constructor and
 inference groups; further application/coverage work keeps separate evidence.
 
 The preceding aa4e chain continues its independent fixed-point audit.
 The29e6 compiler proves Acceptance1-4 with4 stages,12 smokes, identical Stage2/3
 code and44 interfaces, API consumption and changed-source behavior. See
-[29e6 bootstrap proof](current-owner-display-bootstrap-results.json).
+[29e6 bootstrap proof](evidence/current/current-owner-display-bootstrap-results.json).
 A matching latest-source chain, full suites/all105 targets,14 external acceptance
 checks,34 original external language cases and Acceptance5 remain required.
 
@@ -92,7 +112,7 @@ calling convention, including erased proof stages and hidden value indices.
 
 This helper does not yet write the complete closed dependency-object manifest
 or provide the Cinch CLI's object-output mode. See
-`current-runtime-library-abi-results.json`; complete matching bootstrap/suite
+`evidence/current/current-runtime-library-abi-results.json`; complete matching bootstrap/suite
 and original API/Acceptance 5 evidence remain required.
 
 
@@ -103,8 +123,8 @@ Raw/Obj/TObj vectors. It emits no process entry and keeps non-root workers local
 `bootstrap_runtime_library` test are the runnable artifact. This is a backend
 component; the external `EmitObject` path and complete ABI manifest remain open.
 All three original runtime groups and all nineteen proof/interface groups pass
-under the scopes recorded in `current-runtime-library-root-results.json` and
-`current-cinch-proof-interface-results.json`.
+under the scopes recorded in `evidence/current/current-runtime-library-root-results.json` and
+`evidence/current/current-cinch-proof-interface-results.json`.
 
 The Stage0 and distinct library-only provider pins explicitly use 85f00ca, ABI6,
 Native 22c91 and an empty seed patch. Development Rust source 6b5675 remains a
@@ -122,7 +142,7 @@ artifact with an acceptance command rather than a claim.
 Compiler `5f2f8556` independently proves Acceptance1-4: four stages and twelve
 smokes, identical Stage2/3 LLVM/executables/all43 interfaces, actual compiler
 interface consumption and changed-source behavior. Stage1 uses the optimized
-exact pinned runtime. See [current bootstrap proof](current-checked-decision-bootstrap-results.json).
+exact pinned runtime. See [current bootstrap proof](evidence/current/current-checked-decision-bootstrap-results.json).
 All105 required targets are now replaying through the actual matching Stage3.
 The complete matching suites and Acceptance5 remain open.
 
@@ -133,7 +153,7 @@ decisions. Independent Core closure requires the exact body, role, scheme,
 result and scoped arguments. Four complete affected groups pass eleven tests;
 fifty added Core control runs, all43 actual compiler inputs and three real
 32M poisoned, zero-leak runtime clients pass. Three invalid clients refuse.
-See [checked decision evidence](current-checked-source-decision-results.json).
+See [checked decision evidence](evidence/current/current-checked-source-decision-results.json).
 A matching complete Native sweep and fresh four-stage bootstrap are running.
 The complete original105-target scope and final Acceptance1-5 remain required.
 
@@ -145,8 +165,8 @@ and passes7/9 original interface/API groups. Contextual dictionary factories,
 private method dependency closure, canonical class hashes and declared parameter
 names are verified. Typed foreign declarations, source-prelude replacements,
 matching final bootstrap/suites and all105-target/Acceptance5 coverage remain open.
-See [current interface evidence](current-contextual-factory-results.json) and
-[original API results](current-original-interface-api-results.json).
+See [current interface evidence](evidence/current/current-contextual-factory-results.json) and
+[original API results](evidence/current/current-original-interface-api-results.json).
 
 ## Compiler stages
 
@@ -160,7 +180,7 @@ The self-hosting continuation uses explicit stages, with separate outputs:
     tooling/bootstrap.sh status
 
 Artifacts and logs live in `build/bootstrap/stageN/`. Stage 0 is pinned by
-`bootstrap/stage0.lock.json`: a Git revision, a reviewed patch and hashes
+`bootstrap/pins/stage0.lock.json`: a Git revision, a reviewed patch and hashes
 of the patch and compiler sources. Editing the development Rust compiler
 does not silently replace the seed. Stages 2 and 3 read the same frozen
 compiler source bundle and use only their preceding Cinch compiler as frontend.
@@ -168,7 +188,7 @@ That compiler emits typed shared-runtime LLVM and checked interfaces with
 `--emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG`;
 the platform linker links its IR, the checked library dependency object and
 the matching runtime archive. The library-only producer is independently
-pinned in `bootstrap/library-provider.lock.json`; it never compiles
+pinned in `bootstrap/pins/library-provider.lock.json`; it never compiles
 `Bootstrap.*` implementations. Object, metadata, interface and runtime hashes
 participate in later-stage cache identity. Missing concrete dependency variants
 are reported in the stage's `requested-roots.json` for the producer's explicit
@@ -190,12 +210,12 @@ archive hash in the cache inputs. A failed optimized runtime build is an error;
 it cannot quietly select the Native linker's debug fallback. This profile
 choice changes neither the pinned seed nor later stages' independent library
 provider. Fresh Stage0/1 builds and all six smoke outcomes are recorded in
-[current runtime profile results](current-stage1-runtime-profile-results.json).
+[current runtime profile results](evidence/current/current-stage1-runtime-profile-results.json).
 A same-LLVM paired measurement checks all43 source inputs6.78x faster with
 the optimized runtime, with both sides accepted and leak-free; see
-[measurement scope and identities](current-stage1-runtime-performance-results.json).
+[measurement scope and identities](evidence/current/current-stage1-runtime-performance-results.json).
 The separate earlier917f chain has a verified four-stage fixed point and
-Acceptance1-4; see [that exact checkpoint](current-byte-observation-bootstrap-results.json).
+Acceptance1-4; see [that exact checkpoint](evidence/current/current-byte-observation-bootstrap-results.json).
 Neither receipt establishes final current-source suites or Acceptance5.
 The fixed-point check requires the actual compiler modules' canonical
 interfaces, so base-library interfaces cannot stand in for compiler output.
@@ -210,8 +230,8 @@ and quantified-value identity repair in the development Rust compiler. All eleve
 affected complete groups pass141 tests, all43 compiler modules check and all
 Native test targets compile. The actual Cinch exporter separately passes43
 controls and seven original metadata assertion blocks. See
-[current quantified-value results](current-native-quantified-value-results.json)
-and [current serializer results](current-cinch-serializer-results.json).
+[current quantified-value results](evidence/current/current-native-quantified-value-results.json)
+and [current serializer results](evidence/current/current-cinch-serializer-results.json).
 That checkpoint started a matching Native57 sweep. Its seed/provider pins were
 25b7e82/ABI6; a deliberate refresh and genuine current-source Stage1/2/3 chain,
 full final-stage suites and original API/Acceptance5 coverage remain required.
@@ -220,22 +240,22 @@ The earlier actual-body compiler snapshot has source identity `29775cd` and expl
 25b7e82 ABI6 seed and separate library-producer pins. All43 modules, all nineteen
 complete proof/interface groups,28 actual exporter controls and251 matching
 runtime/tooling/editor tests pass independently. See
-[current method-body evidence](current-cinch-method-body-results.json).
+[current method-body evidence](evidence/current/current-cinch-method-body-results.json).
 Fresh Stage0 and its library-only provider are verified; a genuine new
 Stage1/2/3 chain and complete matching Native/finalStage3 suites remain required.
 The newer serializer and quantified-value precondition repairs are separate
 candidates and are not covered by this receipt.
 
 The preceding c8d6 compiler retains its verified four-stage fixed point; see
-[prior projection chain evidence](current-projection-proof-bootstrap-results.json).
+[prior projection chain evidence](evidence/current/current-projection-proof-bootstrap-results.json).
 Those code/interface/API-consumer and changed-source checks prove Acceptance1-4
 for that earlier source. Acceptance5 and the current full compiler/API scope
-remain open. Earlier ABI6 [chain](current-abi6-bootstrap-results.json),
-[external](current-abi6-stage3-external-results.json),
-[auxiliary](current-abi6-auxiliary-results.json) and
-[tooling](current-abi6-tooling-results.json) receipts keep their recorded inputs.
+remain open. Earlier ABI6 [chain](evidence/current/current-abi6-bootstrap-results.json),
+[external](evidence/current/current-abi6-stage3-external-results.json),
+[auxiliary](evidence/current/current-abi6-auxiliary-results.json) and
+[tooling](evidence/current/current-abi6-tooling-results.json) receipts keep their recorded inputs.
 
-Portable clients use explicit [test library roots](test-library-object-roots.json),
+Portable clients use explicit [test library roots](pins/test-library-object-roots.json),
 including variants outside the compiler's own dependency closure. The pinned
 Native producer builds only `CinchBaseObject` and admitted base modules. Client
 parsing, checking and lowering use the selected actual Cinch compiler.
@@ -351,7 +371,7 @@ independent kind/term/proof kernel. Numeric reflection still needs actual
 checked primitive or instance-body semantics; a canonical class name and
 slot do not establish those semantics. Current evidence and remaining
 gates are recorded in
-[the global-reference report](global-reference-checkpoint-results.json)
+[the global-reference report](evidence/other/global-reference-checkpoint-results.json)
 and [the self-hosting design](../design/self-hosting.md).
 
 `Bootstrap.Kinds` and `Bootstrap.Typing` separately check the nominal and
@@ -365,19 +385,19 @@ kind/term implementation passed all164+5 Native-assisted gates. It has been
 superseded locally by the validated169+5 constructor snapshot. The later
 source-decision implementation has separate validation. Full declaration/coverage,
 semantic proof authority, totality and usage remain required; see
-[the Core typing report](core-typing-checkpoint-results.json).
+[the Core typing report](evidence/other/core-typing-checkpoint-results.json).
 
 `UProofFun` retains a Prop domain, latent effect row and proper result type.
 Source and runtime arity differ explicitly; ordinary runtime arguments cannot
 stand in for erased evidence. The preceding type-only checkpoint passes all
-nine focused targets; see [its report](proof-arrow-checkpoint-results.json).
+nine focused targets; see [its report](evidence/other/proof-arrow-checkpoint-results.json).
 Current source-proof validation and runtime limits are described below.
 
 `CPProof`, `CProofRef` and `CErasedApply` retain scoped proof identities and
 call effects. Source proof forwarding and lambda checks pass; wrong evidence,
 runtime proof inspection and value-index confusion are refused. These checks
 are included in the completed169+5 constructor suite. General proof computation,
-totality and typed runtime erasure remain required; see [the source proof report](source-proof-checkpoint-results.json).
+totality and typed runtime erasure remain required; see [the source proof report](evidence/other/source-proof-checkpoint-results.json).
 
 Kernel-owned `Yes`/`No` retain one erased source evidence field and no runtime
 payload. Their source patterns, proposition scopes and exact metadata checks
@@ -385,7 +405,7 @@ pass, as do the separate fixed-semantics Core decision checks. That constructor
 snapshot now passes the complete169+5 Native-assisted suite and its exact code
 is installed locally. Its stage2 attempt stopped at two headers before bodies;
 the newer source-decision attempt below has its own evidence. See
-[the decision report](decision-checkpoint-results.json).
+[the decision report](evidence/other/decision-checkpoint-results.json).
 
 Source `decide` now retains checked predicates and executable Core decisions,
 including short-circuit logical forms and stable strict-let value identity.
@@ -394,7 +414,7 @@ smokes; actual stage2 stops before bodies at one imported measure-contract
 header and produces no IR or compiler executable. Broader regressions and its
 complete170+5 matrix are running. Unknown method bodies cannot define arithmetic aliases. Typed
 runtime lowering and genuine self-hosting remain required. See
-[the source decision report](source-decision-checkpoint-results.json).
+[the source decision report](evidence/other/source-decision-checkpoint-results.json).
 
 The orchestration checks run with:
 
@@ -583,12 +603,12 @@ use a 256M heap with normal reclamation and leak checks. The emitted client
 runs at 32M with RC poisoning and zero leaks. Compiler poisoning intentionally
 quarantines all parser allocations and exhausts its budget on a full provider;
 it is not the large-run heap configuration. See
-`current-cinch-library-object-results.json` and
-`current-cinch-array-object-results.json`. The latter replays one original
+`evidence/current/current-cinch-library-object-results.json` and
+`evidence/current/current-cinch-array-object-results.json`. The latter replays one original
 array case with fourteen explicitly filtered; the full array and final staged
 compiler/API suites remain required.
 All eight complete adapter tests pass on the current Native producer; see
-`current-output-mode-adapter-results.json`.
+`evidence/current/current-output-mode-adapter-results.json`.
 
 `compiler/examples/bootstrap_external_probe.rs` exercises all three supported
 modes through a compiled Cinch frontend, including multi-module input, a filename
@@ -609,7 +629,7 @@ A runtime-input probe checks retention of polymorphic definitions and data,
 rejects an actual type error, and verifies that outside code cannot call the
 checked constructor. The complete scalar IR and pipeline targets pass. This
 boundary is not a claim of complete usage/totality checking, typed runtime
-lowering or successful self-hosting. See [the focused report](checked-program-results.json).
+lowering or successful self-hosting. See [the focused report](evidence/other/checked-program-results.json).
 
 
 ## Typed shared-runtime lowering
@@ -628,7 +648,7 @@ polymorphism returns named diagnostics and clears stale IR. The complete emitter
 source closure also passes through Cinch. The real compiler CLI route is being
 validated separately; the default pipeline still uses its standalone scalar
 renderer. Aggregates, closures, dictionaries, effects and the complete base ABI
-remain required. See [the runtime IR checkpoint](runtime-ir-results.json).
+remain required. See [the runtime IR checkpoint](evidence/runtime/runtime-ir-results.json).
 
 
 The `--emit-ir` mode routes retained checked Core through the typed shared-runtime
@@ -644,12 +664,12 @@ sets. Cinch now lowers the checked ABI6 array intrinsics, including element
 class/layout and defining-interface authority checks. The previous ABI5 chain
 receipts remain historical; current ABI6 Stage0/1 and positive array clients
 pass, while Stage2/3 and full final acceptance remain in progress. See
-[current array validation](current-array-kernel-effects-results.json),
-[development stages](current-abi6-development-stage-results.json) and
-[actual Stage1 array clients](current-abi6-development-array-results.json).
+[current array validation](evidence/current/current-array-kernel-effects-results.json),
+[development stages](evidence/current/current-abi6-development-stage-results.json) and
+[actual Stage1 array clients](evidence/current/current-abi6-development-array-results.json).
 The real CLI test links and runs an exact bignum calculation, with zero leaks;
 the existing whole pipeline still passes. The complete updated compiler source
-also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).
+also passes through Cinch in check-only mode. See [the emit-mode report](evidence/runtime/runtime-emit-results.json).
 
 
 Typed runtime lowering also supports closed tuples and irrefutable tuple
@@ -660,7 +680,7 @@ root is dropped. Thirteen executable cases pass with zero leaks, including a
 full16-field inline map. A17-field layout gets a named refusal until extended
 descriptors are implemented. The whole backend source closure passes through
 Cinch. Source ADTs and polymorphic/closure/dictionary/effect lowering remain
-unfinished. See [the tuple report](runtime-tuple-results.json).
+unfinished. See [the tuple report](evidence/runtime/runtime-tuple-results.json).
 
 
 The protocol3 stage driver passes all27 tooling checks, six fresh stage0/1
@@ -669,4 +689,4 @@ The actual complete compiler still exits5 on the typed emitter's named
 polymorphic/dictionary/aggregate refusals; no Stage2 compiler or usable IR is
 produced. The empty IR file confirms stale output was cleared. That stage
 snapshot precedes the tuple checkpoint. The numeric probe proves the linkage
-path, not a self-built compiler. See [the exact driver results](typed-stage-driver-results.json).
+path, not a self-built compiler. See [the exact driver results](evidence/other/typed-stage-driver-results.json).

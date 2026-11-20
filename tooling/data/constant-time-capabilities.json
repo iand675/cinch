@@ -70,7 +70,7 @@
   "tests": [
     "lib_constant_time"
   ],
-  "evidence": "bootstrap/stdlib-constant-time-results.json",
+  "evidence": "bootstrap/evidence/stdlib/stdlib-constant-time-results.json",
   "benchmarks": [
     "benchmarks/stdlib/constant-time-equality-results.json",
     "benchmarks/stdlib/constant-time-buffers-results.json"

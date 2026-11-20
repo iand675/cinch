@@ -101,8 +101,8 @@ def stage3_artifacts():
         library_matches = provider == bootstrap.runtime_provider()["identity"]
     else:
         library_matches = (bootstrap.LIBRARY_ARTIFACT is None
-                           and provider.get("producer") == bootstrap.read_json(bootstrap.ROOT / "bootstrap/library-provider.lock.json")
-                           and provider.get("roots_sha256") == bootstrap.file_hash(bootstrap.ROOT / "bootstrap/library-object-roots.json"))
+                           and provider.get("producer") == bootstrap.read_json(bootstrap.ROOT / "bootstrap/pins/library-provider.lock.json")
+                           and provider.get("roots_sha256") == bootstrap.file_hash(bootstrap.ROOT / "bootstrap/pins/library-object-roots.json"))
     if (inputs.get("source_sha256") != bootstrap.source_hash(bootstrap.collect_compiler_sources())
             or inputs.get("built_by_stage") != 2 or inputs.get("protocol") != bootstrap.PROTOCOL
             or inputs.get("host") != bootstrap.HOST or not bootstrap.cached(stage, inputs)
@@ -283,7 +283,7 @@ def run_target(target, api, evidence, cargo_target, env, interface_sha, native_a
 def verify(evidence, cargo_target, jobs=1):
     if jobs < 1:
         raise ValueError("Stage3 verification needs at least one worker")
-    scope_path = bootstrap.ROOT / "bootstrap/current-frontend-acceptance-scope.json"
+    scope_path = bootstrap.ROOT / "bootstrap/evidence/current/current-frontend-acceptance-scope.json"
     scope = bootstrap.read_json(scope_path)
     api = scope["interface_api_targets"]
     targets = scope["portable_targets"] + api

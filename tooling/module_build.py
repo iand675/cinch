@@ -47,7 +47,7 @@ Roots
 A provider emits a polymorphic export only in the representations it is asked
 for. When a client needs one that is absent it says so, and the request is
 added to the exporting module's roots and that module is rebuilt.
-`bootstrap/module-object-roots.json` holds the requests already known, so a
+`bootstrap/pins/module-object-roots.json` holds the requests already known, so a
 build from a clean tree does not rediscover them.
 """
 from __future__ import annotations
@@ -71,7 +71,7 @@ from bootstrap_objects import requested_roots  # noqa: E402
 import shard_ir  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-ROOTS_FILE = ROOT / "bootstrap" / "module-object-roots.json"
+ROOTS_FILE = ROOT / "bootstrap" / "pins" / "module-object-roots.json"
 ENTRY = "Main"
 IMPORT = re.compile(rb"^\s+import\s+([A-Z][\w.]*)", re.M)
 # The manifest fields a module's compile adds to, and how each merges.

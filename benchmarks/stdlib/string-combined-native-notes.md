@@ -31,7 +31,7 @@ The requested surface is 184 scalar-packing vectors, 92 typed byte-constructor
 vectors and 450 immutable clone/join vectors. Two deep construction regressions
 and repeated owner/alias pipelines supplement those independent outputs.
 Exact commands, memory observations and output identities belong to
-`bootstrap/stdlib-string-combined-native-construction-results.json`.
+`bootstrap/evidence/stdlib/stdlib-string-combined-native-construction-results.json`.
 
 Reproduction (after sourcing the tool environment and applying the documented
 single-job/thread and compiler-stack settings):
@@ -43,7 +43,7 @@ taskset -c 0 python3 tooling/validate_string_combined_native.py \
   --objects /workspace/dasl-stdlib-string-combined/build/combined-client-config/objects.json \
   --provider /workspace/dasl-stdlib-string-combined/build/combined-base-artifact-v1 \
   --artifacts build/string-combined-native \
-  --output bootstrap/stdlib-string-combined-native-construction-results.json
+  --output bootstrap/evidence/stdlib/stdlib-string-combined-native-construction-results.json
 ```
 
 This is a focused fresh-provider gate. The parent owns the complete fixed-point,

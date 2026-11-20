@@ -27,7 +27,7 @@ def main() -> None:
     names = ["final-rust-v2", "edge-rust-v2", "native-raw-v1", "edge-native-raw-v1", "control-native-raw-v2"]
     covered, matrices = set(), []
     for name in names:
-        path = ROOT / f"bootstrap/stdlib-json-dynamic-{name}-results.json"
+        path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-dynamic-{name}-results.json"
         receipt = json.loads(path.read_text())
         frontend = receipt["frontend"]
         assert receipt["compiler_sha256"] == COMPILERS[frontend]
@@ -87,7 +87,7 @@ def main() -> None:
     edge = json.loads((ROOT / "compiler/tests/fixtures/json-codec-dynamic-edge-vectors.json").read_text())
     assert (len(base["decode"]), len(base["abort"]), len(base["application"])) == (392, 22, 16)
     assert (len(edge["decode"]), len(edge["abort"]), len(edge["application"])) == (32, 8, 0)
-    plan = json.loads((ROOT / "bootstrap/stdlib-json-capability-plan.json").read_text())
+    plan = json.loads((ROOT / "bootstrap/evidence/stdlib/stdlib-json-capability-plan.json").read_text())
     assert plan["reference_declarations"] == len(plan["declarations"]) == 92
     report = {
         "status": "Dynamic values, explicit established-codec bridges and owned semantic context increment; full92 remains partial",
@@ -111,7 +111,7 @@ def main() -> None:
         "performance_status": "No speed claim; paired public pipelines/lowering remain mandatory.",
         "full_scope_remaining": ["Complete containing-record/error and independent read/write/text capabilities", "Real bounded Effect.Json Decoder/Encoder including disabled-policy syntax partial mutation", "Paired public pipeline benchmarks/lowering and precise all92 reconciliation"],
     }
-    output = ROOT / "bootstrap/stdlib-json-dynamic-evidence.json"
+    output = ROOT / "bootstrap/evidence/stdlib/stdlib-json-dynamic-evidence.json"
     output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"dynamic checkpoint:758 canonical declarations, {len(matrices)*2} selected-source memory processes")
 

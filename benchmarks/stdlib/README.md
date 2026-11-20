@@ -348,7 +348,7 @@ retained throughput reports' frozen compiler identities.
 The preserved portable/interface comparison is also complete: 94 of 106 targets
 pass. All twelve failing targets were rerun with the immutable previous native
 compiler; their exit codes, failed test names and full normalized logs match.
-`bootstrap/stdlib-qualified-call-preserved-target-results.json` records that
+`bootstrap/evidence/stdlib/stdlib-qualified-call-preserved-target-results.json` records that
 comparison. It is additional regression evidence from a frozen self-built
 Stage1 candidate, not the audited Stage3 gate or an all-green target set.
 

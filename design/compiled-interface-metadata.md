@@ -39,7 +39,7 @@ and complete callable declaration, including purity and absence of hidden
 arguments; a source name supplies no semantics. Renamed exports retain the
 original identity. Unknown foreign calls, wrapping machine arithmetic and
 partial/refined signatures remain outside this plain first-order tier. See
-[the primitive-value receipt](../bootstrap/current-native-primitive-body-results.json).
+[the primitive-value receipt](../bootstrap/evidence/current/current-native-primitive-body-results.json).
 
 A resolved scheme may carry `measures`, each with an `identity`, complete
 `resolved` defining scheme and `total_body`. These private declarations grant no
@@ -68,7 +68,7 @@ publish that declaration. A checked declaration may also carry a guarded
 
 The Native producer and decoder pass all ten affected complete groups and all
 43 published compiler-source modules; see
-[the method-body receipt](../bootstrap/current-native-method-body-results.json).
+[the method-body receipt](../bootstrap/evidence/current/current-native-method-body-results.json).
 The corresponding Cinch loader, exporter and actual-body proof consumer remain
 a private candidate under validation. That candidate requires its own complete
 gates and a fresh bootstrap before replacing the published compiler.
@@ -202,7 +202,7 @@ compilers require schema 10 and reject fingerprint-only defaults. The
 library producer rebuilds its interfaces from pinned source.
 
 A Cinch-built consumer inherited defaults from separate Rust and Cinch
-producers. See [the inheritance replay](../bootstrap/current-schema9-default-replay-results.json).
+producers. See [the inheritance replay](../bootstrap/evidence/current/current-schema9-default-replay-results.json).
 
 ### Resolved type occurrences
 

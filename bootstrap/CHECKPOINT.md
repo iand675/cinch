@@ -67,9 +67,9 @@ changed-source behavior and all tests through a self-built frontend remain
 unproven. Work uses at most five concurrent jobs, one Cargo worker and one test
 thread per job, and generated Cinch heaps limited to 2G.
 
-[checkpoint-results.json](checkpoint-results.json) records the installed seed,
+[checkpoint-results.json](evidence/other/checkpoint-results.json) records the installed seed,
 complete Native-assisted validation and actual staged status.
-[integration-matrix-results.json](integration-matrix-results.json) records exact
+[integration-matrix-results.json](evidence/other/integration-matrix-results.json) records exact
 coverage and the audit for reused targets. Full logs and frozen snapshots remain
 local. Self-hosting is incomplete; development continues toward the real stages.
 

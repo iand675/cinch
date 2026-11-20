@@ -37,8 +37,8 @@ jobs:
         if: env.CACHIX_CACHE != ''
         run: |
           git fetch --depth=1 origin \
-            "$(jq -r .revision bootstrap/stage0.lock.json)" \
-            "$(jq -r .revision bootstrap/library-provider.lock.json)"
+            "$(jq -r .revision bootstrap/pins/stage0.lock.json)" \
+            "$(jq -r .revision bootstrap/pins/library-provider.lock.json)"
       - uses: cachix/install-nix-action@v31
         if: env.CACHIX_CACHE != ''
       - uses: cachix/cachix-action@v16

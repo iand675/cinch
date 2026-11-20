@@ -29,7 +29,7 @@ names={
 expected_counts={'rust-small':10,'rust-late':8,'native':6}
 files=sorted({path for name in names[stage] for path in (base/name).rglob('*') if path.is_file() and path.name in {'consumer','consumer.ll'}})
 assert len(files)==expected_counts[stage] and all(not path.is_symlink() for path in files)
-receipt_names=['bootstrap/stdlib-json-core-evidence.json']
+receipt_names=['bootstrap/evidence/stdlib/stdlib-json-core-evidence.json']
 
 def digest(path):
     with path.open('rb') as source:return hashlib.file_digest(source,'sha256').hexdigest()

@@ -19,7 +19,7 @@
         "debug_symbols": false,
         "codegen_units": 1
       },
-      "gates": "bootstrap/stdlib-string-phase2-parent-results.json",
+      "gates": "bootstrap/evidence/stdlib/stdlib-string-phase2-parent-results.json",
       "embedded_sources": {
         "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
         "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"

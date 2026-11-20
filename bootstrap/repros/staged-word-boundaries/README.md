@@ -22,4 +22,4 @@ across eight signed and unsigned scalar types and both target word sizes. A comb
 also exercises the actual generate/quote path at O0 and O2 with ordinary and
 poisoned-free profiles. The original failed observations remain unchanged;
 post-repair results are recorded in
-`bootstrap/stdlib-staged-word-parent-results.json`: all 380 parent tests passed.
+`bootstrap/evidence/stdlib/stdlib-staged-word-parent-results.json`: all 380 parent tests passed.

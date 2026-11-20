@@ -3,8 +3,8 @@
 from pathlib import Path
 import hashlib,json,os,re,resource,subprocess,time
 root=Path('/workspace/dasl-stdlib-json');inputs=root/'build/json-method-protocol-native-probe-v1';directory=root/'build/json-method-protocol-native-v1'
-receipt=root/'bootstrap/stdlib-json-method-protocol-native-v1-results.json'
-source=json.loads((inputs/'report.json').read_text());rust=json.loads((root/'bootstrap/stdlib-json-method-protocol-rust-v1-results.json').read_text())
+receipt=root/'bootstrap/evidence/stdlib/stdlib-json-method-protocol-native-v1-results.json'
+source=json.loads((inputs/'report.json').read_text());rust=json.loads((root/'bootstrap/evidence/stdlib/stdlib-json-method-protocol-rust-v1-results.json').read_text())
 base=Path('/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen');compiler=base/'cinch';interfaces=base/'base-interfaces.json';objects_path=base/'objects.json';runtime=base/'libcinchruntime.a';clang=Path('/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang')
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 assert not directory.exists() and not receipt.exists(),'inspect durable state; refuse repeated qualification'
@@ -24,7 +24,7 @@ env={**os.environ,'CINCH_HEAP_LIMIT':'2G','CINCH_RC_DEBUG':'0','CINCH_LEAK_CHECK
 output=directory/'consumer';ir=directory/'consumer.ll';started=time.monotonic();deadline=started+90
 emit=[str(compiler),'--emit-ir','--rc-debug','--interfaces',str(interfaces),'--objects',str(objects_path),str(inputs/'Bundle.cinch'),str(ir)]
 link=[str(clang),'-O2',str(ir),str(provider),str(runtime),'-ldl','-lpthread','-lm','-o',str(output)]
-report={'description':'Actual frozen Native protocol:seven focused groups; no full1464/package claim','frontend':'native-raw','classification_epoch':'2f077/1d22/22ab/46a7/80bd; no newer root base/runtime adoption','compiler_sha256':digest(compiler),'interfaces_sha256':digest(interfaces),'objects_manifest_sha256':digest(objects_path),'provider_object_sha256':digest(provider),'observed_runtime_archive_sha256':digest(runtime),'snapshot':source['snapshot'],'sources':source['sources'],'fixture_sha256':source['fixture_sha256'],'bundle_sha256':source['bundle_sha256'],'frozen_inputs':str(inputs),'frozen_input_report_sha256':digest(inputs/'report.json'),'prior_check_only_status':source['status'],'rust_protocol_receipt_sha256':digest(root/'bootstrap/stdlib-json-method-protocol-rust-v1-results.json'),'runner_sha256':digest(Path(__file__)),'raw_compile_command':emit,'raw_link_command':link,'opt_level':2,'cpu_affinity':[2],'compiler_host_stack_kib':65536,'consumer_stack_limit':'8M','free_bytes_before':free,'runs':[],'status':'emitting'}
+report={'description':'Actual frozen Native protocol:seven focused groups; no full1464/package claim','frontend':'native-raw','classification_epoch':'2f077/1d22/22ab/46a7/80bd; no newer root base/runtime adoption','compiler_sha256':digest(compiler),'interfaces_sha256':digest(interfaces),'objects_manifest_sha256':digest(objects_path),'provider_object_sha256':digest(provider),'observed_runtime_archive_sha256':digest(runtime),'snapshot':source['snapshot'],'sources':source['sources'],'fixture_sha256':source['fixture_sha256'],'bundle_sha256':source['bundle_sha256'],'frozen_inputs':str(inputs),'frozen_input_report_sha256':digest(inputs/'report.json'),'prior_check_only_status':source['status'],'rust_protocol_receipt_sha256':digest(root/'bootstrap/evidence/stdlib/stdlib-json-method-protocol-rust-v1-results.json'),'runner_sha256':digest(Path(__file__)),'raw_compile_command':emit,'raw_link_command':link,'opt_level':2,'cpu_affinity':[2],'compiler_host_stack_kib':65536,'consumer_stack_limit':'8M','free_bytes_before':free,'runs':[],'status':'emitting'}
 def persist():receipt.write_text(json.dumps(report,indent=2)+'\n')
 def budget():
     total=sum(p.stat().st_size for p in directory.rglob('*') if p.is_file());assert total<=20*1024*1024,f'20MiB output budget exceeded: {total}';return total

@@ -32,9 +32,9 @@ class LibraryProviderContract(unittest.TestCase):
         root = directory / "checkout"
         (root / "bootstrap").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64}
-        bootstrap.write_json(root / "bootstrap/library-provider.lock.json", lock)
+        bootstrap.write_json(root / "bootstrap/pins/library-provider.lock.json", lock)
         (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
-        bootstrap.write_json(root / "bootstrap/library-object-roots.json", {"schema": 1, "units": []})
+        bootstrap.write_json(root / "bootstrap/pins/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / "compiler/prelude").mkdir(parents=True)
         bootstrap.write_json(snapshot / "compiler/prelude/cinch-base.cinchpkg", {"modules": [{"name": "Data.Core"}]})
@@ -103,7 +103,7 @@ class LibraryProviderContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             root, _ = self.fixture(directory)
-            lock_path = root / "bootstrap/library-provider.lock.json"
+            lock_path = root / "bootstrap/pins/library-provider.lock.json"
             lock = bootstrap.read_json(lock_path)
             bootstrap.write_json(lock_path, {**lock, "runtime_abi": 99})
             with patch.object(bootstrap, "ROOT", root), \

@@ -465,9 +465,9 @@ def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
 
 
 def seed_inputs() -> tuple[dict, bytes]:
-    lock = read_json(ROOT / "bootstrap" / "stage0.lock.json")
+    lock = read_json(ROOT / "bootstrap" / "pins" / "stage0.lock.json")
     if lock.get("schema") != 1:
-        raise BootstrapError("unsupported or missing bootstrap/stage0.lock.json")
+        raise BootstrapError("unsupported or missing bootstrap/pins/stage0.lock.json")
     patch = (ROOT / lock["patch"]).read_bytes()
     if digest(patch) != lock["patch_sha256"]:
         raise BootstrapError("the stage-0 patch differs from its lock; update the seed intentionally")
@@ -475,7 +475,7 @@ def seed_inputs() -> tuple[dict, bytes]:
 
 
 def library_provider_lock() -> dict:
-    lock = read_json(ROOT / "bootstrap/library-provider.lock.json")
+    lock = read_json(ROOT / "bootstrap/pins/library-provider.lock.json")
     if not isinstance(lock, dict):
         raise BootstrapError("unsupported or missing library producer lock")
     revision, source = lock.get("revision"), lock.get("source_sha256")
@@ -1308,8 +1308,8 @@ def main() -> int:
                 elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is not None and inputs.get("library_provider") != runtime_provider()["identity"]:
                     status = "different explicit library artifact"
                 elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is None and (
-                        inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "bootstrap/library-provider.lock.json")
-                        or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "bootstrap/library-object-roots.json")):
+                        inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "bootstrap/pins/library-provider.lock.json")
+                        or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "bootstrap/pins/library-object-roots.json")):
                     status = "stale library inputs"
                 elif status == "built" and inputs.get("host") != HOST:
                     status = "different build host"

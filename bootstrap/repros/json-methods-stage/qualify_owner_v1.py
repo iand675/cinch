@@ -16,7 +16,7 @@ runtime = compiler.parent / 'libcinchruntime.a'
 clang = Path('/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang')
 output = directory / 'consumer'
 ir = directory / 'consumer.ll'
-receipt = root / 'bootstrap/stdlib-json-method-owner-rust-v1-results.json'
+receipt = root / 'bootstrap/evidence/stdlib/stdlib-json-method-owner-rust-v1-results.json'
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 def within_budget():

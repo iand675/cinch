@@ -17,7 +17,7 @@ to bound deliberate debug quarantine. Both O0 join traversal workers have entry
 backedges and no recursive calls. Four new declarations have canonical docs.
 
 The current source SHA is recorded in
-`bootstrap/stdlib-string-join-source-override-results.json`, together with
+`bootstrap/evidence/stdlib/stdlib-string-join-source-override-results.json`, together with
 canonical and marked interface hashes, exact fixture/compiler/executable
 identities and all process results. The source override has its own receipt
 discriminator; no old frozen embedded implementation can satisfy it.

@@ -980,7 +980,7 @@ the sweep keeps a unit the pass framed, or the tests stop assuming that
 adds 5 tests (14 to 19) and all 5 pass.
 
 Two caveats for whoever runs the target suite against
-`bootstrap/stage3-suite-baseline.json`. That baseline is dated from commit
+`bootstrap/evidence/other/stage3-suite-baseline.json`. That baseline is dated from commit
 `5fc2d4ee`, which predates `bootstrap/Bootstrap.Expand.cinch`; two targets
 therefore fail for a reason this pass cannot reach, and neither is a
 regression of the census. `bootstrap_parse` reports
@@ -1038,8 +1038,8 @@ for the toolkit bundle.
 ### 8.6 The lock pin
 
 `compiler/src` is a seed source: it is hashed into
-`bootstrap/stage0.lock.json`'s `source_sha256` and pinned again by
-`bootstrap/library-provider.lock.json`. The instrument changes
+`bootstrap/pins/stage0.lock.json`'s `source_sha256` and pinned again by
+`bootstrap/pins/library-provider.lock.json`. The instrument changes
 `compiler/src/stack.rs`, `compiler/src/driver.rs` and `compiler/src/main.rs`,
 so the seed hash moved, and the tree is pinned at the commit that carries it:
 

@@ -30,6 +30,6 @@ No new unsafe operation, machine kernel or base-module dependency is introduced;
 the existing UTF8 decoder owns its accelerated scanning and exact scalar fringe
 loads. The change adds one canonical public declaration. Exact sources,
 frontends, runtimes, fixture and process identities are retained in
-`bootstrap/stdlib-byte-view-relative-scalar-results.json`. The supplied
+`bootstrap/evidence/stdlib/stdlib-byte-view-relative-scalar-results.json`. The supplied
 `lib_byte_view_scalars` target has four focused tests; parent integration owns
 Cargo and the updated documentation inventory.

@@ -3662,9 +3662,9 @@
       ],
       "validation_status": "Exact compiler, source and parent-gate epochs are recorded in validation_evidence; source changes require requalification.",
       "validation_evidence": [
-        "bootstrap/stdlib-string-combined-native-family-results.json",
-        "bootstrap/stdlib-utf8-text-final-native-validation-results.json",
-        "bootstrap/stdlib-string-phase2-parent-results.json"
+        "bootstrap/evidence/stdlib/stdlib-string-combined-native-family-results.json",
+        "bootstrap/evidence/stdlib/stdlib-utf8-text-final-native-validation-results.json",
+        "bootstrap/evidence/stdlib/stdlib-string-phase2-parent-results.json"
       ],
       "string_dependency": {
         "module": "Data.String",

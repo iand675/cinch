@@ -22,7 +22,7 @@ def main() -> None:
     matrix = []
     coverage = {}
     for name in receipts:
-        path = ROOT / f"bootstrap/stdlib-json-{name}-validation-results.json"
+        path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-{name}-validation-results.json"
         item = json.loads(path.read_text())
         assert item["sources"]["Text.Json.Codec"] == source_hash, path
         for module, identity in item["sources"].items():
@@ -54,7 +54,7 @@ def main() -> None:
         doc = item.get("doc")
         assert doc and not doc["legacy"], item["id"]
         assert not any(word in doc["markdown"].lower() for word in ["golang","go's","go "]), item["id"]
-    words_path = ROOT / "bootstrap/stdlib-json-word-kernel-validation.json"
+    words_path = ROOT / "bootstrap/evidence/stdlib/stdlib-json-word-kernel-validation.json"
     words = json.loads(words_path.read_text())
     assert words["production_source_sha256"] == source_hash and len(words["runs"]) == 4
     assert words["cases_per_run"] == 2048 and not words["foreign_execution_claimed"]
@@ -84,7 +84,7 @@ def main() -> None:
         "performance_status":"Public pipeline comparisons remain open; no JSON speedup claimed.",
         "remaining_scope":["Binary32 exact rounding/formatting","Map/key and dynamic value descriptors","Raw numeric string-cast outcomes","Complete containing-record error metadata and precise language adaptations","Real incremental Effect.Json Decoder/Encoder","Full 92-record review and public pipeline benchmarks"]
     }
-    (ROOT / "bootstrap/stdlib-json-numeric-binary-evidence.json").write_text(json.dumps(report,indent=2)+"\n")
+    (ROOT / "bootstrap/evidence/stdlib/stdlib-json-numeric-binary-evidence.json").write_text(json.dumps(report,indent=2)+"\n")
     print(f"numeric/binary checkpoint: {count} canonical declarations, {len(matrix)*2} full-source plus 4 isolated memory runs")
 
 

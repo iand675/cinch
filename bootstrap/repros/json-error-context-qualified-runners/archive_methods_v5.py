@@ -6,14 +6,14 @@ from pipeline_v5 import ROOT,digest,free,pause_guard,unarchived_bytes
 from pipeline_common import fsync_dir
 # Continue the single Root-authorized source/runtime/archive unit under its reserve.
 pause_guard()
-receipt=ROOT/f'bootstrap/stdlib-json-error-methods-rust-v5-results.json';result=json.loads(receipt.read_text())
+receipt=ROOT/f'bootstrap/evidence/stdlib/stdlib-json-error-methods-rust-v5-results.json';result=json.loads(receipt.read_text())
 assert result['status']=='passed' and len(result['runs'])==2
 for row in result['runs']:assert row['exit_code']==0 and row['stdout']=='' and row['stats']['live']==0 and row['leaked']==0
 folder=ROOT/f'build/json-error-methods-rust-v5'
 files=[folder/'consumer.ll',folder/'consumer']
 assert digest(files[0])==result['llvm_sha256'] and digest(files[1])==result['executable_sha256']
 archives=ROOT/'build/json-error-functional-archives';archives.mkdir(exist_ok=True)
-archive=archives/f'methods-rust-v5.tar.gz';index=ROOT/f'bootstrap/stdlib-json-error-methods-rust-v5-functional-archive.json'
+archive=archives/f'methods-rust-v5.tar.gz';index=ROOT/f'bootstrap/evidence/stdlib/stdlib-json-error-methods-rust-v5-functional-archive.json'
 assert not archive.exists() and not index.exists(),'refuse repeated archival'
 members=[{'path':str(path.relative_to(ROOT)),'bytes':path.stat().st_size,'mode':stat.S_IMODE(path.stat().st_mode),'sha256':digest(path)} for path in files]
 start=time.monotonic();before=free()

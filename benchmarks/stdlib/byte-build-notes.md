@@ -25,7 +25,7 @@ separately from the compiled programs' explicit 8 MiB stack limit.
 All nine implementation declarations have canonical documentation, parsed
 without diagnostics or orphans. Four Rust tests are supplied; Cargo has not run
 in this lane. Exact source, compiler, fixture, executable and IR identities are
-in `bootstrap/stdlib-byte-build-results.json`. This source-only module does not
+in `bootstrap/evidence/stdlib/stdlib-byte-build-results.json`. This source-only module does not
 claim to validate the separate changed embedded String/Bytes constructors.
 Paired public-pipeline benchmarks and assembly review remain open.
 

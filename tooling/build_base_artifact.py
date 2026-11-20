@@ -51,7 +51,7 @@ def build(output: Path, cargo_target: Path) -> Path:
         sources[module["name"]] = {"path": relative, "sha256": bootstrap.file_hash(destination)}
     shutil.copy2(package_path, output / "base/cinch-base.cinchpkg")
     roots = output / "roots.json"
-    shutil.copy2(bootstrap.ROOT / "bootstrap/library-object-roots.json", roots)
+    shutil.copy2(bootstrap.ROOT / "bootstrap/pins/library-object-roots.json", roots)
     library = output / "library"
     library.mkdir()
     entry = library / "CinchBaseObject.cinch"

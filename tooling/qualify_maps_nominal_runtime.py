@@ -71,11 +71,11 @@ def main() -> int:
     clang = Path('/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang')
     assert digest(compiler) == COMPILER_SHA and digest(runtime) == RUNTIME_SHA
     assert os.environ.get('CINCH_CLANG') == str(clang)
-    source_receipt = ROOT / 'bootstrap/stdlib-maps-role-slots-source-qualification-results.json'
+    source_receipt = ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-role-slots-source-qualification-results.json'
     previous = json.loads(source_receipt.read_text())
     assert previous['status'] == 'source-and-public-defining-headers-passed'
     assert previous['compiler_sha256'] == COMPILER_SHA and previous['runtime_sha256'] == RUNTIME_SHA
-    review_path = ROOT / 'bootstrap/stdlib-maps-nominal-region-static-results.json'
+    review_path = ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-nominal-region-static-results.json'
     review = json.loads(review_path.read_text())
     for row in review['proposals']:
         assert digest(ROOT / row['original']) == row['original_sha256']

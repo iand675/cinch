@@ -4,7 +4,7 @@ from pathlib import Path
 import argparse, hashlib, json, os, resource, subprocess, time
 ROOT = Path('/workspace/dasl-stdlib-json')
 MIB = 1024 * 1024
-PLAN = ROOT / 'bootstrap/stdlib-json-syntax-partial-affected1494-plan.json'
+PLAN = ROOT / 'bootstrap/evidence/stdlib/stdlib-json-syntax-partial-affected1494-plan.json'
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def free():
     s = os.statvfs(ROOT)

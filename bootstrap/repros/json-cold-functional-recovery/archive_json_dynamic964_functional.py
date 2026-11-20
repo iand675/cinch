@@ -28,7 +28,7 @@ pairs={
 }
 files=sorted(base/name/file for name in pairs[stage] for file in ['consumer','consumer.ll'])
 assert len(files)==2*len(pairs[stage]) and all(path.is_file() and not path.is_symlink() for path in files)
-receipt_names=['bootstrap/stdlib-json-dynamic-final-rust-v2-results.json','bootstrap/stdlib-json-dynamic-edge-rust-v2-results.json'] if stage.startswith('rust') else ['bootstrap/stdlib-json-dynamic-native-raw-v1-results.json','bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json','bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json']
+receipt_names=['bootstrap/evidence/stdlib/stdlib-json-dynamic-final-rust-v2-results.json','bootstrap/evidence/stdlib/stdlib-json-dynamic-edge-rust-v2-results.json'] if stage.startswith('rust') else ['bootstrap/evidence/stdlib/stdlib-json-dynamic-native-raw-v1-results.json','bootstrap/evidence/stdlib/stdlib-json-dynamic-edge-native-raw-v1-results.json','bootstrap/evidence/stdlib/stdlib-json-dynamic-control-native-raw-v2-results.json']
 
 def digest(path):
     with path.open('rb') as source:return hashlib.file_digest(source,'sha256').hexdigest()

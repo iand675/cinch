@@ -20,7 +20,7 @@ def main() -> None:
     coverage = set()
     matrix = []
     for name in receipts:
-        path = ROOT / f"bootstrap/stdlib-json-binary32-{name}-results.json"
+        path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-binary32-{name}-results.json"
         receipt = json.loads(path.read_text())
         native = receipt["frontend"] == "native-raw"
         assert receipt["opt_level"] == 2 and receipt["compiler_host_stack_kib"] == 65536
@@ -76,7 +76,7 @@ def main() -> None:
             assert not any(word in doc["markdown"].lower() for word in ["golang", "go's", "go "]), declaration["id"]
         docs[module] = {"canonical_declarations": count, "diagnostics": 0, "orphans": 0,
                         "extract_sha256": digest(path)}
-    foreign_path = ROOT / "bootstrap/stdlib-json-binary32-foreign-results.json"
+    foreign_path = ROOT / "bootstrap/evidence/stdlib/stdlib-json-binary32-foreign-results.json"
     foreign = json.loads(foreign_path.read_text())
     assert foreign["production_source_sha256"] == digest(ROOT / "compiler/prelude/Text/Json/Binary32.cinch")
     assert len(foreign["targets"]) == 2 and not foreign["foreign_execution_claimed"]
@@ -101,7 +101,7 @@ def main() -> None:
         "parent_owned_checks_pending": ["Expanded lib_json_codec/lib_json_value Cargo targets", "Big-endian actual-bitcast foreign gate", "Integration/provider/full-suite gates"],
         "remaining_scope": ["Raw Number string casts and numeric outcomes", "Dynamic JsonAny and legacy bridges", "Containing-record error metadata and independent capabilities", "Bounded incremental Effect.Json reader/writer", "Full 92-record review and paired public pipeline benchmarks"],
     }
-    output = ROOT / "bootstrap/stdlib-json-binary32-evidence.json"
+    output = ROOT / "bootstrap/evidence/stdlib/stdlib-json-binary32-evidence.json"
     output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"binary32 checkpoint: {sum(row['canonical_declarations'] for row in docs.values())} canonical declarations, {len(matrix)*2} selected-source memory processes")
 

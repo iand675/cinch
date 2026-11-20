@@ -883,7 +883,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   independent Core typing). It lowers a polytype to a class-indexed
   bundle of `3^k` components, `k <= 2`. Every fixture compiles through
   Stage 3 at the fixed point:
-  `bootstrap/current-rank-n-stage3-results.json`.
+  `bootstrap/evidence/current/current-rank-n-stage3-results.json`.
 - **D430 (compiling continuation-passing code, design/cps-optimisation.md)**:
   five optimisations, none of which changes observable behaviour. (1) On
   64-bit native targets, every tail call between two function units of a

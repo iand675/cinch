@@ -35,7 +35,7 @@ fresh embedded source gate and actual big-endian object profile; Cargo has not
 run in this lane. Twelve added/touched declarations have canonical docs.
 
 Exact source/compiler/interface identities and complete functional evidence are
-in `bootstrap/stdlib-string-scalar-source-override-results.json`. The paired
+in `bootstrap/evidence/stdlib/stdlib-string-scalar-source-override-results.json`. The paired
 public count driver is built and passes 60 normal/poison smokes with independent
 scalar sums and complete before/postclock wire digests. IR verifies clock order
 and postclock backing reads; optimized assembly still calls public String count

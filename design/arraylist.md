@@ -398,7 +398,7 @@ The compiler sites that build a list and then only index, count or reverse it:
 
 Each retrofit is measured by the block and byte counts on the toolkit check
 and the self-check, with output byte-identical (the fixed point is the gate),
-and by the per-target suite against `bootstrap/stage3-suite-baseline.json`.
+and by the per-target suite against `bootstrap/evidence/other/stage3-suite-baseline.json`.
 
 ## 6 Tests
 
@@ -428,8 +428,8 @@ went with the revert, since they assert behaviour the tree no longer has):
 ## 7 The lock bump
 
 `compiler/runtime/src` and `compiler/prelude` are seed sources: they are
-hashed into `bootstrap/stage0.lock.json`'s `source_sha256` and pinned again by
-`bootstrap/library-provider.lock.json`, and the runtime ABI is pinned a third
+hashed into `bootstrap/pins/stage0.lock.json`'s `source_sha256` and pinned again by
+`bootstrap/pins/library-provider.lock.json`, and the runtime ABI is pinned a third
 time by `Bootstrap.RuntimeAbi.cinch` (`design/arena.md` F4).
 
 Part 1 changes two seed sources (`compiler/runtime/src/arrays.rs` and
@@ -442,8 +442,8 @@ lock: 85727ab52b197314171a976582bfa4c82efbf12a81337de0367a86296a715e09
 ```
 
 **The re-pin was made** (commit `a39281232118`, "Pin both to the tree with
-the consumed-reference array store"): `bootstrap/stage0.lock.json` and
-`bootstrap/library-provider.lock.json` both now record
+the consumed-reference array store"): `bootstrap/pins/stage0.lock.json` and
+`bootstrap/pins/library-provider.lock.json` both now record
 `source_sha256 = 515a32b1cbbaf14a2daafe916f99f81e8a13578051bdadf1a89cde12f5a803aa`,
 which is this tree's seed hash, so the ladder's hash check passes.
 
@@ -586,6 +586,6 @@ and identical interfaces mean the compiler's behaviour is unchanged.
 
 `--test arrays` is the suite that caught both defects of section 2.4, so it is
 the one that matters for this change. The per-target parity run against
-`bootstrap/stage3-suite-baseline.json` was not made: it needs the main build
+`bootstrap/evidence/other/stage3-suite-baseline.json` was not made: it needs the main build
 directory, which was held by another lane for the whole of this session.
 

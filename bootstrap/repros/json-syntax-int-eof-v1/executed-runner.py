@@ -9,7 +9,7 @@ assert free()>=350*MIB
 folder=ROOT/f'build/json-error-syntax-{a.unit}-v1';assert not folder.exists();folder.mkdir()
 source=folder/'source';source.mkdir();output=folder/'runtime';output.mkdir()
 model=a.unit.removeprefix('observations-')
-manifest_path=ROOT/'bootstrap/stdlib-json-syntax-partial-consumer-manifest-v1.json';manifest=json.loads(manifest_path.read_text());consumer=next(x for x in manifest['consumers'] if x['model']==model)
+manifest_path=ROOT/'bootstrap/evidence/stdlib/stdlib-json-syntax-partial-consumer-manifest-v1.json';manifest=json.loads(manifest_path.read_text());consumer=next(x for x in manifest['consumers'] if x['model']==model)
 fixture=ROOT/consumer['path'];assert digest(fixture)==consumer['sha256']
 (folder/'consumer-manifest.json').write_bytes(manifest_path.read_bytes())
 (folder/'executed-runner.py').write_bytes(Path(__file__).read_bytes())

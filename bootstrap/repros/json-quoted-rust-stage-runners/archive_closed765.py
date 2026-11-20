@@ -22,7 +22,7 @@ members=[{'path':str(p.relative_to(ROOT)),'bytes':p.stat().st_size,'mode':stat.S
 assert sum(m['bytes'] for m in members)==96419608
 folder=ROOT/'build/json-error-functional-archives';folder.mkdir(exist_ok=True)
 archive=folder/'closed765-six-functional-pairs-v1.tar.gz'
-index=ROOT/'bootstrap/stdlib-json-error-closed765-functional-recovery-v1.json'
+index=ROOT/'bootstrap/evidence/stdlib/stdlib-json-error-closed765-functional-recovery-v1.json'
 assert not archive.exists() and not index.exists(),'refuse repeated recovery'
 class Limited:
  def __init__(self,target):self.target=target

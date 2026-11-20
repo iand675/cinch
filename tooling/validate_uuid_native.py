@@ -24,7 +24,7 @@ def main() -> None:
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     assert shutil.disk_usage(ROOT).free>=350*1024*1024
     assert not args.artifacts.exists();directory=args.artifacts.resolve();directory.mkdir(parents=True)
-    reviewed=ROOT/'bootstrap/stdlib-uuid-native-pair-review.json';pair=json.loads(reviewed.read_text())
+    reviewed=ROOT/'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json';pair=json.loads(reviewed.read_text())
     for name,key in [('cinch','compiler_sha256'),('frontend.py','frontend_sha256'),('base-interfaces.json','interfaces_sha256'),('objects.json','objects_sha256'),('libcinchruntime.a','runtime_sha256')]:assert digest(PAIR/name)==pair[key]
     objects=json.loads((PAIR/'objects.json').read_text())
     for key in ('object','metadata'):assert digest(Path(objects[key]))==objects[key+'_sha256']

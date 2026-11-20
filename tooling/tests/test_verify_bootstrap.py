@@ -136,11 +136,11 @@ class FrozenVerification(unittest.TestCase):
     def test_stage3_gate_requires_a_selected_invocation_in_every_portable_target(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "bootstrap").mkdir()
+            (root / "bootstrap/evidence/current").mkdir(parents=True)
             (root / "compiler/tests").mkdir(parents=True)
             scope = dict(portable_targets=["portable"], interface_api_targets=["api"],
                          original_targets=["portable"], new_targets_beyond_original=["api"], current_total_targets=2)
-            (root / "bootstrap/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            (root / "bootstrap/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
             compiler, manifest, objects, runtime = (root / name for name in ("cinch", "interfaces", "objects", "runtime"))
             for path in (compiler, manifest, objects, runtime):
                 path.write_text(path.name)
@@ -187,7 +187,7 @@ class FrozenVerification(unittest.TestCase):
     def test_stage3_preflights_the_source_of_reviewed_rust_assertions(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "bootstrap").mkdir()
+            (root / "bootstrap/evidence/current").mkdir(parents=True)
             (root / "compiler/tests").mkdir(parents=True)
             source = root / "compiler/tests/portable.rs"
             source.write_text("changed direct assertion")
@@ -196,7 +196,7 @@ class FrozenVerification(unittest.TestCase):
                          current_total_targets=1, native_api_assertions={
                              "portable": {"source_sha256": "0" * 64, "cases": {"direct": "Rust-only assertion"}}
                          })
-            (root / "bootstrap/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            (root / "bootstrap/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
             with patch.object(verify.bootstrap, "ROOT", root), \
                     patch.object(verify_stage3, "stage3_artifacts") as artifacts:
                 with self.assertRaisesRegex(ValueError, "source review for portable"):

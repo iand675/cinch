@@ -30,7 +30,7 @@ names={
 expected_counts={'binary':10,'typed-integer':8,'field-float':8,'policy':6}
 files=sorted({path for name in names[stage] for path in (base/name).rglob('*') if path.is_file() and path.name in {'consumer','consumer.ll'}})
 assert len(files)==expected_counts[stage] and all(not path.is_symlink() for path in files)
-receipt_names=['bootstrap/stdlib-json-numeric-binary-final-rust-validation-results.json','bootstrap/stdlib-json-numeric-binary-final-native-validation-results.json']
+receipt_names=['bootstrap/evidence/stdlib/stdlib-json-numeric-binary-final-rust-validation-results.json','bootstrap/evidence/stdlib/stdlib-json-numeric-binary-final-native-validation-results.json']
 
 def digest(path):
     with path.open('rb') as source:return hashlib.file_digest(source,'sha256').hexdigest()

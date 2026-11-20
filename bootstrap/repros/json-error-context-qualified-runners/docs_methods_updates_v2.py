@@ -27,5 +27,5 @@ for name in ['Value','Codec']:
  report['modules'][name]={'source_sha256':digest(p),'canonical_declarations':len(rows),'docs_sha256':digest(output),'command':command}
  assert sum(x.stat().st_size for x in folder.rglob('*') if x.is_file())<5*1024*1024
  pause_guard()
-report['status']='passed';(ROOT/'bootstrap/stdlib-json-error-docs-rust-v2.json').write_text(json.dumps(report,indent=2)+'\n')
+report['status']='passed';(ROOT/'bootstrap/evidence/stdlib/stdlib-json-error-docs-rust-v2.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2),flush=True)

@@ -13,8 +13,8 @@ root=Path('/workspace/dasl-stdlib-json')
 archive=root/'build/json-cold-method-supporting-stages-20261117.tar.gz'
 index_path=archive.with_suffix('.index.json')
 temporary=archive.with_suffix('.incomplete')
-receipt=root/'bootstrap/stdlib-json-cold-method-supporting-archive.json'
-tracked_index=root/'bootstrap/stdlib-json-cold-method-supporting-archive-index.json'
+receipt=root/'bootstrap/evidence/stdlib/stdlib-json-cold-method-supporting-archive.json'
+tracked_index=root/'bootstrap/evidence/stdlib/stdlib-json-cold-method-supporting-archive-index.json'
 assert not any(p.exists() for p in [archive,index_path,temporary,receipt,tracked_index]),'inspect durable state; refuse repeated archive'
 os.sched_setaffinity(0,{2})
 base=root/'build'
@@ -51,7 +51,7 @@ for path in files:
     info=path.lstat()
     assert root in path.parents and stat.S_ISREG(info.st_mode) and info.st_nlink==1,str(path)
     entries.append({'path':str(path.relative_to(root)),'source':str(path),'size':info.st_size,'mode':stat.S_IMODE(info.st_mode),'sha256':digest(path),'nlink':info.st_nlink,'allocated_bytes':info.st_blocks*512})
-record={'description':'Closed supporting directional/addressability output-only ELF/LLVM and their completed local check caches; all source/log/reference/docs/frozen compiler/provider/runtime and current protocol/metadata/trace snapshots remain plain','archive':str(archive),'entries':entries,'original_file_bytes':sum(x['size'] for x in entries),'verified':False,'originals_removed':False,'supporting_receipts':['bootstrap/stdlib-json-method-categories-rust-v1-results.json','bootstrap/stdlib-json-addressability-rust-v1-results.json'],'restore_command':f'tar -xzf {archive} -C {root}'}
+record={'description':'Closed supporting directional/addressability output-only ELF/LLVM and their completed local check caches; all source/log/reference/docs/frozen compiler/provider/runtime and current protocol/metadata/trace snapshots remain plain','archive':str(archive),'entries':entries,'original_file_bytes':sum(x['size'] for x in entries),'verified':False,'originals_removed':False,'supporting_receipts':['bootstrap/evidence/stdlib/stdlib-json-method-categories-rust-v1-results.json','bootstrap/evidence/stdlib/stdlib-json-addressability-rust-v1-results.json'],'restore_command':f'tar -xzf {archive} -C {root}'}
 free_before=shutil.disk_usage(root).free
 assert free_before>=max(64*1024*1024,record['original_file_bytes']+32*1024*1024),'hold archive if insufficient conservative temporary headroom'
 durable_json(index_path,record)

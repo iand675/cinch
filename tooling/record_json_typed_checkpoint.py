@@ -21,7 +21,7 @@ def main() -> None:
     summaries = []
     for family in ["typed", "float", "field", "codec-control"]:
         for frontend in ["rust", "native"]:
-            path = ROOT / f"bootstrap/stdlib-json-{family}-{frontend}-validation-results.json"
+            path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-{family}-{frontend}-validation-results.json"
             receipt = json.loads(path.read_text())
             assert receipt["sources"]["Text.Json.Codec"] == source_hash, path
             for name, recorded in receipt["sources"].items():
@@ -35,7 +35,7 @@ def main() -> None:
                     assert run["stdout"] == "0\n" and run["leaked"] == 0 and run["stats"]["live"] == 0
                     assert run["heap_limit"] == ("256M" if run["poisoned_free_validation"] else "32M")
                 summaries.append({"family":family,"frontend":frontend,"receipt":str(path.relative_to(ROOT)),"receipt_sha256":digest(path),"compiler_sha256":receipt.get("native_compiler_sha256",receipt["compiler_sha256"]),"runtime_archive_sha256":receipt["observed_runtime_archive_sha256"],"opt_level":receipt["opt_level"],"consumer_sha256":suite["consumer_source_sha256"],"llvm_sha256":suite["llvm_sha256"],"normal_peak_bytes":suite["runs"][0]["stats"]["peak"],"poison_peak_bytes":suite["runs"][1]["stats"]["peak"]})
-    extra_path = ROOT / "bootstrap/stdlib-json-codec-control-rust-o0-validation-results.json"
+    extra_path = ROOT / "bootstrap/evidence/stdlib/stdlib-json-codec-control-rust-o0-validation-results.json"
     extra = json.loads(extra_path.read_text())
     assert extra["sources"]["Text.Json.Codec"] == source_hash and extra["opt_level"] == 0
     assert extra["suites"][0]["consumer_source_sha256"] == digest(ROOT / "compiler/tests/fixtures/json-codec-codec-control.cinch")
@@ -55,7 +55,7 @@ def main() -> None:
         assert doc and not doc["legacy"], declaration["id"]
         assert not any(word in doc["markdown"].lower() for word in ["golang", "go's", "go "]), declaration["id"]
         count += 1
-    foreign = ROOT / "bootstrap/stdlib-json-field-kernel-validation.json"
+    foreign = ROOT / "bootstrap/evidence/stdlib/stdlib-json-field-kernel-validation.json"
     kernel = json.loads(foreign.read_text())
     assert kernel["production_source_sha256"] == source_hash and not kernel["foreign_execution_claimed"]
     assert len(kernel["targets"]) == 2
@@ -72,7 +72,7 @@ def main() -> None:
         "performance_status":"No JSON speedup claim. Public-pipeline comparisons and classifier lowering review remain a separate checkpoint.",
         "remaining_scope":["Unsigned/narrow integers and binary32 descriptors","Map/key descriptors and binary byte values","Dynamic value codecs and explicit legacy codec adapters","General numeric string-cast outcomes including hexadecimal floats and saturated errors","Full error field/record metadata and reviewed language adaptations","Incremental effectful Decoder/Encoder and mixed Token/More/Decode semantics","Full 92-record capability review and public pipeline benchmarks"]
     }
-    (ROOT / "bootstrap/stdlib-json-typed-evidence.json").write_text(json.dumps(report,indent=2)+"\n")
+    (ROOT / "bootstrap/evidence/stdlib/stdlib-json-typed-evidence.json").write_text(json.dumps(report,indent=2)+"\n")
     print(f"typed checkpoint: {count} canonical declarations, {len(summaries)*2} same-source memory runs")
 
 

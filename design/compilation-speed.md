@@ -697,7 +697,7 @@ size at which 632 ns of scan beats an 804 ns probe, and 2.9's next attempt
 should be a smaller digest, not a bigger table.
 
 **Pin note.** The library object the stage chain links is pinned
-(`bootstrap/library-provider.lock.json`, revision `12a9bd37`), and the pin
+(`bootstrap/pins/library-provider.lock.json`, revision `12a9bd37`), and the pin
 carries the prelude's *compiled* code. A prelude change therefore reaches
 the stage compilers only after the pin moves to a revision that contains it.
 The three arms above were built by emitting a library object from this
@@ -1356,7 +1356,7 @@ emitted IR for the axis is byte identical to the pre-fix binary at n=64,
 
 **Parity.** The change's only source edit is `Bootstrap.Infer.cinch`, so
 the targets that compile it are the ones to score. Thirteen of them were
-run at the merge against `bootstrap/stage3-suite-baseline.json` (the
+run at the merge against `bootstrap/evidence/other/stage3-suite-baseline.json` (the
 re-recorded one, 238 targets), and the same thirteen on `main`'s own tree:
 
 | target | baseline | merged | `main` |
@@ -1715,7 +1715,7 @@ emitted IR for the axis is byte identical to the pre-fix binary at n=64,
 **Parity.** The full 234-target suite was run uncapped (237 targets
 scored, three extra from the runner's own list): 143 fully passing, 942
 tests passing, 641 failing, against the baseline's 145/928/631. Fourteen
-targets differ from `bootstrap/stage3-suite-baseline.json`, and every one
+targets differ from `bootstrap/evidence/other/stage3-suite-baseline.json`, and every one
 was re-run on an untouched sibling tree (`dasl-inplace-reverse`, whose
 `Infer.cinch` predates this change):
 
@@ -2000,7 +2000,7 @@ What each item of section 2.25 turned out to need:
    emit says so in a diagnostic `requested_roots` already reads. The build
    adds the request to the exporting module's roots and rebuilds it and
    what imports it. The compiler needs one (`expand-error` at `[O]`), kept
-   in `bootstrap/module-object-roots.json`.
+   in `bootstrap/pins/module-object-roots.json`.
 3. **A graph.** A module's provider is the base manifest with the deltas of
    its transitive imports applied in import order, which is the merge
    `object-manifest` performs. The provider's object is an empty one whose
@@ -4060,7 +4060,7 @@ smokes pass, `cargo test --lib` is 275 passed, and both workloads print
 `cinch-leak: live=0 immortal=0 leaked=0`.
 
 **The target suite, and why it needed a control.** The full suite against
-the stored baseline (`bootstrap/stage3-suite-baseline.json`: 234 targets,
+the stored baseline (`bootstrap/evidence/other/stage3-suite-baseline.json`: 234 targets,
 145 fully passing, 928 passed, 631 failed) reported 237 targets, 143 fully
 passing, 943 passed, 640 failed. The three extra targets are new targets
 from other lanes (`narrow_boundary`, `par_map_in_compiler_sources`,

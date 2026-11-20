@@ -78,11 +78,12 @@ class BootstrapContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "bootstrap").mkdir()
+            (root / "bootstrap" / "pins").mkdir()
             for path in (original / "bootstrap").glob("Bootstrap.*.cinch"):
                 (root / "bootstrap" / path.name).write_bytes(path.read_bytes())
             (root / "bootstrap/programs").symlink_to(original / "bootstrap/programs", target_is_directory=True)
             (root / "compiler").symlink_to(original / "compiler", target_is_directory=True)
-            (root / "bootstrap/library-provider.lock.json").write_bytes((original / "bootstrap/library-provider.lock.json").read_bytes())
+            (root / "bootstrap/pins/library-provider.lock.json").write_bytes((original / "bootstrap/pins/library-provider.lock.json").read_bytes())
             with patch.object(bootstrap, "ROOT", root):
                 before = bootstrap.collect_compiler_sources()
                 (root / "bootstrap/regression-client.cinch").write_text("module Main where\n  main :: Int\n  main = 0\n")

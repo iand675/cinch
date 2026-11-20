@@ -158,6 +158,6 @@ def main():
         target=ROOT/f'compiler/tests/fixtures/json-codec-error-{suite}.cinch'
         target.write_text(text)
         manifest['consumers'][suite]={'source_sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'rows':len(rows),'source_bytes':target.stat().st_size}
-    (ROOT/'bootstrap/stdlib-json-error-context-cases.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    (ROOT/'bootstrap/evidence/stdlib/stdlib-json-error-context-cases.json').write_text(json.dumps(manifest,indent=2)+'\n')
     print(json.dumps(manifest,indent=2))
 if __name__=='__main__':main()

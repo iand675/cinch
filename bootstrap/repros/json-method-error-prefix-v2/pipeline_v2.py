@@ -4,7 +4,7 @@ import json,os
 from pipeline_common import ROOT,MIB,START,PAUSE,UNARCHIVED,FROZEN,digest,free,scope_files
 # Root's scoped single-unit override: only this correction unit, <=30MiB fresh output.
 START=320*MIB
-BASELINE=ROOT/'bootstrap/stdlib-json-method-v2-baseline.json'
+BASELINE=ROOT/'bootstrap/evidence/stdlib/stdlib-json-method-v2-baseline.json'
 def baseline():return json.loads(BASELINE.read_text())
 def verify_failed_evidence():
  for name,expected in baseline()['immutable_failure_files'].items():

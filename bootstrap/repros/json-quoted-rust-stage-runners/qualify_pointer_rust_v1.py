@@ -5,7 +5,7 @@ import hashlib,json,os,re,resource,subprocess,time
 root=Path('/workspace/dasl-stdlib-json')
 inputs=root/'build/json-error-pointer-probe-v5'
 directory=root/'build/json-error-pointer-rust-v1'
-receipt=root/'bootstrap/stdlib-json-error-pointer-rust-v1-results.json'
+receipt=root/'bootstrap/evidence/stdlib/stdlib-json-error-pointer-rust-v1-results.json'
 probe=json.loads((inputs/'report.json').read_text())
 compiler=Path('/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch')
 runtime=compiler.parent/'libcinchruntime.a'

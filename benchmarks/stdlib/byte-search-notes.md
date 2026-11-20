@@ -28,7 +28,7 @@ Actual private kernels compile to wasm32 and AArch64 objects. Five supplied Rust
 tests also include a big-endian object gate; Cargo was not run in this lane.
 The documentation extractor checks all 19 declarations and module documentation
 without diagnostics or orphans. Exact compiler, source, fixture, executable,
-portable-object and IR receipts are in `bootstrap/stdlib-byte-search-results.json`.
+portable-object and IR receipts are in `bootstrap/evidence/stdlib/stdlib-byte-search-results.json`.
 The frozen Native compiler is not claimed to contain the separate embedded
 constructor fixes. Paired public-pipeline timing and assembly review remain open.
 
@@ -80,7 +80,7 @@ CPU1 chain and possible CPU2/4 functional work continued during measurements;
 CPU0 was explicitly assigned exclusively to this lane for each timing window.
 
 Complete source/profile, benchmark and assembly receipts are in
-`bootstrap/stdlib-byte-search-optimization-results.json`. The runner is
+`bootstrap/evidence/stdlib/stdlib-byte-search-optimization-results.json`. The runner is
 `tooling/bench_byte_search.py`; Native builds explicitly relink generated IR at
 O2 with the frozen provider object and runtime. Source-only validation does not
 claim the separate embedded String/Bytes constructors or a fresh Native base.

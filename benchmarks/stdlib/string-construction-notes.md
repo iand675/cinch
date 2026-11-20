@@ -47,7 +47,7 @@ baseline/new binaries also pass independent digest/checksum functional smokes
 for ASCII and Unicode repeat/concat at 65536 and 65537 units. Corrected paired samples now keep final input cleanup after the timed interval;
 the initial cleanup-inclusive samples and driver remain separately retained. The supplied four-test Rust
 target is pending coordinated Cargo integration. The receipt is
-`bootstrap/stdlib-string-construction-source-override-results.json`.
+`bootstrap/evidence/stdlib/stdlib-string-construction-source-override-results.json`.
 
 ## Next phases
 

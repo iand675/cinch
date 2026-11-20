@@ -9,7 +9,7 @@ scalar `Char` values and preserves immutable String backing.
 
 The exact source and interface receipts, independent SDK comparison and all
 functional results are in
-`bootstrap/stdlib-buffer-construction-source-override-results.json`.
+`bootstrap/evidence/stdlib/stdlib-buffer-construction-source-override-results.json`.
 The 184 packing and 92 raw-byte observations cover scalar-width boundaries,
 embedded controls, arbitrary bytes and lengths through 65537. Both frozen
 Rust O0/O2 runs pass the full corpus, separate 64 KiB regressions and 32 repeated
