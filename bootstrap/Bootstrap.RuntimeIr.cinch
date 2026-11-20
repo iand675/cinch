@@ -2470,7 +2470,8 @@ module Bootstrap.RuntimeIr where
                 (case expressions definitions locals ready args of (next, values) -> typed-call next (value-llvm (writer-context w) result-type) (llvm-object-symbol (unit-symbol unit)) (typed-values typed (givens <> values)))
               else if wide-code (Cons result expected) then unsupported w sp wide-refusal
               else if list-length args < list-length params then
-                (case call ready (llvm-object-symbol (unit-closure unit)) Nil of
+                (if native-count > 13 then unsupported w sp "closure shape needs an extended runtime descriptor" else
+                case call ready (llvm-object-symbol (unit-closure unit)) Nil of
                   (next, closure-value) -> case apply-words next closure-value givens of (applied, value) -> apply-terms definitions locals applied value args)
               else (case expressions definitions locals ready (take-terms (list-length params) args) of
                 (next, values) -> case typed-call next (value-llvm (writer-context w) result-type) (llvm-object-symbol (unit-symbol unit)) (typed-values typed (givens <> values)) of
@@ -5812,6 +5813,13 @@ module Bootstrap.RuntimeIr where
       (called, value) ->
         let returned = line (line called (cat ["  ret i64 ", value])) "}" in
         let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "()", worker-open w])) "entry:" in
+        -- A closure's description covers at most thirteen parameter classes
+        -- (`request-shape`). A root with more is still a root: it can be
+        -- called, and a client that would take it as a value is refused
+        -- when it is compiled (`external-call-unit`), as the same use is in
+        -- a whole program. Its accessor exists because every unit names
+        -- one, and nothing reaches it.
+        if list-length params > 13 then line (line accessor "  unreachable") "}" else
         case closure (Span 0 0 1 1) worker params Nil accessor of
           (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
   library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)

@@ -71,7 +71,11 @@ module Bootstrap.Core where
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
   export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
-  export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
+  -- `WithLayout` is exported with `MkCoreData` because a family whose table
+  -- is only partly exported is abstract to an importing module: it could
+  -- neither build nor match the constructors that are. Use
+  -- `with-data-layout` and `core-data-layout` rather than the constructor.
+  export CoreData, MkCoreData, WithLayout, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
   export core-constructor-name, core-constructor-scheme, core-constructor-fields
   export core-data-closed
