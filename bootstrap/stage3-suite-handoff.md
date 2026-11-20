@@ -2,6 +2,137 @@
 
 The goal is to pass every compiler integration target against one self-built Stage 3, including ignored tests. Keep the existing assertions, public-interface round trips, reference-counting and leak checks. Instance and proof dictionaries must retain their actual wrapper type and select the declared factory across module boundaries.
 
+## Next batch of work
+
+Start from `claude/affectionate-goldberg-yxn29v` at the commit that carries
+this section (pull request 8). It contains `lane/stage3-repr` at `697c6f93`
+plus the work the 2026-11-20 section describes. The newest compiler source
+is `69958cfd`; the commits after it change this file only.
+
+### Where things stand
+
+- The chain at `69958cfd` reaches the fixed point. 271 of 345 targets pass
+  against a self-built Stage 3 and 74 fail, with 335 failing tests.
+  `bootstrap/current-stage3-matrix-results.json` lists each failing target
+  with its tests. No target is failing because of this branch: all 74 fail
+  the same way on `697c6f93`.
+- The compiler can be rebuilt after an edit in seconds to a minute
+  (`tooling/module_build.py`), and a target can be run against that build
+  without a chain (`run_stage_targets.py --compiler`). A chain is needed
+  only to claim a result.
+- One assertion changed, and the owner accepted it:
+  `tagged_primitive_wrappers_expose_their_fast_paths` accepts the Nat
+  addition fast path inline as well as called.
+
+### The goal that is still open: the 74 failing targets
+
+None has been fixed since the first handoff. In order of how much each
+unblocks:
+
+1. **Triage the untriaged.** 67 of the 74 have never been read past their
+   counts. A number of the `bootstrap_*` ones look like stale expectations
+   (a module count, a diagnostic's wording). Sort every failing test into
+   compiler fault, missing feature or stale expectation before fixing any,
+   and record the sorting next to the results file. A stale expectation is
+   an assertion: change it only where the mechanism it pins was changed on
+   purpose, and say so here.
+2. **The syntax family.** `syntax_structural_builders`,
+   `syntax_declaration_composition`, `syntax_runtime_proofs`,
+   `syntax_declaration_groups`, `syntax_choreography`, `syntax_index_lambdas`,
+   `params` and `calling_convention` pass no test at all, which points at
+   one shared cause per group and not at fourteen separate ones. Take the
+   first failing test of each and look for the common refusal.
+3. **The seven named targets.** The table under "Verified results and
+   remaining failures" gives the next work for `lattice`, `ffi`,
+   `dependent`, `syntax_objects`, `stage_code_expectations`, `surface` and
+   reclamation. `lane/stage3-scoped-narrow` at `e02c4cf5` holds the
+   unfinished `narrow ... with w` change; start it at
+   `narrow_back_up_is_accepted_with_a_dec` and keep the independent Core
+   proof check. `lane/stage3-compiler-fixture-interfaces` at `2e79f56f`
+   holds nine fixture changes that type-check and have not been run.
+4. **The largest by count.** `safety` (21 failing), `attributes` (16),
+   `refinements` (15), `syntax_proof_patterns` (15), `syntax_index_evidence`
+   (12), `lattice` (11).
+
+### The second goal: changing the compiler quickly
+
+`design/compilation-speed.md` section 2.27 lists what was measured and not
+started, with what each would buy. In the order to take them:
+
+1. Split `Bootstrap.Infer` (10,113 lines, 18 s) and `Bootstrap.RuntimeIr`
+   (6,089 lines, 16 s) along their seams. An edit costs its module, and the
+   median module is under 5 s.
+2. Key an importer on the names it read. A new export in `Bootstrap.Kinds`
+   rebuilds sixteen modules today (95 s).
+3. Call a specialised instance method directly and not through `__apply`:
+   1,890 list literals and 995 uses of `<>` in the compiler's own module.
+4. Validate an interface set once per compile (about 6% of a small one).
+5. `parMap` inside the compiler. It waits on `String` being `Share`:
+   the `share` attribute of `design/parallel-evaluation.md`, interface
+   schema 11 and a library rebuild.
+6. Harvest the totality retry's closure. It matters to the chain alone.
+
+Publishing the stages as Nix outputs through Cachix is written
+(`tooling/nix/`, `flake.nix`, `.github/workflows/ladder-cache.yml`) and not
+switched on. It needs a `CACHIX_CACHE` repository variable and a
+`CACHIX_AUTH_TOKEN` secret, and `flake.lock` has not been checked against
+GitHub. The owner will return to it; leave it alone until then.
+
+### The working loop
+
+```sh
+# Once per machine: a chain, 21 to 30 minutes on four cores.
+python3 tooling/bootstrap.py check --jobs 4
+
+# After each compiler edit: 6 to 95 s, a type error in under 3 s.
+python3 tooling/module_build.py --builder build/bootstrap/stage3/cinch \
+    --out build/modules -j 4
+
+# Targets against that compiler, with no chain.
+python3 tooling/run_stage_targets.py --compiler build/modules/cinch \
+    --out build/dev-evidence --allow-dirty lattice ffi
+
+# Before claiming a result: a chain on the commit, then the targets on its
+# Stage 3. The whole matrix takes 133 minutes at four jobs.
+python3 tooling/run_stage_targets.py --stage 3 --all-integration --jobs 4 \
+    --out build/evidence
+```
+
+"A fresh machine" below has the toolchain. `tooling/README.md`,
+"Development builds", has the rest of the options.
+
+### What will cost time if forgotten
+
+- **A chain reads the tooling it runs under.** Editing `tooling/` or
+  `bootstrap/` in a checkout while a chain or a matrix runs from it breaks
+  the run. Run a long build from a detached worktree of the commit
+  (`git worktree add --detach ../cinch-x HEAD`) with its own
+  `CINCH_BOOTSTRAP_BUILD` and Cargo target directory.
+- **A development compiler is not evidence.** It found both of this
+  branch's regressions in minutes, and both were then confirmed on a
+  fixed-point Stage 3. Old reports can order the work; they cannot
+  establish a pass on a newer compiler.
+- **The whole matrix catches what the chain does not.** The chain passed
+  with an inliner that skipped a call's ABI check; one matrix target found
+  it. Run the matrix after any change to what the compiler emits or
+  admits.
+- **An inlined body must pass every check its call would.** The unit
+  stays the authority (`inline-abi-agrees` in `Bootstrap.RuntimeIr`). The
+  same holds for any later shortcut past `external-call-unit`.
+- **Emitted names are part of the build key.** Locals are numbered per
+  unit and lifted names carry their unit. A change that numbers across
+  units again makes every edit recompile every shard.
+- **`build/` does not travel.** The build directories, the evidence
+  directories and the helper scripts under `build/` are untracked and live
+  on one machine. The numbers that matter are in this file, the results
+  file and the note.
+- **Language traps in the compiler's own source.** `to` and `target` are
+  keywords and cannot be binders. A subtraction on `Nat` needs a branch
+  fact in scope (`if half <= position then ...`). A new constructor makes
+  every match on its type non-exhaustive, and the seed reports each one.
+  Top-level names share one namespace per module; a duplicate signature is
+  reported by `bootstrap.check` with its line.
+
 ## State on 2026-11-20
 
 This section is newer than the ones below it. The failing-target list of
