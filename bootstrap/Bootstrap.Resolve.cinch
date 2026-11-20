@@ -911,6 +911,8 @@ module Bootstrap.Resolve where
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
     EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not"] then
       (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
+    EApp sp (EVar at name) input | same name "length" -> (case rename-expr visible locals input of
+      (argument, errors) -> (EApp sp (EVar at "#kernel.length") argument, errors))
     EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
     EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
       (case rename-decision-syntax visible locals first of (left, errors) -> case rename-decision-syntax visible locals second of (right, more) -> (EBin sp operation left right, errors <> more)) else rename-expr visible locals syntax
@@ -1033,6 +1035,8 @@ module Bootstrap.Resolve where
     EGuarded s guard body -> case rename-branch-value visible locals guard of
       (condition, errors) -> case rename-expr visible locals body of
         (rhs, more) -> (EGuarded s condition rhs, errors <> more)
+    EForget s atoms x -> case rename-expr visible locals x of
+      (value, errors) -> (EForget s (type-arg-spine s (map (rename-predicate visible locals) (type-args-of atoms))) value, errors)
     EAnn s x ty -> case rename-expr visible (annotation-type-locals ty <> locals) x of
       (renamed, errors) -> (EAnn s renamed (rename-type visible locals ty), errors)
     EArg s first rest -> case rename-expr visible locals first of
@@ -1200,6 +1204,9 @@ module Bootstrap.Resolve where
     DProof s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DProof s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
+    DSpec s body -> case rename-decl home visible declarations body of
+      ([checked], errors) -> ([DSpec s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a spec requires one signature or equation")
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")

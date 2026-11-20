@@ -990,3 +990,70 @@ module Main where
   main = 0
 "#, &["length index operand needs Bytes or a list-shaped carrier"]);
 }
+
+#[test]
+fn a_length_witness_keeps_its_operands_and_relation() {
+    for predicate in ["length xs == 3", "3 == 3", "length xs >= 2"] {
+        let source = format!(r#"
+module Main where
+  type Two = refine (xs :: List Char) with length xs == 2
+  wrap :: List Char -> Option Two
+  wrap xs = case decide ({predicate}) of
+    Yes witness -> Some (Two xs witness)
+    No _ -> None
+  main :: Int
+  main = 0
+"#);
+        assert!(
+            common::source_frontend::check_sources(&source, "different-length-proposition").is_err(),
+            "accepted evidence of {predicate} for length xs == 2"
+        );
+    }
+}
+
+#[test]
+fn ascii_decisions_inspect_the_character_and_text_payloads() {
+    expect_run(
+        "ascii-payloads",
+        r#"
+module Main where
+  chars :: List Char -> Bool
+  chars xs = case decide (Ascii xs) of
+    Yes _ -> True
+    No _ -> False
+
+  text :: String -> Bool
+  text xs = case decide (Ascii xs) of
+    Yes _ -> True
+    No _ -> False
+
+  main :: Int
+  main =
+    if chars Nil && chars (Cons 'A' Nil) && not (chars (Cons 'a' (Cons 'Ā' Nil)))
+       && text "" && text "hello" && not (text "aé") then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn ordered_compares_adjacent_arbitrary_precision_naturals() {
+    expect_run(
+        "ordered-bignats",
+        r#"
+module Main where
+  ordered :: List Nat -> Bool
+  ordered xs = case decide (Ordered xs) of
+    Yes _ -> True
+    No _ -> False
+
+  main :: Int
+  main =
+    let lo = 18446744073709551619 :: Nat in
+    let hi = 18446744073709551620 :: Nat in
+    if ordered Nil && ordered (Cons hi Nil) && ordered (Cons lo (Cons lo (Cons hi Nil)))
+      && not (ordered (Cons lo (Cons hi (Cons lo Nil)))) then 42 else 1
+"#,
+        42,
+    );
+}

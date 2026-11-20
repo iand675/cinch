@@ -23,6 +23,7 @@ module Bootstrap.StageEval where
   import Text.Lex (Span)
 
   export StageValue, StageInteger, StageBoolean, StageString, StageUnit, StageQuoted, StageCode, evaluate-stage
+  export StageMachine, StageConversion, StageCallable, StageNominal, StageField, StageFieldsEnd
   export StageTemplate, MkStageTemplate, template-carrier, template-body
   export stage-quotation-constructor
 

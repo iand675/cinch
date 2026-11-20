@@ -1,0 +1,1144 @@
+{
+ "schema": 1,
+ "stage": 3,
+ "compiler_source": "1dd765f8",
+ "host": {
+  "system": "Linux",
+  "machine": "x86_64",
+  "cores": 4
+ },
+ "llvm": "20.1.8",
+ "note": "tooling/run_stage_targets.py --stage 3 --all-integration --jobs 4, with ignored tests. Wall time 210m58s on a machine shared with other builds.",
+ "targets": 345,
+ "targets_passing": 271,
+ "tests_passed": 2130,
+ "tests_failed": 335,
+ "selected_compiler_invocations": 3054,
+ "failing": [
+  {
+   "target": "attributes",
+   "passed": 15,
+   "failed": 16,
+   "tests": [
+    "hints_do_not_change_type_checking_outcomes",
+    "hints_never_change_the_interface_hash",
+    "marginalization_sums_clause_weights",
+    "packed_field_borrow_is_rejected_and_copy_works",
+    "repr_align_only_raises",
+    "repr_change_changes_the_interface_hash",
+    "repr_combination_rules",
+    "repr_layout_facts_recorded_in_the_abi_table",
+    "two_same_name_attributes_are_rejected",
+    "weight_argument_grammar",
+    "weights_on_case_alternatives",
+    "weights_on_function_clauses",
+    "weights_on_guards",
+    "weights_on_if_branches_both_spellings",
+    "worked_example_compiles_and_runs",
+    "wrapper_expansions_match_manual_weights"
+   ]
+  },
+  {
+   "target": "bootstrap_anonymous_contracts",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "imported_anonymous_results_and_arguments_keep_their_meaning"
+   ]
+  },
+  {
+   "target": "bootstrap_effects",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "source_effects_and_lexical_io_capabilities_are_checked_in_cinch"
+   ]
+  },
+  {
+   "target": "bootstrap_export_interfaces",
+   "passed": 1,
+   "failed": 2,
+   "tests": [
+    "named_refinement_display_still_diverges_between_the_producers",
+    "source_interfaces_preserve_private_nominals_and_defining_fixities"
+   ]
+  },
+  {
+   "target": "bootstrap_external_frontend",
+   "passed": 10,
+   "failed": 1,
+   "tests": [
+    "profile_tests::a_foreign_triple_must_match_its_own_profile_including_the_name"
+   ]
+  },
+  {
+   "target": "bootstrap_function_preconditions",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "function_preconditions_use_actual_arguments_and_cannot_be_ignored"
+   ]
+  },
+  {
+   "target": "bootstrap_infer",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch"
+   ]
+  },
+  {
+   "target": "bootstrap_intrinsics",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "runtime_intrinsics_check_their_contract_and_retain_canonical_symbols"
+   ]
+  },
+  {
+   "target": "bootstrap_manifest",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "manifest_round_trips_and_answers_package_facts"
+   ]
+  },
+  {
+   "target": "bootstrap_mutation_kinds",
+   "passed": 1,
+   "failed": 1,
+   "tests": [
+    "mutation_row_labels_preserve_borrow_and_nominal_kind_authority"
+   ]
+  },
+  {
+   "target": "bootstrap_named_refinements",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "named_refinements_preserve_scope_bounds_and_proof_obligations"
+   ]
+  },
+  {
+   "target": "bootstrap_nominals",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "imported_nominals_are_checked_with_defining_identities_in_cinch"
+   ]
+  },
+  {
+   "target": "bootstrap_nonzero_source",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "structural_nonzero_source_preserves_value_identity_and_contracts"
+   ]
+  },
+  {
+   "target": "bootstrap_pipeline",
+   "passed": 1,
+   "failed": 1,
+   "tests": [
+    "the_ladder_compiles_the_fib_example_with_itself"
+   ]
+  },
+  {
+   "target": "bootstrap_refinement_closure",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "private_refinements_keep_checked_bounds_without_exporting_names"
+   ]
+  },
+  {
+   "target": "bootstrap_runtime_emit",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals"
+   ]
+  },
+  {
+   "target": "bootstrap_runtime_ir",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words"
+   ]
+  },
+  {
+   "target": "bootstrap_runtime_library",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "checked_library_roots_emit_linkable_owned_and_specialized_workers"
+   ]
+  },
+  {
+   "target": "bootstrap_source_pi",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "source_dependent_functions_use_checked_argument_values"
+   ]
+  },
+  {
+   "target": "bootstrap_source_refinements",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "source_refinements_check_actual_values_and_preserve_effects"
+   ]
+  },
+  {
+   "target": "bootstrap_wide",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "stage_lowers_wide_scalars_at_i128_and_refuses_word_positions"
+   ]
+  },
+  {
+   "target": "calling_convention",
+   "passed": 0,
+   "failed": 4,
+   "tests": [
+    "a_product_result_taken_apart_allocates_no_block",
+    "an_escaping_product_result_is_boxed_and_counted_once",
+    "an_unknown_tail_call_wider_than_the_registers_is_guaranteed",
+    "product_results_tail_call_in_constant_stack"
+   ]
+  },
+  {
+   "target": "concurrency",
+   "passed": 23,
+   "failed": 1,
+   "tests": [
+    "dropping_a_handle_is_rejected"
+   ]
+  },
+  {
+   "target": "conditional_surface",
+   "passed": 15,
+   "failed": 6,
+   "tests": [
+    "a_target_with_neither_backend_reaches_the_portable_floor",
+    "compile_time_code_that_reaches_a_host_only_module_is_refused_naming_both_profiles",
+    "compile_time_code_that_reaches_a_target_only_module_names_the_host_context",
+    "emitted_code_that_reaches_a_host_only_module_is_refused_as_unavailable_for_the_target",
+    "one_build_selects_different_modules_for_the_host_and_the_target",
+    "the_same_staged_source_builds_for_the_hosts_own_target"
+   ]
+  },
+  {
+   "target": "cps",
+   "passed": 3,
+   "failed": 5,
+   "tests": [
+    "a_consumed_continuation_takes_a_frame_slot",
+    "a_record_built_at_the_call_site_is_specialised",
+    "a_record_of_functions_is_specialised_into_its_loop",
+    "a_tail_only_local_continuation_becomes_a_join_point",
+    "an_unknown_tail_call_is_guaranteed_without_llvm_optimisation"
+   ]
+  },
+  {
+   "target": "cxx",
+   "passed": 4,
+   "failed": 3,
+   "tests": [
+    "cpp_construction_methods_and_destruction_execute_natively",
+    "direct_imports_call_real_cpp_symbols_without_shims",
+    "generated_bindings_check_and_ownership_is_enforced"
+   ]
+  },
+  {
+   "target": "cxx_exports",
+   "passed": 5,
+   "failed": 2,
+   "tests": [
+    "cpp_classes_call_cinch_keep_independent_state_and_destroy_once",
+    "godot_registers_classes_calls_cinch_and_releases_instances"
+   ]
+  },
+  {
+   "target": "dependent",
+   "passed": 20,
+   "failed": 2,
+   "tests": [
+    "acceptance_probe_01_bounded_index_runs",
+    "pi_sigma_construction_and_elimination"
+   ]
+  },
+  {
+   "target": "evidence_invalidation",
+   "passed": 12,
+   "failed": 1,
+   "tests": [
+    "call_with_write_effect_invalidates"
+   ]
+  },
+  {
+   "target": "evolution",
+   "passed": 5,
+   "failed": 7,
+   "tests": [
+    "incompatible_change_without_migration_is_rejected",
+    "migration_type_mismatch_is_rejected",
+    "record_view_admits_compatible_additive_evolution",
+    "record_view_preserves_missing_vs_none",
+    "repr_change_forces_dependent_replacement",
+    "upgrade_evidence_records_the_migration_field_mapping",
+    "upgrade_with_a_checked_migration_migrates_old_state"
+   ]
+  },
+  {
+   "target": "ffi",
+   "passed": 9,
+   "failed": 6,
+   "tests": [
+    "foreign_signature_contradicting_repr_facts_is_rejected",
+    "opaque_values_are_unprojectable_and_foreign_only",
+    "out_cells_are_one_word",
+    "owned_borrowed_roles_and_the_deallocator_rule",
+    "packed_boundary_fields_marshal_without_padding_reads",
+    "repr_c_field_access_uses_the_recorded_offsets"
+   ]
+  },
+  {
+   "target": "interface_machine_contracts",
+   "passed": 2,
+   "failed": 1,
+   "tests": [
+    "imported_character_conversion_runs_with_exact_scalar_results"
+   ]
+  },
+  {
+   "target": "interface_mvar_contracts",
+   "passed": 10,
+   "failed": 6,
+   "tests": [
+    "source_absent_legacy_private_fields_remain_conservative",
+    "source_absent_mvar_handles_do_not_invent_payload_sharing",
+    "source_absent_mvar_header_proofs_do_not_depend_on_method_imports",
+    "source_absent_mvar_operations_keep_complete_effects",
+    "source_absent_private_usage_proofs_reject_unsupported_carriers_and_results",
+    "source_absent_unresolved_mvar_rows_do_not_invent_portable_authority"
+   ]
+  },
+  {
+   "target": "interface_nominal_regions",
+   "passed": 3,
+   "failed": 1,
+   "tests": [
+    "compiled_native_checker_reads_source_absent_nominal_region_roles"
+   ]
+  },
+  {
+   "target": "interface_prelude_overrides",
+   "passed": 0,
+   "failed": 1,
+   "tests": [
+    "source_family_homes_precede_embedded_consumers_with_checked_hashes"
+   ]
+  },
+  {
+   "target": "lattice",
+   "passed": 15,
+   "failed": 11,
+   "tests": [
+    "generic_preserves_transfer_works_where_the_method_preserves",
+    "incomparable_heads_at_a_common_refinement_are_a_coherence_error",
+    "narrow_back_up_is_accepted_with_a_dec",
+    "narrow_back_up_is_refused_without_a_dec",
+    "narrow_rejects_forged_dec_evidence",
+    "postcondition_rows_round_trip_through_the_interface",
+    "signature_obligations_constrain_callers_identically",
+    "specialized_sorted_merge_wins_by_most_specific_resolution",
+    "transfer_accepts_non_empty_with_preservation_evidence",
+    "transfer_rejects_sized_ascii_naming_the_conjunct",
+    "using_obligations_discharge_through_the_dec_evidence_path"
+   ]
+  },
+  {
+   "target": "lib_binary_layout",
+   "passed": 5,
+   "failed": 5,
+   "tests": [
+    "binary_buffer_alias_bounds_padding_and_validation_contracts",
+    "binary_record_views_match_independent_layouts",
+    "binary_stream_eof_alias_partial_write_and_failure_contracts",
+    "binary_varint_prefix_errors_preserve_exact_progress_and_remaining_input",
+    "binary_varints_match_independent_append_put_and_decode_results"
+   ]
+  },
+  {
+   "target": "linear_facts",
+   "passed": 4,
+   "failed": 5,
+   "tests": [
+    "a_difference_under_a_strict_bound_is_positive",
+    "a_fact_over_another_variable_is_refused",
+    "generic_precondition_measures_use_the_checked_argument_telescope",
+    "loop_index_advances_under_its_bound",
+    "machine_integer_arithmetic_never_implies_through_overflow"
+   ]
+  },
+  {
+   "target": "llvm_contract",
+   "passed": 18,
+   "failed": 3,
+   "tests": [
+    "byval_and_sret_are_claimed_only_at_aggregate_boundaries",
+    "byval_and_sret_cross_a_real_c_boundary",
+    "small_aggregates_cross_in_the_registers_c_uses"
+   ]
+  },
+  {
+   "target": "mvar",
+   "passed": 2,
+   "failed": 7,
+   "tests": [
+    "mvar_cancellation_racing_handoff_never_loses_or_duplicates_a_value",
+    "mvar_cancelled_calls_unregister_from_all_wait_queues",
+    "mvar_concurrent_handoff_delivers_counted_values_once",
+    "mvar_full_empty_read_swap_and_nonblocking_operations",
+    "mvar_immediately_available_cancellable_calls_succeed",
+    "mvar_intrinsics_cannot_be_redeclared_as_pure",
+    "mvar_preserves_raw_wide_and_counted_representations"
+   ]
+  },
+  {
+   "target": "observability",
+   "passed": 2,
+   "failed": 5,
+   "tests": [
+    "collecting_handler_nests_span_scopes_by_lexical_scope",
+    "dx_program_reads_naturally_with_levels_and_fields",
+    "otlp_json_envelope_exports_logs_metrics_and_spans",
+    "scope_brackets_close_sibling_scopes",
+    "trace_context_propagates_across_run_boundaries_in_one_trace"
+   ]
+  },
+  {
+   "target": "optimizer",
+   "passed": 10,
+   "failed": 6,
+   "tests": [
+    "fusion_preserves_the_pull_boundary",
+    "manifest_records_trust_level_and_target_conditions",
+    "rewrites_do_not_extend_conversion",
+    "rule_that_would_change_definitional_equality_is_rejected",
+    "scalable_profile_does_not_pin_a_width",
+    "weights_survive_optimization"
+   ]
+  },
+  {
+   "target": "package_prelude",
+   "passed": 1,
+   "failed": 4,
+   "tests": [
+    "a_packages_prelude_is_an_implicit_import",
+    "an_exposed_module_is_importable_and_an_internal_one_is_not",
+    "an_undeclared_prelude_is_refused_at_load",
+    "prelude_none_leaves_the_preregistered_types_and_nothing_else"
+   ]
+  },
+  {
+   "target": "parallel",
+   "passed": 31,
+   "failed": 2,
+   "tests": [
+    "a_mut_borrow_capture_is_rejected",
+    "an_untransferred_bytes_capture_is_rejected"
+   ]
+  },
+  {
+   "target": "params",
+   "passed": 0,
+   "failed": 7,
+   "tests": [
+    "direct_use_of_a_parameterized_module_is_rejected",
+    "instances_from_two_instantiations_do_not_merge",
+    "parameter_identity_is_recorded_and_instantiation_is_representation",
+    "signature_passed_as_a_parameter_sequences_through_it",
+    "two_instantiations_observe_different_dictionaries",
+    "value_parameter_is_an_ordinary_binding",
+    "wrong_typed_instantiation_is_rejected"
+   ]
+  },
+  {
+   "target": "platform",
+   "passed": 7,
+   "failed": 1,
+   "tests": [
+    "staging_cannot_observe_the_clock"
+   ]
+  },
+  {
+   "target": "prelude_split",
+   "passed": 13,
+   "failed": 3,
+   "tests": [
+    "bare_class_laws_keep_symbolic_indices_when_the_definition_is_erased",
+    "every_facade_surface_name_resolves_through_prelude",
+    "private_ctors_are_unreachable_through_an_import"
+   ]
+  },
+  {
+   "target": "primitives",
+   "passed": 39,
+   "failed": 1,
+   "tests": [
+    "char_values_and_ordering"
+   ]
+  },
+  {
+   "target": "proof_guarded_lets",
+   "passed": 4,
+   "failed": 3,
+   "tests": [
+    "a_changed_selected_body_changes_the_retained_equation",
+    "guarded_subtraction_keeps_its_strict_let_equation",
+    "lexical_provenance_does_not_unfold_opaque_measure_facts"
+   ]
+  },
+  {
+   "target": "reclamation",
+   "passed": 24,
+   "failed": 1,
+   "tests": [
+    "evaluated_quotations_with_heap_holes_are_freed"
+   ]
+  },
+  {
+   "target": "refinements",
+   "passed": 13,
+   "failed": 15,
+   "tests": [
+    "anonymous_byte_refinement_keeps_outer_telescope_values",
+    "anonymous_numeric_literals_use_the_checked_refinement_binder",
+    "forged_witness_cannot_be_constructed",
+    "later_argument_write_invalidates_an_inline_result_contract",
+    "logical_literal_preconditions_are_propositions_without_runtime_boolean_coercions",
+    "monoid_over_nonempty_is_rejected_naming_the_preservation_law",
+    "numeric_literals_use_actual_scoped_refinement_facts",
+    "signature_preconditions_keep_quantified_value_parameters_in_scope",
+    "signature_predicates_keep_checked_index_carrier_kinds",
+    "sorted_reverse_append_is_rejected_naming_the_preservation_law",
+    "surface_spelling_declares_the_refinement",
+    "surface_spelling_refuses_a_wrong_predicate_naming_it",
+    "the_bespoke_nonempty_type_is_gone",
+    "the_four_refinements_exist_with_their_constructors",
+    "unprovable_discharge_rejects_naming_it"
+   ]
+  },
+  {
+   "target": "safety",
+   "passed": 3,
+   "failed": 21,
+   "tests": [
+    "alloc_once_allows_one_site_and_names_the_violation",
+    "assert_min_counts_runtime_decides_not_proof_obligations",
+    "bounded_claims_name_their_proof_method_or_are_refused",
+    "checked_params_accepts_validation_before_use",
+    "checked_params_names_the_unchecked_use",
+    "contract_facts_hash_assertions_and_must_use_both_ways",
+    "deny_warnings_scopes_warn_hash_error_to_the_definition",
+    "manifest_records_the_safety_summary_without_paths",
+    "max_complexity_holds_the_boundary",
+    "max_lines_holds_the_boundary",
+    "no_alloc_accepts_an_allocation_free_body",
+    "no_alloc_names_the_constructor",
+    "no_macros_accepts_handwritten_code_and_refuses_expansion",
+    "no_raw_ptr_accepts_pointer_free_code_and_refuses_pointers",
+    "recursion_none_accepts_a_non_recursive_definition",
+    "recursion_none_names_the_recursive_call",
+    "recursion_tail_covers_self_and_mutual_groups",
+    "recursion_tail_names_the_non_tail_call",
+    "stack_bounded_establishes_or_refuses_the_bound",
+    "stack_constant_implies_tail_or_non_recursion",
+    "stack_constant_names_the_non_tail_call"
+   ]
+  },
+  {
+   "target": "stage_code_expectations",
+   "passed": 4,
+   "failed": 7,
+   "tests": [
+    "generic_declaration_producers_cannot_freshen_an_int_caller_to_bool",
+    "generic_declaration_producers_keep_the_bool_callers_type",
+    "one_monomorphic_code_value_cannot_choose_two_parameter_types",
+    "partial_application_retains_the_generic_callers_type",
+    "returned_stage_closures_cannot_capture_affine_arguments",
+    "returned_stage_closures_retain_the_generic_callers_type",
+    "separate_stage_instantiations_can_choose_different_types"
+   ]
+  },
+  {
+   "target": "staging",
+   "passed": 27,
+   "failed": 4,
+   "tests": [
+    "generate_file_capability_feeds_the_program",
+    "generate_subprocess_capability_runs_a_tool",
+    "schema_build_identity_records_the_tool_not_the_credential",
+    "stage_replay_uses_captured_inputs"
+   ]
+  },
+  {
+   "target": "surface",
+   "passed": 12,
+   "failed": 9,
+   "tests": [
+    "bytes_literal_folding_preserves_unsigned_byte_boundaries",
+    "bytes_literal_folds_and_map_literal_round_trips",
+    "collection_of_records_with_closed_callbacks_keeps_runtime_construction",
+    "converter_failures_name_the_file_and_the_converter",
+    "json_decodes_a_declared_record_type",
+    "json_txt_and_bytes_converters_bind_and_record_provenance",
+    "list_literal_folds_to_a_constant_and_a_runtime_call_stays",
+    "range_literal_folds_when_stage_known",
+    "typed_json_f32_rounds_once_at_the_target_precision"
+   ]
+  },
+  {
+   "target": "syntax_choreography",
+   "passed": 0,
+   "failed": 8,
+   "tests": [
+    "definition_site_wire_helpers_survive_a_caller_alias_decoy",
+    "direct_native_calls_validate_roles_messages_and_branch_shapes",
+    "four_roles_three_branches_preserve_flat_order_and_zero_local_counters",
+    "original_three_role_checkout_runs_both_branches_with_native_declarations",
+    "self_messages_project_once_and_an_inactive_peer_keeps_zero_state",
+    "tuple_constructors_first_used_during_staging_are_registered_again_for_runtime",
+    "two_role_projection_choice_offer_and_private_constructor_control_execute",
+    "wrong_state_wire_branch_replay_and_private_constructor_are_refused"
+   ]
+  },
+  {
+   "target": "syntax_declaration_composition",
+   "passed": 0,
+   "failed": 12,
+   "tests": [
+    "captured_type_constructors_specialize_higher_kinded_slots_under_forall",
+    "combined_groups_can_be_reused_and_renamed_without_retargeting_other_instances",
+    "composed_protocol_states_and_transitions_use_actual_owned_members",
+    "linking_a_type_refuses_dangling_constructor_references_instead_of_rebinding_them",
+    "linking_refuses_ambiguous_context_members",
+    "linking_within_one_possessed_group_follows_its_instantiated_anchors",
+    "machine_payload_types_and_transition_handlers_keep_caller_bindings",
+    "native_syntax_readers_and_errors_keep_the_compile_time_boundary",
+    "opaque_type_quotation_renames_owned_uses_without_capturing_source_names",
+    "specializing_owned_types_preserves_private_source_types_across_insertions",
+    "syntax_name_is_descriptive_and_does_not_acquire_a_private_definition",
+    "syntax_sequence_readers_preserve_lexical_captures_and_nested_delimiters"
+   ]
+  },
+  {
+   "target": "syntax_declaration_groups",
+   "passed": 0,
+   "failed": 11,
+   "tests": [
+    "binary_format_is_a_native_group_with_definition_helpers_and_source_operands",
+    "declaration_bindings_survive_a_nested_code_quotation_and_later_instantiation",
+    "native_group_cannot_acquire_a_private_helper_by_selecting_its_name",
+    "native_group_exports_follow_owned_renames_without_exporting_private_constructors",
+    "native_group_operator_references_and_exported_fixity_follow_the_owned_member",
+    "native_group_rename_preserves_private_helpers_and_caller_captures",
+    "native_group_renames_data_constructor_patterns_recursion_and_annotations",
+    "native_group_renames_record_type_constructor_and_sibling_references",
+    "native_group_renaming_keeps_ordinary_checks_and_phase_barriers",
+    "one_native_group_can_be_instantiated_twice_without_retargeting_the_first",
+    "stage_body_macro_calls_share_nullary_and_unary_empty_argument_rules"
+   ]
+  },
+  {
+   "target": "syntax_declaration_namespaces",
+   "passed": 1,
+   "failed": 7,
+   "tests": [
+    "foreign_export_renames_its_cinch_definition_without_changing_the_c_entry",
+    "foreign_group_instances_rename_cinch_bindings_and_keep_the_external_contract",
+    "owned_refinement_instantiations_keep_their_independent_type_and_value_members",
+    "owned_refinement_link_replaces_the_placeholder_type_and_constructor_together",
+    "owned_refinement_rename_keeps_its_constructor_and_sibling_contracts",
+    "primitive_group_instances_keep_sibling_bindings_and_ir_containment",
+    "refinement_group_keeps_private_definition_types_separate_from_owned_members"
+   ]
+  },
+  {
+   "target": "syntax_effect_declarations",
+   "passed": 1,
+   "failed": 6,
+   "tests": [
+    "a_visible_owned_effect_can_be_selected_by_its_qualified_name",
+    "owned_effect_names_must_remain_valid_source_constructor_names",
+    "owned_effect_references_do_not_depend_on_header_order",
+    "owned_effect_renaming_keeps_rows_operations_and_handler_members_together",
+    "two_owned_effect_instantiations_keep_independent_operation_tables",
+    "type_and_effect_names_share_spelling_without_sharing_binding_authority"
+   ]
+  },
+  {
+   "target": "syntax_index_evidence",
+   "passed": 2,
+   "failed": 12,
+   "tests": [
+    "captured_index_applications_accept_available_dictionary_evidence",
+    "captured_index_applications_discharge_true_proof_obligations",
+    "captured_index_applications_retain_the_selected_lexical_dictionary",
+    "captured_index_applications_use_an_explicit_lexical_dictionary",
+    "captured_index_keeps_its_source_provider_under_a_generated_provider",
+    "copied_generic_functions_retain_their_inner_dictionary_scope",
+    "declaration_evidence_can_determine_a_type_from_multiple_constraints",
+    "declaration_evidence_can_select_a_later_user_instance",
+    "declaration_evidence_cannot_turn_recursive_instances_into_proofs",
+    "declaration_evidence_is_shared_consistently_across_dependent_headers",
+    "declaration_evidence_selects_the_later_refinement_specific_instance",
+    "index_applications_require_their_dictionary_even_outside_macros"
+   ]
+  },
+  {
+   "target": "syntax_index_lambdas",
+   "passed": 0,
+   "failed": 7,
+   "tests": [
+    "an_index_lambda_cannot_capture_an_existing_outer_subject_by_spelling",
+    "an_introduced_index_binder_cannot_retarget_an_outer_proof_goal",
+    "index_lambda_annotations_are_checked_in_the_binders_scope",
+    "index_lambda_binders_work_in_raw_and_captured_induction",
+    "index_lambdas_cannot_discard_a_wrong_carrier_annotation",
+    "index_lambdas_in_captured_type_annotations_retain_their_handles",
+    "nested_captured_index_lambdas_keep_distinct_same_spelled_binders"
+   ]
+  },
+  {
+   "target": "syntax_lambdas",
+   "passed": 7,
+   "failed": 1,
+   "tests": [
+    "lambda_preserves_latent_effects_and_the_native_handler_boundary"
+   ]
+  },
+  {
+   "target": "syntax_objects",
+   "passed": 74,
+   "failed": 4,
+   "tests": [
+    "native_captured_index_does_not_freeze_owned_dependent_binders_as_globals",
+    "native_captured_index_function_values_retain_their_binding_when_applied",
+    "native_captured_index_polymorphic_arguments_share_their_type_parameter",
+    "native_captured_index_polymorphic_function_keeps_argument_carriers"
+   ]
+  },
+  {
+   "target": "syntax_proof_patterns",
+   "passed": 3,
+   "failed": 15,
+   "tests": [
+    "a_pattern_binder_cannot_retarget_an_outer_goal_to_make_refl_fit",
+    "a_strict_let_alias_is_not_a_structural_decrease",
+    "an_erased_field_cannot_retarget_the_goal_to_an_introduced_subject",
+    "captured_erased_fields_keep_their_runtime_subject_under_shadowing",
+    "captured_induction_binders_survive_a_generated_shadow",
+    "congruence_cannot_hide_a_non_decreasing_recursive_proof",
+    "exhaustive_boolean_proof_patterns_still_check",
+    "exhaustive_numeric_patterns_keep_the_default_subject",
+    "generic_constructor_refinement_keeps_its_type_instantiation",
+    "nested_constructor_patterns_retain_induction_fields",
+    "ordinary_matches_preserve_captured_erased_field_subjects",
+    "pattern_shadows_preserve_the_outer_goal_and_its_existing_evidence",
+    "proof_former_value_arguments_check_their_carrier",
+    "proof_patterns_keep_recursive_calls_visible_to_termination",
+    "typed_structural_induction_still_checks_and_erases"
+   ]
+  },
+  {
+   "target": "syntax_quoted_macro_scope",
+   "passed": 0,
+   "failed": 2,
+   "tests": [
+    "an_existing_caller_capture_does_not_acquire_a_quoted_sibling_by_spelling",
+    "quoted_macro_arguments_keep_owned_values_constructors_and_annotation_types"
+   ]
+  },
+  {
+   "target": "syntax_runtime_proofs",
+   "passed": 0,
+   "failed": 12,
+   "tests": [
+    "captured_witness_survives_a_same_spelled_generated_boolean_binder",
+    "erased_bindings_check_generic_data_and_actual_callback_bodies",
+    "erased_destructuring_cannot_extract_evidence_from_a_looping_container",
+    "erased_proof_lets_cannot_launder_a_linear_runtime_use",
+    "erased_proof_lets_refuse_effects_even_when_the_caller_permits_them",
+    "erased_runtime_bindings_need_checked_total_bodies_including_forward_references",
+    "proof_admission_rejects_computational_bottom_and_stage_only_evidence",
+    "proof_lets_cannot_retarget_evidence_to_another_runtime_value",
+    "proof_local_scopes_keep_termination_and_ghost_boundaries",
+    "proposition_results_require_termination_without_a_proof_modifier",
+    "recursive_proof_locals_keep_existing_evidence_and_reject_eager_cycles",
+    "runtime_decision_witnesses_keep_their_subject_across_group_instances"
+   ]
+  },
+  {
+   "target": "syntax_signature_scope",
+   "passed": 5,
+   "failed": 2,
+   "tests": [
+    "a_captured_using_head_keeps_its_source_owner_when_emitted_in_another_module",
+    "a_quoted_using_head_cannot_acquire_a_signature_missing_at_definition_site"
+   ]
+  },
+  {
+   "target": "syntax_structural_builders",
+   "passed": 0,
+   "failed": 14,
+   "tests": [
+    "adding_equations_retains_target_checks_and_cannot_discard_source_contracts",
+    "constructor_extension_keeps_shared_type_anchors_and_checks_its_result",
+    "descriptive_name_join_and_numeric_suffix_construct_only_valid_names",
+    "heterogeneous_code_tuples_keep_caller_and_definition_bindings",
+    "names_cannot_acquire_free_private_members_from_a_possessed_group",
+    "native_type_application_and_tuples_keep_their_scoped_trees",
+    "native_type_constructor_clause_and_export_builders_form_a_private_family",
+    "owned_function_code_keeps_source_signatures_and_refuses_discarded_attributes",
+    "owned_function_code_localizes_clauses_recursion_and_generic_signatures",
+    "packing_code_preserves_carrier_and_linear_expectations",
+    "quantified_function_code_checks_recursive_bodies_before_instantiation",
+    "quantified_function_code_retains_rows_regions_and_universal_effect_checks",
+    "structural_metadata_cannot_escape_through_runtime_code",
+    "structural_specialization_and_signature_readers_keep_internal_and_private_type_owners"
+   ]
+  },
+  {
+   "target": "targets",
+   "passed": 11,
+   "failed": 1,
+   "tests": [
+    "the_target_gated_bodies_assemble_for_each_architecture"
+   ]
+  },
+  {
+   "target": "temporal",
+   "passed": 14,
+   "failed": 7,
+   "tests": [
+    "contract_facts_hash_both_ways",
+    "manifest_records_the_temporal_contracts_with_assumptions",
+    "recurrence_is_bounded_over_structural_recursion",
+    "recurrence_without_a_witness_rejects_naming_the_call",
+    "safety_violating_write_rejects_naming_the_step",
+    "stability_facts_die_on_a_touching_write",
+    "stability_facts_survive_non_touching_transitions"
+   ]
+  },
+  {
+   "target": "trace",
+   "passed": 2,
+   "failed": 2,
+   "tests": [
+    "a_trace_names_the_cinch_frames_at_a_foreign_fault"
+   ]
+  },
+  {
+   "target": "wasm",
+   "passed": 10,
+   "failed": 3,
+   "tests": [
+    "eval_is_profile_gated_and_recorded_as_an_assumption",
+    "eval_of_a_typed_quote_runs_end_to_end",
+    "the_manifest_records_the_wasm_feature_profile_and_adapters"
+   ]
+  },
+  {
+   "target": "wide",
+   "passed": 9,
+   "failed": 6,
+   "tests": [
+    "borrowed_wide_results_release_temporary_buffers_without_boxing",
+    "eq_and_ord_instances_work_directly_and_through_dictionaries",
+    "extracted_wide_returns_keep_a_constant_stack",
+    "int128_crosses_the_c_boundary_both_ways",
+    "int_nat_conversions_and_show_cross_the_runtime_at_128_bits",
+    "wide_values_cross_the_apply_frame_boxed"
+   ]
+  }
+ ],
+ "passing": [
+  "alloc_accounting",
+  "arena",
+  "argv",
+  "arrays",
+  "bootstrap_abstract_nonzero_methods",
+  "bootstrap_abstract_nonzero_types",
+  "bootstrap_argument_scopes",
+  "bootstrap_array_float_bits",
+  "bootstrap_body_bindings",
+  "bootstrap_boolean_branches",
+  "bootstrap_buffer_aliases",
+  "bootstrap_byte_observations",
+  "bootstrap_check",
+  "bootstrap_checked_program",
+  "bootstrap_collections",
+  "bootstrap_conditional_methods",
+  "bootstrap_contract",
+  "bootstrap_core",
+  "bootstrap_decisions",
+  "bootstrap_driver",
+  "bootstrap_effect_types",
+  "bootstrap_eval",
+  "bootstrap_export_types",
+  "bootstrap_globals",
+  "bootstrap_guarded_arithmetic",
+  "bootstrap_guarded_association",
+  "bootstrap_guarded_bodies",
+  "bootstrap_guarded_calls",
+  "bootstrap_handler_core",
+  "bootstrap_imported_nonzero",
+  "bootstrap_imported_preconditions",
+  "bootstrap_indices",
+  "bootstrap_instance_resolution",
+  "bootstrap_interface",
+  "bootstrap_ir",
+  "bootstrap_ladder",
+  "bootstrap_lexer",
+  "bootstrap_library_object",
+  "bootstrap_load",
+  "bootstrap_machine_values",
+  "bootstrap_measure_contracts",
+  "bootstrap_module_scopes",
+  "bootstrap_mutable_inference",
+  "bootstrap_nonzero_types",
+  "bootstrap_parse",
+  "bootstrap_pi",
+  "bootstrap_proof",
+  "bootstrap_proof_arrows",
+  "bootstrap_proof_terms",
+  "bootstrap_proposition_types",
+  "bootstrap_refinement_constructors",
+  "bootstrap_refinement_core",
+  "bootstrap_refinement_types",
+  "bootstrap_resolve",
+  "bootstrap_runtime_library_abi",
+  "bootstrap_runtime_objects",
+  "bootstrap_source_constructors",
+  "bootstrap_source_decisions",
+  "bootstrap_source_effects",
+  "bootstrap_source_handlers",
+  "bootstrap_source_instances",
+  "bootstrap_source_paths",
+  "bootstrap_source_projection",
+  "bootstrap_source_proofs",
+  "bootstrap_test_runner",
+  "bootstrap_total",
+  "bootstrap_total_indices",
+  "bootstrap_total_semantics",
+  "bootstrap_type_syntax",
+  "bootstrap_typed_indices",
+  "bootstrap_typing",
+  "bootstrap_value_indices",
+  "bootstrap_value_kinds",
+  "borrow_inference",
+  "boxed_nat_comparisons",
+  "canonical_artifacts",
+  "case_evidence",
+  "class_defaults",
+  "class_identity",
+  "codata",
+  "comparison_method_facts",
+  "constructor_inventory",
+  "constructor_region_fields",
+  "core_output",
+  "cross_region_effect_union",
+  "effect_identity",
+  "effects",
+  "exhaustion",
+  "explicit_region_quantifiers",
+  "fixity_interfaces",
+  "folded_literal_ownership",
+  "goal_tactics",
+  "guard_coverage",
+  "hk",
+  "incremental",
+  "index_local_carriers",
+  "inline_copy",
+  "integration",
+  "interface_anonymous_contracts",
+  "interface_byte_observations",
+  "interface_class_contracts",
+  "interface_conditional_methods",
+  "interface_guarded_bodies",
+  "interface_kinds",
+  "interface_method_bodies",
+  "interface_nominals",
+  "interface_optimisations",
+  "interface_preconditions",
+  "interface_primitive_bodies",
+  "interface_refinement_closure",
+  "interface_refinements",
+  "interface_region_effects",
+  "interface_total_bodies",
+  "intrinsic_objects",
+  "jit",
+  "json",
+  "laws",
+  "letrec",
+  "lib_adler32",
+  "lib_algebra",
+  "lib_ascii85",
+  "lib_ascii85_buffers",
+  "lib_base32_encoding",
+  "lib_base64",
+  "lib_base64_encoding",
+  "lib_benchmark",
+  "lib_bigdecimal",
+  "lib_buffer_construction",
+  "lib_buffered_io",
+  "lib_builder",
+  "lib_byte_build",
+  "lib_byte_fields",
+  "lib_byte_search",
+  "lib_byte_split",
+  "lib_byte_view",
+  "lib_byte_view_ascii_run",
+  "lib_byte_view_index_byte",
+  "lib_byte_view_scalars",
+  "lib_category",
+  "lib_char_tuple",
+  "lib_civil_time",
+  "lib_compare",
+  "lib_complex",
+  "lib_constant_time",
+  "lib_coverage",
+  "lib_crc64",
+  "lib_csv",
+  "lib_csv_record",
+  "lib_digest",
+  "lib_file_utils",
+  "lib_find",
+  "lib_fnv128",
+  "lib_fnv_state",
+  "lib_foldable",
+  "lib_function_ord",
+  "lib_go_stdlib",
+  "lib_hash_keys",
+  "lib_hashmap_real",
+  "lib_heap_view",
+  "lib_hex",
+  "lib_hex_stream",
+  "lib_html",
+  "lib_http",
+  "lib_image_color",
+  "lib_image_color_palette",
+  "lib_json_codec",
+  "lib_json_value",
+  "lib_linked_list",
+  "lib_list",
+  "lib_map_set_ops",
+  "lib_matrix",
+  "lib_mime",
+  "lib_multipart",
+  "lib_multipart_promotion",
+  "lib_mutable",
+  "lib_mutable_map",
+  "lib_option_parser",
+  "lib_option_result",
+  "lib_path",
+  "lib_pem",
+  "lib_pty",
+  "lib_quoted_printable",
+  "lib_random",
+  "lib_rational",
+  "lib_resolv",
+  "lib_ring",
+  "lib_sha256",
+  "lib_shellwords",
+  "lib_signal",
+  "lib_stream",
+  "lib_string_construction",
+  "lib_string_io",
+  "lib_string_join",
+  "lib_string_scalars",
+  "lib_test_runner",
+  "lib_text_ops",
+  "lib_time_a",
+  "lib_time_b",
+  "lib_time_c",
+  "lib_time_d",
+  "lib_time_e",
+  "lib_time_f",
+  "lib_time_g",
+  "lib_time_h",
+  "lib_toml",
+  "lib_unicode_catalog",
+  "lib_unicode_kernel",
+  "lib_uri_ipaddr",
+  "lib_url",
+  "lib_utf16",
+  "lib_utf8",
+  "lib_utf8_text",
+  "lib_uuid",
+  "lib_word_ops",
+  "lib_word_utf8",
+  "lib_yaml",
+  "lib_zlib",
+  "lsp",
+  "modules",
+  "narrow_boundary",
+  "native_closure_checks",
+  "native_dictionary_checks",
+  "nested_array_positivity",
+  "nominal_identity",
+  "nominal_region_runtime",
+  "order_independence",
+  "ownership",
+  "package_link",
+  "package_manifest",
+  "package_store",
+  "par_map_in_compiler_sources",
+  "parsers",
+  "pattern_field_names",
+  "prelude_lib",
+  "prim",
+  "prim_wide",
+  "primitive_length_identity",
+  "proof_value_identity",
+  "qualified_calls",
+  "qualified_identities",
+  "range_facts",
+  "rank_n",
+  "rc_specialisation",
+  "reclamation_tasks",
+  "regex",
+  "repl",
+  "repr_classes",
+  "reuse",
+  "runtime_net_prims",
+  "runtime_prims",
+  "safe_bytes",
+  "safe_division",
+  "safe_subtraction",
+  "simplify",
+  "small_nats",
+  "stack_allocation",
+  "stack_array_capture",
+  "stm",
+  "string_literals",
+  "sym",
+  "syntax_declarations",
+  "syntax_navigation",
+  "syntax_sigil_identifiers",
+  "tail_calls",
+  "total_bodies",
+  "unroll_hint",
+  "wasm_target",
+  "wide_array_followups",
+  "wide_arrays",
+  "wide_mutable_slots",
+  "word_constant_folding"
+ ]
+}

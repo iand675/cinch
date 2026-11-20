@@ -359,6 +359,7 @@ module Bootstrap.Ast where
     ESyntaxCaptureUnder :: Span -> String -> BindingSpelling -> Expr -> Expr
     EArgumentScope :: Span -> Expr -> Expr
     EMacroCall :: Span -> String -> List LToken -> Expr
+    EForget :: Span -> TypeExpr -> Expr -> Expr
     EUnmodeled :: Span -> String -> Expr
 
   expr-spine :: Span -> List Expr -> Expr
@@ -429,6 +430,7 @@ module Bootstrap.Ast where
     EIf s c t f -> s
     ECase s scrut alts -> s
     EGuarded s guard body -> s
+    EForget s atoms x -> s
     EAnn s x t -> s
     EForall s vs body -> s
     EUsing s bounds body -> s
@@ -582,6 +584,7 @@ module Bootstrap.Ast where
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
     DPrim :: Span -> String -> TypeExpr -> List PrimBody -> Decl
     DProof :: Span -> Decl -> Decl
+    DSpec :: Span -> Decl -> Decl
     DCorec :: Span -> Decl -> Decl
     -- `macro name :: ty` and `macro name patterns = body`: a compile-time
     -- declaration. It carries no runtime presence; expansion marks its uses.
@@ -655,6 +658,7 @@ module Bootstrap.Ast where
     DForeign s direction conv symbol foreign-name t -> s
     DPrim s name ty bodies -> s
     DProof s body -> s
+    DSpec s body -> s
     DCorec s body -> s
     DConditional s clauses inner -> s
     DMacroBinding s name -> s
@@ -710,6 +714,7 @@ module Bootstrap.Ast where
     DUnrollHint s name hint -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
+    DSpec s body -> decl-name body
     DCorec s body -> decl-name body
     DConditional s clauses inner -> decl-name inner
     DMacroBinding s name -> None
@@ -864,6 +869,7 @@ module Bootstrap.Ast where
     EIf s c t f -> expr-unmodeled-count c + expr-unmodeled-count t + expr-unmodeled-count f
     ECase s scrut alts -> expr-unmodeled-count scrut + alts-unmodeled (alts-of alts)
     EGuarded s guard body -> expr-unmodeled-count guard + expr-unmodeled-count body
+    EForget s atoms x -> type-unmodeled-count atoms + expr-unmodeled-count x
     EAnn s x t -> expr-unmodeled-count x + type-unmodeled-count t
     EForall s vs body -> expr-unmodeled-count body
     EUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + expr-unmodeled-count body
@@ -971,6 +977,7 @@ module Bootstrap.Ast where
     DUnrollHint s name hint -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
+    DSpec s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body
     DConditional s clauses inner -> exprs-unmodeled clauses + decl-unmodeled-count inner
     DMacroBinding s name -> 0
@@ -1114,6 +1121,7 @@ module Bootstrap.Ast where
     EIf part0 part1 part2 part3 -> JArr (JStr "EIf") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     ECase part0 part1 part2 -> JArr (JStr "ECase") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EGuarded part0 part1 part2 -> JArr (JStr "EGuarded") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EForget s atoms x -> JArr (JStr "EForget") (JArr (source-identity-type atoms) (JArr (source-identity-expr x) JArrEnd))
     EAnn part0 part1 part2 -> JArr (JStr "EAnn") (JArr (source-identity-expr part1) (JArr (source-identity-type part2) (JArrEnd)))
     EForall part0 part1 part2 -> JArr (JStr "EForall") (JArr (source-identity-names part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EUsing part0 part1 part2 -> JArr (JStr "EUsing") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))

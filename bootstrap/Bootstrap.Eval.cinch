@@ -552,6 +552,7 @@ module Bootstrap.Eval where
     EIf s c t f -> eval-if globals env s c t f
     ECase s scrut alts -> eval-case globals env s scrut alts
     EGuarded s guard body -> fail s "a guarded body is valid only inside a case alternative"
+    EForget s atoms x -> eval-expr globals env x
     EAnn s x t -> eval-expr globals env x
     ELitFloat s text -> fail s "unsupported expression: float literal"
     ETuple s xs -> eval-tuple globals env s xs
@@ -682,6 +683,7 @@ module Bootstrap.Eval where
     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
     DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
     DProof s body -> Cons (MkDiagnostic rung s "a proof declaration requires erased checking") Nil
+    DSpec s body -> Cons (MkDiagnostic rung s "a spec declaration requires erased checking") Nil
     DMacroBinding s name -> Cons (MkDiagnostic rung s "unresolved macro declaration") Nil
     DMacro s body -> Cons (MkDiagnostic rung s "a macro declaration requires compile-time expansion") Nil
     DStage s body -> Cons (MkDiagnostic rung s "a stage declaration requires compile-time checking") Nil

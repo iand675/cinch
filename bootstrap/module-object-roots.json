@@ -1,0 +1,11 @@
+{
+  "modules": {
+    "Bootstrap.Expand": [
+      {
+        "classes": "O",
+        "symbol": "Bootstrap.Expand.expand-error"
+      }
+    ]
+  },
+  "schema": 1
+}

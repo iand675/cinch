@@ -1753,6 +1753,318 @@ interface exporter's `result-in`/`value-quantifiers`
 their own byte-identity argument; the exporter one is delicate because it
 writes the published contract text.
 
+### 2.22 Three repetitions that were most of a self-compile (2026-11-19)
+
+Measured on a 4-core x86_64 Linux machine with LLVM 20, where the audited
+chain at `697c6f93` took 41 minutes for stages 1 to 3: Stage 1's frontend
+ran for 442 s to emit the Stage 2 module, single threaded, and Stage 2's ran
+as long again.
+
+`perf` works there where the harness's `sample` does not (`nix build
+nixpkgs#perf`; the event is `task-clock`, which needs no hardware counter).
+Two recipes cover what follows. A long run is recorded flat, `perf record
+-F 499`, because the stage binaries keep no frame pointers and a frame
+pointer call graph of them is noise. A run of a few seconds, or a long one
+at `-F 59`, is recorded with `--call-graph dwarf,16384`, which unwinds
+correctly and costs about 40 MB per second of run at 2 kHz. A loop the
+optimizer inlined shows up as a bare address; `nm -n` on the binary names the
+function that contains it.
+
+The flat profile of the 442 s run put 51% of the samples at two addresses
+inside `Bootstrap.Infer.data-group-members` and another 15% in the string
+comparisons under it. Every finding below came from the profile, and each
+fix was accepted only when the compiler built with it emitted, for the
+unchanged Stage 1 bundle, the byte-identical Stage 2 module of the fixed
+point.
+
+| Change | Self-compile, CPU s | What repeated |
+| --- | ---: | --- |
+| handoff (profile-guided Stage 1) | 442 | |
+| the data reference graph is built once | 155 | `register` asked for the mutual group of every data declaration, and each answer searched reachability per candidate with every step scanning every declaration for one name's edges |
+| the sealed environment is a balanced tree | 108.8 | a name below the module's cache entry resolved to a position, and the position was walked down a list of thousands of bindings |
+| a defining ownership row is decoded once per elaboration | 94.8 | an interface repeats a type's ownership table in every entry that names the type, and each copy was lexed and parsed again |
+| well-formed JSON is scanned by offset (section 2.23) | 92.2 | |
+| only the foreign tables an identity's owner can hold are read | 87.6 | every imported value walked every interface's foreign table, each row building its qualified name |
+
+The first row is a profile-guided binary and the rest are development
+builds without a profile, so the table understates the change. The audited
+chain with the first four changes (`1dd765f8`) reached the fixed point in
+22 m 24 s on the same machine, against 41 m 11 s: each stage frontend ran
+for about two and a half minutes instead of seven and a half. What that
+chain spends now is mostly links: Stage 1 is the seed's 305 MB module
+compiled twice for its profile (about seven minutes of the nine it takes),
+and Stage 2 is one unsharded instrumented link, a training run and the
+relink (about five minutes). A chain without profiles would be about
+twelve.
+
+What the profile said was left, as inclusive shares of the 108.8 s run
+(the usage decode and the foreign tables have since gone from it):
+
+- **The totality retry, 42%.** A self-compile runs 92 module elaborations:
+  the real one, one joint preliminary and 90 retries, one per name the joint
+  preliminary left unresolved (section 2.16 made the retry flat; it did not
+  make an attempt cheap). Each attempt re-registers every imported
+  declaration, closes the typing context again and decodes usage again,
+  about half a second of work that is a function of the interface set and
+  not of the name. The same prework is what a trivial program pays twice.
+  Hoisting it needs `elaborate-module-with-source-bodies` cut into an
+  import phase and a source phase, which is a refactor of the checker's
+  spine rather than a lookup fix.
+- **`check-global-core`, 25%.** Mostly `checked-definition-error` over every
+  definition in the real elaboration, which is the independent check doing
+  its job; 8% is `close-typing-context-with-usage`, paid per attempt.
+- **`register-external`, 7%.** `imported-foreign-row` scans the declaration
+  list per foreign entry; `Data.Machine` alone has 820.
+- **Emission, 12%.**
+
+### 2.23 What every compile pays before it reads the program (2026-11-19)
+
+The fib smoke compiled against the base interfaces and the library object
+takes about two seconds, and the program accounts for none of it: 66
+interfaces are 2.2 MB of JSON and the object's metadata is 2.8 MB. The suite
+makes thousands of such compiles, so this is the suite's floor.
+
+A `--call-graph dwarf` profile of that compile, before any change:
+
+| Share | Work |
+| ---: | --- |
+| 31% | `Text.Json.parse-json`, 16% for the object metadata and 15% for the interfaces |
+| 37% | two module elaborations (the real one and the totality preliminary), 21% of it decoding usage shapes |
+| 11% | FNV-1a over the object code and each contract, one library call per byte |
+| 7% | `validate-interface-set`, run for the manifest's set and again for the object's |
+| 3% | SHA-256 of the two artifacts |
+
+Two changes landed against it. With each ownership row decoded once
+(section 2.22), a development build without a profile compiles it in 1.36 s
+of CPU; the handoff's profile-guided Stage 2 took 2.05 s, and the two
+binaries are not otherwise comparable. An offset scanner for well-formed
+documents then took the development build to about 1.2 s: `parse-json`
+threads a bare byte offset and builds the value, and declines anything it
+cannot accept, at which point the combinator scanner runs from the start
+and reports exactly what it always reported.
+
+A third change removed a whole second read of the interfaces. The object's
+metadata embeds every interface document beside its hash: 2.2 MB of its
+2.8 MB is the `interfaces` member. The compiler parsed those documents and
+then compared each tree with the one it had already loaded from the
+manifest (`read-known-document`). All 66 files occur byte for byte inside
+the metadata, so a client compile now carves it: a walk over the bytes
+finds each embedded document's span (`Text.Json.json-value-end`), the
+metadata is parsed with `null` in its place, and each span goes to
+`Bootstrap.Load.read-known-source`, which keeps the bytes of every
+interface it read and takes the loaded interface when the bytes are equal.
+A span that differs is parsed and takes the document path as before, and a
+client that cannot carve, or whose carved read fails for any reason, reads
+the metadata whole, so a refusal comes from the path that always produced
+it. The development build's fib compile went from 1.16 s to 1.06 s. What a
+metadata format without the embedded documents would save beyond this is
+the walk itself, about 5%.
+
+The last finding of that round was the emitter's naming, and it is now
+fixed (2026-11-20). Locals, string and number globals, static closures and
+dictionaries, lambdas and recursive workers all drew from the `Writer`'s
+single counter, so an edit renumbered every later function and no shard of
+the module survived it as text: the object cache below reused 46 of 48
+shards when a string constant changed and none when a function was added.
+A local or label is now numbered from a counter `workers` restarts at each
+unit; a constant, static closure or dictionary, lambda or recursive worker
+is named by the unit that asked for it and that unit's counter; metadata
+and anything asked for between units come from a counter that never
+restarts. A unit's name is unique program wide, so the lifted names are
+too, which is also what a module compiled alone needs (section 2.26). The
+module is 7% smaller for it (55.6 MB to 51.7 MB), because the numbers are.
+
+### 2.24 The development chain: stable shards and an object cache (2026-11-19)
+
+`tooling/bootstrap.py build --dev` builds a stage for iteration and not for
+audit: no profile, the module cut into 48 shards by a hash of each
+function's module name, and each shard's object reused from
+`CINCH_SHARD_CACHE` when its text, the clang and the flags are the ones a
+previous compile saw. The balanced partition of `-j` packs groups onto the
+least loaded shard, so one function growing moves the groups after it; the
+stable partition moves a function only when it is renamed, and gives the
+module-level content a shard of its own so a new constant recompiles no
+code.
+
+On the machine above, building Stage 1 from the seed:
+
+| Build | Wall | CPU | Shards compiled |
+| --- | ---: | ---: | ---: |
+| cold | 3 m 41 s | 7 m 00 s | 48 of 48 |
+| after changing one string literal | 2 m 07 s | 1 m 58 s | 2 of 48 |
+
+What is left of the second row is the seed's frontend and the split of a
+305 MB module in Python. A profile compile never uses the cache, because
+its object depends on the path clang is handed, and the audited chain sets
+no cache at all: each stage compiling its own IR is part of what the fixed
+point claims.
+
+`tooling/nix` and `flake.nix` package the pin-keyed half of a cold chain
+(the two cargo release builds and the library object) and the checked
+ladder as separate derivations for a binary cache; `tooling/nix/README.md`
+has the commands.
+
+### 2.25 A per-module chain: what the object mode already does (2026-11-19)
+
+With the repetitions of section 2.22 gone, a stage frontend is two and a
+half minutes of checking spread thin, and its floor for an edit is the
+whole bundle: every module is flattened into one `Main` and elaborated
+together, 92 times over because of the totality retry. The lever that
+remains is to stop compiling the modules an edit did not reach.
+
+The pieces exist. `--emit-object` checks one source against an interface
+manifest and a provider object, and writes the module's checked interface,
+its own object (`<object>.new.o`) and a layer that is the provider plus
+that object with a merged ABI manifest. A probe compiled the compiler's
+modules that way, in import order, each layer the provider of the next:
+
+| Module | Lines | Seconds |
+| --- | ---: | ---: |
+| `Text.Lex` | 1720 | 4.3 |
+| `Bootstrap.Ast` | 1459 | 5.7 |
+| `Bootstrap.Index` | 202 | 2.8 |
+| `Text.Builder` | 196 | 3.2 |
+| `Text.Scan` | 446 | 3.4 |
+| `Text.Parse` | 620 | 3.7 |
+| `Text.Json` | 1225 | refused |
+
+The first six compile unchanged. A module costs about three seconds of
+interface and object loading (section 2.23) plus its own work, which is
+what makes the fixed cost the next thing to remove on this path too.
+`Text.Json` is refused by the library emitter: `constructor needs
+dependent, existential or extended runtime lowering`. The whole-program
+emitter lowers the same module, because it emits only the constructors a
+program reaches and a library roots every exported one.
+
+What a per-module build of the compiler needs, in order:
+
+1. The library emitter's constructor coverage, starting from that refusal.
+2. Roots. A client's demand for a specialisation the provider did not emit
+   is a diagnostic today (`tooling/bootstrap_objects.py`'s
+   `requested_roots` reads it), and the library's root list was grown that
+   way by hand. A build needs the demands as an output of a module's
+   compile, so a provider can be re-emitted with them.
+3. A graph instead of a chain. A layer embeds its provider, so a chain
+   rebuilds everything after an edited module whether or not it imports
+   it. The delta object is already written; the delta of the ABI manifest
+   is the same merge `object-manifest` does, run outside the compiler, and
+   a module's provider is then the merge of its imports' deltas. That is
+   also what lets independent modules compile at once. The import graph of
+   the 52 `Bootstrap` modules has 16 levels and its longest path holds
+   34,600 of 52,600 lines, so the gain is from reuse far more than from
+   width.
+4. Early cutoff. A dependent's key is its source, the compiler, and the
+   contract hashes and ABI deltas of its imports; a body edit that changes
+   neither recompiles one module and relinks.
+
+The audited chain stays whole-program: it is what the fixed point is a
+claim about. A per-module build is a development build, like `--dev`.
+
+### 2.26 The compiler as a graph of modules (2026-11-20)
+
+`tooling/module_build.py` is section 2.25's list, built. It compiles each
+compiler module alone with `--emit-object` against its imports' checked
+interfaces, in import order and as wide as the graph allows, links the
+objects with the entry, and keys every step so that what did not change is
+not redone. The compiler it links emits the development Stage 2 module byte
+for byte, and an incremental build after three edits (two bodies and one new
+export) left the same 178 intermediate files and the same executable as a
+clean build of those sources.
+
+On four cores, the builder a development Stage 2:
+
+| Build | Wall | Recompiled |
+| --- | ---: | --- |
+| from nothing | 166 s | 59 modules, 93 objects |
+| nothing changed | 0.7 s | |
+| a body in `Bootstrap.Infer` (10,113 lines) | 31 s | 1 module, 2 of its 10 objects |
+| a body in `Bootstrap.RuntimeIr` (6,089 lines) | 29 s | 1 module, 2 of 7 |
+| a body in `Bootstrap.Report` (123 lines) | about 6 s | 1 module |
+| a new export in `Bootstrap.Kinds` | 95 s | 16 modules, 1 object |
+
+The whole-program frontend is about 90 s for any edit, before clang.
+
+What each item of section 2.25 turned out to need:
+
+1. **The library emitter.** Three gaps, none of them in constructor
+   lowering as such. Runtime data was registered only for the carriers a
+   program's own declarations resolve, so a family reached through an
+   imported constructor's field had no representation (`Text.Json` builds
+   `ILabel`, and `ITok` carries a `Token`). A root with more than thirteen
+   parameters could not be emitted because every root gets a closure; it is
+   now callable and not a value. And three families exported some of their
+   constructors and not others, which makes the table abstract to an
+   importer; the sources export them whole. Partial export as a feature
+   (the exported constructors usable, the family open) is not implemented.
+2. **Roots.** A client that needs a representation its provider did not
+   emit says so in a diagnostic `requested_roots` already reads. The build
+   adds the request to the exporting module's roots and rebuilds it and
+   what imports it. The compiler needs one (`expand-error` at `[O]`), kept
+   in `bootstrap/module-object-roots.json`.
+3. **A graph.** A module's provider is the base manifest with the deltas of
+   its transitive imports applied in import order, which is the merge
+   `object-manifest` performs. The provider's object is an empty one whose
+   hash the manifest names: a compile reads the object only to check that
+   hash and to copy it. `--emit-object` with an object path of `-` writes
+   the IR, the interfaces and the manifest and assembles nothing, which for
+   `Infer` was a quarter of the compile.
+4. **Early cutoff.** A module's key is its source, its roots, the builder
+   and, for each transitive import, the contract hash and the delta. An
+   interface file also records the hash of its source, which every edit
+   changes and no importer reads, so the key leaves it out; the
+   clean-versus-incremental comparison above is the evidence that it may.
+   A new export still rebuilds every importer, because the delta gained a
+   unit. Keying an importer on the names it reads is the refinement.
+
+Code generation is its own queue. A module's importers start when its
+interface exists; its IR is cut into shards of about 2 MB by the stable
+partition of section 2.24, each a clang job kept by content. Two things made
+that work. A library's workers are local, so the split copied all of them
+into the shard holding the public entry points: `shard_ir.promote_locals`
+renames each local function under a per-module tag and makes it hidden, so
+a shard declares it instead. And the unit-scoped names of section 2.23 are
+what let a function's text survive an edit elsewhere in its module.
+
+A standalone compile of `Infer` is 12 s of checking, 7 s of emission and
+3 s of loading and export, with no single hot spot. The totality retry that
+is 42% of a whole-program compile is 8% of it.
+
+### 2.27 What is next, by what it would buy (2026-11-20)
+
+Each of these was measured or scoped and not started.
+
+- **Split the largest modules.** With the graph build an edit costs its
+  module. `Bootstrap.Infer` is 10,113 lines and 18 s; `RuntimeIr` 6,089
+  and 16 s; the median module is under 5 s. Cutting `Infer` along its own
+  seams (imports, kinds and classes, bodies, laws, totality) would bring
+  its edits to the median and widen the graph, which is 16 levels deep
+  with `Infer` alone on one of them.
+- **Key an importer on the names it reads.** A new export rebuilds every
+  importer, sixteen modules for `Bootstrap.Kinds`, because the exporter's
+  contract hash and delta both change. The resolver knows which imported
+  names a module used; a compile that reported them, with the instance
+  buckets it searched (section 3's negative lookups), would let the build
+  key an importer on those rows alone.
+- **Validate an interface set once.** `validate-interface-set` runs for the
+  manifest's interfaces and again for the object's, about 6% of a small
+  compile each. When every interface the object names was taken from the
+  manifest's set by byte equality and the two sets have the same members,
+  the second run is the first one again.
+- **Call a specialised instance method directly.** The library object has
+  a unit for each method of a parametric instance at each representation
+  (`Data.List.Semigroup_List.<>@O`) and its dictionary row lists them. A
+  client fetches the dictionary and applies the method through `__apply`:
+  1,890 list literals and 995 uses of `<>` in the compiler's module.
+- **The totality retry.** In a whole-program compile it is still 90
+  elaborations, each repeating the import prework. An attempt that
+  succeeds for one name has also elaborated every name in that name's
+  closure, and takes only the one body; harvesting the rest would cut the
+  count without changing which names get bodies, on the same footing the
+  joint attempt already stands on. It matters to the audited chain alone.
+- **`parMap` in the compiler** waits on `String` being `Share`, which
+  `design/parallel-evaluation.md` plans as a `share` attribute with an
+  interface field (schema 11).
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
@@ -3799,6 +4111,44 @@ unattributed red target is not evidence about this change either way.
 - **The tuple scrutinee is only partly removed.** 2,666 sites remain,
   about 52 M blocks. They are mechanical (`case (a, b) of` becomes two
   nested cases), so the rest is a sweep, not a design question.
+
+### 10.7 A library call's primitive body, emitted in place (2026-11-20)
+
+The loop `Text.Json` scans a string with read, per byte, about ten calls
+into the library object: `nat-cmp` four times, `Eq_I64.==` and `Ord_I64.<`
+on its result, `Ord_Nat.<` against the length, `Add_Nat.+`, `bytes-get`,
+each with its counts around it. They are opaque: the library is native
+code, and link-time optimization across that boundary was measured and
+rejected (section 8). But each is an instance method or a one-line wrapper
+over a runtime primitive, and its interface row says so in a checked total
+body: `I64Eq(l0, l1)` for `Eq_I64.==`, `I64Lt(NatCmp(l0, l1), 0)` for
+`Ord_Nat.<`.
+
+`Bootstrap.RuntimeIr.inline-external` emits that tree instead of the call
+when the call is saturated and the body is made only of `I64`
+comparisons, `BoolNot`, `BoolEq`, `NatCmp`, `IntCmp`, `NatAdd`, `IntAdd`
+and `IntSub` over its own parameters and `I64` literals, each parameter
+used exactly once. One use is what keeps the counts right: a unit owns its
+arguments and so does each operation. A `Nat` or `Int` operation tests both
+words for the immediate encoding (`value * 2 + 1`, runtime ABI) and decides
+immediates in place; a heap operand, or a sum outside the immediate range,
+goes to the runtime entry the library's body reaches.
+
+| | before | after |
+| --- | ---: | ---: |
+| call sites into the library, in the compiler's module | 11,266 | 7,522 |
+| fib smoke against the base interfaces, CPU s | 1.52 | 1.24 |
+| self-compile, CPU s | 93 to 96 | 93 to 97 |
+
+Both builds are development Stage 2 at identical settings. The small
+compile is the one the suite makes thousands of times, and it is where
+byte loops dominate; the self-compile's time is in the checker's own work.
+`NatMul`, `IntMul` and anything with a precondition (`Sub_Nat.-`) are still
+calls. So are the two largest remaining families, which are not
+primitives at all: 1,890 list literals fetch the `FromList (List a)`
+dictionary and apply its method, and 995 uses of `<>` do the same with
+`Semigroup (List a)`. A specialised instance method called directly, as a
+closed instance's already is, is the next step there.
 
 ## 11. Benchmark corpus and metrics
 

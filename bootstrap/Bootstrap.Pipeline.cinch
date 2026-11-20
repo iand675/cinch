@@ -24,7 +24,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
-  import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, admit-runtime-object-mode)
+  import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-mode)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
@@ -203,7 +203,7 @@ module Bootstrap.Pipeline where
   emit-admitted-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
   emit-admitted-object-client inlining debug reclaim profile mode manifest object-config source ir = case read-interfaces manifest of
     Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-    Ok interfaces -> case read-runtime-object-mode reclaim interfaces object-config of
+    Ok interfaces -> case read-runtime-object-client-mode reclaim interfaces object-config of
       Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
       Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client inlining debug reclaim profile mode interfaces provider source ir
 
@@ -227,7 +227,7 @@ module Bootstrap.Pipeline where
               Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
               Ok interfaces -> case configuration of
                 Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
-                Ok config -> case admit-runtime-object-mode reclaim interfaces config of
+                Ok config -> case admit-runtime-object-client-mode reclaim interfaces config of
                   Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
                   Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
                     emit-object-client inlining debug reclaim profile EmitWithInterfaces interfaces provider source ir)
@@ -289,7 +289,7 @@ module Bootstrap.Pipeline where
     if not (object-paths-distinct paths) then pipeline-bad-args
     else case read-interfaces manifest of
       Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-      Ok interfaces -> case read-runtime-object-mode reclaim interfaces config of
+      Ok interfaces -> case read-runtime-object-client-mode reclaim interfaces config of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
         Ok (provider, metadata, object-path, object-bytes) ->
           if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
@@ -840,7 +840,10 @@ module Bootstrap.Pipeline where
         Err error -> pipeline-write-failed
         Ok cleared -> case read-interfaces manifest of
           Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-          Ok interfaces -> case read-runtime-object-document interfaces configuration of
+          -- A caller that takes no object (`-`) takes no merged manifest
+          -- either, so the provider's embedded contracts are never written
+          -- back and the carved read a client uses is enough.
+          Ok interfaces -> case (if string-compare object-name "-" == 0 then read-runtime-object-client-mode True interfaces configuration else read-runtime-object-document interfaces configuration) of
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
             Ok (provider, document, provider-path, provider-code) ->
               if not (provider-matches-profile document profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
@@ -872,9 +875,29 @@ module Bootstrap.Pipeline where
   write-library-object profile document closure exported prefix text units facts provider-code ir object abi =
     case fs-write ir (string-to-bytes text) of
       Err error -> pipeline-write-failed
-      Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+      Ok done -> if string-compare (path-to-string object) "-" == 0 then publish-library-module document closure exported prefix text units facts ir abi
+        else case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+          Err error -> pipeline-write-failed
+          Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+  -- An object path of `-` asks for the module without its object: the IR,
+  -- the checked interfaces and what the module adds to a manifest, and no
+  -- assembler or linker run. A build that compiles the IR itself
+  -- (tooling/module_build.py optimises it in pieces and links the modules
+  -- once) has no use for an unoptimised object or for the provider with
+  -- that object merged in, and for a large module producing them is a
+  -- quarter of the compile. It has no use for the provider's manifest
+  -- written out again with the module merged in either: it assembles
+  -- providers itself. So the manifest path receives the module's units and
+  -- its facts alone, the two things `object-manifest` would have merged.
+  publish-library-module :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path ->{IO r, Diverge} Int
+  publish-library-module document closure exported prefix text units facts ir abi =
+    case write-object-interfaces prefix exported of
+      Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
+      Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Err error -> pipeline-write-failed
-        Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+        Ok done -> case fs-write abi (canonical-bytes (JObj "facts" facts (JObj "units" units JObjEnd))) of
+          Err error -> pipeline-write-failed
+          Ok done -> pipeline-ok
   assemble-library-object :: forall r. using (io :: Io r) => String -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
   assemble-library-object triple document closure exported prefix text units facts ir object abi =
     let object-name = path-to-string object in

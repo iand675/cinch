@@ -360,6 +360,26 @@ module Main where
 }
 
 #[test]
+fn copy_dictionaries_follow_the_carrier_through_polymorphic_calls() {
+    let duplicate = r#"module Main where
+  duplicate :: forall a. using (copier :: Copy a) => a -> (a, a)
+  duplicate x = (x, x)
+"#;
+    expect_ok(
+        "tuple-copy-dictionary",
+        &format!("{duplicate}  main :: Int\n  main = case duplicate ((42 :: Int), True) of ((x,b),(y,c)) -> if b && c && x == y then 0 else 1\n"),
+        0,
+    );
+    for (name, declaration) in [
+        ("bytes", "bad :: Bytes -> (Bytes, Bytes)"),
+        ("abstract", "bad :: forall a. a -> (a, a)"),
+    ] {
+        let source = format!("{duplicate}  {declaration}\n  bad x = duplicate x\n  main :: Int\n  main = 0\n");
+        expect_err(name, &source, &["no Copy evidence"]);
+    }
+}
+
+#[test]
 fn copy_class_is_structural_and_not_user_extensible() {
     expect_err(
         "copy-no-evidence",
@@ -414,6 +434,21 @@ module Main where
   main = 0
 "#,
         &["multiplicity %1", "copyOut"],
+    );
+    expect_err(
+        "copy-out-affine-alias",
+        "module Main where\n  steal :: Nat %aff -> Nat\n  steal x = let y = x in copyOut y\n  main :: Int\n  main = 0\n",
+        &["multiplicity %aff", "copyOut"],
+    );
+    expect_err(
+        "copy-out-linear-projection",
+        "module Main where\n  record Pair where\n    first :: Nat\n    second :: Nat\n  get :: Pair %1 -> Nat\n  get p = copyOut p.first\n  main :: Int\n  main = 0\n",
+        &["multiplicity %1", "copyOut"],
+    );
+    expect_ok(
+        "copy-out-borrowed-linear-argument",
+        "module Main where\n  get :: forall r. Ref r Nat %1 -> Nat\n  get x = copyOut x\n  main :: Int\n  main = if get (borrow 42) == 42 then 0 else 1\n",
+        0,
     );
 }
 
@@ -561,6 +596,25 @@ module Main where
 "#,
         0,
     );
+}
+
+#[test]
+fn nested_borrowed_patterns_preserve_the_field_region_and_require_copy() {
+    let source = r#"
+module Main where
+  data Box a where
+    Box :: a -> Box a
+
+  field :: forall a region. Ref region (Box (Box a)) -> Ref region a
+  field pair = case pair of
+    Box (Box value) -> value
+
+  main :: Int
+  main = copyOut (field (borrow (Box (Box 42))))
+"#;
+    expect_ok("nested-shared-field", source, 42);
+    let owned = source.replace("-> Ref region a\n", "-> a\n");
+    expect_err("borrowed-field-is-not-an-owned-value", &owned, &["mismatch", "Ref"]);
 }
 
 #[test]

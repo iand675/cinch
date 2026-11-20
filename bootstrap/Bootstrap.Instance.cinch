@@ -29,9 +29,9 @@ module Bootstrap.Instance where
   export dictionary-field-slot, dictionary-field-definition, field-at, find-instance, instance-closed, instance-contracts-closed
   export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
   export dictionary-method-symbol, scheme-equivalent
-  export FiniteLawSamples, FiniteLawCounterexample, FiniteLawUnavailable, sample-finite-law
+  export FiniteLawResult, FiniteLawSamples, FiniteLawCounterexample, FiniteLawUnavailable, sample-finite-law
   export LawEnvironment, MkLawEnvironment
-  export LawValue, LawNumber, LawOpaque, LawConstructor, LawField, LawFieldsEnd
+  export LawValue, LawNumber, LawOpaque, LawFunction, LawConstructor, LawField, LawFieldsEnd
 
   data CoreClassMethod where
     MkCoreClassMethod :: Span -> String -> Nat -> Scheme -> CoreClassMethod

@@ -308,6 +308,7 @@ module Bootstrap.Contracts where
     EIf s c a b -> expr-references c <> expr-references a <> expr-references b
     ECase s value alts -> expr-references value <> expr-references alts
     EGuarded s guard body -> expr-references guard <> expr-references body
+    EForget s atoms body -> type-references atoms <> expr-references body
     EAnn s body ty -> expr-references body <> type-references ty
     EWith s bs body -> expr-references bs <> expr-references body
     EDoLet s simple bindings -> expr-references bindings
@@ -426,6 +427,7 @@ module Bootstrap.Contracts where
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
     DProof sp body -> declaration-reference body
+    DSpec sp body -> declaration-reference body
     DCorec sp body -> declaration-reference body
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty

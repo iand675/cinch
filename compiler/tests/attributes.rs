@@ -659,7 +659,15 @@ module Main where
         use std::{fs, path::Path};
 
         let addition = "Data.Nat.Add_Nat.+";
-        assert!(ir.lines().any(|l| l.contains("call i64 ") && l.contains(&escaped_llvm_symbol(addition))));
+        // The client reaches the fast path one of two ways. It may call the
+        // object's method, or it may emit the method's published body in
+        // place: two immediates add where they are and anything else goes
+        // to the runtime's addition. Either way the provider's method below
+        // is the wrapper over the tagged primitive.
+        let called = ir.lines().any(|l| l.contains("call i64 ") && l.contains(&escaped_llvm_symbol(addition)));
+        let inlined = ir.lines().any(|l| l.contains("call i64 @cinch_nat_add("))
+            && ir.lines().any(|l| l.starts_with("immediate") && l.ends_with(':'));
+        assert!(called || inlined);
         let configuration = std::env::var_os("CINCH_TEST_OBJECTS").expect("selected library object");
         let config: Value = serde_json::from_slice(&fs::read(configuration).unwrap()).unwrap();
         let metadata = Path::new(config["metadata"].as_str().unwrap());

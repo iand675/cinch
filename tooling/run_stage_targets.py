@@ -47,10 +47,16 @@ def selected_stage_inputs(stage, directory, compiler):
     return manifest.read_bytes(), objects.read_bytes(), library, runtime
 
 
-def setup(stage, out, tree):
+def setup(stage, out, tree, compiler=None):
     directory = bootstrap.BUILD / f'stage{stage}'
-    compiler = directory / 'cinch'
-    manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(stage, directory, compiler)
+    if compiler is None:
+        compiler = directory / 'cinch'
+        manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(stage, directory, compiler)
+    else:
+        # A compiler built outside the chain (tooling/module_build.py) has no
+        # stage receipt. It targets the pinned library like every stage, so
+        # it runs against the pinned provider's interfaces and object.
+        manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(0, directory, compiler)
     manifest = out / 'base-interfaces.json'
     manifest.write_bytes(manifest_bytes)
     objects = out / 'objects.json'
@@ -96,6 +102,26 @@ def run_in_slot(target, env, out, cargo_target):
     return dict(target=target, exit=code, passed=passed, failed=failed, failed_count=failed_count)
 
 
+def prebuild(targets, env, out, cargo_target):
+    """Build every selected test executable in one Cargo invocation.
+
+    Each worker runs `cargo test --test <target>`, and Cargo holds one build
+    lock per target directory, so without this the executables are built one
+    at a time by whichever worker holds the lock while the others wait: 345
+    serial crate builds on however many cores the machine has. One
+    invocation naming every target lets Cargo's own job pool build them side
+    by side, and each worker's build step is then a fingerprint check.
+
+    A target that does not compile is not this step's to report: the
+    worker's own `cargo test` fails on it and its log says why.
+    """
+    command = ['cargo', 'test', '--no-run', '--target-dir', str(cargo_target)]
+    for target in targets:
+        command += ['--test', target]
+    with (out / 'prebuild.log').open('wb') as log:
+        subprocess.run(command, cwd=TREE / 'compiler', env=env, stdout=log, stderr=subprocess.STDOUT)
+
+
 TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'package_link', 'incremental'}
 
 
@@ -136,6 +162,9 @@ def main():
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--cargo-target', type=Path, default=None)
     p.add_argument('--tree', type=Path, default=ROOT)
+    p.add_argument('--compiler', type=Path, default=None,
+                   help='a development compiler to test instead of a stage, for example the '
+                        'one tooling/module_build.py links; it is run against the pinned library')
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--all', action='store_true')
     selection.add_argument('--all-integration', action='store_true', help='run every Cargo integration test target')
@@ -167,17 +196,21 @@ def main():
     # that existed for a few minutes). bootstrap.py takes the same lock
     # exclusively and refuses rather than blocking.
     lock_path = bootstrap.BUILD / '.lock'
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    suite_lock = lock_path.open('a')
-    try:
-        fcntl.flock(suite_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
-    except OSError:
-        sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
-        return 3
+    # A read-only build tree (a Nix store path, see tooling/nix) cannot be
+    # rebuilt under the suite, so it needs no lock and cannot hold one.
+    if os.access(bootstrap.BUILD, os.W_OK) or not bootstrap.BUILD.exists():
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        suite_lock = lock_path.open('a')
+        try:
+            fcntl.flock(suite_lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError:
+            sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
+            return 3
     a.out.mkdir(parents=True, exist_ok=True)
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
-    env = setup(a.stage, a.out.resolve(), a.tree)
     global TREE; TREE = a.tree
+    env = setup(a.stage, a.out.resolve(), a.tree, a.compiler.resolve() if a.compiler else None)
+    prebuild(a.targets, env, a.out.resolve(), a.cargo_target)
     # Cargo releases its build lock before running a test executable. Each
     # worker can start its suite as soon as that executable is ready.
     rows = []

@@ -74,7 +74,7 @@ def main() -> None:
     if not report['runs']:
         guard(250 * 1024 * 1024, 'emit')
         command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)]
-        emitted = run(command, work, 180, {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
+        emitted = run(command, work, 600, {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
         triple = re.search(r'target triple = "([^"]+)"', ir.read_text()).group(1)
         report['runs'].append({'frontend': 'rust', 'case': 'live-effects', 'source_sha256': gate['source_sha256'],
                                'command': command, 'stdout': emitted.stdout, 'stderr': emitted.stderr,

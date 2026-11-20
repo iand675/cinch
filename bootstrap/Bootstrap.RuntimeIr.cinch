@@ -5,7 +5,9 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
+  import Bootstrap.BodyContract (binding-name, binding-native, binding-function)
+  import Bootstrap.Total (TotalFunction, total-body, total-parameters, total-result)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
@@ -25,6 +27,7 @@ module Bootstrap.RuntimeIr where
   import Text.Lex (Span)
   import Data.Json
   import Data.List (split-at)
+  import Data.Nat (nat-from-int)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
@@ -132,10 +135,13 @@ module Bootstrap.RuntimeIr where
     MkUnfoldShape :: Bool -> Nat -> UnfoldShape
   -- Keep emission order in the work list. The index covers both pending
   -- and emitted workers, so finishing a closure releases its Core body.
+  -- The last two fields name things. `scope` is the unit being emitted,
+  -- spelled so it can sit inside a quoted LLVM name, and empty between
+  -- units; `serial` numbers what belongs to the module and to no unit.
   data WorkerQueue where
-    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> WorkerQueue
+    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> String -> Nat -> WorkerQueue
   empty-queue :: WorkerQueue
-  empty-queue = WorkerQueue Nil hash-map-empty False
+  empty-queue = WorkerQueue Nil hash-map-empty False "" 0
 
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
@@ -152,8 +158,41 @@ module Bootstrap.RuntimeIr where
   emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
   global :: Writer -> String -> Writer
   global w text = case w of Writer next globals code errors layouts datas -> Writer next (builder-add-line text globals) code errors layouts datas
+  -- Names come from three places, by what a name has to be unique in.
+  --
+  -- A local or a label is unique in its function. `fresh` numbers those
+  -- from the writer's counter, which `workers` restarts at each unit, so a
+  -- function's text depends on the function and not on how many names the
+  -- units before it used.
+  --
+  -- A constant, a static closure or dictionary, a lambda or a recursive
+  -- worker is unique in the module, and across the modules of a program
+  -- compiled one module at a time. `fresh-scoped` names those by the unit
+  -- that asked and the unit's own counter. A unit's name is already unique
+  -- program wide, so these are too, and an edit to one unit renames nothing
+  -- in another: that is what lets the module's code be cut into pieces
+  -- that are recompiled only when their own text changes, and what lets a
+  -- lifted worker be shared across objects without a second one colliding.
+  --
+  -- Metadata is numbered and module wide by LLVM's rule, and anything asked
+  -- for between units has no unit to be named by. `fresh-serial` numbers
+  -- both from a counter that never restarts.
   fresh :: Writer -> String -> (Writer, String)
   fresh w prefix = case w of Writer next globals code errors layouts datas -> (Writer (next + 1) globals code errors layouts datas, cat [prefix, nat-to-string next])
+  fresh-serial :: Writer -> String -> (Writer, String)
+  fresh-serial w prefix = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+      (Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope (serial + 1)) inlining), cat [prefix, nat-to-string serial])
+  -- `kind` is `.kind` for a worker, whose name `symbol` wraps later, and a
+  -- bare word for a global, whose name is quoted here because a unit's name
+  -- holds characters a bare LLVM name may not.
+  fresh-scoped :: Writer -> String -> (Writer, String)
+  fresh-scoped w prefix = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+      let worker = string-starts-with "." prefix in
+      if same scope "" then fresh-serial w (if worker then prefix else cat ["@", prefix])
+      else (Writer (next + 1) globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining),
+        if worker then cat [scope, prefix, nat-to-string next] else cat ["@\"", scope, ".", prefix, nat-to-string next, "\""])
   refuse :: Writer -> Span -> String -> Writer
   refuse w sp text = case w of Writer next globals code errors layouts datas -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors) layouts datas
   unsupported :: Writer -> Span -> String -> (Writer, String)
@@ -383,6 +422,8 @@ module Bootstrap.RuntimeIr where
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-foreign-plans (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids queue inlining -> case base ty of
+      -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
+      UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> Some 0
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
@@ -540,10 +581,10 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) ->
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
       let key = demand-key demand in case hash-map-lookup key keys of
         Some found -> w
-        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries in
+        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries scope serial in
           Writer next globals code errors layouts (RuntimeContext datas bounds rigids queue inlining)
   demand-worker :: String -> List Nat -> Writer -> Writer
   demand-worker name classes w = request-demand (Demand name classes) w
@@ -783,7 +824,7 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons c rest ->
       let (checked, description) = (if not (constructor-supported context d c) then
-          (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering", 0)
+          (refuse w (Span 0 0 1 1) (cat ["constructor ", core-constructor-name c, " needs dependent, existential or extended runtime lowering"]), 0)
         else case class-vector context (storage-fields d c) of
           None -> (refuse w (Span 0 0 1 1) "constructor field representation is unknown", 0)
           Some codes -> (w, shape-description 1 tag (word-codes codes))) in
@@ -835,7 +876,7 @@ module Bootstrap.RuntimeIr where
   decimal w ty text = case immediate-literal (named ty "Nat") text of
     Some word -> (w, word)
     None ->
-      let (next, name) = fresh w "@number" in
+      let (next, name) = fresh-scoped w "number" in
       let len = nat-to-string (string-length text) in
       let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
       let (ready, result) = fresh declared "%v" in
@@ -876,7 +917,7 @@ module Bootstrap.RuntimeIr where
   string-literal w sp ty text = case (base ty, program-object (writer-program w)) of
     (UCon name KType, Some provider) -> (case object-string-layout name provider of
       Some descriptor ->
-        let (one, storage) = fresh w "@text" in
+        let (one, storage) = fresh-scoped w "text" in
         let size = nat-to-string (bytes-len (string-to-bytes text)) in
         let contents = if same size "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
         let shape = cat ["{ i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
@@ -891,7 +932,7 @@ module Bootstrap.RuntimeIr where
   -- Intern the static UTF-8 name through the same process table as Data.Sym.
   symbol-literal :: Writer -> Span -> UType -> String -> (Writer, String)
   symbol-literal w sp ty text = if not (named ty "Sym") then unsupported w sp "symbol literal requires Sym" else
-    let (named-word, storage) = fresh w "@symbol" in
+    let (named-word, storage) = fresh-scoped w "symbol" in
     let size = nat-to-string (bytes-len (string-to-bytes text)) in
     let declared = global named-word (cat [storage, " = private unnamed_addr constant [", size, " x i8] c\"", llvm-data-bytes text, "\"", ", align 1"]) in
     call declared "@cinch_sym_intern" [cat ["ptrtoint (ptr ", storage, " to i64)"], size]
@@ -1439,7 +1480,10 @@ module Bootstrap.RuntimeIr where
             [CEInstance location receiver factory Nil (CEArgumentsEnd end)] ->
               (case closed-method-unit w name owner slot actuals factory of
                 Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
-                  external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
+                  (let noted = note-version owner slot Nil w in
+                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (program-bindings (writer-program w))) unit (mono function) Nil (arguments term Nil) of
+                     Some lowered -> lowered
+                     None -> external-call-unit definitions locals noted sp unit (mono function) Nil (arguments term Nil))
                   else indirect-application definitions locals w f x
                 None -> indirect-application definitions locals w f x)
             other -> indirect-application definitions locals w f x)
@@ -1569,7 +1613,7 @@ module Bootstrap.RuntimeIr where
   static-closure :: Span -> String -> List Nat -> Writer -> (Writer, String)
   static-closure sp name classes w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
     (planned, descriptor) ->
-      let (declared, storage) = fresh planned "@closure" in
+      let (declared, storage) = fresh-scoped planned "closure" in
       let skip = static-prefix-words descriptor in
       let block = cat ["[", nat-to-string (4 + skip), " x i64]"] in
       let stored = static-block declared storage descriptor 2 [StaticAddress (symbol (cat [name, ".app"])), StaticBits (list-length classes), StaticBits 0] in
@@ -2199,7 +2243,7 @@ module Bootstrap.RuntimeIr where
   primitive-immediate-metadata :: List Nat -> Writer -> (Writer, String)
   primitive-immediate-metadata indices w = case indices of
     Nil -> (w, "")
-    other -> let (next, name) = fresh w "!" in
+    other -> let (next, name) = fresh-serial w "!" in
       (global next (cat [name, " = !{", join (map (\index -> cat ["i32 ", nat-to-string index]) indices), "}"]), cat [" !immarg ", name])
   primitive-intrinsics :: List String -> Writer -> Writer
   primitive-intrinsics symbols w = case symbols of
@@ -2449,10 +2493,226 @@ module Bootstrap.RuntimeIr where
           Some (owner, dictionary, slot) -> object-conditional-unit owner dictionary slot name codes provider
           None -> object-variant name codes provider) in
           case variant of
-          Some unit -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args
+          Some unit -> (case inline-external definitions locals w name unit (concrete-scheme (checked-scheme binding) actuals) givens args of
+            Some lowered -> lowered
+            None -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args)
           None -> unsupported w sp (cat ["checked external variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
         None -> unsupported w sp "external function needs checked representation specialization")
       None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name]))
+  -- A saturated call to an imported unit whose interface publishes its
+  -- total body as a tree of primitives is that tree, emitted here.
+  --
+  -- `x == y` at `I64`, `n < m` at `Nat`, `not b` and `n + 1` are library
+  -- functions: an instance method or a one-line wrapper over a runtime
+  -- primitive. A client called each one in the library object, which no
+  -- optimiser can see into, so a loop over bytes made a dozen opaque calls
+  -- per byte. The interface already states what each computes
+  -- (`total_body`: `I64Eq(NatCmp(l0, l1), 0)` for `Eq_Nat.==`), and that
+  -- statement is a checked contract, so emitting it is emitting the callee.
+  --
+  -- Only a body made of the operations below, over its own parameters and
+  -- `I64` literals, each parameter used exactly once, is taken. One use
+  -- matters: a unit owns its arguments, and so does each operation here,
+  -- so a parameter used once is consumed once and the counts are the
+  -- call's. Anything else is called as before.
+  --
+  -- `Nat` and `Int` operations test for the immediate encoding the runtime
+  -- ABI fixes (an odd word is `value * 2 + 1`, compiler/runtime/src/abi.rs)
+  -- and decide those in place; a heap operand, or a sum that leaves the
+  -- immediate range, goes to the runtime entry that the library's own body
+  -- reaches.
+  inline-external :: List CoreDefinition -> List Local -> Writer -> String -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-external definitions locals w name unit sc givens args =
+    inline-total definitions locals w (imported-total-body name (program-bindings (writer-program w))) unit sc givens args
+  -- The same for a unit whose body was found: a value's by its checked
+  -- name, a closed instance method's by the unit it resolved to.
+  --
+  -- The unit is still the authority on what the call is. A body is taken
+  -- only where the call would have been admitted: the provider's word ABI
+  -- for the unit agrees with the checked scheme. Where it does not, the
+  -- call path refuses the program, as it did before any body was inlined.
+  inline-total :: List CoreDefinition -> List Local -> Writer -> Option TotalFunction -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-total definitions locals w found unit sc givens args = case givens of
+    Nil -> if list-length args /= list-length (unit-params unit) || not (inline-abi-agrees w unit sc) then None else
+      (case found of
+        None -> None
+        Some function -> let body = total-body function in
+          let count = list-length (total-parameters function) in
+          if count /= list-length args || not (inline-sort (total-result function)) || not (inline-sorts (total-parameters function))
+            || not (inline-body body) || not (inline-linear (inline-slots body) count) then None
+          else (case expressions definitions locals w args of
+            (ready, values) -> Some (inline-term ready values body)))
+    other -> None
+  inline-abi-agrees :: Writer -> RuntimeUnit -> Scheme -> Bool
+  inline-abi-agrees w unit sc = case scheme-requirements sc of
+    Nil -> (case external-shape (list-length (unit-params unit)) (scheme-body sc) Nil of
+      Some (params, result-type) -> (case (class-vector (writer-context w) params, word-class (writer-context w) result-type, unit-result unit) of
+        (Some expected, Some result, Some actual-result) -> same-classes expected (unit-params unit) && result == actual-result
+        other -> False)
+      None -> False)
+    other -> False
+  imported-total-body :: String -> List CheckedBinding -> Option TotalFunction
+  imported-total-body name bindings = case bindings of
+    Nil -> None
+    Cons first rest -> (case checked-body-binding first of
+      Some body -> if same name (binding-name body) then Some (binding-function body) else imported-total-body name rest
+      None -> imported-total-body name rest)
+  imported-native-body :: String -> List CheckedBinding -> Option TotalFunction
+  imported-native-body native bindings = case bindings of
+    Nil -> None
+    Cons first rest -> (case checked-body-binding first of
+      Some body -> if same native (binding-native body) then Some (binding-function body) else imported-native-body native rest
+      None -> imported-native-body native rest)
+  inline-sort :: String -> Bool
+  inline-sort sort = same sort "I64" || same sort "Nat" || same sort "Int" || same sort "Bool"
+  inline-sorts :: List String -> Bool
+  inline-sorts sorts = case sorts of Nil -> True; Cons first rest -> inline-sort first && inline-sorts rest
+  body-field :: String -> Json -> Json
+  body-field name doc = case doc of JObj key value rest -> if same name key then value else body-field name rest; other -> JNull
+  body-node :: Json -> String
+  body-node doc = case body-field "node" doc of JStr kind -> kind; other -> ""
+  body-operation :: Json -> String
+  body-operation doc = case body-field "operation" doc of JStr operation -> operation; other -> ""
+  -- The operations emitted in place, with the number of operands each takes.
+  inline-operation :: String -> Option Nat
+  inline-operation operation =
+    if same operation "I64Eq" || same operation "I64Ne" || same operation "I64Lt" || same operation "I64Le"
+      || same operation "I64Gt" || same operation "I64Ge" || same operation "BoolEq"
+      || same operation "NatCmp" || same operation "IntCmp" || same operation "NatAdd" || same operation "IntAdd" || same operation "IntSub" then Some 2
+    else if same operation "BoolNot" then Some 1
+    else None
+  inline-body :: Json -> Bool
+  inline-body body =
+    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> 0 <= slot; other -> False)
+    else if same (body-node body) "number" then (case (body-field "sort" body, body-field "decimal" body) of
+      (JStr sort, JStr decimal) -> same sort "I64" && constant-word decimal
+      other -> False)
+    else if same (body-node body) "primitive" then (case inline-operation (body-operation body) of
+      Some arity -> inline-arguments (body-field "arguments" body) arity
+      None -> False)
+    else False
+  inline-arguments :: Json -> Nat -> Bool
+  inline-arguments arguments arity = case arguments of
+    JArr first rest -> arity > 0 && inline-body first && inline-arguments rest (arity - 1)
+    JArrEnd -> arity == 0
+    other -> False
+  inline-slots :: Json -> List Nat
+  inline-slots body =
+    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> if 0 <= slot then [nat-from-int slot] else Nil; other -> Nil)
+    else if same (body-node body) "primitive" then inline-argument-slots (body-field "arguments" body)
+    else Nil
+  inline-argument-slots :: Json -> List Nat
+  inline-argument-slots arguments = case arguments of
+    JArr first rest -> inline-slots first <> inline-argument-slots rest
+    other -> Nil
+  -- Every parameter exactly once: as many uses as parameters, each in
+  -- range, none twice.
+  inline-linear :: List Nat -> Nat -> Bool
+  inline-linear slots count = list-length slots == count && inline-distinct slots count
+  inline-distinct :: List Nat -> Nat -> Bool
+  inline-distinct slots count = case slots of
+    Nil -> True
+    Cons first rest -> first < count && not (inline-slot-member first rest) && inline-distinct rest count
+  inline-slot-member :: Nat -> List Nat -> Bool
+  inline-slot-member slot slots = case slots of Nil -> False; Cons first rest -> first == slot || inline-slot-member slot rest
+  inline-value :: List String -> Nat -> String
+  inline-value values slot = case values of
+    Nil -> "0"
+    Cons first rest -> if slot == 0 then first else inline-value rest (slot - 1)
+  inline-term :: Writer -> List String -> Json -> (Writer, String)
+  inline-term w values body =
+    if same (body-node body) "local" then (case body-field "slot" body of
+      JNum slot -> if 0 <= slot then (w, inline-value values (nat-from-int slot)) else (w, "0")
+      other -> (w, "0"))
+    else if same (body-node body) "number" then (case body-field "decimal" body of JStr decimal -> (w, decimal); other -> (w, "0"))
+    else (case body-field "arguments" body of
+      JArr first (JArr second JArrEnd) -> (case inline-term w values first of
+        (one, left) -> case inline-term one values second of
+          (two, right) -> inline-binary two (body-operation body) left right)
+      JArr first JArrEnd -> (case inline-term w values first of
+        (one, operand) -> let (two, result) = fresh one "%v" in (line two (cat ["  ", result, " = xor i64 ", operand, ", 1"]), result))
+      other -> (w, "0"))
+  inline-binary :: Writer -> String -> String -> String -> (Writer, String)
+  inline-binary w operation left right =
+    if same operation "I64Eq" || same operation "BoolEq" then compare-word w "eq" left right
+    else if same operation "I64Ne" then compare-word w "ne" left right
+    else if same operation "I64Lt" then compare-word w "slt" left right
+    else if same operation "I64Le" then compare-word w "sle" left right
+    else if same operation "I64Gt" then compare-word w "sgt" left right
+    else if same operation "I64Ge" then compare-word w "sge" left right
+    else if same operation "NatCmp" then inline-ordering w (UCon "Nat" KType) "u" "@cinch_nat_cmp" left right
+    else if same operation "IntCmp" then inline-ordering w (UCon "Int" KType) "s" "@cinch_int_cmp" left right
+    else if same operation "NatAdd" then inline-arithmetic w (UCon "Nat" KType) operation "@cinch_nat_add" left right
+    else if same operation "IntAdd" then inline-arithmetic w (UCon "Int" KType) operation "@cinch_int_add" left right
+    else inline-arithmetic w (UCon "Int" KType) operation "@cinch_int_sub" left right
+  -- Both words odd means both are immediates. `fast` is where control goes
+  -- when they are and `slow` where it goes otherwise.
+  inline-immediates :: Writer -> String -> String -> String -> String -> Writer
+  inline-immediates w left right fast slow =
+    let (one, both) = fresh w "%v" in
+    let (two, tag) = fresh one "%v" in
+    let (three, immediate) = fresh two "%v" in
+    emit-lines three [cat ["  ", both, " = and i64 ", left, ", ", right], cat ["  ", tag, " = and i64 ", both, ", 1"],
+      cat ["  ", immediate, " = icmp ne i64 ", tag, ", 0"], cat ["  br i1 ", immediate, ", label %", fast, ", label %", slow]]
+  -- The runtime entry on the operands as they are, which it borrows, then
+  -- the two counts the operation owes.
+  inline-runtime :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-runtime w ty entry left right join-label = case call w entry [left, right] of
+    (called, result) -> (line (count-op False ty right (count-op False ty left called)) (cat ["  br label %", join-label]), result)
+  -- An immediate's word orders as its value does: unsigned for a `Nat`,
+  -- whose payload is the word's upper 63 bits, and signed for an `Int`.
+  -- The result is the ordering word the runtime answers with: -1, 0 or 1.
+  inline-ordering :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-ordering w ty sign entry left right =
+    let (one, fast) = fresh w "immediate" in
+    let (two, slow) = fresh one "boxed" in
+    let (three, joined) = fresh two "ordered" in
+    let (four, greater) = fresh (line (inline-immediates three left right fast slow) (cat [fast, ":"])) "%v" in
+    let (five, less) = fresh four "%v" in
+    let (six, above) = fresh five "%v" in
+    let (seven, below) = fresh six "%v" in
+    let (eight, quick) = fresh seven "%v" in
+    let decided = emit-lines eight [cat ["  ", greater, " = icmp ", sign, "gt i64 ", left, ", ", right], cat ["  ", less, " = icmp ", sign, "lt i64 ", left, ", ", right],
+      cat ["  ", above, " = zext i1 ", greater, " to i64"], cat ["  ", below, " = zext i1 ", less, " to i64"],
+      cat ["  ", quick, " = sub i64 ", above, ", ", below], cat ["  br label %", joined], cat [slow, ":"]] in
+    case inline-runtime decided ty entry left right joined of
+      (called, general) -> let (done, result) = fresh (line called (cat [joined, ":"])) "%v" in
+        (line done (cat ["  ", result, " = phi i64 [ ", quick, ", %", fast, " ], [ ", general, ", %", slow, " ]"]), result)
+  -- Two immediates add or subtract in place when the result is one too.
+  -- With `a = 2x + 1` and `b = 2y + 1`: `(a - 1) + b` is `2(x + y) + 1`, and
+  -- `(a - b) | 1` is `2(x - y) + 1`. The 64-bit operation overflows exactly
+  -- when the result leaves the immediate range (unsigned for a `Nat`,
+  -- signed for an `Int`), and then the runtime entry builds the answer.
+  inline-arithmetic :: Writer -> UType -> String -> String -> String -> String -> (Writer, String)
+  inline-arithmetic w ty operation entry left right =
+    let (one, fast) = fresh w "immediate" in
+    let (two, slow) = fresh one "boxed" in
+    let (three, kept) = fresh two "small" in
+    let (four, joined) = fresh three "summed" in
+    let started = line (inline-immediates four left right fast slow) (cat [fast, ":"]) in
+    let (five, lowered) = fresh started "%v" in
+    let (six, total) = fresh five "%v" in
+    let (seven, overflow) = fresh six "%v" in
+    let subtraction = same operation "IntSub" in
+    let computed = (if subtraction then
+        emit-lines seven [cat ["  ", lowered, " = sub i64 ", left, ", ", right], cat ["  ", total, " = or i64 ", lowered, ", 1"]]
+      else emit-lines seven [cat ["  ", lowered, " = sub i64 ", left, ", 1"], cat ["  ", total, " = add i64 ", lowered, ", ", right]]) in
+    let (tested, quick) = (if same operation "NatAdd" then
+        (line computed (cat ["  ", overflow, " = icmp ult i64 ", total, ", ", right]), total)
+      else
+        -- Signed overflow: the operands' signs agree with each other (or,
+        -- for a difference, disagree) and not with the result's.
+        (let (eight, first) = fresh computed "%v" in
+         let (nine, second) = fresh eight "%v" in
+         let (ten, mixed) = fresh nine "%v" in
+         let checked = (if subtraction then
+             emit-lines ten [cat ["  ", first, " = xor i64 ", left, ", ", right], cat ["  ", second, " = xor i64 ", left, ", ", lowered]]
+           else emit-lines ten [cat ["  ", first, " = xor i64 ", lowered, ", ", total], cat ["  ", second, " = xor i64 ", right, ", ", total]]) in
+         (emit-lines checked [cat ["  ", mixed, " = and i64 ", first, ", ", second], cat ["  ", overflow, " = icmp slt i64 ", mixed, ", 0"]], total))) in
+    let branched = emit-lines tested [cat ["  br i1 ", overflow, ", label %", slow, ", label %", kept], cat [kept, ":"], cat ["  br label %", joined], cat [slow, ":"]] in
+    case inline-runtime branched ty entry left right joined of
+      (called, general) -> let (done, result) = fresh (line called (cat [joined, ":"])) "%v" in
+        (line done (cat ["  ", result, " = phi i64 [ ", quick, ", %", kept, " ], [ ", general, ", %", slow, " ]"]), result)
   external-call-unit :: List CoreDefinition -> List Local -> Writer -> Span -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> (Writer, String)
   external-call-unit definitions locals w sp unit sc givens args =
         let evidence-count = list-length (scheme-requirements sc) in
@@ -2468,7 +2728,8 @@ module Bootstrap.RuntimeIr where
                 (case expressions definitions locals ready args of (next, values) -> typed-call next (value-llvm (writer-context w) result-type) (llvm-object-symbol (unit-symbol unit)) (typed-values typed (givens <> values)))
               else if wide-code (Cons result expected) then unsupported w sp wide-refusal
               else if list-length args < list-length params then
-                (case call ready (llvm-object-symbol (unit-closure unit)) Nil of
+                (if native-count > 13 then unsupported w sp "closure shape needs an extended runtime descriptor" else
+                case call ready (llvm-object-symbol (unit-closure unit)) Nil of
                   (next, closure-value) -> case apply-words next closure-value givens of (applied, value) -> apply-terms definitions locals applied value args)
               else (case expressions definitions locals ready (take-terms (list-length params) args) of
                 (next, values) -> case typed-call next (value-llvm (writer-context w) result-type) (llvm-object-symbol (unit-symbol unit)) (typed-values typed (givens <> values)) of
@@ -2487,7 +2748,9 @@ module Bootstrap.RuntimeIr where
         && runtime-type-equal (scheme-body (core-constructor-scheme ctor)) (UCon owner KType) ->
           direct-call Nil locals w sp name Nil Nil
       other -> unsupported w sp "nullary index constructor needs its checked defining family")
-    UIndexMeasure BufferLength input -> index-expression locals w sp (UIndexByteLength input)
+    UIndexMeasure BufferLength input -> (case typed-index-carrier input of
+      Some carrier -> (case index-expression locals w sp input of (ready, word) -> length-word ready sp carrier word)
+      None -> unsupported w sp "length needs its checked operand carrier")
     UIndexMeasure WordToNat input -> (case index-expression locals w sp input of
       (ready, word) -> call ready "@cinch_nat_from_i64" [word])
     UIndexByteLength input -> (case index-expression locals w sp input of
@@ -2509,6 +2772,7 @@ module Bootstrap.RuntimeIr where
       None -> unsupported w sp "index arithmetic has no checked carrier")
     other -> (case (value-carrier (type-kind value), index-of-type value) of
       (Some carrier, Some (IRigid id name level)) -> read-index-local locals w sp id carrier
+      (Some carrier, Some (ICharacter c)) -> if named carrier "Char" then (w, nat-to-string (char-code c)) else unsupported w sp "character index needs its Char carrier"
       (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else unsupported w sp "index literal needs a runtime integer carrier"
       (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
       (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
@@ -2758,6 +3022,7 @@ module Bootstrap.RuntimeIr where
   has-strict-values w owner fields = case fields of Nil -> False; Cons first rest -> strict-value-field w owner first || has-strict-values w owner rest
   evidence-value :: List CoreDefinition -> List Local -> Writer -> CoreEvidence -> (Writer, String)
   evidence-value definitions locals w evidence = case evidence of
+    CECopy sp carrier -> if copy-marker-carrier carrier then (w, "0") else unsupported w sp "invalid structural Copy marker"
     CEGiven sp ty symbol -> (case known-self symbol locals of
       Some (KnownSelf name owner classes context) -> case instance-named owner (program-instances (writer-program w)) of
         Some factory -> if has-strict-values w factory (instance-fields factory) then unsupported w sp "materializing self evidence with strict value fields needs initialization dependencies" else
@@ -2971,7 +3236,7 @@ module Bootstrap.RuntimeIr where
               let fixed = if list-length context == 0 && not (has-strict-values started factory (instance-fields factory)) then static-dictionary-fields factory classes count plans started else None in
               case fixed of
                 Some (ready, words) ->
-                  let (declared, storage) = fresh ready "@dictionary" in
+                  let (declared, storage) = fresh-scoped ready "dictionary" in
                   let skip = static-prefix-words descriptor in
                   let block = cat ["[", nat-to-string (count + 2 + skip), " x i64]"] in
                   let stored = static-block declared storage descriptor 3 (Cons (StaticBits count) (physical-words 0 count words)) in
@@ -3175,7 +3440,7 @@ module Bootstrap.RuntimeIr where
     if wide-type (writer-context w) (final-result (core-type body)) then unsupported w sp wide-refusal else
     case class-vector (writer-context w) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
-      Some classes -> let (named, name) = fresh w ".lambda" in
+      Some classes -> let (named, name) = fresh-scoped w ".lambda" in
         (case writer-context named of
           RuntimeContext datas bounds rigids queue inlining ->
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
@@ -3190,7 +3455,7 @@ module Bootstrap.RuntimeIr where
   plan-recursive-workers :: CoreTerm -> Writer -> (Writer, List RecursiveWorker)
   plan-recursive-workers members w = case members of
     CRecursiveBindingsEnd -> (w, Nil)
-    CRecursiveBinding id display value rest -> let (named, name) = fresh w ".rec" in
+    CRecursiveBinding id display value rest -> let (named, name) = fresh-scoped w ".rec" in
       let (parameters, body) = recursive-parameters Nil value in
       case plan-recursive-workers rest named of
         (done, more) -> (done, Cons (RecursiveWorker id (core-type value) name parameters body) more)
@@ -3626,11 +3891,11 @@ module Bootstrap.RuntimeIr where
         other -> let (ready, pointer) = fresh w "%ptr" in
           match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]))
       CPConstructor sp ty name actuals sc fields ->
-        if decision-word-type ty && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
+        if decision-word-type (shared-pattern-carrier ty) && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
           (case constructor-tag w value of
             (loaded, actual) -> case compare-word loaded "eq" actual (if same name "b.Yes" then "0" else "1") of
               (compared, condition) -> (continue-if compared condition failed, Nil))
-        else if named ty "Bool" && (same name "True" || same name "False") then
+        else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-program w) of
@@ -4218,8 +4483,8 @@ module Bootstrap.RuntimeIr where
       -- not the 0/1 the chain's kernel test compares, so the switch keeps
       -- the chain for it rather than naming cases no value can have.
       CPConstructor sp ty name actuals sc fields ->
-        if decision-word-type ty then NoArm
-        else if named ty "Bool" && (same name "True" || same name "False") then
+        if decision-word-type (shared-pattern-carrier ty) then NoArm
+        else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> if uniform-owner owner w && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
@@ -4603,11 +4868,101 @@ module Bootstrap.RuntimeIr where
   wide-knot context members = case members of
     CRecursiveBinding id name value rest -> wide-type context (core-type value) || wide-knot context rest
     other -> False
+  -- Hold the root throughout the walk. Each next pointer is a borrow
+  -- from that root; only the root is released when the walk finishes.
+  length-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  length-word w sp carrier root = if named carrier "Bytes" then (case call w "@cinch_bytes_len" [root] of
+    (measured, length) -> call (count-op False carrier root measured) "@cinch_nat_from_i64" [length])
+    else case core-list-element carrier of
+      Some element | array-list-abi w ->
+        let (a, entry) = fresh w "length-entry" in let (b, loop) = fresh a "length-loop" in
+        let (c, step) = fresh b "length-step" in let (d, end) = fresh c "length-end" in
+        let (e, cell) = fresh d "%v" in let (f, next) = fresh e "%v" in
+        let (g, count) = fresh f "%v" in let (h, more) = fresh g "%v" in
+        let start = emit-lines h [cat ["  br label %", entry], cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"],
+          cat ["  ", cell, " = phi i64 [ ", root, ", %", entry, " ], [ ", next, ", %", step, " ]"],
+          cat ["  ", count, " = phi i64 [ 0, %", entry, " ], [ ", more, ", %", step, " ]"]] in
+        (case constructor-tag start cell of
+          (tagged, tag) -> let (i, empty) = fresh tagged "%v" in let (j, ptr) = fresh i "%ptr" in let (k, slot) = fresh j "%ptr" in
+            let walked = emit-lines k [cat ["  ", empty, " = icmp eq i64 ", tag, ", 0"], cat ["  br i1 ", empty, ", label %", end, ", label %", step],
+              cat [step, ":"], cat ["  ", ptr, " = inttoptr i64 ", cell, " to ptr"],
+              cat ["  ", slot, " = getelementptr i64, ptr ", ptr, ", i64 ", if wide-type (writer-context w) element then "2" else "1"],
+              cat ["  ", next, " = load i64, ptr ", slot], cat ["  ", more, " = add i64 ", count, ", 1"],
+              cat ["  br label %", loop], cat [end, ":"]] in
+            call (count-op False carrier root walked) "@cinch_nat_from_i64" [count])
+      other -> unsupported w sp "length needs its checked list layout"
+  -- Hold the input across the scan. Char code points and UTF-8 bytes are
+  -- ASCII exactly when each unsigned word is below 128.
+  ascii-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  ascii-word w sp carrier root = case carrier of
+    UCon name KType | checked-string-word name (writer-program w) -> (case string-bytes w root of
+      (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
+        (measured, count) -> ascii-loop measured carrier root (Some (bytes, count)))
+    other -> if ascii-carrier carrier && array-list-abi w && (case core-list-element carrier of Some element -> True; None -> False)
+      then ascii-loop w carrier root None else unsupported w sp "Ascii needs its checked string or char-list layout"
+  ascii-loop :: Writer -> UType -> String -> Option (String, String) -> (Writer, String)
+  ascii-loop w carrier root buffer =
+    let (a, entry) = fresh w "ascii-entry" in let (b, loop) = fresh a "ascii-loop" in
+    let (c, read) = fresh b "ascii-read" in let (d, step) = fresh c "ascii-step" in
+    let (e, yes) = fresh d "ascii-yes" in let (f, no) = fresh e "ascii-no" in
+    let (g, end) = fresh f "ascii-end" in let (h, cursor) = fresh g "%v" in
+    let (i, next) = fresh h "%v" in let (j, done) = fresh i "%v" in
+    let (k, valid) = fresh j "%v" in let (m, result) = fresh k "%v" in
+    let initial = case buffer of Some pair -> "0"; None -> root in
+    let start = emit-lines m [cat ["  br label %", entry], cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"],
+      cat ["  ", cursor, " = phi i64 [ ", initial, ", %", entry, " ], [ ", next, ", %", step, " ]"]] in
+    let (checked, test, limit) = case buffer of Some (bytes, size) -> (start, cursor, size); None -> case constructor-tag start cursor of (tagged, tag) -> (tagged, tag, "0") in
+    let body = emit-lines checked [cat ["  ", done, " = icmp eq i64 ", test, ", ", limit],
+      cat ["  br i1 ", done, ", label %", yes, ", label %", read], cat [read, ":"]] in
+    let (loaded, unit, advance) = case buffer of
+          Some (bytes, size) -> (case call body "@cinch_bytes_get" [bytes, cursor] of
+            (got, value) -> (got, value, [cat ["  ", next, " = add i64 ", cursor, ", 1"]]))
+          None -> let (p, ptr) = fresh body "%ptr" in let (q, head) = fresh p "%v" in let (r, tail) = fresh q "%ptr" in
+            (emit-lines r [cat ["  ", ptr, " = inttoptr i64 ", cursor, " to ptr"], cat ["  ", head, " = load i64, ptr ", ptr]], head,
+             [cat ["  ", tail, " = getelementptr i64, ptr ", ptr, ", i64 1"], cat ["  ", next, " = load i64, ptr ", tail]]) in
+    let scanned = emit-lines loaded ([cat ["  ", valid, " = icmp ult i64 ", unit, ", 128"],
+      cat ["  br i1 ", valid, ", label %", step, ", label %", no], cat [step, ":"]] <> advance <>
+      [cat ["  br label %", loop], cat [yes, ":"], cat ["  br label %", end], cat [no, ":"], cat ["  br label %", end],
+       cat [end, ":"], cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]]) in
+    (count-op False carrier root scanned, result)
+
+  -- Compare adjacent borrowed heads while the root keeps the whole spine
+  -- alive. Mathematical integers use their arbitrary-precision comparison.
+  ordered-word :: Writer -> Span -> UType -> String -> (Writer, String)
+  ordered-word w sp carrier root = case core-list-element carrier of
+    Some element | ordered-carrier carrier && array-list-abi w ->
+      let (a, entry) = fresh w "ordered-entry" in let (b, loop) = fresh a "ordered-loop" in
+      let (c, read) = fresh b "ordered-read" in let (d, step) = fresh c "ordered-step" in
+      let (e, yes) = fresh d "ordered-yes" in let (f, no) = fresh e "ordered-no" in
+      let (g, end) = fresh f "ordered-end" in let (h, cell) = fresh g "%v" in
+      let (i, next) = fresh h "%v" in let (j, empty) = fresh i "%v" in let (k, last) = fresh j "%v" in
+      let (m, ptr) = fresh k "%ptr" in let (n, slot) = fresh m "%ptr" in
+      let (tagged, tag) = constructor-tag n root in
+      let start = emit-lines tagged [cat ["  ", empty, " = icmp eq i64 ", tag, ", 0"], cat ["  br i1 ", empty, ", label %", yes, ", label %", entry],
+        cat [entry, ":"], cat ["  br label %", loop], cat [loop, ":"], cat ["  ", cell, " = phi i64 [ ", root, ", %", entry, " ], [ ", next, ", %", step, " ]"],
+        cat ["  ", ptr, " = inttoptr i64 ", cell, " to ptr"], cat ["  ", slot, " = getelementptr i64, ptr ", ptr, ", i64 1"], cat ["  ", next, " = load i64, ptr ", slot]] in
+      let (found, next-tag) = constructor-tag start next in
+      let (o, next-ptr) = fresh found "%ptr" in let (p, left) = fresh o "%v" in let (q, right) = fresh p "%v" in
+      let pair = emit-lines q [cat ["  ", last, " = icmp eq i64 ", next-tag, ", 0"], cat ["  br i1 ", last, ", label %", yes, ", label %", read],
+        cat [read, ":"], cat ["  ", next-ptr, " = inttoptr i64 ", next, " to ptr"], cat ["  ", left, " = load i64, ptr ", ptr], cat ["  ", right, " = load i64, ptr ", next-ptr]] in
+      let (compared, order) = call pair "@cinch_nat_cmp" [left, right] in
+      let (r, ok) = fresh compared "%v" in let (t, result) = fresh r "%v" in
+      let finished = emit-lines t [cat ["  ", ok, " = icmp sle i64 ", order, ", 0"], cat ["  br i1 ", ok, ", label %", step, ", label %", no],
+        cat [step, ":"], cat ["  br label %", loop], cat [yes, ":"], cat ["  br label %", end], cat [no, ":"], cat ["  br label %", end], cat [end, ":"],
+        cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]] in (count-op False carrier root finished, result)
+    other -> unsupported w sp "Ordered needs its checked numeric-list layout"
+
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args = case args of
     CArgumentsEnd at | same op "#unhandled-operation" -> let (ready, dead) = fresh w "afterfault" in
       (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.ordered" -> (case expression definitions locals w input of
+      (ready, value) -> ordered-word ready sp (core-type input) value)
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.ascii" -> (case expression definitions locals w input of
+      (ready, value) -> ascii-word ready sp (core-type input) value)
+    CArgument at input (CArgumentsEnd end) | same op "#kernel.length" -> (case expression definitions locals w input of
+      (ready, value) -> length-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
       else if same op "memo-demand" then memo-demand definitions locals w sp ty input
       else if same op "borrow" || same op "thunk-delay" then expression definitions locals w input
@@ -5231,7 +5586,7 @@ module Bootstrap.RuntimeIr where
     Nil -> w
     Cons arg rest -> store-loop-arguments rest (index + 1) (line w (cat ["  store i64 ", arg, ", ptr %arg", nat-to-string index, ".slot"]))
   loop-metadata :: String -> Writer -> (Writer, String)
-  loop-metadata count w = let (one, node) = fresh w "!" in let (two, property) = fresh one "!" in
+  loop-metadata count w = let (one, node) = fresh-serial w "!" in let (two, property) = fresh-serial one "!" in
     let value = if same count "0" then "llvm.loop.unroll.disable\"}" else "llvm.loop.unroll.count\", i32 " <> count <> "}" in
     (global (global two (cat [node, " = distinct !{", node, ", ", property, "}"])) (cat [property, " = !{!\"", value]), node)
   start-tail-worker :: String -> String -> Nat -> Nat -> Bool -> Writer -> Writer
@@ -5294,11 +5649,14 @@ module Bootstrap.RuntimeIr where
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) -> case pending of
-      Nil -> w
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) -> case pending of
+      -- Between units nothing is in scope, so a later name is the module's.
+      Nil -> Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue Nil keys dictionaries "" serial) inlining)
       Cons demand rest ->
         let emitted-dictionary = dictionaries || (case demand of DictionaryDemand name classes -> True; other -> False) in
-        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary) inlining) in
+        -- A unit starts its own numbering and names what it lifts by its
+        -- demand key, which is what makes the unit unique in the queue.
+        let claimed = Writer 0 globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary (llvm-data-bytes (demand-key demand)) serial) inlining) in
         case demand of
           Demand name classes -> case worker-definition name w of
             Some d -> workers definitions (worker definitions classes claimed d)
@@ -5716,6 +6074,13 @@ module Bootstrap.RuntimeIr where
       (called, value) ->
         let returned = line (line called (cat ["  ret i64 ", value])) "}" in
         let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "()", worker-open w])) "entry:" in
+        -- A closure's description covers at most thirteen parameter classes
+        -- (`request-shape`). A root with more is still a root: it can be
+        -- called, and a client that would take it as a value is refused
+        -- when it is compiled (`external-call-unit`), as the same use is in
+        -- a whole program. Its accessor exists because every unit names
+        -- one, and nothing reaches it.
+        if list-length params > 13 then line (line accessor "  unreachable") "}" else
         case closure (Span 0 0 1 1) worker params Nil accessor of
           (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
   library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)
@@ -5902,7 +6267,7 @@ module Bootstrap.RuntimeIr where
   library-object-facts w = case w of
     Writer next globals code errors (LayoutPlan names) context ->
       let datas = program-data (writer-program w) in
-      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted) inlining -> emitted) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted scope serial) inlining -> emitted) in
       JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand)
         (JObj "constructors" (library-constructor-layout-facts names datas) JObjEnd))
 

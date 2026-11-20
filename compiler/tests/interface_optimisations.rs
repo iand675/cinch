@@ -75,6 +75,34 @@ fn check(src: &str) -> (Program, Vec<cinch::interface::Iface>) {
 }
 
 #[test]
+fn indexed_artifacts_match_single_module_output_including_nested_modules() {
+    let (program, ifaces) = check("\
+module Shelf.Slot where
+  flip-inner :: Bool -> Bool
+  flip-inner b = not b
+module Shelf where
+  flip-outer :: Bool -> Bool
+  flip-outer b = not b
+module Main where
+  import Shelf
+  import Shelf.Slot
+  main :: Int
+  main = if flip-outer (flip-inner True) then 0 else 1
+");
+    let class = cinch::simplify::unfoldable_names(&program);
+    let index = cinch::ifaceopt::ModuleBodyIndex::new(&program, &class);
+    for module in ["Shelf", "Shelf.Slot", "Main"] {
+        let iface = ifaces.iter().find(|iface| iface.module == module).expect(module);
+        let indexed = index.for_module(iface);
+        let single = cinch::ifaceopt::for_module_in(iface, &program, &class);
+        assert_eq!(indexed.to_json(), single.to_json(), "{module}");
+        if module.starts_with("Shelf") {
+            assert!(indexed.bodies.iter().any(|body| body.unit == "Shelf.Slot.flip-inner"));
+        }
+    }
+}
+
+#[test]
 fn artifact_round_trips_and_carries_the_class() {
     let (program, ifaces) = check(MAIN);
     let bool_iface = ifaces.iter().find(|i| i.module == "Data.Bool").expect("Data.Bool");
@@ -301,11 +329,9 @@ fn cross_object_census_and_unfolding() {
     let class_ms = start.elapsed();
     let start = std::time::Instant::now();
     let mut bytes = 0usize;
-    for iface in ifaces.iter() {
-        let artifact = cinch::ifaceopt::for_module_in(iface, &program, &class);
-        if local.contains(&iface.module) {
-            continue;
-        }
+    let index = cinch::ifaceopt::ModuleBodyIndex::new(&program, &class);
+    for iface in ifaces.iter().filter(|iface| !local.contains(&iface.module)) {
+        let artifact = index.for_module(iface);
         bodies += artifact.bodies.len();
         bytes += artifact.to_json().len();
         foreign.extend(foreign_defs(&artifact));

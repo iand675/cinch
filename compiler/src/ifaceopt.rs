@@ -39,7 +39,7 @@ use crate::core::{
 };
 use crate::interface::{content_hash, parse_json, Iface, JsonValue, ParseError};
 use crate::repr::{letters, Class};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// The optimisation artifact's own schema. Independent of the interface
 /// schema on purpose: a body encoding change must not force every
@@ -217,7 +217,7 @@ pub fn for_module_in(
 ) -> Optimisation {
     let mut out = Optimisation::new(iface.module.clone(), iface.iface_hash());
     let prefix = format!("{}.", iface.module);
-    let defined: BTreeSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    let defined: HashSet<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
     for f in &program.fns {
         if !f.id.0.starts_with(&prefix) || !class.contains(&f.id.0) {
             continue;
@@ -229,7 +229,46 @@ pub fn for_module_in(
     out
 }
 
-fn exportable(f: &FnDef, defined: &BTreeSet<String>) -> Option<BodyExport> {
+/// Shared lookups for writing a program's per-module optimisation artifacts.
+pub struct ModuleBodyIndex<'a> {
+    defined: HashSet<&'a str>,
+    candidates: HashMap<&'a str, Vec<&'a FnDef>>,
+}
+
+impl<'a> ModuleBodyIndex<'a> {
+    pub fn new(program: &'a crate::core::Program, class: &BTreeSet<String>) -> Self {
+        let mut defined = HashSet::with_capacity(program.fns.len());
+        let mut candidates = HashMap::<&str, Vec<&FnDef>>::new();
+        for function in &program.fns {
+            let name = function.id.0.as_str();
+            defined.insert(name);
+            if class.contains(name) {
+                // A parent module's prefix also matches its nested modules.
+                // Preserve program order within every matching artifact.
+                for (dot, _) in name.match_indices('.') {
+                    candidates.entry(&name[..dot]).or_default().push(function);
+                }
+            }
+        }
+        Self { defined, candidates }
+    }
+
+    pub fn for_module(&self, iface: &Iface) -> Optimisation {
+        self.for_contract(&iface.module, iface.iface_hash())
+    }
+
+    pub(crate) fn for_contract(&self, module: &str, contract_hash: String) -> Optimisation {
+        let mut artifact = Optimisation::new(module.to_owned(), contract_hash);
+        if let Some(functions) = self.candidates.get(module) {
+            artifact.bodies.extend(
+                functions.iter().filter_map(|function| exportable(function, &self.defined)),
+            );
+        }
+        artifact
+    }
+}
+
+fn exportable(f: &FnDef, defined: &HashSet<&str>) -> Option<BodyExport> {
     // A `prim` unit's body is inline target IR, not Core, and a constructor
     // unit's body is generated as a block allocation; neither is a Core body
     // a consumer can copy.

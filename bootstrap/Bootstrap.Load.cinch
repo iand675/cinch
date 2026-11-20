@@ -19,7 +19,7 @@ module Bootstrap.Load where
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Text.Json (canonical-bytes)
+  import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -31,7 +31,7 @@ module Bootstrap.Load where
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
   export load-interface-from-contract, load-interface-set-from-contracts
-  export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known
+  export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
   export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known
@@ -73,7 +73,7 @@ module Bootstrap.Load where
   -- closure test asks every interface for them, so deriving them per ask was
   -- queries x interfaces x rows work.
   data LoadedInterface where
-    MkLoadedInterface :: Bool -> String -> String -> Json -> List ImportedValue
+    MkLoadedInterface :: Bool -> String -> String -> Json -> Bytes -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> ExportEntries
       -> List (String, String, String) -> List (String, String, String) -> LoadedInterface
 
@@ -155,22 +155,22 @@ module Bootstrap.Load where
       Ok unit -> Cons member (retain-body-closed-interfaces rest index)
 
   loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> name
+  loaded-module i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> name
 
   loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> hash
+  loaded-hash i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> hash
 
   loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> doc
+  loaded-contract i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> doc
 
   loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> values
+  loaded-values i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> values
 
   loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> fixes
+  loaded-fixities i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> fixes
 
   loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> refs
+  loaded-imports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
@@ -178,7 +178,7 @@ module Bootstrap.Load where
   -- loaded: every name a consumer binds asks for these rows, so deriving
   -- them per ask cost names x rows allocations per interface.
   loaded-exports :: LoadedInterface -> List (String, String, String)
-  loaded-exports i = case i of MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> exports
+  loaded-exports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> exports
 
   -- Every global name this interface exports: `interface-global` of every
   -- exported identity and of every private method identity, encoded once
@@ -186,14 +186,14 @@ module Bootstrap.Load where
   -- built from these.
   loaded-globals :: LoadedInterface -> List String
   loaded-globals i = case i of
-    MkLoadedInterface verified at hash doc values fixes refs entries exports private-methods -> global-entries entries
+    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods -> global-entries entries
 
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
   -- the name table the load built instead of a scan of every row.
   loaded-identities :: LoadedInterface -> String -> List String
   loaded-identities i name = case i of
-    MkLoadedInterface verified at hash doc values fixes refs entries exports private-methods ->
+    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods ->
       identity-list (hash-map-lookup name (name-entries entries))
   identity-list :: Option (List (String, String, String)) -> List String
   identity-list looked = case looked of
@@ -242,7 +242,7 @@ module Bootstrap.Load where
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
   loaded-entry i kind identity = case i of
-    MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods ->
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods ->
       if same kind "value" then entry-in value-entries identity entries
       else if same kind "type" then entry-in type-entries identity entries
       else if same kind "signature" then entry-in signature-entries identity entries
@@ -269,7 +269,7 @@ module Bootstrap.Load where
   -- overload declarations both need one binding per public spelling.
   loaded-names :: LoadedInterface -> List String
   loaded-names i = case i of
-    MkLoadedInterface verified home hash doc values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered) globals) exports private-methods -> ordered
+    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered) globals) exports private-methods -> ordered
   -- The globals this interface exports, `interface-global` of every export
   -- identity and of every private method identity: the two lists the law
   -- closure compares a name against. Both are encoded once here instead of
@@ -386,7 +386,7 @@ module Bootstrap.Load where
 
   loaded-private-methods :: LoadedInterface -> List (String, String, String)
   loaded-private-methods i = case i of
-    MkLoadedInterface verified name hash doc values fixes refs entries exports private-methods -> private-methods
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> private-methods
 
   private-signature-methods :: String -> Json -> List (String, String, String)
   private-signature-methods owner rows = case rows of
@@ -828,7 +828,7 @@ module Bootstrap.Load where
         None -> Err "interface contract identity mismatch"
         Some hash ->
           if not (same hash expected-hash) then Err "interface contract identity mismatch"
-          else accepted-interface True expected-name hash doc
+          else accepted-interface True expected-name hash doc src
 
   -- The contract an interface declaration carries, beside the identity the
   -- load that parsed it derived: the envelope is re-checked, and the pair
@@ -837,7 +837,7 @@ module Bootstrap.Load where
   load-interface-from-contract :: String -> String -> Json -> Result String LoadedInterface
   load-interface-from-contract expected-name hash doc = case check-contract-envelope expected-name doc of
     Err message -> Err message
-    Ok unit -> accepted-interface False expected-name hash doc
+    Ok unit -> accepted-interface False expected-name hash doc (string-to-bytes "")
 
   -- The contract a document states, with the identity derived from the
   -- document. An artifact that carries its interfaces as documents (the
@@ -849,15 +849,19 @@ module Bootstrap.Load where
     Ok unit ->
       let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
       if not (same hash expected-hash) then Err "interface contract identity mismatch"
-      else accepted-interface True expected-name hash doc
+      else accepted-interface True expected-name hash doc (string-to-bytes "")
 
   -- A contract whose envelope and identity are settled: its rows become the
   -- loaded module's tables.
-  accepted-interface :: Bool -> String -> String -> Json -> Result String LoadedInterface
-  accepted-interface verified name hash doc =
+  -- `source` is the bytes the document was parsed from when the load read
+  -- them itself, and empty when it was handed a document: a later reader
+  -- holding the same bytes then knows it holds the same contract without
+  -- parsing them (`read-known-source`).
+  accepted-interface :: Bool -> String -> String -> Json -> Bytes -> Result String LoadedInterface
+  accepted-interface verified name hash doc source =
     let exports = field "exports" doc in
     let private = private-signature-methods name (field "signatures" exports) in
-    Ok (MkLoadedInterface verified name hash doc (read-values (field "values" exports))
+    Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
       (export-entries private exports) (export-rows exports) private)
 
@@ -881,10 +885,38 @@ module Bootstrap.Load where
   read-known-document :: List LoadedInterface -> String -> String -> Json -> Result String LoadedInterface
   read-known-document known name hash doc = case find-interface name known of
     Some previous -> (case previous of
-      MkLoadedInterface True owner identity original values fixes refs entries exports methods
+      MkLoadedInterface True owner identity original source values fixes refs entries exports methods
         | same hash identity && compare-documents False doc original -> Ok previous
       other -> load-interface-from-document name hash doc)
     None -> load-interface-from-document name hash doc
+  -- The object's copy of a contract, as bytes. The object embeds every
+  -- interface it was built against, and for the set a compile also names in
+  -- its manifest those bytes are the manifest's files. Equal bytes parse to
+  -- the same document, so the interface already loaded from the file is the
+  -- answer and the copy is not parsed. That is the reuse `read-known-document`
+  -- makes by comparing the two trees, decided before the second tree exists.
+  -- Any other copy is parsed and takes the document path unchanged.
+  read-known-source :: List LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
+  read-known-source known name hash src = case find-interface name known of
+    Some previous -> (case previous of
+      MkLoadedInterface True owner identity original source values fixes refs entries exports methods
+        | same hash identity && bytes-len source > 0 && bytes-compare source src == 0 -> Ok previous
+      other -> read-parsed-source known name hash src)
+    None -> read-parsed-source known name hash src
+  read-parsed-source :: List LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
+  read-parsed-source known name hash src = case parse-json name src of
+    Parsed doc Nil -> (case doc of
+      JObj key value rest -> read-known-document known name hash doc
+      other -> Err "malformed object interface closure")
+    other -> Err "runtime object manifest is not valid JSON"
+  read-source-set :: List LoadedInterface -> List (String, String, Bytes) -> List LoadedInterface -> Result String (List LoadedInterface)
+  read-source-set known inputs loaded = case inputs of
+    Nil -> Ok (reverse loaded)
+    Cons (name, hash, src) rest -> case find-interface name loaded of
+      Some previous -> Err (string-concat "duplicate interface module: " name)
+      None -> case read-known-source known name hash src of
+        Err message -> Err (string-concat-all [name, ": ", message])
+        Ok i -> read-source-set known rest (Cons i loaded)
   read-document-set :: List LoadedInterface -> List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
   read-document-set known inputs loaded = case inputs of
     Nil -> Ok (reverse loaded)
@@ -1032,6 +1064,11 @@ module Bootstrap.Load where
   -- Reuse exact verified rows, then validate every dependency of this object.
   load-object-interfaces-with-known :: List LoadedInterface -> List (String, String, Json) -> Result String (List LoadedInterface)
   load-object-interfaces-with-known known inputs = case read-document-set known inputs Nil of
+    Err message -> Err message
+    Ok loaded -> validate-interface-set loaded
+  -- The same load from each contract's bytes in the object's manifest.
+  load-object-interface-sources :: List LoadedInterface -> List (String, String, Bytes) -> Result String (List LoadedInterface)
+  load-object-interface-sources known inputs = case read-source-set known inputs Nil of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
 

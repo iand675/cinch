@@ -11,7 +11,8 @@ import shutil
 import subprocess
 import time
 from check_compare import corpus_emit_mode, digest
-from prepare_color_fixtures import prepare
+import prepare_color_fixtures
+import prepare_color_palette_fixtures
 
 
 #: Repository root; every fixture input is committed and needs no installed SDK.
@@ -22,8 +23,9 @@ def main() -> None:
     """Run source first, retain first failures and distinguish O0/O2 and both heap profiles."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--consumer', type=Path, default=ROOT / 'experiments/image-color-v1/consumer.cinch')
-    parser.add_argument('--vectors', type=Path, default=ROOT / 'experiments/image-color-v1/vectors.json')
+    parser.add_argument('--palette', type=Path, help='Include the fixed-palette module and its table/query fixtures')
+    parser.add_argument('--consumer', type=Path)
+    parser.add_argument('--vectors', type=Path)
     frontend = parser.add_mutually_exclusive_group(required=True)
     frontend.add_argument('--compiler', type=Path)
     frontend.add_argument('--native', type=Path, help='Standalone stage compiler and matching provider manifests')
@@ -35,6 +37,10 @@ def main() -> None:
     args = parser.parse_args()
     if bool(args.compiler) != bool(args.runtime):
         parser.error('--compiler requires a matching --runtime')
+    experiment = ROOT / 'experiments' / ('image-color-palette-v1' if args.palette else 'image-color-v1')
+    args.consumer = args.consumer or experiment / 'consumer.cinch'
+    args.vectors = args.vectors or experiment / 'vectors.json'
+    fixtures = prepare_color_palette_fixtures if args.palette else prepare_color_fixtures
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=False)
     initial = shutil.disk_usage(work).free
@@ -50,7 +56,7 @@ def main() -> None:
     report = {'scope': __doc__, 'compiler': str(compiler), 'compiler_sha256': digest(compiler),
               'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'opt': args.opt,
               'compiler_host_stack_bytes': 67108864, 'cpu_affinity': [args.cpu],
-              'runner_sha256': digest(Path(__file__)), 'fixture_generator_sha256': digest(ROOT / 'tooling/prepare_color_fixtures.py'),
+              'runner_sha256': digest(Path(__file__)), 'fixture_generator_sha256': digest(Path(fixtures.__file__)),
               'source_sha256': digest(args.source), 'consumer_sha256': digest(args.consumer),
               'vectors_sha256': digest(args.vectors), 'initial_free_bytes': initial,
               'resource_policy': {'initial_mib': 350, 'reserve_mib': 250, 'unit_mib': 30},
@@ -91,6 +97,12 @@ def main() -> None:
 
     try:
         shutil.copyfile(args.source, work / 'Image.Color.cinch')
+        modules = [work / 'Image.Color.cinch']
+        if args.palette:
+            palette = work / 'Image.Color.Palette.cinch'
+            shutil.copyfile(args.palette, palette)
+            report['palette_sha256'] = digest(palette)
+            modules.append(palette)
         shutil.copyfile(args.consumer, work / 'Main.cinch')
         shutil.copyfile(args.vectors, work / 'vectors.json')
         host_env = {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'}
@@ -107,14 +119,20 @@ def main() -> None:
                 raise RuntimeError('color provider hash disagrees with its object manifest')
             report['frontends'] = {'native': identity}
             bundle = work / 'bundle.source'
-            bundle.write_bytes(args.source.read_bytes() + b'\n' + args.consumer.read_bytes())
-            mode = '--check-types' if args.check_only else corpus_emit_mode(compiler, [])
-            command = [str(compiler), mode, '--interfaces', str(interfaces), '--objects', str(objects),
-                       str(bundle), str(work / 'consumer.ll')]
+            bundle.write_bytes(b'\n'.join(path.read_bytes() for path in [*modules, work / 'Main.cinch']))
+            if args.check_only:
+                command = [str(compiler), '--check', '--interfaces', str(interfaces)]
+            else:
+                mode = '--emit-ir-with-interfaces' if args.palette else corpus_emit_mode(compiler, [])
+                command = [str(compiler), mode, '--interfaces', str(interfaces), '--objects', str(objects)]
+            command.extend([str(bundle), str(work / 'consumer.ll')])
             row = execute(command, host_env, timeout=300)
             if not args.check_only:
                 report['runs'] = [{'frontend': 'native', 'command': command, 'seconds': row['seconds'],
                                    'ir_sha256': digest(work / 'consumer.ll')}]
+            if args.palette and not args.check_only:
+                report['defining_interfaces'] = {path.stem: digest(work / f'consumer.ll.{path.stem}.cinchif')
+                                                 for path in modules}
             link_objects.append(str(provider))
         else:
             execute([str(compiler), 'check', str(work / 'Main.cinch')], host_env)
@@ -122,7 +140,7 @@ def main() -> None:
         if args.check_only:
             report['status'] = 'source-check-passed'
             return
-        report['foreign_fixture'] = prepare(args.vectors, work / 'fixture.c')
+        report['foreign_fixture'] = fixtures.prepare(args.vectors, work / 'fixture.c')
         clang = os.environ.get('CINCH_CLANG', 'clang')
         execute([clang, '-O2', '-fno-vectorize', '-fno-slp-vectorize', '-c', str(work / 'fixture.c'), '-o', str(work / 'fixture.o')], host_env)
         if not snapshot:

@@ -313,12 +313,17 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
     log = directory / "build.log"
     toolchain = driver.digest(canonical({"producer": lock, "host": driver.HOST}))
     target = driver.BUILD / "library-cargo" / toolchain
-    code = driver.run(["cargo", "build", "--locked", "--release", "--bin", "cinch", "--target-dir", target],
-                      snapshot / "compiler", log)
-    if code:
-        raise driver.BootstrapError(f"library producer did not build (exit {code}): {log}")
+    product = driver.prebuilt_compiler(lock["revision"])
+    if product is not None:
+        log.write_text(f"prebuilt pinned compiler: {product}\n")
+    else:
+        code = driver.run(["cargo", "build", "--locked", "--release", "--bin", "cinch", "--target-dir", target],
+                          snapshot / "compiler", log)
+        if code:
+            raise driver.BootstrapError(f"library producer did not build (exit {code}): {log}")
+        product = target / "release/cinch"
     executable = directory / "cinch.new"
-    shutil.copy2(target / "release/cinch", executable)
+    shutil.copy2(product, executable)
     executable.replace(directory / "cinch")
     runtime_target = driver.BUILD / "library-runtime" / toolchain
     code = driver.run(["cargo", "build", "--locked", "--release", "--manifest-path",
