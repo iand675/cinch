@@ -1481,7 +1481,7 @@ module Bootstrap.RuntimeIr where
               (case closed-method-unit w name owner slot actuals factory of
                 Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
                   (let noted = note-version owner slot Nil w in
-                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (program-bindings (writer-program w))) unit Nil (arguments term Nil) of
+                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (program-bindings (writer-program w))) unit (mono function) Nil (arguments term Nil) of
                      Some lowered -> lowered
                      None -> external-call-unit definitions locals noted sp unit (mono function) Nil (arguments term Nil))
                   else indirect-application definitions locals w f x
@@ -2493,7 +2493,7 @@ module Bootstrap.RuntimeIr where
           Some (owner, dictionary, slot) -> object-conditional-unit owner dictionary slot name codes provider
           None -> object-variant name codes provider) in
           case variant of
-          Some unit -> (case inline-external definitions locals w name unit givens args of
+          Some unit -> (case inline-external definitions locals w name unit (concrete-scheme (checked-scheme binding) actuals) givens args of
             Some lowered -> lowered
             None -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args)
           None -> unsupported w sp (cat ["checked external variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
@@ -2521,14 +2521,19 @@ module Bootstrap.RuntimeIr where
   -- and decide those in place; a heap operand, or a sum that leaves the
   -- immediate range, goes to the runtime entry that the library's own body
   -- reaches.
-  inline-external :: List CoreDefinition -> List Local -> Writer -> String -> RuntimeUnit -> List String -> List CoreTerm -> Option (Writer, String)
-  inline-external definitions locals w name unit givens args =
-    inline-total definitions locals w (imported-total-body name (program-bindings (writer-program w))) unit givens args
+  inline-external :: List CoreDefinition -> List Local -> Writer -> String -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-external definitions locals w name unit sc givens args =
+    inline-total definitions locals w (imported-total-body name (program-bindings (writer-program w))) unit sc givens args
   -- The same for a unit whose body was found: a value's by its checked
   -- name, a closed instance method's by the unit it resolved to.
-  inline-total :: List CoreDefinition -> List Local -> Writer -> Option TotalFunction -> RuntimeUnit -> List String -> List CoreTerm -> Option (Writer, String)
-  inline-total definitions locals w found unit givens args = case givens of
-    Nil -> if list-length args /= list-length (unit-params unit) then None else
+  --
+  -- The unit is still the authority on what the call is. A body is taken
+  -- only where the call would have been admitted: the provider's word ABI
+  -- for the unit agrees with the checked scheme. Where it does not, the
+  -- call path refuses the program, as it did before any body was inlined.
+  inline-total :: List CoreDefinition -> List Local -> Writer -> Option TotalFunction -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> Option (Writer, String)
+  inline-total definitions locals w found unit sc givens args = case givens of
+    Nil -> if list-length args /= list-length (unit-params unit) || not (inline-abi-agrees w unit sc) then None else
       (case found of
         None -> None
         Some function -> let body = total-body function in
@@ -2538,6 +2543,14 @@ module Bootstrap.RuntimeIr where
           else (case expressions definitions locals w args of
             (ready, values) -> Some (inline-term ready values body)))
     other -> None
+  inline-abi-agrees :: Writer -> RuntimeUnit -> Scheme -> Bool
+  inline-abi-agrees w unit sc = case scheme-requirements sc of
+    Nil -> (case external-shape (list-length (unit-params unit)) (scheme-body sc) Nil of
+      Some (params, result-type) -> (case (class-vector (writer-context w) params, word-class (writer-context w) result-type, unit-result unit) of
+        (Some expected, Some result, Some actual-result) -> same-classes expected (unit-params unit) && result == actual-result
+        other -> False)
+      None -> False)
+    other -> False
   imported-total-body :: String -> List CheckedBinding -> Option TotalFunction
   imported-total-body name bindings = case bindings of
     Nil -> None
