@@ -2,6 +2,51 @@
 
 The goal is to pass every compiler integration target against one self-built Stage 3, including ignored tests. Keep the existing assertions, public-interface round trips, reference-counting and leak checks. Instance and proof dictionaries must retain their actual wrapper type and select the declared factory across module boundaries.
 
+## State on 2026-11-20
+
+This section is newer than the ones below it. The failing-target list of
+2026-11-19 is unchanged: nothing here fixes a test, and the work is on how
+fast the compiler can be changed and on what it emits.
+
+### What changed in the compiler
+
+| Change | Why |
+| --- | --- |
+| Completing an imported constructor table registers the carriers its constructors name | a family reached only through an imported constructor's field had no runtime representation |
+| A library root with more than thirteen parameters is callable and not a value | every root got a closure, and a closure describes at most thirteen parameter classes |
+| `FiniteLawResult`, `LawFunction`, the rest of `StageValue` and `WithLayout` are exported | a partly exported family is abstract to an importing module |
+| Locals are numbered per unit; constants, static closures and dictionaries, lambdas and recursive workers are named by their unit | one counter renumbered every function after an edit, and a lifted name was unique only within a compile |
+| `--emit-object` with an object path of `-` writes the IR, the interfaces and the module's own units and facts | a build that compiles the IR itself needs neither an unoptimised object nor the merged manifest |
+| A saturated call to an imported value or closed instance method whose total body is a tree of primitives is emitted as that tree | each was an opaque call into the library object |
+
+`design/compilation-speed.md` sections 2.23, 2.26 and 10.7 have the
+measurements. Two things on the earlier list were looked at and left, with
+the reason: using `parMap` inside the compiler waits on the `share`
+attribute `design/parallel-evaluation.md` plans for `String`, which needs
+interface schema 11 and a library rebuild; and the totality retry's
+repeated import prework is now 8% of a module's compile, so it matters
+only to the whole-program chain.
+
+### The compiler as a graph of modules
+
+`tooling/module_build.py` compiles each module alone against its imports'
+interfaces and links the result. From a development Stage 2 on four cores:
+166 s from nothing, 0.7 s when nothing changed, about 30 s after a body
+edit in `Bootstrap.Infer`, about 6 s for a small module, 95 s after a new
+export in a module sixteen others import. The compiler it links emits the
+development Stage 2 module byte for byte, an incremental build equals a
+clean one file for file, and the result can build itself.
+`run_stage_targets.py --compiler` runs targets against it.
+
+### The chain
+
+Stage 1 is no longer linked with a profile unless `--pgo-seed` asks. The
+chain at the branch head reaches the fixed point either way with the same
+Stage 3 module; without the seed profile it used 25 CPU minutes against 34.
+On the audited compilers, the handoff tip against the head: a self-compile
+takes 94 CPU seconds against 493, and the fib smoke against the base
+interfaces 1.10 against 2.40.
+
 ## State on 2026-11-19, 23:40 UTC
 
 This section is newer than the ones below it. Work continues on

@@ -2029,6 +2029,42 @@ A standalone compile of `Infer` is 12 s of checking, 7 s of emission and
 3 s of loading and export, with no single hot spot. The totality retry that
 is 42% of a whole-program compile is 8% of it.
 
+### 2.27 What is next, by what it would buy (2026-11-20)
+
+Each of these was measured or scoped and not started.
+
+- **Split the largest modules.** With the graph build an edit costs its
+  module. `Bootstrap.Infer` is 10,113 lines and 18 s; `RuntimeIr` 6,089
+  and 16 s; the median module is under 5 s. Cutting `Infer` along its own
+  seams (imports, kinds and classes, bodies, laws, totality) would bring
+  its edits to the median and widen the graph, which is 16 levels deep
+  with `Infer` alone on one of them.
+- **Key an importer on the names it reads.** A new export rebuilds every
+  importer, sixteen modules for `Bootstrap.Kinds`, because the exporter's
+  contract hash and delta both change. The resolver knows which imported
+  names a module used; a compile that reported them, with the instance
+  buckets it searched (section 3's negative lookups), would let the build
+  key an importer on those rows alone.
+- **Validate an interface set once.** `validate-interface-set` runs for the
+  manifest's interfaces and again for the object's, about 6% of a small
+  compile each. When every interface the object names was taken from the
+  manifest's set by byte equality and the two sets have the same members,
+  the second run is the first one again.
+- **Call a specialised instance method directly.** The library object has
+  a unit for each method of a parametric instance at each representation
+  (`Data.List.Semigroup_List.<>@O`) and its dictionary row lists them. A
+  client fetches the dictionary and applies the method through `__apply`:
+  1,890 list literals and 995 uses of `<>` in the compiler's module.
+- **The totality retry.** In a whole-program compile it is still 90
+  elaborations, each repeating the import prework. An attempt that
+  succeeds for one name has also elaborated every name in that name's
+  closure, and takes only the one body; harvesting the rest would cut the
+  count without changing which names get bodies, on the same footing the
+  joint attempt already stands on. It matters to the audited chain alone.
+- **`parMap` in the compiler** waits on `String` being `Share`, which
+  `design/parallel-evaluation.md` plans as a `share` attribute with an
+  interface field (schema 11).
+
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the
