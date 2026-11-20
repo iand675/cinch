@@ -132,10 +132,13 @@ module Bootstrap.RuntimeIr where
     MkUnfoldShape :: Bool -> Nat -> UnfoldShape
   -- Keep emission order in the work list. The index covers both pending
   -- and emitted workers, so finishing a closure releases its Core body.
+  -- The last two fields name things. `scope` is the unit being emitted,
+  -- spelled so it can sit inside a quoted LLVM name, and empty between
+  -- units; `serial` numbers what belongs to the module and to no unit.
   data WorkerQueue where
-    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> WorkerQueue
+    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> String -> Nat -> WorkerQueue
   empty-queue :: WorkerQueue
-  empty-queue = WorkerQueue Nil hash-map-empty False
+  empty-queue = WorkerQueue Nil hash-map-empty False "" 0
 
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
@@ -152,8 +155,41 @@ module Bootstrap.RuntimeIr where
   emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
   global :: Writer -> String -> Writer
   global w text = case w of Writer next globals code errors layouts datas -> Writer next (builder-add-line text globals) code errors layouts datas
+  -- Names come from three places, by what a name has to be unique in.
+  --
+  -- A local or a label is unique in its function. `fresh` numbers those
+  -- from the writer's counter, which `workers` restarts at each unit, so a
+  -- function's text depends on the function and not on how many names the
+  -- units before it used.
+  --
+  -- A constant, a static closure or dictionary, a lambda or a recursive
+  -- worker is unique in the module, and across the modules of a program
+  -- compiled one module at a time. `fresh-scoped` names those by the unit
+  -- that asked and the unit's own counter. A unit's name is already unique
+  -- program wide, so these are too, and an edit to one unit renames nothing
+  -- in another: that is what lets the module's code be cut into pieces
+  -- that are recompiled only when their own text changes, and what lets a
+  -- lifted worker be shared across objects without a second one colliding.
+  --
+  -- Metadata is numbered and module wide by LLVM's rule, and anything asked
+  -- for between units has no unit to be named by. `fresh-serial` numbers
+  -- both from a counter that never restarts.
   fresh :: Writer -> String -> (Writer, String)
   fresh w prefix = case w of Writer next globals code errors layouts datas -> (Writer (next + 1) globals code errors layouts datas, cat [prefix, nat-to-string next])
+  fresh-serial :: Writer -> String -> (Writer, String)
+  fresh-serial w prefix = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+      (Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope (serial + 1)) inlining), cat [prefix, nat-to-string serial])
+  -- `kind` is `.kind` for a worker, whose name `symbol` wraps later, and a
+  -- bare word for a global, whose name is quoted here because a unit's name
+  -- holds characters a bare LLVM name may not.
+  fresh-scoped :: Writer -> String -> (Writer, String)
+  fresh-scoped w prefix = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+      let worker = string-starts-with "." prefix in
+      if same scope "" then fresh-serial w (if worker then prefix else cat ["@", prefix])
+      else (Writer (next + 1) globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining),
+        if worker then cat [scope, prefix, nat-to-string next] else cat ["@\"", scope, ".", prefix, nat-to-string next, "\""])
   refuse :: Writer -> Span -> String -> Writer
   refuse w sp text = case w of Writer next globals code errors layouts datas -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors) layouts datas
   unsupported :: Writer -> Span -> String -> (Writer, String)
@@ -542,10 +578,10 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) ->
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
       let key = demand-key demand in case hash-map-lookup key keys of
         Some found -> w
-        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries in
+        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries scope serial in
           Writer next globals code errors layouts (RuntimeContext datas bounds rigids queue inlining)
   demand-worker :: String -> List Nat -> Writer -> Writer
   demand-worker name classes w = request-demand (Demand name classes) w
@@ -837,7 +873,7 @@ module Bootstrap.RuntimeIr where
   decimal w ty text = case immediate-literal (named ty "Nat") text of
     Some word -> (w, word)
     None ->
-      let (next, name) = fresh w "@number" in
+      let (next, name) = fresh-scoped w "number" in
       let len = nat-to-string (string-length text) in
       let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
       let (ready, result) = fresh declared "%v" in
@@ -878,7 +914,7 @@ module Bootstrap.RuntimeIr where
   string-literal w sp ty text = case (base ty, program-object (writer-program w)) of
     (UCon name KType, Some provider) -> (case object-string-layout name provider of
       Some descriptor ->
-        let (one, storage) = fresh w "@text" in
+        let (one, storage) = fresh-scoped w "text" in
         let size = nat-to-string (bytes-len (string-to-bytes text)) in
         let contents = if same size "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
         let shape = cat ["{ i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
@@ -893,7 +929,7 @@ module Bootstrap.RuntimeIr where
   -- Intern the static UTF-8 name through the same process table as Data.Sym.
   symbol-literal :: Writer -> Span -> UType -> String -> (Writer, String)
   symbol-literal w sp ty text = if not (named ty "Sym") then unsupported w sp "symbol literal requires Sym" else
-    let (named-word, storage) = fresh w "@symbol" in
+    let (named-word, storage) = fresh-scoped w "symbol" in
     let size = nat-to-string (bytes-len (string-to-bytes text)) in
     let declared = global named-word (cat [storage, " = private unnamed_addr constant [", size, " x i8] c\"", llvm-data-bytes text, "\"", ", align 1"]) in
     call declared "@cinch_sym_intern" [cat ["ptrtoint (ptr ", storage, " to i64)"], size]
@@ -1571,7 +1607,7 @@ module Bootstrap.RuntimeIr where
   static-closure :: Span -> String -> List Nat -> Writer -> (Writer, String)
   static-closure sp name classes w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
     (planned, descriptor) ->
-      let (declared, storage) = fresh planned "@closure" in
+      let (declared, storage) = fresh-scoped planned "closure" in
       let skip = static-prefix-words descriptor in
       let block = cat ["[", nat-to-string (4 + skip), " x i64]"] in
       let stored = static-block declared storage descriptor 2 [StaticAddress (symbol (cat [name, ".app"])), StaticBits (list-length classes), StaticBits 0] in
@@ -2201,7 +2237,7 @@ module Bootstrap.RuntimeIr where
   primitive-immediate-metadata :: List Nat -> Writer -> (Writer, String)
   primitive-immediate-metadata indices w = case indices of
     Nil -> (w, "")
-    other -> let (next, name) = fresh w "!" in
+    other -> let (next, name) = fresh-serial w "!" in
       (global next (cat [name, " = !{", join (map (\index -> cat ["i32 ", nat-to-string index]) indices), "}"]), cat [" !immarg ", name])
   primitive-intrinsics :: List String -> Writer -> Writer
   primitive-intrinsics symbols w = case symbols of
@@ -2978,7 +3014,7 @@ module Bootstrap.RuntimeIr where
               let fixed = if list-length context == 0 && not (has-strict-values started factory (instance-fields factory)) then static-dictionary-fields factory classes count plans started else None in
               case fixed of
                 Some (ready, words) ->
-                  let (declared, storage) = fresh ready "@dictionary" in
+                  let (declared, storage) = fresh-scoped ready "dictionary" in
                   let skip = static-prefix-words descriptor in
                   let block = cat ["[", nat-to-string (count + 2 + skip), " x i64]"] in
                   let stored = static-block declared storage descriptor 3 (Cons (StaticBits count) (physical-words 0 count words)) in
@@ -3182,7 +3218,7 @@ module Bootstrap.RuntimeIr where
     if wide-type (writer-context w) (final-result (core-type body)) then unsupported w sp wide-refusal else
     case class-vector (writer-context w) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
-      Some classes -> let (named, name) = fresh w ".lambda" in
+      Some classes -> let (named, name) = fresh-scoped w ".lambda" in
         (case writer-context named of
           RuntimeContext datas bounds rigids queue inlining ->
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
@@ -3197,7 +3233,7 @@ module Bootstrap.RuntimeIr where
   plan-recursive-workers :: CoreTerm -> Writer -> (Writer, List RecursiveWorker)
   plan-recursive-workers members w = case members of
     CRecursiveBindingsEnd -> (w, Nil)
-    CRecursiveBinding id display value rest -> let (named, name) = fresh w ".rec" in
+    CRecursiveBinding id display value rest -> let (named, name) = fresh-scoped w ".rec" in
       let (parameters, body) = recursive-parameters Nil value in
       case plan-recursive-workers rest named of
         (done, more) -> (done, Cons (RecursiveWorker id (core-type value) name parameters body) more)
@@ -5328,7 +5364,7 @@ module Bootstrap.RuntimeIr where
     Nil -> w
     Cons arg rest -> store-loop-arguments rest (index + 1) (line w (cat ["  store i64 ", arg, ", ptr %arg", nat-to-string index, ".slot"]))
   loop-metadata :: String -> Writer -> (Writer, String)
-  loop-metadata count w = let (one, node) = fresh w "!" in let (two, property) = fresh one "!" in
+  loop-metadata count w = let (one, node) = fresh-serial w "!" in let (two, property) = fresh-serial one "!" in
     let value = if same count "0" then "llvm.loop.unroll.disable\"}" else "llvm.loop.unroll.count\", i32 " <> count <> "}" in
     (global (global two (cat [node, " = distinct !{", node, ", ", property, "}"])) (cat [property, " = !{!\"", value]), node)
   start-tail-worker :: String -> String -> Nat -> Nat -> Bool -> Writer -> Writer
@@ -5391,11 +5427,14 @@ module Bootstrap.RuntimeIr where
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries) inlining) -> case pending of
-      Nil -> w
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) -> case pending of
+      -- Between units nothing is in scope, so a later name is the module's.
+      Nil -> Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue Nil keys dictionaries "" serial) inlining)
       Cons demand rest ->
         let emitted-dictionary = dictionaries || (case demand of DictionaryDemand name classes -> True; other -> False) in
-        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary) inlining) in
+        -- A unit starts its own numbering and names what it lifts by its
+        -- demand key, which is what makes the unit unique in the queue.
+        let claimed = Writer 0 globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary (llvm-data-bytes (demand-key demand)) serial) inlining) in
         case demand of
           Demand name classes -> case worker-definition name w of
             Some d -> workers definitions (worker definitions classes claimed d)
@@ -6006,7 +6045,7 @@ module Bootstrap.RuntimeIr where
   library-object-facts w = case w of
     Writer next globals code errors (LayoutPlan names) context ->
       let datas = program-data (writer-program w) in
-      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted) inlining -> emitted) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted scope serial) inlining -> emitted) in
       JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand)
         (JObj "constructors" (library-constructor-layout-facts names datas) JObjEnd))
 
