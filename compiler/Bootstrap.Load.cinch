@@ -522,6 +522,19 @@ module Bootstrap.Load where
   -- retain the canonical writer's equality, including signed floating zero.
   same-contract :: Json -> Json -> Bool
   same-contract a b = compare-documents True a b
+  -- A reference row may omit the private ownership facts the defining row
+  -- carries; compare the defining fields and only the shared usage facts.
+  same-nominal-contract :: Json -> Json -> Bool
+  same-nominal-contract a b =
+    if has-field "usage" a && has-field "usage" b then same-contract a b
+    else same-contract (nominal-defining-fields a) (nominal-defining-fields b)
+  nominal-defining-fields :: Json -> Json
+  nominal-defining-fields row = JObj "identity" (field "identity" row)
+    (JObj "kind" (field "kind" row)
+      (JObj "params" (field "params" row)
+        (JObj "parameters" (field "parameters" row)
+          (JObj "constructors" (field "constructors" row)
+            (JObj "refinement" (field "refinement" row) JObjEnd)))))
   -- Reusing a parsed row requires its exact tree, including field order.
   -- A less common numeric form can always go through the normal loader.
   compare-documents :: Bool -> Json -> Json -> Bool
@@ -1212,7 +1225,7 @@ module Bootstrap.Load where
       else if not (signature-owner-valid home owner-name row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
       else case hash-map-lookup identity seen of
         None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity row seen)
-        Some prior -> if same-contract prior row then verify-nominal-rows home rest reachable ix seen
+        Some prior -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
   verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String Json -> Result String Unit
   verify-nominal-set remaining ix seen = case remaining of

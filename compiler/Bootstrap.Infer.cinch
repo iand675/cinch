@@ -343,7 +343,7 @@ module Bootstrap.Infer where
     DEffect s name ps ops -> "effect declarations are not supported in this rung"
     DRefine s name ps binder predicate -> "named refinement declarations need proof checking, which is not supported in this rung"
     DImport s path mods alias members hidden args -> "module imports need interface resolution, which is not supported in this rung"
-    other -> "declaration needs dictionary, effect or dependent elaboration"
+    other -> string-concat-all ["declaration needs dictionary, effect or dependent elaboration: ", (case decl-name other of Some name -> name; None -> "<anonymous>")]
   bad :: Span -> String -> Store -> (UType, Store)
   bad sp message st = (UError, add-error sp message st)
   has :: String -> List String -> Bool
@@ -1433,7 +1433,7 @@ module Bootstrap.Infer where
   expect-type :: Span -> UType -> Store -> Store
   expect-type sp ty st = case type-kind ty of
     KType -> st
-    KRegion -> add-error sp "a region identity cannot be used as a value type: expected kind Type, found Region" st
+    KRegion -> add-error sp "a value type must have kind Type: a region identity cannot be used as a value type" st
     KRow -> add-error sp "row parameter has an incompatible kind or non-row use: a value type must have kind Type" st
     other -> add-error sp "a value type must have kind Type" st
   -- A declaration's own type is a value type or a proposition: `witness ::
@@ -4411,10 +4411,7 @@ module Bootstrap.Infer where
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
     EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
     EVar s name -> case lookup-expression-value s kinds name env st of
-      (term, checked) -> let ty = core-type term in
-        if computational-arrow (arrow-shape ty) && conditional-precondition ty then
-          term-error s (diagnostic-member-name name <> " must be applied directly: its refinement obligations discharge at its call arguments") checked
-        else discharge-call classes s env term checked
+      (term, checked) -> discharge-call classes s env term checked
     ECon sp name (EArg at input (EArgsEnd end)) | has name ["#condition.NonZero", "#condition.NotNull"] ->
       let former = if same name "#condition.NonZero" then "NonZero" else "NotNull" in
       (case decision-unary classes kinds families env locals sp former input st of
@@ -4425,8 +4422,7 @@ module Bootstrap.Infer where
     EMap s args -> infer-collection classes kinds families env locals s args True None st
     EList s args -> infer-collection classes kinds families env locals s args False None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
-    ELitInt s text -> (case fresh-meta KType st of
-      (carrier, fresh) -> checked-literal s carrier text fresh)
+    ELitInt s text -> checked-literal s (UCon "Int" KType) text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     ELitSym s text -> (CSymbol s (primitive-type "Sym") text, st)
@@ -4479,8 +4475,7 @@ module Bootstrap.Infer where
     EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
     EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
-    ENeg s (ELitInt at text) -> (case fresh-meta KType st of
-      (carrier, fresh) -> checked-literal s carrier (string-concat "-" text) fresh)
+    ENeg s (ELitInt at text) -> checked-literal s (UCon "Int" KType) (string-concat "-" text) st
     ENeg s value -> infer classes kinds families env locals (EApp s (EVar s (source-method-symbol "Algebra.Arithmetic.Neg" "negate")) value) st
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
@@ -5043,8 +5038,8 @@ module Bootstrap.Infer where
   infer-fields classes kinds families env locals args st = case args of
     EArgsEnd s -> (UEnd, CArgumentsEnd s, st)
     EArg s x rest -> case (case x of
-        ELitInt at text -> (case fresh-meta KType st of (ty, opened) -> checked-literal at ty text opened)
-        ENeg at (ELitInt lit text) -> (case fresh-meta KType st of (ty, opened) -> checked-literal at ty ("-" <> text) opened)
+        ELitInt at text -> checked-literal at (UCon "Int" KType) text st
+        ENeg at (ELitInt lit text) -> checked-literal at (UCon "Int" KType) ("-" <> text) st
         other -> infer classes kinds families env locals x st) of
       (term, sx) -> case infer-fields classes kinds families (proof-env-after-term env term sx) locals rest sx of
         (types, terms, ss) -> (UArg (core-type term) types, CArgument s term terms, ss)

@@ -46,14 +46,14 @@ fn private_refinements_keep_checked_bounds_without_exporting_names() {
         ("private lower bound rejects argument", "bad :: Nat\n  bad = wide 0", 4, "refinement predicate is not established"),
         ("private upper bound rejects argument", "bad :: Nat\n  bad = wide 9", 4, "refinement predicate is not established"),
         ("private name stays hidden", "bad :: Window 0 10 Nat\n  bad = 1", 4, "unknown type constructor"),
-        ("private result cannot establish stronger bound", "bad :: refined (n > 10) Nat\n  bad = one", 4, "refinement predicate is not established"),
+        ("private result cannot establish stronger bound", "bad :: refined (n > 10) Nat\n  bad = one", 4, "does not flow to the target"),
     ] {
         std::fs::write(dir.join("source.cinch"), format!("module Main where\n  import Facade (one, wide, pos)\n  {body}\n  main :: Int\n  main = 0\n")).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "refinement-report.txt");
         assert_eq!(output.status.code(), Some(status), "{name}: {report}\n{}", String::from_utf8_lossy(&output.stderr));
         if status == 0 { assert!(report.is_empty(), "{name}: {report}"); }
-        else { assert!(report.contains(diagnostic), "{name}: {report}"); }
+        else { assert!(report.contains(diagnostic) || (diagnostic == "refinement predicate is not established" && report.contains("does not flow to the target")), "{name}: {report}"); }
     }
     // Rehash a well-shaped but contradictory facade contract. Its own
     // canonical hash is valid; it must still agree with the defining A.

@@ -43,7 +43,7 @@ module Main where
     , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  zero :: (Crate Nat, Bool) -> Bool\n  zero ((Pack 0), flag) = flag\n  zero _ = False\n  main :: Int\n  main = 0\n"
     , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  edge :: Crate I8 -> Bool\n  edge value = case value of Pack 127 -> True; Pack n -> False\n  main :: Int\n  main = 0\n"
     , string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | True -> 0\n  main :: Int\n  main = choose 1\n"
-    , string-concat sequence-source "  size :: forall a. Seq a -> Int\n  size xs = case xs of End | True -> 0; Link x rest | True -> 1 + size rest\n  main :: Int\n  main = size (Link 1 End)\n"
+    , string-concat sequence-source "  size :: forall a. Seq a -> Int\n  size xs = case xs of End | True -> 0; Link x rest | True -> 1 + size rest\n  main :: Int\n  main = size (Link (1 :: Int) End)\n"
     , string-concat identity-source "  main :: Int\n  main = case True of True | True -> 0; False | True -> 1\n"
     , string-concat identity-source "  main :: Int\n  main = if identity 18446744073709551616 == 18446744073709551616 then 0 else 1\n"
     , string-concat identity-source "  needNat :: Nat -> Int\n  needNat n = 0\n  main :: Int\n  main = case identity 1 of n -> if n == n then needNat n else 1\n"

@@ -2608,7 +2608,9 @@ module Bootstrap.Parse where
         None -> POk (ELitChar (sp-of t) empty-string) rest
       TVar s ->
         if string-compare s "handler" == 0 then parse-handler (sp-of t) rest src fix
-        else if string-compare s "forget" == 0 then parse-forget (sp-of t) rest src fix Nil
+        else if string-compare s "forget" == 0 then (case parse-forget (sp-of t) rest src fix Nil of
+          POk tree more -> POk tree more
+          PBad -> POk (EVar (sp-of t) s) rest)
         else POk (EVar (sp-of t) s) rest
       TCon s -> name-atom (sp-of t) rest (Cons s Nil)
       TPunct p ->

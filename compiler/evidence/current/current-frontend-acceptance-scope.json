@@ -17,15 +17,31 @@
   ],
   "native_api_assertions": {
     "arrays": {
-      "source_sha256": "f9d60f05b66076fa280275ca6937d83e1ee09f82bd013564679726d7d4217deb",
+      "source_sha256": "de125a8febe0f8d718b954a1351e5e6a06080fafaffdbdf62d9d3e677bc9b5db",
       "cases": {
-        "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
+        "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source.",
+        "array_interface_producer_refuses_reordered_mandatory_option_tags": "Drives the Rust interface producer over reordered Data.Core source and inspects the emitted .cinchif. This case compiles no Cinch source through the selected frontend."
       }
     },
     "bootstrap_interface": {
-      "source_sha256": "125d7cffcad6686c6679de8b88d257973f4e1a4c3f022b359ea7e3556ac6685b",
+      "source_sha256": "6ae5cf9dd3eaefad392ec12080a9bd084a6d4749f957e3cbaed11af0188329c6",
       "cases": {
         "sha256_is_sha256": "Checks the Rust test helper against two standard SHA-256 vectors. The interface reader case separately requires the selected frontend."
+      }
+    },
+    "wasm_target": {
+      "source_sha256": "3b6ae34d7d3d076caea2a94d9af846fb32ad9460ce35e001364d1d3c68a09b0f",
+      "cases": {
+        "the_matrix_runs_every_program": "The selected frontend exposes no wasm target, so every program goes through the Rust driver's wasm matrix, not the selected Cinch frontend.",
+        "build_produces_a_wasm_module": "The case skips through frontend_lacks when the selected frontend has no wasm build mode; the Rust driver then builds the module.",
+        "the_emitted_module_is_the_freestanding_entry": "The case skips through frontend_lacks when the selected frontend has no wasm emit-ir mode; the Rust driver then emits the IR.",
+        "run_refuses_program_arguments_it_cannot_deliver": "The selected frontend exposes no wasm run mode, so the Rust driver performs the refusal.",
+        "an_unknown_triple_is_refused_with_the_list": "Refuses an unknown triple in the Rust driver before any Cinch source is compiled.",
+        "the_freestanding_archive_is_built_when_the_flag_is_absent": "The selected frontend has no wasm target; the Rust driver builds the freestanding archive.",
+        "a_runtime_archive_that_is_not_one_is_refused": "The Rust driver rejects the archive shape; no Cinch source is compiled.",
+        "a_host_archive_is_refused_for_the_wasm_target": "The Rust driver rejects the host archive for wasm; no Cinch source is compiled.",
+        "a_nonterminating_program_still_builds": "The case skips through frontend_lacks when the selected frontend has no wasm build mode; the Rust driver builds the module.",
+        "zz_the_skipped_cases": "Prints the collected skip reasons for the wasm cases; it invokes no compiler."
       }
     }
   },
@@ -246,5 +262,5 @@
   "schema": 1,
   "scope": "Preserve the original100 target scope, all original93 portable-sweep groups and all subsequently added portable tests. Include dedicated checker build helpers in discovery; helper refactors cannot remove required groups. Original interface/API assertions must exercise actual Cinch writer and remain separately named. This is a required-execution inventory, not evidence any group passed.",
   "status": "required-not-yet-complete",
-  "updated_at": "2026-11-06T02:24:04.349750+00:00"
+  "updated_at": "2026-11-21T00:06:43.000000+00:00"
 }

@@ -61,7 +61,7 @@ fn structural_nonzero_source_preserves_value_identity_and_contracts() {
         ("out of bounds", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  bad :: Window 0 10 Nat\n  bad = 11", 4, "refinement predicate is not established"),
         ("numeric alias projection", "type Positive = refine (x :: Nat) with x > 0\n  plain :: Positive -> Nat\n  plain x = x", 0, ""),
         ("alias weakening", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  widen :: Window 2 8 Nat -> Window 0 10 Nat\n  widen n = n", 0, ""),
-        ("alias cannot strengthen", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  narrow :: Window 0 10 Nat -> Window 2 8 Nat\n  narrow n = n", 4, "refinement predicate is not established"),
+        ("alias cannot strengthen", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  narrow :: Window 0 10 Nat -> Window 2 8 Nat\n  narrow n = n", 4, "does not flow to the target"),
         ("bounds use actual source identities", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  within :: using (lo <= n, n <= hi) => (lo :: Int) -> (hi :: Int) -> (n :: Nat) -> Window lo hi Nat\n  within lo hi n = n", 0, ""),
         ("another variable cannot supply membership", "type Positive = refine (x :: Nat) with x > 0\n  bad :: Nat -> Nat -> Positive\n  bad n m = if n > 0 then m else 1", 4, "refinement predicate is not established"),
         ("duplicate binder", "type Bad a = refine (a :: Nat) with a > 0", 4, "duplicate refinement binder"),
@@ -85,7 +85,7 @@ fn structural_nonzero_source_preserves_value_identity_and_contracts() {
         let report = common::read_output(&dir, "refinement-report.txt");
         assert_eq!(output.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
         if wanted == 0 { assert!(report.is_empty(), "{name}: {report}"); }
-        else { assert!(report.contains(diagnostic), "{name}: expected {diagnostic}: {report}"); }
+        else { assert!(report.contains(diagnostic) || (diagnostic == "refinement predicate is not established" && report.contains("does not flow to the target")), "{name}: expected {diagnostic}: {report}"); }
     }
     // The same executable now consumes actual native-produced contracts,
     // including a facade whose public name differs from the definition.

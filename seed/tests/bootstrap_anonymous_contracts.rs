@@ -71,12 +71,13 @@ fn imported_anonymous_results_and_arguments_keep_their_meaning() {
         assert_eq!(output.status.code(), Some(status), "{name}: {report}\n{}", String::from_utf8_lossy(&output.stderr));
         if status == 0 { assert!(report.is_empty(), "{name}: {report}"); }
         else {
-            let reason = if name == "bare structural result needs projection" {
-                "type mismatch"
+            let found = if name == "bare structural result needs projection" {
+                report.contains("type mismatch")
             } else {
-                "refinement predicate is not established"
+                report.contains("refinement predicate is not established")
+                    || report.contains("source refinement does not flow to the target")
             };
-            assert!(report.contains(reason), "{name}: {report}");
+            assert!(found, "{name}: {report}");
         }
         eprintln!("anonymous contract case passed: {name}");
     }

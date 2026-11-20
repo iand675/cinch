@@ -45,7 +45,7 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         ("machine wrong result", "cinch.prim.wrappingAddI64", "I64 -> I64 -> Bool", "type mismatch"),
         ("machine wrong arity", "cinch.prim.wrappingSubI64", "I64 -> I64", "type mismatch"),
         ("machine polymorphic", "cinch.prim.eqI64", "forall a. a -> a -> Bool", "cannot be polymorphic"),
-        ("machine unknown operation", "cinch.prim.imaginaryI64", "I64 -> I64 -> I64", "checked runtime intrinsic contract"),
+        ("machine unknown operation", "cinch.prim.imaginaryI64", "I64 -> I64 -> I64", "is not a cinch intrinsic"),
         ("Nat intrinsic wrong carrier", "cinch.runtime.natMul", "Int -> Int -> Int", "type mismatch"),
     ] {
         cases.push((identity.into(), identity.into(), format!("foreign import ccall \"{identity}\" native :: {scheme}"), Some((name, message))));
@@ -58,10 +58,10 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         ("wrong arity", "foreign import ccall \"cinch.runtime.textHmacSha256\" native :: Bytes -> Bytes", Some("type mismatch")),
         ("polymorphic", "foreign import ccall \"cinch.runtime.textSha256\" native :: forall a. a -> a", Some("cannot be polymorphic")),
         ("wrong effects", "foreign import ccall \"cinch.runtime.textSha256\" native :: forall r. Bytes ->{IO r} Bytes", Some("cannot be polymorphic")),
-        ("unknown intrinsic", "foreign import ccall \"cinch.runtime.textImaginary\" native :: Bytes -> Bytes", Some("checked runtime intrinsic contract")),
+        ("unknown intrinsic", "foreign import ccall \"cinch.runtime.textImaginary\" native :: Bytes -> Bytes", Some("is not a cinch intrinsic")),
         ("unknown C symbol", "foreign import ccall \"untrusted_hash\" native :: Bytes -> Bytes", Some("accounted result effects")),
         ("wrong ABI", "foreign import component \"cinch.runtime.textSha256\" native :: Bytes -> Bytes", Some("requires foreign import ccall")),
-        ("export", "foreign export ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes", Some("requires foreign import ccall")),
+        ("export", "foreign export ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes", Some("a foreign export wraps a defined function")),
         ("duplicate", "foreign import ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes\n  foreign import ccall \"cinch.runtime.textMd5\" native :: Bytes -> Bytes", Some("duplicate intrinsic binding")),
         ("source replacement", "foreign import ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes\n  native input = input", Some("cannot also have a source definition")),
     ] {

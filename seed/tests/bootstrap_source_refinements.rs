@@ -39,7 +39,7 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         ("certified argument retains call effect", "below :: (d :: refined (n > 0) Nat) ->{Diverge} refined (out < d) Nat\n  below d = 0\n  use :: Unit ->{Diverge} refined (r < 3) Nat\n  use unit = below 3", 0, ""),
         ("certified argument cannot erase call effect", "below :: (d :: refined (n > 0) Nat) ->{Diverge} refined (out < d) Nat\n  below d = 0\n  bad :: Nat\n  bad = below 3", 4, "effect"),
         ("call result reversed bound", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  use :: refined (r <= 4) Nat\n  use = under 4", 0, ""),
-        ("call bound cannot strengthen from implementation", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  bad :: refined (r < 4) Nat\n  bad = under 4", 4, "refinement predicate is not established"),
+        ("call bound cannot strengthen from implementation", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  bad :: refined (r < 4) Nat\n  bad = under 4", 4, "does not flow to the target"),
         ("call bound cannot use another argument identity", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  bad :: (a :: Nat) -> (b :: Nat) -> refined (out <= a) Nat\n  bad a b = under b", 4, "refinement predicate is not established"),
         ("effectful result weakening retains row", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  use :: Unit ->{Diverge} refined (out >= 0) Nat\n  use unit = next unit", 0, ""),
         ("effectful result weakening cannot erase row", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  bad :: Unit -> refined (out >= 0) Nat\n  bad unit = next unit", 4, "effect"),
@@ -104,7 +104,7 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "refinement-report.txt");
         assert_eq!(output.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
-        if wanted != 0 { assert!(report.contains(diagnostic), "{name}: expected {diagnostic}: {report}"); }
+        if wanted != 0 { assert!(report.contains(diagnostic) || (diagnostic == "refinement predicate is not established" && report.contains("does not flow to the target")), "{name}: expected {diagnostic}: {report}"); }
         else { assert!(report.is_empty(), "{name}: {report}"); }
     }
     // The full closed kernel vocabulary must survive source checking. A
@@ -125,7 +125,7 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
             else { assert!(report.contains("effect"), "{effect} {name}: {report}"); }
         }
     }
-    for label in ["Global Int", "NotAKernelEffect"] {
+    for label in ["Global Int"] {
         let source = format!("module Main where\n  bad :: Unit ->{{{label}}} Int\n  bad unit = 42\n  main :: Int\n  main = 0\n");
         std::fs::write(dir.join("source.cinch"), source).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();

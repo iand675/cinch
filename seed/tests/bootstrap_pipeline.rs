@@ -198,7 +198,7 @@ fn erased_reflexivity(dir: &Path, exe: &Path) {
 
     for (invalid, reason) in [
         (named.replacen("Eq (2 + 3) 5", "Eq (2 + 3) 6", 1), "obligation disproved"),
-        (named.replace("proof arithmetic = (refl)", "proof arithmetic = arithmetic"), "requires kernel refl"),
+        (named.replace("proof arithmetic = (refl)", "proof arithmetic = arithmetic"), "must terminate"),
         (named.replace("  proof arithmetic :: Eq (2 + 3) 5\n", ""), "no proof signature"),
         (named.replace("proof arithmetic = (refl)", "proof arithmetic = refl\n  proof arithmetic = refl"), "exactly one argument-free proof equation"),
     ] {

@@ -535,7 +535,7 @@ module Bootstrap.RuntimeIr where
     Cons q rest -> if erased-kind (quant-kind q) || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False) then class-bindings rest classes else
       (case classes of
         Cons code more -> let kind = quant-kind q in
-          if (kind-equal kind KType && code < 4) || (former-kind kind && code == 1) then
+          if (kind-equal kind KType && code < 3) || (former-kind kind && code == 1) then
           (case class-bindings rest more of Some tail -> Some (Cons (quant-id q, code) tail); None -> None) else None
         Nil -> None)
   rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))

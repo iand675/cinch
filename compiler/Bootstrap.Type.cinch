@@ -2593,11 +2593,14 @@ module Bootstrap.Type where
   check-number-checks checks st = case checks of
     Nil -> st
     Cons (PendingComparison sp ty allowed) rest ->
-      let valid = case normalize st ty of UCon name KType -> comparison-name name allowed; other -> False in
-      check-number-checks rest (if valid then st else add-error sp "equality needs an Eq dictionary for this type" st)
+      let defaulted = case normalize st ty of
+            UMeta id KType -> if contains-id id (number-meta-ids checks st) then unify sp ty (UCon "Int" KType) st else st
+            other -> st in
+      let valid = case normalize defaulted ty of UCon name KType -> comparison-name name allowed; other -> False in
+      check-number-checks rest (if valid then defaulted else add-error sp "equality needs an Eq dictionary for this type" defaulted)
     Cons (PendingNumber sp ty value) rest -> let carrier = number-carrier (normalize st ty) in
       check-number-checks rest (case carrier of
-        UMeta id KType -> add-error sp "the type of this integer literal is not determined by context; add a type annotation" st
+        UMeta id KType -> unify sp ty (UCon "Int" KType) st
         other -> if number-literal-valid carrier value then st else add-error sp (number-literal-error carrier value "literal is outside its resolved integer carrier") st)
   comparison-name :: String -> List String -> Bool
   comparison-name name allowed = case allowed of Nil -> False; Cons first rest -> same-tag name first || comparison-name name rest

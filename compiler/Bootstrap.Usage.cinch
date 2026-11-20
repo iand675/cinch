@@ -379,7 +379,7 @@ module Bootstrap.Usage where
     UApp (UCon name kind) carrier -> if kind-equal kind (KFun KType KType) then
       (case export-global name of
         Ok public -> (case usage-container public of
-          Some owner | same name owner -> (case checked-field params names carrier of
+          Some container -> (case checked-field params names carrier of
             Some value -> Some (string-concat-all ["(", public, " ", value, ")"])
             None -> None)
           other -> None)
