@@ -101,10 +101,18 @@ modules lazily, so a chain started from one revision can load the next
 one's code. Run a chain or a suite from a worktree at a commit, with
 `CINCH_BOOTSTRAP_BUILD` naming the build tree.
 
-To iterate on the compiler's sources:
+To iterate on the compiler's sources (`tooling/README.md`, Development
+builds):
 
 ```sh
-python3 tooling/bootstrap.py build --stage 1 --dev -j 4   # about 20 s to a type error, 2 to 4 min to a compiler
+# The compiler as a graph of modules: 3 to 30 s after a body edit, by the
+# size of the module edited. The builder is any stage or the last result.
+python3 tooling/module_build.py --builder build/bootstrap/stage3/cinch --out build/modules -j 4
+python3 tooling/run_stage_targets.py --compiler build/modules/cinch --allow-dirty \
+    --out build/dev-evidence --cargo-target build/test-cargo lattice
+
+# A whole stage through the seed: about 20 s to a type error.
+python3 tooling/bootstrap.py build --stage 1 --dev -j 4
 ```
 
 ## Starting point

@@ -59,6 +59,14 @@ DEV_SHARDS = 48
 # plain -O2 link the tests assert.
 PGO_DEFAULT = True
 PGO = False
+# Whether Stage 1, which the seed links, gets a profile too. Off unless asked
+# for: a profile costs a second compile of the seed's module, which is six
+# times the size of a stage's own, and what it buys is a faster build of
+# Stage 2 alone. That trade was made when Stage 1's frontend ran for nine
+# minutes. At a minute and a half the second link costs four minutes to save
+# about ten seconds. Stages 2 and 3 are unaffected: Stage 1 emits the same
+# module with or without a profile.
+PGO_SEED = False
 
 
 class BootstrapError(RuntimeError):
@@ -783,7 +791,8 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     # The seed writes this sidecar for clang. The fixed point compares the
     # later stages' compiler.ll, so a successful Stage1 can discard it.
     seed_ir = compiler.with_suffix(".ll")
-    profile = pgo_profile("seed", inputs["source_sha256"]) if PGO else None
+    guided = PGO and PGO_SEED
+    profile = pgo_profile("seed", inputs["source_sha256"]) if guided else None
     if profile is not None:
         inputs["pgo"] = pgo_inputs(profile)
     if cached(directory, inputs):
@@ -806,12 +815,12 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     # the profile, and the recorded seed command is replayed with it.
     record = directory / "seed-link.json"
     append = None
-    if PGO:
+    if guided:
         record.unlink(missing_ok=True)
         append = shlex.join(pgo.generate_flags(directory / "pgo" / "raw"))
     code = compile_seed_stage(builder, sources, compiler, runtime, log, inputs["seed_flags"],
-                              stage_link_environment(append, record if PGO else None))
-    if code == 0 and PGO:
+                              stage_link_environment(append, record if guided else None))
+    if code == 0 and guided:
         profile = pgo_relink(compiler, seed_ir, record, inputs["source_sha256"],
                              directory, log,
                              pgo_base_interfaces(directory,
@@ -1221,16 +1230,20 @@ def main() -> int:
     parser.add_argument("--pgo", dest="pgo", action="store_true", default=None,
                         help="link the stage compilers with a source-keyed profile "
                              f"(default: {'on' if PGO_DEFAULT else 'off'}; CINCH_BOOTSTRAP_PGO)")
+    parser.add_argument("--pgo-seed", action="store_true",
+                        help="also link Stage 1 with a profile (CINCH_BOOTSTRAP_PGO_SEED=1); "
+                             "it costs a second compile of the seed's module")
     parser.add_argument("--no-pgo", dest="pgo", action="store_false",
                         help="plain -O2 stage links, as before profile-guided optimization")
     parser.add_argument("--library-artifact", type=Path,
                         help="verified current-source base receipt for stages 2/3; leaves the seed and library pins unchanged")
     args = parser.parse_args()
     try:
-        global JOBS, PGO, LIBRARY_ARTIFACT, SHARDS, STABLE_SHARDS
+        global JOBS, PGO, PGO_SEED, LIBRARY_ARTIFACT, SHARDS, STABLE_SHARDS
         LIBRARY_ARTIFACT = args.library_artifact.resolve() if args.library_artifact is not None else None
         JOBS = resolve_jobs(args.jobs)
         PGO = resolve_pgo(args.pgo)
+        PGO_SEED = args.pgo_seed or (os.environ.get("CINCH_BOOTSTRAP_PGO_SEED") or "").strip().lower() in ("1", "yes", "on", "true")
         requested = args.shards if args.shards is not None else os.environ.get("CINCH_BOOTSTRAP_SHARDS")
         SHARDS = int(requested) if requested else JOBS
         STABLE_SHARDS = os.environ.get("CINCH_SHARD_PARTITION") == "stable"

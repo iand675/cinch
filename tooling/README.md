@@ -90,8 +90,12 @@ points that at `shard_ir.py`, which shards one large `.ll` link and execs
 
 A stage compiler is the chain's own hot loop: Stage1 compiles Stage2 and
 Stage2 compiles Stage3, so a faster compiler shortens the chain and every
-check the chain runs. Each stage is linked with a profile by default;
-`--no-pgo`, or `CINCH_BOOTSTRAP_PGO=0`, restores the plain `-O2` link:
+check the chain runs. Stages 2 and 3 are linked with a profile by default;
+`--no-pgo`, or `CINCH_BOOTSTRAP_PGO=0`, restores the plain `-O2` link.
+Stage 1 is linked plainly unless `--pgo-seed` (or
+`CINCH_BOOTSTRAP_PGO_SEED=1`) asks: its profile costs a second compile of
+the seed's module, six times the size of a stage's own, to shorten one
+build of Stage 2 that now takes a minute and a half:
 
 ```sh
 CINCH_HEAP_LIMIT=2G python3 tooling/bootstrap.py build --stage 3            # --pgo is the default
