@@ -504,6 +504,49 @@ def _stable_assignment(module: Module, count: int) -> list[int]:
     return shards
 
 
+def promote_locals(module: Module, tag: str) -> int:
+    """Give every local function a name the other shards can link against.
+
+    A shard cannot call an `internal` function defined in another shard, so
+    the split copies each one into every shard that reaches it. That is
+    right for a program whose workers are public, and it undoes the split
+    for a module compiled as a library: there the only public functions are
+    thin entry points, every worker is local, and the shard holding the
+    entry points ends up holding a copy of the whole module.
+
+    Renaming each local function to `<name>$<tag>` and making it `hidden`
+    keeps it out of the object's interface and lets a shard declare it
+    instead of copying it. The tag keeps two modules' locals apart when
+    their objects are linked into one program, where the same helper is
+    emitted by each. Data stays local and is copied as before: it is small,
+    and its initializer is its identity.
+    """
+    renamed: dict[str, str] = {}
+    for unit in module.functions:
+        if unit.linkage in ("internal", "private"):
+            renamed[unit.name] = f'@"{unit.name}${tag}"'
+
+    def rewrite(match: re.Match[str]) -> str:
+        if match.group(1) is None and match.group(2) is None:
+            return match.group(0)
+        return renamed.get(_symbol_name(match), match.group(0))
+
+    if not renamed:
+        return 0
+    for unit in module.functions:
+        local = unit.name in renamed
+        unit.text = REFERENCE_RE.sub(rewrite, unit.text)
+        if local:
+            unit.text = re.sub(r"^define (?:internal|private) ", "define hidden ", unit.text, count=1)
+            unit.symbol = renamed[unit.name]
+            unit.name = unit.symbol[2:-1]
+            unit.linkage = ""
+    for unit in module.globals:
+        unit.text = REFERENCE_RE.sub(rewrite, unit.text)
+    module.other = [REFERENCE_RE.sub(rewrite, line) for line in module.other]
+    return len(renamed)
+
+
 def split_module(text: str, count: int, stable: bool = False) -> list[str]:
     """K shard texts. Pure function of (text, count, stable)."""
     if count < 1:
@@ -567,13 +610,19 @@ def _shard_parts(module: Module, count: int, stable: bool = False) -> Iterator[l
 
 
 def write_shards(ir_path: Path, directory: Path, count: int,
-                 stem: str = "compiler", stable: bool = False) -> list[Path]:
-    """Write `<stem>.shard<k>.ll`; K=1 returns the original IR untouched."""
+                 stem: str = "compiler", stable: bool = False,
+                 promote: str | None = None) -> list[Path]:
+    """Write `<stem>.shard<k>.ll`; K=1 returns the original IR untouched.
+
+    `promote` is a tag for `promote_locals`, applied before the split.
+    """
     if count == 1:
         return [ir_path]
     if count < 1:
         raise ShardError("shard count must be positive")
     module = parse_module(ir_path.read_text())
+    if promote is not None:
+        promote_locals(module, promote)
     paths = [directory / f"{stem}.shard{k}.ll" for k in range(count)]
     # A later shard can still discover an invalid reference. Finish the
     # entire split before replacing any files from a previous build.

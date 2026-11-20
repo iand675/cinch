@@ -156,3 +156,36 @@ class ObjectCacheTests(unittest.TestCase):
             self.assertEqual(self.compile(directory, ["a"], directory / "cache", flags)[0], 1)
             self.assertEqual(self.compile(directory, ["a"], directory / "cache", flags)[0], 1)
             self.assertFalse((directory / "cache").exists())
+
+
+class PromoteLocalsTests(unittest.TestCase):
+    LIBRARY = ('@k = private constant [2 x i8] c"@w"\n'
+               'define internal i32 @"m.w"(i32 %x) {\n  ret i32 %x\n}\n'
+               'define internal i32 @"m.v"(i32 %x) {\n  %y = call i32 @"m.w"(i32 %x)\n  ret i32 %y\n}\n'
+               'define i32 @M.entry(i32 %x) {\n  %y = call i32 @"m.v"(i32 %x)\n  ret i32 %y\n}\n')
+
+    def test_local_functions_become_hidden_and_keep_their_callers(self):
+        module = shard_ir.parse_module(self.LIBRARY)
+        self.assertEqual(shard_ir.promote_locals(module, "t1"), 2)
+        text = "".join(unit.text for unit in module.functions)
+        self.assertIn('define hidden i32 @"m.w$t1"(i32 %x)', text)
+        self.assertIn('call i32 @"m.w$t1"(i32 %x)', text)
+        self.assertIn('call i32 @"m.v$t1"(i32 %x)', text)
+        self.assertIn("define i32 @M.entry(i32 %x)", text)
+        self.assertNotIn("internal", text)
+        # A symbol spelled inside a string constant is data, not a reference.
+        self.assertIn('c"@w"', module.globals[0].text)
+
+    def test_a_promoted_worker_is_declared_and_not_copied(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "unit.ll"
+            path.write_text(self.LIBRARY)
+            copied = [p.read_text() for p in shard_ir.write_shards(path, path.parent, 4, stem="c", stable=True)]
+            promoted = [p.read_text() for p in shard_ir.write_shards(path, path.parent, 4, stem="p", stable=True,
+                                                                     promote="t1")]
+        # Unpromoted, the entry's shard carries both workers' bodies.
+        entry = next(text for text in copied if "define i32 @M.entry" in text)
+        self.assertEqual(entry.count("define internal"), 2)
+        # Promoted, each worker is defined in exactly one shard.
+        self.assertEqual(sum(text.count('define hidden i32 @"m.w$t1"') for text in promoted), 1)
+        self.assertEqual(sum(text.count('define hidden i32 @"m.v$t1"') for text in promoted), 1)
