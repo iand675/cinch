@@ -47,10 +47,16 @@ def selected_stage_inputs(stage, directory, compiler):
     return manifest.read_bytes(), objects.read_bytes(), library, runtime
 
 
-def setup(stage, out, tree):
+def setup(stage, out, tree, compiler=None):
     directory = bootstrap.BUILD / f'stage{stage}'
-    compiler = directory / 'cinch'
-    manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(stage, directory, compiler)
+    if compiler is None:
+        compiler = directory / 'cinch'
+        manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(stage, directory, compiler)
+    else:
+        # A compiler built outside the chain (tooling/module_build.py) has no
+        # stage receipt. It targets the pinned library like every stage, so
+        # it runs against the pinned provider's interfaces and object.
+        manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(0, directory, compiler)
     manifest = out / 'base-interfaces.json'
     manifest.write_bytes(manifest_bytes)
     objects = out / 'objects.json'
@@ -156,6 +162,9 @@ def main():
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--cargo-target', type=Path, default=None)
     p.add_argument('--tree', type=Path, default=ROOT)
+    p.add_argument('--compiler', type=Path, default=None,
+                   help='a development compiler to test instead of a stage, for example the '
+                        'one tooling/module_build.py links; it is run against the pinned library')
     selection = p.add_mutually_exclusive_group()
     selection.add_argument('--all', action='store_true')
     selection.add_argument('--all-integration', action='store_true', help='run every Cargo integration test target')
@@ -200,7 +209,7 @@ def main():
     a.out.mkdir(parents=True, exist_ok=True)
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
     global TREE; TREE = a.tree
-    env = setup(a.stage, a.out.resolve(), a.tree)
+    env = setup(a.stage, a.out.resolve(), a.tree, a.compiler.resolve() if a.compiler else None)
     prebuild(a.targets, env, a.out.resolve(), a.cargo_target)
     # Cargo releases its build lock before running a test executable. Each
     # worker can start its suite as soon as that executable is ready.
