@@ -47,6 +47,44 @@ On the audited compilers, the handoff tip against the head: a self-compile
 takes 94 CPU seconds against 493, and the fib smoke against the base
 interfaces 1.10 against 2.40.
 
+### The matrix on the new compiler
+
+The whole matrix ran against the Stage 3 of e5448113 (345 targets, 133
+minutes at four jobs). Against the run of 2026-11-19 it differed in three
+targets:
+
+| Target | 2026-11-19 | e5448113 | 69958cfd |
+|---|---|---|---|
+| `integration` | 39 passed | 40 passed | 40 passed |
+| `bootstrap_runtime_objects` | 1 passed | 1 failed | 1 passed |
+| `attributes` | 15 passed, 16 failed | 14 passed, 17 failed | 15 passed, 16 failed |
+
+`integration` gained `immediate_arithmetic_keeps_its_edges`.
+
+`bootstrap_runtime_objects` found a fault in the inliner. A client that took
+a library function's published body skipped the check a call makes, that the
+provider's word ABI for the unit agrees with the checked scheme, so a
+manifest with a changed ABI for `Data.Bool.not` was accepted. The inliner
+makes that check now (`inline-abi-agrees`) and leaves a disagreeing unit to
+the call path, which refuses it. No assertion changed.
+
+`attributes` is the one place an assertion changed.
+`tagged_primitive_wrappers_expose_their_fast_paths` required the client's IR
+to call `Data.Nat.Add_Nat.+`. The client now holds that method's fast path
+inline, so the test accepts either the call or the inlined immediate test
+followed by `cinch_nat_add`. The owner of the goal should confirm that
+reading of "keep the existing assertions".
+
+69958cfd carries both changes. Its chain reaches the fixed point, and the
+three targets were run against its Stage 3 with the results in the last
+column. The other 342 targets were not run again on 69958cfd; they ran on
+e5448113, which differs only in the inliner's admission check and the one
+test. With those results the matrix stands at 271 of 345 targets passing,
+the same 74 failing as on 2026-11-19.
+
+Evidence: `build/head-evidence/` (e5448113, whole matrix),
+`build/fix-evidence/` (69958cfd, three targets).
+
 ## State on 2026-11-19, 23:40 UTC
 
 This section is newer than the ones below it. Work continues on
