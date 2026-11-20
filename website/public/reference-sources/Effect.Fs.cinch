@@ -21,7 +21,7 @@
 --
 -- The remaining operations (atomic rename, metadata, the directory
 -- listing) still cross through the runtime's `cinch_fs_*` word buffers
--- (`compiler/runtime/src/platform.rs`, the plain `foreign import ccall`
+-- (`seed/runtime/src/platform.rs`, the plain `foreign import ccall`
 -- machinery): machine scalars only, so paths and content cross through
 -- word buffers filled and drained one byte at a time below. The error
 -- codes those words return map onto the same named constructors, so the
@@ -31,7 +31,7 @@
 -- cross):
 --   non-atomic write: `fs-write` creates or truncates and is NOT
 --     atomic; atomic replacement is write-then-`fs-rename` (the probe
---     in compiler/tests/platform.rs exercises exactly that);
+--     in seed/tests/platform.rs exercises exactly that);
 --   partial reads: `fs-read` reads the whole file or fails (there is
 --     no streaming reader in the bootstrap slice);
 --   permissions beyond the OS's own: the error vocabulary reports

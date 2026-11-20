@@ -2,7 +2,7 @@
 """Type-check the bootstrap sources with an already-built stage compiler.
 
 The 11-16 minute path rebuilds the seed and every stage. When a change is
-confined to `bootstrap/*.cinch` (not a seed source, so no lock bump), the
+confined to `compiler/*.cinch` (not a seed source, so no lock bump), the
 stage-3 compiler on disk is the compiler those sources are written for, and
 it can check them directly: they are bundled the way
 `tooling/bootstrap.py` bundles them for a stage build (one file, every

@@ -1,6 +1,6 @@
 # Text.Lex
 
-A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients.
+A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -30,8 +30,8 @@ lexing).
 No drift from the layout spec is the design rule here. Every rule
 this scanner implements cites the sentence it follows, and the
 behavior is pinned token for token against the bootstrap compiler's
-own lexer and layout pass (`compiler/src/lexer.rs`,
-`compiler/src/layout.rs`) in `compiler/tests/parsers.rs`: the
+own lexer and layout pass (`seed/src/lexer.rs`,
+`seed/src/layout.rs`) in `seed/tests/parsers.rs`: the
 toolkit's token stream must agree with the compiler's on the shared
 corpus (kind, spelling, line, column, virtual flag), so a spec
 change that reaches the compiler cannot silently leave this module
@@ -363,4 +363,4 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Lex.cinch`. Source SHA-256: `bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

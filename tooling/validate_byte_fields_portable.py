@@ -53,7 +53,7 @@ def main() -> None:
     args = parser.parse_args()
     work = args.artifacts.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    source = (ROOT/'compiler/tests/fixtures/byte-fields-portable.cinch').read_text()
+    source = (ROOT/'seed/tests/fixtures/byte-fields-portable.cinch').read_text()
     entry = work/'Main.cinch'
     entry.write_text(source)
     closure = source_closure(source)

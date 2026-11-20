@@ -31,8 +31,8 @@ Five findings, each demonstrated in section 4:
 | --- | --- |
 | F1 | A `prim` body, the one in-source escape to target IR, cannot obtain memory: allocation symbols are refused, `cinch_*` is refused, and a `uses` entry emits a contract but no `declare`, so a call to libc does not assemble. |
 | F2 | No block-shaped value may enter or leave a `prim`: its arguments and result must be machine scalars (`check_decls.rs:23282`). So an arena cannot be handed a value to store, nor return one. |
-| F3 | The runtime every stage and every gate links is the pinned library producer's, not this tree's (`tooling/bootstrap_objects.py:113-152`, `tooling/bootstrap.py:744-757`). A change under `compiler/runtime/src` cannot reach the measured compiler. |
-| F4 | The runtime ABI is pinned twice: `Bootstrap.RuntimeAbi.cinch` must equal the library provider lock's `runtime_abi` (`tooling/bootstrap.py:407-421`), and `bootstrap/pins/stage0.lock.json` pins the seed. A new block kind is a seed bump plus a producer re-pin, which is the workflow `bootstrap/CHECKPOINT.md` records for ABI 5 through 8. |
+| F3 | The runtime every stage and every gate links is the pinned library producer's, not this tree's (`tooling/bootstrap_objects.py:113-152`, `tooling/bootstrap.py:744-757`). A change under `seed/runtime/src` cannot reach the measured compiler. |
+| F4 | The runtime ABI is pinned twice: `Bootstrap.RuntimeAbi.cinch` must equal the library provider lock's `runtime_abi` (`tooling/bootstrap.py:407-421`), and `compiler/pins/stage0.lock.json` pins the seed. A new block kind is a seed bump plus a producer re-pin, which is the workflow `compiler/CHECKPOINT.md` records for ABI 5 through 8. |
 | F5 | The population an arena would free is not a bulk. 85.9% of the self-check's blocks are constructor cells spread across elaboration and string decoding, not a phase output tree (section 2). |
 
 What follows from F5 changes the order things should be built in, and that is
@@ -251,7 +251,7 @@ kinds whose states are resumed by the runtime; a third is a region crossing.
 So `uses (malloc :: I64 -> I64)` passes containment. It does not link. The
 contract is recorded as a `prim-use` foreign export in the module's interface
 (`check_decls.rs:10592`) and nothing reads that kind: `grep -rn "prim-use"
-compiler/src` finds only the producer. A body calling `@malloc` therefore
+seed/src` finds only the producer. A body calling `@malloc` therefore
 assembles against no declaration. Measured, `/tmp/arena/probe/Probe.cinch`:
 
 ```
@@ -277,27 +277,27 @@ yourself" route: the arena cannot be handed a value.
 
 `tooling/bootstrap.py:744-757` (`runtime_archive`) links every stage against
 the runtime built from the **seed snapshot**, which is the pinned git revision
-in `bootstrap/pins/stage0.lock.json`; `tooling/bootstrap_objects.py:113-152` builds
+in `compiler/pins/stage0.lock.json`; `tooling/bootstrap_objects.py:113-152` builds
 the library producer, its runtime archive and the library object from
-`bootstrap/pins/library-provider.lock.json`'s revision, and both files feed every
+`compiler/pins/library-provider.lock.json`'s revision, and both files feed every
 gate (`tooling/run_stage_targets.py:26-46`). Neither mentions
-`compiler/runtime/src` in this tree.
+`seed/runtime/src` in this tree.
 
 The ABI itself is pinned three ways: `RUNTIME_ABIS = (5, 6, 7, 8)`
 (`bootstrap.py:38`), `library_provider_lock` requires
-`bootstrap/Bootstrap.RuntimeAbi.cinch` to be byte-equal to the rendered
+`compiler/Bootstrap.RuntimeAbi.cinch` to be byte-equal to the rendered
 version of the lock's `runtime_abi` (`bootstrap.py:407-421`), and
 `collect_compiler_sources` renders that module from the lock rather than from
 source (`bootstrap.py:497-499`). A new block kind is therefore a Rust-side
 change, a new seed revision, a new producer revision, and a regenerated
-interface set: exactly the ABI 5 to 8 workflow in `bootstrap/CHECKPOINT.md`.
+interface set: exactly the ABI 5 to 8 workflow in `compiler/CHECKPOINT.md`.
 
 ### 4.4 No scope form binds a region for a user library (F4, second half)
 
 Region borrows are real and documented (`reference/10-ownership-and-memory.md`
 "Shared and exclusive borrows", with a runnable `Ref region`/`copyOut` example),
 and the checker refuses a value that leaves its `withScope`
-(`bootstrap/Bootstrap.Infer.cinch:4349`). But `withScope`, `spawn` and
+(`compiler/Bootstrap.Infer.cinch:4349`). But `withScope`, `spawn` and
 `joinAllOrCancel` are *builtin* forms with task-shaped types
 (`Bootstrap.Infer.cinch:4334-4370`, `Bootstrap.Builtin.cinch:182`), and there
 is no user-definable scope form, so a library cannot open a region.
@@ -340,25 +340,25 @@ scalar arena would remove nothing that the profile names.
 Slice A3 of `design/allocators.md`, reduced to what the measurement asks for.
 Four changes, in this order:
 
-1. **Runtime** (`compiler/runtime/src`): `KIND_ARENA` at 17 (`block_kinds.rs`,
+1. **Runtime** (`seed/runtime/src`): `KIND_ARENA` at 17 (`block_kinds.rs`,
    `KIND_LAST` moves), `cinch_arena_new(i64) -> i64`, `cinch_arena_leave(i64)`,
    chunk growth and teardown through `heap::alloc_block`/`free_block` so the
    accounting and `CINCH_HEAP_LIMIT` keep working, and `cinch_alloc_ctor` and
    friends allocating from the ambient arena when one is entered. Blocks get
    `RC_IMMORTAL` headers and empty pointer maps.
 2. **Intrinsics**: `cinch.runtime.arenaNew` and `cinch.runtime.arenaLeave` in
-   the seed's builtin table (`bootstrap/Bootstrap.Builtin.cinch` mirrors it for
+   the seed's builtin table (`compiler/Bootstrap.Builtin.cinch` mirrors it for
    the self-hosted compiler), plus the `--rc-debug`-style profile switch that
    selects arena allocation for a build.
 3. **ABI and pins**: `RUNTIME_ABI_VERSION` to 9, `RUNTIME_ABIS` to include 9,
-   a seed revision containing 1 and 2 (`bootstrap/pins/stage0.lock.json`), a library
-   producer revision containing them (`bootstrap/pins/library-provider.lock.json`),
+   a seed revision containing 1 and 2 (`compiler/pins/stage0.lock.json`), a library
+   producer revision containing them (`compiler/pins/library-provider.lock.json`),
    and the 55 interfaces regenerated by the new producer.
-4. **Base library** (`compiler/prelude/Data/Arena.cinch`): the handle of
+4. **Base library** (`seed/prelude/Data/Arena.cinch`): the handle of
    section 3, and the package's interface set regenerated so the compiler can
-   import it. `collect_compiler_sources` bundles only `bootstrap/*.cinch` and
+   import it. `collect_compiler_sources` bundles only `compiler/*.cinch` and
    five `Text` modules (`bootstrap.py:496-518`), so either the compiler's
-   arena lives in `bootstrap/` or the bundle list grows.
+   arena lives in `compiler/` or the bundle list grows.
 
 Then one conversion, gated as the assignment specifies, with the phase chosen
 by ownership boundary rather than by guess.
@@ -366,7 +366,7 @@ by ownership boundary rather than by guess.
 The minimum that unblocks a first measurement is items 1 and 2 plus a profile
 switch: one arena entered at the start of the frontend and left at exit, no
 scope form, no per-module schedule, no `Data.Arena` module (the compiler's
-handle can live in `bootstrap/`). That measures the count traffic directly and
+handle can live in `compiler/`). That measures the count traffic directly and
 answers whether the rest of A3 is worth building. The cost is the resident set
 discussed in section 6.1, so the measurement has to be taken on both a small
 input and the self-check.
@@ -412,9 +412,9 @@ blocks of exactly the kind the arena cannot.
 `Sym` is an interned, never-freed, one-word handle to a name cell:
 "Cells are immutable and never freed (the runtime's block discipline), so a
 handle stays valid for the life of the process and sharing one is free"
-(`compiler/runtime/src/sym.rs:8-13`). `Eq` is identity (one pointer test), `Ord`
+(`seed/runtime/src/sym.rs:8-13`). `Eq` is identity (one pointer test), `Ord`
 is lexicographic by name and deterministic across runs, and literals intern at
-compile time (`compiler/prelude/Data/Sym.cinch:1-12`). That is an arena with
+compile time (`seed/prelude/Data/Sym.cinch:1-12`). That is an arena with
 the whole process as its scope, keyed by content, and it has exactly the
 property section 3.5 wants: no count ever moves.
 
@@ -422,7 +422,7 @@ The self-hosted compiler does not use it. `Bootstrap.Inputs.cinch:32` already
 lists `Data.Sym` among the interfaces the compiler checks against, and
 `Bootstrap.RuntimeIr.cinch:302-304` classifies `Sym` as an immortal `Raw`
 handle, so the type and its representation are in place; `grep -rn "\bintern\b"
-bootstrap/*.cinch` finds no use, and names are `String` throughout (97
+compiler/*.cinch` finds no use, and names are `String` throughout (97
 occurrences in `Bootstrap.Ast.cinch` alone). Section 2's caller table is what
 that costs: byte comparison is the largest runtime caller (22%) and byte
 hashing the fourth (5%), and both are the two things an interned identity
@@ -467,11 +467,11 @@ measurement in 8.4 confirms.
 
 ### 8.1 The representation actually built
 
-`compiler/runtime/src/arena.rs`. `cinch_arena_new(bytes: i64) -> i64` enters
+`seed/runtime/src/arena.rs`. `cinch_arena_new(bytes: i64) -> i64` enters
 an arena on the calling thread and returns its record pointer as an opaque
 handle word; `cinch_arena_leave(handle) -> i64` releases it and restores the
 arena entered before it, so arenas nest. The record and every chunk are
-[`heap::alloc_block`](compiler/runtime/src/heap.rs) allocations, so the heap
+[`heap::alloc_block`](seed/runtime/src/heap.rs) allocations, so the heap
 cap, the stats line and the leak check account for them; a chunk is a 16-byte
 header (`next`, data size) followed by an 8-aligned data area, starting at
 64 KiB and doubling to a 64 MiB cap.
@@ -517,12 +517,12 @@ leak of roughly a quarter of the `Bytes` traffic of the phase it wraps.
 ### 8.3 ABI 9 and the pins
 
 * `interface::RUNTIME_ABI_VERSION` 8 to 9; `RUNTIME_ABIS` gains 9;
-  `bootstrap/Bootstrap.RuntimeAbi.cinch` is the rendered 9.
-* Both locks (`bootstrap/pins/stage0.lock.json`, `bootstrap/pins/library-provider.lock.json`)
+  `compiler/Bootstrap.RuntimeAbi.cinch` is the rendered 9.
+* Both locks (`compiler/pins/stage0.lock.json`, `compiler/pins/library-provider.lock.json`)
   name revision `e3705d4f78bb5de5168f540e519e8bacc5a214fe` with source hash
   `0ebe3caf1980c0a7884730eba5265aa84a20c950598022f7bac324e0fae2c38a` and
   `runtime_abi` 9. The revision is a git commit object of the lane's
-  `compiler/` tree, written with `git commit-tree` so no ref moved.
+  `seed/` tree, written with `git commit-tree` so no ref moved.
 * The intrinsics: `cinch.runtime.arenaNew`/`arenaLeave` in the Rust
   compiler's `PrimOp::Platform` table (arity 1, signature `I64 -> I64`,
   declared `i64 @cinch_arena_new(i64)` / `@cinch_arena_leave(i64)`), in

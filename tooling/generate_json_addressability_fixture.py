@@ -5,7 +5,7 @@ import hashlib
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-reference = ROOT / 'compiler/tests/fixtures/json-codec-methods-vectors.json'
+reference = ROOT / 'seed/tests/fixtures/json-codec-methods-vectors.json'
 rows = [row for row in json.loads(reference.read_text())['encoding'] if row['type'] == 'main.pointerMethods']
 assert len(rows) == 80
 assert all(row['bool'] for row in rows)
@@ -99,7 +99,7 @@ for group in range(5):
     names = [f'observe{at} ()' for at in range(group * 16, min((group + 1) * 16, len(rows)))]
     pieces.append(f'  -- | Check independent addressability observations {group * 16 + 1} through {min((group + 1) * 16, len(rows))}.\n  group{group} :: Unit -> Bool\n  group{group} unit = ' + ' && '.join(names) + '\n\n')
 pieces.append('  -- | Fail with the first independent group index or the explicit interface-boundary status.\n  main :: Int\n  main = ' + ''.join(f'if not (group{group} ()) then {group + 1} else ' for group in range(5)) + 'if not (interface-boundary ()) then 6 else 0\n')
-output = ROOT / 'compiler/tests/fixtures/json-codec-addressability.cinch'
+output = ROOT / 'seed/tests/fixtures/json-codec-addressability.cinch'
 output.write_text(''.join(pieces))
-(ROOT / 'compiler/tests/fixtures/json-codec-addressability-pending.json').write_text(json.dumps({'description': 'Mandatory full-scope reporting-disabled invalid quoted-field descriptor error; deferred to complete error-context increment, not asserted by the successful addressability consumer.', 'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(), 'rows': pending}, indent=2) + '\n')
+(ROOT / 'seed/tests/fixtures/json-codec-addressability-pending.json').write_text(json.dumps({'description': 'Mandatory full-scope reporting-disabled invalid quoted-field descriptor error; deferred to complete error-context increment, not asserted by the successful addressability consumer.', 'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(), 'rows': pending}, indent=2) + '\n')
 print(json.dumps({'rows': len(rows), 'pending_error_rows': len(pending), 'extra_interface_group': 1, 'callback_counts_asserted': True, 'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(), 'fixture_sha256': hashlib.sha256(output.read_bytes()).hexdigest()}))

@@ -26,7 +26,7 @@ def main() -> None:
     parser.add_argument('--compile-only', action='store_true')
     parser.add_argument('--reuse', action='store_true')
     args = parser.parse_args(); os.sched_setaffinity(0, {args.cpu})
-    fixture_path = ROOT / 'compiler/tests/fixtures/utf8-span-vectors.json'
+    fixture_path = ROOT / 'seed/tests/fixtures/utf8-span-vectors.json'
     fixture = json.loads(fixture_path.read_text()); count = (len(fixture['rows']) + 7) // 8
     if args.group is not None and not 0 <= args.group < count:
         parser.error('group is outside the current fixture')

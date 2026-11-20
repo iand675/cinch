@@ -4,7 +4,7 @@ from pathlib import Path
 import hashlib
 import json
 ROOT = Path(__file__).resolve().parents[1]
-REFERENCE = ROOT/'compiler/tests/fixtures/json-codec-error-context-vectors.json'
+REFERENCE = ROOT/'seed/tests/fixtures/json-codec-error-context-vectors.json'
 TEMPLATE = r'''-- | Independent quoted-field output, error metadata and callback observations include every policy and formatting combination.
 module Main where
   import Text.Json.Codec
@@ -146,7 +146,7 @@ def main():
             text+=f'    let result{n} = group {name} {offset} in\n    if result{n} > 0 then result{n} else\n'
         text+='    0\n'
         if suite=='pointer':
-            pending_path=ROOT/'compiler/tests/fixtures/json-codec-addressability-pending.json'
+            pending_path=ROOT/'seed/tests/fixtures/json-codec-addressability-pending.json'
             pending=json.loads(pending_path.read_text())['rows'][0]
             assert pending['error']['offset']==9 and pending['calls']==[]
             original_descriptor=descriptor.replace('main.pointerMethod',pending['type'])
@@ -155,9 +155,9 @@ def main():
             manifest['retained_pending_source_sha256']=hashlib.sha256(pending_path.read_bytes()).hexdigest()
         else:
             text+='\n  -- | Report an exact nonzero row on any output, callback or semantic metadata mismatch.\n  main :: Int\n  main = nat-to-int status\n'
-        target=ROOT/f'compiler/tests/fixtures/json-codec-error-{suite}.cinch'
+        target=ROOT/f'seed/tests/fixtures/json-codec-error-{suite}.cinch'
         target.write_text(text)
         manifest['consumers'][suite]={'source_sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'rows':len(rows),'source_bytes':target.stat().st_size}
-    (ROOT/'bootstrap/evidence/stdlib/stdlib-json-error-context-cases.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    (ROOT/'compiler/evidence/stdlib/stdlib-json-error-context-cases.json').write_text(json.dumps(manifest,indent=2)+'\n')
     print(json.dumps(manifest,indent=2))
 if __name__=='__main__':main()

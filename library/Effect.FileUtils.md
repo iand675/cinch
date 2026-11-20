@@ -34,7 +34,7 @@ never a fault.
 The operations ride three landed surfaces: `Effect.Fs` (`fs-read`,
 `fs-write`, `fs-rename`, `fs-metadata`) for the read, write and
 atomic-move path; the `cinch.runtime.fsMkdir`/`fsRemove`/`fsTempDir`
-intrinsics (`compiler/runtime/src/platform.rs`) for creation and
+intrinsics (`seed/runtime/src/platform.rs`) for creation and
 removal, which `Effect.Fs` does not expose; and `Effect.Random`
 (`random-bytes` for the entropy draw and the pure `hex-of-bytes` for
 the temp-name nonce). The draw is BOUND to a `let` before rendering,
@@ -213,4 +213,4 @@ does NOT bump a timestamp, see the refusals). The create is
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/FileUtils.cinch`. Source SHA-256: `17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/FileUtils.cinch`. Source SHA-256: `17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

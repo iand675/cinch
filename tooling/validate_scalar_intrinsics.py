@@ -32,7 +32,7 @@ def main() -> None:
     manifest, objects = args.artifacts / "interfaces.json", args.artifacts / "objects.json"
     bootstrap.write_json(manifest, provider["interfaces"])
     bootstrap.write_json(objects, provider["configuration"])
-    fixture = bootstrap.ROOT / "compiler/tests/fixtures/native-scalar-intrinsic-vectors.json"
+    fixture = bootstrap.ROOT / "seed/tests/fixtures/native-scalar-intrinsic-vectors.json"
     rows = json.loads(fixture.read_text())[args.first:]
     if args.limit is not None:
         rows = rows[:args.limit]

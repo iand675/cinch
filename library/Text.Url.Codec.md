@@ -166,4 +166,4 @@ Decode a raw path hint only when its pchar spellings and percent triplets are va
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url/Codec.cinch`. Source SHA-256: `17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Codec.cinch`. Source SHA-256: `17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

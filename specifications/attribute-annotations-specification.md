@@ -527,7 +527,7 @@ compiler vs macro ownership, duplicate handling), weights with
 marginalization and the `3:58:29` case rule, inline hints, `repr`
 layouts with `abi.layouts` hashed into `iface_hash`, and the safety
 assertions of section 10 with their interface facts. Evidence:
-`compiler/tests/attributes.rs` and the safety suite. The design
+`seed/tests/attributes.rs` and the safety suite. The design
 context for the AST representation of attributes is
 `design/attribute-annotations.md`; the JPL rule mapping is
 `design/safety-assertion-attributes.md`.

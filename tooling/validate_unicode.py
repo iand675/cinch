@@ -24,11 +24,11 @@ def digest(path: Path) -> str:
 
 def consumer() -> str:
     """Render shallow expected-word pages without a deep constant constructor list."""
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/unicode-vectors.json').read_text())
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/unicode-vectors.json').read_text())
     rows = fixture['scalar_chunks']
     assert all(row['end'] - row['start'] == 2048 for row in rows)
     expected = '\n'.join(render_words('expected-' + name, 64, [row[field] for row in rows]) for name, field in [('numeric', 'numeric_hash'), ('char', 'char_hash'), ('metadata', 'metadata_hash')])
-    return (ROOT / 'compiler/tests/fixtures/unicode-kernel-consumer.cinch.in').read_text().replace('__CHUNK_COUNT__', str(len(rows))).replace('__EXPECTED__', expected)
+    return (ROOT / 'seed/tests/fixtures/unicode-kernel-consumer.cinch.in').read_text().replace('__CHUNK_COUNT__', str(len(rows))).replace('__EXPECTED__', expected)
 
 
 def main() -> None:
@@ -75,7 +75,7 @@ def main() -> None:
     started = time.monotonic()
     if args.reuse:
         prior = json.loads(identity_path.read_text()) if identity_path.exists() else json.loads(args.output.read_text())
-        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json') or prior['executable_sha256'] != digest(exe) or prior.get('runtime_sha256') != digest(runtime) or prior.get('provider_sha256') != provider:
+        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'seed/tests/fixtures/unicode-vectors.json') or prior['executable_sha256'] != digest(exe) or prior.get('runtime_sha256') != digest(runtime) or prior.get('provider_sha256') != provider:
             raise ValueError('Refusing executable reuse after compiler, provider, runtime, fixture, source or executable identity changed')
         command = prior.get('compile_command')
     if not args.reuse:
@@ -86,12 +86,12 @@ def main() -> None:
             diagnostics = artifacts / 'consumer.ll.diagnostics'
             raise RuntimeError((diagnostics.read_text() if diagnostics.exists() else result.stdout) + '\n' + result.stderr)
     compile_seconds = time.monotonic() - started
-    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command}
+    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command}
     identity_path.write_text(json.dumps(identity, indent=2) + '\n')
     if args.compile_only:
         print(f'{args.frontend} Unicode corpus compiled', flush=True)
         return
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/unicode-vectors.json').read_text())
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/unicode-vectors.json').read_text())
     chunks = list(range(len(fixture['scalar_chunks']))) if args.chunk is None else [args.chunk]
     runs = []
     selected = [(False, [])] if args.chunk is None else [(False, [str(mode), str(args.chunk)]) for mode in range(4)]
@@ -103,7 +103,7 @@ def main() -> None:
         if result.returncode or 'leaked=0' not in result.stderr:
             raise RuntimeError(f'{group}, poisoned={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
         runs.append({'group': group, 'poisoned': debug, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M', 'seconds': time.monotonic() - started, 'stderr': result.stderr})
-    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'tables_override': str(args.tables_override.resolve()) if args.tables_override else None, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
+    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/unicode-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'tables_override': str(args.tables_override.resolve()) if args.tables_override else None, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{args.frontend} Unicode corpus passed {len(runs)} memory runs', flush=True)

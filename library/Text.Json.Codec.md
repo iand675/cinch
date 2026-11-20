@@ -1438,4 +1438,4 @@ Select nested numeric quoting without changing HTML or indentation configuration
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Codec.cinch`. Source SHA-256: `8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Codec.cinch`. Source SHA-256: `8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

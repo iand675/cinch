@@ -37,7 +37,7 @@ leaves a constructor out only when it carries an invariant, and a URI
 reference has none beyond the percent rule, which `uri-to-string`
 does not depend on).
 
-The law shape (exercised in compiler/tests/lib_uri_ipaddr.rs):
+The law shape (exercised in seed/tests/lib_uri_ipaddr.rs):
   parse/print round trip: `uri-to-string (uri-parse s)` is `s` for
     every reference `uri-parse` accepts, so printing never invents or
     drops structure;
@@ -245,4 +245,4 @@ Printing: the exact inverse of parsing (the round-trip law).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Uri.cinch`. Source SHA-256: `b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Uri.cinch`. Source SHA-256: `b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

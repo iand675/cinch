@@ -127,4 +127,4 @@ are elements).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/UnionFind.cinch`. Source SHA-256: `727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/UnionFind.cinch`. Source SHA-256: `727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

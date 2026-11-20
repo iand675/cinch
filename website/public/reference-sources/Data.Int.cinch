@@ -91,7 +91,7 @@ module Data.Int where
 
   -- The additive group of the integers: `invert x` is `-x` (the group
   -- inverse laws are asserted over samples in
-  -- compiler/tests/prelude_split.rs; instances live with their type).
+  -- seed/tests/prelude_split.rs; instances live with their type).
   implicit instance Group_Int :: Group Int where
     invert x = int-neg x
 

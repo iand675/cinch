@@ -17,8 +17,8 @@ class FrozenVerification(unittest.TestCase):
     def fixture(self, root):
         for part in verify.PARTS:
             (root / part).mkdir(parents=True)
-        (root / "compiler/src").mkdir()
-        (root / "compiler/src/main.rs").write_text("frozen source")
+        (root / "seed/src").mkdir()
+        (root / "seed/src/main.rs").write_text("frozen source")
 
     def test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -49,24 +49,24 @@ class FrozenVerification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "repo"
             self.fixture(root)
-            (root / "compiler/src/alias.rs").symlink_to("main.rs")
+            (root / "seed/src/alias.rs").symlink_to("main.rs")
             snapshot, manifest = verify.capture(root, Path(temp) / "evidence")
-            (root / "compiler/src/main.rs").write_text("new development")
-            self.assertEqual((snapshot / "compiler/src/alias.rs").read_text(), "frozen source")
-            self.assertFalse((snapshot / "compiler/src/alias.rs").is_symlink())
+            (root / "seed/src/main.rs").write_text("new development")
+            self.assertEqual((snapshot / "seed/src/alias.rs").read_text(), "frozen source")
+            self.assertFalse((snapshot / "seed/src/alias.rs").is_symlink())
             verify.audit(snapshot, manifest)
 
     def test_build_caches_and_brand_assets_are_not_source_inputs(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "repo"
             self.fixture(root)
-            for name in ("compiler/target", "compiler/runtime/target", "design/brand", "website"):
+            for name in ("seed/target", "seed/runtime/target", "design/brand", "website"):
                 (root / name).mkdir(parents=True)
                 (root / name / "private-or-generated").write_text("excluded")
             snapshot, manifest = verify.capture(root, Path(temp) / "evidence")
-            self.assertEqual(set(manifest["files"]), {"compiler/src/main.rs"})
-            self.assertFalse((snapshot / "compiler/target").exists())
-            self.assertFalse((snapshot / "compiler/runtime/target").exists())
+            self.assertEqual(set(manifest["files"]), {"seed/src/main.rs"})
+            self.assertFalse((snapshot / "seed/target").exists())
+            self.assertFalse((snapshot / "seed/runtime/target").exists())
 
     def test_internal_directory_links_are_copied_as_frozen_directories(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -104,12 +104,12 @@ class FrozenVerification(unittest.TestCase):
             root = Path(temp) / "repo"
             self.fixture(root)
             snapshot, manifest = verify.capture(root, Path(temp) / "evidence")
-            extra = snapshot / "bootstrap/New.cinch"
+            extra = snapshot / "seed/New.cinch"
             extra.write_text("unexpected source")
             with self.assertRaises(ValueError):
                 verify.audit(snapshot, manifest)
             extra.unlink()
-            (snapshot / "compiler/src/main.rs").write_text("changed")
+            (snapshot / "seed/src/main.rs").write_text("changed")
             with self.assertRaises(ValueError):
                 verify.audit(snapshot, manifest)
 
@@ -136,11 +136,11 @@ class FrozenVerification(unittest.TestCase):
     def test_stage3_gate_requires_a_selected_invocation_in_every_portable_target(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "bootstrap/evidence/current").mkdir(parents=True)
-            (root / "compiler/tests").mkdir(parents=True)
+            (root / "compiler/evidence/current").mkdir(parents=True)
+            (root / "seed/tests").mkdir(parents=True)
             scope = dict(portable_targets=["portable"], interface_api_targets=["api"],
                          original_targets=["portable"], new_targets_beyond_original=["api"], current_total_targets=2)
-            (root / "bootstrap/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            (root / "compiler/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
             compiler, manifest, objects, runtime = (root / name for name in ("cinch", "interfaces", "objects", "runtime"))
             for path in (compiler, manifest, objects, runtime):
                 path.write_text(path.name)
@@ -187,16 +187,16 @@ class FrozenVerification(unittest.TestCase):
     def test_stage3_preflights_the_source_of_reviewed_rust_assertions(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            (root / "bootstrap/evidence/current").mkdir(parents=True)
-            (root / "compiler/tests").mkdir(parents=True)
-            source = root / "compiler/tests/portable.rs"
+            (root / "compiler/evidence/current").mkdir(parents=True)
+            (root / "seed/tests").mkdir(parents=True)
+            source = root / "seed/tests/portable.rs"
             source.write_text("changed direct assertion")
             scope = dict(portable_targets=["portable"], interface_api_targets=[],
                          original_targets=["portable"], new_targets_beyond_original=[],
                          current_total_targets=1, native_api_assertions={
                              "portable": {"source_sha256": "0" * 64, "cases": {"direct": "Rust-only assertion"}}
                          })
-            (root / "bootstrap/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            (root / "compiler/evidence/current/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
             with patch.object(verify.bootstrap, "ROOT", root), \
                     patch.object(verify_stage3, "stage3_artifacts") as artifacts:
                 with self.assertRaisesRegex(ValueError, "source review for portable"):

@@ -35,7 +35,7 @@ Instances are the container's own methods (the transfer rule),
 checked sample-wise by the P18 law layer exactly when they preserve
 the predicate: `Semigroup` transfers (append of non-empties is
 non-empty), `Monoid` cannot (its identity is empty; both asserted in
-compiler/tests/refinements.rs). The traversals preserve
+seed/tests/refinements.rs). The traversals preserve
 non-emptiness too, though through the applicative they report `not
 checked` at samples (the honest law boundary).
 
@@ -88,4 +88,4 @@ yielding the refined shape (the representation is the list).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/NonEmpty.cinch`. Source SHA-256: `62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonEmpty.cinch`. Source SHA-256: `62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

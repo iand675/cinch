@@ -1210,7 +1210,7 @@ module Data.Machine where
   i64-le-byte :: I64 -> U32 -> InRange 0 255 Nat
   i64-le-byte x k = let b = mask-i64 (wrapping-shr-i64 x k) 255 in nat-from-i64 b
 
-  -- The P31 text conversions of `F64` (compiler/runtime/src/text.rs;
+  -- The P31 text conversions of `F64` (seed/runtime/src/text.rs;
   -- the `cinch.runtime.textF64*` intrinsics, nm-verified there):
   -- one float's shortest round-trip decimal text (scientific form)
   -- and the float one decimal spelling stands for (correctly

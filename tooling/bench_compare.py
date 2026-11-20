@@ -46,7 +46,7 @@ def main() -> None:
     compiler=args.compiler.resolve(); runtime=args.runtime.resolve(); clang=os.environ.get('CINCH_CLANG','clang')
     driver=ROOT/('tooling/data/compare-benchmark-progression.cinch' if args.progression else 'tooling/data/compare-benchmark.cinch')
     reference_source=ROOT/('tooling/data/compare-reference-progression.go' if args.progression else 'tooling/data/compare-reference.go')
-    for source,target in [(ROOT/'compiler/prelude/Data/Compare.cinch',work/'Data.Compare.cinch'),(driver,work/'Main.cinch')]: shutil.copyfile(source,target)
+    for source,target in [(ROOT/'seed/prelude/Data/Compare.cinch',work/'Data.Compare.cinch'),(driver,work/'Main.cinch')]: shutil.copyfile(source,target)
     ir=work/'bench.ll'; exe=work/'bench'; reference=work/'reference'
     report={'format':1,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'library_sha256':digest(work/'Data.Compare.cinch'),'driver_sha256':digest(work/'Main.cinch'),'reference_source_sha256':digest(reference_source),'cpu_affinity':[args.cpu],'opt_level':2,'iterations':args.iterations,'samples':args.samples,'profile':{'heap':'32M','stack':'8M','poison':False,'leak_check':True},'scope':'Complete public scalar comparison/less or first-non-default pipeline; includes loop, dispatch, arithmetic and selection container construction. No timing threshold. Different allocation and compiler policies remain visible.','results':[]}
     report.update(driver_path=str(driver),reference_source_path=str(reference_source),runner_sha256=digest(Path(__file__)),progression=args.progression)

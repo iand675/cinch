@@ -76,7 +76,7 @@ def main():
     work = args.artifact_root.resolve()
     work.mkdir(parents=True, exist_ok=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    library = (root / 'compiler/prelude/Crypto/ConstantTime.cinch').read_text()
+    library = (root / 'seed/prelude/Crypto/ConstantTime.cinch').read_text()
     support = root / 'benchmarks/stdlib/constant-time-equality.c'
     report = {'compiler_sha256': digest(args.compiler), 'runtime_sha256': digest(args.runtime),
               'support_sha256': digest(support), 'observer_sha256': digest(__file__),
@@ -97,7 +97,7 @@ def main():
         directory.mkdir(exist_ok=True)
         (directory / 'Crypto.ConstantTime.cinch').write_text(
             scalar_source(library) if variant == 'scalar' else library)
-        for name, source in [('Data.Bytes.Word.cinch', root / 'compiler/prelude/Data/Bytes/Word.cinch'),
+        for name, source in [('Data.Bytes.Word.cinch', root / 'seed/prelude/Data/Bytes/Word.cinch'),
                              ('Main.cinch', root / 'benchmarks/stdlib/constant-time-buffers.cinch')]:
             (directory / name).write_bytes(source.read_bytes())
         ir, executable = directory / 'consumer.ll', directory / 'consumer'

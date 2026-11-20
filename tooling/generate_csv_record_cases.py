@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / "compiler/tests/fixtures"
+FIXTURES = ROOT / "seed/tests/fixtures"
 
 HELPERS = r'''-- | Configurable CSV fixture consumer with runtime input and precise expected metadata.
 module Main where

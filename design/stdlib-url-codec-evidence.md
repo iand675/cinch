@@ -52,7 +52,7 @@ Reproduce the fixture source with:
 ```sh
 GOCACHE=/tmp/cinch-go-surface-cache GOTELEMETRY=off GODEBUG= \
   /tmp/cinch-go-current/go/bin/go run tooling/go_url_vectors.go \
-  > compiler/tests/fixtures/url-vectors.json
+  > seed/tests/fixtures/url-vectors.json
 python3 tooling/generate_url_kernels.py --check
 python3 -m unittest discover -s tooling/tests -p test_generate_url_kernels.py
 python3 tooling/validate_url.py --suite codec --frontend rust --cpu 2 \

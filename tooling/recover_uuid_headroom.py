@@ -14,8 +14,8 @@ from archive_uuid_unit import save, sync_directory
 
 
 def protected_inputs() -> dict[str, str]:
-    """Protect candidate, vector, frozen compiler/runtime/provider and every sealed benchmark input."""
-    manifest = json.loads((ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-integration-manifest.json').read_text())
+    """Protect candidate, vector, frozen seed/runtime/provider and every sealed benchmark input."""
+    manifest = json.loads((ROOT / 'compiler/evidence/stdlib/stdlib-uuid-integration-manifest.json').read_text())
     paths = {ROOT / row['path'] for row in manifest['files']}
     for name in ('uuid-public-bench-a1', 'uuid-public-bench-direct-a1', 'uuid-generation-bench-a1'):
         paths.update(path for path in (ROOT / 'build' / name).rglob('*') if path.is_file())
@@ -32,7 +32,7 @@ def main() -> None:
     """Verify stored report linkage, preserve archive/index first, and remove only approved exact bytes."""
     os.sched_setaffinity(0, {4})
     resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
-    proposal = ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-headroom-recovery-proposal.json'
+    proposal = ROOT / 'compiler/evidence/stdlib/stdlib-uuid-headroom-recovery-proposal.json'
     plan = json.loads(proposal.read_text())
     assert len(plan['files']) == 10 and plan['original_bytes'] == 43152855
     directory = ROOT / 'build/uuid-headroom-recovery-v1'

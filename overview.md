@@ -15,7 +15,7 @@ This is a design specification, not documentation for an implemented compiler. T
 
 # How this archive relates to the compiler
 
-The Rust compiler in `compiler/` implements part of this draft. The [language tutorial](learn/00-tutorial.md) and the [compiler guide](reference/00-guide.md) document what it accepts today, and the [support matrix](reference/16-support-and-roadmap.md) records which parts of the draft are available, partial, reachable only through compiler APIs, or still planned. The pages in this archive are not updated to match the implementation: where one of them and a compiler diagnostic disagree, the diagnostic describes the behaviour you can run, and the page keeps the semantics the draft requires. Read the archive for intended meaning and for the reasoning behind a decision, not for current syntax.
+The Rust compiler in `seed/` implements part of this draft. The [language tutorial](learn/00-tutorial.md) and the [compiler guide](reference/00-guide.md) document what it accepts today, and the [support matrix](reference/16-support-and-roadmap.md) records which parts of the draft are available, partial, reachable only through compiler APIs, or still planned. The pages in this archive are not updated to match the implementation: where one of them and a compiler diagnostic disagree, the diagnostic describes the behaviour you can run, and the page keeps the semantics the draft requires. Read the archive for intended meaning and for the reasoning behind a decision, not for current syntax.
 
 # Documentation contents
 

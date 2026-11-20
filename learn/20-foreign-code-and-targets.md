@@ -58,7 +58,7 @@ ld: symbol(s) not found for architecture arm64
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 ```
 
-That command exits `1`. The public CLI takes `--package-object <path>` for an installed Cinch package object, not an arbitrary C object. The Rust API links supplied objects through `run_source_objects`, which is how `compiler/tests/ffi.rs` exercises a real C fixture. Document the object you depend on rather than presenting a bare `foreign import` as a standalone program.
+That command exits `1`. The public CLI takes `--package-object <path>` for an installed Cinch package object, not an arbitrary C object. The Rust API links supplied objects through `run_source_objects`, which is how `seed/tests/ffi.rs` exercises a real C fixture. Document the object you depend on rather than presenting a bare `foreign import` as a standalone program.
 
 # Machine types, not mathematical ones
 

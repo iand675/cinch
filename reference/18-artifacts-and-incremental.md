@@ -232,13 +232,13 @@ One of four outcomes, none of which fails a build:
 | `Repaired` | The entry existed but was not this compile's set, and was rewritten |
 | `Skipped` | The compile's interfaces are not the embedded package's, so there is nothing to key |
 
-`Repaired` covers a truncated artifact, an aborted write, a different kind set, and an explicit `--rebuild`. It is not an error, because nothing was consumed: a corrupt entry never fails a build, and the next compile rewrites it from the artifacts in hand. The suite pins this: `compiler/tests/package_store.rs` truncates a stored interface, reruns `cinch check`, and requires success plus byte-identical restoration.
+`Repaired` covers a truncated artifact, an aborted write, a different kind set, and an explicit `--rebuild`. It is not an error, because nothing was consumed: a corrupt entry never fails a build, and the next compile rewrites it from the artifacts in hand. The suite pins this: `seed/tests/package_store.rs` truncates a stored interface, reruns `cinch check`, and requires success plus byte-identical restoration.
 
 Two consequences follow, and both are worth knowing before you go looking for a cache problem:
 
 - `--rebuild` forces the entry to be rewritten even when it is intact and matches this compile. It is accepted by `check`, `build`, `run`, `emit-ir`, and `emit-object`.
 
-The write path does compare against the entry. Without `--rebuild` it calls `load` and then `agrees_with_compile`, and returns `Verified` only when the stored set is exactly the one this compile just produced. A load error is not a fault on this path: `write` swallows it and rewrites, which is why a corrupt entry never fails a build and never reaches you as a diagnostic. The named hard errors belong to `load` (`Missing`, `Corrupt`, `KeyMismatch`, `IdentityMismatch`, `ArtifactUnreadable`, `HashMismatch`, `ChainBroken`, `Package`, `Io`), and no CLI path consumes stored artifacts to skip checking, so no command can surface one. `compiler/tests/package_store.rs` drives `load` directly.
+The write path does compare against the entry. Without `--rebuild` it calls `load` and then `agrees_with_compile`, and returns `Verified` only when the stored set is exactly the one this compile just produced. A load error is not a fault on this path: `write` swallows it and rewrites, which is why a corrupt entry never fails a build and never reaches you as a diagnostic. The named hard errors belong to `load` (`Missing`, `Corrupt`, `KeyMismatch`, `IdentityMismatch`, `ArtifactUnreadable`, `HashMismatch`, `ChainBroken`, `Package`, `Io`), and no CLI path consumes stored artifacts to skip checking, so no command can surface one. `seed/tests/package_store.rs` drives `load` directly.
 
 A write stages the whole set in `.{key}.{pid}.{seq}.staged` inside the package directory, removes the previous entry directory, and swaps the staged one in with a single rename. A reader therefore sees the old set, the new set, or nothing, and never a mixture, which matters because two builds of the compiler can render the same sources differently under one key.
 

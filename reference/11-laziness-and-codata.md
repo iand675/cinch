@@ -442,4 +442,4 @@ Productive codata also has no implicit field laziness. Fields are strict, deferr
 
 The normative text is [the laziness and reclamation specification](../specifications/lazy-computation-and-reclamation-specification.md); the guardedness decisions are in [the codata design note](../design/codata-guardedness.md). Rewrites that must cite evidence over streams are covered in [rewrites and optimization](12-rewrites-and-optimization.md).
 
-Implementation: `check_terms.rs` (bare-use demand, `demand`, `copyOut`, `delay`, `force`), `check_decls.rs` (`check_productivity`, `walk_guard`, `construction_layer`, the `Eval r` row rule), `codegen.rs`, `runtime/src/abi.rs`. Suites: `compiler/tests/codata.rs`, `compiler/tests/ownership.rs`.
+Implementation: `check_terms.rs` (bare-use demand, `demand`, `copyOut`, `delay`, `force`), `check_decls.rs` (`check_productivity`, `walk_guard`, `construction_layer`, the `Eval r` row rule), `codegen.rs`, `runtime/src/abi.rs`. Suites: `seed/tests/codata.rs`, `seed/tests/ownership.rs`.

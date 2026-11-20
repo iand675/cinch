@@ -82,4 +82,4 @@ Store `x` and return the value it replaced.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/Var.cinch`. Source SHA-256: `1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Var.cinch`. Source SHA-256: `1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

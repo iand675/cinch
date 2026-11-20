@@ -317,4 +317,4 @@ Allocate an empty heap with room for the requested number of elements.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/Heap.cinch`. Source SHA-256: `3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Heap.cinch`. Source SHA-256: `3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

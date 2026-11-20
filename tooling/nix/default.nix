@@ -1,7 +1,7 @@
 # The bootstrap ladder as cacheable Nix outputs.
 #
-#   seed-compiler      the pinned Rust seed (bootstrap/pins/stage0.lock.json)
-#   provider-compiler  the pinned library producer (bootstrap/pins/library-provider.lock.json)
+#   seed-compiler      the pinned Rust seed (compiler/pins/stage0.lock.json)
+#   provider-compiler  the pinned library producer (compiler/pins/library-provider.lock.json)
 #   pins               stage0, both source snapshots and the library object:
 #                      everything the pins determine, nothing the sources do
 #   ladder             pins plus stages 1 to 3, built and checked by
@@ -46,8 +46,8 @@ let
       fileset = if tracked == null then chosen else lib.fileset.intersection tracked chosen;
     };
   readLock = path: builtins.fromJSON (builtins.readFile (src + path));
-  seedLock = readLock "/bootstrap/pins/stage0.lock.json";
-  providerLock = readLock "/bootstrap/pins/library-provider.lock.json";
+  seedLock = readLock "/compiler/pins/stage0.lock.json";
+  providerLock = readLock "/compiler/pins/library-provider.lock.json";
 
   # One release build of a pinned revision's compiler. Nothing from the
   # current tree enters it.
@@ -139,9 +139,9 @@ let
       (src + "/tooling/bootstrap.py") (src + "/tooling/bootstrap_objects.py")
       (src + "/tooling/bootstrap_interfaces.py") (src + "/tooling/build_slots.py")
       (src + "/tooling/pgo.py") (src + "/tooling/shard_ir.py")
-      (src + "/bootstrap/pins/stage0.lock.json") (src + "/bootstrap/pins/library-provider.lock.json")
-      (src + "/bootstrap/pins/library-object-roots.json") (src + "/bootstrap/seed")
-      (src + "/bootstrap/Bootstrap.RuntimeAbi.cinch")
+      (src + "/compiler/pins/stage0.lock.json") (src + "/compiler/pins/library-provider.lock.json")
+      (src + "/compiler/pins/library-object-roots.json") (src + "/compiler/seed")
+      (src + "/compiler/Bootstrap.RuntimeAbi.cinch")
   ];
 
   pins = pkgs.stdenv.mkDerivation {
@@ -164,7 +164,7 @@ let
 
   # What `bootstrap.py check` reads from the tree.
   ladderSources = select [
-    (src + "/tooling") (src + "/bootstrap") (src + "/compiler/prelude")
+    (src + "/tooling") (src + "/compiler") (src + "/seed/prelude")
     (src + "/examples/compiler/fib.cinch")
   ];
 

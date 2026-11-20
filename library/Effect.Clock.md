@@ -151,4 +151,4 @@ it (the worked shape and its boundary above).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Clock.cinch`. Source SHA-256: `1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Clock.cinch`. Source SHA-256: `1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

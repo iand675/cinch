@@ -194,4 +194,4 @@ The exact total byte length of the flattened result, without flattening
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Builder.cinch`. Source SHA-256: `c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Builder.cinch`. Source SHA-256: `c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

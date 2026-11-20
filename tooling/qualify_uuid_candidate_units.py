@@ -31,12 +31,12 @@ def main() -> None:
     assert args.maximum_units > 0 and args.prefix.startswith('uuid-') and '/' not in args.prefix
     assert digest(COMPILER) == '330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2'
     assert digest(RUNTIME) == 'd91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf'
-    fixture = ROOT / 'compiler/tests/fixtures/uuid-vectors.json'
+    fixture = ROOT / 'seed/tests/fixtures/uuid-vectors.json'
     assert digest(fixture) == 'af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e'
     sources = {}
     for module in ('Data.Uuid', 'Effect.Uuid'):
         candidate = args.candidate_sources.resolve() / (module + '.cinch')
-        path = candidate if candidate.is_file() else ROOT / 'compiler/prelude' / (module.replace('.', '/') + '.cinch')
+        path = candidate if candidate.is_file() else ROOT / 'seed/prelude' / (module.replace('.', '/') + '.cinch')
         sources[module] = digest(path)
     vectors = json.loads(fixture.read_text())
     progress = ROOT / 'build' / (args.prefix + '-qualification-progress.json')

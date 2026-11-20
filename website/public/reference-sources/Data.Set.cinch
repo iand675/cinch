@@ -36,7 +36,7 @@
 -- ships `set-delete`, `set-union`, `set-intersection`,
 -- `set-difference`, `set-subset`, `set-map`, `set-filter` and
 -- `set-fold` (the union behavior the bootstrap asserted test-locally
--- in compiler/tests/prelude_split.rs is now the family's own).
+-- in seed/tests/prelude_split.rs is now the family's own).
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromList` instance (`[a, b, c]` at `Set a` folds `set-insert`).

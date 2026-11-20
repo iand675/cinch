@@ -34,7 +34,7 @@ def main() -> None:
     if len(matches) != 1:
         raise RuntimeError('missing unique actual classifier body')
     ir = work / 'hex.ll'; ir.write_text('define i32 @qp_hex_value(i8 %0) {\n' + matches[0] + '\n}\n')
-    fixture = work / 'fixture.c'; shutil.copyfile(ROOT / 'compiler/tests/fixtures/quoted-printable-hex-kernel.c', fixture)
+    fixture = work / 'fixture.c'; shutil.copyfile(ROOT / 'seed/tests/fixtures/quoted-printable-hex-kernel.c', fixture)
     clang = os.environ.get('CINCH_CLANG', 'clang')
     report = {'scope': __doc__, 'selected_source_sha256': digest(args.source), 'actual_ir_sha256': digest(ir),
               'fixture_sha256': digest(fixture), 'cpu_affinity': [args.cpu], 'commands': []}

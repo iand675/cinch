@@ -12,7 +12,7 @@ from bench_stdlib import source_closure
 from validate_byte_view import digest, run
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT/'compiler/tests/fixtures/byte-view-ascii-run-portable.cinch'
+FIXTURE = ROOT/'seed/tests/fixtures/byte-view-ascii-run-portable.cinch'
 
 
 def definitions(text: str) -> dict[str,str]:

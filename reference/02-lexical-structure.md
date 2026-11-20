@@ -1,6 +1,6 @@
 # Lexical structure and layout
 
-A source file goes through five stages before it is checked: `compiler/src/lexer.rs` produces tokens, `compiler/src/layout.rs` turns significant indentation into explicit `{`, `;`, and `}` tokens that carry `virtual_: true`, `compiler/src/parser.rs` builds declarations and expressions, a fixity pass resolves operator chains against the imported tables, and the checker runs. This page states the rules of the first three stages and shows the compiler accepting or refusing one input per rule.
+A source file goes through five stages before it is checked: `seed/src/lexer.rs` produces tokens, `seed/src/layout.rs` turns significant indentation into explicit `{`, `;`, and `}` tokens that carry `virtual_: true`, `seed/src/parser.rs` builds declarations and expressions, a fixity pass resolves operator chains against the imported tables, and the checker runs. This page states the rules of the first three stages and shows the compiler accepting or refusing one input per rule.
 
 # Identifiers
 
@@ -391,4 +391,4 @@ module Main where
 
 The `in` that closes a `let` is described with the other expression forms on the [expressions page](03-expressions-and-patterns.md), and the fixity and layout rationale is in the [surface grammar](../specifications/surface-syntax-and-grammar.md) and its [local amendments](../specifications/surface-grammar-local-amendments.md). Some historical status notes on those pages predate implemented features; this page follows the compiler.
 
-Implementation: `compiler/src/lexer.rs` (tokens, escapes, dash glue, tick forms), `compiler/src/layout.rs` (block insertion), `compiler/src/parser.rs` (fixity resolution and declaration boundaries). Suites: `surface.rs`, `driver.rs`, `modules.rs`.
+Implementation: `seed/src/lexer.rs` (tokens, escapes, dash glue, tick forms), `seed/src/layout.rs` (block insertion), `seed/src/parser.rs` (fixity resolution and declaration boundaries). Suites: `surface.rs`, `driver.rs`, `modules.rs`.

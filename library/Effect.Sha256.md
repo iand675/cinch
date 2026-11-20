@@ -63,4 +63,4 @@ Hash a whole chunk, returning its accepted count and the advanced immutable stat
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Sha256.cinch`. Source SHA-256: `531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Sha256.cinch`. Source SHA-256: `531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

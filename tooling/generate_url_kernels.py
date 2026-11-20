@@ -150,7 +150,7 @@ def generated() -> str:
 def main() -> None:
     """Replace or verify only the generated codec suffix, retaining the handwritten checked boundary."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--module", type=Path, default=ROOT / "compiler/prelude/Text/Url/Codec.cinch")
+    parser.add_argument("--module", type=Path, default=ROOT / "seed/prelude/Text/Url/Codec.cinch")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     source = args.module.read_text()

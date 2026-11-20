@@ -157,10 +157,10 @@ module Prim.Sys.Darwin where
   -- of `bytes-len` is what keeps it, not the parameter alone (with a body
   -- of just `x` the buffer is freed before the call): the optimizer folds
   -- a `case` only on a known constructor or a constant-foldable
-  -- primitive (`compiler/src/core.rs`, the driver's `node`), and the
+  -- primitive (`seed/src/core.rs`, the driver's `node`), and the
   -- length of a runtime buffer is neither.
   -- `a_buffer_handed_to_a_system_call_outlives_the_call` in
-  -- `compiler/tests/reclamation.rs` fails if the hold is lost.
+  -- `seed/tests/reclamation.rs` fails if the hold is lost.
   sys-held :: forall a. Bytes -> a -> a
   sys-held b x = case bytes-len b of
     _ -> x

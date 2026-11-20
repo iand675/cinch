@@ -14,7 +14,7 @@ The short version of the decisions:
 
 ## 1.1 Surface and typing
 
-The concurrency surface is three builtin values with checker-installed schemes (`install_concurrency_api`, `compiler/src/check_decls.rs:666-922`; `reference/13-concurrency-and-runtime.md`):
+The concurrency surface is three builtin values with checker-installed schemes (`install_concurrency_api`, `seed/src/check_decls.rs:666-922`; `reference/13-concurrency-and-runtime.md`):
 
 ```text
 withScope       :: forall r s a e. using (io :: Io r) => (Scope r s ->{|e} a) ->{Diverge | e} a
@@ -26,7 +26,7 @@ Decisions D74 to D81 (`specifications/concurrency-specification.md`, Amendments)
 
 ## 1.2 Captures
 
-`check_task_captures` (`compiler/src/check.rs:4989-5072`) classifies each value a task body captures, after the definition is inferred. A captured memo cell (`mentions_memo`) is refused; a `Mut` borrow is refused; a region released inside the task is an escape; otherwise a `%1`/`%aff` binder may transfer if the type passes `structural_usage(.., Transfer)`, and anything else must pass `share_safe`, which is `structural_usage(.., Share)` plus class dictionaries over shareable method records (`check.rs:5077-5087`). The judgment (`check.rs:5180-5283`) has consequences that matter for any parallel use, and they are stated here as the code reads:
+`check_task_captures` (`seed/src/check.rs:4989-5072`) classifies each value a task body captures, after the definition is inferred. A captured memo cell (`mentions_memo`) is refused; a `Mut` borrow is refused; a region released inside the task is an escape; otherwise a `%1`/`%aff` binder may transfer if the type passes `structural_usage(.., Transfer)`, and anything else must pass `share_safe`, which is `structural_usage(.., Share)` plus class dictionaries over shareable method records (`check.rs:5077-5087`). The judgment (`check.rs:5180-5283`) has consequences that matter for any parallel use, and they are stated here as the code reads:
 
 | Type | `Share` | Note |
 | --- | --- | --- |
@@ -39,37 +39,37 @@ Decisions D74 to D81 (`specifications/concurrency-specification.md`, Amendments)
 | type parameter `a` | no | no `Share a` constraint exists (`check.rs:5228-5234`) |
 | `Mut`, `Lazy` | never | |
 
-`Data.String.String` is `StrBuf :: Bytes -> String` behind a module-private constructor (`compiler/prelude/Data/String.cinch:70-71`), so by the judgment as written a `String` capture is not `Share` either: the immutability contract lives in a comment, not in anything the checker reads. The compiler's own data is full of `String` (every name), so this gap has to close before the compiler can share its contexts across threads.
+`Data.String.String` is `StrBuf :: Bytes -> String` behind a module-private constructor (`seed/prelude/Data/String.cinch:70-71`), so by the judgment as written a `String` capture is not `Share` either: the immutability contract lives in a comment, not in anything the checker reads. The compiler's own data is full of `String` (every name), so this gap has to close before the compiler can share its contexts across threads.
 
-Task callbacks are read literally: `spawn` refuses to be a first-class value or partially applied, because the capture check reads the callback (`bootstrap/Bootstrap.Infer.cinch:2503-2504`, "spawn must be applied directly to check the task callback"). Source-level task forwarders exist, but their obligations "cannot travel through this interface schema", so they are source-only and dropped from exported interfaces (`bootstrap/Bootstrap.Export.cinch:910-918`).
+Task callbacks are read literally: `spawn` refuses to be a first-class value or partially applied, because the capture check reads the callback (`compiler/Bootstrap.Infer.cinch:2503-2504`, "spawn must be applied directly to check the task callback"). Source-level task forwarders exist, but their obligations "cannot travel through this interface schema", so they are source-only and dropped from exported interfaces (`compiler/Bootstrap.Export.cinch:910-918`).
 
 ## 1.3 Runtime thread model
 
-Every task is a fiber owned by its scope (`compiler/runtime/src/task.rs`, `compiler/runtime/src/sched.rs`; `design/green-threads.md`): a body on an 8 MiB reserved stack (`TASK_STACK_BYTES`) with a guard band, run by a scheduler over at most `CINCH_THREADS` OS threads, the program's thread among them. `Scope::spawn` marks the closure shared and queues the fiber; the body runs on whichever scheduler thread takes it, and its result and done flag are stored under the scope's mutex. `join_all_or_cancel` parks the caller through the park seam (a waiting task gives its thread to another task) and is woken as members finish; the first member it sees finished with `Err` becomes the failure and the others are asked to cancel. Which failure that is depends on completion timing whenever two members fail. Cancellation is a sequentially consistent flag observed only at `pollCancel` and `ioSleep` (D80). The program's own code runs on a thread whose stack is `CINCH_STACK_SIZE` (default 1 GiB), and an OS refusal to create a thread is the `Exhausted` exit (`stack::spawn_refused`).
+Every task is a fiber owned by its scope (`seed/runtime/src/task.rs`, `seed/runtime/src/sched.rs`; `design/green-threads.md`): a body on an 8 MiB reserved stack (`TASK_STACK_BYTES`) with a guard band, run by a scheduler over at most `CINCH_THREADS` OS threads, the program's thread among them. `Scope::spawn` marks the closure shared and queues the fiber; the body runs on whichever scheduler thread takes it, and its result and done flag are stored under the scope's mutex. `join_all_or_cancel` parks the caller through the park seam (a waiting task gives its thread to another task) and is woken as members finish; the first member it sees finished with `Err` becomes the failure and the others are asked to cancel. Which failure that is depends on completion timing whenever two members fail. Cancellation is a sequentially consistent flag observed only at `pollCancel` and `ioSleep` (D80). The program's own code runs on a thread whose stack is `CINCH_STACK_SIZE` (default 1 GiB), and an OS refusal to create a thread is the `Exhausted` exit (`stack::spawn_refused`).
 
-The Wasm profile uses a single-threaded cooperative scheduler with the same source contract (`compiler/runtime/src/coop.rs:22-65`): FIFO ready queue, bodies run to completion between suspension points, deterministic interleaving.
+The Wasm profile uses a single-threaded cooperative scheduler with the same source contract (`seed/runtime/src/coop.rs:22-65`): FIFO ready queue, bodies run to completion between suspension points, deterministic interleaving.
 
 ## 1.4 How values cross threads
 
 Reference counts follow the values at exactly two points (`task.rs:37-62`, `design/reclamation.md` section 8, "As built (S9)"):
 
-- At spawn, `cinch_mark_mt` negates the count of every mortal block reachable from the body closure before the thread exists. A negative count is atomic; a positive one is single-threaded. The walk is pointer-reversal, uses no memory beyond the blocks, stops at immortal and already-marked blocks, and the marked set is closed under reachability, so an unmarked block is reachable from one thread only (`compiler/runtime/src/rc.rs:12-27`, `64-80`). A root is therefore promoted once; a later spawn that reaches it costs one header read at that root.
+- At spawn, `cinch_mark_mt` negates the count of every mortal block reachable from the body closure before the thread exists. A negative count is atomic; a positive one is single-threaded. The walk is pointer-reversal, uses no memory beyond the blocks, stops at immortal and already-marked blocks, and the marked set is closed under reachability, so an unmarked block is reachable from one thread only (`seed/runtime/src/rc.rs:12-27`, `64-80`). A root is therefore promoted once; a later spawn that reaches it costs one header read at that root.
 - At join, results cross back without marking: the body's stores happen before the joiner's loads, so the joiner's plain counts follow the task's.
 
-Freed blocks go back to the owning thread's size-class heap; a free from another thread is one compare-and-swap onto the owner's remote list, and heaps outlive their threads and are adopted by new ones (`compiler/runtime/src/small.rs:33-61`). Heap accounting is per-thread atomic tallies summed against `CINCH_HEAP_LIMIT` (`compiler/runtime/src/heap.rs:83-178`). Exhaustion and faults end the whole process from whichever thread hits them (`compiler/runtime/src/abi.rs:90-101`).
+Freed blocks go back to the owning thread's size-class heap; a free from another thread is one compare-and-swap onto the owner's remote list, and heaps outlive their threads and are adopted by new ones (`seed/runtime/src/small.rs:33-61`). Heap accounting is per-thread atomic tallies summed against `CINCH_HEAP_LIMIT` (`seed/runtime/src/heap.rs:83-178`). Exhaustion and faults end the whole process from whichever thread hits them (`seed/runtime/src/abi.rs:90-101`).
 
 ## 1.5 Costs and limits
 
 - A task costs a queue insertion, a context switch in and out, a scope mutex round trip, and a mark walk over everything the closure reaches that is not yet marked: measured at 0.2 to 0.5 µs for a spawn and a join of an empty body, against 10 to 16 µs when every task was an OS thread (`design/green-threads.md` section 11). That is cheap enough for I/O concurrency in bulk, and still the wrong tool for fine-grained parallel work: a task carries effects and a capability, its failure order depends on timing, and the mark walk is paid per spawn.
 - After marking, every dup and drop on a marked block is an atomic read-modify-write. Measured at S9, the sign test and atomic header loads on unmarked blocks cost under 1% (`design/reclamation.md:1076-1086`); the cost of contended RMWs on marked blocks has not been measured.
 - Marking cannot see counted blocks behind slots S5 left `Raw`: memo values, knot values, a dictionary's value-method slots, join tuples wider than four, boxed-out boundary words, builtin index-family constructors, unrecorded class vectors (`design/reclamation.md:1046-1054`). Two threads counting such a block race.
-- Using tasks for compiler phases would force pure functions such as `checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram` (`bootstrap/Bootstrap.Pipeline.cinch`) into `{IO r, Async r, Cancel r, Diverge}` with an `Io r` capability, would make the reported failure depend on timing, and would refuse every `String` capture.
+- Using tasks for compiler phases would force pure functions such as `checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram` (`compiler/Bootstrap.Pipeline.cinch`) into `{IO r, Async r, Cancel r, Diverge}` with an `Io r` capability, would make the reported failure depend on timing, and would refuse every `String` capture.
 
 ## 1.6 The compilers themselves are single-threaded
 
-The self-hosted compiler never uses tasks. `tooling/bootstrap.py` concatenates every `bootstrap/*.cinch` module and five `Text.*` toolkit modules into one bundle (`collect_compiler_sources`, `bundle`) and runs one compiler invocation per stage (`build_self`). Inside it, `resolve-context` replaces the module list with a single flattened `Main` module before checking (`bootstrap/Bootstrap.Resolve.cinch:1012-1030`), so all 4,548 top-level definitions are checked as one module by `elaborate-module-with-source-bodies` (`bootstrap/Bootstrap.Infer.cinch:5454-5507`). One `clang` process assembles the result (`bootstrap/Bootstrap.Driver.cinch`, `spawn-clang`). The stage scripts pin `CARGO_BUILD_JOBS=1` and one test thread (`tooling/bootstrap.py:97`).
+The self-hosted compiler never uses tasks. `tooling/bootstrap.py` concatenates every `compiler/*.cinch` module and five `Text.*` toolkit modules into one bundle (`collect_compiler_sources`, `bundle`) and runs one compiler invocation per stage (`build_self`). Inside it, `resolve-context` replaces the module list with a single flattened `Main` module before checking (`compiler/Bootstrap.Resolve.cinch:1012-1030`), so all 4,548 top-level definitions are checked as one module by `elaborate-module-with-source-bodies` (`compiler/Bootstrap.Infer.cinch:5454-5507`). One `clang` process assembles the result (`compiler/Bootstrap.Driver.cinch`, `spawn-clang`). The stage scripts pin `CARGO_BUILD_JOBS=1` and one test thread (`tooling/bootstrap.py:97`).
 
-The Rust seed is sequential too: one `Checker` is threaded through every module in order (`compiler/src/check_decls.rs:17779-17805`), and its only threads exist to get a larger stack (`check_decls.rs:17806`, and three test-only threads in `codegen.rs`).
+The Rust seed is sequential too: one `Checker` is threaded through every module in order (`seed/src/check_decls.rs:17779-17805`), and its only threads exist to get a larger stack (`check_decls.rs:17806`, and three test-only threads in `codegen.rs`).
 
 # 2 The primitive
 
@@ -91,7 +91,7 @@ parTabulate n f = array-tabulate n f        -- Data.Array, the sequential readin
 parMap f xs     = map f xs
 ```
 
-`array-tabulate :: forall a. Nat -> (Nat -> a) -> Array a` already exists in `compiler/prelude/Data/Array.cinch:21-25`. `parBoth` is the fork-join building block for divide and conquer; `parTabulate` is the data-parallel workhorse, where one index is one unit of work; `parMap` is the form the compiler wants, since its phases are list folds. Wider fork-joins are nested `parBoth` or a `parTabulate` over an index that selects the job. No first-class future or handle exists: a parallel value is never observable before its join, so there is nothing to leak, drop or join twice, and none of the D76 handle rules are needed.
+`array-tabulate :: forall a. Nat -> (Nat -> a) -> Array a` already exists in `seed/prelude/Data/Array.cinch:21-25`. `parBoth` is the fork-join building block for divide and conquer; `parTabulate` is the data-parallel workhorse, where one index is one unit of work; `parMap` is the form the compiler wants, since its phases are list folds. Wider fork-joins are nested `parBoth` or a `parTabulate` over an index that selects the job. No first-class future or handle exists: a parallel value is never observable before its join, so there is nothing to leak, drop or join twice, and none of the D76 handle rules are needed.
 
 Futures in a region were considered and rejected for this slice. A future is a first-class handle that must be linear (or the program can observe that evaluation has not happened yet), needs a region to bound it, and makes "when is this forced" a scheduling question the type checker would have to reason about. Fork-join gives the compiler everything it needs. Spark-style `par`/`pseq` annotations depend on lazy evaluation, which Cinch does not have. Implicit parallelism of every call (heartbeat scheduling, Acar, Charguéraud and Rainey, PLDI 2018) is the attractive later step (section 7, phase 6).
 
@@ -147,7 +147,7 @@ No capture is mutable, so the only cross-thread traffic on captured data is refe
 
 The judgment of section 1.2 has to grow in four places before the compiler can use the primitives, and the same changes benefit tasks:
 
-1. **`Sym` is `Share`.** A `Sym` is a handle to an immortal, immutable cell in a mutex-protected table (`compiler/runtime/src/sym.rs:1-14`). `Share` is not `Copy`: the specification's refusal of `Copy` for `Sym` stands, but sharing a reference to a cell that is never freed and never written is safe.
+1. **`Sym` is `Share`.** A `Sym` is a handle to an immortal, immutable cell in a mutex-protected table (`seed/runtime/src/sym.rs:1-14`). `Share` is not `Copy`: the specification's refusal of `Copy` for `Sym` stands, but sharing a reference to a cell that is never freed and never written is safe.
 2. **Declared-immutable abstract types.** A data declaration whose constructors are module-private may carry a `share` attribute (the attribute mechanism of `design/attribute-annotations.md`), asserting that no operation of the module writes a buffer reachable from a constructed value. `Data.String.String` takes it, as does any other module-private wrapper over `Bytes` with the same contract. The assertion is trusted, so it is listed in the acceptance manifest (core specification section 11), and it travels in the compiled interface, because an importer cannot see the private constructor's fields.
 3. **`Share a`.** A type parameter is `Share` under a `Share a` constraint, the compiler-known class with structural instances that `design/ownership-and-usage.md` section 3 already describes. Generic code that calls `parMap` over `List a` says so.
 4. **Marking blind spots.** Every slot kind in the "what marking cannot see" list must either get a scan class or make its type non-`Share`. The dictionary value-method slot matters most, since shareable dictionaries are admitted.
@@ -234,21 +234,21 @@ The source-visible model gains one statement: everything before a parallel primi
 
 ## 3.6 As built (phase 1)
 
-The runtime half is `compiler/runtime/src/par.rs`, the cooperative loops are `cinch_coop_par_*` in `coop.rs`, and the tests are `compiler/runtime/tests/parallel.rs`. It decides these points the sections above leave open:
+The runtime half is `seed/runtime/src/par.rs`, the cooperative loops are `cinch_coop_par_*` in `coop.rs`, and the tests are `seed/runtime/tests/parallel.rs`. It decides these points the sections above leave open:
 
 - **Argument words.** `n` arrives through `cinch_nat_to_len`, as `cinch_array_replicate`'s does; `parTabulate`'s callback receives the `Nat` word of its index; result words are stored as the callback returns them, as `cinch_array_from_list` stores a list's words, in an array of the given element format. `cinch_par_set_workers` takes a count through `cinch_nat_to_len`, where 0 restores the default.
-- **Closure references.** Today's apply stubs consume their closure (`compiler/src/codegen.rs`, `stub_def`), so the runtime gives a reclaiming program's borrowed closure one reference per invocation, and a counted `parMap` element one reference as its owned argument. On a marked closure that is two atomic operations per invocation on one header word, plus the stub's dups of counted saved words. Measured with a release build on this host (`parallel_tabulate_benchmark`), a `parTabulate` of 10^6 trivial items takes 2.9 ms at N = 1 and 0.6 ms at N = 8 through a static closure, but 4.2 ms at N = 1 and 33 to 50 ms at N = 2 to 8 through a heap closure, all of it contention on that one header. Phase 2 should therefore add a borrowing apply for parallel callbacks (section 2.3's "captures are borrowed inside the branch"), which removes both the closure's count traffic and the per-call dups of captures. Callbacks of a millisecond or more, the grain section 5 plans, do not notice it.
+- **Closure references.** Today's apply stubs consume their closure (`seed/src/codegen.rs`, `stub_def`), so the runtime gives a reclaiming program's borrowed closure one reference per invocation, and a counted `parMap` element one reference as its owned argument. On a marked closure that is two atomic operations per invocation on one header word, plus the stub's dups of counted saved words. Measured with a release build on this host (`parallel_tabulate_benchmark`), a `parTabulate` of 10^6 trivial items takes 2.9 ms at N = 1 and 0.6 ms at N = 8 through a static closure, but 4.2 ms at N = 1 and 33 to 50 ms at N = 2 to 8 through a heap closure, all of it contention on that one header. Phase 2 should therefore add a borrowing apply for parallel callbacks (section 2.3's "captures are borrowed inside the branch"), which removes both the closure's count traffic and the per-call dups of captures. Callbacks of a millisecond or more, the grain section 5 plans, do not notice it.
 - **Who counts as idle.** Publication compares the participants looking for work with the jobs queued (`idle > queued`, two relaxed loads), rather than reading an idle count alone, so `k` idle workers get at most `k` jobs. A joiner whose job was stolen counts as idle while it may help, and sleeps in the same sleeper set as idle workers, so a busy thief publishes to it and a publication wakes it. Without that, a two-participant `parBoth` tree runs on one core whenever the caller finishes its half first.
 - **Deques.** Fixed capacity (1,024 jobs); a full deque runs the work inline. Publication needs an idle participant per queued job, so depth stays near the budget. A participant is registered on a thread's first parallel call and handed, empty, to a later thread when this one exits; participants are never freed, because thieves read any deque without a lock.
 - **The budget.** `CINCH_THREADS` is a positive decimal count; anything else selects the available parallelism; both clamp to 256. The pool starts at the first call that could publish (a budget above 1 and at least two units of work). A lower budget set later retires the surplus workers (they wait, they do not exit); a higher one starts or reactivates workers at the next call.
 - **Marking `parMap`'s input.** The general walk of `cinch_mark_mt` rescans a block's slots from the top each time it returns to it, which is quadratic in an array's length (a 100,000-element input would cost 5 * 10^9 reads). The input array is marked by `rc::mark_mt_array` instead: claim the array, then mark each counted element as its own root. An array reached through a closure's captures still takes the general walk, and phase 5's counters should show whether that matters.
 - **The parking counter.** Phase 1's acceptance asks for a counter of workers that park beside a nonempty deque. A sleeper checks the queued count under the sleeper lock after announcing itself, and a publisher reads the sleeper count after counting its job, so one of the two always sees the other; a separate deque scan at park time races with a concurrent push and would count wakeups that are already on their way. The test checks the observable property instead: in 200 rounds, every worker asleep, the caller publishes `g` and then blocks until another participant starts it; any lost wakeup or withheld publication stalls a round (`sleeping_workers_wake_for_every_publication`, zero misses).
 - **Failure.** Nothing is caught. A fault, a compiler-bug trap or an `Exhausted` exit ends the process from the participant that hit it, and workers run inside the stack guard, so a stolen job's overflow is exit 73 with the `stack` line.
-- **The ABI version.** The four entries are runtime ABI 8. `RUNTIME_ABI_VERSION` (`compiler/src/interface.rs`), `RUNTIME_ABIS` in `tooling/bootstrap.py`, `bootstrap/Bootstrap.RuntimeAbi.cinch` (rendered from the lock), `bootstrap/pins/library-provider.lock.json` and `bootstrap/pins/stage0.lock.json` move to 8 in phase 2, together with the code generator that calls the entries.
+- **The ABI version.** The four entries are runtime ABI 8. `RUNTIME_ABI_VERSION` (`seed/src/interface.rs`), `RUNTIME_ABIS` in `tooling/bootstrap.py`, `compiler/Bootstrap.RuntimeAbi.cinch` (rendered from the lock), `compiler/pins/library-provider.lock.json` and `compiler/pins/stage0.lock.json` move to 8 in phase 2, together with the code generator that calls the entries.
 
 # 4 Work in both compilers
 
-Both compilers must implement the primitives before the compiler's own source may use them: Stage1 is built by the Rust seed (Stage0) and Stage2 by Stage1, so the seed, the runtime and the Cinch implementation land first, the pinned seed is updated, and only then does `bootstrap/*.cinch` call `parMap`.
+Both compilers must implement the primitives before the compiler's own source may use them: Stage1 is built by the Rust seed (Stage0) and Stage2 by Stage1, so the seed, the runtime and the Cinch implementation land first, the pinned seed is updated, and only then does `compiler/*.cinch` call `parMap`.
 
 ## 4.1 Checker rules
 
@@ -262,17 +262,17 @@ Diagnostics should match between the two, as the task diagnostics do: `a paralle
 
 Seed: `PrimOp::Par(ParOp::Both | ParOp::Tabulate | ParOp::MapArray)` with units `cinch.runtime.parBoth`, `cinch.runtime.parTabulate`, `cinch.runtime.parMapArray`. `parMap f xs` elaborates to `array-to-list (MapArray f (array-from-list xs))`, using the existing `cinch.runtime.arrayFromList` and the prelude's `array-to-list`, so the runtime never builds list cells.
 
-Cinch compiler: Core constructors `CParBoth`, `CParTabulate` and `CParMap`, beside `CSpawn` (`bootstrap/Bootstrap.Core.cinch`), with effects computed like `task-spawn-effects`.
+Cinch compiler: Core constructors `CParBoth`, `CParTabulate` and `CParMap`, beside `CSpawn` (`compiler/Bootstrap.Core.cinch`), with effects computed like `task-spawn-effects`.
 
 Every evaluator implements the defining equations sequentially: the seed's `eval.rs` (staging, law sampling), the REPL and JIT paths, `Bootstrap.Eval` and `Bootstrap.StageEval`.
 
 ## 4.3 Reference counting at the fork and the join
 
-- Fork: the callback closures are built as any closure is, dup-ing their captures. `prim_consumes` (`compiler/src/codegen.rs`, read generically by `rc.rs`) reports the closure arguments as borrowed, unlike `spawn`, which consumes its body; the caller drops them after the call returns. The runtime marks at publication, never generated code.
+- Fork: the callback closures are built as any closure is, dup-ing their captures. `prim_consumes` (`seed/src/codegen.rs`, read generically by `rc.rs`) reports the closure arguments as borrowed, unlike `spawn`, which consumes its body; the caller drops them after the call returns. The runtime marks at publication, never generated code.
 - Branch: captures are borrowed from the closure through `__apply`, as today.
 - Join: result words are owned by the caller. For `parBoth`, generated code builds the tuple at the call site with scan classes from the instantiated result types (a type parameter takes `TObj`, which covers both counted classes), so no mask and no `JOIN_SHAPED_MAX` limit apply. The array results carry the element class passed to the runtime.
 
-In the Cinch compiler, RC is not a Core pass but part of RuntimeIr emission (`bootstrap/Bootstrap.RuntimeIr.cinch:1-4`, `count-call`, `drop-locals`); the same three rules apply there.
+In the Cinch compiler, RC is not a Core pass but part of RuntimeIr emission (`compiler/Bootstrap.RuntimeIr.cinch:1-4`, `count-call`, `drop-locals`); the same three rules apply there.
 
 ## 4.4 Code generation
 
@@ -282,7 +282,7 @@ The units call the four externs; the cooperative profile selects `cinch_coop_par
 
 - The builtins are installed, not exported, so phase 2 needs no interface schema change for them. Exported definitions that call them have ordinary schemes.
 - Interfaces that carry checked bodies (total and proof bodies, the checked import-body index) encode a parallel call as its defining equation. The proof layer only needs the meaning, and this keeps the body encoding unchanged.
-- `RUNTIME_ABI_VERSION` (`compiler/src/interface.rs:30`, currently 7) bumps, since four externs are new, as S9 bumped it for marking.
+- `RUNTIME_ABI_VERSION` (`seed/src/interface.rs:30`, currently 7) bumps, since four externs are new, as S9 bumped it for marking.
 - The `share` attribute of section 2.4 does change the schema (`SCHEMA_VERSION`, `interface.rs:21`, currently 10): an importer must learn that an opaque type is `Share`. Whether `Share a` constraints need a schema change depends on whether the reader must treat `Share` as compiler-known rather than as an ordinary class name; phase 0 decides it.
 - Exportable parallel forwarders (a user `parFold` whose callback obligation reaches its callers through the interface) need a further schema change (section 7, phase 6, and section 8).
 
@@ -305,11 +305,11 @@ Profile of one self-build, taken 2026-11-10: an `-O2` Stage1 compiler compiling 
 | write output | a final pass over the IR text (`utf8-valid-from`) | 7.5 | 1.3% | sequential | |
 | unattributed | | 24.9 | 4.3% | treated as sequential | |
 
-The earlier recorded whole-build figure, 664 s with the release runtime against 4,508 s with the debug runtime (`bootstrap/evidence/current/current-stage1-runtime-performance-results.json`), is the same workload on an older source snapshot. Sequential improvements to the checker change these proportions; the decomposition below does not depend on them.
+The earlier recorded whole-build figure, 664 s with the release runtime against 4,508 s with the debug runtime (`compiler/evidence/current/current-stage1-runtime-performance-results.json`), is the same workload on an older source snapshot. Sequential improvements to the checker change these proportions; the decomposition below does not depend on them.
 
 ## 5.2 Module waves alone are not enough
 
-The compiler's import graph has 14 dependency waves (widths 7, 3, 5, 2, 7, 2, 3, 2, 1, 1, 1, 4, 1, 1, computed from the `import Bootstrap.*` lines of the 39 `bootstrap/*.cinch` files). The longest path by source lines is `Ast`, `Report`, `Parse`, `Load`, `BodyContract`, `Core`, `Instance`, `Global`, `Typing`, `Infer`, `Check`, `RuntimeIr`, `Pipeline`: 23,030 of 34,997 lines. If checking cost tracks lines, compiling modules separately in dependency waves can never be more than 1.52 times faster, whatever N is. The parallelism is inside modules: 4,548 definitions with signatures, a median of 5 lines and the largest 86.
+The compiler's import graph has 14 dependency waves (widths 7, 3, 5, 2, 7, 2, 3, 2, 1, 1, 1, 4, 1, 1, computed from the `import Bootstrap.*` lines of the 39 `compiler/*.cinch` files). The longest path by source lines is `Ast`, `Report`, `Parse`, `Load`, `BodyContract`, `Core`, `Instance`, `Global`, `Typing`, `Infer`, `Check`, `RuntimeIr`, `Pipeline`: 23,030 of 34,997 lines. If checking cost tracks lines, compiling modules separately in dependency waves can never be more than 1.52 times faster, whatever N is. The parallelism is inside modules: 4,548 definitions with signatures, a median of 5 lines and the largest 86.
 
 ## 5.3 Phase by phase
 
@@ -336,7 +336,7 @@ The compiler's import graph has 14 dependency waves (widths 7, 3, 5, 2, 7, 2, 3,
 The fixed point compares the Stage2 and Stage3 executables, the whole LLVM IR text, and every `.cinchif`, byte for byte (`check_fixed_point`, `tooling/bootstrap.py:473`). The design keeps that true for every N:
 
 1. A primitive's result is its defining equation's value; the schedule cannot reach it.
-2. No address is observable. `Sym` order is lexicographic and `Sym` hashing never reads a cell address (`compiler/prelude/Data/Sym.cinch`); nothing exposes pointer identity.
+2. No address is observable. `Sym` order is lexicographic and `Sym` hashing never reads a cell address (`seed/prelude/Data/Sym.cinch`); nothing exposes pointer identity.
 3. No counter is shared between parallel units. Each unit's fresh names come from its own identity (definition position, demand key), never from completion order.
 4. Every merge is in input order: Core definitions in source order, diagnostics by source position of their unit, IR units in frontier order, interfaces in module order.
 5. The first-error rule selects by source order, not by which participant failed first.
@@ -361,7 +361,7 @@ With no overhead the 16-worker figure is 104 s; with 25% it is 111 s. The floor 
 
 ## 5.6 The Rust seed's own phases
 
-Nothing above requires the seed to run in parallel itself. It could check bodies in parallel with `std::thread::scope` once its single mutable `Checker` (`compiler/src/check.rs:2886-2932`) is split into read-only tables and per-definition state, but that is an independent Rust refactor and not part of this plan.
+Nothing above requires the seed to run in parallel itself. It could check bodies in parallel with `std::thread::scope` once its single mutable `Checker` (`seed/src/check.rs:2886-2932`) is split into read-only tables and per-definition state, but that is an independent Rust refactor and not part of this plan.
 
 # 6 Specification and reference text to amend
 
@@ -391,7 +391,7 @@ Make `Sym` `Share`; add the `share` attribute, its interface field (schema 11) a
 Acceptance: a task capturing a `String` and a `Sym` is accepted, and a task capturing a type with a private `Bytes` field and no attribute is refused; for each formerly `Raw` slot kind, an `rc::tests` race in the S9 style (eight threads, 200,000 dup and drop rounds on a block reachable only through that slot) ends at the exact count under `CINCH_RC_DEBUG`, with `leaked=0`; Rust and Cinch interfaces agree on the new field.
 
 **Phase 1: the runtime pool.**
-`compiler/runtime/src/par.rs`: deques, workers, latches, publication-time marking, help-while-waiting with the stack-headroom rule, `CINCH_THREADS`, the four entries, and the cooperative versions in `coop.rs`.
+`seed/runtime/src/par.rs`: deques, workers, latches, publication-time marking, help-while-waiting with the stack-headroom rule, `CINCH_THREADS`, the four entries, and the cooperative versions in `coop.rs`.
 Acceptance (Rust tests calling the entries with test closures): a shared 1,000-cell list read by every invocation of a 10,000-index tabulate at N of 2, 4, 8 and 16, 20 runs plain and 20 under `CINCH_RC_DEBUG`, `leaked=0`; a nested `parBoth` tree of depth 20 completes, and while it runs no worker parks with a nonempty deque anywhere (a parking counter reads zero); at N = 1 no thread is created and no block is marked; a stack overflow inside a stolen job takes exit 73 with the `stack` line; a parallel call from a task thread participates and returns; `RUNTIME_ABI_VERSION` is 8.
 
 **Phase 2: the Rust seed.**
@@ -400,7 +400,7 @@ Acceptance (`tests/parallel.rs`, `cinch:run` style): `parMap` over 100,000 eleme
 
 ### As built (phase 2)
 
-The seed half is `install_parallel_api` (`compiler/src/check_decls.rs`), `infer_par_app` and `parallel_safe_row` (`compiler/src/check_terms.rs`), `check_parallel_captures` (`compiler/src/check.rs`), `PrimOp::Par` (`compiler/src/core.rs`), the unit bodies and the conditional extern declarations (`compiler/src/codegen.rs`), and the suite `compiler/tests/parallel.rs`. What the sections above left open, and how it was decided:
+The seed half is `install_parallel_api` (`seed/src/check_decls.rs`), `infer_par_app` and `parallel_safe_row` (`seed/src/check_terms.rs`), `check_parallel_captures` (`seed/src/check.rs`), `PrimOp::Par` (`seed/src/core.rs`), the unit bodies and the conditional extern declarations (`seed/src/codegen.rs`), and the suite `seed/tests/parallel.rs`. What the sections above left open, and how it was decided:
 
 - **Rows per branch.** `parBoth` gives each branch its own row variable, not the single `e` of section 2.1. Rows unify by equality, so one shared variable would refuse a total branch beside a diverging one (`{}` never equals `{Diverge}`), which the defining equation admits. The call performs each branch's row, which is what evaluating `(f (), g ())` does. `parTabulate` and `parMap` keep the single `e` their schemes state.
 - **Unit identity carries the classes.** `PrimOp::Par { op, classes }`: the pair's two component classes, or the result array's element class. Each is an immediate in the unit body, so the unit name carries the vector (`cinch.runtime.parBoth@RO`, `cinch.runtime.parTabulate@T`), exactly as a specialized unit's name does (`repr::spec_name`). `subst_classes` substitutes them in a generic definition's specialized copies. The tuple is built in the unit from `reg.shape_desc(&classes, 0)`, so no join mask and no `JOIN_SHAPED_MAX` limit apply (section 4.3).
@@ -409,7 +409,7 @@ The seed half is `install_parallel_api` (`compiler/src/check_decls.rs`), `infer_
 - **Publication-time marking is the only marking.** Generated code marks nothing: `prim_consumes` reports all three units' closure arguments as borrowed, the caller drops them after the call, and the runtime duplicates one reference per invocation and marks at the first stealable publication (section 3.3). The `rc` pass needs no change beyond that table entry.
 - **The parallel callback is not a borrowed environment.** A callback runs inside its call and is dropped before the call returns, so the conservative borrowed-capture rule (core specification section 7) does not apply to it: `check_parallel_captures` classifies what it reads instead. A literal `parBoth` branch is a one-shot frame, so a `%1` capture used once moves into it and `note_use` counts one use; a second branch using the same value is the existing `used 2 time(s)`.
 - **Compile-time evaluation.** The staging evaluator runs `parBoth` as `(f (), g ())`. `parTabulate` and `parMap` refuse there, with the array primitives they lower through: the compile-time value model has no array.
-- **The ABI bump.** `RUNTIME_ABI_VERSION` is 8 and its doc comment states the four entries. Still to move, outside this phase's files: `RUNTIME_ABIS` in `tooling/bootstrap.py` (5, 6, 7 to 5, 6, 7, 8), `bootstrap/Bootstrap.RuntimeAbi.cinch`, `bootstrap/pins/library-provider.lock.json` and `bootstrap/pins/stage0.lock.json`, all of which the pinned seed and the ladder own.
+- **The ABI bump.** `RUNTIME_ABI_VERSION` is 8 and its doc comment states the four entries. Still to move, outside this phase's files: `RUNTIME_ABIS` in `tooling/bootstrap.py` (5, 6, 7 to 5, 6, 7, 8), `compiler/Bootstrap.RuntimeAbi.cinch`, `compiler/pins/library-provider.lock.json` and `compiler/pins/stage0.lock.json`, all of which the pinned seed and the ladder own.
 - **Byte identity.** The extern declarations for the four entries are emitted only when the program contains a `PrimOp::Par`, so a program using none of the builtins emits identical IR (checked byte for byte against the previous compiler on a 6.6 MB module).
 - **Scaling measured here.** `parTabulate` over 64 items of U64 arithmetic (2,000,000 loop steps each), best of three runs per count, `CINCH_RC_DEBUG=1` and `CINCH_LEAK_CHECK=1`: N = 1 0.245 s, N = 2 0.125 s (1.96x), N = 4 0.068 s (3.59x), N = 8 0.038 s (6.41x). Single readings on this host vary by up to a factor of two because other work shares it, which is why the test reports the minimum of three.
 - **Determinism and reclamation.** One program checks `parMap` against `map` over 100,000 elements, `parTabulate` against `array-tabulate` over 50,000, and nested `parBoth` Fibonacci against the sequential reading, and prints one byte per check. Its stdout is `AAA` and its leak report is `live=0 immortal=0 leaked=0` at N = 1, 2, 4, 8 and 16.

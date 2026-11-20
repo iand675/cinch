@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "compiler/tests/fixtures/nested-array-positivity-vectors.json"
+FIXTURE = ROOT / "seed/tests/fixtures/nested-array-positivity-vectors.json"
 
 HELPERS = r'''-- | Recheck sealed finite-payload recursion and strict positivity authority.
 module Main where

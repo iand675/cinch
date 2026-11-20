@@ -1,14 +1,22 @@
 # The bootstrap ladder: implementation decisions
 
-`bootstrap/README.md` is the ladder's contract (the rungs, the corpus, the
+`compiler/README.md` is the ladder's contract (the rungs, the corpus, the
 discipline, the ownership rules). This note records the decisions behind it
 and the reasoning that is too long for a README, so a later rung does not
 have to rediscover them. The plan it implements is
 `design/stdlib-and-bootstrap.md` (P30-P35).
 
+Two trees, two roles. `compiler/` holds the compiler's Cinch sources and
+the ladder's records; `seed/` holds the Rust seed that builds Stage 1, the
+host ABI it targets and the runtime archive it links, and the embedded
+`prelude/` sources. Module names keep the `Bootstrap.` prefix the ladder
+grew with: renaming them would change compiled interface identity, so the
+prefix belongs to the artifact rather than describing where the sources
+live.
+
 ## Where the artifacts live and what runs them
 
-`bootstrap/Bootstrap.<Name>.cinch` declares `module Bootstrap.<Name> where`,
+`compiler/Bootstrap.<Name>.cinch` declares `module Bootstrap.<Name> where`,
 one flat file per module (the compiler resolves a project's modules by each
 file's `module` declaration, so a flat directory is a valid project).
 `Bootstrap.Ast` and `Bootstrap.Report` are the shared contract and are
@@ -17,7 +25,7 @@ wave of parallel streams that each edited it would disagree about the tree
 instead of about their rung. A stream that needs a node, a field or a helper
 asks for it.
 
-A rung's DRIVER PROGRAM is an artifact too, `bootstrap/programs/Run.<Rung>.cinch`
+A rung's DRIVER PROGRAM is an artifact too, `compiler/programs/Run.<Rung>.cinch`
 declaring `module Main where`, and the rung's Rust test ships that same file
 as its entry. The alternative (a program inline in the Rust test as a string
 literal) makes the rung unrunnable by a human and by the CLI, which is
@@ -28,12 +36,12 @@ artifact, not a claim".
 
 The compiler does not embed the P30/P31 toolkit: `Text.Lex`, `Text.Scan`,
 `Text.Parse` and `Text.Json` are on disk and absent from
-`compiler/prelude/cinch-base.cinchpkg` (D309/D321 and the check-recursion
+`seed/prelude/cinch-base.cinchpkg` (D309/D321 and the check-recursion
 budget: an embedded family module is checked as part of every compile). Since
 every bootstrap artifact imports that toolkit, a rung cannot run as a bare
 file. Two paths exist and they are the same assembly:
 
-- the Rust harness, `compiler/tests/common/mod.rs`: `project()` writes the
+- the Rust harness, `seed/tests/common/mod.rs`: `project()` writes the
   toolkit plus the rung's sources and program into a temp directory;
 - the CLI, `tooling/run-bootstrap-ladder.sh`: the same copy, then the real
   `cinch` binary against the assembled directory (and with no argument it
@@ -84,7 +92,7 @@ prerequisite for bootstrapping. It is met through the runtime:
 `sha256-bytes` is declared in `Data.Bytes` (the type's home, for the P31
 content-addressing use) and `Text.Digest` binds the runtime's digest
 primitives as `foreign import ccall`, with their vectors pinned in
-`compiler/runtime/src/text.rs`'s tests and `compiler/tests/runtime_prims.rs`.
+`seed/runtime/src/text.rs`'s tests and `seed/tests/runtime_prims.rs`.
 Nothing re-derives a digest in language: the algorithms belong to the
 platform layer, and a bootstrap compiler is entitled to call it. A
 pure-Cinch SHA-256 would be a different decision (no runtime dependency) with

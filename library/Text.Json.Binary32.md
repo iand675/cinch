@@ -50,4 +50,4 @@ Format a finite binary32 as its shortest exact JSON decimal, preserving negative
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Binary32.cinch`. Source SHA-256: `ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Binary32.cinch`. Source SHA-256: `ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

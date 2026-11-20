@@ -16,11 +16,11 @@ Modules marked **Ship source** are implemented and check with the Rust compiler,
 
 ```sh
 mkdir -p /tmp/cinch-json-example
-cp compiler/prelude/Text/Lex.cinch /tmp/cinch-json-example/Text.Lex.cinch
-cp compiler/prelude/Text/Scan.cinch /tmp/cinch-json-example/Text.Scan.cinch
-cp compiler/prelude/Text/Builder.cinch /tmp/cinch-json-example/Text.Builder.cinch
-cp compiler/prelude/Text/Parse.cinch /tmp/cinch-json-example/Text.Parse.cinch
-cp compiler/prelude/Text/Json.cinch /tmp/cinch-json-example/Text.Json.cinch
+cp seed/prelude/Text/Lex.cinch /tmp/cinch-json-example/Text.Lex.cinch
+cp seed/prelude/Text/Scan.cinch /tmp/cinch-json-example/Text.Scan.cinch
+cp seed/prelude/Text/Builder.cinch /tmp/cinch-json-example/Text.Builder.cinch
+cp seed/prelude/Text/Parse.cinch /tmp/cinch-json-example/Text.Parse.cinch
+cp seed/prelude/Text/Json.cinch /tmp/cinch-json-example/Text.Json.cinch
 ```
 
 Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its actual imports and the complete non-embedded source closure. The module declaration determines identity; the dotted filenames above make the sibling-directory arrangement unambiguous. These copy commands do not install a remote package.
@@ -185,7 +185,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Json.Legacy](Text.Json.Legacy.md) | Ship source | Explicit legacy codec policy and descriptor bridges over owned dynamic values. |
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
-| [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
+| [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
 | [Text.OptionParser](Text.OptionParser.md) | Ship source | Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors. |
 | [Text.Otlp](Text.Otlp.md) | Ship source | OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers. |

@@ -1,0 +1,9 @@
+{
+  "description": "ABI 10 integrated compiler, runtime and standard library snapshot.",
+  "patch": "compiler/seed/stage0.patch",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "revision": "2d027b2ea5a058c52fc0f095b5eeb3f41b56a796",
+  "runtime_abi": 10,
+  "schema": 1,
+  "source_sha256": "2f1ee44c6466dfbae3a591716f68bf36773f43974ee2624e5ff3fbd0c84b3735"
+}

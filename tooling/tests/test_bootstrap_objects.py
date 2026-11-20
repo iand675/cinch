@@ -30,11 +30,11 @@ class LibraryProviderContract(unittest.TestCase):
 
     def fixture(self, directory):
         root = directory / "checkout"
-        (root / "bootstrap").mkdir(parents=True)
+        (root / "compiler").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64}
-        bootstrap.write_json(root / "bootstrap/pins/library-provider.lock.json", lock)
-        (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
-        bootstrap.write_json(root / "bootstrap/pins/library-object-roots.json", {"schema": 1, "units": []})
+        bootstrap.write_json(root / "compiler/pins/library-provider.lock.json", lock)
+        (root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
+        bootstrap.write_json(root / "compiler/pins/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / "compiler/prelude").mkdir(parents=True)
         bootstrap.write_json(snapshot / "compiler/prelude/cinch-base.cinchpkg", {"modules": [{"name": "Data.Core"}]})
@@ -103,7 +103,7 @@ class LibraryProviderContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             root, _ = self.fixture(directory)
-            lock_path = root / "bootstrap/pins/library-provider.lock.json"
+            lock_path = root / "compiler/pins/library-provider.lock.json"
             lock = bootstrap.read_json(lock_path)
             bootstrap.write_json(lock_path, {**lock, "runtime_abi": 99})
             with patch.object(bootstrap, "ROOT", root), \
@@ -115,7 +115,7 @@ class LibraryProviderContract(unittest.TestCase):
     def test_old_provider_cannot_change_the_compiler_target_abi(self):
         with tempfile.TemporaryDirectory() as temp:
             root, _ = self.fixture(Path(temp))
-            (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
+            (root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
             with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "run") as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
                     bootstrap.collect_compiler_sources()

@@ -12,7 +12,7 @@ def quote(text: str) -> str:
 
 def source(mode: str, start: int = 0, count: int = 128) -> str:
     """Embed one bounded group of independently recorded operation results."""
-    vectors = json.loads((ROOT / 'compiler/tests/fixtures/uuid-vectors.json').read_text())
+    vectors = json.loads((ROOT / 'seed/tests/fixtures/uuid-vectors.json').read_text())
     rows = vectors[mode] if mode == 'v7' else vectors[mode][start:start + count]
     assert rows
     values = []
@@ -29,7 +29,7 @@ def source(mode: str, start: int = 0, count: int = 128) -> str:
             values.append('ClockCase ' + ' '.join((str(row['unix_nanos']), str(row['repeat']), quote(row['entropy']), quote(row['canonical']))))
         else:
             raise ValueError(mode)
-    template = (ROOT / f'compiler/tests/fixtures/uuid-{mode}.cinch.in').read_text()
+    template = (ROOT / f'seed/tests/fixtures/uuid-{mode}.cinch.in').read_text()
     assert template.count('@CASES@') == 1
     return template.replace('@CASES@', '[' + ',\n    '.join(values) + ']')
 

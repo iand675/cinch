@@ -323,6 +323,6 @@ D-numbers) that amend or interpret this chapter's normative text.
   form, a surrogate and a value past `0x10FFFF` rather than guessing an
   identity. An encoded run may be embedded in a longer spelling, which ends
   it at the first character outside the grammar. Both implementations carry
-  the same encoder and decoder (`compiler/src/check_default_wire.rs`,
-  `bootstrap/Bootstrap.Nominal.cinch`), and the pinned library producer and
+  the same encoder and decoder (`seed/src/check_default_wire.rs`,
+  `compiler/Bootstrap.Nominal.cinch`), and the pinned library producer and
   the compiler MUST move together.

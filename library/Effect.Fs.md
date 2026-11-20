@@ -37,7 +37,7 @@ target: the selection is the compile target's, made in the facade.
 
 The remaining operations (atomic rename, metadata, the directory
 listing) still cross through the runtime's `cinch_fs_*` word buffers
-(`compiler/runtime/src/platform.rs`, the plain `foreign import ccall`
+(`seed/runtime/src/platform.rs`, the plain `foreign import ccall`
 machinery): machine scalars only, so paths and content cross through
 word buffers filled and drained one byte at a time below. The error
 codes those words return map onto the same named constructors, so the
@@ -47,7 +47,7 @@ Named refusals (boundaries this module deliberately does not
 cross):
   non-atomic write: `fs-write` creates or truncates and is NOT
     atomic; atomic replacement is write-then-`fs-rename` (the probe
-    in compiler/tests/platform.rs exercises exactly that);
+    in seed/tests/platform.rs exercises exactly that);
   partial reads: `fs-read` reads the whole file or fails (there is
     no streaming reader in the bootstrap slice);
   permissions beyond the OS's own: the error vocabulary reports
@@ -202,4 +202,4 @@ atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Fs.cinch`. Source SHA-256: `ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Fs.cinch`. Source SHA-256: `ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

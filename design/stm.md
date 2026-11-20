@@ -9,9 +9,9 @@ dashes.
 
 ## 1 The split: algorithm in source, three things in the runtime
 
-The transaction algorithm is Cinch source, `compiler/prelude/Effect/Stm.cinch`,
+The transaction algorithm is Cinch source, `seed/prelude/Effect/Stm.cinch`,
 written over `prim` declarations whose bodies are inline LLVM IR
-(`design/inline-target-ir.md`). The runtime (`compiler/runtime/src/stm.rs`)
+(`design/inline-target-ir.md`). The runtime (`seed/runtime/src/stm.rs`)
 owns only what source cannot express:
 
 | Piece | Where | Why it cannot be source |
@@ -21,7 +21,7 @@ owns only what source cannot express:
 | Publication | `cinch_stm_publish` | Marking a value shared is the runtime's mark walk |
 | Waiting | `cinch_stm_wait_begin`, `_park`, `_cancel`, `cinch_stm_wake` | Suspension belongs to the scheduler, behind `park.rs` |
 
-The compiler knows one type and five intrinsics (`compiler/src/stm.rs`):
+The compiler knows one type and five intrinsics (`seed/src/stm.rs`):
 the builtin opaque `TVar a`, and `stmCellNew`, `stmCellAddr`,
 `stmCellHold`, `stmCellOpen`, `stmCellCast`. They are imported by
 `Effect.Stm` and do not leave it. Everything a program can name
@@ -126,7 +126,7 @@ steps in the module, and the invariant that makes them sound is local:
 a staged cell is created paired with its target and is opened only
 through that target's type.
 
-`compiler/tests/stm.rs` runs every program under `CINCH_LEAK_CHECK=1` in
+`seed/tests/stm.rs` runs every program under `CINCH_LEAK_CHECK=1` in
 both a plain and an `rc_debug` build (where a count operation on a freed
 block traps), which is the executable form of these two rules.
 

@@ -93,4 +93,4 @@ The path text (POSIX; UTF-8 at the boundary).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Io.cinch`. Source SHA-256: `82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Io.cinch`. Source SHA-256: `82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

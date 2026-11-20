@@ -102,7 +102,7 @@ module Text.Json where
 
 
   -- ---------------------------------------------------------------------------
-  -- The runtime text primitives (compiler/runtime/src/text.rs; the
+  -- The runtime text primitives (seed/runtime/src/text.rs; the
   -- `cinch.runtime.text*` intrinsics, nm-verified there).
   -- ---------------------------------------------------------------------------
 

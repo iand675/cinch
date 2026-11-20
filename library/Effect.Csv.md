@@ -309,4 +309,4 @@ Observe the advanced sink, including its accepted prefix after a failed write.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Csv.cinch`. Source SHA-256: `115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Csv.cinch`. Source SHA-256: `115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

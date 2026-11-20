@@ -3,7 +3,7 @@
 Cinch is a strict functional language. You write expressions, every top-level declaration carries a type, and the checker verifies the program before any machine code exists. In this chapter you build the Rust compiler, write one program, and drive it with the commands the rest of the book uses:
 
 ```sh
-cargo build --manifest-path compiler/Cargo.toml
+cargo build --manifest-path seed/Cargo.toml
 cinch check Main.cinch
 cinch run Main.cinch
 cinch build Main.cinch -o answer
@@ -16,8 +16,8 @@ Prerequisites: none. You need a terminal, a checkout of the Cinch repository, an
 From the repository root:
 
 ```sh
-cargo build --manifest-path compiler/Cargo.toml
-export PATH="$PWD/compiler/target/debug:$PATH"
+cargo build --manifest-path seed/Cargo.toml
+export PATH="$PWD/seed/target/debug:$PATH"
 cinch --help
 ```
 

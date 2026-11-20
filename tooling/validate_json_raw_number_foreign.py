@@ -43,7 +43,7 @@ def main() -> None:
     compiler = args.compiler.resolve()
     directory = args.artifacts.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    production = ROOT / "compiler/prelude/Text/Json/Value.cinch"
+    production = ROOT / "seed/prelude/Text/Json/Value.cinch"
     source = production.read_text()
     primitives = []
     for name in ["numeric-hex-round", "numeric-float-from-bits"]:

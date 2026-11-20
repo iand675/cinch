@@ -167,4 +167,4 @@ A mutable copy of an immutable array.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/Array.cinch`. Source SHA-256: `94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Array.cinch`. Source SHA-256: `94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

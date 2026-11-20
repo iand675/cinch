@@ -236,4 +236,4 @@ Produce an ASCII byte-exact quoted diagnostic; non-ASCII bytes use hexadecimal e
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url/Error.cinch`. Source SHA-256: `93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Error.cinch`. Source SHA-256: `93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

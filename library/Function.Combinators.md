@@ -163,4 +163,4 @@ fixity).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Function/Combinators.cinch`. Source SHA-256: `8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Function/Combinators.cinch`. Source SHA-256: `8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

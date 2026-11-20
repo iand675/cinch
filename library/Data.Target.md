@@ -177,4 +177,4 @@ was checked (platform section 8).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Target.cinch`. Source SHA-256: `a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Target.cinch`. Source SHA-256: `a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

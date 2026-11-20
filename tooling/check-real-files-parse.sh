@@ -81,11 +81,11 @@ parse_group() {
 }
 
 surface_files() {
-  find "$root/compiler/prelude" "$root/examples/source" -name '*.cinch' | sort
+  find "$root/seed/prelude" "$root/examples/source" -name '*.cinch' | sort
 }
 
 core_files() {
-  local golden="$root/compiler/tests/core"
+  local golden="$root/seed/tests/core"
   if [ -d "$golden" ]; then
     find "$golden" -name '*.core' | sort
   else

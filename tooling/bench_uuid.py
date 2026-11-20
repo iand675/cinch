@@ -92,7 +92,7 @@ def main() -> None:
         for variant in dict.fromkeys(args.variants):
             project=directory/variant;project.mkdir()
             for module in MODULES:
-                path=ROOT/'experiments/uuid-candidate-v1/sources'/(module+'.cinch') if module in ('Data.Uuid','Effect.Uuid') else ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')
+                path=ROOT/'experiments/uuid-candidate-v1/sources'/(module+'.cinch') if module in ('Data.Uuid','Effect.Uuid') else ROOT/'seed/prelude'/(module.replace('.','/')+'.cinch')
                 if args.candidate_sources and module in ('Data.Uuid','Effect.Uuid'):
                     candidate=args.candidate_sources.resolve()/(module+'.cinch')
                     if candidate.is_file():path=candidate

@@ -37,14 +37,14 @@ def main() -> int:
     parser.add_argument('--minimum-reserve-mib', type=int, default=180,
                         help='Retain the source-only minimum disk reserve after checking')
     parser.add_argument('--artifacts', type=Path, default=ROOT / 'build/maps-role-slots-source')
-    parser.add_argument('--output', type=Path, default=ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-role-slots-source-results.json')
+    parser.add_argument('--output', type=Path, default=ROOT / 'compiler/evidence/stdlib/stdlib-maps-role-slots-source-results.json')
     args = parser.parse_args()
     if not 180 <= args.minimum_reserve_mib <= args.minimum_free_mib:
         parser.error('source reserve must remain at least180MiB and at most the fresh-start guard')
     os.sched_setaffinity(0, {args.cpu})
     compiler, runtime = FROZEN / 'cinch', FROZEN / 'libcinchruntime.a'
     assert digest(compiler) == COMPILER_SHA and digest(runtime) == RUNTIME_SHA
-    review_path = ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-nominal-region-static-results.json'
+    review_path = ROOT / 'compiler/evidence/stdlib/stdlib-maps-nominal-region-static-results.json'
     review = json.loads(review_path.read_text())
     for row in review['proposals']:
         assert digest(ROOT / row['original']) == row['original_sha256']

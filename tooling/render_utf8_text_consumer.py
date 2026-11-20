@@ -23,7 +23,7 @@ def arguments(row: dict) -> str:
 
 def rendered() -> str:
     """Check direct SDK rows, copied-input alias isolation, large runtime text and empty status."""
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/utf8-text-vectors.json').read_text())
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/utf8-text-vectors.json').read_text())
     source = '''-- | Independent immutable-text scalar observations, sealed validity and copy isolation.
 module Main where
   import Text.Utf8
@@ -106,7 +106,7 @@ module Main where
 
 def groups() -> list[str]:
     """List the exact normal/poison selection names emitted by the current reference fixture."""
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/utf8-text-vectors.json').read_text())
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/utf8-text-vectors.json').read_text())
     return ['rows-' + suffix(index) for index in range((len(fixture['rows']) + 15) // 16)] + ['long-' + suffix(index) for index in range(len(fixture.get('long', [])))]
 
 

@@ -104,7 +104,7 @@ storage in the self-hosted compiler, which agrees.
 
 ## 3 The seed
 
-`compiler/src/check_decls.rs`:
+`seed/src/check_decls.rs`:
 
 - `Checker::predeclare_nominal_heads` walks the module's flattened
   declarations before any type is converted and registers every `data` and
@@ -135,7 +135,7 @@ differs from the earlier sketch in two places, both recorded below: the
 kind pass needed no new pre-pass, and `register` had to thread the module's
 whole declaration list.
 
-`bootstrap/Bootstrap.Infer.cinch`:
+`compiler/Bootstrap.Infer.cinch`:
 
 - `collect-kinds` needed no new pre-pass. Its existing data branch already
   registers every data name with its checked kind before `register` converts
@@ -226,7 +226,7 @@ Landed and measured against `main` at `b05253a7`, both sides through
 - `cargo test --lib`: 276 passed, 0 failed.
 
 The admission count over the compiler's own sources is zero. A census over
-`bootstrap/*.cinch` finds no constructor or field type naming a data or
+`compiler/*.cinch` finds no constructor or field type naming a data or
 record declaration written later in the same module, so no bootstrap module
 was refused before this change and none is newly admitted. The feature is
 proven by the tests above and by the probes in section 6.1, not by a

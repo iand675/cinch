@@ -127,4 +127,4 @@ matching close marker (or the tail when the scope is unclosed).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Trace.cinch`. Source SHA-256: `fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Trace.cinch`. Source SHA-256: `fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

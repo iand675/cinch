@@ -18,7 +18,7 @@
 -- argv order (an option may repeat). `render-argv` renders an `Args`
 -- back through the `--name=value` spelling, so the round trip
 -- `parse-args specs (render-argv a) == Ok a` holds for well-formed
--- `a` (asserted over sample argvs in compiler/tests/json.rs).
+-- `a` (asserted over sample argvs in seed/tests/json.rs).
 --
 -- Named refusals (unproductions this module deliberately does not
 -- implement; each is a named boundary, never a silent gap):

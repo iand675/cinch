@@ -313,9 +313,9 @@ they amend its normative EBNF.
   format already admits `$` in a name segment. Both lexers, the
   tree-sitter scanner, the five editor syntaxes and the Core spelling
   table pin the rule
-  (`compiler/tests/syntax_sigil_identifiers.rs`,
-  `compiler/tests/bootstrap_lexer.rs`,
-  `compiler/tests/bootstrap_export_types.rs`).
+  (`seed/tests/syntax_sigil_identifiers.rs`,
+  `seed/tests/bootstrap_lexer.rs`,
+  `seed/tests/bootstrap_export_types.rs`).
 
 # 15 Default method implementations
 

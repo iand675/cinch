@@ -14,7 +14,7 @@ import sys
 from bench_stdlib import source_closure
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-view-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-view-vectors.json'
 
 
 def digest(path: Path) -> str:
@@ -74,10 +74,10 @@ def expression(row: dict) -> str:
 
 def consumer(expressions: list[str], width: int) -> str:
     """Dispatch bounded process groups so checked-RC quarantine is never a cumulative test artifact."""
-    source = (ROOT / 'compiler/tests/fixtures/byte-view-consumer.cinchpart').read_text()
+    source = (ROOT / 'seed/tests/fixtures/byte-view-consumer.cinchpart').read_text()
     if any(value.startswith('endpoint-case ') for value in expressions):
         source = source.replace('  import Data.String\n', '  import Data.String\n  import Text.Hex\n')
-        source += '\n' + (ROOT / 'compiler/tests/fixtures/byte-view-endpoint-consumer.cinchpart').read_text()
+        source += '\n' + (ROOT / 'seed/tests/fixtures/byte-view-endpoint-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0, len(expressions), width)):
         number = first // width
@@ -101,7 +101,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--crosscheck-only', action='store_true')
     parser.add_argument('--compiler', type=Path)
-    parser.add_argument('--module-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/View.cinch')
+    parser.add_argument('--module-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/View.cinch')
     parser.add_argument('--native-interfaces', type=Path)
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--output', type=Path)
@@ -128,7 +128,7 @@ def main() -> None:
         report['native_compiler_sha256'] = digest(args.compiler.parent / 'cinch')
     for group in args.groups:
         if group == 'endpoints':
-            selected = json.loads((ROOT / 'compiler/tests/fixtures/byte-view-endpoint-vectors.json').read_text())['rows']
+            selected = json.loads((ROOT / 'seed/tests/fixtures/byte-view-endpoint-vectors.json').read_text())['rows']
             for row in selected:
                 raw = b'a' * (row['size'] - 1) + b'b'
                 needle = b'a' * (row['width'] - 2) + b'ba'
@@ -137,7 +137,7 @@ def main() -> None:
                 assert hashlib.sha256(needle).hexdigest() == row['needle_sha256']
                 assert view.find(needle) == row['first'] == -1 and view.rfind(needle) == row['last'] == -1
                 assert view.count(needle) == row['count'] == 0 and not row['prefix'] and not row['suffix']
-            report['endpoint_fixture_sha256'] = digest(ROOT / 'compiler/tests/fixtures/byte-view-endpoint-vectors.json')
+            report['endpoint_fixture_sha256'] = digest(ROOT / 'seed/tests/fixtures/byte-view-endpoint-vectors.json')
         else:
             selected = [row for row in rows if (row['size'] > 129) == (group == 'long')]
         selected = selected[args.first:]

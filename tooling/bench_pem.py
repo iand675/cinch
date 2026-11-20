@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build/preflight paired public PEM pipelines with exact compiler/provider identities and bounded counters."""
+"""Build/preflight paired public PEM pipelines with exact seed/provider identities and bounded counters."""
 from __future__ import annotations
 import argparse
 import json

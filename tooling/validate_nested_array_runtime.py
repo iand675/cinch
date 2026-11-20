@@ -25,8 +25,8 @@ def main() -> None:
     manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
     bootstrap.write_json(manifest, provider['interfaces'])
     bootstrap.write_json(objects, provider['configuration'])
-    array = bootstrap.ROOT / 'compiler/prelude/Data/Array.cinch'
-    fixture = bootstrap.ROOT / 'compiler/tests/fixtures/nested-array-runtime-control.cinch'
+    array = bootstrap.ROOT / 'seed/prelude/Data/Array.cinch'
+    fixture = bootstrap.ROOT / 'seed/tests/fixtures/nested-array-runtime-control.cinch'
     bundle, ir = args.artifacts / 'Bundle.cinch', args.artifacts / 'consumer.ll'
     bundle.write_bytes(array.read_bytes() + b'\n\n' + fixture.read_bytes())
     command = [str(args.compiler.resolve()), '--emit-ir', '--rc-debug', '--interfaces', str(manifest),

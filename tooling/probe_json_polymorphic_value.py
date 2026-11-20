@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def digest(path: Path) -> str:
-    """Identify exact diagnostic sources and immutable compiler/provider inputs."""
+    """Identify exact diagnostic sources and immutable seed/provider inputs."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 

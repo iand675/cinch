@@ -74,7 +74,7 @@ def workload_source(root: Path) -> bytes:
     module or the rest of the file is never checked. Qualified aliases keep
     the toolkit's exports out of Main's scope.
     """
-    files = {f"Text.{name}.cinch": (root / "compiler" / "prelude" / "Text" / f"{name}.cinch").read_bytes()
+    files = {f"Text.{name}.cinch": (root / "seed" / "prelude" / "Text" / f"{name}.cinch").read_bytes()
              for name in TOOLKIT}
     imports = "".join(f"  import Text.{name} as ToolkitModule{index}\n"
                       for index, name in enumerate(TOOLKIT))

@@ -352,4 +352,4 @@ Whether a numeric rune is a Unicode scalar; negatives, surrogates and values abo
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Utf8.cinch`. Source SHA-256: `f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Utf8.cinch`. Source SHA-256: `f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

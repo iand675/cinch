@@ -39,7 +39,7 @@ and complete callable declaration, including purity and absence of hidden
 arguments; a source name supplies no semantics. Renamed exports retain the
 original identity. Unknown foreign calls, wrapping machine arithmetic and
 partial/refined signatures remain outside this plain first-order tier. See
-[the primitive-value receipt](../bootstrap/evidence/current/current-native-primitive-body-results.json).
+[the primitive-value receipt](../compiler/evidence/current/current-native-primitive-body-results.json).
 
 A resolved scheme may carry `measures`, each with an `identity`, complete
 `resolved` defining scheme and `total_body`. These private declarations grant no
@@ -68,7 +68,7 @@ publish that declaration. A checked declaration may also carry a guarded
 
 The Native producer and decoder pass all ten affected complete groups and all
 43 published compiler-source modules; see
-[the method-body receipt](../bootstrap/evidence/current/current-native-method-body-results.json).
+[the method-body receipt](../compiler/evidence/current/current-native-method-body-results.json).
 The corresponding Cinch loader, exporter and actual-body proof consumer remain
 a private candidate under validation. That candidate requires its own complete
 gates and a fresh bootstrap before replacing the published compiler.
@@ -123,7 +123,7 @@ build/<Module>.cinchif   compiled interface metadata
 ```
 
 and the toolchain additionally links the Rust runtime `libcinchruntime.a`
-(runtime is Rust; see `compiler/runtime/src/lib.rs` for the runtime ABI
+(runtime is Rust; see `seed/runtime/src/lib.rs` for the runtime ABI
 reference).
 
 `.cinchif` is canonical JSON: UTF-8, keys in the fixed order below, one
@@ -202,7 +202,7 @@ compilers require schema 10 and reject fingerprint-only defaults. The
 library producer rebuilds its interfaces from pinned source.
 
 A Cinch-built consumer inherited defaults from separate Rust and Cinch
-producers. See [the inheritance replay](../bootstrap/evidence/current/current-schema9-default-replay-results.json).
+producers. See [the inheritance replay](../compiler/evidence/current/current-schema9-default-replay-results.json).
 
 ### Resolved type occurrences
 
@@ -326,7 +326,7 @@ that machinery.
 # 4 Runtime and ABI coupling
 
 - Value representation (uniform words, boxed ADTs, closure records with the
-  curried apply stub) is defined in `compiler/src/core.rs` and mirrored by the
+  curried apply stub) is defined in `seed/src/core.rs` and mirrored by the
   runtime crate's module docs. The interface's `abi.convention` names this
   pairing; a change to either bumps `runtime_abi`.
 - Symbols are the compiler's quoted `<module>.<name>` identifiers; interface
@@ -389,13 +389,13 @@ The cost the decimal form imposed was not only bytes: the compiler's own
 so the artifact used to diagnose codegen was the least readable one.
 
 **Both implementations move together.** The pinned library object is produced
-by the seed, so the seed encoder (`compiler/src/check_default_wire.rs`) and
-the Cinch encoder (`bootstrap/Bootstrap.Nominal.cinch`) are one spelling:
+by the seed, so the seed encoder (`seed/src/check_default_wire.rs`) and
+the Cinch encoder (`compiler/Bootstrap.Nominal.cinch`) are one spelling:
 the library producer pin and the compiler are rebuilt and repinned together,
 and the roots extraction in `tooling/bootstrap_objects.py` decodes the new
 spelling. Both encoders are pinned to the same table by
-`compiler/tests/interface_method_bodies.rs` and
-`compiler/tests/bootstrap_export_types.rs`, and both decoders are exercised
+`seed/tests/interface_method_bodies.rs` and
+`seed/tests/bootstrap_export_types.rs`, and both decoders are exercised
 by the exporter and the type display.
 
 # 5 Evolution hooks

@@ -3,7 +3,7 @@
 Status: design note, 2026-11-13, with the measurement done and the
 implementation not started. Every number below is a command this lane ran
 against `build/bootstrap/stage3/cinch` on the 64-interface base set, or
-against the Rust seed (`compiler/target/debug/cinch`) for the single-document
+against the Rust seed (`seed/target/debug/cinch`) for the single-document
 probes. Section 6 says which is which. Companions:
 `design/compilation-speed.md` section 2.18 (the scanner fix this follows),
 `design/base-as-a-package.md` section 6.1 (the interface-byte law).
@@ -205,7 +205,7 @@ and the design picks the second:
 - **Grow in place.** One `Bytes` arena of `node-size * capacity`, written
   through `bytes-set` at a byte offset, with the count in a `Ref` cell. This
   needs no new runtime: `bytes-set` mutates in place and `array-set` does
-  not (it copies the whole array, `compiler/runtime/src/arrays.rs`), so the
+  not (it copies the whole array, `seed/runtime/src/arrays.rs`), so the
   arena has to be `Bytes`, not `Array`. The node record is then packed into
   four-byte fields by `put4`/`get4`, which the probe in section 6 confirms
   compiles and runs.
@@ -218,7 +218,7 @@ packed accessors. Which of those two is decided by section 4.4.
 ### 4.4 How a consumer gets a `String`
 
 `String` is `StrBuf :: Bytes -> String` with a private constructor and a
-copying `string-from-bytes` (`compiler/prelude/Data/String.cinch`). A
+copying `string-from-bytes` (`seed/prelude/Data/String.cinch`). A
 consumer that genuinely needs a `String` calls one function:
 
 ```cinch
@@ -245,7 +245,7 @@ the callers that want one; the arena path is a second entry point
 followed by a materialization. That is the answer to the acceptance
 criterion's escape clause: the public `Json` type does not change, because
 `Data.Json`'s nine constructors are the surface every `JsonCodec` instance
-and every `bootstrap/programs/Run.*` program is written against, and
+and every `compiler/programs/Run.*` program is written against, and
 changing it would break all of them. The arena lives behind a new type that
 the loader is the first customer of.
 
@@ -311,7 +311,7 @@ string content `[INFERENCE: (1,621,735 minus 2.0 times 432,038) / 72,002]`.
 
 The probes also established two facts the design depends on and that were
 not obvious: `array-set` copies the whole array, so a growable arena cannot
-be an `Array` (`compiler/runtime/src/arrays.rs:180`); and `bytes-set` plus
+be an `Array` (`seed/runtime/src/arrays.rs:180`); and `bytes-set` plus
 `bytes-get` packing four bytes per word compiles and runs, which is what
 section 4.3 needs.
 
@@ -355,8 +355,8 @@ bundle for every case, and the two outputs must be byte identical.
 - **No new runtime primitive, so no lock bump in this lane.** The arena is
   `Bytes` and the node packing is `bytes-set`/`bytes-get`, both existing
   intrinsics, so the runtime ABI does not move and neither
-  `bootstrap/pins/stage0.lock.json` nor
-  `bootstrap/pins/library-provider.lock.json` needs a bump for what landed here.
+  `compiler/pins/stage0.lock.json` nor
+  `compiler/pins/library-provider.lock.json` needs a bump for what landed here.
   Everything below the 2.0 blocks-per-byte floor needs a runtime addition and
   therefore a lock bump, and there are two of them: an FNV-1a 64 over a
   `Bytes` (section 3, worth about 1.5 M blocks on one interface) and a

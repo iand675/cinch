@@ -29,7 +29,7 @@ little-endian (Data.Machine) and `Bool` as one byte (Data.Bool).
 REAL needs float bit access and TEXT a length-prefixed copy (D65);
 those instances land with their generators. The class law shape is
 the round trip: `decode (encode x) == Some x` (asserted over sample
-values in compiler/tests/prelude_split.rs).
+values in seed/tests/prelude_split.rs).
 
 `JsonCodec` is the JSON-value column beside it (P31): the same law
 shape over the `Json` family, with a named decode error instead of
@@ -120,4 +120,4 @@ and a value outside the column's range.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Codec.cinch`. Source SHA-256: `91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Codec.cinch`. Source SHA-256: `91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

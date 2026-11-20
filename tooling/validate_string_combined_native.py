@@ -30,7 +30,7 @@ def compiler_stack() -> None:
 
 def consumer(expressions: list[str], extra: str) -> str:
     """Select one assertion per process to bound checked-RC quarantine at the required heap cap."""
-    source = (ROOT / 'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text()
+    source = (ROOT / 'seed/tests/fixtures/string-construction-consumer.cinchpart').read_text()
     source = source.replace('  import Data.String\n', '  import Data.String\n  import Effect.Process\n') + '\n' + extra
     dispatch = 'False'
     for i in reversed(range(len(expressions))):
@@ -72,9 +72,9 @@ def main() -> None:
     parser.add_argument('--compiler-stack-size', choices=['64M', '1G'], default='1G',
                         help='Native compiler program-thread stack; consumer runs retain their fixed eight-MiB stack')
     args = parser.parse_args()
-    fixture_path = ROOT / 'compiler/tests/fixtures/buffer-construction-vectors.json'
+    fixture_path = ROOT / 'seed/tests/fixtures/buffer-construction-vectors.json'
     fixture = json.loads(fixture_path.read_text())
-    join_path = ROOT / 'compiler/tests/fixtures/string-join-vectors.json'
+    join_path = ROOT / 'seed/tests/fixtures/string-join-vectors.json'
     join_fixture = json.loads(join_path.read_text())
     admitted = bootstrap_objects.artifact_provider(bootstrap, args.provider / 'provider.json')
     configuration = json.loads(args.objects.read_text())
@@ -91,11 +91,11 @@ def main() -> None:
               'epoch_receipts': receipts(args.interfaces, args.provider),
               'constructor_fixture_sha256': digest(fixture_path), 'join_fixture_sha256': digest(join_path),
               'compiler_main_thread_stack_bytes': 67108864, 'compiler_runtime_stack_bytes': 67108864 if args.compiler_stack_size == '64M' else 1073741824, 'program_stack_bytes': 8388608, 'results': []}
-    scalar_path = ROOT / 'compiler/tests/fixtures/string-scalar-vectors.json'
+    scalar_path = ROOT / 'seed/tests/fixtures/string-scalar-vectors.json'
     scalar_fixture = json.loads(scalar_path.read_text())
     report['scalar_fixture_sha256'] = digest(scalar_path)
-    extra_buffer = (ROOT / 'compiler/tests/fixtures/buffer-construction-consumer.cinchpart').read_text()
-    extra_join = (ROOT / 'compiler/tests/fixtures/string-join-consumer.cinchpart').read_text()
+    extra_buffer = (ROOT / 'seed/tests/fixtures/buffer-construction-consumer.cinchpart').read_text()
+    extra_join = (ROOT / 'seed/tests/fixtures/string-join-consumer.cinchpart').read_text()
     for group in args.groups:
         if group in ['packed', 'buffers']:
             expressions = buffer_checks(group, fixture[group])

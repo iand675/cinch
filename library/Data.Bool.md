@@ -167,4 +167,4 @@ is `Ok x`).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bool.cinch`. Source SHA-256: `b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bool.cinch`. Source SHA-256: `b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

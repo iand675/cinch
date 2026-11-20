@@ -65,4 +65,4 @@ prelude split (Data.List/Data.Option).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Category/Alternative.cinch`. Source SHA-256: `4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Alternative.cinch`. Source SHA-256: `4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -16,7 +16,7 @@ class PemFixtureTests(unittest.TestCase):
 
     def test_independent_fixture_shape_and_binary_metadata(self):
         """Preserve every framing/output observation and unrepresentable-as-String metadata byte."""
-        data=json.loads((ROOT/'compiler/tests/fixtures/pem-vectors.json').read_text())
+        data=json.loads((ROOT/'seed/tests/fixtures/pem-vectors.json').read_text())
         self.assertEqual(data['sdk_version'],'go1.27.4')
         self.assertEqual((len(data['encodes']),len(data['decodes']),len(data['writers'])),(473,1716,51))
         self.assertTrue(any(bytes.fromhex(row['block']['label'])==b'\xff\0' for row in data['encodes']))
@@ -27,20 +27,20 @@ class PemFixtureTests(unittest.TestCase):
     def test_checked_in_consumer_is_fresh(self):
         """CI consumes exact generated observations with strict row counts and shallow readonly offsets."""
         source=rendered()
-        self.assertEqual(source,(ROOT/'compiler/tests/fixtures/pem-consumer.cinch').read_text())
+        self.assertEqual(source,(ROOT/'seed/tests/fixtures/pem-consumer.cinch').read_text())
         self.assertNotIn('__ENCODE',source);self.assertNotIn('__DECODE',source);self.assertNotIn('__WORDS__',source)
         self.assertIn('else False\n\n  -- | Select one exact independent',source)
 
     def test_actual_kernel_snapshots_are_fresh(self):
         """Host mutations and foreign objects compile the maintained primitive bodies, not test substitutes."""
         for foreign,name in [(False,'pem-kernels.cinch'),(True,'pem-kernels-foreign.cinch')]:
-            self.assertEqual(kernels(foreign),(ROOT/'compiler/tests/fixtures'/name).read_text())
+            self.assertEqual(kernels(foreign),(ROOT/'seed/tests/fixtures'/name).read_text())
         self.assertEqual(kernels(True).count('  prim '),11)
         self.assertEqual(kernels(True).count('    unsafe llvm {'),7)
 
     def test_actual_writer_budget_prefixes(self):
         """Every independently observed stream failure retains exactly its accepted byte prefix."""
-        data=json.loads((ROOT/'compiler/tests/fixtures/pem-vectors.json').read_text())
+        data=json.loads((ROOT/'seed/tests/fixtures/pem-vectors.json').read_text())
         expected=b'-----BEGIN TEST-----\nYWJjZGVm\n-----END TEST-----\n'
         self.assertEqual([row['budget'] for row in data['writers']],list(range(len(expected)+2)))
         for row in data['writers']:

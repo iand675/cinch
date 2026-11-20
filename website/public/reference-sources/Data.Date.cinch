@@ -24,7 +24,7 @@
 -- `to-epoch-days` read modulo 7 with 1970-01-01 (a Thursday) at 4,
 -- which is Ruby's `wday` convention (0 is Sunday); and ISO 8601
 -- `to-string`/`from-string` round trip. The checks are
--- compiler/tests/lib_civil_time.rs.
+-- seed/tests/lib_civil_time.rs.
 --
 -- NAMED REFUSALS (boundaries this module deliberately does not
 -- cross):

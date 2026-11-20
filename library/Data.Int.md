@@ -162,7 +162,7 @@ evidence; `-` on `Nat` is the exact difference and requires
 `b <= a` (see Data.Nat).
 **`Data.Int.Group_Int`**: The additive group of the integers: `invert x` is `-x` (the group
 inverse laws are asserted over samples in
-compiler/tests/prelude_split.rs; instances live with their type).
+seed/tests/prelude_split.rs; instances live with their type).
 **`Data.Int.Hash_Int`**: The magnitude's digest: equal integers hash alike (the `Hash` law
 holds by construction; instances live with their type). The
 magnitude is the `Nat` of the same value, of any size, hashed as a
@@ -172,4 +172,4 @@ identities (see the header).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Int.cinch`. Source SHA-256: `3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Int.cinch`. Source SHA-256: `3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -53,7 +53,7 @@ module Main where
 
 def source_cases() -> list[dict]:
     """Keep original controls byte-identical and give unsupported value shapes explicit refusal observations."""
-    fixture = bootstrap.ROOT / 'compiler/tests/fixtures'
+    fixture = bootstrap.ROOT / 'seed/tests/fixtures'
     nested = (fixture / 'native-scalar-nested-abi.cinch').read_text()
     sequenced = (fixture / 'native-scalar-sequenced-abi.cinch').read_text()
     cases = [{'name': 'original-nested', 'source': nested, 'accepted': True, 'baseline_accepted': False},
@@ -104,7 +104,7 @@ module Main where
 
 
 def main() -> None:
-    """Retain exact compiler/provider/source identities, named refusals and both runtime ownership profiles."""
+    """Retain exact seed/provider/source identities, named refusals and both runtime ownership profiles."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--baseline', type=Path)

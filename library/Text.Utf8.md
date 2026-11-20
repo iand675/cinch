@@ -398,4 +398,4 @@ Every value of String is valid UTF-8; malformed arbitrary input is represented b
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Utf8.cinch`. Source SHA-256: `1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Utf8.cinch`. Source SHA-256: `1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

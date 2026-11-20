@@ -229,4 +229,4 @@ Compute a fresh 32-byte network-order SHA-256 digest of a complete input.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Sha256.cinch`. Source SHA-256: `95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha256.cinch`. Source SHA-256: `95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

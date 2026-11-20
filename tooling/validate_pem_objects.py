@@ -20,7 +20,7 @@ def main() -> None:
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     artifacts=args.artifacts.resolve();artifacts.mkdir(parents=True,exist_ok=True)
-    maintained=args.module_override or Path(__file__).resolve().parents[1]/'compiler/prelude/Text/Pem.cinch'
+    maintained=args.module_override or Path(__file__).resolve().parents[1]/'seed/prelude/Text/Pem.cinch'
     source=artifacts/'Main.cinch';source.write_text(rendered(True,maintained.read_text()));reports=[]
     for target in ['wasm32-unknown-unknown','aarch64-unknown-linux-gnu']:
         ir=artifacts/(target+'.ll');obj=ir.with_suffix('.o')

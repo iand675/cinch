@@ -19,7 +19,7 @@
 -- checked sample-wise by the P18 law layer exactly when they preserve
 -- the predicate: `Semigroup` transfers (append of non-empties is
 -- non-empty), `Monoid` cannot (its identity is empty; both asserted in
--- compiler/tests/refinements.rs). The traversals preserve
+-- seed/tests/refinements.rs). The traversals preserve
 -- non-emptiness too, though through the applicative they report `not
 -- checked` at samples (the honest law boundary).
 --

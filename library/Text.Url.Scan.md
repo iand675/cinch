@@ -120,4 +120,4 @@ Copy a half-open interval, returning empty bytes for invalid bounds.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url/Scan.cinch`. Source SHA-256: `de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Scan.cinch`. Source SHA-256: `de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

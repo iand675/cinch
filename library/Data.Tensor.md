@@ -68,4 +68,4 @@ This module exports no type declarations.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Tensor.cinch`. Source SHA-256: `caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Tensor.cinch`. Source SHA-256: `caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -135,7 +135,7 @@ def main() -> None:
               'consumer': str(args.consumer.resolve()) if args.consumer else 'default pure caller',
               'expected_refusal': args.expect_refusal,
               'embedded_Data_Bytes_override': False,
-              'resolver_builtin_manifest_sha256': digest(ROOT / 'compiler/prelude/cinch-base.cinchpkg')}
+              'resolver_builtin_manifest_sha256': digest(ROOT / 'seed/prelude/cinch-base.cinchpkg')}
     command = [str(compiler), 'check', str(work / 'Main.cinch')] if args.stage == 'source' else [
         str(compiler), 'doc', 'extract', str(work / 'Crypto.Hkdf.cinch'),
         '--module', 'Crypto.Hkdf', '--out', str(work / 'docs.json')]

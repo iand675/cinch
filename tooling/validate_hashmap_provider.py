@@ -29,7 +29,7 @@ def main() -> None:
     emitted = [unit for unit in metadata['units'] if unit['symbol'] == 'Data.HashMap.hash-map-to-list@OO']
     if len(emitted) != 1:
         raise bootstrap.BootstrapError('the actual object must contain exactly one requested OO enumeration unit')
-    fixture = bootstrap.ROOT / 'compiler/tests/fixtures/base-provider-hashmap-oo.cinch'
+    fixture = bootstrap.ROOT / 'seed/tests/fixtures/base-provider-hashmap-oo.cinch'
     source = args.artifacts / 'Main.cinch'
     source.write_bytes(fixture.read_bytes())
     ir = args.artifacts / 'consumer.ll'

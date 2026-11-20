@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / 'compiler/tests/fixtures'
+FIXTURES = ROOT / 'seed/tests/fixtures'
 
 
 def source(index: int, mode: str = 'trace') -> str:
@@ -46,7 +46,7 @@ def growth_checks(bits: int, suffix: str = "") -> str:
 
 def growth_source() -> str:
     """Project actual private pure helpers so boundary growth can be tested without enormous allocations."""
-    module = (ROOT / 'compiler/prelude/Data/Mutable/LinkedList.cinch').read_text()
+    module = (ROOT / 'seed/prelude/Data/Mutable/LinkedList.cinch').read_text()
     maximum_start = module.rfind('  -- |', 0, module.index('  maximum-slots :: U64'))
     maximum_end = module.index('  -- | Convert a bounded nonnegative slot count', maximum_start)
     growth_start = module.index('  -- | Grow geometrically without overflowing')

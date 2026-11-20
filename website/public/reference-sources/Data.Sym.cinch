@@ -26,7 +26,7 @@ module Data.Sym where
   export intern, sym-name
 
 
-  -- The runtime cells (`compiler/runtime/src/sym.rs`): the intrinsic
+  -- The runtime cells (`seed/runtime/src/sym.rs`): the intrinsic
   -- layer speaks `Bytes` and the raw -1/0/1 comparison immediate (the
   -- `natCmp` convention); the surface conversions below are the
   -- section 9 signatures.

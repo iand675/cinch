@@ -71,11 +71,11 @@ def main() -> int:
     clang = Path('/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang')
     assert digest(compiler) == COMPILER_SHA and digest(runtime) == RUNTIME_SHA
     assert os.environ.get('CINCH_CLANG') == str(clang)
-    source_receipt = ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-role-slots-source-qualification-results.json'
+    source_receipt = ROOT / 'compiler/evidence/stdlib/stdlib-maps-role-slots-source-qualification-results.json'
     previous = json.loads(source_receipt.read_text())
     assert previous['status'] == 'source-and-public-defining-headers-passed'
     assert previous['compiler_sha256'] == COMPILER_SHA and previous['runtime_sha256'] == RUNTIME_SHA
-    review_path = ROOT / 'bootstrap/evidence/stdlib/stdlib-maps-nominal-region-static-results.json'
+    review_path = ROOT / 'compiler/evidence/stdlib/stdlib-maps-nominal-region-static-results.json'
     review = json.loads(review_path.read_text())
     for row in review['proposals']:
         assert digest(ROOT / row['original']) == row['original_sha256']
@@ -106,8 +106,8 @@ def main() -> int:
         'Data.Mutable.Map': ROOT / 'build/maps-nominal-region-static/candidate/Data.Mutable.Map.cinch',
         'Data.Mutable.HashTable': ROOT / 'build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch',
         'Data.Mutable.Var': ROOT / 'build/maps-nominal-region-static/common/Data.Mutable.Var.cinch',
-        'Data.Mutable.Map.Optional': ROOT / 'compiler/prelude/Data/Mutable/Map/Optional.cinch',
-        'Data.Mutable.Map.Float': ROOT / 'compiler/prelude/Data/Mutable/Map/Float.cinch',
+        'Data.Mutable.Map.Optional': ROOT / 'seed/prelude/Data/Mutable/Map/Optional.cinch',
+        'Data.Mutable.Map.Float': ROOT / 'seed/prelude/Data/Mutable/Map/Float.cinch',
     }
     report['sources'] = {}
     for module, path in modules.items():
@@ -117,7 +117,7 @@ def main() -> int:
     report['fixtures'] = {}
     if args.unit == 'combined':
         probes = {'MapProbe.Edge': edge_source(), 'MapProbe.IEEE64': float_source(64),
-                  'MapProbe.Mixed': (ROOT / 'compiler/tests/fixtures/mutable-map-effect-control.cinch').read_text()}
+                  'MapProbe.Mixed': (ROOT / 'seed/tests/fixtures/mutable-map-effect-control.cinch').read_text()}
         for module, text in probes.items():
             target = args.artifacts / (module + '.cinch')
             target.write_text(export_probe(text, module))
@@ -126,7 +126,7 @@ def main() -> int:
                                          'only_transformation': 'Rename Main module and export its existing main entry; every assertion and helper is unchanged.'}
         consumer = ENTRY
     else:
-        consumer = source(args.case) if args.unit == 'trace' else (ROOT / 'compiler/tests/fixtures/mutable-map-control.cinch').read_text()
+        consumer = source(args.case) if args.unit == 'trace' else (ROOT / 'seed/tests/fixtures/mutable-map-control.cinch').read_text()
         report['failure_indices'] = {'index': 'The original independent trace step or ownership/control group; no transformation.'}
         report['fixtures']['Main'] = {'original_consumer_sha256': hashlib.sha256(consumer.encode()).hexdigest(),
                                       'only_transformation': 'None; exact original generated trace or ownership/control consumer.'}
@@ -134,7 +134,7 @@ def main() -> int:
     entry.write_text(consumer)
     report['entry_sha256'] = digest(entry)
     for name in ('maps-vectors.json', 'maps-edge-vectors.json'):
-        report[name] = digest(ROOT / 'compiler/tests/fixtures' / name)
+        report[name] = digest(ROOT / 'seed/tests/fixtures' / name)
     executable, llvm = args.artifacts / 'consumer', args.artifacts / 'consumer.ll'
     environment = {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_TEST_API_EMIT_INTERFACES': '0'}
     command = [str(compiler), 'build', str(entry.resolve()), '-o', str(executable.resolve()),

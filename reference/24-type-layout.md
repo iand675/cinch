@@ -572,7 +572,7 @@ A field whose type is a boxed value crosses as one word, a pointer to the object
 
 # Runtime headers, constructor tags, and pointer maps
 
-Current native heap and static blocks carry a runtime header word at offset **-8** from their payload pointer, encoding a 40-bit signed count (low bits), an 8-bit kind, and a 16-bit layout id. The constants in `compiler/runtime/src/block_kinds.rs` derive every shift and mask from those widths. A payload of 65535 words or more stores the escape value in the layout field and keeps the real size or descriptor one word earlier, at offset -16. These are runtime ABI details, not leading fields a C declaration should imitate.
+Current native heap and static blocks carry a runtime header word at offset **-8** from their payload pointer, encoding a 40-bit signed count (low bits), an 8-bit kind, and a 16-bit layout id. The constants in `seed/runtime/src/block_kinds.rs` derive every shift and mask from those widths. A payload of 65535 words or more stores the escape value in the layout field and keeps the real size or descriptor one word earlier, at offset -16. These are runtime ABI details, not leading fields a C declaration should imitate.
 
 Generated code reads that header through a negative index, and reads a constructor's tag out of the layout id. A `case` over a two-field constructor compiles to:
 
@@ -589,7 +589,7 @@ Generated code reads that header through a negative index, and reads a construct
 
 48 is the count plus kind width, and 63 selects the tag from the layout id, whose high bits name the data type. Constructor tags are therefore encoded through layout identifiers and descriptors, not through a universally present first payload tag word. Pointer maps tell reclamation which fields can contain objects and which are raw or tagged immediates. Closures and dictionaries have their own shapes.
 
-Runtime header formats and specialization symbols are versioned implementation facts. User code should not inspect them by integer or pointer casts or persist them as a file format. Their source authority is `compiler/runtime/src/block_kinds.rs` and `block.rs`, with the corresponding code generation, not a source `repr` promise.
+Runtime header formats and specialization symbols are versioned implementation facts. User code should not inspect them by integer or pointer casts or persist them as a file format. Their source authority is `seed/runtime/src/block_kinds.rs` and `block.rs`, with the corresponding code generation, not a source `repr` promise.
 
 # Unboxed wrappers
 
@@ -660,4 +660,4 @@ In the intended model, generic functions keep their source interface while const
 
 The value-type spelling and some admission choices remain provisional. Keep them visibly planned rather than registering an inert metadata attribute that pretends to implement the storage change. Planned allocator selection and in-place or budget attributes are indexed in [all attributes](23-attributes-and-pragmas.md#planned-and-provisional-attribute-spellings).
 
-Implementation authority: `compiler/src/check_decls.rs::parse_repr_args`, `compute_layouts`, `layout_of`, `build_layout`, `field_size_align`, `abi_param`; `compiler/src/interface.rs` for the `AbiLayout` record; `compiler/src/repr.rs`, `specialize.rs`, `codegen.rs`; runtime `block_kinds.rs`, `block.rs`, `rc.rs`. Behaviour suites: `compiler/tests/attributes.rs`, `ffi.rs`, `llvm_contract.rs`, `repr_classes.rs`, `reclamation.rs`.
+Implementation authority: `seed/src/check_decls.rs::parse_repr_args`, `compute_layouts`, `layout_of`, `build_layout`, `field_size_align`, `abi_param`; `seed/src/interface.rs` for the `AbiLayout` record; `seed/src/repr.rs`, `specialize.rs`, `codegen.rs`; runtime `block_kinds.rs`, `block.rs`, `rc.rs`. Behaviour suites: `seed/tests/attributes.rs`, `ffi.rs`, `llvm_contract.rs`, `repr_classes.rs`, `reclamation.rs`.

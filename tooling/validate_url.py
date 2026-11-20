@@ -32,7 +32,7 @@ def toolchain_identity(build_root: Path, frontend: str, compiler: Path) -> dict:
     if snapshot.exists():
         result["compiler_snapshot"] = json.loads(snapshot.read_text())
     if frontend == "rust":
-        archive = build_root.parent / "compiler/runtime/target/release/libcinchruntime.a"
+        archive = build_root.parent / "seed/runtime/target/release/libcinchruntime.a"
     else:
         frozen = build_root / "stdlib-qualified-tail-stage3-frozen"
         objects = json.loads((frozen / "objects.json").read_text())
@@ -52,17 +52,17 @@ def literal(text: str) -> str:
 
 def consumer(suite: str) -> str:
     """Render compact exact rows and shallow batches of large public-pipeline checks."""
-    fixture = json.loads((ROOT / "compiler/tests/fixtures/url-vectors.json").read_text())
+    fixture = json.loads((ROOT / "seed/tests/fixtures/url-vectors.json").read_text())
     if suite == "pairs":
-        module = (ROOT / "compiler/prelude/Text/Url/Codec.cinch").read_text()
+        module = (ROOT / "seed/prelude/Text/Url/Codec.cinch").read_text()
         start = module.index("  prim hex-pair ::")
         end = module.index("\n  -- |", start)
-        return (ROOT / "compiler/tests/fixtures/url-pair-kernel.cinch.in").read_text().replace("__KERNEL__", module[start:end]).replace("__HASH__", str(fixture["hex_pair_hash"]))
+        return (ROOT / "seed/tests/fixtures/url-pair-kernel.cinch.in").read_text().replace("__KERNEL__", module[start:end]).replace("__HASH__", str(fixture["hex_pair_hash"]))
     if suite == "url":
         return url_consumer()
     if suite != "codec":
         raise ValueError(f"URL suite not yet implemented: {suite}")
-    source = (ROOT / "compiler/tests/fixtures/url-codec-consumer.cinch.in").read_text()
+    source = (ROOT / "seed/tests/fixtures/url-codec-consumer.cinch.in").read_text()
     encoded = "".join(str(row["mode"]) + "\0" + row["input"] + "\0" + row["output"] + "\0" for row in fixture["encoded"])
     decoded = "".join(str(row["mode"]) + "\0" + row["input"] + "\0" + row["output"] + "\0" + row["error"] + "\0" + str(row["offset"]) + "\0" for row in fixture["decoded"])
     checks = ["long-case " + " ".join(str(row[key]) for key in ("mode", "size", "pattern", "input_hash", "output_size", "output_hash")) for row in fixture["long"]]
@@ -80,8 +80,8 @@ def consumer(suite: str) -> str:
 
 def url_consumer() -> str:
     """Render shallow independent public-capability groups with exact byte metadata."""
-    fixture = json.loads((ROOT / "compiler/tests/fixtures/url-vectors.json").read_text())
-    source = (ROOT / "compiler/tests/fixtures/url-consumer.cinch.in").read_text()
+    fixture = json.loads((ROOT / "seed/tests/fixtures/url-vectors.json").read_text())
+    source = (ROOT / "seed/tests/fixtures/url-consumer.cinch.in").read_text()
     declarations, selection, calls = [], ['    else if name == "ownership" then ownership-cases ()'], ["ownership-cases"]
     for section, runner in [("parsing", "parsing-from"), ("queries", "query-from"), ("resolution", "resolution-from"), ("manual", "manual-from"), ("joining", "joining-from")]:
         for index, start in enumerate(range(0, len(fixture[section]), 64)):
@@ -131,7 +131,7 @@ def source_closure(project: Path, main: Path) -> list[Path]:
         if name in found or name in embedded:
             continue
         found.add(name)
-        original = ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")
+        original = ROOT / "seed/prelude" / (name.replace(".", "/") + ".cinch")
         text = original.read_text()
         path = project / f"{name}.cinch"
         path.write_text(text)
@@ -184,7 +184,7 @@ def main() -> None:
         if result.returncode != 0 or "leaked=0" not in result.stderr:
             raise RuntimeError(f"debug={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}")
         runs.append({"group": group, "debug_poisoning": debug, "heap_limit": environment["CINCH_HEAP_LIMIT"], "stack_limit": "8M", "elapsed_seconds": time.monotonic() - started, "stdout": result.stdout, "stderr": result.stderr})
-    report = {"toolchain": toolchain_identity(args.build_root, args.frontend, compiler), "suite": args.suite, "frontend": args.frontend, "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "cpu_affinity": [args.cpu], "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/url-vectors.json"), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
+    report = {"toolchain": toolchain_identity(args.build_root, args.frontend, compiler), "suite": args.suite, "frontend": args.frontend, "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "cpu_affinity": [args.cpu], "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "seed/tests/fixtures/url-vectors.json"), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"{args.frontend} {args.suite} URL suite passed both memory modes", flush=True)

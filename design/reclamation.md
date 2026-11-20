@@ -20,14 +20,14 @@ document does not re-run them.
 
 ### 1.1 What leaks and why
 
-- `cinch_free` is a no-op: `compiler/runtime/src/abi.rs:297-298`
+- `cinch_free` is a no-op: `seed/runtime/src/abi.rs:297-298`
   (`pub unsafe extern "C" fn cinch_free(_word: i64) {}`). Its doc
-  (`abi.rs:290-296`) and the ABI reference (`compiler/runtime/src/lib.rs:102-104`)
+  (`abi.rs:290-296`) and the ABI reference (`seed/runtime/src/lib.rs:102-104`)
   say blocks are leaked until reclamation lands. No file in
-  `compiler/src` calls it.
+  `seed/src` calls it.
 - Generated code allocates through `cinch_alloc_raw` (`abi.rs:263-288`,
   uninitialised, 8-byte aligned, size rounded to words), declared at
-  `compiler/src/codegen.rs:138`. **30 emission sites** call it:
+  `seed/src/codegen.rs:138`. **30 emission sites** call it:
   `codegen.rs:1276` (apply-stub growth), `1731`, `1763`, `1772` (prim
   `Some`/`Err`/`Ok` results), `1962` (UTF-8 decode tuple), `2369`, `2381`,
   `2388`, `2399` (task join results), `3095`, `3108` (`ctor_body`: boundary
@@ -61,7 +61,7 @@ document does not re-run them.
   words keep one `Arc` reference by design (`coop.rs:204`, `task.rs:133`).
 
 A compiled program never returns memory, so its footprint equals its total
-allocation, not its live set. The accounting runtime (`compiler/runtime/src/heap.rs`)
+allocation, not its live set. The accounting runtime (`seed/runtime/src/heap.rs`)
 already knows this. Its cap is on cumulative bytes "since nothing is freed
 yet" (`heap.rs:29-31`), and a real `dealloc` already decrements the
 current-bytes counter, so the free slice "only has to make `cinch_free`
@@ -71,10 +71,10 @@ actually deallocate" (`heap.rs:9-13`).
 
 | Program / input | Measured | Source |
 |---|---|---|
-| canonical printing of `Data.Machine.cinchif` (474,869 B) | 129.6 GB peak, killed | `bootstrap/Bootstrap.Manifest.cinch:28-35` |
+| canonical printing of `Data.Machine.cinchif` (474,869 B) | 129.6 GB peak, killed | `compiler/Bootstrap.Manifest.cinch:28-35` |
 | same, `Prelude.cinchif` (193,092 B) | 1.57 GB | `Bootstrap.Manifest.cinch:33` |
 | same, `Effect.Process.cinchif` (15,329 B) | 477 MB | `Bootstrap.Manifest.cinch:32` |
-| `bootstrap/programs/Run.Maps.cinch` under 2 GiB cap | completes 4000- and 32000-key phases (insert 368 ms, lookup 71 ms at 32000), then exit 73 at `blocks=92960242 bytes=2147483723` | measured |
+| `compiler/programs/Run.Maps.cinch` under 2 GiB cap | completes 4000- and 32000-key phases (insert 368 ms, lookup 71 ms at 32000), then exit 73 at `blocks=92960242 bytes=2147483723` | measured |
 | lexing | about 15 KB allocated per input byte | measured |
 | parsing a 16 KB JSON document | 360 MB peak | measured |
 
@@ -85,7 +85,7 @@ miniature. It is about 93 million blocks at about 23 bytes each, which the
 lead attributes to per-operation `Nat` boxing and AVL node copies. The
 HashMap spine node is
 `SBin :: Nat -> Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v`
-(`compiler/prelude/Data/HashMap.cinch:61-63`). The height and the digest are
+(`seed/prelude/Data/HashMap.cinch:61-63`). The height and the digest are
 both `Nat`, so every rebuilt node also allocates up to two `Nat` boxes plus
 their limb vectors. [INFERENCE] With reclamation alone, that program's peak
 would track the live map. Small-`Nat` immediates (section 2.6) remove most of
@@ -98,10 +98,10 @@ when the map is uniquely held.
 
 ### 2.1 The problem
 
-Every `Core` value is one untyped `i64` word (`compiler/src/core.rs:7-18`,
-`compiler/runtime/src/lib.rs:13-28`). Machine scalars are raw. Heap values
+Every `Core` value is one untyped `i64` word (`seed/src/core.rs:7-18`,
+`seed/runtime/src/lib.rs:13-28`). Machine scalars are raw. Heap values
 are `ptrtoint` pointers. No `Core` node carries a type: the enum is
-`core.rs:1600-1732`, and `lower()` (`compiler/src/check.rs:793-883`) is a
+`core.rs:1600-1732`, and `lower()` (`seed/src/check.rs:793-883`) is a
 structural map that drops every type. A drop must know whether a word is a
 pointer. Monomorphic code could know this from types. Polymorphic slots
 cannot, because they hold either kind depending on instantiation. Those
@@ -159,7 +159,7 @@ cannot drive a generic drop either. Rejected outright:
 4. **Instantiation-site information** wherever a polymorphic unit is used
    at a known type: each option consumes it differently.
 5. **A header word** per heap block (section 3) and a `runtime_abi` bump
-   (`compiler/src/interface.rs:390`, `434`), since the representation pairing
+   (`seed/src/interface.rs:390`, `434`), since the representation pairing
    is recorded by the interface's `abi.convention`
    (`design/compiled-interface-metadata.md:120-123`).
 
@@ -386,7 +386,7 @@ these places:
 it (section 9). Koka uses the same rule.
 
 **As built (S1).** The encoding lives in
-`compiler/runtime/src/block_kinds.rs`, which the runtime's `block.rs` and
+`seed/runtime/src/block_kinds.rs`, which the runtime's `block.rs` and
 the code generator both include verbatim, so the kind numbers cannot
 drift. Where S1 differs from the plan above:
 
@@ -562,7 +562,7 @@ and the code generator both include. Where S5 differs from the plan:
   have a new allocator, the entry glue calls `cinch_exit_check`, and the
   quote `LAM` operands changed.
 
-**As built (stack allocation).** `compiler/src/stack.rs` lowers a block
+**As built (stack allocation).** `seed/src/stack.rs` lowers a block
 that cannot escape its activation to a slot in the unit's frame
 (`design/stack-allocation.md`). The header's count field says which state
 the block is in, and both states are counts no heap block can reach:
@@ -588,8 +588,8 @@ the block is in, and both states are counts no heap block can reach:
   (under `CINCH_RC_DEBUG=1` it traps: the debug paths go through
   `cinch_drop`, which owns that case).
 - The inline fast paths each module emits (`rc_helpers` in
-  `compiler/src/codegen.rs`, `count-helpers` in
-  `bootstrap/Bootstrap.RuntimeIr.cinch`) exclude both
+  `seed/src/codegen.rs`, `count-helpers` in
+  `compiler/Bootstrap.RuntimeIr.cinch`) exclude both
   markers with one signed compare and give them a frame arm: a drop calls
   `cinch_frame_release`, a dup does nothing. The arms are present only in a
   module that can hold or receive a frame block: its own frame slots, or a
@@ -602,7 +602,7 @@ the block is in, and both states are counts no heap block can reach:
   defines `cinch.typed.rc.{dup,drop}` as `alwaysinline`. A test that looks
   for one spelling reads zero on the other emitter's module and cannot tell
   a counted build from a baseline, so an assertion on this decision names
-  every spelling (`COUNT_HELPERS` in `compiler/tests/reclamation.rs`).
+  every spelling (`COUNT_HELPERS` in `seed/tests/reclamation.rs`).
 - Code generation still releases a frame binder's payload itself at the
   reference's death (`CoreEmitter::frame_release`): the counted byte offsets
   are known statically, so that path is a fixed list of drops with no call
@@ -630,7 +630,7 @@ change because a thunk slot of 0 is skipped.
 
 ## 4 Insertion algorithm on `Core`
 
-**Placement.** A new pass, `compiler/src/rc.rs`, runs on the residual
+**Placement.** A new pass, `seed/src/rc.rs`, runs on the residual
 program after `core::optimize` and before `codegen::emit_for`, at the four
 driver sites listed in section 2.2. It must run after driving, because
 driving duplicates and discards subterms (`core.rs:6203-6206`) and would
@@ -749,7 +749,7 @@ worker (below). Dictionary and capability parameters (`FnMeta.dicts`,
 asserts that each owned binder is consumed exactly once on each path
 (Lean's IR checker). It runs under `debug_assertions` in tests.
 
-**As built (S6a, S6b).** `compiler/src/rc.rs` inserts `Dup`/`Drop`, and a
+**As built (S6a, S6b).** `seed/src/rc.rs` inserts `Dup`/`Drop`, and a
 debug verifier refuses any path that does not consume an owned binder
 exactly once. Reclamation is on by default; `--no-reclaim` on the command
 line, or `CINCH_RECLAIM=0` in the compiler's environment, builds the
@@ -1037,8 +1037,8 @@ A `Bytes` concat that owns a unique left operand can `realloc` in place
 `402`, `444` and `530`, `concurrency.rs:200` and `225`, `effects.rs:206`,
 `evolution.rs:393`, and `optimizer.rs:535`.
 
-**Implemented: a `Release` token and `Core::Reuse`** (`compiler/src/rc.rs`,
-`compiler/src/codegen.rs`). The pair above is now in the compiler under the
+**Implemented: a `Release` token and `Core::Reuse`** (`seed/src/rc.rs`,
+`seed/src/codegen.rs`). The pair above is now in the compiler under the
 names Lean and Idris use for it. `Release` (the existing drop specialisation)
 gains an optional token: its unique path releases the unused fields, keeps the
 cell and binds the block word to the token, and its shared path binds 0. A
@@ -1303,7 +1303,7 @@ This needs no recursion and no extra memory. Children are visited in
 reverse slot order (section 11, item 3). The evaluator's decoded tree is
 already depth-bounded (`eval.rs:99-104`, `MAX_NESTING`).
 
-**As built (S3).** `compiler/runtime/src/rc.rs`, with the per-block scan
+**As built (S3).** `seed/runtime/src/rc.rs`, with the per-block scan
 in `block.rs` (`Scan`). Where S3 differs from the plan above:
 
 - The header cannot hold a link: a full pointer does not fit beside the
@@ -1396,7 +1396,7 @@ transfer alone does not isolate them. Options:
 The Wasm cooperative backend (`coop.rs`) is single-threaded, so it never
 marks. Memo cells never cross threads (lazy spec `:77`, `:122`).
 
-**As built (S9).** Option 1, mark on spawn, in `compiler/runtime/src/rc.rs`
+**As built (S9).** Option 1, mark on spawn, in `seed/runtime/src/rc.rs`
 (counts and marking), `task.rs` (spawn and results), `coop.rs`, and the
 code generator's fast paths and concurrency units. Where S9 differs from
 the plan above or fills it in:
@@ -1549,7 +1549,7 @@ the plan above or fills it in:
   sticky and reported-cyclic blocks is not 0. Rust-internal allocations,
   such as handle tables and the intentional task `Arc`s, are reported but
   not judged.
-- **Per-program test.** Extend `compiler/tests/alloc_accounting.rs`
+- **Per-program test.** Extend `seed/tests/alloc_accounting.rs`
   (`stats_line_counts_list_cells_only_when_asked` at `:75`,
   `unbounded_allocation_hits_the_named_cap` at `:98`,
   `normal_program_runs_under_the_default_cap` at `:113`) with:
@@ -1560,8 +1560,8 @@ the plan above or fills it in:
 
   The `peak <= bytes` assertion becomes "peak much less than bytes" for
   those programs.
-- **Memory benchmarks.** Run the `bootstrap/programs/Run.*.cinch` programs
-  (via the `compiler/tests/bootstrap_*.rs` tests, `lib_hashmap_real.rs`,
+- **Memory benchmarks.** Run the `compiler/programs/Run.*.cinch` programs
+  (via the `seed/tests/bootstrap_*.rs` tests, `lib_hashmap_real.rs`,
   and `tooling/run-bootstrap-ladder.sh`) with `CINCH_HEAP_LIMIT=2G` and
   `CINCH_ALLOC_STATS=1`. Record blocks, bytes and peak per slice. The
   section 1.2 table is the baseline. Expected after slices S2 and S6:
@@ -1586,11 +1586,11 @@ the plan above or fills it in:
     `CINCH_RC_DEBUG=1`, whose quarantine never returns a block to either
     allocator. Valgrind works on Linux only, with the same limit
     [INFERENCE].
-- **Semantic guards** (existing). `compiler/tests/integration.rs` (32
+- **Semantic guards** (existing). `seed/tests/integration.rs` (32
   tests), `letrec.rs` (10), `ownership.rs` (19), `concurrency.rs` (14),
   `ffi.rs` (12), `codata.rs` (9), `wasm.rs` (11), `alloc_accounting.rs`
   (3), `lib_hashmap_real.rs`, and `bootstrap_*.rs`. Run them one target at a
-  time: `cargo test --manifest-path compiler/Cargo.toml --test <name>`.
+  time: `cargo test --manifest-path seed/Cargo.toml --test <name>`.
   The debug ownership verifier (section 4) runs in all of them.
 
 ---
@@ -1609,7 +1609,7 @@ not depend on the section 2 decision. S0 has landed.
 | S3 | Runtime drop machinery: `cinch_drop_slow` (iterative, kind dispatch, payload drop), sticky overflow, `live`/immortal/sticky counters, `CINCH_LEAK_CHECK`, `CINCH_RC_DEBUG` quarantine | `runtime/src/{block,heap,abi}.rs`, `codegen.rs:427`, `436` (exit hook) | S1 | indep, except the scan rule |
 | S4 | Representation classes: `repr_of(&Ty)`; classes on `Let`, `CPat`, params and env; per-constructor field classes; optimizer preserves them; plus the option-specific front end: A `Tag`/`Untag` coercions; B `Repr a` witnesses; C class vectors and specialiser | `check.rs` (`finalize_fn` `772-791`, `lower` `793-883`), `check_terms.rs` (instantiation sites), `check_decls.rs` (beside `param_contract` `9653`), `core.rs` (nodes, optimizer), `interface.rs` (B: arity) | none | **decision** (the class plumbing part is indep) |
 | S5 | Layout emission: `@__cinch_layouts`; closure ABI per the decision (A: stubs tag/untag, env stored tagged) | `codegen.rs` (`ctor_body` `3071-3113`, `stub_def` `1255-1340`, `Core::Lam` `4350-4368`, `mk_body` `3830-3879`) | S1, S4 | **decision** |
-| S6 | Perceus pass: dup/drop insertion, borrow inference with tail-call preservation, drop specialisation, ownership verifier; codegen of `Dup`/`Drop` fast paths; stub dups in `@"U.app"`; `__cinch_demand` clears the thunk; prim ownership table; **in the same slice**, the contract scan classifies dup as a write and drop as `Callee::Free` (section 11, item 9) | new `compiler/src/rc.rs`, `core.rs` (nodes), `driver.rs:1228`, `1774`, `1860`, `1896`, `codegen.rs` (`classify_callee` `886-901`, attributes `567-588`, `1347-1380`) | S1, S3, S4, S5 | depends |
+| S6 | Perceus pass: dup/drop insertion, borrow inference with tail-call preservation, drop specialisation, ownership verifier; codegen of `Dup`/`Drop` fast paths; stub dups in `@"U.app"`; `__cinch_demand` clears the thunk; prim ownership table; **in the same slice**, the contract scan classifies dup as a write and drop as `Callee::Free` (section 11, item 9) | new `seed/src/rc.rs`, `core.rs` (nodes), `driver.rs:1228`, `1774`, `1860`, `1896`, `codegen.rs` (`classify_callee` `886-901`, attributes `567-588`, `1347-1380`) | S1, S3, S4, S5 | depends |
 | S7 (landed) | Drop-reuse (the `Release` token and `Core::Reuse`, section 5), zero-subdict static dictionaries, the store skipping (`already_set`, Lean's `partitionSelfSets`), the family-crossing pass (`relaxedReuse`), and `coalesceRC` have all landed. What remains is the union of reuse with the stack frame path, which needs a reuse of a frame block rather than the heap only | `rc.rs`, `codegen.rs` (the release and reuse arms, `emit_reuse`), `coalesce.rs` | S6 | depends |
 | S8 | Cycle rules: `Core` escape analysis; knot and memo-group teardown with fault sentinels; `cyclic` leak reporting | `rc.rs`, `codegen.rs:4425-4480` | S6 | indep of A/B/C |
 | S9 | Concurrency: `cinch_mark_mt`, atomic slow paths, spawn hook (thread backend only) | `runtime/src/{task,abi,block}.rs`, `codegen.rs` spawn emission (`242`) | S6 | indep |

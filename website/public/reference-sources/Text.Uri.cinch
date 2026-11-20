@@ -19,7 +19,7 @@
 -- reference has none beyond the percent rule, which `uri-to-string`
 -- does not depend on).
 --
--- The law shape (exercised in compiler/tests/lib_uri_ipaddr.rs):
+-- The law shape (exercised in seed/tests/lib_uri_ipaddr.rs):
 --   parse/print round trip: `uri-to-string (uri-parse s)` is `s` for
 --     every reference `uri-parse` accepts, so printing never invents or
 --     drops structure;

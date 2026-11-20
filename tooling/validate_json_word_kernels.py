@@ -44,20 +44,20 @@ def main() -> None:
     runtime = args.runtime_receipt.resolve()
     directory = args.artifacts.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    production = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+    production = ROOT / "seed/prelude/Text/Json/Codec.cinch"
     source = production.read_text()
     primitives = []
     for name in ["decimal-eight", "binary-linebreak-eight"]:
         start = source.index(f"  prim {name} ::")
         end = source.index("\n  -- |", start)
         primitives.append("  -- | Exact load-free production SWAR primitive.\n" + source[start:end])
-    body = (ROOT / "compiler/tests/fixtures/json-codec-word-kernel-body.cinch.inc").read_text()
+    body = (ROOT / "seed/tests/fixtures/json-codec-word-kernel-body.cinch.inc").read_text()
     entry = directory / "Main.cinch"
     entry.write_text("-- | Independent runtime and foreign JSON word-kernel validation.\nmodule Main where\n  import Data.Machine\n  import Data.Bytes.Word\n" + "\n".join(primitives) + body)
-    word = ROOT / "compiler/prelude/Data/Bytes/Word.cinch"
+    word = ROOT / "seed/prelude/Data/Bytes/Word.cinch"
     (directory / "Data.Bytes.Word.cinch").write_bytes(word.read_bytes())
     (directory / "validator.py").write_bytes(Path(__file__).read_bytes())
-    report = {"production_source_sha256":digest(production),"primitive_sha256":hashlib.sha256("\n".join(primitives).encode()).hexdigest(),"consumer_sha256":digest(entry),"control_body_sha256":digest(ROOT / "compiler/tests/fixtures/json-codec-word-kernel-body.cinch.inc"),"word_module_sha256":digest(word),"compiler_sha256":digest(compiler),"runtime_archive_sha256":digest(runtime),"runner_sha256":digest(Path(__file__)),"cases_per_run":2048,"cpu_affinity":[args.cpu],"compiler_host_stack_kib":65536,"runs":[],"foreign_targets":[],"foreign_execution_claimed":False}
+    report = {"production_source_sha256":digest(production),"primitive_sha256":hashlib.sha256("\n".join(primitives).encode()).hexdigest(),"consumer_sha256":digest(entry),"control_body_sha256":digest(ROOT / "seed/tests/fixtures/json-codec-word-kernel-body.cinch.inc"),"word_module_sha256":digest(word),"compiler_sha256":digest(compiler),"runtime_archive_sha256":digest(runtime),"runner_sha256":digest(Path(__file__)),"cases_per_run":2048,"cpu_affinity":[args.cpu],"compiler_host_stack_kib":65536,"runs":[],"foreign_targets":[],"foreign_execution_claimed":False}
     for optimization in [0,2]:
         executable = directory / f"consumer-o{optimization}"
         build = run([str(compiler),"build",str(entry),"-o",str(executable),"--opt-level",str(optimization),"--rc-debug"],directory)

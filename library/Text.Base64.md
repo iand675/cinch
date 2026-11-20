@@ -137,4 +137,4 @@ Encoding.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Base64.cinch`. Source SHA-256: `54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base64.cinch`. Source SHA-256: `54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

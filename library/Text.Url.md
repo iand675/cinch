@@ -996,4 +996,4 @@ Set an escaped path on a copied field snapshot, preserving a noncanonical raw hi
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url.cinch`. Source SHA-256: `ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url.cinch`. Source SHA-256: `ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

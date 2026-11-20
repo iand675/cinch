@@ -134,7 +134,7 @@ Demanding a cell while it is evaluating is a black hole. Two rules rule it out: 
 
 # Implementation status
 
-The bootstrap compiler in `compiler/` implements this chapter's runtime shape: `Thunk` as a closure over `Unit` (`delay`, `force`), `~ name = term` memo bindings with one memo group per block, demand-on-use elaboration, and the `Eval r` black-hole rule of section 6 enforced statically through row lacks constraints (cell bodies may not perform their group's label). Not yet implemented there: the multiplicity discipline of section 3, region escape checking, `Ref r a` (the bootstrap `demand` returns the value), and the `Share` class, so a `Lazy {e} r a` value can outlive its region in the bootstrap, which is the same lifetime-checking gap the rest of the bootstrap has. The `BlackHole` runtime fault exists as defense in depth.
+The bootstrap compiler in `seed/` implements this chapter's runtime shape: `Thunk` as a closure over `Unit` (`delay`, `force`), `~ name = term` memo bindings with one memo group per block, demand-on-use elaboration, and the `Eval r` black-hole rule of section 6 enforced statically through row lacks constraints (cell bodies may not perform their group's label). Not yet implemented there: the multiplicity discipline of section 3, region escape checking, `Ref r a` (the bootstrap `demand` returns the value), and the `Share` class, so a `Lazy {e} r a` value can outlive its region in the bootstrap, which is the same lifetime-checking gap the rest of the bootstrap has. The `BlackHole` runtime fault exists as defense in depth.
 
 # Amendments
 

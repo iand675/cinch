@@ -93,8 +93,8 @@ def main() -> None:
     args.interfaces = args.interfaces.resolve()
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
-    fixture = bootstrap.ROOT / "compiler/tests/fixtures/mutable-inference-vectors.json"
-    preserved = bootstrap.ROOT / "bootstrap/programs/Run.Infer.cinch"
+    fixture = bootstrap.ROOT / "seed/tests/fixtures/mutable-inference-vectors.json"
+    preserved = bootstrap.ROOT / "compiler/programs/Run.Infer.cinch"
     focused = json.loads(fixture.read_text())
     cases = focused + preserved_cases(preserved)
     report = {"compiler_sha256": bootstrap.file_hash(args.compiler),

@@ -47,8 +47,8 @@ cross):
     spine balances whatever digests arrive; only bucket scans
     degrade).
 
-Measured limits (bootstrap/programs/Run.Maps.cinch, asserted by
-compiler/tests/lib_hashmap_real.rs; spans are the program's own
+Measured limits (compiler/programs/Run.Maps.cinch, asserted by
+seed/tests/lib_hashmap_real.rs; spans are the program's own
 monotonic clock, and the ranges below span runs on a loaded machine):
 32000 distinct-digest keys insert in 0.2-0.4s and look up in
 0.05-0.1s, where 8x the keys costs about 10x the time (n log n; an
@@ -259,4 +259,4 @@ section 10).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/HashMap.cinch`. Source SHA-256: `bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/HashMap.cinch`. Source SHA-256: `bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

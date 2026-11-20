@@ -395,4 +395,4 @@ module Main where
 
 A compiled `.cinchif` records each scheme's quantifier kinds, the nominal identity of every declared type, constructor schemes, the private nominal and class closure a caller may not reinterpret, method visibility, and admitted contexts. A caller that declares an unrelated local type with the same short name does not thereby obtain the private type.
 
-Implementation: `compiler/src/types.rs`, `check.rs`, `check_decls.rs`, `check_terms.rs`, `check_interface.rs`; suites: `hk.rs`, `dependent.rs`, `interface_kinds.rs`, `interface_nominals.rs`, `interface_class_contracts.rs`, `interface_region_effects.rs`, `bootstrap_infer.rs`.
+Implementation: `seed/src/types.rs`, `check.rs`, `check_decls.rs`, `check_terms.rs`, `check_interface.rs`; suites: `hk.rs`, `dependent.rs`, `interface_kinds.rs`, `interface_nominals.rs`, `interface_class_contracts.rs`, `interface_region_effects.rs`, `bootstrap_infer.rs`.

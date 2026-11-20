@@ -1,5 +1,5 @@
 -- Effect.Net: TCP sockets and name resolution over the runtime's
--- `cinch_net_*` externs (`compiler/runtime/src/net.rs`). A `Socket` is
+-- `cinch_net_*` externs (`seed/runtime/src/net.rs`). A `Socket` is
 -- a live connection the runtime's handle table owns; `net-read` and
 -- `net-write` move bytes over it; `net-resolve` is the DNS primitive
 -- (one `<ip>:<port>` line per resolved address), which the name
@@ -11,7 +11,7 @@
 -- cannot depend on what the network answered). Every failure is a
 -- NAMED `NetError` value in a `Result` (the house style), never a
 -- fault: the boundary's raw word carries the shared platform error
--- codes (`compiler/runtime/src/platform.rs`), which `net-error-code`
+-- codes (`seed/runtime/src/platform.rs`), which `net-error-code`
 -- maps one for one.
 --
 -- The boundary words themselves are the `cinch.runtime.net*` units

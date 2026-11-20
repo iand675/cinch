@@ -136,13 +136,13 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Text.Show.Show_String` | `Text.Show.Show Data.String.String` | Implicit |
 
 **`Text.Show.Show_Bool`**: The fixed text: each renders as its literal constructor spelling
-(probed in compiler/tests/string_literals.rs).
+(probed in seed/tests/string_literals.rs).
 **`Text.Show.Show_Nat`**: The decimal rendering agrees with the concrete conversions below
 (the class's law shape: `show` is the rendering; asserted over
-sample values in compiler/tests/prelude_split.rs).
+sample values in seed/tests/prelude_split.rs).
 **`Text.Show.Show_String`**: The raw text: `String` renders as itself (no quoting in the
 bootstrap).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Show.cinch`. Source SHA-256: `0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Show.cinch`. Source SHA-256: `0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

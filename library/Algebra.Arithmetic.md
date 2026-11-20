@@ -181,4 +181,4 @@ checked family only, per the primitive types specification.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Arithmetic.cinch`. Source SHA-256: `2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Arithmetic.cinch`. Source SHA-256: `2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

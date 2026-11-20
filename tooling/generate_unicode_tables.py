@@ -179,7 +179,7 @@ def main() -> None:
     """Generate maintained tables and a compact interpretation manifest from the checked snapshot."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=DATA)
-    parser.add_argument("--module", type=Path, default=ROOT / "compiler/prelude/Data/Unicode/Tables.cinch")
+    parser.add_argument("--module", type=Path, default=ROOT / "seed/prelude/Data/Unicode/Tables.cinch")
     parser.add_argument("--manifest", type=Path, default=ROOT / "tooling/data/unicode17-layout.json")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()

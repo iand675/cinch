@@ -33,7 +33,7 @@ For `Result` and `Option` this preserves the tested short-circuit
 order exactly: their applicatives are left-biased and the
 combinations nest in traversal order, so the returned error is
 always the FIRST error in traversal order (asserted over sample
-values in compiler/tests/lib_foldable.rs).
+values in seed/tests/lib_foldable.rs).
 
 Instance homes. List and Option got theirs at the prelude split
 (Data.List/Data.Option). NonEmpty's instance lives with its type in
@@ -119,4 +119,4 @@ ever needed the effect's `Applicative`.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Category/Traversable.cinch`. Source SHA-256: `f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Traversable.cinch`. Source SHA-256: `f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

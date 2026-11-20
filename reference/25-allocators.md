@@ -8,9 +8,9 @@ A compiled Cinch program allocates every value block through one accounting laye
 
 | Fact | Today |
 | --- | --- |
-| Where blocks come from | The runtime installs `Counting`, a `GlobalAlloc` over `System`, as `#[global_allocator]` (`compiler/runtime/src/heap.rs`). Every allocation in the process passes through it, including the runtime's own limbs, byte buffers and handle tables. |
+| Where blocks come from | The runtime installs `Counting`, a `GlobalAlloc` over `System`, as `#[global_allocator]` (`seed/runtime/src/heap.rs`). Every allocation in the process passes through it, including the runtime's own limbs, byte buffers and handle tables. |
 | What is counted | Cumulative blocks and bytes, live bytes with a high-water mark, and Cinch value blocks separated from the runtime's own allocations. |
-| Reclamation | Reference counting with reuse (`compiler/runtime/src/rc.rs`), inserted by `compiler/src/rc.rs` during code generation. |
+| Reclamation | Reference counting with reuse (`seed/runtime/src/rc.rs`), inserted by `seed/src/rc.rs` during code generation. |
 | Cap | 8 GiB live bytes by default, adjustable with `CINCH_HEAP_LIMIT`. |
 | Selection of a different allocator | Not available. There is no `#[global-allocator]` attribute and no `Heap` capability in the type checker. |
 
@@ -179,7 +179,7 @@ Stack exhaustion leaves through `_exit`, so the `CINCH_ALLOC_STATS` line does no
 
 Block bookkeeping is one header word at byte offset -8: a 40-bit signed count in the low bits, an 8-bit kind, and a 16-bit layout id. A negative count marks a block shared across tasks, and its increments and decrements are atomic. A count of zero marks an immortal block.
 
-Those widths are named constants in `compiler/runtime/src/block_kinds.rs`, which the runtime and the code generator both include, so every shift and mask derives from them. The same file states the cap relation: the heap cannot hold `RC_MAX` words, so a count never saturates and needs no overflow check. A build that traded count width for a wider layout id would change the runtime ABI and its cap together. Selecting a different allocation policy alone would not.
+Those widths are named constants in `seed/runtime/src/block_kinds.rs`, which the runtime and the code generator both include, so every shift and mask derives from them. The same file states the cap relation: the heap cannot hold `RC_MAX` words, so a count never saturates and needs no overflow check. A build that traded count width for a wider layout id would change the runtime ABI and its cap together. Selecting a different allocation policy alone would not.
 
 # Planned: replaceable program allocators
 
@@ -228,4 +228,4 @@ Fully-in-place execution is intended to connect the allocation guarantee to reus
 
 # Source authority
 
-Implemented behaviour: `compiler/runtime/src/heap.rs` (accounting, cap, stats line), `rc.rs` (counts, leak check, debug poisoning), `block.rs` and `block_kinds.rs` (headers, allocation, free), `abi.rs` (exit codes 70, 71, 73, 74 and the `Exhausted` message), `platform.rs` and `stack.rs` (program thread and stack size), `compiler/src/rc.rs` and `core.rs` (`CINCH_RECLAIM`). Behaviour suites: `compiler/tests/alloc_accounting.rs`, `exhaustion.rs`, `reclamation.rs`, `reclamation_tasks.rs`. Planned direction: [allocator design notes](../design/allocators.md), [reclamation](../design/reclamation.md), [resource exhaustion](../design/no-faults.md), [proof automation](../design/proof-automation.md).
+Implemented behaviour: `seed/runtime/src/heap.rs` (accounting, cap, stats line), `rc.rs` (counts, leak check, debug poisoning), `block.rs` and `block_kinds.rs` (headers, allocation, free), `abi.rs` (exit codes 70, 71, 73, 74 and the `Exhausted` message), `platform.rs` and `stack.rs` (program thread and stack size), `seed/src/rc.rs` and `core.rs` (`CINCH_RECLAIM`). Behaviour suites: `seed/tests/alloc_accounting.rs`, `exhaustion.rs`, `reclamation.rs`, `reclamation_tasks.rs`. Planned direction: [allocator design notes](../design/allocators.md), [reclamation](../design/reclamation.md), [resource exhaustion](../design/no-faults.md), [proof automation](../design/proof-automation.md).

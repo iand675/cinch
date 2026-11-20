@@ -37,12 +37,12 @@ def loader_sources() -> dict[str, bytes]:
         name = pending.pop()
         if name in files:
             continue
-        path = ROOT / 'bootstrap' / f'{name}.cinch' if name.startswith('Bootstrap.') else ROOT / 'compiler/prelude' / Path(*name.split('.')).with_suffix('.cinch')
+        path = ROOT / 'compiler' / f'{name}.cinch' if name.startswith('Bootstrap.') else ROOT / 'seed/prelude' / Path(*name.split('.')).with_suffix('.cinch')
         if not path.is_file():
             continue
         files[name] = path.read_bytes()
         pending.extend(re.findall(r'^  import (Bootstrap\.[A-Za-z]+|Text\.(?:Lex|Scan|Parse|Json|Builder))', files[name].decode(), re.M))
-    files['Main'] = (ROOT / 'bootstrap/programs/Run.BodyClosure.cinch').read_bytes()
+    files['Main'] = (ROOT / 'compiler/programs/Run.BodyClosure.cinch').read_bytes()
     return files
 
 
@@ -138,7 +138,7 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
 
 
 def main() -> None:
-    """Prepare independently stated cases or run them with an explicit compiler/runtime pair."""
+    """Prepare independently stated cases or run them with an explicit seed/runtime pair."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--interfaces', type=Path, required=True)
     parser.add_argument('--artifacts', type=Path, required=True)
@@ -165,7 +165,7 @@ def main() -> None:
     provenance = json.loads(provenance_path.read_text())
     compiler_hash, runtime_hash = sha(args.compiler), sha(args.runtime)
     if provenance.get('compiler_sha256') != compiler_hash or provenance.get('runtime_sha256') != runtime_hash:
-        raise SystemExit('compiler/runtime hashes disagree with the explicit frozen provenance')
+        raise SystemExit('seed/runtime hashes disagree with the explicit frozen provenance')
     selected_clang = args.clang or os.environ.get('CINCH_CLANG') or shutil.which('clang')
     if selected_clang is None:
         raise SystemExit('no LLVM linker driver is available; provide --clang or CINCH_CLANG')

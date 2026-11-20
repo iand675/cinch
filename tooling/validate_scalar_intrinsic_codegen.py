@@ -42,7 +42,7 @@ def main() -> None:
     manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
     bootstrap.write_json(manifest, provider['interfaces'])
     bootstrap.write_json(objects, provider['configuration'])
-    source = bootstrap.ROOT / 'bootstrap/programs/Run.ScalarIntrinsicLoop.cinch'
+    source = bootstrap.ROOT / 'compiler/programs/Run.ScalarIntrinsicLoop.cinch'
     fixture = bootstrap.ROOT / 'tooling/scalar_intrinsic_benchmark.c'
     fixture_object = args.artifacts / 'fixture.o'
     subprocess.run(['clang', '-O2', '-c', str(fixture), '-o', str(fixture_object)], check=True)

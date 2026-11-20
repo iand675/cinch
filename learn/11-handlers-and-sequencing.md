@@ -1,6 +1,6 @@
 # 11. Handle effects and select sequencing
 
-An effect row names what a computation may perform. An `effect` declaration gives a name to a set of operations, and a handler supplies their meaning. A handler is not a capability: a capability hands over a runtime resource, while a handler receives the operation's arguments and a resumption that stands for the rest of the computation, so it can decide whether that rest runs at all. This chapter declares an effect, writes handlers, quotes the refusals that constrain them today, and selects among the three `do` providers. Check with `$C check Main.cinch` and run with `$C run Main.cinch`, where `$C` is `compiler/target/debug/cinch`.
+An effect row names what a computation may perform. An `effect` declaration gives a name to a set of operations, and a handler supplies their meaning. A handler is not a capability: a capability hands over a runtime resource, while a handler receives the operation's arguments and a resumption that stands for the rest of the computation, so it can decide whether that rest runs at all. This chapter declares an effect, writes handlers, quotes the refusals that constrain them today, and selects among the three `do` providers. Check with `$C check Main.cinch` and run with `$C run Main.cinch`, where `$C` is `seed/target/debug/cinch`.
 
 # Before you start
 

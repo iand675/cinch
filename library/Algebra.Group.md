@@ -19,7 +19,7 @@ entails nothing (the standing no-superbundle rule): the class
 states `invert` alone, and the laws below are the law shape the P18
 law-axiom layer will formalize.
 
-Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+Laws (asserted over sample values in seed/tests/prelude_split.rs):
   left inverse:  invert x <> x == mempty
   right inverse: x <> invert x == mempty
 For `Int` the monoid is the semiring's additive one (`add`/`zero`,
@@ -73,4 +73,4 @@ constraint.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Group.cinch`. Source SHA-256: `e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Group.cinch`. Source SHA-256: `e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -299,7 +299,7 @@ section 1.
   (`x != y` is the operator; `x!=y` is the name `x!` followed by `=`).
   Identity spelling is unchanged: `!` and `?` are not plain identity
   characters, so the interface spelling is `print$21` and `empty$3f`
-  (`compiler/tests/bootstrap_export_types.rs`).
+  (`seed/tests/bootstrap_export_types.rs`).
 
 [Documentation overview](../overview.md)
 

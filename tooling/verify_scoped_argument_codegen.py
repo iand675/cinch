@@ -45,9 +45,9 @@ def main() -> None:
         "runtime_sha256": digest(args.runtime), "cpu_affinity": sorted(os.sched_getaffinity(0)),
         "full_bootstrap_fixed_point_checked": False,
     }
-    for label, source in [("nested", ROOT / "bootstrap/programs/Run.NestedArgumentTail.cinch"),
-                          ("short", ROOT / "bootstrap/programs/Run.NestedArgumentTailSmall.cinch"),
-                          ("order", ROOT / "bootstrap/programs/Run.ScopedArgumentOrder.cinch")]:
+    for label, source in [("nested", ROOT / "compiler/programs/Run.NestedArgumentTail.cinch"),
+                          ("short", ROOT / "compiler/programs/Run.NestedArgumentTailSmall.cinch"),
+                          ("order", ROOT / "compiler/programs/Run.ScopedArgumentOrder.cinch")]:
         report["sources"][label] = {"path": str(source.relative_to(ROOT)), "sha256": digest(source)}
     for variant, compiler in [("before", args.before.resolve()), ("after", args.after.resolve())]:
         directory = output / variant

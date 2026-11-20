@@ -68,7 +68,7 @@ def main() -> None:
             modules = {}
             for name in MODULES:
                 module = directory / (name + ".cinch")
-                module.write_bytes(overrides.get(name, ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes())
+                module.write_bytes(overrides.get(name, ROOT / "seed/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes())
                 modules[name] = module
             executable, llvm = directory / "consumer", directory / "consumer.ll"
             report = {"kind": "public-map-benchmark-build", "variant": variant, "frontend": args.frontend,

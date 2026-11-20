@@ -237,7 +237,7 @@ declare i64 @"sum_big"(ptr byval(%__sl_layout_0) align 8)
 
 On arm64, `sum_big` takes `(ptr nonnull align 8)` instead.
 
-LLVM does not lower a C struct passed by value; clang decides, per target, where the bytes go, and the compiler makes the same decision from the target's C calling convention and the aggregate's scalar fields (`compiler/src/cabi.rs`):
+LLVM does not lower a C struct passed by value; clang decides, per target, where the bytes go, and the compiler makes the same decision from the target's C calling convention and the aggregate's scalar fields (`seed/src/cabi.rs`):
 
 | Convention | Parameter | Result |
 | --- | --- | --- |

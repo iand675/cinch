@@ -116,4 +116,4 @@ An out-of-range position returns None and invokes no mutation callback.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/HeapView.cinch`. Source SHA-256: `89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/HeapView.cinch`. Source SHA-256: `89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

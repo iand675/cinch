@@ -2688,10 +2688,10 @@ The current file layout suggests the following starting points. These are integr
 
 | Work area | Current implementation starting points | Architectural destination |
 | --- | --- | --- |
-| Types and conversion | compiler/src/types.rs | A shared typed core, conversion engine, and explicit universe constraints |
-| Elaboration | compiler/src/check.rs and check_terms.rs | Bidirectional elaboration with goal state and evidence production |
-| Declarations and recursion | compiler/src/check_decls.rs | Checked declaration, inductive, and recursive-component services |
-| Stable numeric observations | compiler/src/total.rs and check_total.rs | An optimized logical observation path backed by general semantics |
+| Types and conversion | seed/src/types.rs | A shared typed core, conversion engine, and explicit universe constraints |
+| Elaboration | seed/src/check.rs and check_terms.rs | Bidirectional elaboration with goal state and evidence production |
+| Declarations and recursion | seed/src/check_decls.rs | Checked declaration, inductive, and recursive-component services |
+| Stable numeric observations | seed/src/total.rs and check_total.rs | An optimized logical observation path backed by general semantics |
 | Usage and erasure | Existing checker and erasure passes | Explicit usage judgments and checked proof removal |
 | Interfaces | interface.rs and check_interface.rs | Versioned dependent contracts and replayable evidence |
 | Editor | lsp.rs and analysis services | Incremental typed goals and checked actions |

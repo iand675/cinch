@@ -13,7 +13,7 @@
 -- Design law shape:
 --   round trip: `split (join (Cons s Nil)) == Ok (Cons s Nil)` for
 --     every `s` (the escaping family inverts splitting; asserted over
---     hostile strings in compiler/tests/lib_shellwords.rs);
+--     hostile strings in seed/tests/lib_shellwords.rs);
 --   empty-word preservation: a quoted empty argument is an
 --     empty-string word (`split "''" == Ok (Cons "" Nil)` and the
 --     double-quoted form likewise), never dropped;

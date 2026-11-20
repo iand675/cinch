@@ -15,14 +15,14 @@ The checker already has a working, tested evidence pipeline: `refine`/`Dec`/`dec
 - `design/proof-automation.md` (section 1, 3, 4): trusted-kernel-checks-untrusted-search architecture; catalogue naming linear arithmetic ("omega-like") and induction as still-needed, not yet built.
 - `design/no-faults.md`, `design/no-faults-inventory.md`: the constraint and the current fault census (bytes-get/set 190+, div/rem families 170+, nat-sub 15+).
 - `compiler/CONFORMANCE.md:830-996`: implementation status ledger for D248-D261 (refinements/decide/Fin/Vec, narrowing/forget, compound predicates, `using` obligations).
-- `compiler/src/check_terms.rs`: `decide_shape` (2456), `decide_compound` (2325-2460), `decide_operand`/baked measures (4523-4600), `Forget`/`Narrow` elaboration (897-1010), `using`-obligation discharge (690-820, 7609-7748), evidence invalidation write/use tracking (2306-2311, 2983-2987), `ObligStatus`/`static_obligation`/`pred_obligation` (10-14, 3492-3602), plain `if` elaboration with **no** evidence capture (869-885, 1438-1441).
-- `compiler/src/types.rs:838-1023`: `pred_conjuncts`, `pred_implies`/`pred_implies_canon`, the `Interval`/`interval_atom`/`atom_implied_by` table (literal-numeral bounds only, via `bound_value`).
-- `compiler/src/check_decls.rs:1453-1560`: builtin `Vec`/`Fin`/`Dec` family registration (`install_index_families`).
-- `compiler/prelude/Data/NonZero.cinch` (whole file, 27-50): the one implemented refinement example.
-- `compiler/prelude/Data/Nat.cinch:22-80`, `Data/Int.cinch:19-99`, `Data/Bytes.cinch:19-93`: today's partial signatures and class instances.
-- `compiler/prelude/Text/Lex.cinch:196-199, 315-316, 1029-1031`; `compiler/prelude/Text/Show.cinch:85-99`; `compiler/prelude/Data/Date.cinch:159-373`, `Data/Time.cinch:250-365`: representative call sites.
-- `compiler/prelude/Effect/Http.cinch:213-217`, `compiler/prelude/Text/Toml.cinch:205-214`: the only existing bounds-guard wrappers, written with a plain `if`, not `decide`/`Fin`.
-- `compiler/tests/dependent.rs:62-93, 313-322`; `compiler/tests/lattice.rs:682-830`: working examples of `decide`/`Fin`/`Sigma` and `using`-obligation discharge.
+- `seed/src/check_terms.rs`: `decide_shape` (2456), `decide_compound` (2325-2460), `decide_operand`/baked measures (4523-4600), `Forget`/`Narrow` elaboration (897-1010), `using`-obligation discharge (690-820, 7609-7748), evidence invalidation write/use tracking (2306-2311, 2983-2987), `ObligStatus`/`static_obligation`/`pred_obligation` (10-14, 3492-3602), plain `if` elaboration with **no** evidence capture (869-885, 1438-1441).
+- `seed/src/types.rs:838-1023`: `pred_conjuncts`, `pred_implies`/`pred_implies_canon`, the `Interval`/`interval_atom`/`atom_implied_by` table (literal-numeral bounds only, via `bound_value`).
+- `seed/src/check_decls.rs:1453-1560`: builtin `Vec`/`Fin`/`Dec` family registration (`install_index_families`).
+- `seed/prelude/Data/NonZero.cinch` (whole file, 27-50): the one implemented refinement example.
+- `seed/prelude/Data/Nat.cinch:22-80`, `Data/Int.cinch:19-99`, `Data/Bytes.cinch:19-93`: today's partial signatures and class instances.
+- `seed/prelude/Text/Lex.cinch:196-199, 315-316, 1029-1031`; `seed/prelude/Text/Show.cinch:85-99`; `seed/prelude/Data/Date.cinch:159-373`, `Data/Time.cinch:250-365`: representative call sites.
+- `seed/prelude/Effect/Http.cinch:213-217`, `seed/prelude/Text/Toml.cinch:205-214`: the only existing bounds-guard wrappers, written with a plain `if`, not `decide`/`Fin`.
+- `seed/tests/dependent.rs:62-93, 313-322`; `seed/tests/lattice.rs:682-830`: working examples of `decide`/`Fin`/`Sigma` and `using`-obligation discharge.
 - `examples/source/01-bounded-index.cinch`, `02-vector-filter.cinch`: the canonical `Fin`/`Vec`/`Sigma` idiom at prose-example scale.
 
 ## Architecture
@@ -33,7 +33,7 @@ Surface terms elaborate through `check_terms.rs` into core terms; `decide` is a 
 
 ## 1. Refinement types (D248-D267)
 
-**Introduction.** `type NonZero = refine (n :: Int) with NonZero n` (`compiler/prelude/Data/NonZero.cinch:27`). The transparent constructor (`NonZero n w`) takes the container value and a `Dec`-discharged witness; the total front door is:
+**Introduction.** `type NonZero = refine (n :: Int) with NonZero n` (`seed/prelude/Data/NonZero.cinch:27`). The transparent constructor (`NonZero n w`) takes the container value and a `Dec`-discharged witness; the total front door is:
 
 ```
 non-zero :: Int -> Option NonZero
@@ -47,9 +47,9 @@ non-zero n = case decide (NonZero n) of
 
 **Predicate vocabulary (closed, decidable).** `NotNull`/`NonZero`/`Ascii`/`Sorted`(`Ordered`) plus `Dec` atoms (bounded comparisons, index equalities, `Not`), with `&&`/`||` added by D256. Quantifiers are refused (`design/refinement-types.md`, "Compound predicates" section; `check.rs` kind registration for `Prop`).
 
-**Implication and weakening (D260/D261 read as D258).** `pred_implies`/`pred_implies_canon` (`compiler/src/types.rs:899-920`) implements: syntactic identity, `p && q implies p`, and an interval-containment table for comparison/measure atoms (`compiler/src/types.rs:950-1007`). Weakening along this order is **implicit and free**; strengthening always needs a `narrow` cast carrying a `Dec` of the stronger predicate (`check_terms.rs:962-1010`).
+**Implication and weakening (D260/D261 read as D258).** `pred_implies`/`pred_implies_canon` (`seed/src/types.rs:899-920`) implements: syntactic identity, `p && q implies p`, and an interval-containment table for comparison/measure atoms (`seed/src/types.rs:950-1007`). Weakening along this order is **implicit and free**; strengthening always needs a `narrow` cast carrying a `Dec` of the stronger predicate (`check_terms.rs:962-1010`).
 
-**`using`-obligation discharge at a call site (the `Dec` path, D192 staleness).** A signature like `merge2 :: using (Sorted xs, Sorted ys) => (xs :: List Nat) -> (ys :: List Nat) -> List Nat` records its obligations as `PropOblig`s (`check.rs:2012-2016`); at the call, `check_terms.rs:690-820` discharges each named obligation against evidence already in scope through the `Dec` path. This is tested end-to-end in `compiler/tests/lattice.rs:682-830` (`using_obligations_discharge_through_the_dec_evidence_path`, `signature_obligations_constrain_callers_identically`). D192 staleness re-checks: a mutable write to the region an evidence item's statement reads invalidates it (`note_ev_write_loc`/`note_opaque_write_from`, `check_terms.rs:709-712, 2306-2311`; use-site re-check `record_ev_use`, `check_terms.rs:2983-2987`).
+**`using`-obligation discharge at a call site (the `Dec` path, D192 staleness).** A signature like `merge2 :: using (Sorted xs, Sorted ys) => (xs :: List Nat) -> (ys :: List Nat) -> List Nat` records its obligations as `PropOblig`s (`check.rs:2012-2016`); at the call, `check_terms.rs:690-820` discharges each named obligation against evidence already in scope through the `Dec` path. This is tested end-to-end in `seed/tests/lattice.rs:682-830` (`using_obligations_discharge_through_the_dec_evidence_path`, `signature_obligations_constrain_callers_identically`). D192 staleness re-checks: a mutable write to the region an evidence item's statement reads invalidates it (`note_ev_write_loc`/`note_opaque_write_from`, `check_terms.rs:709-712, 2306-2311`; use-site re-check `record_ev_use`, `check_terms.rs:2983-2987`).
 
 **MWE** (refine introduction/elimination/discharge, all working today):
 ```
@@ -64,9 +64,9 @@ let plain = unrefine nz   -- elimination: free projection to Int
 
 ## 2. `Dec`/`decide`
 
-**Signature and shape.** `decide` accepts a comparison (`<`,`<=`,`>`,`>=`,`==`/`=`,`/=`/`!=`) or `Eq x y` (`decide_shape`, `compiler/src/check_terms.rs:2456-2473`), plus compound `&&`/`||`/`Not` forms recognized syntactically off the surface `if`-sugar (`decide_compound`, `check_terms.rs:2325-2460`). It returns `Dec p = Yes (h :: p) | No (h :: Not p)`, both builtin constructors (`check_decls.rs:1518-1537`). The `length`/`toNat` builtins are specially recognized operands so `decide (i < length b)` lowers to the real `BytesOp::Len` comparison rather than a source function call (`check_terms.rs:4523-4600`).
+**Signature and shape.** `decide` accepts a comparison (`<`,`<=`,`>`,`>=`,`==`/`=`,`/=`/`!=`) or `Eq x y` (`decide_shape`, `seed/src/check_terms.rs:2456-2473`), plus compound `&&`/`||`/`Not` forms recognized syntactically off the surface `if`-sugar (`decide_compound`, `check_terms.rs:2325-2460`). It returns `Dec p = Yes (h :: p) | No (h :: Not p)`, both builtin constructors (`check_decls.rs:1518-1537`). The `length`/`toNat` builtins are specially recognized operands so `decide (i < length b)` lowers to the real `BytesOp::Len` comparison rather than a source function call (`check_terms.rs:4523-4600`).
 
-**MWE** (`compiler/tests/dependent.rs:65-69`):
+**MWE** (`seed/tests/dependent.rs:65-69`):
 ```
 safeAt :: (n :: Nat) -> Nat -> Option (Fin n)
 safeAt n i = case decide (i < n) of
@@ -90,9 +90,9 @@ type-checks today only because `bytes-get`'s own signature carries no preconditi
 
 ## 3. `NonZero`, `Fin`, `Vec n`, `Sigma`, and the dependent kernel
 
-**`NonZero`**: `compiler/prelude/Data/NonZero.cinch:27` (refinement over `Int` only; no `Nat` alias exists in the prelude, confirmed by directory listing: `Data/NonZero.cinch` is the only `NonZero`/`Fin`/`Vec`/`Sigma` prelude file; `Fin`/`Vec`/`Sigma` have no prelude files at all, only compiler builtins and test/example usage).
+**`NonZero`**: `seed/prelude/Data/NonZero.cinch:27` (refinement over `Int` only; no `Nat` alias exists in the prelude, confirmed by directory listing: `Data/NonZero.cinch` is the only `NonZero`/`Fin`/`Vec`/`Sigma` prelude file; `Fin`/`Vec`/`Sigma` have no prelude files at all, only compiler builtins and test/example usage).
 
-**`Fin`**: builtin family, `compiler/src/check_decls.rs:1497-1520`:
+**`Fin`**: builtin family, `seed/src/check_decls.rs:1497-1520`:
 ```
 data Fin (n :: Nat) where Fin :: (i :: Nat) -> (bound :: i < n) -> Fin n
 ```
@@ -105,7 +105,7 @@ data Vec (n :: Nat) (a :: Type) where
   Cons :: forall k. a -> Vec k a -> Vec (k + 1) a
 ```
 
-**`Sigma`**: `ast.rs:126-127` (`Sigma(Name, Box<Type>, Box<Type>, Span)`), `types.rs:1378-1381`, surface in `parser.rs:2997-3001`. MWE (`compiler/tests/dependent.rs:75-80`):
+**`Sigma`**: `ast.rs:126-127` (`Sigma(Name, Box<Type>, Box<Type>, Span)`), `types.rs:1378-1381`, surface in `parser.rs:2997-3001`. MWE (`seed/tests/dependent.rs:75-80`):
 ```
 pack :: forall (n :: Nat). Vec n Int -> Sigma (m :: Nat). Vec m Int
 pack xs = (n, xs)
@@ -123,13 +123,13 @@ unpack p = case p of (m, v) -> m
 
 | name | signature | site | instance |
 |---|---|---|---|
-| `bytes-get` | `Bytes -> Nat -> Nat` | `compiler/prelude/Data/Bytes.cinch:33` |: |
+| `bytes-get` | `Bytes -> Nat -> Nat` | `seed/prelude/Data/Bytes.cinch:33` |: |
 | `bytes-set` | `Bytes -> Nat -> Nat -> Unit` | `Bytes.cinch:34` |: |
 | `bytes-len` | `Bytes -> Nat` | `Bytes.cinch:32` |: |
-| `nat-sub` | `Nat -> Nat -> Nat` | `compiler/prelude/Data/Nat.cinch:28` | `Sub_Nat :: Sub Nat`, `(-) x y = nat-sub x y` (`Nat.cinch:49-50`) |
+| `nat-sub` | `Nat -> Nat -> Nat` | `seed/prelude/Data/Nat.cinch:28` | `Sub_Nat :: Sub Nat`, `(-) x y = nat-sub x y` (`Nat.cinch:49-50`) |
 | `nat-div` | `Nat -> Nat -> Nat` | `Nat.cinch:30` | `Div_Nat` (`Nat.cinch:58-59`) |
 | `nat-rem` | `Nat -> Nat -> Nat` | `Nat.cinch:31` | `Rem_Nat` (`Nat.cinch:55-56`) |
-| `int-div` | `Int -> Int -> Int` | `compiler/prelude/Data/Int.cinch:24` | `Div_Int` (`Int.cinch:68-69`) |
+| `int-div` | `Int -> Int -> Int` | `seed/prelude/Data/Int.cinch:24` | `Div_Int` (`Int.cinch:68-69`) |
 | `int-rem` | `Int -> Int -> Int` | `Int.cinch:25` | `Rem_Int` (`Int.cinch:65-66`) |
 
 `-` on `Nat` resolves through ordinary class dispatch (`Sub` typeclass) straight to the faulting foreign `nat-sub`; no static precondition exists on any of these today. `int-sub` (`Int.cinch:22`) is total already (Int is unbounded signed), so it is not in the fault inventory.
@@ -139,23 +139,23 @@ unpack p = case p of (m, v) -> m
 ## 5. Three call sites each
 
 **(a) Byte indexing in a loop (lexer).**
-1. `compiler/prelude/Text/Lex.cinch:196-199`, `bytes-eq`: recurses `i+1` up to `bytes-len x`, reading `bytes-get x i`/`bytes-get y i`.
+1. `seed/prelude/Text/Lex.cinch:196-199`, `bytes-eq`: recurses `i+1` up to `bytes-len x`, reading `bytes-get x i`/`bytes-get y i`.
 2. `Lex.cinch:315-316`, `render-pieces`: `nat-cmp i (bytes-len b)` guard then `utf8-at b i`.
 3. `Lex.cinch:1029-1031`, `trim-attr-end`: `bytes-get b (j - 1)` on a decrementing index.
 
 Evidence needed: `i < bytes-len x` (and `i < bytes-len y` for site 1), re-derived every recursive step. Today's machinery (`decide`+`Fin`) **can** express it (section 2/3), but each call site needs its own `case decide (i < length x) of Yes bound -> Fin i bound; No _ -> ...` inline, replacing the plain `Nat` index with `Fin`, at one `decide` + one `case` + one `Fin` construction **per loop iteration per indexed buffer** (two per call for site 1, which compares two buffers).
 
 **(b) Division by a literal (hex/decimal rendering).**
-1. `compiler/prelude/Text/Show.cinch:92`, `nat-digits-into`: `bytes-set b (pos + k - 1) (48 + nat-rem n 10)`.
+1. `seed/prelude/Text/Show.cinch:92`, `nat-digits-into`: `bytes-set b (pos + k - 1) (48 + nat-rem n 10)`.
 2. `Show.cinch:93`, same function: `nat-div n 10`.
 3. `Show.cinch:99`, `nat-digit-count`: `nat-div n 10`.
 
 Evidence needed: `NonZero 10`. This folds **statically for free** (`pred_obligation`, section 3): if `nat-div`/`nat-rem` took a `NonZero Nat` divisor, these three sites would need **zero** syntactic change at the literal `10`; the checker's existing numeral-folding already discharges it.
 
 **(c) `Nat` subtraction.**
-1. `compiler/prelude/Data/Date.cinch:160`: `mp = if m > 2 then nat-sub m 3 else nat-add m 9`.
+1. `seed/prelude/Data/Date.cinch:160`: `mp = if m > 2 then nat-sub m 3 else nat-add m 9`.
 2. `Date.cinch:373`, `digits-value-acc`: `nat-sub (char-code c) 48`.
-3. `compiler/prelude/Data/Time.cinch:251`: `nat-sub 9 (list-length cs)`, guarded two lines earlier by `if list-length cs > 9 then None else ...` (`Time.cinch:250`).
+3. `seed/prelude/Data/Time.cinch:251`: `nat-sub 9 (list-length cs)`, guarded two lines earlier by `if list-length cs > 9 then None else ...` (`Time.cinch:250`).
 
 Evidence needed: `b <= a` for each `a - b`. Site 1 and 3 are guarded by a plain `if`/boolean comparison whose truth would supply exactly the needed fact, but per section 2 that guard gives **no** narrowed evidence to the subtraction; today's machinery cannot express "the `if`'s condition proves the subtraction safe" without rewriting the guard itself as `decide`+`case`. Site 2 is worse: `char-code c` being an ASCII digit (hence `>= 48`) is established by a *different* function entirely (`all-digits`, called by the site's own caller); there is no mechanism today to carry that cross-function invariant as scoped evidence to this call site short of a refined `Char`/digit parameter type.
 

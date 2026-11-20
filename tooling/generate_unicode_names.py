@@ -88,7 +88,7 @@ def generated() -> str:
 def main() -> None:
     """Write or verify the catalog module without changing numeric table data."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--module', type=Path, default=ROOT / 'compiler/prelude/Data/Unicode/Names.cinch')
+    parser.add_argument('--module', type=Path, default=ROOT / 'seed/prelude/Data/Unicode/Names.cinch')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     text = generated()

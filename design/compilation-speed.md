@@ -75,30 +75,30 @@ problem first, then the constant factor.
 
 | Mechanism | Where | Effect |
 | --- | --- | --- |
-| Undo-log trial unification (`snapshot`/`rollback_to`/`commit`) | `compiler/src/types.rs` | 1687 s to 146 s on a self-build |
-| Chunked copy-on-write substitution store | `compiler/src/types.rs` | makes the remaining independent copies cheap |
-| Size cache in the unfolding whistle | `compiler/src/core.rs` | optimizer cost from 10 s to under 1 s |
-| Shared wildcard alternative in match compilation | `compiler/src/check_terms.rs` | removed one branch per constructor |
-| Core-level subterm sharing (`<unit>.sharedN`) | `compiler/src/core.rs` | IR 1.3 GB to 221 MB |
-| Reference-count helpers instead of inline sequences | `compiler/src/codegen.rs`, `bootstrap/Bootstrap.RuntimeIr.cinch` | IR and clang time |
+| Undo-log trial unification (`snapshot`/`rollback_to`/`commit`) | `seed/src/types.rs` | 1687 s to 146 s on a self-build |
+| Chunked copy-on-write substitution store | `seed/src/types.rs` | makes the remaining independent copies cheap |
+| Size cache in the unfolding whistle | `seed/src/core.rs` | optimizer cost from 10 s to under 1 s |
+| Shared wildcard alternative in match compilation | `seed/src/check_terms.rs` | removed one branch per constructor |
+| Core-level subterm sharing (`<unit>.sharedN`) | `seed/src/core.rs` | IR 1.3 GB to 221 MB |
+| Reference-count helpers instead of inline sequences | `seed/src/codegen.rs`, `compiler/Bootstrap.RuntimeIr.cinch` | IR and clang time |
 | Static dictionaries for closed instances | both backends | 1M allocations per self-build removed |
-| Drop specialisation (`Core::Release`) | `compiler/src/rc.rs` | 104K count calls removed |
-| Borrowed parameters for closed programs | `compiler/src/rc.rs` | 2,672 parameters borrowed |
-| Per-thread size-class heap | `compiler/runtime/src/small.rs` | 29% faster, 42% less peak RSS |
-| Core simplifier with a tick budget, case-merge, known-constructor case, direct static-dictionary calls | `compiler/src/simplify.rs` | fires 597 direct-call and 17 known-constructor rewrites on the toolkit; IR down 2.2% |
-| Core inliner: one site for a body up to 40 nodes, every site for a body up to 12 with no call and no allocation, `case` pattern binders admitted | `compiler/src/simplify.rs` | 133 sites / 497 nodes on the toolkit and 7,253 / 17,326 on the compiler source; it spends IR to delete allocations, because `known-constructor` can only fold a constructor case once the call hiding it is gone (1,000-iteration block loop: 506 blocks to 6) |
-| Core text output, verifier, diff, server, grammar, editors | `compiler/src/coretext.rs`, `compiler/src/lsp.rs`, `tooling/tree-sitter-cinch-core`, `tooling/editors/*` | makes each stage's codegen input inspectable and comparable |
-| `--opt-level` and `-O2` library objects and stage links | `compiler/src/driver.rs`, `tooling/bootstrap.py` | 28% on the toolkit check |
-| Core simplifier: case-merge, known-constructor, direct dictionary calls | `compiler/src/simplify.rs` | removes `Option`/`Result` scaffolding and static-dictionary `__apply` calls; reports ticks (section 10) |
-| Package store keyed by content | `compiler/src/store.rs` | reuses checked artifacts per compile |
-| Analysis layer + LSP incremental update | `compiler/src/analysis.rs` | editor path, not build path |
-| Work-stealing parallel runtime (`cinch_par_*`) | `compiler/runtime/src/par.rs` | available; the compiler is not yet parallel |
-| Visible surface as an order list plus a name index | `bootstrap/Bootstrap.Resolve.cinch` | a renamed name is one hash probe, not a scan of the declarations, the qualified imports and the kernel bindings |
-| Export entries indexed when an interface is read | `bootstrap/Bootstrap.Load.cinch` | `loaded-entry` is a probe, not a walk of the contract document |
-| Environment projections cached at the module marker | `bootstrap/Bootstrap.Infer.cinch` | `env-instances`, `env-guarded-bindings` and `env-givens` stop at the marker instead of folding the whole module environment on every use |
-| One application-spine walk per expected-type check | `bootstrap/Bootstrap.Infer.cinch` | the ownership, projection, task and thunk head checks share one argument list |
-| Interned names in the seed's frontend | `compiler/src/intern.rs` | `Ty`/`ITerm`/`EffLabel`/`RowTail` names and the unifier's region substitution are pointer handles; -11.1% on the seed's check of the bundle (section 2.3) |
-| Export index for the law closure | `bootstrap/Bootstrap.Load.cinch` | `interface-global` of every export and private method identity is encoded once per interface, so a law closure query is a scan of pre-encoded globals, not an encoding per row per query; -7.5% of the two-line fixed cost's blocks (section 2.7) |
+| Drop specialisation (`Core::Release`) | `seed/src/rc.rs` | 104K count calls removed |
+| Borrowed parameters for closed programs | `seed/src/rc.rs` | 2,672 parameters borrowed |
+| Per-thread size-class heap | `seed/runtime/src/small.rs` | 29% faster, 42% less peak RSS |
+| Core simplifier with a tick budget, case-merge, known-constructor case, direct static-dictionary calls | `seed/src/simplify.rs` | fires 597 direct-call and 17 known-constructor rewrites on the toolkit; IR down 2.2% |
+| Core inliner: one site for a body up to 40 nodes, every site for a body up to 12 with no call and no allocation, `case` pattern binders admitted | `seed/src/simplify.rs` | 133 sites / 497 nodes on the toolkit and 7,253 / 17,326 on the compiler source; it spends IR to delete allocations, because `known-constructor` can only fold a constructor case once the call hiding it is gone (1,000-iteration block loop: 506 blocks to 6) |
+| Core text output, verifier, diff, server, grammar, editors | `seed/src/coretext.rs`, `seed/src/lsp.rs`, `tooling/tree-sitter-cinch-core`, `tooling/editors/*` | makes each stage's codegen input inspectable and comparable |
+| `--opt-level` and `-O2` library objects and stage links | `seed/src/driver.rs`, `tooling/bootstrap.py` | 28% on the toolkit check |
+| Core simplifier: case-merge, known-constructor, direct dictionary calls | `seed/src/simplify.rs` | removes `Option`/`Result` scaffolding and static-dictionary `__apply` calls; reports ticks (section 10) |
+| Package store keyed by content | `seed/src/store.rs` | reuses checked artifacts per compile |
+| Analysis layer + LSP incremental update | `seed/src/analysis.rs` | editor path, not build path |
+| Work-stealing parallel runtime (`cinch_par_*`) | `seed/runtime/src/par.rs` | available; the compiler is not yet parallel |
+| Visible surface as an order list plus a name index | `compiler/Bootstrap.Resolve.cinch` | a renamed name is one hash probe, not a scan of the declarations, the qualified imports and the kernel bindings |
+| Export entries indexed when an interface is read | `compiler/Bootstrap.Load.cinch` | `loaded-entry` is a probe, not a walk of the contract document |
+| Environment projections cached at the module marker | `compiler/Bootstrap.Infer.cinch` | `env-instances`, `env-guarded-bindings` and `env-givens` stop at the marker instead of folding the whole module environment on every use |
+| One application-spine walk per expected-type check | `compiler/Bootstrap.Infer.cinch` | the ownership, projection, task and thunk head checks share one argument list |
+| Interned names in the seed's frontend | `seed/src/intern.rs` | `Ty`/`ITerm`/`EffLabel`/`RowTail` names and the unifier's region substitution are pointer handles; -11.1% on the seed's check of the bundle (section 2.3) |
+| Export index for the law closure | `compiler/Bootstrap.Load.cinch` | `interface-global` of every export and private method identity is encoded once per interface, so a law closure query is a scan of pre-encoded globals, not an encoding per row per query; -7.5% of the two-line fixed cost's blocks (section 2.7) |
 
 ### 2.1 Frontend names and environment projections (2026-11-10)
 
@@ -147,7 +147,7 @@ nominal export's scans are the next thing to index (section 12, item 7).
 ### 2.2 Allocation volume: where the fixed cost is (2026-11-10)
 
 `CINCH_ALLOC_STATS=1` says how much a program allocates. The runtime's
-`CINCH_ALLOC_KINDS=1` census (`compiler/runtime/src/alloc_kinds.rs`) says
+`CINCH_ALLOC_KINDS=1` census (`seed/runtime/src/alloc_kinds.rs`) says
 what: one line per block kind and one per size class, counted where every
 header block is already accounted and written by the same `atexit` handler.
 Unset, a block allocation pays one relaxed load and a branch that is never
@@ -275,7 +275,7 @@ drop glue are 3.4%, not the top of the list: the checker builds far more
 `Core` than `Ty`, because match compilation, let-lowering and the
 reference-count pass all run through it.
 
-`compiler/src/intern.rs` adds `Interned`: a two-word handle naming one
+`seed/src/intern.rs` adds `Interned`: a two-word handle naming one
 canonical allocation per spelling. Equality and hashing are pointer
 operations, cloning copies two words, and ordering is the *spelling's*, so
 a `BTreeSet` or `BTreeMap` keyed by a name keeps the order its emitted
@@ -460,7 +460,7 @@ What each side would have to change:
   tables, the value rows, the type and instance rows, the nominal rows and the
   total bodies. `ExportEntries` already wants exactly this shape; today it is
   extracted from a general JSON document.
-* The Rust seed (`compiler/src/interface.rs`) writes the sections instead of
+* The Rust seed (`seed/src/interface.rs`) writes the sections instead of
   `JsonValue::write_canonical`, and `iface_hash` covers the section bytes
   directly instead of a blanked projection, which removes the text surgery
   `blank-field-string`/`empty-array-field` performs today.
@@ -626,7 +626,7 @@ the scan the index would replace costs about 600 ns at 64 short names. No
 index can pay at that price, and 2.5/2.7 recorded the reverts.
 
 The instance is now FNV-1a in a wrapping 64-bit word
-(`compiler/prelude/Data/Bytes.cinch`): the accumulator is a `U64` at every
+(`seed/prelude/Data/Bytes.cinch`): the accumulator is a `U64` at every
 step, the multiply is `wrapping-mul-u64` (modulo 2^64, so no value can leave
 the word), and the word is reduced to `Nat` exactly once, at the end, by
 clearing the top bit and calling `nat-from-i64`. The class law is the only
@@ -636,7 +636,7 @@ address or clock enters the result, and two distinct slices may still share
 a digest (the bucket scan decides). `Data.String` and `Data.Sym` hash their
 backing bytes through the same instance, so the three agree by construction.
 
-The digest before and after, driven by `bootstrap/programs/Run.HashDigest.cinch`
+The digest before and after, driven by `compiler/programs/Run.HashDigest.cinch`
 (native programs built by the seed; the program's own monotonic clock, child
 CPU, median of three interleaved runs):
 
@@ -697,7 +697,7 @@ size at which 632 ns of scan beats an 804 ns probe, and 2.9's next attempt
 should be a smaller digest, not a bigger table.
 
 **Pin note.** The library object the stage chain links is pinned
-(`bootstrap/pins/library-provider.lock.json`, revision `12a9bd37`), and the pin
+(`compiler/pins/library-provider.lock.json`, revision `12a9bd37`), and the pin
 carries the prelude's *compiled* code. A prelude change therefore reaches
 the stage compilers only after the pin moves to a revision that contains it.
 The three arms above were built by emitting a library object from this
@@ -755,7 +755,7 @@ differing prefixes. `Data.Bytes`' `Eq` instance routes through the same
 entry instead of its own Cinch byte loop with a bounds-checked `bytes-get`
 per byte. Byte-lexicographic order is observable (canonical interface rows,
 JSON keys, diagnostics), and it is pinned two ways:
-`compiler/runtime/tests/bytes_compare.rs` asserts every pair of a corpus
+`seed/runtime/tests/bytes_compare.rs` asserts every pair of a corpus
 (empty, prefixes, a difference at each position inside and across a word
 boundary, high bytes, 1 to 17 bytes) against `&[u8]::cmp`, and the stage
 chain's fixed point keeps stage 2 and stage 3 byte-identical in `compiler.ll`
@@ -815,7 +815,7 @@ them; a compiler built with inlining off would name them, and that is the
 measurement this section leaves open.
 
 **The pin, and what is not yet in the chain.** The fast path lives in
-`compiler/runtime/src/abi.rs`, so it reaches a stage compiler only when the
+`seed/runtime/src/abi.rs`, so it reaches a stage compiler only when the
 library pin moves, and every number above came from builds whose locks
 pointed at a revision containing it. On current main that bump does not
 land: with both locks moved to a revision containing main's compiler
@@ -838,7 +838,7 @@ each node, while the compiler's own definitions repeat a small vocabulary:
 5,324 definitions hold 106,695 distinct table entries, 20 per definition,
 against far more nodes.
 
-`bootstrap/Bootstrap.CoreBody.cinch` writes the transport form. One type
+`compiler/Bootstrap.CoreBody.cinch` writes the transport form. One type
 table per definition, deduplicated by structure (`same-shape`, with a cheap
 digest as a filter and the structural comparison as the decision), and every
 node, instantiation argument, pattern, constructor type, scheme, requirement
@@ -948,8 +948,8 @@ here. It removes no bytes and no time from the seed.
 
 **Fingerprints.** Declaration identity was already span-free: `surface_rows`
 reads the interface contract and `body_rows` debugs `FnDef`, and neither
-carries a position (`compiler/src/incremental.rs`). A new test in
-`compiler/tests/incremental.rs` pins it: inserting two comment lines and a
+carries a position (`seed/src/incremental.rs`). A new test in
+`seed/tests/incremental.rs` pins it: inserting two comment lines and a
 blank line into `Base.cinch` moves every following position and leaves every
 declaration's `decl_hash` unchanged, while the module's own hash moves,
 because a module's body hash is its source text.
@@ -1356,7 +1356,7 @@ emitted IR for the axis is byte identical to the pre-fix binary at n=64,
 
 **Parity.** The change's only source edit is `Bootstrap.Infer.cinch`, so
 the targets that compile it are the ones to score. Thirteen of them were
-run at the merge against `bootstrap/evidence/other/stage3-suite-baseline.json` (the
+run at the merge against `compiler/evidence/other/stage3-suite-baseline.json` (the
 re-recorded one, 238 targets), and the same thirteen on `main`'s own tree:
 
 | target | baseline | merged | `main` |
@@ -1410,13 +1410,13 @@ that in-place work should chase them; the question this section answers is
 what the pairs that do collect actually look like, because a pass change
 aimed at a host that already collects every pair it can see buys nothing.
 
-**Method.** Owned Core for all 44 `bootstrap/*.cinch` modules, from a
+**Method.** Owned Core for all 44 `compiler/*.cinch` modules, from a
 compiler built at `main` (`9f5c360f`, the seed at `3f39effe`; `rc.rs`,
 `coalesce.rs` and `core.rs` are byte-identical between the two revisions):
 
 ```sh
-cargo build --locked --release --bin cinch   # compiler/, at main
-for f in bootstrap/*.cinch; do
+cargo build --locked --release --bin cinch   # seed/, at main
+for f in compiler/*.cinch; do
   cinch emit-ir "$f" -o /tmp/o.ll --dump-core owned >/dev/null 2>&1
 done
 python3 tooling/reuse_census.py build --by-host --why
@@ -1486,15 +1486,15 @@ one of the positions it walks through without changing the allocation it
 finds; a `Dup` that moves changes where the count operation sits, not which
 allocation is on the spine or whether one exists. The fix also cannot move a
 `Dup` across a branch, because coalescing operates within a run and a
-branch ends the run. The measurement agrees: `bootstrap/*.cinch` is
+branch ends the run. The measurement agrees: `compiler/*.cinch` is
 byte-identical from `38a07a23` (the revision before the fix) to `main`, so
 the source population the census reads is the same file set, and the dumps
 the census parses are produced by the pass order counting-then-coalescing
-(`compiler/src/driver.rs:5676-5687`), which the fix did not reorder.
+(`seed/src/driver.rs:5676-5687`), which the fix did not reorder.
 
 **No pin.** This section and the `tooling/reuse_census.py` extension are the
 only changes: `tooling/` and `design/` are not seed sources, no file under
-`compiler/` changed, and neither lock moves.
+`seed/` changed, and neither lock moves.
 
 ### 2.21 The prelude's fixed cost in the seed compiler (2026-11-14)
 
@@ -1715,7 +1715,7 @@ emitted IR for the axis is byte identical to the pre-fix binary at n=64,
 **Parity.** The full 234-target suite was run uncapped (237 targets
 scored, three extra from the runner's own list): 143 fully passing, 942
 tests passing, 641 failing, against the baseline's 145/928/631. Fourteen
-targets differ from `bootstrap/evidence/other/stage3-suite-baseline.json`, and every one
+targets differ from `compiler/evidence/other/stage3-suite-baseline.json`, and every one
 was re-run on an untouched sibling tree (`dasl-inplace-reverse`, whose
 `Infer.cinch` predates this change):
 
@@ -2000,7 +2000,7 @@ What each item of section 2.25 turned out to need:
    emit says so in a diagnostic `requested_roots` already reads. The build
    adds the request to the exporting module's roots and rebuilds it and
    what imports it. The compiler needs one (`expand-error` at `[O]`), kept
-   in `bootstrap/pins/module-object-roots.json`.
+   in `compiler/pins/module-object-roots.json`.
 3. **A graph.** A module's provider is the base manifest with the deltas of
    its transitive imports applied in import order, which is the merge
    `object-manifest` performs. The provider's object is an empty one whose
@@ -2077,7 +2077,7 @@ Adopt:
   `elaboratedBody`, `proofClosure`, `erasedCore`, `ownedCore`,
   `optSummary`, `object`. Depend on what a query actually read, not on the
   module. rustc's `DepGraph` and Salsa's revisioned memo tables are the
-  references; `compiler/src/store.rs` is the seed of this.
+  references; `seed/src/store.rs` is the seed of this.
 - **Early cutoff by fingerprint.** If a recomputed query's output
   fingerprint matches, downstream work is reused. Fingerprint separately:
   exported signature, transparent body, instance set, rewrite set,
@@ -2180,7 +2180,7 @@ bytes per word compiles and runs.
 
 ### 3.1 What landed (2026-11-12)
 
-`compiler/src/query.rs` is the engine and `Session` drives it. The four
+`seed/src/query.rs` is the engine and `Session` drives it. The four
 mechanisms, each with the thing that makes it correct rather than
 plausible:
 
@@ -2348,7 +2348,7 @@ gives it a stable identity.
 - Incremental relexing from checkpoints and subtree reuse (tree-sitter's
   model) for the editor path.
 
-Our lexer is hand-written Rust (`compiler/src/lexer.rs`) and already
+Our lexer is hand-written Rust (`seed/src/lexer.rs`) and already
 byte-oriented; the Cinch-side parser is a port of it and is now the
 second-largest phase in its self-compile (under 11 s, down from 68 s after
 the fixity cache). SIMD scanning is a micro-optimization to schedule after
@@ -2847,7 +2847,7 @@ the compiler's own module (section 13 of that note).
 
 ### 10.1 What landed (2026-11-10)
 
-`compiler/src/simplify.rs` is the pass shape above, on the specialized
+`seed/src/simplify.rs` is the pass shape above, on the specialized
 program and before reference counting, so `crate::rc` balances the
 simplified bodies. A pass walks every unit bottom up and applies local
 rewrites; a tick is one rewrite application; passes repeat while the
@@ -2892,7 +2892,7 @@ value is a value, which removes the constructor block a
 known-constructor reduction orphaned.
 
 Measured on the self-build corpus, the pass converges before the default
-cap: on `compiler/tests/core/ownership.cinch` it runs two passes with 160
+cap: on `seed/tests/core/ownership.cinch` it runs two passes with 160
 ticks (174 once `case-of-case` runs); the distribution is in the report
 and in section 11's harness.
 
@@ -2970,7 +2970,7 @@ With it the largest unit is unchanged and the growth is 9.9 % of nodes,
 which is still more than the rule earns, so **`case-of-case` ships off by
 default** (`--case-of-case` turns it on). The join node, its
 introduction, its printing and its verification stay on: they cost
-nothing when no join exists, and `compiler/tests/core/joins.cinch` pins
+nothing when no join exists, and `seed/tests/core/joins.cinch` pins
 them (a join with two jumps) through the flag.
 
 The next lever was the missing half of the fold: a decision on a
@@ -2982,7 +2982,7 @@ numbers.
 ### 10.6 The computed-argument fold, and the inliner it feeds (2026-11-13)
 
 The join node section 10.2 describes is in Core (`Core::Join`/`Core::Jump`,
-`compiler/src/core.rs:1885-1925`) with `case-of-case` built on it, so the
+`seed/src/core.rs:1885-1925`) with `case-of-case` built on it, so the
 backlog item's first blocker is gone. What remained was the fold's second
 half: a decision on `Ctor a1 a2` where the arguments are *computed*.
 
@@ -3488,7 +3488,7 @@ rather than blind.
 What does have population is the shape those two were standing in for: a
 partial application applied once. `let f = g a b in f c` with `g`'s arity 3
 builds a closure record only to apply it and release it. The rule
-`saturate-partial` (`compiler/src/simplify.rs`) merges the two applications
+`saturate-partial` (`seed/src/simplify.rs`) merges the two applications
 into one saturated direct call, and refuses unless four conditions hold: the
 head is a unit with a known arity, the value is under-applied, the binder is
 read exactly once on the spine, and that read is an application's head. An
@@ -3650,7 +3650,7 @@ library provider and the compiler (`exports.types[].ctors[].fields`):
 
 - 147 types with constructors, 547 constructors.
 - 23 of those types are all-nullary (78 constructors, 14.3%).
-- The compiler's own source (`bootstrap/*.cinch`) declares 7 of them in 30
+- The compiler's own source (`compiler/*.cinch`) declares 7 of them in 30
   constructors of 513 (5.8%): `PipelineMode` 8, `Comparison` 6,
   `ObservationPosition` 4, `CaseClass` 4, `ArrowUsage` 4,
   `TypeSubstitution` 3, `ExportEntries` 1.
@@ -3667,7 +3667,7 @@ IR, 5,497 switches, 12,838 arms, 140,952 rc calls):
 |static-block definition bytes, all types|1,411,000|3.26%|
 
 So the ceiling is under 1% of the emitted module and 0.71% of rc traffic,
-against a runtime ABI change: a new word class in `compiler/src/repr.rs`
+against a runtime ABI change: a new word class in `seed/src/repr.rs`
 (224 match sites across 15 files), a fourth pointer-map code (the 2-bit
 field is full: `SCAN_RAW` 0, `SCAN_OBJ` 1, `SCAN_TOBJ` 2, 3 unused, so
 `SCAN_BITS` must widen), a `case` that compares instead of loading a tag,
@@ -3719,7 +3719,7 @@ failed) and `ownership` (23 passed, 6 failed) match the baseline per test.
 helper rename, which is a stale assertion, not this change.
 
 **Borrow inference already exists, and the self-hosted compiler cannot
-reach it.** `compiler/src/rc.rs` has a full whole-program `borrow_modes`
+reach it.** `seed/src/rc.rs` has a full whole-program `borrow_modes`
 fixed point (a unit takes part when every caller is a saturated direct
 call, a parameter starts borrowed and becomes owned until the fixed point),
 and `insert_closed` runs it. But `driver.rs` selects it only when the
@@ -3987,7 +3987,7 @@ block kind and size class, and none of them names a call site, so the
 question "which code allocates this" had no answer from the counter.
 
 **Building the attribution.** Two pieces, both outside the tree. A scratch
-copy of `compiler/runtime` grew per-site counters and two entry points,
+copy of `seed/runtime` grew per-site counters and two entry points,
 `cinch_alloc_ctor_site` and `cinch_alloc_shaped_site`, that take a site id
 as a trailing argument. An IR rewriter then tagged every allocation call
 site in the stage's three shards and in the library provider's
@@ -4060,7 +4060,7 @@ smokes pass, `cargo test --lib` is 275 passed, and both workloads print
 `cinch-leak: live=0 immortal=0 leaked=0`.
 
 **The target suite, and why it needed a control.** The full suite against
-the stored baseline (`bootstrap/evidence/other/stage3-suite-baseline.json`: 234 targets,
+the stored baseline (`compiler/evidence/other/stage3-suite-baseline.json`: 234 targets,
 145 fully passing, 928 passed, 631 failed) reported 237 targets, 143 fully
 passing, 943 passed, 640 failed. The three extra targets are new targets
 from other lanes (`narrow_boundary`, `par_map_in_compiler_sources`,
@@ -4153,7 +4153,7 @@ closed instance's already is, is the next step there.
 ## 11. Benchmark corpus and metrics
 
 The corpus is edits, not programs. Each entry is a case in
-`compiler/tests/speed/` with a fixed before and after source, and each is
+`seed/tests/speed/` with a fixed before and after source, and each is
 run by the harness in both directions.
 
 | Edit | Work it should cost |
@@ -4479,7 +4479,7 @@ linear and why item 1 above is a separate ticket from that lane's.
    computed-argument fold written and measured but **off by default**
    because it makes the inliner duplicate (section 10.6). Loopification is
    already done by code generation, which turns a saturated self tail call
-   into a branch to the unit's loop header (`compiler/src/codegen.rs`, the
+   into a branch to the unit's loop header (`seed/src/codegen.rs`, the
    `loop_label` in the entry block, decision D104); the Core-level version
    would only restate it. What is genuinely left, in cost order: the
    inliner term that would let the computed fold ship (section 10.6), CPR

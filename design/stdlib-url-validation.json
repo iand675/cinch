@@ -12,9 +12,9 @@
           "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
           "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
           "source_sha256": {
-            "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
-            "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
-            "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+            "seed/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+            "seed/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+            "seed/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
             "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
           }
         },
@@ -1040,9 +1040,9 @@
           "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
           "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
           "source_sha256": {
-            "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
-            "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
-            "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+            "seed/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+            "seed/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+            "seed/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
             "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
           }
         },
@@ -2930,9 +2930,9 @@
           "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
           "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
           "source_sha256": {
-            "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
-            "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
-            "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+            "seed/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+            "seed/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+            "seed/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
             "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
           }
         },
@@ -3060,52 +3060,52 @@
   ],
   "canonical_docs": [
     {
-      "source": "compiler/prelude/Text/Url.cinch",
+      "source": "seed/prelude/Text/Url.cinch",
       "sha256": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
       "documented_declarations": 0
     },
     {
-      "source": "compiler/prelude/Text/Url/Codec.cinch",
+      "source": "seed/prelude/Text/Url/Codec.cinch",
       "sha256": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
       "documented_declarations": 59
     },
     {
-      "source": "compiler/prelude/Text/Url/Error.cinch",
+      "source": "seed/prelude/Text/Url/Error.cinch",
       "sha256": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
       "documented_declarations": 40
     },
     {
-      "source": "compiler/prelude/Text/Url/Ip.cinch",
+      "source": "seed/prelude/Text/Url/Ip.cinch",
       "sha256": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
       "documented_declarations": 9
     },
     {
-      "source": "compiler/prelude/Text/Url/Model.cinch",
+      "source": "seed/prelude/Text/Url/Model.cinch",
       "sha256": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
       "documented_declarations": 39
     },
     {
-      "source": "compiler/prelude/Text/Url/Parser.cinch",
+      "source": "seed/prelude/Text/Url/Parser.cinch",
       "sha256": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
       "documented_declarations": 20
     },
     {
-      "source": "compiler/prelude/Text/Url/Query.cinch",
+      "source": "seed/prelude/Text/Url/Query.cinch",
       "sha256": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
       "documented_declarations": 41
     },
     {
-      "source": "compiler/prelude/Text/Url/Resolve.cinch",
+      "source": "seed/prelude/Text/Url/Resolve.cinch",
       "sha256": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
       "documented_declarations": 15
     },
     {
-      "source": "compiler/prelude/Text/Url/Scan.cinch",
+      "source": "seed/prelude/Text/Url/Scan.cinch",
       "sha256": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
       "documented_declarations": 28
     },
     {
-      "source": "compiler/prelude/Text/Url/Userinfo.cinch",
+      "source": "seed/prelude/Text/Url/Userinfo.cinch",
       "sha256": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
       "documented_declarations": 7
     }

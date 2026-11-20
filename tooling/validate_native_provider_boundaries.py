@@ -56,7 +56,7 @@ def main() -> None:
         directory = args.artifacts / name
         directory.mkdir()
         source, ir = directory / 'Main.cinch', directory / 'consumer.ll'
-        source.write_bytes((bootstrap.ROOT / 'compiler/tests/fixtures' / relative).read_bytes())
+        source.write_bytes((bootstrap.ROOT / 'seed/tests/fixtures' / relative).read_bytes())
         command = [str(args.compiler), '--emit-ir', '--rc-debug', '--interfaces', str(interfaces),
                    '--objects', str(objects), str(source), str(ir)]
         result = subprocess.run(['taskset', '-c', str(args.cpu), *command], cwd=directory,

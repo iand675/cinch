@@ -46,7 +46,7 @@ The two things this note delivers attack that from both ends:
 
 ## 2 What `array-set` did, what the change made it do, and why it is back
 
-`cinch_array_set` (`compiler/runtime/src/arrays.rs`) allocated a fresh block,
+`cinch_array_set` (`seed/runtime/src/arrays.rs`) allocated a fresh block,
 re-`keep`ed every element into it, wrote one slot and returned the new block.
 So it was O(n) with n count increments, and a loop filling an n-element array
 through it allocated n blocks and did n^2/2 count operations. `design/arrays.md`
@@ -93,8 +93,8 @@ property the extern can rely on, because the wrapper's own drops are decided
 per program.)
 
 The primitive unit that wraps the extern owns its parameters and drops them at
-`ret`: `prim_consumes` (`compiler/src/codegen.rs`) keeps every array
-operation's arguments, so `ret_drops` (`compiler/src/codegen.rs`) releases them. The
+`ret`: `prim_consumes` (`seed/src/codegen.rs`) keeps every array
+operation's arguments, so `ret_drops` (`seed/src/codegen.rs`) releases them. The
 extern therefore owes the same convention as the copying path: its result is
 one owned reference, and every slot it writes holds its own reference.
 
@@ -127,7 +127,7 @@ tree.
 
 `Data.Array.array-set@T` is a primitive unit. Its parameter ownership comes
 from `lent`, the borrow-inference result for that unit
-(`compiler/src/codegen.rs`, `reg.lent`), which is
+(`seed/src/codegen.rs`, `reg.lent`), which is
 computed **per program** from how callers use the argument. Two programs, one
 with the array in a tail-recursive fill loop and one with the array in a
 top-level definition read again afterwards, produce wrappers that differ:
@@ -192,12 +192,12 @@ built version moves the decision to where the fact already is.
 Both entries therefore have the same observable contract: borrow the array,
 return an owned reference, and every slot holds its own reference. That is what
 the wrapping unit imposes, and the emitted IR is the proof: `prim_consumes`
-does not list the array operations, so `ret_drops` (`compiler/src/codegen.rs`) releases
+does not list the array operations, so `ret_drops` (`seed/src/codegen.rs`) releases
 every counted parameter at `ret`. A version that consumed the argument instead
 freed the block under the caller and trapped with `corrupt array value`, which
 is how this contract was found.
 
-**The selection.** `compiler/src/arrays_codegen.rs` chooses between them from
+**The selection.** `seed/src/arrays_codegen.rs` chooses between them from
 `Program::lent` (`crate::rc::borrow_modes`). `lent` holds an entry only for a
 unit with at least one borrowed parameter, and its bool is true for borrowed,
 so a unit with no entry, or an entry whose first word is false, is one whose
@@ -242,9 +242,9 @@ is not a borrow and the entry applies. Section 9 carries this as item 6.
 ### 2.6 The rule, stated once
 
 **An array operation cannot take a consuming contract while `prim_consumes`
-omits it.** `prim_consumes` (`compiler/src/codegen.rs`) lists the
+omits it.** `prim_consumes` (`seed/src/codegen.rs`) lists the
 primitives whose wrappers hand a parameter on instead of releasing it, and it
-does not list the array operations. So `ret_drops` (`compiler/src/codegen.rs`) releases
+does not list the array operations. So `ret_drops` (`seed/src/codegen.rs`) releases
 every counted parameter of an array primitive at `ret`, which means the extern
 behind it always receives a borrowed reference and must always return an owned
 one. An entry that assumes consumption instead frees the block the caller just
@@ -320,7 +320,7 @@ a type error.
 
 The static answer is a **rigid region carried by an effect row and discharged
 by a handler**, which this tree already implements and tests
-(`compiler/tests/bootstrap_source_handlers.rs`, `compiler/tests/bootstrap_source_effects.rs:62`
+(`seed/tests/bootstrap_source_handlers.rs`, `seed/tests/bootstrap_source_effects.rs:62`
 refuses a wrong region identity):
 
 ```cinch
@@ -348,7 +348,7 @@ own row; the callback's row is the one the handler discharges.
 duplication, not no escape: a `%1` handle is used exactly once, and returning
 it is a use. The skolem alone is what prevents escape, and `%1` on
 `MutArray r a` is worth adding for the reason it is worth adding anywhere
-(`compiler/prelude/Effect/Pty.cinch:40-47` documents the same reasoning for
+(`seed/prelude/Effect/Pty.cinch:40-47` documents the same reasoning for
 terminal handles): it forbids aliasing a handle you hold. Whether the checker
 accepts it on this type is unverified here, so the design does not depend on
 it.
@@ -398,7 +398,7 @@ The compiler sites that build a list and then only index, count or reverse it:
 
 Each retrofit is measured by the block and byte counts on the toolkit check
 and the self-check, with output byte-identical (the fixed point is the gate),
-and by the per-target suite against `bootstrap/evidence/other/stage3-suite-baseline.json`.
+and by the per-target suite against `compiler/evidence/other/stage3-suite-baseline.json`.
 
 ## 6 Tests
 
@@ -427,13 +427,13 @@ went with the revert, since they assert behaviour the tree no longer has):
 
 ## 7 The lock bump
 
-`compiler/runtime/src` and `compiler/prelude` are seed sources: they are
-hashed into `bootstrap/pins/stage0.lock.json`'s `source_sha256` and pinned again by
-`bootstrap/pins/library-provider.lock.json`, and the runtime ABI is pinned a third
+`seed/runtime/src` and `seed/prelude` are seed sources: they are
+hashed into `compiler/pins/stage0.lock.json`'s `source_sha256` and pinned again by
+`compiler/pins/library-provider.lock.json`, and the runtime ABI is pinned a third
 time by `Bootstrap.RuntimeAbi.cinch` (`design/arena.md` F4).
 
-Part 1 changes two seed sources (`compiler/runtime/src/arrays.rs` and
-`compiler/src/arrays_codegen.rs`, the latter through `compiler/src`), so the
+Part 1 changes two seed sources (`seed/runtime/src/arrays.rs` and
+`seed/src/arrays_codegen.rs`, the latter through `seed/src`), so the
 seed hash moved. Measured on the built tree:
 
 ```
@@ -442,8 +442,8 @@ lock: 85727ab52b197314171a976582bfa4c82efbf12a81337de0367a86296a715e09
 ```
 
 **The re-pin was made** (commit `a39281232118`, "Pin both to the tree with
-the consumed-reference array store"): `bootstrap/pins/stage0.lock.json` and
-`bootstrap/pins/library-provider.lock.json` both now record
+the consumed-reference array store"): `compiler/pins/stage0.lock.json` and
+`compiler/pins/library-provider.lock.json` both now record
 `source_sha256 = 515a32b1cbbaf14a2daafe916f99f81e8a13578051bdadf1a89cde12f5a803aa`,
 which is this tree's seed hash, so the ladder's hash check passes.
 
@@ -468,7 +468,7 @@ which is what section 10 records.
 ### 8.1 Measured: the entries, and which call sites reach them
 
 Three measurements with the built change, the runtime rebuilt from this tree
-and driven by the seed compiler (`compiler/target/release/cinch`), all under
+and driven by the seed compiler (`seed/target/release/cinch`), all under
 `CINCH_ALLOC_STATS=1` and `CINCH_LEAK_CHECK=1`.
 
 **The reverted attempt**, for the record: a 200-write fill loop through
@@ -512,9 +512,9 @@ which is what part 2 exists to replace.
 
 The numbers in 8.1 were measured with the change in place, on a runtime
 rebuilt from this tree and driven by the seed compiler. The change is now
-reverted (section 2.4), so the tree's `compiler/runtime/src/arrays.rs` is
+reverted (section 2.4), so the tree's `seed/runtime/src/arrays.rs` is
 byte-identical to `HEAD` and `cargo test --release --lib` in
-`compiler/runtime` is 144 passed, 0 failed, with `CINCH_LEAK_CHECK=1`
+`seed/runtime` is 144 passed, 0 failed, with `CINCH_LEAK_CHECK=1`
 reporting `live=0 immortal=0 leaked=0`.
 
 What the attempt produced that survives:
@@ -557,7 +557,7 @@ That is why part 1 is separated: it pays with none of that.
 ```
 python3 -c "import sys;sys.path.insert(0,'tooling');import pgo;from pathlib import Path;Path('/tmp/toolkit-baseline.cinch').write_bytes(pgo.workload_source(Path('.').resolve()))"
 CINCH_HEAP_LIMIT=2G CINCH_ALLOC_STATS=1 build/bootstrap/stage3/cinch --check /tmp/toolkit-baseline.cinch /tmp/toolkit-diag.txt
-cd compiler/runtime && CINCH_LEAK_CHECK=1 cargo test --release --lib arrays
+cd seed/runtime && CINCH_LEAK_CHECK=1 cargo test --release --lib arrays
 ```
 
 ## 11 Gates run on the built change
@@ -568,7 +568,7 @@ main build directory was held by another lane's rebuild.
 
 | gate | result |
 | --- | --- |
-| `cargo test --release --lib` in `compiler/runtime` | 148 passed, 0 failed |
+| `cargo test --release --lib` in `seed/runtime` | 148 passed, 0 failed |
 | `cargo test --release --test arrays` | 15 passed, 0 failed |
 | `bootstrap.py build --stage 3 --no-pgo` | stage 0, 1, 2, 3 all built |
 | fixed point, `compiler.ll` | byte identical, `a8aefe2c...` |
@@ -586,6 +586,6 @@ and identical interfaces mean the compiler's behaviour is unchanged.
 
 `--test arrays` is the suite that caught both defects of section 2.4, so it is
 the one that matters for this change. The per-target parity run against
-`bootstrap/evidence/other/stage3-suite-baseline.json` was not made: it needs the main build
+`compiler/evidence/other/stage3-suite-baseline.json` was not made: it needs the main build
 directory, which was held by another lane for the whole of this session.
 

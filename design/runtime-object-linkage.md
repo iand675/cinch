@@ -133,7 +133,7 @@ function. String literals use the configured ABI's checked private wrapper
 descriptor over an owned byte buffer; the constructor stays private.
 
 The stage driver separately pins the library-only producer in
-`bootstrap/pins/library-provider.lock.json`. This pin is independent of stage 0.
+`compiler/pins/library-provider.lock.json`. This pin is independent of stage 0.
 It builds a generated trivial library root and only its base-package closure,
 plus compiler-generated primitive and tuple helpers. It records the producer,
 object, metadata, checked interfaces and matching runtime archive identities.
@@ -143,7 +143,7 @@ bundle and link the result with the target library object and its runtime.
 ABI 7 passes an owned cell through a `Mut` call so the caller sees the write.
 Objects and checked interfaces at the boundary must use the target ABI.
 
-`bootstrap/pins/library-object-roots.json` supplies concrete dependency demands.
+`compiler/pins/library-object-roots.json` supplies concrete dependency demands.
 Failed stage emission additionally writes `requested-roots.json`, containing
 only actual missing function, factory and method vectors reported by retained
 Core lowering. These requests must be checked by the producer before another

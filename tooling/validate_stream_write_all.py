@@ -45,7 +45,7 @@ def main() -> None:
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--interfaces", type=Path)
     parser.add_argument("--runtime-archive", type=Path, required=True)
-    parser.add_argument("--source", type=Path, default=ROOT / "compiler/prelude/Effect/Stream.cinch")
+    parser.add_argument("--source", type=Path, default=ROOT / "seed/prelude/Effect/Stream.cinch")
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--opt-level", type=int, choices=[0, 2], default=2)
@@ -58,9 +58,9 @@ def main() -> None:
     artifacts = arguments.artifacts.resolve()
     artifacts.mkdir(parents=True, exist_ok=True)
     sources = {
-        "Data.Bytes.Word.cinch": ROOT / "compiler/prelude/Data/Bytes/Word.cinch",
+        "Data.Bytes.Word.cinch": ROOT / "seed/prelude/Data/Bytes/Word.cinch",
         "Effect.Stream.cinch": arguments.source.resolve(),
-        "Main.cinch": ROOT / "compiler/tests/fixtures/stream-write-all-controls.cinch",
+        "Main.cinch": ROOT / "seed/tests/fixtures/stream-write-all-controls.cinch",
         "counter.c": ROOT / "tooling/stream_copy_counter.c",
         "validator.py": Path(__file__),
     }

@@ -52,7 +52,7 @@ def functional_smoke(exe: Path, reference: Path, sizes: list[int], count: int, w
 
 
 def main() -> None:
-    """Build exact compiler/runtime pairs and alternate complete public pipeline timings."""
+    """Build exact seed/runtime pairs and alternate complete public pipeline timings."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--compiler', type=Path, required=True)
@@ -259,7 +259,7 @@ def main() -> None:
         old = json.loads((baseline / 'report.json').read_text())
         for key in ('compiler_sha256', 'runtime_sha256', 'driver_sha256', 'reference_source_sha256', 'endpoint_source_sha256', 'sdk', 'sdk_executable_sha256'):
             if report.get(key) != old.get(key):
-                raise RuntimeError('baseline changes a matched compiler/runtime/driver/reference identity: ' + key)
+                raise RuntimeError('baseline changes a matched seed/runtime/driver/reference identity: ' + key)
         for filename, key in [('bench', 'executable_sha256'), ('bench.ll', 'llvm_sha256'), ('bench.s', 'assembly_sha256')]:
             if digest(baseline / filename) != old[key]:
                 raise RuntimeError('changed sealed baseline code: ' + filename)

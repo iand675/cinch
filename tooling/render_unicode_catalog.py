@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def rendered() -> str:
     """Compare original stride fields and public catalog ordering with an independent SDK fixture."""
-    fixture=json.loads((ROOT/'compiler/tests/fixtures/unicode-vectors.json').read_text())
+    fixture=json.loads((ROOT/'seed/tests/fixtures/unicode-vectors.json').read_text())
     source='''-- | Independent named Unicode catalogs, exact range observations and checked custom metadata.
 module Main where
   import Data.Unicode
@@ -170,7 +170,7 @@ module Main where
 
 '''
     counters={};checks=[]
-    exported=json.loads((ROOT/'compiler/tests/fixtures/unicode-catalog-vectors.json').read_text())
+    exported=json.loads((ROOT/'seed/tests/fixtures/unicode-catalog-vectors.json').read_text())
     rows=fixture['ranges']+[{**row,'catalog':'table'} for row in exported['tables']]
     for row in rows:
         cat=row['catalog'];index=counters.get(cat,0);counters[cat]=index+1

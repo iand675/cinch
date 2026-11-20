@@ -1,6 +1,6 @@
 # Editors, analysis APIs, and diagnostics
 
-One analysis layer (`compiler/src/analysis.rs`) answers the checker's questions for three front ends: the command line, the language server, and the REPL. It keeps source identity, definition sites, diagnostics, and incremental recheck reports, so the three front ends do not run independent checkers that could disagree.
+One analysis layer (`seed/src/analysis.rs`) answers the checker's questions for three front ends: the command line, the language server, and the REPL. It keeps source identity, definition sites, diagnostics, and incremental recheck reports, so the three front ends do not run independent checkers that could disagree.
 
 Three user-facing ways to see a diagnostic:
 
@@ -22,7 +22,7 @@ The compiler prints three shapes, and which one you see tells you which part fai
 | `cinch: FILE: LINE:COL: message` | the parser and layout engine | `cinch: Main.cinch: 5:1: expected an expression, found end of input` |
 | `cinch: message` | a whole-module or whole-program rule with no single span | `cinch: main must have type Int or Unit ->{e} Int in the bootstrap slice, got String` |
 
-The checker form comes from `Error`'s `Display` in `compiler/src/lib.rs`, which writes `span: message`, plus `in_module` in `compiler/src/check_decls.rs`, which appends ` (in FILE)`. The REPL wrapper in `compiler/src/repl.rs` prints a fourth, more readable shape for a session input:
+The checker form comes from `Error`'s `Display` in `seed/src/lib.rs`, which writes `span: message`, plus `in_module` in `seed/src/check_decls.rs`, which appends ` (in FILE)`. The REPL wrapper in `seed/src/repl.rs` prints a fourth, more readable shape for a session input:
 
 ```text
 error: no instance for Add Bool
@@ -234,7 +234,7 @@ cargo run --quiet --manifest-path tooling/lsp-driver/Cargo.toml --release -- "$@
 
 ```sh
 #!/bin/sh
-exec /absolute/path/to/compiler/target/debug/cinch lsp
+exec /absolute/path/to/seed/target/debug/cinch lsp
 ```
 
 Two settings notes, both read from the files rather than assumed:

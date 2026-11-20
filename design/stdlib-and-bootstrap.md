@@ -45,7 +45,7 @@ written in Cinch needs. No em dashes.
 6. **Bootstrap milestones (P35)** - the acceptance ladder:
    (1) a Cinch program parses the language's own grammar (P30),
    (2) reads and writes a manifest `.cinchif`-canonically (P31; the
-   base package's own manifest is `compiler/prelude/cinch-base.cinchpkg`,
+   base package's own manifest is `seed/prelude/cinch-base.cinchpkg`,
    the `.cinchpkg` format of design/base-library.md),
    (3) type-checks a fragment (the checker port),
    (4) emits LLVM IR text (the codegen port),
@@ -78,7 +78,7 @@ Cinch artifact, not a claim.
 The ladder's implementation decisions (the artifact layout, the in-type
 spine convention, why a rung runs as an assembled project, the hashing
 boundary and what each rung's evidence must be) are recorded in
-`design/bootstrap-ladder.md`, with `bootstrap/README.md` as the rung-by-rung
+`design/bootstrap-ladder.md`, with `compiler/README.md` as the rung-by-rung
 contract.
 
 ## Sequencing

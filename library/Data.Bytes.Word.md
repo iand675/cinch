@@ -73,4 +73,4 @@ Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= byt
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Word.cinch`. Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Word.cinch`. Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

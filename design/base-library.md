@@ -47,7 +47,7 @@ Ownership rules:
 `Prelude` becomes the re-export facade (D107's `export module X` and
 `export A.b`), with an explicit curation list. The split itself is an
 integration step after the P19 surface slice lands (it owns
-`compiler/prelude/Prelude.cinch` and is renaming functions to dash
+`seed/prelude/Prelude.cinch` and is renaming functions to dash
 style (D106)).
 
 ## The buildout (dispatched)
@@ -122,13 +122,13 @@ private `code-of`.
 ## Packages and the manifest (`.cinchpkg`, user direction 2026-10-29)
 
 Resolution order is data, not code. The embedded family used to be two
-hand-written arrays in `compiler/src/driver.rs` (`PRELUDE_EARLY`,
+hand-written arrays in `seed/src/driver.rs` (`PRELUDE_EARLY`,
 `PRELUDE_LATE`) whose ORDER was load-bearing in four separate ways: the
 fixity thread, eager references in signature types and constraint
 classes, the check/interface order, and the facade parsing first but
 collecting in the middle. Those arrays become one declarative file.
 
-- The file: `compiler/prelude/cinch-base.cinchpkg`, canonical JSON
+- The file: `seed/prelude/cinch-base.cinchpkg`, canonical JSON
   (design/stdlib-and-bootstrap.md fixes canonical JSON as the manifest
   format, and `.cinchif` is the precedent), `schema: 1`.
 - Fields: `name`, `version`, `modules[]` (each `name`, `path`,
@@ -161,7 +161,7 @@ being checked before either. No order of those three can work.
 
 - The idiom: declare the shared inductive types in an INTERNAL family
   module ordered ahead of every home, and have each public home
-  re-export its own type by name. `compiler/prelude/Data/Core.cinch`
+  re-export its own type by name. `seed/prelude/Data/Core.cinch`
   declares `List`, `Option` and `Result` with their constructors and is
   first in the manifest; `Data.List`, `Data.Option` and `Data.Result`
   `import Data.Core` and keep the type names in their `export` lines, so

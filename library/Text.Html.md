@@ -90,4 +90,4 @@ Complete named references may expand: for example, &nLt; produces two scalars an
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Html.cinch`. Source SHA-256: `a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Html.cinch`. Source SHA-256: `a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

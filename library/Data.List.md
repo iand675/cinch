@@ -546,4 +546,4 @@ Category.Traversable).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/List.cinch`. Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/List.cinch`. Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

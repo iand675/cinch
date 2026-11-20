@@ -63,7 +63,7 @@ def checks(group: str, rows: list[dict]) -> list[str]:
 
 def consumer(expressions: list[str], extra: str = "") -> str:
     """Keep source batches bounded and every large construction count opaque at runtime."""
-    source = (ROOT/'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text()+'\n'+extra
+    source = (ROOT/'seed/tests/fixtures/string-construction-consumer.cinchpart').read_text()+'\n'+extra
     names = []
     for first in range(0,len(expressions),64):
         name = f'checks{first//64}'; names.append(name+' ()')
@@ -102,7 +102,7 @@ def main() -> None:
     """Compile explicit source epochs and run bounded normal and poisoned ownership observations."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
-    parser.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch')
+    parser.add_argument('--module-source',type=Path,default=ROOT/'seed/prelude/Data/String.cinch')
     parser.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -111,7 +111,7 @@ def main() -> None:
     parser.add_argument('--first',type=int,default=0)
     parser.add_argument('--limit',type=int)
     args = parser.parse_args()
-    fixture_path=ROOT/'compiler/tests/fixtures/string-construction-vectors.json'
+    fixture_path=ROOT/'seed/tests/fixtures/string-construction-vectors.json'
     fixture=json.loads(fixture_path.read_text())
     report={'compiler_sha256':digest(args.compiler),'epoch':args.epoch,'string_source_sha256':digest(args.module_source),'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'native_base_validation_claimed':False,'results':[]}
     for group in args.groups:

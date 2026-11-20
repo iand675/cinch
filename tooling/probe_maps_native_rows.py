@@ -11,7 +11,7 @@ from validate_maps import ROOT, digest, execute
 
 
 def main() -> None:
-    """Check immutable tiny sources with an explicit native compiler/interface tuple and no linking."""
+    """Check immutable tiny sources with an explicit native seed/interface tuple and no linking."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--interfaces", type=Path, required=True)
@@ -29,7 +29,7 @@ def main() -> None:
               "interfaces_sha256": digest(interfaces), "runner_sha256": digest(Path(__file__)),
               "runtime_consumer_executed": False, "linked": False, "cpu_affinity": [args.cpu],
               "cases": [], "status": "running"}
-    variable_module = ROOT / "compiler/prelude/Data/Mutable/Var.cinch"
+    variable_module = ROOT / "seed/prelude/Data/Mutable/Var.cinch"
     report["support_source_sha256"] = {"Data.Mutable.Var": digest(variable_module)}
     environment = {**os.environ, "CINCH_LEAK_CHECK": "1", "CINCH_RC_DEBUG": "0"}
     try:
@@ -40,7 +40,7 @@ def main() -> None:
             directory = (args.artifacts / name).resolve()
             directory.mkdir(parents=True, exist_ok=True)
             source = directory / "Main.cinch"
-            source.write_bytes((ROOT / "compiler/tests/fixtures" / fixture).read_bytes())
+            source.write_bytes((ROOT / "seed/tests/fixtures" / fixture).read_bytes())
             bundle = directory / "Bundle.cinch"
             bundle.write_bytes(variable_module.read_bytes() + b"\n\n" + source.read_bytes())
             prefix = directory / "checked"

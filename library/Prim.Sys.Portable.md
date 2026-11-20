@@ -141,4 +141,4 @@ module answers already failed at the boundary.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Portable.cinch`. Source SHA-256: `2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Prim/Sys/Portable.cinch`. Source SHA-256: `2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

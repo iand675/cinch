@@ -65,7 +65,7 @@ module Effect.Clock where
   monotonic-elapsed :: Nat -> Nat -> Duration
   monotonic-elapsed t0 t1 = Duration (saturating-sub t1 t0 / 1000000)
 
-  -- The runtime clock words behind the capability (`compiler/runtime/
+  -- The runtime clock words behind the capability (`seed/runtime/
   -- src/platform.rs`, the `cinch_clock_*` externs). Both readings are
   -- clamped by the runtime to `0..=i64::MAX` (a duration since the
   -- origin or the epoch, saturated; a wall clock before the epoch reads

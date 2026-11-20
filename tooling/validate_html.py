@@ -27,13 +27,13 @@ def digest(path: Path) -> str:
 
 def consumer() -> str:
     """Render independent expected bytes into a compact NUL-delimited runtime fixture stream."""
-    fixture = json.loads((ROOT / "compiler/tests/fixtures/html-vectors.json").read_text())
+    fixture = json.loads((ROOT / "seed/tests/fixtures/html-vectors.json").read_text())
     fields = "".join(row["input"] + "\0" + row["escaped"] + "\0" + row["unescaped"] + "\0" for row in fixture["rows"])
     literal = json.dumps(fields).replace("\\u0000", "\\u{0}")
     checks = []
     for row in fixture["long"]:
         checks.append("long-case " + " ".join(str(row[key]) for key in ("size", "mode", "input_hash", "escaped_size", "escaped_hash", "unescaped_size", "unescaped_hash")))
-    template = (ROOT / "compiler/tests/fixtures/html-consumer.cinch.in").read_text()
+    template = (ROOT / "seed/tests/fixtures/html-consumer.cinch.in").read_text()
     return template.replace("__ROWS__", literal).replace("__LONG__", ",\n      ".join(checks))
 
 
@@ -49,7 +49,7 @@ def source_closure(project: Path) -> list[Path]:
         if name in found or name in embedded:
             continue
         found.add(name)
-        path = ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")
+        path = ROOT / "seed/prelude" / (name.replace(".", "/") + ".cinch")
         source = path.read_text()
         destination = project / f"{name}.cinch"
         destination.write_text(source)
@@ -101,8 +101,8 @@ def main() -> None:
         if result.returncode != 0 or "leaked=0" not in result.stderr:
             raise RuntimeError(f"debug={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}")
         runs.append({"debug_poisoning": debug, "heap_limit": environment["CINCH_HEAP_LIMIT"], "stack_limit": "8M", "elapsed_seconds": time.monotonic() - started, "stdout": result.stdout, "stderr": result.stderr})
-    fixture = json.loads((ROOT / "compiler/tests/fixtures/html-vectors.json").read_text())
-    report = {"frontend": args.frontend, "cpu_affinity": [args.cpu], "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/html-vectors.json"), "fixture_rows": len(fixture["rows"]), "large_pipeline_rows": len(fixture["long"]), "intentional_reference_differences": sum(row["full_html5_expansion"] for row in fixture["rows"]), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
+    fixture = json.loads((ROOT / "seed/tests/fixtures/html-vectors.json").read_text())
+    report = {"frontend": args.frontend, "cpu_affinity": [args.cpu], "compiler_sha256": digest(compiler), "compiler_command": command, "compile_seconds": elapsed, "sources": {path.name: digest(path) for path in inputs}, "fixture_sha256": digest(ROOT / "seed/tests/fixtures/html-vectors.json"), "fixture_rows": len(fixture["rows"]), "large_pipeline_rows": len(fixture["long"]), "intentional_reference_differences": sum(row["full_html5_expansion"] for row in fixture["rows"]), "executable_sha256": digest(executable), "runs": runs, "all_passed": True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"{args.frontend}: {len(fixture['rows'])} exact rows and {len(fixture['long'])} large pipelines passed both memory modes", flush=True)

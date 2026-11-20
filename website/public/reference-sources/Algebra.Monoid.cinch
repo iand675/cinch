@@ -12,7 +12,7 @@
 -- dictionary carries the identity value directly, so call sites write
 -- `mempty`.
 --
--- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+-- Laws (asserted over sample values in seed/tests/lib_algebra.rs):
 --   left unit:  mempty <> x == x
 --   right unit: x <> mempty == x
 -- plus associativity of `<>` from Algebra.Semigroup.

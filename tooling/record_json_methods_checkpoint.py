@@ -14,17 +14,17 @@ receipts={};common=None;processes=0
 for stage,fixture in selected:
     for frontend in ['rust','native']:
         suffix='native-v1' if frontend=='native' else 'rust-v1'
-        path=f'bootstrap/evidence/stdlib/stdlib-json-{stage}-{suffix}-results.json'
+        path=f'compiler/evidence/stdlib/stdlib-json-{stage}-{suffix}-results.json'
         report=load(path)
         assert report['status']=='passed',path
         assert report['compiler_sha256']==(native_sha if frontend=='native' else rust_sha),path
         assert report['observed_runtime_archive_sha256']==(runtime_native if frontend=='native' else runtime_rust),path
-        assert report['fixture_sha256']==digest(ROOT/'compiler/tests/fixtures'/fixture),path
+        assert report['fixture_sha256']==digest(ROOT/'seed/tests/fixtures'/fixture),path
         assert report['opt_level']==2 and report['cpu_affinity']==[2] and report['consumer_stack_limit']=='8M',path
         assert report['artifact_bytes']<=20*1024*1024,path
         if common is None:common=report['sources']
         assert report['sources']==common,path
-        for name,expected in report['sources'].items():assert digest(ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch'))==expected,(path,name)
+        for name,expected in report['sources'].items():assert digest(ROOT/'seed/prelude'/(name.replace('.','/')+'.cinch'))==expected,(path,name)
         assert len(report['runs'])==2,path
         for poisoned,run in zip([False,True],report['runs']):
             assert run['poisoned_free_validation']==poisoned and run['heap_limit']==('256M' if poisoned else '32M'),path
@@ -45,7 +45,7 @@ docs={}
 for name in ['Value','Codec','Dynamic','Binary32','Legacy']:
     folder='json-method-protocol-docs-v1' if name in {'Value','Codec','Dynamic'} else 'json-dynamic-docs'
     path=ROOT/'build'/folder/(name+'.json');doc=json.loads(path.read_text())
-    assert doc['sourceSha256']==digest(ROOT/f'compiler/prelude/Text/Json/{name}.cinch')
+    assert doc['sourceSha256']==digest(ROOT/f'seed/prelude/Text/Json/{name}.cinch')
     assert not doc['diagnostics'] and not doc['orphans']
     rows=list(walk(doc['declarations']))
     for row in rows:
@@ -53,15 +53,15 @@ for name in ['Value','Codec','Dynamic','Binary32','Legacy']:
         assert not re.search(r'\b(?:Go|Golang|Rust|Python)\b|C\+\+',row['doc']['markdown']),row['id']
     docs[name]={'source_sha256':doc['sourceSha256'],'canonical_declarations':len(rows),'doc_sha256':digest(path)}
 assert sum(row['canonical_declarations'] for row in docs.values())==801
-v1=load('compiler/tests/fixtures/json-codec-methods-vectors.json');v2=load('compiler/tests/fixtures/json-codec-methods-vectors-v2.json')
+v1=load('seed/tests/fixtures/json-codec-methods-vectors.json');v2=load('seed/tests/fixtures/json-codec-methods-vectors-v2.json')
 assert sum(map(len,v1.values()))==1160 and sum(map(len,v2.values()))==1464
 for name,rows in v1.items():
     projected=[{**row,'error':{key:value for key,value in row['error'].items() if key!='json_kind'}} for row in v2[name][:len(rows)]]
     assert rows==projected,name
-pending=load('compiler/tests/fixtures/json-codec-addressability-pending.json')
+pending=load('seed/tests/fixtures/json-codec-addressability-pending.json')
 assert len(pending['rows'])==1 and pending['rows'][0]['error']['cause']=='invalid use of `string` tag option'
-plan=load('bootstrap/evidence/stdlib/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92
+plan=load('compiler/evidence/stdlib/stdlib-json-capability-plan.json');assert plan['reference_declarations']==92 and len(plan['declarations'])==92
 assert plan['status'].startswith('partial-')
 report={'description':'Partial independent method/addressability/semantic ownership checkpoint; full92 remains open','source_sha256':common,'compiler_epochs':{'rust':rust_sha,'native':native_sha},'runtime_epochs':{'rust':runtime_rust,'native':runtime_native},'receipts':receipts,'bounded_memory_processes':processes,'canonical_docs':docs,'canonical_declarations':801,'independent_observations':1464,'original_observations_preserved':1160,'tested_increment':'Protocol7 +directional5/metadata-owner3 +79 successful addressability output/callback-count rows and typed-interface boundary, each on both exact frontends','mandatory_pending_descriptor_error_rows':1,'remaining':['Full builtin/descriptor error reporting and application field/record metadata','Complete method nil-interface/object-key adaptations and remaining1464 outcomes','Malformed-input partial updates with reporting disabled','Bounded Effect.Json with shared streaming operation checkpoints and advanced handles','Paired public pipeline benchmarks/lowering and final92-record reconciliation'],'performance_claim':None}
-output=ROOT/'bootstrap/evidence/stdlib/stdlib-json-methods-checkpoint.json';output.write_text(json.dumps(report,indent=2)+'\n')
+output=ROOT/'compiler/evidence/stdlib/stdlib-json-methods-checkpoint.json';output.write_text(json.dumps(report,indent=2)+'\n')
 print(f'PASS: partial methods checkpoint, {processes} bounded processes,801 canonical declarations; full92 remains open.')

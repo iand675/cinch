@@ -62,7 +62,7 @@ module Data.Bytes where
   foreign import ccall "cinch.runtime.bytesCompare" bytes-compare :: Bytes -> Bytes -> I64
 
   -- SHA-256 (FIPS 180-4) at content-addressing strength over a
-  -- buffer (the P31 content identity; `compiler/runtime/src/text.rs`,
+  -- buffer (the P31 content identity; `seed/runtime/src/text.rs`,
   -- the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
   -- digest as a fresh 32-byte buffer.
   foreign import ccall "cinch.runtime.textSha256" sha256-bytes :: Bytes -> Bytes

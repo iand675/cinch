@@ -155,4 +155,4 @@ Continue a finished 64-bit FNV-1a hash with more bytes; an empty update preserve
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Fnv.cinch`. Source SHA-256: `54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Fnv.cinch`. Source SHA-256: `54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

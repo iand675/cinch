@@ -12,7 +12,7 @@ from generate_byte_split_vectors import crosscheck
 from validate_byte_view import digest, run
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-split-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-split-vectors.json'
 
 
 def expression(row: dict) -> str:
@@ -23,7 +23,7 @@ def expression(row: dict) -> str:
 
 def consumer(checks: list[str], width: int) -> str:
     """Choose bounded memory processes without changing the runtime's fixed heap limits."""
-    text = (ROOT / 'compiler/tests/fixtures/byte-split-consumer.cinchpart').read_text()
+    text = (ROOT / 'seed/tests/fixtures/byte-split-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0, len(checks), width)):
         number = first // width
@@ -34,11 +34,11 @@ def consumer(checks: list[str], width: int) -> str:
 
 
 def main() -> None:
-    """Identify exact compiler/provider/runtime epochs and retain every failed command's diagnostics."""
+    """Identify exact seed/provider/runtime epochs and retain every failed command's diagnostics."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, required=True)
-    parser.add_argument('--module-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/Split.cinch')
-    parser.add_argument('--view-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/View.cinch')
+    parser.add_argument('--module-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/Split.cinch')
+    parser.add_argument('--view-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/View.cinch')
     parser.add_argument('--runtime-archive', type=Path, required=True)
     parser.add_argument('--native-interfaces', type=Path)
     parser.add_argument('--native-objects', type=Path)
@@ -84,7 +84,7 @@ def main() -> None:
         if group == 'progress':
             module_source = work / 'private-source' / 'Data.Bytes.Split.cinch'
             module_source.parent.mkdir(parents=True, exist_ok=True)
-            hook = ROOT / 'compiler/tests/fixtures/byte-split-private-progress.cinchpart'
+            hook = ROOT / 'seed/tests/fixtures/byte-split-private-progress.cinchpart'
             module_source.write_text(args.module_source.read_text() + hook.read_text())
             report['test_only_private_progress_hook_sha256'] = digest(hook)
         deps = source_closure(text, {'Data.Bytes.Split':module_source, 'Data.Bytes.View':args.view_source})

@@ -48,7 +48,7 @@ def main() -> None:
                   'scope': 'Actual entropy, wall clock and serialized V7 state; invariant equality only; payload fingerprints may differ.'}
         identity.write_text(json.dumps(report, indent=2) + '\n')
         for module in MODULES:
-            path = ROOT / 'experiments/uuid-candidate-v1/sources' / (module + '.cinch') if module in ('Data.Uuid', 'Effect.Uuid') else ROOT / 'compiler/prelude' / (module.replace('.', '/') + '.cinch')
+            path = ROOT / 'experiments/uuid-candidate-v1/sources' / (module + '.cinch') if module in ('Data.Uuid', 'Effect.Uuid') else ROOT / 'seed/prelude' / (module.replace('.', '/') + '.cinch')
             (directory / (module + '.cinch')).write_bytes(path.read_bytes())
         entry = directory / 'Main.cinch'
         entry.write_bytes((ROOT / 'tooling/data/uuid-generation-benchmark.cinch').read_bytes())

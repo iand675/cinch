@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT/'compiler/tests/fixtures/byte-fields-vectors.json'
+FIXTURE = ROOT/'seed/tests/fixtures/byte-fields-vectors.json'
 SPACE = frozenset([*range(9,14),32,133,160,5760,*range(8192,8203),8232,8233,8239,8287,12288])
 
 

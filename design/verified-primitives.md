@@ -131,9 +131,9 @@ independent of reclamation:
 - Where this plugs in: specialization's justification rule
   (`design/layouts-and-specialization.md` section 7) uses these proofs; the
   prims whose laws need discharging are the `cinch.prim.*` intrinsics
-  (`PrimOp::Arith/Shift/Bit/Cmp` in `compiler/src/core.rs`), lowered inline to
+  (`PrimOp::Arith/Shift/Bit/Cmp` in `seed/src/core.rs`), lowered inline to
   LLVM instructions and `llvm.*` intrinsics (`llvm.sadd.with.overflow.i64`
-  and friends) in `compiler/src/codegen.rs`.
+  and friends) in `seed/src/codegen.rs`.
 - Prior art to read first: Lean's `bv_decide` architecture (bit-blasting
   verified in Lean, CaDiCaL, a verified LRAT checker, the compiled-check
   axiom), [Alive2](https://users.cs.utah.edu/~regehr/alive2-pldi21.pdf)

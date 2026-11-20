@@ -133,4 +133,4 @@ Write one minimal signed zigzag varint, preserving accepted-byte progress and th
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Binary.cinch`. Source SHA-256: `ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Binary.cinch`. Source SHA-256: `ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

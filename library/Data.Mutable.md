@@ -2232,4 +2232,4 @@ reallocation.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable.cinch`. Source SHA-256: `6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable.cinch`. Source SHA-256: `6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

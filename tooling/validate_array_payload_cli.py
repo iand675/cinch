@@ -11,7 +11,7 @@ import resource
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/nested-array-positivity-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/nested-array-positivity-vectors.json'
 
 
 def digest(path: Path) -> str:

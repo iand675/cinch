@@ -45,7 +45,7 @@ def main() -> None:
     work.mkdir(parents=True, exist_ok=False)
     initial = shutil.disk_usage(work).free
     if initial < 350 * 1024 * 1024:
-        (work / 'resource-pause.json').write_text(json.dumps({'phase': 'before any compiler/output preparation',
+        (work / 'resource-pause.json').write_text(json.dumps({'phase': 'before any seed/output preparation',
             'free_bytes': initial, 'required_initial_bytes': 350*1024*1024, 'compiler_started': False}) + '\n')
         raise RuntimeError('350 MiB initial guard')
     os.sched_setaffinity(0, {args.cpu})

@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def source()->str:
     """Extract exact implementation fragments rather than reimplementing their behavior in tests."""
-    text=(ROOT/'compiler/prelude/Text/Binary/Layout.cinch').read_text()
+    text=(ROOT/'seed/prelude/Text/Binary/Layout.cinch').read_text()
     out='-- | Isolated binary-layout packed, bitcast and exact-load kernels.\nmodule Main where\n  import Data.Machine\n  import Data.Bool\n  import Data.Bytes\n  import Data.Nat\n'
     for begin,end in [
         ('  -- | Select target endianness at compilation','  -- | Resolve explicit or target-native'),
@@ -20,7 +20,7 @@ def source()->str:
         ('  -- | Observe all binary32','  -- | One bit-preserving binary32'),
         ('  -- | Pack four low byte lanes','  -- | Resolve the packed little-endian')]:
         start=text.index(begin);finish=text.index(end,start);out+=text[start:finish]
-    return out+(ROOT/'compiler/tests/fixtures/binary-layout-kernel-entry.cinchpart').read_text()
+    return out+(ROOT/'seed/tests/fixtures/binary-layout-kernel-entry.cinchpart').read_text()
 
 
 def run(command:list[str])->None:

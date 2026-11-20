@@ -2,8 +2,8 @@
 --
 -- `hash` maps a key to a `Nat` bucket digest. The class law is
 -- consistency with `Eq` (asserted over sample values in
--- compiler/tests/prelude_split.rs, and over every shipped key type
--- in compiler/tests/lib_hash_keys.rs):
+-- seed/tests/prelude_split.rs, and over every shipped key type
+-- in seed/tests/lib_hash_keys.rs):
 --   x == y implies hash x == hash y
 -- Equality without a common hash is a broken key, so every keyed
 -- structure states both constraints (Data.HashMap does).

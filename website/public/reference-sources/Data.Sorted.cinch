@@ -15,7 +15,7 @@
 -- The instance below is the sorted MERGE, not list append: append of
 -- two sorted lists is not sorted in general, so the container's `<>`
 -- does NOT transfer (the preservation law rejects it naming
--- `Sorted.preserve-<>`; asserted in compiler/tests/refinements.rs,
+-- `Sorted.preserve-<>`; asserted in seed/tests/refinements.rs,
 -- together with the deliberately non-preserving reverse-append).
 module Data.Sorted where
 

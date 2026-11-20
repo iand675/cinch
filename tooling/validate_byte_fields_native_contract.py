@@ -32,7 +32,7 @@ def main() -> None:
         assert digest(file) == context['tuple_files'][str(file.resolve())]
     work = args.artifacts.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    fixture = ROOT/'compiler/tests/fixtures'/('byte-fields-row-negative.cinch' if args.negative else 'byte-fields-row-positive.cinch')
+    fixture = ROOT/'seed/tests/fixtures'/('byte-fields-row-negative.cinch' if args.negative else 'byte-fields-row-positive.cinch')
     source = fixture.read_text()
     entry = work/'Main.cinch'
     entry.write_text(source)

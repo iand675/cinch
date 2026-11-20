@@ -39,7 +39,7 @@ def main() -> None:
     os.sched_setaffinity(0, {4})
     resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
     old_root = Path('/workspace/dasl-stdlib-ring-positivity')
-    receipt = old_root / 'bootstrap/evidence/other/sealed-array-positivity-context-validation-results.json'
+    receipt = old_root / 'compiler/evidence/other/sealed-array-positivity-context-validation-results.json'
     assert digest(receipt) == '59e5b7944da19d0b8b847ff2aed8bef75065673af5e3d8ee4eaf885ff2230c06'
     description = json.loads(receipt.read_text())
     variants = description['variants']

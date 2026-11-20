@@ -47,7 +47,7 @@ module Data.Mutable.Vec where
   export vec-reverse, vec-sort, vec-sort-by, vec-freeze, vec-from-array
 
   -- ------------------------------------------------------------------
-  -- The trusted core (compiler/src/slots.rs). Private.
+  -- The trusted core (seed/src/slots.rs). Private.
   -- ------------------------------------------------------------------
 
   foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a

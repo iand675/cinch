@@ -8,7 +8,7 @@ import subprocess
 import os
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-split-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-split-vectors.json'
 
 
 def recipes() -> list[dict]:

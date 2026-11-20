@@ -306,4 +306,4 @@ Begin a fresh persistent traversal over complete input and raw separator buffers
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Split.cinch`. Source SHA-256: `2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Split.cinch`. Source SHA-256: `2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

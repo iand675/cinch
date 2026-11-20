@@ -207,7 +207,7 @@ def main() -> None:
     """Run one explicit SDK generator or independently verify already committed bytes."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--go", type=Path)
-    parser.add_argument("--output", type=Path, default=ROOT / "compiler/tests/fixtures/multipart-vectors.json")
+    parser.add_argument("--output", type=Path, default=ROOT / "seed/tests/fixtures/multipart-vectors.json")
     parser.add_argument("--cache", type=Path, default=Path("/tmp/cinch-mime-go-cache"))
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--cpu", type=int)

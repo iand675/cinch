@@ -69,7 +69,7 @@ keywise addition of the counts, so
   agreement:     `coverage-total c` is the sum of the counts
                  `coverage-counts` reports.
 The test asserts all three over sample recorders
-(compiler/tests/lib_coverage.rs). Commutativity also holds (addition
+(seed/tests/lib_coverage.rs). Commutativity also holds (addition
 and the map union are symmetric) and is checked there, but it is not
 the law anything depends on: only the keywise sum is observable.
 
@@ -185,4 +185,4 @@ The sum of every count: the number of hits recorded.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Coverage.cinch`. Source SHA-256: `62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Coverage.cinch`. Source SHA-256: `62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

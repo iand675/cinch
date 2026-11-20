@@ -575,4 +575,4 @@ Retain an explicitly checked half-open owner range, including empty ranges at th
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/View.cinch`. Source SHA-256: `3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/View.cinch`. Source SHA-256: `3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

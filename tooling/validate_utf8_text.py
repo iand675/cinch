@@ -30,7 +30,7 @@ def source_closure(project: Path, main: Path, facade: Path, embedded: set[str]) 
         name = pending.pop()
         if name in embedded or name in found: continue
         found.add(name)
-        original = facade if name == 'Text.Utf8' else ROOT / 'compiler/prelude' / (name.replace('.', '/') + '.cinch')
+        original = facade if name == 'Text.Utf8' else ROOT / 'seed/prelude' / (name.replace('.', '/') + '.cinch')
         target = project / (name + '.cinch'); target.write_bytes(original.read_bytes()); paths.append(target)
         pending.extend(re.findall(r'^\s*import\s+([A-Za-z0-9_.]+)', target.read_text(), re.M))
     if (project / 'Data.String.cinch').exists(): raise ValueError('Refusing embedded String source shadow')
@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument('--provider', type=Path, required=True)
     parser.add_argument('--interfaces', type=Path, required=True)
     parser.add_argument('--objects', type=Path, required=True)
-    parser.add_argument('--facade-source', type=Path, default=ROOT / 'compiler/prelude/Text/Utf8.cinch')
+    parser.add_argument('--facade-source', type=Path, default=ROOT / 'seed/prelude/Text/Utf8.cinch')
     parser.add_argument('--consumer-source', type=Path, help='A standalone public control consumer instead of the reference corpus')
     parser.add_argument('--provisional', action='store_true', help='This consumer is part of the still-running combined artifact gate')
     parser.add_argument('--cpu', type=int, default=2)
@@ -105,7 +105,7 @@ def main() -> None:
         if result.returncode or 'leaked=0' not in result.stderr:
             raise RuntimeError(f'group={selection}, poisoned={poisoned}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
         runs.append({'group': selection, 'poisoned': poisoned, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M', 'seconds': time.monotonic() - started, 'stderr': result.stderr})
-    report = {'frontend': args.frontend, 'provisional_combined_gate': args.provisional, 'source_shadow_used': False, 'opt_level': args.opt_level, 'compiler': str(args.compiler.resolve()), 'compiler_sha256': digest(args.compiler), 'producer': producer['producer'], 'runtime': str(args.runtime.resolve()), 'runtime_sha256': digest(args.runtime), 'provider_sha256': digest(args.provider), 'interfaces_sha256': digest(args.interfaces), 'objects_sha256': digest(args.objects), 'object_sha256': objects['object_sha256'], 'metadata_sha256': objects['metadata_sha256'], 'string_source_sha256': digest(string_source), 'string_source_hash': STRING_SOURCE_HASH, 'string_interface_hash': str(matched[0][1]), 'string_interface_sha256': digest(string_interface), 'sources': {path.name: digest(path) for path in sources}, 'fixture_sha256': digest(args.consumer_source if args.consumer_source else ROOT / 'compiler/tests/fixtures/utf8-text-vectors.json'), 'llvm_sha256': digest(ir), 'executable_sha256': digest(executable), 'compile_command': command, 'link_command': link, 'compiler_host_stack_mib': 64, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.group is None and args.consumer_source is None, 'consumer_kind': 'controls' if args.consumer_source else '804 SDK observations', 'runs': runs, 'all_passed': True}
+    report = {'frontend': args.frontend, 'provisional_combined_gate': args.provisional, 'source_shadow_used': False, 'opt_level': args.opt_level, 'compiler': str(args.compiler.resolve()), 'compiler_sha256': digest(args.compiler), 'producer': producer['producer'], 'runtime': str(args.runtime.resolve()), 'runtime_sha256': digest(args.runtime), 'provider_sha256': digest(args.provider), 'interfaces_sha256': digest(args.interfaces), 'objects_sha256': digest(args.objects), 'object_sha256': objects['object_sha256'], 'metadata_sha256': objects['metadata_sha256'], 'string_source_sha256': digest(string_source), 'string_source_hash': STRING_SOURCE_HASH, 'string_interface_hash': str(matched[0][1]), 'string_interface_sha256': digest(string_interface), 'sources': {path.name: digest(path) for path in sources}, 'fixture_sha256': digest(args.consumer_source if args.consumer_source else ROOT / 'seed/tests/fixtures/utf8-text-vectors.json'), 'llvm_sha256': digest(ir), 'executable_sha256': digest(executable), 'compile_command': command, 'link_command': link, 'compiler_host_stack_mib': 64, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.group is None and args.consumer_source is None, 'consumer_kind': 'controls' if args.consumer_source else '804 SDK observations', 'runs': runs, 'all_passed': True}
     args.output.parent.mkdir(parents=True, exist_ok=True); args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{args.frontend} O{args.opt_level} text adapters passed {len(runs)} bounded-memory runs', flush=True)
 

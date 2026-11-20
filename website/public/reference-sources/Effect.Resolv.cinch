@@ -1,6 +1,6 @@
 -- Effect.Resolv: name resolution as typed addresses, over the
 -- resolution intrinsic (`Effect.Net`'s `net-resolve`, the runtime's
--- `cinch_net_resolve` in `compiler/runtime/src/net.rs`). The boundary
+-- `cinch_net_resolve` in `seed/runtime/src/net.rs`). The boundary
 -- answers one `<ip>:<port>` line per resolved address; this home is
 -- the DNS vocabulary over those lines, parsing each into a
 -- `Data.IpAddr` address paired with its port, so a caller holds
@@ -74,7 +74,7 @@ module Effect.Resolv where
 
   -- What went wrong, named. The four shared platform names are the
   -- boundary's own vocabulary (`Effect.Net`'s `NetError`, the codes
-  -- `compiler/runtime/src/platform.rs` shares across the externs);
+  -- `seed/runtime/src/platform.rs` shares across the externs);
   -- `ResolvMalformedAnswer` is this home's extra name for a line the
   -- boundary returned that is not a well-formed `<ip>:<port>`, which a
   -- well-behaved boundary never produces but which this parser refuses

@@ -31,7 +31,7 @@ path). Failures are NAMED `ProcessError` values in a `Result` (the
 house style), never faults.
 
 Two boundary conventions live here, both in
-`compiler/runtime/src/platform.rs`: the one-shot `cinch_proc_*`/
+`seed/runtime/src/platform.rs`: the one-shot `cinch_proc_*`/
 `cinch_buf_*` externs are plain `foreign import ccall` declarations
 whose paths, arguments and output cross through runtime word buffers
 one byte at a time (see Effect.Fs's bridge), while the live-child
@@ -46,7 +46,7 @@ This module also closes the argv gap that made a real bootstrap tool
 impossible: `cinch_argv_*` (`cinch_argv_init`, then
 `cinch_argv_count`/`cinch_argv_get`) is THIS process's own command
 line, captured by the generated entry glue BEFORE any program code
-runs (the native `@main` of `compiler/src/codegen.rs`), and
+runs (the native `@main` of `seed/src/codegen.rs`), and
 `process-args` is the binding a program reads it with. The capture
 mirrors the operating system exactly: word 0 is the program name and
 the count includes it, so `process-args` reports the words AFTER the
@@ -287,4 +287,4 @@ named error. The child inherits this process's environment plus
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Process.cinch`. Source SHA-256: `08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Process.cinch`. Source SHA-256: `08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

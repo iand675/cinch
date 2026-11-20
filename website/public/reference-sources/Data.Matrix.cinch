@@ -15,7 +15,7 @@
 --
 -- The laws the surface must satisfy (the Ruby behaviours pinned in the
 -- parity note, asserted consumer-side in
--- compiler/tests/lib_matrix.rs): `identity n * m == m` for an
+-- seed/tests/lib_matrix.rs): `identity n * m == m` for an
 -- n-column m, `(a * b).transpose == b.transpose * a.transpose`,
 -- `determinant (identity n) == 1`, and a singular matrix has
 -- determinant 0 within a documented tolerance.

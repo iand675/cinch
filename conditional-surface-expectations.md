@@ -1,11 +1,11 @@
 # `conditional_surface` expectations
 
-What each of the 20 tests in `compiler/tests/conditional_surface.rs` needs, and
+What each of the 20 tests in `seed/tests/conditional_surface.rs` needs, and
 whether the staged CLI can meet it. Written before the layer compiles, so the
 list is a prediction to be checked against the first green build rather than a
 description written after the fact. Every claim marked `[INFERENCE]` is a
 prediction; everything unmarked is read off the test source, the pinned
-interface set, or `bootstrap/*.cinch`.
+interface set, or `compiler/*.cinch`.
 
 State at the time of writing: 2 passed, 19 failed (the 2 are
 `a_multi_clause_definition_is_one_definition` and
@@ -25,7 +25,7 @@ disjointness, target view) plus `MacroCall`'s parse layer (`DConditional`,
 
 **B. Package manifests.** A `.cinchpkg` whose `select` entries name modules
 per `when: {os: [...]}` condition. The staged pipeline never opens a
-`.cinchpkg`: `grep -c cinchpkg bootstrap/*.cinch` is zero across every module.
+`.cinchpkg`: `grep -c cinchpkg compiler/*.cinch` is zero across every module.
 Module availability from a manifest is therefore absent, not merely
 target-blind, and no amount of `when` support substitutes for it.
 
@@ -41,7 +41,7 @@ three conditional imports. In the staged CLI it arrives as a pinned
 `.cinchif` built on this host, so its recorded surface and imports are the
 host's (Darwin), whatever target is requested. Re-deriving it per target needs
 the prelude *sources* in the compiler, which `collect_compiler_sources` does
-not bundle: it takes `bootstrap/*.cinch` and five `Text.*` modules only.
+not bundle: it takes `compiler/*.cinch` and five `Text.*` modules only.
 
 ## Per test
 

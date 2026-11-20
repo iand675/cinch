@@ -133,4 +133,4 @@ Append `x`. Never waits.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stm/TQueue.cinch`. Source SHA-256: `706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TQueue.cinch`. Source SHA-256: `706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

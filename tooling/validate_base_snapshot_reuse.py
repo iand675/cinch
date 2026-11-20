@@ -53,7 +53,7 @@ def main() -> None:
             observation(key + '-mismatch', wrong, expected)
         for key in source_keys:
             wrong = copy.deepcopy(original)
-            selected = 'compiler/src/codegen.rs' if 'compiler/src/codegen.rs' in wrong[key] else next(iter(wrong[key]))
+            selected = 'seed/src/codegen.rs' if 'seed/src/codegen.rs' in wrong[key] else next(iter(wrong[key]))
             wrong[key][selected] = '0' * 64
             observation(key + '-mismatch', wrong, 'source claim mismatch')
         selected = source_keys[0]
@@ -75,7 +75,7 @@ def main() -> None:
         wrong['source_sha256'][first] = '0' * 64
         observation('source-maps-conflict', wrong, 'conflicting qualified snapshot source claims')
         wrong = copy.deepcopy(original)
-        wrong[selected]['compiler/src/absent-snapshot-file.rs'] = '0' * 64
+        wrong[selected]['seed/src/absent-snapshot-file.rs'] = '0' * 64
         observation('source-claim-outside-commit', wrong, 'source claim mismatch')
         if 'rust_source_manifest_sha256' in original:
             wrong = copy.deepcopy(original)
@@ -96,14 +96,14 @@ def main() -> None:
 
         retained_root = bootstrap.ROOT
         local = directory / 'lane'
-        prelude = local / 'compiler/prelude'
+        prelude = local / 'seed/prelude'
         prelude.mkdir(parents=True)
-        package_path = retained_root / 'compiler/prelude/cinch-base.cinchpkg'
+        package_path = retained_root / 'seed/prelude/cinch-base.cinchpkg'
         shutil.copy2(package_path, prelude / package_path.name)
         for module in bootstrap.read_json(package_path)['modules']:
             destination = prelude / module['path']
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(retained_root / 'compiler/prelude' / module['path'], destination)
+            shutil.copy2(retained_root / 'seed/prelude' / module['path'], destination)
         bootstrap.ROOT = local
         try:
             for name in ('cinch-base.cinchpkg', 'Data/String.cinch'):

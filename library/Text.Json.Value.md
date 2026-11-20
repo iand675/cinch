@@ -1348,4 +1348,4 @@ The invariant exact integer-zero number, usable as a total descriptor default.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Value.cinch`. Source SHA-256: `a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Value.cinch`. Source SHA-256: `a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

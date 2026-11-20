@@ -293,4 +293,4 @@ the direct shift register. Reuse crc64-table-update to amortize table setup.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Crc64.cinch`. Source SHA-256: `a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Crc64.cinch`. Source SHA-256: `a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

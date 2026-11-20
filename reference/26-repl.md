@@ -233,7 +233,7 @@ A command starts with `:` at a fresh prompt. Its argument is Cinch source or a m
 | `:help` | `:h` | Print the command line. |
 | `:quit` | `:q` | End the session. |
 
-The alias list is read from the dispatch in `compiler/src/repl.rs`. An unknown command prints `error: unknown command :frobnicate` and leaves the session usable:
+The alias list is read from the dispatch in `seed/src/repl.rs`. An unknown command prints `error: unknown command :frobnicate` and leaves the session usable:
 
 ```text
 :frobnicate
@@ -430,7 +430,7 @@ error: unknown name nope
 
 # The full-screen frontend
 
-Everything in this section is read from `compiler/src/repl_tui.rs`. The recorded sessions above exercised the line loop, not the terminal frontend, so treat the layout and key table as a description of the code rather than as output you have seen on this page.
+Everything in this section is read from `seed/src/repl_tui.rs`. The recorded sessions above exercised the line loop, not the terminal frontend, so treat the layout and key table as a description of the code rather than as output you have seen on this page.
 
 Startup takes the terminal: raw mode, the alternate screen, and bracketed paste. All three are undone on exit and after a panic.
 
@@ -444,7 +444,7 @@ The screen is five vertical bands:
 | completion | 0 or 2 to 8 rows | the `Complete` popup, one row per candidate up to 6, shown only while completing |
 | status | 1 row | the key hint line |
 
-The transcript colours its own output by prefix: a line starting with `error` is red, `defined`, `loaded`, and `rechecked` are green, `noted` is yellow. Input lines and their results are syntax coloured with the tree-sitter token classes from `compiler/src/highlight.rs`, the same classification the generated documentation uses.
+The transcript colours its own output by prefix: a line starting with `error` is red, `defined`, `loaded`, and `rechecked` are green, `noted` is yellow. Input lines and their results are syntax coloured with the tree-sitter token classes from `seed/src/highlight.rs`, the same classification the generated documentation uses.
 
 The sidebar lists accepted bindings with their schemes, or `No definitions yet.`, then a `Commands` list naming `:type expr`, `:kind Type`, `:browse [module]`, `:load file`, `:reload`, `:history`, `:help`, and `:quit`.
 
@@ -507,4 +507,4 @@ Evaluation is synchronous. The event loop polls for 250 ms, then handles one eve
 | Cross-session history and replay | **Not implemented.** History is in memory for one process. |
 | Interrupting a running probe | **Not implemented.** `Ctrl+C` cancels pending input only. |
 
-Implementation: `compiler/src/repl.rs` and `compiler/src/repl_tui.rs`; behaviour suite: `compiler/tests/repl.rs`. The [language server guide](27-language-server.md) covers the other frontend that shares the same analysis layer, and [the compiler guide](01-using-the-compiler.md) covers saving a session's declarations to a file where `cinch check` and `cinch run` take over.
+Implementation: `seed/src/repl.rs` and `seed/src/repl_tui.rs`; behaviour suite: `seed/tests/repl.rs`. The [language server guide](27-language-server.md) covers the other frontend that shares the same analysis layer, and [the compiler guide](01-using-the-compiler.md) covers saving a session's declarations to a file where `cinch check` and `cinch run` take over.

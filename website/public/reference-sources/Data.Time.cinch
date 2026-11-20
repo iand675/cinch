@@ -33,7 +33,7 @@
 -- wall-nanosecond line; `hour`/`minute`/`second`/`nanosecond` are the
 -- fields of `nanoseconds-of-day`; and ISO 8601 `to-string`/
 -- `from-string` round trip. The checks are
--- compiler/tests/lib_civil_time.rs.
+-- seed/tests/lib_civil_time.rs.
 --
 -- NAMED REFUSALS (boundaries this module deliberately does not
 -- cross):

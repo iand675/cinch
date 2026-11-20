@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retain complete byte-field outputs and effect traces under explicit compiler/runtime epochs."""
+"""Retain complete byte-field outputs and effect traces under explicit seed/runtime epochs."""
 from __future__ import annotations
 import argparse
 import json
@@ -12,7 +12,7 @@ from generate_byte_fields_vectors import crosscheck, effect_control
 from validate_byte_view import digest, run
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-fields-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-fields-vectors.json'
 MODES = {'default': 0, 'space': 1, 'comma': 2, 'error': 3, 'nonascii': 4, 'even': 5}
 
 
@@ -55,7 +55,7 @@ def effect_expression(row: dict, control: int) -> str:
 
 def consumer(checks: list[str], width: int) -> str:
     """Select bounded quarantine processes while preserving genuine mutation effects in every call."""
-    text = (ROOT / 'compiler/tests/fixtures/byte-fields-consumer.cinchpart').read_text()
+    text = (ROOT / 'seed/tests/fixtures/byte-fields-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0,len(checks),width)):
         group = first // width
@@ -107,7 +107,7 @@ def main() -> None:
     assert checks
     work = args.artifacts.resolve()
     work.mkdir(parents=True,exist_ok=True)
-    text = ((ROOT/'compiler/tests/fixtures/byte-fields-mixed-runtime.cinch').read_text()
+    text = ((ROOT/'seed/tests/fixtures/byte-fields-mixed-runtime.cinch').read_text()
             if args.group == 'mixed' else consumer(checks,args.batch_size))
     entry = work/'Main.cinch'
     entry.write_text(text)

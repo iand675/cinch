@@ -15,7 +15,7 @@
 -- section 8). A class constraint entails nothing (the standing
 -- no-superbundle rule): the class states its four operations alone.
 --
--- Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+-- Laws (asserted over sample values in seed/tests/prelude_split.rs):
 --   add associativity:      add (add x y) z == add x (add y z)
 --   add commutativity:      add x y == add y x
 --   add identity:           add zero x == x, add x zero == x

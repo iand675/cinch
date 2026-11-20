@@ -14,12 +14,12 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
-    "Data.Array": ROOT / "compiler/prelude/Data/Array.cinch",
-    "Data.Bytes.Word": ROOT / "compiler/prelude/Data/Bytes/Word.cinch",
-    "Data.Unicode.Tables": ROOT / "compiler/prelude/Data/Unicode/Tables.cinch",
-    "Data.Unicode.Kernel": ROOT / "compiler/prelude/Data/Unicode/Kernel.cinch",
-    "Text.Json.Binary32": ROOT / "compiler/prelude/Text/Json/Binary32.cinch",
-    "Text.Json.Value": ROOT / "compiler/prelude/Text/Json/Value.cinch",
+    "Data.Array": ROOT / "seed/prelude/Data/Array.cinch",
+    "Data.Bytes.Word": ROOT / "seed/prelude/Data/Bytes/Word.cinch",
+    "Data.Unicode.Tables": ROOT / "seed/prelude/Data/Unicode/Tables.cinch",
+    "Data.Unicode.Kernel": ROOT / "seed/prelude/Data/Unicode/Kernel.cinch",
+    "Text.Json.Binary32": ROOT / "seed/prelude/Text/Json/Binary32.cinch",
+    "Text.Json.Value": ROOT / "seed/prelude/Text/Json/Value.cinch",
 }
 
 
@@ -108,35 +108,35 @@ def main() -> None:
     compiler = args.compiler.resolve()
     modules = dict(MODULES)
     if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "raw-number", "raw-number-edge", "raw-number-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic", "dynamic-control"} for suite in args.suites):
-        modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
-        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+        modules["Text.Base64.Encoding"] = ROOT / "seed/prelude/Text/Base64/Encoding.cinch"
+        modules["Text.Json.Codec"] = ROOT / "seed/prelude/Text/Json/Codec.cinch"
     if any(suite in {"dynamic", "dynamic-edge", "dynamic-control", "addressability"} for suite in args.suites):
-        modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
-        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
-        modules["Data.Bytes.Utf8"] = ROOT / "compiler/prelude/Data/Bytes/Utf8.cinch"
-        modules["Text.Json.Dynamic"] = ROOT / "compiler/prelude/Text/Json/Dynamic.cinch"
+        modules["Text.Base64.Encoding"] = ROOT / "seed/prelude/Text/Base64/Encoding.cinch"
+        modules["Text.Json.Codec"] = ROOT / "seed/prelude/Text/Json/Codec.cinch"
+        modules["Data.Bytes.Utf8"] = ROOT / "seed/prelude/Data/Bytes/Utf8.cinch"
+        modules["Text.Json.Dynamic"] = ROOT / "seed/prelude/Text/Json/Dynamic.cinch"
     if any(suite in {"method-categories", "method-owner-control", "method-protocol", "addressability", "error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"} for suite in args.suites):
-        modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
-        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+        modules["Text.Base64.Encoding"] = ROOT / "seed/prelude/Text/Base64/Encoding.cinch"
+        modules["Text.Json.Codec"] = ROOT / "seed/prelude/Text/Json/Codec.cinch"
     if "dynamic-control" in args.suites:
-        modules["Data.Json"] = ROOT / "compiler/prelude/Data/Json.cinch"
-        modules["Text.Codec"] = ROOT / "compiler/prelude/Text/Codec.cinch"
-        modules["Text.Json.Legacy"] = ROOT / "compiler/prelude/Text/Json/Legacy.cinch"
+        modules["Data.Json"] = ROOT / "seed/prelude/Data/Json.cinch"
+        modules["Text.Codec"] = ROOT / "seed/prelude/Text/Codec.cinch"
+        modules["Text.Json.Legacy"] = ROOT / "seed/prelude/Text/Json/Legacy.cinch"
     legacy_dependencies = embedded_legacy_dependencies(args.interfaces.resolve(), modules) if args.frontend == "native-raw" and "dynamic-control" in args.suites else None
     frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
-    frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
-    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode", "dynamic", "dynamic-edge"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
+    frozen_consumers = {suite: (ROOT / f"seed/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
+    reference_paths = {suite: ROOT / (f"seed/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode", "dynamic", "dynamic-edge"} else "seed/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     for method_suite in {"method-categories", "addressability", "method-metadata", "method-owner-control", "method-protocol"}.intersection(args.suites):
-        reference_paths[method_suite] = ROOT / ("compiler/tests/fixtures/json-codec-methods-vectors.json" if method_suite in {"method-categories", "addressability"} else "compiler/tests/fixtures/json-codec-methods-vectors-v2.json")
+        reference_paths[method_suite] = ROOT / ("seed/tests/fixtures/json-codec-methods-vectors.json" if method_suite in {"method-categories", "addressability"} else "seed/tests/fixtures/json-codec-methods-vectors-v2.json")
     for error_suite in {"error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"}.intersection(args.suites):
-        reference_paths[error_suite] = ROOT / "compiler/tests/fixtures/json-codec-error-context-vectors.json"
+        reference_paths[error_suite] = ROOT / "seed/tests/fixtures/json-codec-error-context-vectors.json"
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,
         "native_link_policy": None if args.frontend == "rust" else "explicit raw CLI plus clang optimization" if args.frontend == "native-raw" else "frozen-wrapper clang default; no -O flag", "runner_sha256": digest(Path(__file__)),
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
-        "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/json-codec-vectors.json"),
+        "fixture_sha256": digest(ROOT / "seed/tests/fixtures/json-codec-vectors.json"),
         "reference_fixtures": {suite: digest(path) for suite, path in reference_paths.items()},
         "cpu_affinity": [args.cpu], "compiler_host_stack_kib": args.compiler_host_stack_kib, "consumer_stack_limit": "8M", "suites": [],
     }
@@ -153,7 +153,7 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.artifacts.mkdir(parents=True, exist_ok=True)
     (args.artifacts / "validator.py").write_bytes(Path(__file__).read_bytes())
-    (args.artifacts / "reference-vectors.json").write_bytes((ROOT / "compiler/tests/fixtures/json-codec-vectors.json").read_bytes())
+    (args.artifacts / "reference-vectors.json").write_bytes((ROOT / "seed/tests/fixtures/json-codec-vectors.json").read_bytes())
     for suite in args.suites:
         directory = args.artifacts.resolve() / suite
         directory.mkdir(parents=True, exist_ok=True)
@@ -219,7 +219,7 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.artifacts.mkdir(parents=True, exist_ok=True)
     (args.artifacts / "validator.py").write_bytes(Path(__file__).read_bytes())
-    (args.artifacts / "reference-vectors.json").write_bytes((ROOT / "compiler/tests/fixtures/json-codec-vectors.json").read_bytes())
+    (args.artifacts / "reference-vectors.json").write_bytes((ROOT / "seed/tests/fixtures/json-codec-vectors.json").read_bytes())
     args.output.write_text(json.dumps(report, indent=2) + "\n")
 
 

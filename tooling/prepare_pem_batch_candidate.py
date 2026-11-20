@@ -49,7 +49,7 @@ def candidate(source: str, size: int) -> str:
 def main() -> None:
     """Keep source hashes and the exact bounded batch parameter with every reproducible candidate."""
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline',type=Path,default=ROOT/'compiler/prelude/Text/Pem.cinch')
+    parser.add_argument('--baseline',type=Path,default=ROOT/'seed/prelude/Text/Pem.cinch')
     parser.add_argument('--batch',type=int,default=768)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();original=args.baseline.read_bytes();rendered=candidate(original.decode(),args.batch).encode()

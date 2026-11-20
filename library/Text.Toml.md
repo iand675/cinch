@@ -133,4 +133,4 @@ header).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Toml.cinch`. Source SHA-256: `a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Toml.cinch`. Source SHA-256: `a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

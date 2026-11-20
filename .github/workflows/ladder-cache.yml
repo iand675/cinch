@@ -8,9 +8,9 @@ on:
   push:
     branches: [main, "lane/**", "claude/**"]
     paths:
-      - "bootstrap/**"
+      - "compiler/**"
       - "tooling/**"
-      - "compiler/prelude/**"
+      - "seed/prelude/**"
       - "examples/compiler/fib.cinch"
       - "flake.nix"
       - "flake.lock"
@@ -37,8 +37,8 @@ jobs:
         if: env.CACHIX_CACHE != ''
         run: |
           git fetch --depth=1 origin \
-            "$(jq -r .revision bootstrap/pins/stage0.lock.json)" \
-            "$(jq -r .revision bootstrap/pins/library-provider.lock.json)"
+            "$(jq -r .revision compiler/pins/stage0.lock.json)" \
+            "$(jq -r .revision compiler/pins/library-provider.lock.json)"
       - uses: cachix/install-nix-action@v31
         if: env.CACHIX_CACHE != ''
       - uses: cachix/cachix-action@v16

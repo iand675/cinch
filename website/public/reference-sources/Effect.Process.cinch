@@ -15,7 +15,7 @@
 -- house style), never faults.
 --
 -- Two boundary conventions live here, both in
--- `compiler/runtime/src/platform.rs`: the one-shot `cinch_proc_*`/
+-- `seed/runtime/src/platform.rs`: the one-shot `cinch_proc_*`/
 -- `cinch_buf_*` externs are plain `foreign import ccall` declarations
 -- whose paths, arguments and output cross through runtime word buffers
 -- one byte at a time (see Effect.Fs's bridge), while the live-child
@@ -30,7 +30,7 @@
 -- impossible: `cinch_argv_*` (`cinch_argv_init`, then
 -- `cinch_argv_count`/`cinch_argv_get`) is THIS process's own command
 -- line, captured by the generated entry glue BEFORE any program code
--- runs (the native `@main` of `compiler/src/codegen.rs`), and
+-- runs (the native `@main` of `seed/src/codegen.rs`), and
 -- `process-args` is the binding a program reads it with. The capture
 -- mirrors the operating system exactly: word 0 is the program name and
 -- the count includes it, so `process-args` reports the words AFTER the
@@ -259,7 +259,7 @@ module Effect.Process where
   -- ---------------------------------------------------------------------------
 
   -- The command-line capture (the `cinch_argv_*` externs of
-  -- `compiler/runtime/src/platform.rs`). The generated entry glue
+  -- `seed/runtime/src/platform.rs`). The generated entry glue
   -- stashes the process's `argc`/`argv` before any program code runs,
   -- so a compiled program reads its own arguments here, and the count
   -- never changes afterwards. The capture is raw, not the one-shot
@@ -320,7 +320,7 @@ module Effect.Process where
   child-handle c = case c of
     Child h -> h
 
-  -- The live-child words (`compiler/runtime/src/platform.rs`'s piped
+  -- The live-child words (`seed/runtime/src/platform.rs`'s piped
   -- section). The program text, the NUL-separated argument and
   -- environment words and every payload cross as `Bytes`, and each
   -- result is the boundary word as a `Result` whose `Err` payload is

@@ -32,7 +32,7 @@ def main() -> None:
             raise RuntimeError('changed accepted source/code/object: ' + name)
     runtime, compiler = Path(accepted['runtime']), Path(accepted['compiler'])
     if digest(runtime) != accepted['runtime_sha256'] or digest(compiler) != accepted['compiler_sha256']:
-        raise RuntimeError('changed frozen compiler/runtime epoch')
+        raise RuntimeError('changed frozen seed/runtime epoch')
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=False)
     initial = shutil.disk_usage(work).free

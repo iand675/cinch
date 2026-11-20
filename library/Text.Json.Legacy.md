@@ -71,4 +71,4 @@ codec family. Refused decoding retains the supplied prior application value.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Legacy.cinch`. Source SHA-256: `c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Legacy.cinch`. Source SHA-256: `c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -612,4 +612,4 @@ stands (the handler is tried once: one-shot recovery).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Parse.cinch`. Source SHA-256: `4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Parse.cinch`. Source SHA-256: `4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

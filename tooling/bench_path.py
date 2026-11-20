@@ -102,7 +102,7 @@ def prepare(args: argparse.Namespace) -> None:
     """Build matched baseline/final drivers and the independent reference before CPU timing."""
     args.artifacts.mkdir(parents=True, exist_ok=True)
     report = {"compiler_sha256": digest(args.compiler), "driver_sha256": hashlib.sha256(SOURCE.encode()).hexdigest(), "opt_level": 2, "inputs": {}}
-    for label, source in [("before", args.before_source), ("after", ROOT / "compiler/prelude/Text/Path.cinch")]:
+    for label, source in [("before", args.before_source), ("after", ROOT / "seed/prelude/Text/Path.cinch")]:
         work = (args.artifacts / label).resolve()
         work.mkdir(parents=True, exist_ok=True)
         closure = shared.source_closure(SOURCE, {"Text.Path": source.resolve()})

@@ -118,4 +118,4 @@ A short destination is returned before any write; untouched trailing bytes remai
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Crypto/ConstantTime.cinch`. Source SHA-256: `f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/ConstantTime.cinch`. Source SHA-256: `f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

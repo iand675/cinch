@@ -11,7 +11,7 @@
 -- any particular encoder was never the shape; `inflate (deflate x) ==
 -- x` is, and the other direction is pinned by handing the encoder's
 -- output to a real decoder (python's `zlib`, in
--- compiler/tests/lib_zlib.rs).
+-- seed/tests/lib_zlib.rs).
 --
 -- THE DESIGN LAW SHAPE: decoding never guesses. Nothing here produces
 -- bytes it cannot justify, and every refusal names itself:
@@ -48,7 +48,7 @@
 -- writes. `crc32` sits beside the wrapper's Adler-32 because the rest
 -- of the family wants it (gzip's container, PNG), not because zlib
 -- reads it; both are pinned to published vectors in
--- compiler/tests/lib_zlib.rs.
+-- seed/tests/lib_zlib.rs.
 --
 -- The two spellings are the Ruby ones (`Zlib.adler32`, `Zlib.crc32`)
 -- and, here, also the only legal ones: a digit cannot continue an

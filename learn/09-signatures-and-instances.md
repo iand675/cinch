@@ -2,7 +2,7 @@
 
 A function cannot add arbitrary values merely because its type contains a type variable. It needs a promise that an addition operation exists for that type, and it must name that promise in its own type so callers know what to supply. In Cinch a `signature` declares the vocabulary, an `instance` supplies an implementation for one type, and a `using` clause states which vocabulary a definition requires. This chapter writes both pieces, resolves one from the library, and states the rule the checker applies when a constraint is missing.
 
-Check and run each complete program on the page with `$C check Main.cinch` and `$C run Main.cinch`, where `$C` is `compiler/target/debug/cinch`.
+Check and run each complete program on the page with `$C check Main.cinch` and `$C run Main.cinch`, where `$C` is `seed/target/debug/cinch`.
 
 # Before you start
 
@@ -210,7 +210,7 @@ Resolution finds two candidates and refuses to choose. Delete one instance, or m
 
 # Module parameters
 
-A module can take a dictionary as a parameter instead of relying on implicit resolution: `module Tally (S :: Stepper) where`, and an importing module selects the instance by name with `import Tally (StepUp) as Up`. Two imports of the same module with different arguments produce two units with different behaviour, which the `params` suite in `compiler/tests/params.rs` exercises for both signature and value parameters. Use this shape when a module should depend on a selected policy rather than on whatever instance happens to be in scope.
+A module can take a dictionary as a parameter instead of relying on implicit resolution: `module Tally (S :: Stepper) where`, and an importing module selects the instance by name with `import Tally (StepUp) as Up`. Two imports of the same module with different arguments produce two units with different behaviour, which the `params` suite in `seed/tests/params.rs` exercises for both signature and value parameters. Use this shape when a module should depend on a selected policy rather than on whatever instance happens to be in scope.
 
 # Laws are claims with a status
 

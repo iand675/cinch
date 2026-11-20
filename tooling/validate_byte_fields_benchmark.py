@@ -19,7 +19,7 @@ SIZES = [0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 4096, 65536]
 
 def scalar_source() -> Path:
     """Require the scalar control to change only the one documented private ASCII skipping helper."""
-    original = (ROOT/'compiler/prelude/Data/Bytes/Fields.cinch').read_text()
+    original = (ROOT/'seed/prelude/Data/Bytes/Fields.cinch').read_text()
     old = '''  -- | End one current ASCII class run through the sealed SIMD observation.
   ascii-run-end :: ByteView -> Nat -> Bool -> Nat
   ascii-run-end input position spaces = case byte-view-ascii-space-run-end input position spaces of

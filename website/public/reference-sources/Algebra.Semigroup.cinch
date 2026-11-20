@@ -5,7 +5,7 @@
 -- law. This module declares the operator and owns its fixity. Consumers
 -- inherit the declaration through imports and cannot redeclare it.
 --
--- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+-- Laws (asserted over sample values in seed/tests/lib_algebra.rs):
 --   associativity: (x <> y) <> z == x <> (y <> z)
 -- A class constraint entails nothing (the standing no-superbundle
 -- rule): this module states no Monoid import and every function names

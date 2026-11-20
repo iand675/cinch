@@ -298,4 +298,4 @@ The absolute original input position associated with a codec failure.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/QuotedPrintable.cinch`. Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/QuotedPrintable.cinch`. Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

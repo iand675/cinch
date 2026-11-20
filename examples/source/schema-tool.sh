@@ -13,7 +13,7 @@
 # Probe invocation (from the repository root):
 #   SCHEMA_DATABASE_URL=postgresql://localhost/billing \
 #   CINCH_SCHEMA_TOOL=./schema-tool.sh \
-#   cargo run --manifest-path compiler/Cargo.toml -- \
+#   cargo run --manifest-path seed/Cargo.toml -- \
 #     check examples/source/05-schema-generator.cinch
 #
 # The tool path resolves against the example's directory (the stage

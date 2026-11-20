@@ -40,7 +40,7 @@ def checks(group: str, rows: list[dict]) -> list[str]:
 
 def consumer(expressions: list[str], extra: str = '') -> str:
     """Keep the source batches bounded while retaining all runtime observations."""
-    source = (ROOT/'compiler/tests/fixtures/binary-layout-consumers.cinchpart').read_text() + '\n' + extra
+    source = (ROOT/'seed/tests/fixtures/binary-layout-consumers.cinchpart').read_text() + '\n' + extra
     names = []
     for i in range(0,len(expressions),96):
         name = f'checks{i//96}'
@@ -68,14 +68,14 @@ def main() -> None:
     parser.add_argument('--limit',type=int)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    fixture=json.loads((ROOT/'compiler/tests/fixtures/binary-layout-vectors.json').read_text())
+    fixture=json.loads((ROOT/'seed/tests/fixtures/binary-layout-vectors.json').read_text())
     actual_compiler=args.compiler.parent/'cinch' if args.native_interfaces else args.compiler
     report={'compiler_sha256':hashlib.sha256(actual_compiler.read_bytes()).hexdigest(),'frontend':str(args.compiler.resolve()),'frontend_sha256':hashlib.sha256(args.compiler.read_bytes()).hexdigest(),'sources':{},'results':[]}
     for group in args.groups:
         work=args.artifacts/group;work.mkdir(parents=True,exist_ok=True)
         extra=''
         if group in ['contracts','streams','stress','stream-stress','records','varints','prefixes']:
-            extra=(ROOT/'compiler/tests/fixtures/binary-layout-contracts.cinchpart').read_text()
+            extra=(ROOT/'seed/tests/fixtures/binary-layout-contracts.cinchpart').read_text()
         rows=fixture.get(group,[None])[args.first:]
         if args.limit is not None:rows=rows[:args.limit]
         expressions=[group+'-case ()'] if group in ['contracts','streams','stress','stream-stress'] else checks(group,rows)

@@ -7,7 +7,7 @@ only representation. No em dashes.
 
 ## 1 What is true today
 
-Every `Core` value is one machine word. `compiler/src/repr.rs` states it as
+Every `Core` value is one machine word. `seed/src/repr.rs` states it as
 the premise of the whole reclamation design:
 
 > Every `Core` value is one `i64` word. A word's class says what a

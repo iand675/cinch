@@ -207,7 +207,7 @@ family's slot demand through the existing `ObjectRoot::Method` protocol.
 
 Status: implemented. Every rank-N fixture compiles through the self-hosted
 Stage 3 with the four-stage fixed point intact
-(`bootstrap/evidence/current/current-rank-n-stage3-results.json`).
+(`compiler/evidence/current/current-rank-n-stage3-results.json`).
 
 The Cinch elaborator already had the machinery the rules need. Metas
 carry levels (`enter-level`, `restore-level`), and `URigid` carries the

@@ -2213,7 +2213,7 @@ integer is checked or saturating (it is never total).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-to-decimal</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-The P31 text conversions of `F64` (compiler/runtime/src/text.rs;
+The P31 text conversions of `F64` (seed/runtime/src/text.rs;
 the `cinch.runtime.textF64*` intrinsics, nm-verified there):
 one float's shortest round-trip decimal text (scientific form)
 and the float one decimal spelling stands for (correctly
@@ -6762,4 +6762,4 @@ is `Ok x`), with the named range error.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Machine.cinch`. Source SHA-256: `c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Machine.cinch`. Source SHA-256: `c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

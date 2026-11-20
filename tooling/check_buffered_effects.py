@@ -52,7 +52,7 @@ module Main where
   main = 0
 ''')
     positive_dependency=positive/'Effect.Buffered.Internal.Cell.cinch'
-    positive_dependency.write_bytes((ROOT/'compiler/prelude/Effect/Buffered/Internal/Cell.cinch').read_bytes())
+    positive_dependency.write_bytes((ROOT/'seed/prelude/Effect/Buffered/Internal/Cell.cinch').read_bytes())
     accepted,positive_diagnostic,positive_command=check(positive)
     if accepted.returncode:raise ValueError('effectful controls failed before negative comparison: '+positive_diagnostic)
     cases={
@@ -65,7 +65,7 @@ module Main where
     for name,declaration in cases.items():
         project=args.artifacts.resolve()/name;project.mkdir(parents=True,exist_ok=True)
         source=project/'Main.cinch';source.write_text('-- | Deliberate effect or private-storage rejection.\nmodule Main where\n  import Effect.Buffered.Internal.Cell\n  import Data.Nat\n  -- | This intentionally invalid client crosses a guarded cell boundary.\n  '+declaration+'\n  -- | Typecheck-only sentinel.\n  main :: Int\n  main = 0\n')
-        dependency=project/'Effect.Buffered.Internal.Cell.cinch';dependency.write_bytes((ROOT/'compiler/prelude/Effect/Buffered/Internal/Cell.cinch').read_bytes())
+        dependency=project/'Effect.Buffered.Internal.Cell.cinch';dependency.write_bytes((ROOT/'seed/prelude/Effect/Buffered/Internal/Cell.cinch').read_bytes())
         result,text,invoked=check(project)
         if not result.returncode:raise ValueError('invalid client admitted: '+name)
         if name=='private-storage':

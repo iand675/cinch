@@ -69,7 +69,7 @@ def setup(stage, out, tree, compiler=None):
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
                CINCH_TEST_LIBRARY_OBJECT=str(library),
-               CINCH_TEST_SOURCE_ROOT=str(tree / 'compiler'), PYTHONDONTWRITEBYTECODE='1')
+               CINCH_TEST_SOURCE_ROOT=str(tree / 'seed'), PYTHONDONTWRITEBYTECODE='1')
     return env
 
 
@@ -126,7 +126,7 @@ TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'p
 
 
 def all_targets(tree):
-    tests = tree / 'compiler' / 'tests'
+    tests = tree / 'seed' / 'tests'
     targets = []
     for path in tests.glob('*.rs'):
         if path.stem not in TOOLING_TARGETS:
@@ -139,7 +139,7 @@ def all_targets(tree):
 def integration_targets(tree):
     metadata = json.loads(subprocess.check_output(
         ['cargo', 'metadata', '--locked', '--format-version', '1', '--no-deps'],
-        cwd=tree / 'compiler', env=bootstrap.environment()))
+        cwd=tree / 'seed', env=bootstrap.environment()))
     package = next(pkg for pkg in metadata['packages'] if pkg['name'] == 'cinch')
     return sorted(target['name'] for target in package['targets'] if 'test' in target['kind'])
 
@@ -178,7 +178,7 @@ def main():
     # results that describe neither the old tree nor the new one, so refuse
     # by default and make the exception explicit.
     dirty = subprocess.run(['git', '-c', 'core.fsmonitor=false', 'status', '--porcelain', '--',
-                            'compiler', 'bootstrap', 'tooling'],
+                            'compiler', 'seed', 'tooling'],
                            cwd=a.tree, capture_output=True, text=True).stdout.split()
     if dirty and not a.allow_dirty:
         sys.stderr.write(f'refusing to measure a dirty tree: {" ".join(dirty[:8])}\n'
@@ -207,7 +207,7 @@ def main():
             sys.stderr.write('refusing to measure: a build holds ' + str(lock_path) + '\n')
             return 3
     a.out.mkdir(parents=True, exist_ok=True)
-    a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
+    a.cargo_target = a.cargo_target or a.tree / 'seed' / 'target'
     global TREE; TREE = a.tree
     env = setup(a.stage, a.out.resolve(), a.tree, a.compiler.resolve() if a.compiler else None)
     prebuild(a.targets, env, a.out.resolve(), a.cargo_target)

@@ -64,12 +64,12 @@ was measured both ways and is why the attribute is on the group rather
 than a module directive.
 
 The runtime is built with `-Cforce-frame-pointers=yes` from
-`compiler/runtime/.cargo/config.toml`, because the trace's walk needs the
+`seed/runtime/.cargo/config.toml`, because the trace's walk needs the
 Rust frames between a Cinch frame and the fault to be a chain too.
 
 ## 4 Unwind information, and what `nounwind` does to it
 
-The rule at `compiler/src/codegen.rs` refuses to claim `nounwind` on a
+The rule at `seed/src/codegen.rs` refuses to claim `nounwind` on a
 unit that reaches an extern the scan cannot see through, and claims it
 otherwise. Two facts decide whether that rule is sound.
 
@@ -142,7 +142,7 @@ global flag.
 **This is not implemented in this lane.** It needs the marker in the
 parser, in `ForeignPlan`, and in the scan; the parser change alone touches
 the foreign-declaration grammar that the self-hosted frontend also parses
-(`bootstrap/Bootstrap.Parse.cinch`), so it is its own slice. The rule the
+(`compiler/Bootstrap.Parse.cinch`), so it is its own slice. The rule the
 code should implement is the one above, and the current heuristic is a
 sound approximation of it.
 
@@ -180,13 +180,13 @@ per address and an `end_sequence` at the right place.
 
 ### 5.1 The blocker, stated exactly
 
-**The seed's `Core` has no spans.** `compiler/src/core.rs`'s `Core` enum
+**The seed's `Core` has no spans.** `seed/src/core.rs`'s `Core` enum
 has 40 node shapes and zero `Span` fields; the frontend's `ECore` has the
 same shape. The only positions that survive lowering are the ones the
 declaration table keeps.
 
 The self-hosted emitter is in the opposite state:
-`bootstrap/Bootstrap.Core.cinch`'s `CoreTerm` carries `Span` on **every**
+`compiler/Bootstrap.Core.cinch`'s `CoreTerm` carries `Span` on **every**
 node (`CApply :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm` and so
 on). So the information exists in the self-hosted pipeline and is thrown
 away by the seed's.
@@ -218,7 +218,7 @@ asks for.
 
 ### 5.2 What the Cinch-side emitter must build
 
-For `bootstrap/Bootstrap.RuntimeIr.cinch`, the metadata it must construct
+For `compiler/Bootstrap.RuntimeIr.cinch`, the metadata it must construct
 from its own span table is:
 
 - one `DIFile` per module (it already knows the module name and the source
@@ -244,9 +244,9 @@ emission.
 
 ## 6 The trace at the failure point
 
-`panic_exit` (`compiler/runtime/src/abi.rs`) writes its one line and exits
+`panic_exit` (`seed/runtime/src/abi.rs`) writes its one line and exits
 71. It now optionally writes a trace after that line, from
-`compiler/runtime/src/trace.rs`.
+`seed/runtime/src/trace.rs`.
 
 The walk is the **frame chain**, not the platform unwinder, deliberately:
 an unwind needs CFI for every frame between the fault and the catcher, and

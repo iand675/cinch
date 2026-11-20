@@ -252,7 +252,7 @@ def generated() -> str:
 def main() -> None:
     """Write or verify the generated suffix while preserving the handwritten checked public API."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--module", type=Path, default=ROOT / "compiler/prelude/Text/Sha256.cinch")
+    parser.add_argument("--module", type=Path, default=ROOT / "seed/prelude/Text/Sha256.cinch")
     parser.add_argument("--fragment", type=Path, help="Write generated declarations for an isolated kernel probe")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()

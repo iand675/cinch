@@ -13,10 +13,10 @@ import subprocess
 from generate_ring_cases import source
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = {'Data.Mutable.Ring': ROOT / 'compiler/prelude/Data/Mutable/Ring.cinch',
-           'Data.Mutable.Vec': ROOT / 'compiler/prelude/Data/Mutable/Vec.cinch',
-           'Data.Mutable.Var': ROOT / 'compiler/prelude/Data/Mutable/Var.cinch',
-           'Data.Array': ROOT / 'compiler/prelude/Data/Array.cinch'}
+MODULES = {'Data.Mutable.Ring': ROOT / 'seed/prelude/Data/Mutable/Ring.cinch',
+           'Data.Mutable.Vec': ROOT / 'seed/prelude/Data/Mutable/Vec.cinch',
+           'Data.Mutable.Var': ROOT / 'seed/prelude/Data/Mutable/Var.cinch',
+           'Data.Array': ROOT / 'seed/prelude/Data/Array.cinch'}
 
 
 def digest(path: Path) -> str:
@@ -81,7 +81,7 @@ def main() -> None:
     if args.extra_control:
         jobs['nested-owned-array'] = (args.extra_control.read_text(), [(False, []), (True, [])])
     report = {'description': __doc__, 'frontend': args.frontend, 'compiler_sha256': digest(args.compiler),
-              'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/ring-vectors.json'),
+              'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/ring-vectors.json'),
               'sources': {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen.items()},
               'compiler_host_stack': '64M', 'cpu_affinity': [args.cpu], 'source_overrides': {name: str(path) for name, path in overrides.items()}, 'suites': []}
     if args.frontend == 'native':

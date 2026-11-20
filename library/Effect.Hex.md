@@ -147,4 +147,4 @@ Inspect the advanced underlying sink, including after a failed encoded write.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Hex.cinch`. Source SHA-256: `e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Hex.cinch`. Source SHA-256: `e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

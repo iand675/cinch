@@ -2,7 +2,7 @@
 
 <span class="support-tag support-tag--planned">Coming soon</span> **The packaged editor experience is work in progress.** A stdio language server exists in the compiler and answers six request types over the project's open documents. This page documents what runs today from a real protocol session, then describes the intended experience and marks it as intended.
 
-The server shares `compiler/src/analysis.rs` with the REPL, so its answers follow the same module visibility, instance, effect, refinement, and ownership rules as the command line.
+The server shares `seed/src/analysis.rs` with the REPL, so its answers follow the same module visibility, instance, effect, refinement, and ownership rules as the command line.
 
 Syntax highlighting and language-server analysis are separate facilities. An editor grammar colours a file without checking it; a running server adds compiler-backed answers. Coloured tokens alone do not show that a server is connected.
 
@@ -35,7 +35,7 @@ For a generic client:
 
 # Implemented protocol methods
 
-The dispatch in `compiler/src/lsp.rs` is the complete list. Anything absent from it gets a `-32601` error, not a partial answer.
+The dispatch in `seed/src/lsp.rs` is the complete list. Anything absent from it gets a `-32601` error, not a partial answer.
 
 | Method | Kind | What it does |
 | --- | --- | --- |
@@ -294,7 +294,7 @@ The VS Code extension reads one setting, `cinch.lsp.command`, and falls back to 
 
 ```sh
 #!/bin/sh
-exec /absolute/path/to/compiler/target/debug/cinch lsp
+exec /absolute/path/to/seed/target/debug/cinch lsp
 ```
 
 The `cinch.lsp.command` description inside `package.json` still claims the compiler has no `lsp` subcommand. It does; the description is stale. The extension also declares `cinch.lsp.trace`, and `extension.js` never reads it, so changing that setting enables no tracing.
@@ -329,4 +329,4 @@ A useful bug report contains the compiler revision, the client and its version, 
 | Rename, references, formatting, code actions, signature help | **Not implemented.** The server answers `-32601`. |
 | Packaged editor installation | **Coming soon.** No marketplace release and no version matching. |
 
-Implementation: `compiler/src/lsp.rs`, `compiler/src/analysis.rs`, and `compiler/src/main.rs`; suites: `compiler/tests/lsp.rs`. The [diagnostics guide](21-editors-and-diagnostics.md) maps message text to the rule that failed, and the [REPL guide](26-repl.md) covers the other front end over the same analysis layer.
+Implementation: `seed/src/lsp.rs`, `seed/src/analysis.rs`, and `seed/src/main.rs`; suites: `seed/tests/lsp.rs`. The [diagnostics guide](21-editors-and-diagnostics.md) maps message text to the rule that failed, and the [REPL guide](26-repl.md) covers the other front end over the same analysis layer.

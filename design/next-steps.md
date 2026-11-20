@@ -6,14 +6,14 @@ The published compiler now includes checked codata contracts and the
 imported-body index. The complete bootstrap rebuild and the original
 Stage 3 codata and argument-scope checks passed. The full Rust and
 self-built test suites remain open.
-See [the published compiler receipt](../bootstrap/evidence/current/current-abi7-published-codata-index-compiler.json).
+See [the published compiler receipt](../compiler/evidence/current/current-abi7-published-codata-index-compiler.json).
 
 The preceding published compiler included the checked task-capture
 repair and the pinned tagged `Data.List.drop` variant. Its exact
 Stage 2 and Stage 3 artifacts agree, the changed-source and separate
 interface consumer checks pass, and all 20 original concurrency
 tests passed on Stage 3. The matching full suites remain open.
-See [the published compiler receipt](../bootstrap/evidence/current/current-abi7-published-task-capture-compiler.json).
+See [the published compiler receipt](../compiler/evidence/current/current-abi7-published-task-capture-compiler.json).
 
 The combined checked-law and guarded-recursion compiler rebuilt through
 Stage 3. Its Stage 2 and Stage 3 executables, LLVM IR and all 46 compiler
@@ -21,96 +21,96 @@ interfaces agree. A separate entry check consumed the emitted compiler
 contracts. The deliberately changed compiler rebuilt and emitted the new
 diagnostic. All eight original law cases passed on both Stage 1 and the
 matching Stage 3. The rest of the matching test suites remain open.
-See [the combined Stage 3 audit](../bootstrap/evidence/current/current-abi7-combined-stage3-agreement.json)
-and [the changed-source and law replay audit](../bootstrap/evidence/current/current-abi7-combined-fixed-point-and-stage3-laws.json).
+See [the combined Stage 3 audit](../compiler/evidence/current/current-abi7-combined-stage3-agreement.json)
+and [the changed-source and law replay audit](../compiler/evidence/current/current-abi7-combined-fixed-point-and-stage3-laws.json).
 
 The same combined Stage 3 passed all 20 concurrency cases and 16 of the
 18 recursive-binding cases. The two failures report initializer ordering
 when a closure is stored before its captured value is initialized or a
 partially applied recursive member is called through another initializer.
 The expanded replay retains both failures and all invocation receipts.
-See [the concurrency and recursive-binding audit](../bootstrap/evidence/current/current-abi7-combined-stage3-concurrency-letrec.json).
+See [the concurrency and recursive-binding audit](../compiler/evidence/current/current-abi7-combined-stage3-concurrency-letrec.json).
 
 All seven original class-default source cases passed on that same Stage 3,
 including parameter identity, missing methods and refinement carriers.
-See [the class-default audit](../bootstrap/evidence/current/current-abi7-combined-stage3-class-defaults.json).
+See [the class-default audit](../compiler/evidence/current/current-abi7-combined-stage3-class-defaults.json).
 
 All 39 original integration tests passed on the same combined Stage 3.
 The audit retains 57 matching compiler invocation receipts.
-See [the integration audit](../bootstrap/evidence/current/current-abi7-combined-stage3-integration.json).
+See [the integration audit](../compiler/evidence/current/current-abi7-combined-stage3-integration.json).
 
 Both original fixity cases passed on the same Stage 3 with interface output
 enabled. The unchanged project asserts right association after a facade rename
 and checks the public and private fixities in the emitted contracts.
-See [the fixity audit](../bootstrap/evidence/current/current-abi7-combined-stage3-fixity-interfaces.json).
+See [the fixity audit](../compiler/evidence/current/current-abi7-combined-stage3-fixity-interfaces.json).
 
 The ten original codata source cases passed on the same combined Stage 3.
 The audit retains 22 exact invocations for the runtime and refusal assertions.
 The separate codata interface and compiled-provider checks remain open.
-See [the codata source audit](../bootstrap/evidence/current/current-abi7-combined-stage3-codata.json).
+See [the codata source audit](../compiler/evidence/current/current-abi7-combined-stage3-codata.json).
 
 The same Stage 3 passed all five guard-coverage and eight allocation
 accounting cases, with 33 matching compiler invocation receipts.
-See [the guard and allocation audit](../bootstrap/evidence/current/current-abi7-combined-stage3-guards-allocation.json).
+See [the guard and allocation audit](../compiler/evidence/current/current-abi7-combined-stage3-guards-allocation.json).
 
 The same Stage 3 passed all three original process-argument cases.
 The seven matching invocation receipts include CLI forwarding of space-containing
 and flag-like words. The built-program checks cover empty arguments.
-See [the process-argument audit](../bootstrap/evidence/current/current-abi7-combined-stage3-argv.json).
+See [the process-argument audit](../compiler/evidence/current/current-abi7-combined-stage3-argv.json).
 
 The same run passed all 15 original array cases. Fourteen exercised the
 combined Stage 3, and the packed-word-width case used the reviewed Rust
 target API. The runtime checks include zero-leak array, tensor and
 columnar controls and three refusals for mismatched nominal layouts.
-See [the array replay audit](../bootstrap/evidence/current/current-abi7-combined-stage3-arrays.json).
+See [the array replay audit](../compiler/evidence/current/current-abi7-combined-stage3-arrays.json).
 
 The original abstract `NonZero` method target passed. The combined Stage 3
 built the actual Cinch consumer of Rust-produced arithmetic interfaces.
 That consumer passed 17 controls for generic Div and Rem, their Nat
 specializations, effect and carrier boundaries, and zero divisors.
-See [the abstract method replay audit](../bootstrap/evidence/current/current-abi7-combined-stage3-abstract-nonzero-methods.json).
+See [the abstract method replay audit](../compiler/evidence/current/current-abi7-combined-stage3-abstract-nonzero-methods.json).
 
 All 12 original module tests passed on the same combined Stage 3 after the
 test harness began preserving the entry filename and publishing the emitted
 build manifest. The original module test source is unchanged. The independent
 audit verifies all 13 matching compiler invocations and retains the prior run.
-See [the module replay audit](../bootstrap/evidence/current/current-abi7-combined-stage3-modules.json).
+See [the module replay audit](../compiler/evidence/current/current-abi7-combined-stage3-modules.json).
 
 The same Stage 3 passed the original structural `NonZero` type and anonymous
 contract targets. The first exercised five runtime input sizes. The second
 built a Cinch consumer for Rust-produced interfaces and passed all 18 original
 result, argument, projection, and refusal controls.
-See [the refinement consumer audit](../bootstrap/evidence/current/current-abi7-combined-stage3-refinement-contract-consumers.json).
+See [the refinement consumer audit](../compiler/evidence/current/current-abi7-combined-stage3-refinement-contract-consumers.json).
 
 The same combined Stage 3 passed the original argument-scope test and both
 original body-binding tests. The argument-scope consumer checked 14 accepted
 and refused cases with the Rust reference assertions intact. The body-binding
 consumers exercised eight input sizes and checked that a body belongs to the
 actual declaration and dependency definitions.
-See [the argument and body-binding audit](../bootstrap/evidence/current/current-abi7-combined-stage3-argument-and-body-bindings.json).
+See [the argument and body-binding audit](../compiler/evidence/current/current-abi7-combined-stage3-argument-and-body-bindings.json).
 
 The combined Stage 3 built the original Boolean branch checker. All 21
 controls agreed with the retained Rust assertions, including short-circuit
 implications, case fallthrough, shadowing, and refusals for the wrong branch
 or value.
-See [the Boolean branch audit](../bootstrap/evidence/current/current-abi7-combined-stage3-boolean-branches.json).
+See [the Boolean branch audit](../compiler/evidence/current/current-abi7-combined-stage3-boolean-branches.json).
 
 The combined Stage 3 built the original buffer-alias checker. All nine
 controls passed, including refusal to use a bound from another buffer or
 from an alias that had been shadowed.
-See [the buffer-alias audit](../bootstrap/evidence/current/current-abi7-combined-stage3-buffer-aliases.json).
+See [the buffer-alias audit](../compiler/evidence/current/current-abi7-combined-stage3-buffer-aliases.json).
 
 The matching Rust compiler for the merged candidate passed all 39 original
 editor and syntax tests. The audit checks the exact compiler, runtime archive,
 editor inputs, and all original test names.
-See [the matching editor audit](../bootstrap/evidence/current/current-abi7-codata-index-native-editor.json).
+See [the matching editor audit](../compiler/evidence/current/current-abi7-codata-index-native-editor.json).
 
 The merged codata and checked-import-index candidate cleared the clean Rust
 build and passed all 171 runtime and 52 tooling tests on its frozen inputs.
 The matching Rust compiler passed the original 18 recursive-binding and four
 tail-call tests. The full matching Rust inventory and Cinch bootstrap chain
 are still running.
-See [the matching Rust audit](../bootstrap/evidence/current/current-abi7-codata-index-opening-native-results.json).
+See [the matching Rust audit](../compiler/evidence/current/current-abi7-codata-index-opening-native-results.json).
 
 The matching Rust sweep passed 383 cases across its first 14 complete
 targets, including all 216 library tests, 26 staging tests,
@@ -118,7 +118,7 @@ and the pinned library-object and bootstrap loader tests.
 Four more targets passed all 47 cases, including nominal contracts,
 REPL behavior, and evidence invalidation. The matching Rust sweep
 has 430 passing cases across 18 complete targets.
-See [the compiler target audit](../bootstrap/evidence/current/current-abi7-codata-index-native-eighteen-targets.json).
+See [the compiler target audit](../compiler/evidence/current/current-abi7-codata-index-native-eighteen-targets.json).
 
 The matching Stage 1 executable passed all eight original law cases with
 14 selected-compiler invocations. It also exported the three erased
@@ -130,56 +130,56 @@ Stage 2 and Stage 3 produced byte-identical executables, LLVM IR and all
 compiler checked a separate entry using the emitted interfaces. The
 changed-source rebuild passed. The rebuilt compiler emitted the new
 diagnostic, and the merged Stage 3 suite has started.
-See [the merged Stage 1 audit](../bootstrap/evidence/current/current-abi7-codata-index-stage1-laws-and-methods.json),
-[the Stage 2 audit](../bootstrap/evidence/current/current-abi7-codata-index-stage2.json),
-[the Stage 3 agreement audit](../bootstrap/evidence/current/current-abi7-codata-index-stage3-agreement.json),
-and [the changed-source audit](../bootstrap/evidence/current/current-abi7-codata-index-fixed-point.json).
+See [the merged Stage 1 audit](../compiler/evidence/current/current-abi7-codata-index-stage1-laws-and-methods.json),
+[the Stage 2 audit](../compiler/evidence/current/current-abi7-codata-index-stage2.json),
+[the Stage 3 agreement audit](../compiler/evidence/current/current-abi7-codata-index-stage3-agreement.json),
+and [the changed-source audit](../compiler/evidence/current/current-abi7-codata-index-fixed-point.json).
 
 All ten original codata source cases passed on the merged Stage 3.
 The audit records 22 selected-compiler invocations.
-See [the merged codata replay](../bootstrap/evidence/current/current-abi7-codata-index-stage3-codata.json).
+See [the merged codata replay](../compiler/evidence/current/current-abi7-codata-index-stage3-codata.json).
 
 All eight original law cases passed on the published Stage 3, with
 14 matching invocations. The case outcomes agree with the Stage 1 replay.
-See [the merged law audit](../bootstrap/evidence/current/current-abi7-codata-index-stage3-laws.json).
+See [the merged law audit](../compiler/evidence/current/current-abi7-codata-index-stage3-laws.json).
 
 All 20 original concurrency cases passed on the published Stage 3,
 including task-capture refusals and the runtime checks. The audit
 retains 42 matching compiler invocations.
-See [the published concurrency audit](../bootstrap/evidence/current/current-abi7-codata-index-stage3-concurrency.json).
+See [the published concurrency audit](../compiler/evidence/current/current-abi7-codata-index-stage3-concurrency.json).
 
 All twelve original module tests passed on the published Stage 3.
 Sixteen of eighteen recursive-binding tests passed. The remaining
 two refuse a stored closure before its capture initializes and
 a partial call through another initializer. Both original
 cases remain in the queued recursive-binding repair.
-See [the published module and recursive-binding audit](../bootstrap/evidence/current/current-abi7-codata-index-stage3-letrec-and-modules.json).
+See [the published module and recursive-binding audit](../compiler/evidence/current/current-abi7-codata-index-stage3-letrec-and-modules.json).
 
 A separate Stage 1 range candidate passed all six original small-integer
 cases. Four of ten range cases and five of fourteen dependent cases
 passed. A follow-up candidate shares comparison-result projection
 between the type and proof checks and adds checked signed widening.
 Its original regression replays are queued.
-See [the Stage 1 numerical and dependent case audit](../bootstrap/evidence/current/current-abi7-stage1-small-nats-range-dependent.json).
+See [the Stage 1 numerical and dependent case audit](../compiler/evidence/current/current-abi7-stage1-small-nats-range-dependent.json).
 
 All three original byte-observation tests passed on the preceding
 combined Stage 3, including input scope, the declared primitive
 identity, and an imported observation renamed by a facade.
-See [the byte-observation audit](../bootstrap/evidence/current/current-abi7-combined-stage3-byte-observations.json).
+See [the byte-observation audit](../compiler/evidence/current/current-abi7-combined-stage3-byte-observations.json).
 
 The open-effect-row candidate passed its six checks. Rust exported
 row-polymorphic sequencing methods. The Cinch-built object retained
 its row tail and a source-free client ran with zero leaks. A pure
 caller requiring `Blocking` was refused. The patch has been merged
 into a separate copy of the new fixed point for a matching replay.
-See [the open-effect-row audit](../bootstrap/evidence/current/current-abi7-open-effect-row-contracts.json).
+See [the open-effect-row audit](../compiler/evidence/current/current-abi7-open-effect-row-contracts.json).
 
 The coverage audit assigns 162 targets to the Stage 3 matrix, 41 to
 supplemental Stage 3 runs, one to the small-stack tail-call run,
 and two to reviewed Rust harness checks. The supplemental runs
 include 47 original declaration and object artifact cases across four
 targets. Another 30 targets still need assertion review.
-See [the original target routing](../bootstrap/evidence/current/current-abi7-codata-index-target-routing.json).
+See [the original target routing](../compiler/evidence/current/current-abi7-codata-index-target-routing.json).
 
 The pinned producer emitted the five requested Bits variants and the two
 Map variants without changing any of the 55 library interface files. The
@@ -187,7 +187,7 @@ original two bitwise cases and all four coverage-recorder cases passed on
 the preceding combined Stage 3 against the expanded object. The active
 merged ladder retains its frozen provider while this expansion is verified
 separately.
-See [the compiled library audit](../bootstrap/evidence/current/current-abi7-checked-library-bits-map-results.json).
+See [the compiled library audit](../compiler/evidence/current/current-abi7-checked-library-bits-map-results.json).
 
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
@@ -196,7 +196,7 @@ The executable observed the stream through the compiled provider and ran
 with zero leaks. That Stage 1 rejected direct construction and pattern
 matching on the imported codata and passed all ten original codata cases
 with interface emission enabled. Matching Stage 2 and Stage 3 remain open.
-See [the codata contract and suite audit](../bootstrap/evidence/current/current-abi7-stage1-codata-contract-and-suite.json).
+See [the codata contract and suite audit](../compiler/evidence/current/current-abi7-stage1-codata-contract-and-suite.json).
 
 The checked import-body index passed all 14 original argument-scope
 fixtures against the unindexed compiler. Exit statuses, diagnostics and
@@ -204,7 +204,7 @@ emitted interfaces match. Across those fixtures, the paired compilers
 used 331 and 133 CPU seconds respectively. Two order-reversed repeats
 also agreed on the output. The full bootstrap on the indexed compiler
 remains open.
-See [the checked import-index audit](../bootstrap/evidence/current/current-abi7-checked-import-index.json).
+See [the checked import-index audit](../compiler/evidence/current/current-abi7-checked-import-index.json).
 
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
@@ -212,14 +212,14 @@ Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,
 and a deliberate compiler-source edit reached the rebuilt diagnostic.
 All six tail-call controls passed on the exact Stage 3, including the
 three million-call fixtures and the non-tail stack exhaustion control.
-See [the guarded-recursion and tail-call audit](../bootstrap/evidence/current/current-abi7-guarded-recursion-fixed-point-results.json).
+See [the guarded-recursion and tail-call audit](../compiler/evidence/current/current-abi7-guarded-recursion-fixed-point-results.json).
 
 That exact Stage 3 also passed 20 concurrency, 39 integration, five guard
 coverage and all 11 preserved recursive-binding tests. The original
 type-syntax component stopped at module resolution because its harness
 passed the entry file on its own. The corrected replay passes the complete
 compiler source bundle with the unchanged type-syntax entry.
-See [the original replay audit](../bootstrap/evidence/current/current-abi7-guarded-recursion-stage3-replay-results.json).
+See [the original replay audit](../compiler/evidence/current/current-abi7-guarded-recursion-stage3-replay-results.json).
 
 The combined manifest and typed-law candidate rebuilt from Stage 0
 through Stage 3. Its executable, LLVM IR and all 46 compiler interfaces
@@ -235,14 +235,14 @@ five guard coverage cases. Seven of ten codata cases passed with
 interface emission enabled.
 The three positive cases requiring a codata observation contract
 reached the explicit exporter refusal.
-See [the candidate audit](../bootstrap/evidence/current/current-abi7-candidate5-fixed-point-results.json).
+See [the candidate audit](../compiler/evidence/current/current-abi7-candidate5-fixed-point-results.json).
 
 The current Cinch source rebuilt from Stage 0 through Stage 3. Stage 2 and
 Stage 3 agree on the executable, LLVM IR and all 46 compiler interfaces.
 The 55 base interfaces, 12 smoke tests, separate interface consumer and
 changed-source rebuild passed. The full matching suites remain open.
-See [the combined bootstrap audit](../bootstrap/evidence/current/current-schema10-abi7-borrow-and-combined-stage2-results.json)
-and [the preceding fixed point](../bootstrap/evidence/current/current-schema10-abi7-integrated-erased-bootstrap-results.json).
+See [the combined bootstrap audit](../compiler/evidence/current/current-schema10-abi7-borrow-and-combined-stage2-results.json)
+and [the preceding fixed point](../compiler/evidence/current/current-schema10-abi7-integrated-erased-bootstrap-results.json).
 
 The preceding Stage 3 extra suites passed 11 of 19 concurrency, 6 of 7 class
 default, 1 of 8 law, 2 of 2 fixity, 1 of 5 guard coverage, 0 of 10 codata and
@@ -251,7 +251,7 @@ resolution in its positive case and ten refusal cases. The retained
 integration diagnostics request one additional provider root,
 `Data.List.sum-list` with the tagged representation, from two independent
 fixtures. The current fixed point uses the expanded provider.
-See [the original case results and checked object requests](../bootstrap/evidence/current/current-schema10-abi7-integrated-stage3-blockers-results.json).
+See [the original case results and checked object requests](../compiler/evidence/current/current-schema10-abi7-integrated-stage3-blockers-results.json).
 
 `Data.List.cinchif` already exported the generic `sum-list` scheme. The
 pinned `library.o` lacked the `Data.List.sum-list@T` machine-code variant
@@ -263,13 +263,13 @@ quantified annotation controls. Forwarder interface omission passed for
 both direct and renamed exports. Two first-class-use cases still require
 their specified refusal diagnostics. The combined compiler and provider
 have a separate fixed-point gate.
-See [the scoped repair audit](../bootstrap/evidence/current/current-schema10-abi7-scoped-frontend-repairs-results.json).
+See [the scoped repair audit](../compiler/evidence/current/current-schema10-abi7-scoped-frontend-repairs-results.json).
 
 The isolated annotation compiler then passed all seven original class-default
 tests. Its complete replay includes the eleven annotation checks and the
 inherited default that returns 42. The combined compiler still has its own
 Stage 3 replay.
-See [the whole class-default target audit](../bootstrap/evidence/current/current-schema10-abi7-annotation-original-class-defaults-results.json).
+See [the whole class-default target audit](../compiler/evidence/current/current-schema10-abi7-annotation-original-class-defaults-results.json).
 
 The combined Stage 1 passed 16 of 19 original concurrency cases. The remaining
 cases cover shared memo cells, read-only reference captures and the task-scope
@@ -277,28 +277,28 @@ escape diagnostic. An isolated Stage 1 with strict `where` bindings passed
 all five original guard-coverage cases. Both original strict and guarded
 `where` programs ran without leaks. The full integration replay and the
 combined Stage 3 checks have separate gates.
-See [the Stage 1 concurrency and guard audit](../bootstrap/evidence/current/current-schema10-abi7-stage1-where-and-concurrency-results.json).
+See [the Stage 1 concurrency and guard audit](../compiler/evidence/current/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
 A separate Stage 1 passed the original
 shared-reference and task-scope escape cases plus five focused borrow
 checks. The strict `where` Stage 1 passed 26 of 39 original integration
 tests, eight more than the published Stage 3, and all five guard tests.
-See [the stage comparison](../bootstrap/evidence/current/current-schema10-abi7-borrow-and-combined-stage2-results.json)
-and [the original integration replay](../bootstrap/evidence/current/current-schema10-abi7-stage1-where-and-concurrency-results.json).
+See [the stage comparison](../compiler/evidence/current/current-schema10-abi7-borrow-and-combined-stage2-results.json)
+and [the original integration replay](../compiler/evidence/current/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
 The Rust checker now inspects the actual fields of a value transferred
 into a task. The regression covers direct, generic and nominal wrappers
 around `Ref g Bytes` and preserves a transfer containing `Ref g Nat`.
 All 20 concurrency and 27 ownership tests passed on this Rust source.
 The full Rust sweep has a separate source identity.
-See [the Rust task transfer audit](../bootstrap/evidence/current/current-native-task-transfer-reference-results.json).
+See [the Rust task transfer audit](../compiler/evidence/current/current-native-task-transfer-reference-results.json).
 
 The Rust lexer preserves the `in` after an explicit `let` block. All 23
 Native layout tests passed. The separate Cinch parser and namespace probe
 passed all five original memo sources, explicit layout, lexical scope and
 both tuple-arity diagnostics. Checked memo semantics and runtime lowering
 are in a separate candidate.
-See [the layout and syntax audit](../bootstrap/evidence/current/current-abi7-explicit-let-layout-results.json).
+See [the layout and syntax audit](../compiler/evidence/current/current-abi7-explicit-let-layout-results.json).
 
 An isolated Cinch Stage 1 passed all 17 memo controls. Nine compiled and
 ran without leaks, including the original demand tests, a boxed cache,
@@ -307,14 +307,14 @@ The same compiler source now has a Stage 2 and Stage 3 fixed point.
 The executables, LLVM IR and 46 compiler interfaces match. All 12 stage
 smoke tests, the interface-only consumer and the changed-source rebuild
 passed. The full suites and frontend parity remain open.
-See [the memo fixed-point audit](../bootstrap/evidence/current/current-schema10-abi7-cinch-memo-fixed-point-results.json).
-See [the Stage 1 memo audit](../bootstrap/evidence/current/current-schema10-abi7-cinch-memo-stage1-results.json).
+See [the memo fixed-point audit](../compiler/evidence/current/current-schema10-abi7-cinch-memo-fixed-point-results.json).
+See [the Stage 1 memo audit](../compiler/evidence/current/current-schema10-abi7-cinch-memo-stage1-results.json).
 
 An isolated Cinch Stage 1 passed all three original guarded `Later` tests.
 The positive program ran without leaks. The six refusal cases check the
 distinction from `Thunk`, closed pure deferral and single use. Combined
 codata execution and its fixed point have separate gates.
-See [the guarded Later audit](../bootstrap/evidence/current/current-schema10-abi7-guarded-later-stage1-results.json).
+See [the guarded Later audit](../compiler/evidence/current/current-schema10-abi7-guarded-later-stage1-results.json).
 
 An isolated Cinch Stage 1 passed 13 host inline primitive controls. The
 LLVM/assembly fixture retained both immediate-operand annotations and
@@ -322,20 +322,20 @@ ran without leaks. The overflow intrinsic also ran without leaks. All ten
 original refusals named the required rule, and a memory operation hidden on
 an arithmetic line was refused. Cross-target selection, compiled primitive
 assumptions and a matching Stage 2 and Stage 3 have separate gates.
-See [the host primitive audit](../bootstrap/evidence/current/current-schema10-abi7-stage1-primitive-containment-results.json).
+See [the host primitive audit](../compiler/evidence/current/current-schema10-abi7-stage1-primitive-containment-results.json).
 
 Rust interfaces preserve assumed primitive body identities alongside
 intrinsic names. The original primitive target passed all 17 tests. The
 interface regression changes only the assumed body and checks that the
 identity changes while the intrinsic remains listed.
-See [the Rust primitive audit](../bootstrap/evidence/current/current-native-primitive-assumption-results.json).
+See [the Rust primitive audit](../compiler/evidence/current/current-native-primitive-assumption-results.json).
 
 The Rust primitive parser accepts a complete target condition before
 an immediate-operand clause. Both clause orders retain the immediate
 metadata. All 17 primitive tests and eight Rust law tests passed. The
 sampled Box law assertion reads the exact typed interface row and also
 passed with the selected Cinch Stage 1.
-See [the parser and law harness audit](../bootstrap/evidence/current/current-abi7-rust-prim-clause-and-law-harness-results.json).
+See [the parser and law harness audit](../compiler/evidence/current/current-abi7-rust-prim-clause-and-law-harness-results.json).
 
 The combined codata and memo Stage 1 passed all ten original codata tests
 and two eager-recursion refusals. Both executable controls ran without leaks.
@@ -344,14 +344,14 @@ matching were refused on codata. Stage 2 and Stage 3 match on executable bytes, 
 46 compiler interfaces. The smoke tests, interface consumer and changed-source
 rebuild passed. Checked codata observation interfaces and the complete suites
 remain open.
-See [the codata fixed-point audit](../bootstrap/evidence/current/current-schema10-abi7-codata-fixed-point-results.json).
-See [the codata audit](../bootstrap/evidence/current/current-schema10-abi7-stage1-codata-results.json).
+See [the codata fixed-point audit](../compiler/evidence/current/current-schema10-abi7-codata-fixed-point-results.json).
+See [the codata audit](../compiler/evidence/current/current-schema10-abi7-stage1-codata-results.json).
 
 Rust and Python now require unique nonempty compiled record field labels
 and check each advertised constructor's defining symbol, tag and arity.
 All 18 Rust interface codec tests and 52 tooling tests passed. The Cinch
 object transport replay remains a separate gate.
-See [the schema reader audit](../bootstrap/evidence/current/current-schema10-abi7-record-schema-results.json).
+See [the schema reader audit](../compiler/evidence/current/current-schema10-abi7-record-schema-results.json).
 
 The combined Stage 1 with codata, memo, host primitives and erased
 records passed all 39 original integration tests, five guard coverage
@@ -359,7 +359,7 @@ tests, ten codata tests and all 19 original concurrency tests. The
 task forwarder case passed on the same compiler after enabling its
 required interface output. The receipt preserves both runs.
 The combined Stage 2 and Stage 3 rebuild remains separate.
-See [the original target audit](../bootstrap/evidence/current/current-schema10-abi7-combined-host-integration-results.json).
+See [the original target audit](../compiler/evidence/current/current-schema10-abi7-combined-host-integration-results.json).
 
 A combined record Stage 1 passed all 18 record checks and the original
 34-case nominal type test. The latter checks dictionary diagnostic
@@ -370,7 +370,7 @@ tests. It accepted the shipped law equations and recorded the cited
 law identity in the checked interface. The false equation diagnostic,
 typed law observation assertion and proposition-valued signature method
 have separate gates.
-See [the Stage 1 audit](../bootstrap/evidence/current/current-abi7-records-and-rewrite-results.json).
+See [the Stage 1 audit](../compiler/evidence/current/current-abi7-records-and-rewrite-results.json).
 
 The resource-corrected rewrite Stage 1 passed six of eight cases in the
 earlier harness. It accepted the shipped equations and refused the false
@@ -380,7 +380,7 @@ row. Replaying the same Stage 1 with the typed law assertion passed
 seven of eight original tests. The remaining test needs checked
 proposition-valued signature methods, including a lambda operand.
 The full matching Stage 3 suite remains open.
-See [the corrected Stage 1 replay](../bootstrap/evidence/current/current-abi7-rewrite-resource-results.json).
+See [the corrected Stage 1 replay](../compiler/evidence/current/current-abi7-rewrite-resource-results.json).
 
 The standard selected-Cinch harness verified all five guard coverage,
 ten codata and seven class-default tests on the combined Stage 1.
@@ -390,7 +390,7 @@ the I64 inequality intrinsic and two build manifest checks. The recursive
 binding target passed two of eleven. Eight recursive cases reach ordinary
 name lookup, and the checker accepts 129 nested lets. The eight ported
 targets passed 112 cases through the Rust frontend.
-See [the standard harness replay](../bootstrap/evidence/current/current-abi7-standard-stage1-portable-results.json).
+See [the standard harness replay](../compiler/evidence/current/current-abi7-standard-stage1-portable-results.json).
 
 The integrated Stage 1 emitted all 46 checked compiler interfaces while
 building Stage 2. Their dependency chain passed. Code generation needed
@@ -404,7 +404,7 @@ with Stage 2, and an independent replay confirmed the original and
 changed binaries produce their respective diagnostics. The exact Stage 3
 suite is running. The standard
 harness separately passed all 39 integration cases on the earlier
-combined Stage 1. See [the provider and integration audit](../bootstrap/evidence/current/current-abi7-stage2-drop-provider-results.json).
+combined Stage 1. See [the provider and integration audit](../compiler/evidence/current/current-abi7-stage2-drop-provider-results.json).
 
 The exact integrated Stage 3 passed all 39 integration, ten codata,
 five guard and two bootstrap loading cases. Concurrency passed 19 of
@@ -413,7 +413,7 @@ five guard and two bootstrap loading cases. Concurrency passed 19 of
 matching Stage 3 replay is queued behind the rebuild. The integrated
 law target passed one of eight. The separately verified law repairs
 still need to be included in this chain.
-See [the matching invocation audit](../bootstrap/evidence/current/current-abi7-integrated-stage3-target-results.json).
+See [the matching invocation audit](../compiler/evidence/current/current-abi7-integrated-stage3-target-results.json).
 
 All twelve original module tests passed through the isolated Cinch
 Stage 1, including qualified import overlap, concrete cycle paths
@@ -423,7 +423,7 @@ cleanup for missing interfaces and invalid object digests. The compiler
 refuses an output that aliases its metadata input and preserves the
 input and IR. All twelve Rust cases and both component controls passed.
 The matching Stage 3 replay remains open.
-See [the module and manifest audit](../bootstrap/evidence/current/current-abi7-module-manifest-results.json).
+See [the module and manifest audit](../compiler/evidence/current/current-abi7-module-manifest-results.json).
 
 Rust now initializes acyclic strict recursive bindings before their
 eager uses and preserves the order of observable initializers.
@@ -432,7 +432,7 @@ The four forward-read controls run without leaks, including partial
 application and a large Nat. All fourteen ordinary tests pass. The
 leak-checked run passes thirteen, with the existing three-block
 guarded value knot still requiring region-scoped teardown.
-See [the Rust ordering audit](../bootstrap/evidence/current/current-native-letrec-initializer-order-results.json).
+See [the Rust ordering audit](../compiler/evidence/current/current-native-letrec-initializer-order-results.json).
 
 The D396 compatibility scan covered 253 tracked Cinch files in the
 bootstrap, prelude and examples and found zero `letrec` expressions.
@@ -441,14 +441,14 @@ returning a recursive value, returning its projected closure and
 storing the closure in an outer mutable cell. They also accept
 returning the tuple's independent scalar. The three escapes need a
 binding-specific diagnostic before teardown can be enabled.
-See [the escape baseline](../bootstrap/evidence/current/current-abi7-knot-escape-baseline.json).
+See [the escape baseline](../compiler/evidence/current/current-abi7-knot-escape-baseline.json).
 
 The guarded-function Stage 1 passed nine of eleven original recursive
 binding cases. Self and mutual recursion, delayed function calls and the
 shared capture control ran without leaks. Forward bindings, eager cycle
 refusals and the nested let depth limit also passed. Both remaining cases
 require region-scoped value knots. Constant-stack lowering has a
-separate validation. See [the recursive function audit](../bootstrap/evidence/current/current-abi7-guarded-function-letrec-results.json).
+separate validation. See [the recursive function audit](../compiler/evidence/current/current-abi7-guarded-function-letrec-results.json).
 
 An isolated Cinch Stage 1 passed seven guarded-value scope probes.
 All three escaping forms name the retained binding. The independent
@@ -460,16 +460,16 @@ The same isolated Stage 1 passed all eleven original recursive-binding
 cases and all twenty original concurrency cases. The two original
 value-knot cases now compile and run. The integrated Stage 3 replay
 has a separate gate.
-See [the guarded-value audit](../bootstrap/evidence/current/current-abi7-guarded-value-results.json).
+See [the guarded-value audit](../compiler/evidence/current/current-abi7-guarded-value-results.json).
 
 Rust now checks that guarded recursive values stay in scope and clears
 their slots on normal return. All 18 recursive-binding tests passed,
 including the 128-iteration teardown, three escape refusals and
-black-hole behavior. See [the Rust audit](../bootstrap/evidence/current/current-native-guarded-value-results.json).
+black-hole behavior. See [the Rust audit](../compiler/evidence/current/current-native-guarded-value-results.json).
 
 The Cinch task-capture successor passed all 20 original concurrency
 cases on Stage 3. Stage 2 and Stage 3 match, and the changed-source
-rebuild passed. See [the Stage 3 audit](../bootstrap/evidence/current/current-abi7-stage3-task-capture-results.json).
+rebuild passed. See [the Stage 3 audit](../compiler/evidence/current/current-abi7-stage3-task-capture-results.json).
 
 An isolated Cinch Stage 1 passed all four original tail-call programs.
 The three million-call programs ran on 8 MiB stacks and emitted LLVM
@@ -479,14 +479,14 @@ mixed arity with a heap capture and ordinary partial application.
 The compiler and linker used their normal stack. The earlier replay
 applied the program stack limit to the compiler and exhausted it
 before emitting LLVM IR. The integrated Stage 3 replay remains open.
-See [the tail-call audit](../bootstrap/evidence/current/current-abi7-tail-stage1-results.json).
+See [the tail-call audit](../compiler/evidence/current/current-abi7-tail-stage1-results.json).
 
 An isolated Cinch Stage 1 now passes all twenty original concurrency
 cases through the standard test harness. The checker follows a moved
 nominal wrapper's instantiated fields to the borrowed referent. The
 original safe referent and source forwarder controls also pass, with
 interface emission enabled. The matching Stage 3 replay remains open.
-See [the concurrency audit](../bootstrap/evidence/current/current-abi7-transferred-capture-results.json).
+See [the concurrency audit](../compiler/evidence/current/current-abi7-transferred-capture-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
@@ -495,88 +495,88 @@ objects from source. The stricter Stage1 passed the original library-family
 checks and the format cutover checks. The audited named-proof snapshot passed
 the independent Stage2 and Stage3 agreement audit and the changed-source
 control. The complete matching test sweep remains open.
-See [the cutover checks](../bootstrap/evidence/current/current-schema10-family-and-cutover-results.json),
-[the current bootstrap audit](../bootstrap/evidence/current/current-schema10-strict-named-proof-bootstrap-results.json)
-and [the first schema 10 fixed point](../bootstrap/evidence/current/current-schema10-bootstrap-results.json).
+See [the cutover checks](../compiler/evidence/current/current-schema10-family-and-cutover-results.json),
+[the current bootstrap audit](../compiler/evidence/current/current-schema10-strict-named-proof-bootstrap-results.json)
+and [the first schema 10 fixed point](../compiler/evidence/current/current-schema10-bootstrap-results.json).
 
 The current published compiler source (`e2b88a55`) preserves structural
 refinements through specialization. Its rebuilt Stage2 and Stage3
 executables, LLVM IR and all 46 compiler interfaces agree. The independent
 audit checked all 55 library interfaces, the separate interface client and
 the changed-source rebuild. The complete matching test suite remains open.
-See [the published fixed-point audit](../bootstrap/evidence/current/current-schema10-published-bootstrap-results.json).
+See [the published fixed-point audit](../compiler/evidence/current/current-schema10-published-bootstrap-results.json).
 
 The combined development source (`b3e6f3d7`) also reached a verified fixed
 point. Stage2 and Stage3 agree on the executable, LLVM IR and all 46
 compiler interfaces. The independent audit checked the 55 library
 interfaces, the separate client and the changed-source rebuild. This
 candidate still needs its matching complete suites.
-See [the combined candidate audit](../bootstrap/evidence/current/current-schema10-integrated-compiled-clients-bootstrap-results.json).
+See [the combined candidate audit](../compiler/evidence/current/current-schema10-integrated-compiled-clients-bootstrap-results.json).
 
 The development compiler with the erased refinement and direct CLI repairs
 (`215d93eb`) also passed the independent fixed-point audit. Its Stage2 and
 Stage3 executables, LLVM IR and 46 interfaces match. The separate client
 and changed-source rebuild passed on the same inputs.
-See [the integrated audit](../bootstrap/evidence/current/current-schema10-integrated-erasure-bootstrap-results.json).
+See [the integrated audit](../compiler/evidence/current/current-schema10-integrated-erasure-bootstrap-results.json).
 
 The complete proof-interface target passed all four original cases in Rust
 and through the exact published Stage3. The portable round trips use
 Cinch-emitted interfaces and retain the original Rust Core assertions.
-See [the proof-interface audit](../bootstrap/evidence/current/current-schema10-published-proof-arrow-dispatch-results.json).
+See [the proof-interface audit](../compiler/evidence/current/current-schema10-published-proof-arrow-dispatch-results.json).
 
 Both parser tests passed on the exact published Stage3. The corpus table
 now covers all 112 modules and pins the lower measured counts of
 unmodeled syntax.
-See [the parser audit](../bootstrap/evidence/current/current-schema10-stage3-parser-corpus-results.json).
+See [the parser audit](../compiler/evidence/current/current-schema10-stage3-parser-corpus-results.json).
 
 The complete inference target also passed on that Stage3. It retains the
 constructor, scope and checked Core assertions alongside the updated
 division refusal.
-See [the inference audit](../bootstrap/evidence/current/current-schema10-stage3-inference-target-results.json).
+See [the inference audit](../compiler/evidence/current/current-schema10-stage3-inference-target-results.json).
 
 All three class-identity cases and both region and effect interface cases
 passed on Rust and the exact published Stage3. The selected compiler
 checks the wrong-owner refusal and emits the region and effect contracts
 that the tests read back. The separate interface-kinds replay still has
 an opaque higher-kind spelling mismatch.
-See [the ownership audit](../bootstrap/evidence/current/current-schema10-stage3-class-and-region-ownership-results.json).
+See [the ownership audit](../compiler/evidence/current/current-schema10-stage3-class-and-region-ownership-results.json).
 
 The export-closure repair passed the original anonymous-interface and
 refinement-closure targets in Rust and with the development Stage1.
-See [the refinement-interface audit](../bootstrap/evidence/current/current-schema10-refinement-export-closure-results.json).
+See [the refinement-interface audit](../compiler/evidence/current/current-schema10-refinement-export-closure-results.json).
 
 Development Stage1 passed all five original refinement targets. The
 abstract `NonZero` method test passed all 17 cases, including the float
 and Boolean refusals. The structural `NonZero` fixture checks explicit
 projection, the implicit-projection refusal, and imported aliases.
 The higher-kinded `NonEmpty` control passed on the same compiler.
-See [the refinement formation audit](../bootstrap/evidence/current/current-schema10-refinement-formation-results.json).
+See [the refinement formation audit](../compiler/evidence/current/current-schema10-refinement-formation-results.json).
 
 The complete runtime-lowering target passed on the exact published Stage3.
 The higher-kinded identity example and both C ABI checks ran with zero
 leaks. The oversized tuple still produces its lowering refusal and clears
 the previous IR.
-See [the complete runtime target audit](../bootstrap/evidence/current/current-schema10-runtime-lowering-target-results.json)
-and [the focused fixture replay](../bootstrap/evidence/current/current-schema10-higher-kind-runtime-fixture-results.json).
+See [the complete runtime target audit](../compiler/evidence/current/current-schema10-runtime-lowering-target-results.json)
+and [the focused fixture replay](../compiler/evidence/current/current-schema10-higher-kind-runtime-fixture-results.json).
 
 The CLI emitter target carried the same higher-kinded example as an old
 refusal. The CLI built by the published Stage3 passed its check, emitted
 IR, and ran the linked program with zero leaks. The oversized tuple
 passes checking and still refuses lowering with empty IR. The updated
 fixture retains both assertions. The complete CLI target awaits replay.
-See [the CLI emitter controls](../bootstrap/evidence/current/current-schema10-cli-emitter-fixture-results.json).
+See [the CLI emitter controls](../compiler/evidence/current/current-schema10-cli-emitter-fixture-results.json).
 
 The original allocation probe reaches the published Stage3 and fails during
 IR emission. Its checked runtime imports for Nat addition and multiplication
 need staged lowering before the C link and reference-count checks can run.
-See [the allocation probe](../bootstrap/evidence/current/current-schema10-stage3-allocation-drop-results.json).
+See [the allocation probe](../compiler/evidence/current/current-schema10-stage3-allocation-drop-results.json).
 
 Development Stage1 now lowers both Nat operations on boxed operands. The
 linked test returns 149 with zero leaks, and the wrong carrier receives a
 type mismatch. The original allocation probe emits IR and its C source
 compiles. The linker then reports that the C probe calls the private
 `Main.build` symbol.
-See [the Stage1 Nat audit](../bootstrap/evidence/current/current-schema10-nat-intrinsic-results.json).
+See [the Stage1 Nat audit](../compiler/evidence/current/current-schema10-nat-intrinsic-results.json).
 
 Moving the builder into a separately compiled object resolves the link.
 Four of the five original ownership checks pass. The kept structure has
@@ -584,7 +584,7 @@ Four of the five original ownership checks pass. The kept structure has
 `Leaf` values and two `Nil` values that the Rust emitter represents as static
 blocks. Changing only those zero-field allocations in the emitted IR gave
 14 live blocks and passed all five checks.
-See [the object replay and diagnostic relink](../bootstrap/evidence/current/current-schema10-allocation-object-abi-results.json).
+See [the object replay and diagnostic relink](../compiler/evidence/current/current-schema10-allocation-object-abi-results.json).
 
 The compiler-source repair now passes all five modes through freshly built
 Stage1. The generated object preserves the builder interface and keeps 14
@@ -592,7 +592,7 @@ live blocks in the keep case. Drop and debug return to zero, a second drop
 traps, and the quiet case is silent. Static constructors at tag 63 and
 escaped tag 64 also run with zero leaks. The complete allocation target
 still needs its separate replay.
-See [the static constructor audit](../bootstrap/evidence/current/current-schema10-static-constructor-results.json).
+See [the static constructor audit](../compiler/evidence/current/current-schema10-static-constructor-results.json).
 
 The machine-contract replay passed all 13 consumer cases on the published
 Stage3. The producer refused type-level addition over an `I64` argument.
@@ -601,42 +601,42 @@ The matching Rust compiler accepts the `n + 1 > n` precondition at
 argument mathematically. The producer's raw scheme remains visible while
 schema 10 omits its resolved interface contract. A staged parity candidate
 is awaiting a fresh build and both full regression targets.
-See [the signed-limit controls](../bootstrap/evidence/current/current-schema10-machine-type-arithmetic-results.json).
+See [the signed-limit controls](../compiler/evidence/current/current-schema10-machine-type-arithmetic-results.json).
 
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and
 body authority.
-See [the byte-observation audit](../bootstrap/evidence/current/current-schema10-total-byte-observation-results.json).
+See [the byte-observation audit](../compiler/evidence/current/current-schema10-total-byte-observation-results.json).
 
 Development Stage1 passed the six nominal projection controls, including
 the wrong input, wrong field and partial projection refusals. The unchanged
 `Text.Regex` client checked, emitted IR and ran with zero leaks against the
 checked object with the additional Algebra variants.
-See [the projection and Regex audit](../bootstrap/evidence/current/current-schema10-nominal-projections-regex-results.json).
+See [the projection and Regex audit](../compiler/evidence/current/current-schema10-nominal-projections-regex-results.json).
 
 The current published Rust snapshot passed 205 compiler unit tests and
 171 runtime tests with ignored cases included. The current tooling suite
 passed 48 tests. The fixed-point command requires identical Stage2 and
 Stage3 executables. The frozen verification command also requires passing
 results and matching compiler receipts for the preserved Stage3 suite.
-See [the Rust, runtime and tooling audit](../bootstrap/evidence/current/current-schema10-published-native-core-results.json).
+See [the Rust, runtime and tooling audit](../compiler/evidence/current/current-schema10-published-native-core-results.json).
 
 All 39 original editor tests passed on current inputs with the audited
 Rust compiler, including the syntax engine, Tree-sitter, LSP and compiled
 examples.
-See [the editor replay](../bootstrap/evidence/current/current-schema10-published-editor-results.json).
+See [the editor replay](../compiler/evidence/current/current-schema10-published-editor-results.json).
 
 The previous published compiler source (`45bbfe94`) also passed those four
 gates with its own pinned library. Its suite receipts apply to that snapshot.
-See [the previous fixed-point audit](../bootstrap/evidence/current/current-schema10-45bbfe94-bootstrap-results.json).
+See [the previous fixed-point audit](../compiler/evidence/current/current-schema10-45bbfe94-bootstrap-results.json).
 
 The preceding published snapshot (`0b518fbd`) passed the independent
 fixed-point audit with the corrected library provider. Stage2 and Stage3
 match on the executable, LLVM IR and all 46 compiler interfaces. The audit
 also checked all 55 library interfaces, a separate compiled-interface
 client and a changed-source rebuild.
-See [the preceding published audit](../bootstrap/evidence/current/current-schema10-preceding-published-bootstrap-results.json).
+See [the preceding published audit](../compiler/evidence/current/current-schema10-preceding-published-bootstrap-results.json).
 
 The staged compiler links the pinned standard-library object and runtime
 archive. It reads the library's checked interfaces separately. The executable
@@ -645,33 +645,33 @@ when only the old object is available. The Foldable and Category fixtures now wr
 Foldable and 12 Category cases passed through Native. All 26 executed
 programs reported zero leaks. Both fixtures use the shared frontend harness
 for the pending Stage3 replay.
-See [the Native fixture audit](../bootstrap/evidence/current/current-schema10-source-free-library-fixtures-results.json).
+See [the Native fixture audit](../compiler/evidence/current/current-schema10-source-free-library-fixtures-results.json).
 
 The development Cinch Stage1 passed all 15 original Foldable cases
 through the shared frontend harness. Every fixture supplied only its
 client source. The checked object added the requested `non-empty [O]`
 specialization, preserved all 55 library interface identities and ran
 each program with zero leaks. Matching Stage3 coverage remains open.
-See [the compiled Foldable audit](../bootstrap/evidence/current/current-schema10-original-foldable-object-results.json).
+See [the compiled Foldable audit](../compiler/evidence/current/current-schema10-original-foldable-object-results.json).
 
 The development Cinch dictionary ABI repair passed all 12 original
 Category cases on that same object. Eleven programs ran with zero leaks.
 The refusal test exercised both original visitor diagnostics. The
 matching Stage3 library replay remains open.
-See [the compiled Category audit](../bootstrap/evidence/current/current-schema10-original-category-object-results.json).
+See [the compiled Category audit](../compiler/evidence/current/current-schema10-original-category-object-results.json).
 
 The published compiler sources built as Stage1 passed 20 of 22 original
 Algebra cases with an expanded object. The object adds ten concrete
 dictionary variants and preserves all 55 interface identities. Every
 passing program ran without leaks. The explicit source project and the
 `Text.Regex` proof check remain open.
-See [the Algebra replay](../bootstrap/evidence/current/current-schema10-algebra-object-results.json).
+See [the Algebra replay](../compiler/evidence/current/current-schema10-algebra-object-results.json).
 
 The published Stage3 and Rust both passed the two original fixity tests.
 The project case preserves the declaring operator through a renamed
 facade and checks the fixities and value identities in the emitted
 interfaces. The tests use the selected frontend when configured.
-See [the fixity dispatch audit](../bootstrap/evidence/current/current-schema10-stage3-fixity-dispatch-results.json).
+See [the fixity dispatch audit](../compiler/evidence/current/current-schema10-stage3-fixity-dispatch-results.json).
 
 Rust and the development Cinch Stage1 both passed all three original
 command-line argument tests. The Cinch executable linked each direct CLI
@@ -679,7 +679,7 @@ client with the checked standard-library object and runtime archive. All
 four original argument vectors reached it, including the word containing
 a space and the flag-like words following `--`. Matching Stage3 coverage
 remains open.
-See [the argv audit](../bootstrap/evidence/current/current-schema10-compiled-argv-results.json).
+See [the argv audit](../compiler/evidence/current/current-schema10-compiled-argv-results.json).
 
 The refinement erasure candidate passed eight checks on development Stage1.
 Both original source cases and both additional runtime controls ran without
@@ -687,14 +687,14 @@ leaks. Four invalid constructions were refused. The LLVM for refined and
 plain list construction agrees after renaming local values and labels.
 Returning a refined parameter through `unrefine` transfers the existing
 owned value. The combined compiler rebuild remains open.
-See [the refinement erasure audit](../bootstrap/evidence/current/current-schema10-refinement-erasure-results.json).
+See [the refinement erasure audit](../compiler/evidence/current/current-schema10-refinement-erasure-results.json).
 
 
 The pinned
 library object preserves all 55 checked interfaces and includes
 `both [TTT]` and `swap [TT]`. All nine
 Function.Combinators cases passed against that object with zero leaks.
-See [the compiled consumer audit](../bootstrap/evidence/current/current-schema10-compiled-library-consumer-results.json).
+See [the compiled consumer audit](../compiler/evidence/current/current-schema10-compiled-library-consumer-results.json).
 The package design calls for materializing missing variants from checked
 polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
@@ -706,7 +706,7 @@ plain list without evidence. The original Foldable, Semigroup and
 Traversable clients linked and ran against the expanded object with zero
 leaks. All 55 library interface identities were preserved across the object
 expansion. The full selected-frontend replay remains open.
-See [the NonEmpty object audit](../bootstrap/evidence/current/current-schema10-compiled-nonempty-results.json).
+See [the NonEmpty object audit](../compiler/evidence/current/current-schema10-compiled-nonempty-results.json).
 
 The checked dictionary ABI uses representation classes from the generic
 factory and the method's own parameters. The original Const, Identity,
@@ -716,7 +716,7 @@ declarations and retain the exact list index in the witness. Two
 positive programs ran with zero leaks and the wrong-list and wrong-carrier
 controls were refused. Rebuild the combined compiler and rerun the
 original suites to verify the integrated snapshot.
-See [the integration inputs](../bootstrap/evidence/current/current-schema10-compiled-client-integration-inputs.json).
+See [the integration inputs](../compiler/evidence/current/current-schema10-compiled-client-integration-inputs.json).
 
 The runtime assigns Unit's word representation to private, unconstrained
 type variables after Core has checked their scope. The original `Result`
@@ -724,7 +724,7 @@ client now requests the concrete `from-result [RT]` variant. The expanded
 object preserves the two required Alternative method vectors and all 55
 checked interface identities. All 23 original Option, Result, function, Map
 and Set cases ran through the repaired Stage1 with zero leaks.
-See [the selected runtime audit](../bootstrap/evidence/current/current-schema10-private-runtime-library-results.json).
+See [the selected runtime audit](../compiler/evidence/current/current-schema10-private-runtime-library-results.json).
 
 Native now isolates kind inference within each class method and law, while
 combining the enclosing class parameter uses. The original Traversable
@@ -734,8 +734,8 @@ passed readback of all 55 interfaces and retained every requested object
 root. The original List-to-Option traversal progressed from a missing
 declaring class to a representation error on the earlier Stage3. The
 complete traversal replay with higher-kinded runtime support is pending.
-See [the Native method kind audit](../bootstrap/evidence/current/current-native-scoped-method-kind-results.json)
-and [the rebuilt library audit](../bootstrap/evidence/current/current-schema10-scoped-member-kind-provider-results.json).
+See [the Native method kind audit](../compiler/evidence/current/current-native-scoped-method-kind-results.json)
+and [the rebuilt library audit](../compiler/evidence/current/current-schema10-scoped-member-kind-provider-results.json).
 
 The finite law sampler checks the original Const identity law on two
 constructor samples. It also checks an independent identity implementation
@@ -746,7 +746,7 @@ all 46 compiler interfaces. The separate consumer and changed-source
 rebuild passed. Rechecking with the new producer and completing the
 full suite remain open. The exact published combination has started a fresh
 four-stage rebuild with the corrected producer.
-See [the quantified law audit](../bootstrap/evidence/current/current-schema10-quantified-law-bootstrap-results.json).
+See [the quantified law audit](../compiler/evidence/current/current-schema10-quantified-law-bootstrap-results.json).
 
 The pure function constructor now unifies with an inferred effect row
 only after the row resolves to empty. All four effect-type runs passed,
@@ -758,18 +758,18 @@ runs passed with zero leaks, including the original Foldable list
 combinator case. The expanded object retains all 55 checked library
 interface identities. These runs used the recorded development compiler
 snapshots. The full matching suite remains open.
-See [the function and String audit](../bootstrap/evidence/current/current-schema10-function-and-string-object-results.json).
+See [the function and String audit](../compiler/evidence/current/current-schema10-function-and-string-object-results.json).
 
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
 selected frontend tests. Each record identifies the test case, selected
 compiler, input files and observed compiler exit code. It survives project
 cleanup. All eight harness tests passed, including ten actual invocations
-from the six tests that select a frontend. See [the harness audit](../bootstrap/evidence/current/current-selected-frontend-invocation-results.json).
+from the six tests that select a frontend. See [the harness audit](../compiler/evidence/current/current-selected-frontend-invocation-results.json).
 
 Native `run` now creates a fresh scratch directory and removes it after
 the executable exits. The CLI and both library run helpers passed the
 cleanup checks. The explicit build and linker failure checks preserved
-their artifacts. See [the scratch audit](../bootstrap/evidence/current/current-native-run-scratch-results.json).
+their artifacts. See [the scratch audit](../compiler/evidence/current/current-native-run-scratch-results.json).
 
 Schema 10 conditional method rows now require the checked implementation
 declaration. The producer omits optional bodies when they are unavailable.
@@ -778,7 +778,7 @@ null bodies and empty body tables. Thirteen compiler tests and 43 tooling
 tests passed. Two previously built interface closures kept all their
 recorded identities under the stricter verifier. A fresh ladder and full
 suite remain separate checks.
-See [the format consolidation checks](../bootstrap/evidence/current/current-schema10-single-instance-format-results.json).
+See [the format consolidation checks](../compiler/evidence/current/current-schema10-single-instance-format-results.json).
 
 The Stage1 probe with a faster diagnostic renderer refused the original
 Stage2 source and library inputs. The pinned producer wrote an unqualified
@@ -797,10 +797,10 @@ renamed facade and forged implementation controls. The changed-source control
 also passed. An independent audit checked both artifact closures and confirmed
 that the rebuilt compiler uses the changed source. The complete suite is
 running separately.
-See [the Stage2 refusal and exact inputs](../bootstrap/evidence/current/current-schema10-stage2-byte-observation-results.json)
-[the Stage3 agreement audit](../bootstrap/evidence/current/current-schema10-repaired-stage3-agreement-results.json)
-[the full byte-observation target](../bootstrap/evidence/current/current-schema10-byte-observation-full-target-results.json)
-and [the independent bootstrap audit](../bootstrap/evidence/current/current-schema10-repaired-bootstrap-results.json).
+See [the Stage2 refusal and exact inputs](../compiler/evidence/current/current-schema10-stage2-byte-observation-results.json)
+[the Stage3 agreement audit](../compiler/evidence/current/current-schema10-repaired-stage3-agreement-results.json)
+[the full byte-observation target](../compiler/evidence/current/current-schema10-byte-observation-full-target-results.json)
+and [the independent bootstrap audit](../compiler/evidence/current/current-schema10-repaired-bootstrap-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,
@@ -822,10 +822,10 @@ changed-source checks passed. The earlier audited named-proof Stage3 also
 ran both unchanged original Proof examples. The valid program ran with zero leaks at
 32 MiB and the invalid proof reported the expected obligation at line 4,
 column 22.
-See [the Core proof replay](../bootstrap/evidence/current/current-schema10-reflexivity-core-results.json)
-[the original Proof example audit](../bootstrap/evidence/current/current-schema10-original-proof-replay-results.json)
-[the consolidated ladder audit](../bootstrap/evidence/current/current-schema10-consolidated-proof-bootstrap-results.json)
-and [the original Proof replay on Stage3](../bootstrap/evidence/current/current-schema10-consolidated-stage3-proof-results.json).
+See [the Core proof replay](../compiler/evidence/current/current-schema10-reflexivity-core-results.json)
+[the original Proof example audit](../compiler/evidence/current/current-schema10-original-proof-replay-results.json)
+[the consolidated ladder audit](../compiler/evidence/current/current-schema10-consolidated-proof-bootstrap-results.json)
+and [the original Proof replay on Stage3](../compiler/evidence/current/current-schema10-consolidated-stage3-proof-results.json).
 
 The repaired Stage3 ran all 34 original language cases. Nine of thirteen
 valid programs ran at 32 MiB with poisoned allocations and zero leaks.
@@ -833,15 +833,15 @@ All 21 invalid programs were refused, and eight refusals met the original
 reason and source-location assertions. Proof, Protocol, Tactics and
 Choreography remain open on that exact compiler. Named proof support and
 the finite-index tactic work are tracked on separate source snapshots.
-See [the repaired language-suite audit](../bootstrap/evidence/current/current-schema10-repaired-external-language-results.json).
+See [the repaired language-suite audit](../compiler/evidence/current/current-schema10-repaired-external-language-results.json).
 
 The dependent constructor candidate opens the index binder using the same
 checked substitution as function arguments. The original valid Tactics
 program now runs with zero leaks at 32 MiB. Both proof-search refusals and
 the original Html and private Tensor checks passed. The stale-evidence
 fixture still stops at the unresolved `refSet` operation.
-See [the original tactic replay](../bootstrap/evidence/current/current-schema10-original-tactics-results.json)
-and [the constructor and diagnostic replay](../bootstrap/evidence/current/current-schema10-dependent-pattern-and-diagnostics-results.json).
+See [the original tactic replay](../compiler/evidence/current/current-schema10-original-tactics-results.json)
+and [the constructor and diagnostic replay](../compiler/evidence/current/current-schema10-dependent-pattern-and-diagnostics-results.json).
 
 The separate library targets exposed missing runtime specializations and
 conflicts between copied Category and Foldable sources and loaded interfaces.
@@ -858,13 +858,13 @@ controls were refused with empty IR. Category differs only on the
 `Data.Bool.not` declaration, whose complete dependency closure leads back
 to Foldable. A separate candidate projects the checked value into the
 copied implementation scope while retaining the interface checks.
-See [the copied-module replay](../bootstrap/evidence/current/current-schema10-executable-source-copy-results.json).
+See [the copied-module replay](../compiler/evidence/current/current-schema10-executable-source-copy-results.json).
 
 The additional library sweep found 29 more missing List function variants.
 The expanded candidate object built with the current pinned producer and
 preserved all 55 interface identities. All eight original List cases then
 ran on the earlier repaired Stage3 with zero leaks.
-See [the original List replay](../bootstrap/evidence/current/current-schema10-expanded-list-results.json).
+See [the original List replay](../compiler/evidence/current/current-schema10-expanded-list-results.json).
 
 The original small Nat/Int tests exposed a local numeric inference failure.
 The map value defaulted to Int before the body of its let could constrain it
@@ -872,7 +872,7 @@ to Nat. The candidate keeps unresolved literal carriers shared with their
 uses and validates them when the enclosing definition closes. The
 original map-key fixture and both literal controls passed checking.
 The complete runtime group remains open.
-See [the local numeric checks](../bootstrap/evidence/current/current-schema10-local-numeric-check-results.json).
+See [the local numeric checks](../compiler/evidence/current/current-schema10-local-numeric-check-results.json).
 
 The UTF-8 diagnostic renderer passed both original pipeline tests when
 replayed with the matching debug and release runtime archives. The stricter
@@ -880,21 +880,21 @@ compiler and producer passed 45 interface, array and library-object tests
 and source admission for all 46 compiler modules. A separate law-identity
 candidate passed 14 tests across law checks, source instances, the pipeline
 and the original array case with a custom build directory.
-See [the renderer audit](../bootstrap/evidence/current/current-schema10-diagnostic-renderer-results.json)
-and [the scoped interface and law audits](../bootstrap/evidence/current/current-schema10-interface-and-law-suite-results.json).
+See [the renderer audit](../compiler/evidence/current/current-schema10-diagnostic-renderer-results.json)
+and [the scoped interface and law audits](../compiler/evidence/current/current-schema10-interface-and-law-suite-results.json).
 
 The Rust checker now follows task captures through local closure aliases
 and direct calls to checked forwarding helpers. All 19 concurrency tests,
 187 compiler unit tests and 15 array tests passed. In the five paired CLI
 cases, the fix refused both hidden mutable captures and preserved the other
 three outcomes. The matching Cinch Stage3 replay remains a separate check.
-See [the Rust task-capture audit](../bootstrap/evidence/current/current-schema10-native-task-capture-results.json).
+See [the Rust task-capture audit](../compiler/evidence/current/current-schema10-native-task-capture-results.json).
 
 String `unpack` now advances by the decoded byte width. All 19 string and
 string-I/O tests passed, including a 16,384-character mixed-width regression.
 In the 4,096-character paired runtime probe, elapsed time fell from 17.8
 seconds to 0.26 seconds. The running ladder retains its pinned library inputs.
-See [the string tests and timing measurements](../bootstrap/evidence/current/current-schema10-linear-string-results.json).
+See [the string tests and timing measurements](../compiler/evidence/current/current-schema10-linear-string-results.json).
 
 The consolidated producer combines the byte-observation, task-capture and
 string fixes with the library variants requested by the original examples.
@@ -902,12 +902,12 @@ It reproduced all 55 repaired interface identities and passed the separate
 Stage1 client. On the same Native inputs, all 171 runtime tests, 42 tooling
 tests and the eight allocation tests passed. The complete 235-target Rust
 sweep and the consolidated ladder with named proofs are running separately.
-See [the consolidated provider and scoped suites](../bootstrap/evidence/current/current-schema10-consolidated-provider-results.json).
+See [the consolidated provider and scoped suites](../compiler/evidence/current/current-schema10-consolidated-provider-results.json).
 
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate
 interface consumer and changed-source test.
-See [the schema 9 audit](../bootstrap/evidence/current/current-schema9-bootstrap-results.json).
+See [the schema 9 audit](../compiler/evidence/current/current-schema9-bootstrap-results.json).
 
 The 105-target Stage3 run reproduced the unchanged Ordering replacement
 failure. `Relation.Ord` rejects the stale dependency on `Data.Ordering` after
@@ -923,7 +923,7 @@ three identity samples, then rejected the wrong identity without emitting an
 interface. It also passed the original inherited-default and library
 replacement assertions in that target. The separate source-instance group
 also passed, and the matching Stage3 replay remains open.
-See [the pipeline receipt](../bootstrap/evidence/current/current-schema9-finite-law-pipeline-results.json).
+See [the pipeline receipt](../compiler/evidence/current/current-schema9-finite-law-pipeline-results.json).
 
 The schema 10 candidate carries the checked law equations in the same
 interface as the class methods. Rust passed all 18 law, interface-kind and
@@ -939,7 +939,7 @@ incorrect arithmetic law. The schema 10 method rows now use the checked
 type spelling that Cinch already writes, which addresses the Functor
 interface difference. All 21 tests in the four affected Rust targets
 passed across the original run and an exact replay of the law target.
-See [the Rust contract receipt](../bootstrap/evidence/current/current-native-numeric-and-class-method-contract-results.json).
+See [the Rust contract receipt](../compiler/evidence/current/current-native-numeric-and-class-method-contract-results.json).
 
 The schema 10 Stage1 compiler matched the original Core, Ordering, and
 Functor interfaces. The unchanged replacement test now reaches
@@ -959,11 +959,11 @@ using its own emitted interfaces. Stage2 rebuilt the changed source and
 produced the changed diagnostic. The independent audit confirmed acceptance
 checks 1 through 4. The combined Stage3 also passed all 14 original external
 acceptance checks, including both imported-fixity redeclarations.
-See [the audited inputs and Stage1 results](../bootstrap/evidence/current/current-schema10-stage1-and-integrated-input-results.json).
-See [the Stage2 and source-law audit](../bootstrap/evidence/current/current-schema10-stage2-and-source-laws-results.json).
-See [the Stage3 and library audit](../bootstrap/evidence/current/current-schema10-stage3-and-library-replays-results.json).
-See [the complete bootstrap audit](../bootstrap/evidence/current/current-schema10-bootstrap-results.json)
-and [the external acceptance audit](../bootstrap/evidence/current/current-schema10-external-acceptance-results.json).
+See [the audited inputs and Stage1 results](../compiler/evidence/current/current-schema10-stage1-and-integrated-input-results.json).
+See [the Stage2 and source-law audit](../compiler/evidence/current/current-schema10-stage2-and-source-laws-results.json).
+See [the Stage3 and library audit](../compiler/evidence/current/current-schema10-stage3-and-library-replays-results.json).
+See [the complete bootstrap audit](../compiler/evidence/current/current-schema10-bootstrap-results.json)
+and [the external acceptance audit](../compiler/evidence/current/current-schema10-external-acceptance-results.json).
 
 The separate schema 9 finite-law candidate also passed all three
 source-instance tests. The newer schema 10 work preserves positional
@@ -975,7 +975,7 @@ Applicative display signatures match the earlier Cinch output. The stricter
 Stage1 passed the original Core, Ordering, Category and Algebra replacement
 test. Rust, Cinch and Python accepted the schema 10 control and rejected an
 actual schema 9 file, fingerprint-only defaults and two malformed contracts.
-See [the original family and format checks](../bootstrap/evidence/current/current-schema10-family-and-cutover-results.json).
+See [the original family and format checks](../compiler/evidence/current/current-schema10-family-and-cutover-results.json).
 The full 105-target Stage3 matrix is split into three groups of 35. Each
 group waits for the same audited Stage3, then takes a shared worker slot
 for one target at a time.
@@ -986,19 +986,19 @@ array input refuses `arrayReplicate` at its original source location.
 All 15 original array cases passed on the Stage1 candidate with staging and
 CopyOut. Fourteen passed in the complete run. The remaining case passed
 on an exact retry after supplying the matching runtime archive. The
-matching Stage3 replay remains open. See [the arrays receipt](../bootstrap/evidence/current/current-stage1-combined-arrays-results.json).
+matching Stage3 replay remains open. See [the arrays receipt](../compiler/evidence/current/current-stage1-combined-arrays-results.json).
 All 15 original Rust array tests now also pass with a custom Cargo output
 directory. The driver builds the runtime archive in the directory its linker
 reads. The earlier ten archive-lookup failures are preserved in the audit.
 The newer Cinch source-instance run passed the comparison of qualified law
-names and its recursive sampling control. See [the replay results](../bootstrap/evidence/current/current-schema10-arrays-and-law-identity-results.json).
+names and its recursive sampling control. See [the replay results](../compiler/evidence/current/current-schema10-arrays-and-law-identity-results.json).
 
 The published Stage3 passed all eight allocation-accounting tests when
 linked with the library object that provides `Data.List.length@T`.
 The original run passed five and refused three builds at that missing
 variant. The replay used the same compiler, test binary, manifest and
 runtime, with the same 55 interface identities.
-See [the allocation replay](../bootstrap/evidence/current/current-stage3-allocation-object-replay-results.json).
+See [the allocation replay](../compiler/evidence/current/current-stage3-allocation-object-replay-results.json).
 With the same replacement object, the published Stage3 also passes both
 original body-binding tests and the structural NonZero test. The three
 tests previously stopped at the missing `Data.List.FromList_List@R` factory.
@@ -1008,24 +1008,24 @@ interfaces. It includes the raw `list-length` variant requested when the
 development Stage2 stopped. The failed attempt still emitted 44 checked
 compiler interfaces, which the independent Rust reader validated with their
 dependencies. The matching original library replacement suite remains open.
-See `bootstrap/evidence/current/current-schema9-pinned-provider-results.json`.
+See `compiler/evidence/current/current-schema9-pinned-provider-results.json`.
 
 The checked compile-time evaluator returns 42 through a stage function,
 refuses the inner array primitive by its checked name, and enforces a shared
 work budget. The complete pipeline and original arrays group still need their
-matching results. See `bootstrap/evidence/current/current-staging-evaluation-results.json`.
+matching results. See `compiler/evidence/current/current-staging-evaluation-results.json`.
 
 The staging parser now retains stage signatures and equations, generator
 blocks, declaration quotations and expression splices. The complete
 syntax target passed with zero leaks. Checked compile-time execution and
 the original array primitive refusal remain open. See
-`bootstrap/evidence/current/current-staging-surface-results.json`.
+`compiler/evidence/current/current-staging-surface-results.json`.
 
 The Cinch interface writer emits the same public signature type and layout
 rows as Rust for the defining module and its re-export. The complete writer
 test also confirms that an instance uses the instance table. Category source
 replacement still needs matching instance heads and display schemes. See
-`bootstrap/evidence/current/current-class-interface-exports-results.json`.
+`compiler/evidence/current/current-class-interface-exports-results.json`.
 
 The checked `copyOut` development patch passes both complete pipeline
 tests and the full runtime IR group. It checks Copy evidence for elements
@@ -1033,14 +1033,14 @@ of an immutable array and retains the original refusal for affine
 `Thunk` elements. The tuple runtime case returns 42 with zero leaks.
 The patch reapplies to the integrated base without fuzz. The combined
 Stage3 still needs its own replay. See
-`bootstrap/evidence/current/current-copy-out-development-results.json`.
+`compiler/evidence/current/current-copy-out-development-results.json`.
 
 ## Development checkpoint for function constructors and class-law observations
 
 The structural function constructor candidate `b655a0a0` adds kind-checked
 `(->)`, supports partial application in instance heads, and rejects
 overapplication. The complete pipeline, type-syntax, and source-instance groups
-passed six tests. Apply `bootstrap/patches/structural-arrow-development.patch` to the
+passed six tests. Apply `compiler/patches/structural-arrow-development.patch` to the
 integrated task/law source `5bf127d9`.
 
 The class-law observation candidate `390867a9` builds on that change. It records
@@ -1050,8 +1050,8 @@ carrier. The complete pipeline and interface-writer groups passed three tests.
 The two patches reapplied without offsets or fuzz and left the seed and library
 pins intact. The original source-library families, broader sample generation,
 imported law transport, and matching Stage3 verification remain open. The
-receipts are `bootstrap/evidence/current/current-structural-arrow-results.json` and
-`bootstrap/evidence/current/current-class-law-observations-results.json`.
+receipts are `compiler/evidence/current/current-structural-arrow-results.json` and
+`compiler/evidence/current/current-class-law-observations-results.json`.
 
 ## Development checkpoint: checked defaults, coverage and structural refinements (2026-11-07)
 
@@ -1061,7 +1061,7 @@ reviewable development patches below are not applied to the published compiler.
 
 Private28d2 fixes inferred constructor-family coverage without using branch-local
 index equations to eliminate other constructors. Both exact44 source gates and
-all8 complete component groups (10 Rust tests) and all9 full compiler/object tests
+all8 complete component groups (10 Rust tests) and all9 full seed/object tests
 pass independent audit, including17 C clients and
 50 zero-leak reports. All11 positive default runtime clients execute their expected
 results at32M with poisoning and zero leaks; the original owned Box counterexample
@@ -1070,11 +1070,11 @@ backend lowering with empty IR. Their fresh interfaces match successful
 interface-only output byte for byte and all57 contracts pass the independent
 reader; the new runner's no-interface-after-backend-refusal assertion was mistaken.
 The raw failure remains retained. See
-the three `bootstrap/current-inferred-case-coverage-*-results.json` receipts.
+the three `compiler/current-inferred-case-coverage-*-results.json` receipts.
 
 Privatea029 preserves structural NonZero while retaining the designed widening
 of comparison-only refinements. Eleven self-contained source controls agree
-between actual compiled Cinch and Native. Its complete9-test compiler/object gate
+between actual compiled Cinch and Native. Its complete9-test seed/object gate
 also passes17 C clients and50 zero-leak reports. All8 complete component groups
 (10 Rust tests) pass independent audit. The original API/default replay is still
 16/21: three diagnostic/path assertions, source-Prelude replacement and the
@@ -1083,16 +1083,16 @@ containers but exposes generic-call result inference forcing NonZero to Int.
 Candidate2866 preserves a structural expected result when hinting a call, while
 comparison-only refinements still hint their container. All17 Native controls
 and the complete original Cinch NamedRefinements target pass. The full44-module
-compiler/object gate also passes independent audit:9 tests,17 C clients and50
+seed/object gate also passes independent audit:9 tests,17 C clients and50
 zero-leak reports. All8 complete component groups (10 Rust tests) also pass independent audit; the
 original runtime replay remains required. See
-`bootstrap/evidence/current/current-refinement-expected-result-component-results.json`. See
-`bootstrap/evidence/current/current-refinement-expected-result-compiler-results.json`. Its patch and
-evidence are in `bootstrap/evidence/current/current-refinement-expected-result-development.json`. The
+`compiler/evidence/current/current-refinement-expected-result-component-results.json`. See
+`compiler/evidence/current/current-refinement-expected-result-compiler-results.json`. Its patch and
+evidence are in `compiler/evidence/current/current-refinement-expected-result-development.json`. The
 superseded broad range-preservation assumption and subsequent fixture/cache-guard
 setup errors remain recorded; no original assertion or cache guard was weakened.
-See `bootstrap/evidence/current/current-refinement-structural-development.json` and
-`bootstrap/evidence/current/current-refinement-structural-compiler-results.json`.
+See `compiler/evidence/current/current-refinement-structural-development.json` and
+`compiler/evidence/current/current-refinement-structural-compiler-results.json`.
 
 Private7ccd retains source instance/class names and declaration locations; its
 complete source-instance and resolver targets pass independent audit (4 Rust
@@ -1104,19 +1104,19 @@ assertions remain recorded. The third complete pipeline/resolver/source-instance
 run retains the already-published fa405 FFI diagnostic correction, its positive
 ABI control and all original refusal sources. All3 complete groups (6 Rust tests)
 now pass independent audit; see
-`bootstrap/evidence/current/current-source-origin-component-results.json`. Native accepts all44 modules;
+`compiler/evidence/current/current-source-origin-component-results.json`. Native accepts all44 modules;
 earlier self-built4f refuses one guarded Nat subtraction and two pattern-coverage
 checks in the new helper. Cut-down differential probes are queued. The latest
-actual14a8 compiler now passes all9 complete compiler/object tests,17 C clients
-and50 zero-leak reports; see `bootstrap/evidence/current/current-source-origin-compiler-results.json`.
+actual14a8 compiler now passes all9 complete seed/object tests,17 C clients
+and50 zero-leak reports; see `compiler/evidence/current/current-source-origin-compiler-results.json`.
 Its original API/default replay now passes19/21: all three original diagnostic
 name/file assertions pass, defaults6/7, with source-library replacement and the
 unchanged mconcat refinement runtime still failing. Its own source-admission
 check and matching Stage1/2/3 build remain required. See
-`bootstrap/evidence/current/current-source-origin-api-results.json`. See
-`bootstrap/evidence/current/current-source-origin-input-results.json`. No filename is guessed from a module name. See
-`bootstrap/evidence/current/current-source-default-diagnostic-component-results.json` and
-`bootstrap/evidence/current/current-source-default-origins-development-2.json`.
+`compiler/evidence/current/current-source-origin-api-results.json`. See
+`compiler/evidence/current/current-source-origin-input-results.json`. No filename is guessed from a module name. See
+`compiler/evidence/current/current-source-default-diagnostic-component-results.json` and
+`compiler/evidence/current/current-source-default-origins-development-2.json`.
 
 The2866 original API/default replay stays19/21, with an important failure-stage
 change: mconcat now passes checking and reaches runtime-object lowering. Its
@@ -1129,23 +1129,23 @@ original function-carrier, refined product and empty-unit program exits zero
 with a 32 MiB heap, allocation poisoning and zero leaks. The two checked
 factory roots are now declared in the test provider. Source-library replacement
 is the remaining replay failure. See
-`bootstrap/evidence/current/current-refinement-expected-result-api-results.json` and
-`bootstrap/evidence/current/current-function-default-library-provider-results.json`. See also
-`bootstrap/evidence/current/current-function-default-api-results.json`.
+`compiler/evidence/current/current-refinement-expected-result-api-results.json` and
+`compiler/evidence/current/current-function-default-library-provider-results.json`. See also
+`compiler/evidence/current/current-function-default-api-results.json`.
 
 The diagnostic byte scanner passes the full pipeline group, including the
 original diagnostic-origin controls, a two-megabyte Unicode bundle, and invalid
 UTF-8. The public constructor formatter also passes both complete exporter and
 nominal groups, with the Native `Parcel` comparison and original resolved and
 hidden constructor assertions. Base-family compatibility and source replacement
-still have their own tests. See `bootstrap/evidence/current/current-source-origin-byte-scan-results.json`
-and `bootstrap/evidence/current/current-constructor-public-display-results.json`.
+still have their own tests. See `compiler/evidence/current/current-source-origin-byte-scan-results.json`
+and `compiler/evidence/current/current-constructor-public-display-results.json`.
 
 The Rust development patch rejects the original unsafe local callback and
 unsafe strict and nested aliases. Safe local callbacks still check. All
 18 concurrency tests and 186 Rust units pass, and the original helper-wrapped
 capture still needs a checked contract at the call boundary. See
-`bootstrap/evidence/current/current-native-local-task-capture-results.json`.
+`compiler/evidence/current/current-native-local-task-capture-results.json`.
 
 Candidate32ab repairs a Core branch-implication gap: a true conjunction and a
 false disjunction retain valid implications from the selected operand even if
@@ -1181,51 +1181,51 @@ entry check pass. The changed-source rebuild also passed. The new compiler
 produced the intended changed diagnostic and the independent audit verified
 all four bootstrap requirements for the 32ab candidate. The full test and
 frontend parity requirement stays open. See
-`bootstrap/evidence/current/current-partial-boolean-chain-results.json`,
-`bootstrap/evidence/current/current-partial-boolean-stage3-output-results.json`,
-`bootstrap/evidence/current/current-partial-boolean-stage3-heap-results.json` and
-`bootstrap/evidence/current/current-partial-boolean-stage2-results.json`. See also
-`bootstrap/evidence/current/current-partial-boolean-precondition-results.json` and
-`bootstrap/evidence/current/current-partial-boolean-input-results.json`. See also
-`bootstrap/evidence/current/current-partial-boolean-native-controls.json`,
-`bootstrap/evidence/current/current-partial-boolean-compiler-results.json`,
-`bootstrap/evidence/current/current-partial-boolean-own-source-results.json`,
-`bootstrap/evidence/current/current-partial-boolean-component-results.json` and
-`bootstrap/evidence/current/current-partial-boolean-branch-development-2.json`.
-See also `bootstrap/evidence/current/current-partial-boolean-stage1-results.json`,
-`bootstrap/evidence/current/current-partial-boolean-stage2-demand.json` and
-`bootstrap/evidence/current/current-partial-boolean-stage2-provider-results.json`.
+`compiler/evidence/current/current-partial-boolean-chain-results.json`,
+`compiler/evidence/current/current-partial-boolean-stage3-output-results.json`,
+`compiler/evidence/current/current-partial-boolean-stage3-heap-results.json` and
+`compiler/evidence/current/current-partial-boolean-stage2-results.json`. See also
+`compiler/evidence/current/current-partial-boolean-precondition-results.json` and
+`compiler/evidence/current/current-partial-boolean-input-results.json`. See also
+`compiler/evidence/current/current-partial-boolean-native-controls.json`,
+`compiler/evidence/current/current-partial-boolean-compiler-results.json`,
+`compiler/evidence/current/current-partial-boolean-own-source-results.json`,
+`compiler/evidence/current/current-partial-boolean-component-results.json` and
+`compiler/evidence/current/current-partial-boolean-branch-development-2.json`.
+See also `compiler/evidence/current/current-partial-boolean-stage1-results.json`,
+`compiler/evidence/current/current-partial-boolean-stage2-demand.json` and
+`compiler/evidence/current/current-partial-boolean-stage2-provider-results.json`.
 
 The current 32ab Stage3 also passed all 14 original external checks, including
 the two poisoned 32 MiB programs and both defining-module fixity controls.
 Across the separate 34 language cases, eight of 13 valid programs ran,
 all 21 invalid programs refused, and three matched the required reason and
 source location. The case-level results keep every failure visible. See
-`bootstrap/evidence/current/current-partial-boolean-external-acceptance-results.json` and
-`bootstrap/evidence/current/current-partial-boolean-stage3-language-results.json`.
+`compiler/evidence/current/current-partial-boolean-external-acceptance-results.json` and
+`compiler/evidence/current/current-partial-boolean-stage3-language-results.json`.
 
 The complete earlier 4f Stage3 sweep finished with 102 of 105 targets passing.
 The four failing assertions are in arrays, the bootstrap pipeline and the
 source-family override test. The 105 original target results are independently
-audited in `bootstrap/evidence/other/earlier-stage3-frontend-suite-results.json`. The current
+audited in `compiler/evidence/other/earlier-stage3-frontend-suite-results.json`. The current
 32ab compiler requires its own Stage3 sweep.
 
 The complete source-effects target passes all 43 cases, including a foreign
 call whose declared row omits `Blocking`. Its diagnostic now retains both
 checked rows. The original concurrency replay remains a separate gate. See
-`bootstrap/evidence/current/current-task-effect-diagnostic-results.json`.
+`compiler/evidence/current/current-task-effect-diagnostic-results.json`.
 
 Task ownership refusals now carry the specific checked reason. All nine
 original task controls refuse with empty IR, including seven assertions
 for the exact task-use, scope escape and sharing reasons. The same complete
 runtime-IR test executable passes after adding the missing shared runtime
-fixture. See `bootstrap/evidence/current/current-task-trace-diagnostic-results.json`.
+fixture. See `compiler/evidence/current/current-task-trace-diagnostic-results.json`.
 
 The combined development build also distinguishes a dropped handle from a
 duplicated or otherwise invalid use. The original runtime-IR target passes
 with the two drop cases requiring the join diagnostic. The original
 `Tasks` program and helper capture checks remain a separate replay. See
-`bootstrap/evidence/current/current-task-drop-diagnostic-results.json`.
+`compiler/evidence/current/current-task-drop-diagnostic-results.json`.
 
 Both development compilers now check the actual callback and scope for
 a saturated source helper whose entire body forwards to the task kernel.
@@ -1235,8 +1235,8 @@ checks. The Rust build passes the original unsafe capture regression,
 all 19 concurrency tests and 186 unit tests. Separately compiled helpers
 still require a portable transfer contract. The complete matching Stage3
 and Rust sweeps remain separate. See
-`bootstrap/evidence/current/current-cinch-task-source-forwarder-results.json` and
-`bootstrap/evidence/current/current-native-task-source-forwarder-results.json`.
+`compiler/evidence/current/current-cinch-task-source-forwarder-results.json` and
+`compiler/evidence/current/current-native-task-source-forwarder-results.json`.
 
 All eleven follow-up patches reapply without fuzz over the verified 32ab
 compiler, retaining the typed FFI test and both producer pins. The combined
@@ -1244,8 +1244,8 @@ compiler, retaining the typed FFI test and both producer pins. The combined
 unchanged 32ab executable, both original promotion pipeline tests pass with
 the corrected test-library object and a 512 MiB heap. The otherwise matching
 256 MiB run passed diagnostic origins and exhausted its heap during self-build.
-See `bootstrap/evidence/current/current-task-law-bootstrap-integration-results.json` and
-`bootstrap/evidence/current/current-stage3-promotion-pipeline-512-results.json`.
+See `compiler/evidence/current/current-task-law-bootstrap-integration-results.json` and
+`compiler/evidence/current/current-stage3-promotion-pipeline-512-results.json`.
 
 The exact verified 32ab Stage3 admitted all 44 combined modules in one
 check with empty diagnostics. The fresh pinned Stage0 through Stage3 run
@@ -1255,20 +1255,20 @@ interfaces. The changed compiler source reached the consumer, and Stage3
 checked a separate interface consumer. The complete Stage3 suite is
 running. Its original library replacement test gets through Core and
 stops when Ordering needs the inherited `mconcat` implementation. See
-`bootstrap/evidence/current/current-task-law-bootstrap-chain-results.json`.
+`compiler/evidence/current/current-task-law-bootstrap-chain-results.json`.
 
 The corrected anonymous refinement fixture passed all 18 cases on the
 audited 32ab Stage3. It checks that an explicit `unrefine` returns the
 carrier, a bare structural result refuses, and the projected value still
 cannot prove a stronger predicate. The fixture patch applies to the
 integrated test source and needs its matching replay. See
-`bootstrap/evidence/current/current-structural-projection-stage3-results.json`.
+`compiler/evidence/current/current-structural-projection-stage3-results.json`.
 
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.
 Both exporter and nominal groups pass. See
-`bootstrap/evidence/current/current-constructor-base-display-results.json`.
+`compiler/evidence/current/current-constructor-base-display-results.json`.
 
 The source replacement pipeline now checks a base source home against its
 dependency closure, emits a fresh interface, and validates every retained
@@ -1277,7 +1277,7 @@ passes, including stale-cache and ordinary-interface collision refusals. The
 unchanged original family test passes `Data.Core` and reaches `Data.Ordering`'s
 omitted `mconcat` default. Category, Algebra, and source replacement in runtime
 object builds remain open. See
-`bootstrap/evidence/current/current-source-interface-overlay-results.json`.
+`compiler/evidence/current/current-source-interface-overlay-results.json`.
 
 The early-library scope repair exposes facade names backed by a checked
 defining interface in the dependency closure. The exact defining hash is
@@ -1285,8 +1285,8 @@ recorded without a Prelude back-edge. Explicit and implicit Data.Core
 references produce equal Data.Set contracts, and a qualified reference
 without an import refuses. Both complete pipeline tests pass. The unchanged
 Algebra source now reaches its class law without missing constructor names.
-See `bootstrap/evidence/current/current-source-overlay-base-scope-results.json` and the
-reapplied patch receipt `bootstrap/evidence/current/current-source-overlay-base-scope-pipeline-results.json`.
+See `compiler/evidence/current/current-source-overlay-base-scope-results.json` and the
+reapplied patch receipt `compiler/evidence/current/current-source-overlay-base-scope-pipeline-results.json`.
 
 The class-law parser retains quantifiers, arrow binders and the two term
 operands. The law carrier patch opens the class dictionary and binders in the
@@ -1294,12 +1294,12 @@ ordinary checker, then checks both operands against one carrier with an
 empty effect row. The complete syntax and pipeline tests pass. A mismatched
 carrier produces a type refusal, and a well-typed law still awaits checked
 instance evidence. The original Category syntax probe reaches the structural
-function instance. See `bootstrap/evidence/current/current-source-class-law-carrier-results.json`.
+function instance. See `compiler/evidence/current/current-source-class-law-carrier-results.json`.
 The Boolean sampler also passed both actual instance checks. It enumerates
 both Boolean values through the selected checked method slots and reports a
 named counterexample for a constant-false implementation. Lawful samples
 remain internal until checked law transport is available. See
-`bootstrap/evidence/current/current-source-class-law-instance-samples-results.json`.
+`compiler/evidence/current/current-source-class-law-instance-samples-results.json`.
 
 A separate development compiler preserves the checked index mismatch and
 unknown record field reasons. The original Query, Audio, Circuit and
@@ -1307,24 +1307,24 @@ TensorADShape negatives produce the expected reasons at their original
 source locations. The pipeline and typed-index tests pass. The original
 Stage3 acceptance receipt retains its four failures until the repairs run
 on a matching Stage3. See
-`bootstrap/evidence/current/current-external-refusal-diagnostics-results.json`.
+`compiler/evidence/current/current-external-refusal-diagnostics-results.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:
-`bootstrap/evidence/current/current-development-patch-chain-results.json`.
+`compiler/evidence/current/current-development-patch-chain-results.json`.
 
 The current Native8ba8/Cinch3268 Rust sweep is complete. All 235 targets and
 1,647 tests pass without skips. The interrupted run's completed results were
 preserved, and the eight unfinished targets passed after resumption. The
 original arrays executable also passed all 15 tests once its runtime fixture
-was built. See `bootstrap/evidence/current/current-native-full-suite-results.json`. The
+was built. See `compiler/evidence/current/current-native-full-suite-results.json`. The
 matching Cinch-built Stage3 suite is tracked separately.
 
 Current Native8ba8/Cinch3268 also passes all43 tooling and39 syntax/editor tests
 under independent audit, with no skipped tests. These preserve their Native
 editor integration role and do not replace the separate final Cinch-built
-language/frontend checks. See `bootstrap/evidence/current/current-native-tooling-editor-results.json`.
+language/frontend checks. See `compiler/evidence/current/current-native-tooling-editor-results.json`.
 
 The fresh full235-target Native8ba8/Cinch3268 sweep retains every original target
 and assertion, with shared worker leases, one codegen unit/test thread per job,
@@ -1341,36 +1341,36 @@ need review. The complete original concurrency target through development
 Cinch passes six tests and records eleven failures. Eight executed programs
 report zero leaks. The unresolved cases cover representation declarations,
 borrow and thunk operations, and precise ownership, lifetime and effect
-diagnostics. See `bootstrap/evidence/current/current-original-concurrency-frontend-results.json`.
+diagnostics. See `compiler/evidence/current/current-original-concurrency-frontend-results.json`.
 A dispatch-only adapter preserves both whole original fixity-interface tests;
 they now pass through actual2866 Cinch, including exact defining/facade metadata,
 the renamed operator runtime result9 and one32M poisoned zero-leak report. This
 completes that target's assertion-level adaptation review; final matching Stage3
 execution remains required. See
-`bootstrap/evidence/current/current-additional-fixity-frontend-results.json`. See
-`bootstrap/evidence/current/current-outside-frontend-target-review.json`.
+`compiler/evidence/current/current-additional-fixity-frontend-results.json`. See
+`compiler/evidence/current/current-outside-frontend-target-review.json`.
 
 Still required: every original default/runtime/diagnostic/path assertion,
 source-Prelude replacements and their checked dependency graph, imported default
 implementation transport, remaining source laws/base names and language/runtime
 gaps, opaque mutable task captures, the matching latest Stage1/2/3 fixed point,
-changed-source rebuilding and every original compiler/runtime/tool/editor/external
+changed-source rebuilding and every original seed/runtime/tool/editor/external
 acceptance item. No completion percentage or final bootstrap sign-off is claimed.
 
 ## Strict defaults execute; constructor-case inference remains a real gap (2026-11-07)
 
-Candidate75fb passes the independently audited full44-module compiler/object gate:
+Candidate75fb passes the independently audited full44-module seed/object gate:
 all9 tests,17 real C clients and50 zero-leak reports. Its runtime extension passes
 15 controls, including all13 prior intended cases, reversed strict-field order
 and transitive method dependencies. Both actual8fce regressions now execute
 correctly. Ten positive clients run32M poisoned with zero-leak reports; five
 semantic rejection controls pass. See
-`bootstrap/evidence/current/current-source-class-default-self-values-compiler-results.json` and
-`bootstrap/evidence/current/current-source-class-default-self-values-runtime-results.json`.
+`compiler/evidence/current/current-source-class-default-self-values-compiler-results.json` and
+`compiler/evidence/current/current-source-class-default-self-values-runtime-results.json`.
 
 The owned Box client is accepted by current Native8ba8 but rejected by Cinch as
 non-exhaustive before constructor-pattern inference finishes. Its unchanged
-source is `bootstrap/programs/ClassDefaults.OwnedCase.Counterexample.cinch`.
+source is `compiler/programs/ClassDefaults.OwnedCase.Counterexample.cinch`.
 This remains a real frontend gap, not a reason to replace the inference case
 with an easier annotated program. Strict cycles do reject with empty IR, but
 the new runner stopped because checked interfaces remained after backend
@@ -1397,20 +1397,20 @@ Candidate75fb additionally specializes and rechecks author-resolved default
 clauses at checked class/method binder aliases. This keeps direct self-method
 dependencies visible to the existing strict dictionary initializer; unknown
 bindings and strict cycles must continue to refuse. Its44 Native source check
-passes. Seven complete components, full9 compiler/object tests and17 actual
+passes. Seven complete components, full9 seed/object tests and17 actual
 runtime controls (including reversed field order, transitive dependencies,
 owned constructor values and a cycle refusal) are validating independently.
-The unapplied review patch is `bootstrap/patches/source-class-default-self-values-development.patch`,
+The unapplied review patch is `compiler/patches/source-class-default-self-values-development.patch`,
 with exact applicability and limited source-gate evidence in
-`bootstrap/evidence/current/current-source-class-default-self-values-development.json`.
+`compiler/evidence/current/current-source-class-default-self-values-development.json`.
 Neither private compiler is applied to published Cinch3268.
 
 An optimized current Native8ba8 test host now passes all186 units and all7
 class-default tests, with assertions and overflow checks retained. It speeds
 remaining large checker builds; it does not replace immutable Native22 bootstrap
 seed/library roles or the21-group semantic audit. See
-`bootstrap/evidence/current/current-native-optimized-test-host-results.json`.
-All remaining actual compiler/default failures and complete Acceptance1-5 remain.
+`compiler/evidence/current/current-native-optimized-test-host-results.json`.
+All remaining actual seed/default failures and complete Acceptance1-5 remain.
 
 ## The complete pipeline target passes with current typed-FFI diagnostics (2026-11-06)
 
@@ -1423,14 +1423,14 @@ canonical interface JSON, local/external symbols, effects, parameter/result ABI
 types and the explicit foreign assumption; interface-only mode emits no IR.
 The full target has zero failed, ignored or filtered tests, and its exact inputs
 and original-case retention are independently audited. See
-`bootstrap/evidence/current/current-native-pipeline-results.json`. This is Native8ba8/Cinch3268
+`compiler/evidence/current/current-native-pipeline-results.json`. This is Native8ba8/Cinch3268
 pipeline evidence; matching final Stage3 and all complete suites remain required.
 
 ## Actual source-default runtime and original tests retain new failures (2026-11-06)
 
-Private Cinch8fce passes the complete actual44-module compiler/object gate:
+Private Cinch8fce passes the complete actual44-module seed/object gate:
 all9 tests,17 real C clients and50 observed zero-leak reports, with unchanged
-Native22 builder/library pins. See `bootstrap/evidence/current/current-source-class-default-compiler-results.json`.
+Native22 builder/library pins. See `compiler/evidence/current/current-source-class-default-compiler-results.json`.
 Thirteen dedicated actual-Cinch runtime/refusal controls then pass11/13 after
 correcting and separately preserving one malformed new missing-method fixture.
 Six positive clients run32M with poisoning and zero leaks, including method/class
@@ -1439,9 +1439,9 @@ annotations, author-private helper scope, overrides and a function carrier.
 Two valid programs still fail: `identity a = (a :: a)` confuses the term and type
 namespaces; and a nullary default `duplicate = value` reaches an explicit runtime
 refusal while materializing self evidence with strict dictionary fields. Their
-unchanged sources are `bootstrap/programs/ClassDefaults.SameName.Counterexample.cinch`
-and `bootstrap/programs/ClassDefaults.Nullary.Counterexample.cinch`. See
-`bootstrap/evidence/current/current-source-class-default-runtime-results.json`.
+unchanged sources are `compiler/programs/ClassDefaults.SameName.Counterexample.cinch`
+and `compiler/programs/ClassDefaults.Nullary.Counterexample.cinch`. See
+`compiler/evidence/current/current-source-class-default-runtime-results.json`.
 
 All9 original API groups plus all7 class_defaults tests also run:14/21 tests pass,
 7 fail, with no skipped or filtered cases. The original default test bodies and
@@ -1451,7 +1451,7 @@ The six original default failures retain strict field initialization, exact
 class/instance diagnostics and defining source-file attribution, and the original
 NonZero refinement/container runtime program. Correct semantic rejection alone
 does not pass the diagnostic/path assertions. Source-library replacement also
-continues to fail. See `bootstrap/evidence/current/current-source-class-default-api-results.json`.
+continues to fail. See `compiler/evidence/current/current-source-class-default-api-results.json`.
 
 Candidate00b5 separates proper type-head lookup from dependent value-index
 lookup. It preserves the original15 default controls and adds the same-spelled
@@ -1472,29 +1472,29 @@ pass332 Rust tests, including all186 units, all6 original class-default tests an
 11 new controls in the seventh test. A real inherited annotated default runs42.
 Both exact44-module compiler projects, all13 machine-contract cases, original
 False-proof/forgery controls and three actual old/new CLI examples pass independent
-audit. See `bootstrap/evidence/current/current-native-default-annotation-results.json`.
+audit. See `compiler/evidence/current/current-native-default-annotation-results.json`.
 The callback/helper task-capture gaps still reproduce and remain required fixes.
 Immutable Native22 seed/library pins remain unchanged.
 All nine original interface/API groups also replay with the published8ba8 reader:
 8/9 groups and13/14 tests pass, with the unchanged source-Prelude collision still
 failing. The actual Cinch3268 executable is unchanged. The earlier995f reader
-receipt remains in `bootstrap/evidence/other/cinch3268-native995-interface-api-results.json`.
+receipt remains in `compiler/evidence/other/cinch3268-native995-interface-api-results.json`.
 
 The private Cinch8fce source-default patch separately passes all four complete
 component groups: six Rust tests, all15 new default controls, all30 original
 source-dictionary cases and actual Text.Json behavior. Its44 sources also pass
 Native995f and genuine earlier4f Stage3 checks; these are input checks, not a
-matching8fce bootstrap. See `bootstrap/evidence/current/current-source-class-default-component-results.json`.
-The actual44-module compiler/object gate now runs with pinned Native22 as builder.
-The private patch remains unapplied pending full compiler/runtime/API validation.
+matching8fce bootstrap. See `compiler/evidence/current/current-source-class-default-component-results.json`.
+The actual44-module seed/object gate now runs with pinned Native22 as builder.
+The private patch remains unapplied pending full seed/runtime/API validation.
 Imported defaults, source-Prelude families, laws, implicit base names, every
 original failure and complete matching Acceptance1-5 remain required.
 
 ## Source class-default implementation is under validation (2026-11-06)
 
 The reviewable implementation is retained as
-`bootstrap/patches/source-class-default-development.patch`, with exact inputs and scope
-in `bootstrap/evidence/current/current-source-class-default-development.json`. It is a development
+`compiler/patches/source-class-default-development.patch`, with exact inputs and scope
+in `compiler/evidence/current/current-source-class-default-development.json`. It is a development
 patch, not applied to the published Cinch3268 compiler.
 
 Defaults resolve in the class author's scope and check at their own defining
@@ -1506,7 +1506,7 @@ cases check inheritance, overrides, unused errors, private helpers, class/method
 annotations, nullary fields and identity change/stability.
 
 The current generic-call revision now passes all44 Native source checks under
-independent artifact audit. See `bootstrap/evidence/current/current-source-class-default-input-results.json`.
+independent artifact audit. See `compiler/evidence/current/current-source-class-default-input-results.json`.
 Its actual compiled-Cinch component groups and an input check by genuine earlier4f
 Stage3 are running;
 a later parser failure and interrupted test attempt remain recorded separately.
@@ -1529,8 +1529,8 @@ The fresh Core contract and cached Native22 contract agree on resolved metadata
 and all other checked facts, but seven public constructor/field type spellings
 differ. Their actual contract identities therefore differ too:4364992559017108310
 versus3420315651835929958. This comparison covers Core only, not the Ordering,
-Category or Algebra families. See `bootstrap/evidence/current/current-source-prelude-counterexample.json`
-and `bootstrap/programs/SourcePrelude.Core.Counterexample.cinch`.
+Category or Algebra families. See `compiler/evidence/current/current-source-prelude-counterexample.json`
+and `compiler/programs/SourcePrelude.Core.Counterexample.cinch`.
 
 Source precedence must preserve checked family dependencies, current provider
 hashes and the absence of facade back-edges. Ordinary unrelated source/interface
@@ -1554,12 +1554,12 @@ numeric-kind refusals, proof domains and effect contexts. Four retained actual
 CLI probes and quoted Prop/Nat/Type controls also pass. All13 machine cases,
 both exact44-module source projects, original False-proof/forgery controls
 and five retained task-capture probes are independently audited. See
-`bootstrap/evidence/current/current-native-quoted-precondition-results.json`.
+`compiler/evidence/current/current-native-quoted-precondition-results.json`.
 
 Cinch remains3268. All nine original interface/API groups have now replayed
 with this published995f reader:8/9 groups and13/14 tests pass, with source-Prelude
 replacement still failing. All original assertions remain. The earlier Native d13
-receipt stays in `bootstrap/evidence/other/cinch3268-natived13-interface-api-results.json`. The two opaque
+receipt stays in `compiler/evidence/other/cinch3268-natived13-interface-api-results.json`. The two opaque
 task-capture bypasses still reproduce on995f and remain open. Source-Prelude
 replacement, every other original failure, matching latest self-built bootstrap,
 all full suites and Acceptance1-5 remain required. Native22 seed/library pins stay.
@@ -1576,12 +1576,12 @@ operator fixity, and all existing privacy, nominal, hash and fixity assertions s
 All three complete compiled component groups pass, including27 formatter cases,
 16 new provider/facade arity comparisons and all25 original plus12 new qualified
 proof source cases. The source harness resolves names before checking them.
-The actual44-module Cinch compiler passes all9 compiler/object tests,17 C clients
+The actual44-module Cinch compiler passes all9 seed/object tests,17 C clients
 and canonical contract comparisons. All nine original interface/API groups run:
 8/9 groups and13/14 tests pass; source-Prelude replacement remains the one failure.
 Three passing direct Native API tests are classified separately from the11 actual
 Cinch source-path tests (10 pass,1 fails). See the three
-`bootstrap/current-value-interface-*-results.json` receipts.
+`compiler/current-value-interface-*-results.json` receipts.
 
 The full compiler was built by immutable Native22 and runs Cinch's implementation;
 it is not a fresh self-built Stage3. Native d13 provides the public reader and
@@ -1604,12 +1604,12 @@ Both exact44-module compiler projects, all13 actual machine-contract cases,
 the original False-proof and forgery CLI controls and five task-capture probes
 are independently audited. The staging symbol-interning case retains one
 intentional immortal root and reports zero leaked cells; all other observed
-reports are zero throughout. See `bootstrap/evidence/current/current-native-index-kind-results.json`.
+reports are zero throughout. See `compiler/evidence/current/current-native-index-kind-results.json`.
 
 This publishes Native d13; Cinch remains1c76 for this checkpoint. Quoted using
 contexts and logical proof types need the separately validated hygiene fix.
 Opaque task captures, source-Prelude replacement, every other original failure,
-matching latest self-built bootstrap/full suites and Acceptance1-5 remain open.
+matching latest self-built compiler/full suites and Acceptance1-5 remain open.
 Immutable Native22 seed/library pins and defining-module-only fixities remain.
 
 ## Numeric preconditions need actual argument-kind checks (2026-11-06)
@@ -1622,8 +1622,8 @@ publishedNative301 accept it; two broader probes also admit function and
 Boolean parameters as numeric indices. Numeric and actual-proof controls
 pass in both compilers. This is ill-kinded declaration admission, not a
 demonstrated bad runtime call. Exact sources and CLI/log hashes are retained
-in `bootstrap/evidence/current/current-native-index-kind-counterexample.json` and
-`bootstrap/programs/index-kind-counterexamples/`.
+in `compiler/evidence/current/current-native-index-kind-counterexample.json` and
+`compiler/programs/index-kind-counterexamples/`.
 
 A new12-control regression passes six valid numeric/proof/binder-position/
 byte-measure/mutable-place controls before exposing the erased-proof
@@ -1634,7 +1634,7 @@ literals. It is validating all13 original primary groups plus seven complete
 evidence/index/syntax/staging groups and both44-module projects. This private
 correction is unproven until those gates finish. Cinch3268 production is
 unchanged; its complete three component groups rerun against the corrected
-oracle before actual compiler/object and all nine original API groups.
+oracle before actual seed/object and all nine original API groups.
 No expected refusal, original assertion, seed or library pin is weakened.
 
 ## Native literal preconditions corrected; all15 affected groups pass (2026-11-06)
@@ -1656,15 +1656,15 @@ early signature refusal with a valid quantified declaration plus its actual
 unresolved-index-use refusal. Every original assertion remains. Both exact44-module input projects pass, including private3268; unchanged
 actual CLI proof/forgery controls and all five capture probes are also
 verified. All15 groups and the complete input/evidence replay now have an
-independent audit. See `bootstrap/evidence/current/current-native-literal-context-results.json`
-and `bootstrap/evidence/current/current-native-literal-precondition-comparison.json`. These
+independent audit. See `compiler/evidence/current/current-native-literal-context-results.json`
+and `compiler/evidence/current/current-native-literal-precondition-comparison.json`. These
 scoped results do not complete the matching final bootstrap or full suites.
 
 All five task-capture probes rerun on exact Native301: both opaque callback/
 helper bypasses remain required fixes. Native22/85f00ca seed and library pins
 stay unchanged. Cinch3268 remains private: both exporter groups pass; its
 complete precondition group runs against Native301, followed by the actual
-compiler/object and all nine original API groups. The genuine earlier4f
+seed/object and all nine original API groups. The genuine earlier4f
 Stage3 already accepts all44 current Cinch modules. Source-Prelude replacement,
 record interfaces, remaining language/staging/copyOut and hidden-type gaps,
 latest matching full suites/bootstrap and every Acceptance1-5 requirement
@@ -1683,17 +1683,17 @@ machine consumer retains all13 original cases at the established full-suite
 256M RC_DEBUG0 settings; small runtime groups retain32M poisoning. The two
 opaque task-capture bypasses are reproduced on this exact Native build and
 remain required. Seed/library pins stay unchanged. See
-`bootstrap/evidence/current/current-native-portable-proof-contract-results.json`.
+`compiler/evidence/current/current-native-portable-proof-contract-results.json`.
 
-Private CinchC1aeb passes its complete44-module compiler/object gate:9 tests,
+Private CinchC1aeb passes its complete44-module seed/object gate:9 tests,
 17 actual runtime clients,50 zero-leak reports and3 checked canonical contract
 comparisons. Its original nine interface/API groups now pass8/9 groups and
 12/13 tests; source-Prelude replacement is the remaining failed group. Three
 of those passing tests use direct Native APIs and are explicitly classified
 separately from the10 actual Cinch source-path tests (9 pass,1 fails). The added
 literal proof provider/facade source test now passes with resolved metadata.
-See `bootstrap/evidence/other/private-erased-proof-arrow-full-compiler-results.json` and
-`bootstrap/evidence/other/private-erased-proof-arrow-interface-api-results.json`.
+See `compiler/evidence/other/private-erased-proof-arrow-full-compiler-results.json` and
+`compiler/evidence/other/private-erased-proof-arrow-interface-api-results.json`.
 
 An independent actual compiler comparison found another mismatch: Cinch uses
 runtime argument counts in public value metadata. Native schema8 counts source
@@ -1701,7 +1701,7 @@ arrows plus dictionaries and hidden value parameters. Proof-only, mixed proof/
 runtime and hidden-Nat signatures publish0vs1,1vs2 and1vs2 respectively. All
 three sources check and emit interfaces in both implementations. The original
 programs and exact interface/binary identities remain in
-`bootstrap/evidence/current/current-cinch-value-arity-counterexample.json`. Private7dde corrects
+`compiler/evidence/current/current-cinch-value-arity-counterexample.json`. Private7dde corrects
 metadata counts only, with eight new Native comparisons through provider and
 facade; runtime proof erasure remains unchanged. Its complete gates are queued
 or running, including an actual earlier4f Stage3 source check with empty PATH.
@@ -1723,8 +1723,8 @@ original canonical Scope/Task comparisons. The proof constructor-field erasure
 guard remains. Both exact44-module input projects pass the actual published
 Native91cf CLI and actual Native22-built1c76 Cinch implementation, whose check uses55
 authenticated library-only interfaces and an empty executable PATH. See
-`bootstrap/evidence/other/private-erased-proof-arrow-input-results.json` and
-`bootstrap/evidence/other/private-erased-proof-arrow-export-results.json`.
+`compiler/evidence/other/private-erased-proof-arrow-input-results.json` and
+`compiler/evidence/other/private-erased-proof-arrow-export-results.json`.
 
 The added canonical comparison exposed a missing Rust portable proof-contract
 tier. A private writer correction uses checked proposition structure, keeps
@@ -1739,8 +1739,8 @@ The retained consumer's missing report was reproduced as heap exhaustion with
 32M and256M poisoning. Its identical executable/input passes with zero leaks
 under the full Native suite's established256M RC_DEBUG0 settings. This is one
 case only; the complete original13-case group remains required. See
-`bootstrap/evidence/other/private-proof-contract-memory-replay.json`. Smaller runtime groups
-keep32M poisoning. Actual full44-module compiler/object and all nine original
+`compiler/evidence/other/private-proof-contract-memory-replay.json`. Smaller runtime groups
+keep32M poisoning. Actual full44-module seed/object and all nine original
 API groups are queued/running; source-Prelude replacement and all other
 original failures remain required. Neither private compiler change is yet
 published. Published Cinch1c76, Native91cf, Native22/85f00ca seed/library roles,
@@ -1755,15 +1755,15 @@ replacement still fails. The added test exposes another gap: its unchanged
 source passes actual Cinch checking, but interface export refuses its erased
 proof arrow. The complete latest API result is therefore7/9 groups and10/12
 tests passing, with no skips. See
-`bootstrap/evidence/current/current-native-reader-interface-api-results.json` and the retained
-`bootstrap/programs/ErasedProofArrow.Interface.Counterexample.cinch`.
+`compiler/evidence/current/current-native-reader-interface-api-results.json` and the retained
+`compiler/programs/ErasedProofArrow.Interface.Counterexample.cinch`.
 
 The missing cases are in the type printer and nominal-dependency visitor,
 not logical literal spelling. A private correction retains the proposition
 domain, latent effects, result and nominal references; malformed proof arrows
 and moving early preconditions across an erased argument remain refused.
 Its complete original exporter groups plus six new formatting/Native-readback
-controls are validating. Actual full compiler/API replay, complete matching
+controls are validating. Actual full seed/API replay, complete matching
 suites and every Acceptance1-5 requirement remain required before completion.
 
 ## Native logical literals retain checked proof hypotheses (2026-11-06)
@@ -1785,16 +1785,16 @@ decision programs, a real provider/facade interface round trip and a kernel
 identity test retain every original assertion. Three physically retained CLI
 programs also independently execute with32M poisoning and zero leaks. Both
 exact44-module compiler projects pass. See
-`bootstrap/evidence/current/current-native-proposition-literal-results.json`.
+`compiler/evidence/current/current-native-proposition-literal-results.json`.
 
 The two opaque task-capture bypasses are reproduced on this exact Native91cf
 build and remain required fixes. Cinch stays1c76, and the immutable Native22/
 85f00ca seed/library roles stay unchanged. Source-Prelude replacement, record
 interface transport, remaining language and staging declarations, copyOut,
 Native existential introduction and the complete matching latest-source
-bootstrap/suites/105+14+34/Acceptance1-5 remain open. Earlier4f Stage3's14
+compiler/suites/105+14+34/Acceptance1-5 remain open. Earlier4f Stage3's14
 external checks now have their own independent artifact/replay audit in
-`bootstrap/evidence/current/current-record-indexed-external-acceptance-results.json`.
+`compiler/evidence/current/current-record-indexed-external-acceptance-results.json`.
 
 ## Task wrappers need capture contracts in both compilers (2026-11-06)
 
@@ -1803,7 +1803,7 @@ capture at `spawn` refuses, while the same capture through a let-bound
 callback or a normally typed `fork` helper is accepted. Both safe no-capture
 controls pass. No race was executed. The programs, actual compiler identity
 and log/source hashes are retained in
-`bootstrap/evidence/current/current-native-task-capture-counterexample.json`.
+`compiler/evidence/current/current-native-task-capture-counterexample.json`.
 The correction must preserve safe wrappers while carrying real capture,
 transfer and lifetime requirements through aliases, helpers and interfaces.
 Cinch currently conservatively refuses the opaque wrapper; making every
@@ -1814,7 +1814,7 @@ The completed earlier4f Stage3 language replay is independently audited:
 7/13 positives execute, all21 negatives refuse,2 intended diagnostic checks
 pass and25 failed subcases remain. Every original source/assertion remains,
 and all seven successful programs independently rerun with32M poisoning and
-zero leaks. See `bootstrap/evidence/current/current-record-indexed-stage3-language-results.json`.
+zero leaks. See `compiler/evidence/current/current-record-indexed-stage3-language-results.json`.
 The newer1c76 development result remains separate:8/13 positives and3/21
 intended diagnostic checks pass after the Format correction.
 
@@ -1826,10 +1826,10 @@ without changing the trusted certificate checker or the64-step/256-row/split8
 budgets. All original tests and assertions remain; ten captured-context packets
 and six Native-compared source cases cover the repair and invalid controls.
 Five complete component groups and both exact44-source checks pass. The actual
-44-module compiler/object gate passes9 tests,17 optimized C clients,50 zero-leak
+44-module seed/object gate passes9 tests,17 optimized C clients,50 zero-leak
 reports and3 real resolved-contract comparisons. All13 record/indexed runtime
 clients and5 source refusals pass, with13 independently poisoned reruns.
-See `bootstrap/evidence/current/current-proof-elimination-results.json`.
+See `compiler/evidence/current/current-proof-elimination-results.json`.
 
 All three exact retained byte-size positives now pass. The original Format
 positive executes and its negative satisfies its original predicate/path
@@ -1843,7 +1843,7 @@ gaps remain open. No example, assertion or required suite is removed.
 The earlier4f compiler now independently proves Acceptance1-4: all four actual
 stages,12 smokes, matching Stage2/3 LLVM/executables/all44 interfaces, actual API
 consumption and changed-source behavior. Its14 original external acceptance
-checks pass. See `bootstrap/evidence/current/current-record-indexed-bootstrap-results.json`.
+checks pass. See `compiler/evidence/current/current-record-indexed-bootstrap-results.json`.
 Its235-group Native sweep and105-target Stage3 suite continue with their exact
 earlier source; they do not establish matching1c76 completion. Full matching
 latest-source suites, bootstrap,105 frontend targets,14 acceptance checks,
@@ -1852,7 +1852,7 @@ all34 language cases and every Acceptance1-5 requirement remain required.
 NativeE5 production and the pinned Native22/85f00ca seed/library roles remain
 unchanged. A separately audited optimized development runtime keeps debug
 assertions and overflow checks enabled and passes all171 runtime tests;
-`bootstrap/evidence/current/current-native-checked-runtime-profile-results.json` records its
+`compiler/evidence/current/current-native-checked-runtime-profile-results.json` records its
 exact profile and unchanged pinned runtime. It is not a new bootstrap seed.
 
 ## Matching auxiliary suites pass; observed byte-size proof gap isolated (2026-11-06)
@@ -1860,7 +1860,7 @@ exact profile and unchanged pinned runtime. It is not a new bootstrap seed.
 Published4f/NativeE5 passes all171 runtime tests,43 tooling tests and39 Native
 editor integration tests, with zero skipped or filtered cases. Frozen source,
 all500 expected Rust inputs, CLI provenance, logs and counts are independently
-verified in `bootstrap/evidence/current/current-record-indexed-auxiliary-results.json`. Native
+verified in `compiler/evidence/current/current-record-indexed-auxiliary-results.json`. Native
 editor integration is separate from Cinch-built frontend parity.
 
 The matching four-stage4f chain has passed Stage0 and Stage1 with all their
@@ -1876,7 +1876,7 @@ accepts three reduced positives; actual4f refuses each. All seven controls with
 an ordinary Nat size agree between implementations, and end-index refusals
 remain correct. Private diagnostic instrumentation shows the actual scoped
 bounds and unsolved write obligation. See
-`bootstrap/evidence/current/current-observed-byte-size-counterexample.json` and its unchanged
+`compiler/evidence/current/current-observed-byte-size-counterexample.json` and its unchanged
 positive program. A private correction chooses a cheaper arithmetic elimination
 order while retaining the same trusted certificate checker,64-step/256-row
 limits and original tests. Its complete proof test and ten new captured-context
@@ -1897,19 +1897,19 @@ prove constructor alternatives impossible; symbolic uncertainty cannot.
 The runtime backend now erases checked value indices with compatible carriers
 while retaining ordinary parameter identities and field representations. The
 complete runtime-IR group passes137 clients plus2 C ABI executions,139 zero-leak
-reports. The actual44-module compiler/object gate passes9 tests,17 optimized C
+reports. The actual44-module seed/object gate passes9 tests,17 optimized C
 clients,50 zero-leak reports and3 real resolved-contract comparisons. All13
 record/indexed runtime clients and5 source-refusal controls pass; independent
 poisoned reruns of all13 clients report zero leaks. All44 sources pass both
 Native and the audited Cinch-built reader. Earlier D13 frontend/export gates
 retain their explicit source scope:5 groups,70 constructor cases and9 metadata
-mutations. See `bootstrap/evidence/current/current-record-indexed-runtime-results.json`.
+mutations. See `compiler/evidence/current/current-record-indexed-runtime-results.json`.
 
 The unchanged original34 language cases now execute7/13 positives, including
 Audio and Query. All21 negatives refuse, but only2 satisfy their original
 diagnostic assertions;25 assertions remain failed. All seven successful
 programs also pass independent32M poisoned reruns. See
-`bootstrap/evidence/current/current-development-external-behavior-results.json`.
+`compiler/evidence/current/current-development-external-behavior-results.json`.
 
 All9 original API groups remain8/9, with source-Prelude replacement failing.
 Record interface transport and the remaining six language positives stay open.
@@ -1936,7 +1936,7 @@ wrong families and incompatible tuples. A real program executes constructor
 and tuple lambda paths. All original pattern/empty-data controls and the earlier
 proposition correction remain. Both exact44-module compiler projects pass the
 real Native loader, and the unchanged original lambda now passes the actual CLI.
-See `bootstrap/evidence/current/current-native-pattern-inference-results.json`.
+See `compiler/evidence/current/current-native-pattern-inference-results.json`.
 
 Native existential introduction and False-proposition domains remain retained
 parity gaps. Full matching Native/Cinch suites remain required; seed/library
@@ -1946,7 +1946,7 @@ The private4f indexed-constructor backend repair now passes the complete runtime
 IR group:137 client executions plus two C ABI executions,139 zero-leak reports.
 All original cases/assertions remain and three new fixed-index programs execute,
 including generic payload representations and a first-class constructor. Exact44
-sources pass optimized NativeA2 checking. The full actual compiler/object gate,
+sources pass optimized NativeA2 checking. The full actual seed/object gate,
 Cinch-built source check and fresh runtime/API/external replays are running or
 queued. These are separate gates; the latest full bootstrap,105 frontend targets,
 14 external acceptance checks, all34 language cases and Acceptance1-5 stay open.
@@ -1965,7 +1965,7 @@ zero-leak reports. The original eight proof-identity controls remain, alongside
 with erased evidence. Both exact44-module compiler projects, published dd8d
 and private d13f, pass the real Native project loader. The unchanged original
 positive proof source now passes the actual Native CLI; its6b/58e refusals stay
-retained. See `bootstrap/evidence/current/current-native-proposition-carrier-results.json`.
+retained. See `compiler/evidence/current/current-native-proposition-carrier-results.json`.
 
 An independent optimized build of the identical Native source also passes all
 four groups, preserving debug assertions. Full matching suites remain required;
@@ -1973,7 +1973,7 @@ these results do not replace them. Seed/library roles remain Native22/85f00ca.
 
 Private d13f now passes the complete constructor/inference/resolver groups,
 all70 constructor source cases and nine metadata mutations, both44-source
-checks, and the independently audited actual compiler/object gate. The latter
+checks, and the independently audited actual seed/object gate. The latter
 passes nine Rust tests,17 optimized C clients and50 zero-leak reports. Its nine
 original API groups remain8/9, with source-Prelude replacement still failing.
 Twelve of13 runtime clients pass. The indexed Signal client checks successfully
@@ -1994,7 +1994,7 @@ checks, all34 language cases and every Acceptance1-5 requirement remain open.
 The preceding aa4e compiler now independently proves Acceptance1-4: all four
 stages, twelve smokes, identical Stage2/3 LLVM and executables, all44 canonical
 interfaces, actual compiler-interface consumption and changed-source behavior.
-See `bootstrap/evidence/current/current-canonical-contract-bootstrap-results.json`. This is
+See `compiler/evidence/current/current-canonical-contract-bootstrap-results.json`. This is
 source-specific evidence; dd8d and later repairs still need a matching chain.
 
 The exact published dd8d compiler now has an independently audited replay of
@@ -2003,7 +2003,7 @@ Differentiate, Html, Reactive and TensorAD. Each also passes an independent32M
 poisoned rerun with zero leaks. All21 negatives refuse; only2 satisfy their
 original reason/path assertions. Both whole tests still fail, with27 failed
 subcases. No examples or assertions were removed. See
-`bootstrap/evidence/current/current-development-external-behavior-results.json`.
+`compiler/evidence/current/current-development-external-behavior-results.json`.
 
 The private typed-field, closed-index coverage and visible-record projection
 repair passes all44 compiler-source inputs through both Native and an audited
@@ -2031,7 +2031,7 @@ original unifier, including failed and unknown trials.
 The complete original pattern-field group plus8 new source controls passes4
 Rust tests with0 skipped/filtered cases. Both valid new programs compile and
 execute; all4 native executions report zero leaks at32M with poisoning. See
-`bootstrap/evidence/current/current-native-empty-data-coverage-results.json`.
+`compiler/evidence/current/current-native-empty-data-coverage-results.json`.
 
 The Cinch implementation remains dd8d; its valid numeric record-initializer
 counterexample remains open. The separate Cinch typed-field correction passes
@@ -2067,13 +2067,13 @@ resolved-writer comparisons. Six fresh record runtime clients pass at32M with
 poisoning and12 further zero-leak reports. All44 exact inputs pass Native and
 the independently audited Cinch-built checker. All9 original API groups run
 unchanged:8 pass; source-Prelude replacement still fails. See
-`bootstrap/evidence/current/current-record-and-constructor-results.json`.
+`compiler/evidence/current/current-record-and-constructor-results.json`.
 
 A real current-CLI counterexample remains: the valid `User { age = 36 }` for a
 Nat field is rejected because an untyped temporary defaults the literal to Int.
 Native accepts the identical source. The retained positive program and actual
-rejection are in `bootstrap/programs/Record.FieldCarrier.Counterexample.cinch`
-and `bootstrap/evidence/current/current-record-field-carrier-counterexample.json`. The private
+rejection are in `compiler/programs/Record.FieldCarrier.Counterexample.cinch`
+and `compiler/evidence/current/current-record-field-carrier-counterexample.json`. The private
 typed-initializer correction passes its complete constructor and inference
 groups. Combined application-inference and indexed-coverage repairs continue;
 these later sources are not claimed as part of this checkpoint.
@@ -2094,12 +2094,12 @@ Five complete affected groups pass12 Rust tests,17 optimized C clients and50
 zero-leak reports. All44 exact compiler inputs pass Native checking and the
 independently audited Cinch-built5f2f checker with an empty executable PATH.
 All9 unchanged API groups run:8 pass; source-Prelude replacement still fails.
-See `bootstrap/evidence/current/current-resolved-application-results.json`.
+See `compiler/evidence/current/current-resolved-application-results.json`.
 
 The preceding29e6 compiler independently proves Acceptance1-4: all4 stages,
 12 smokes, identical Stage2/3 code and44 interfaces, actual compiler interface
 consumption and changed-source behavior. See
-`bootstrap/evidence/current/current-owner-display-bootstrap-results.json`. This proof is scoped
+`compiler/evidence/current/current-owner-display-bootstrap-results.json`. This proof is scoped
 to29e6; a matching aa4e chain and all matching suites remain required.
 The full105-target inventory, complete Native suite, separate14 acceptance
 checks, all34 external language cases and Acceptance1-5 remain the goal.
@@ -2118,7 +2118,7 @@ complete unchanged indexed-type API group now passes. A later actual-writer
 comparison exposes a missed call site: resolved Pair and Scope value contracts
 still use public spelling, unlike Native canonical contracts. The original
 formatter controls did not cover that path. The incorrect acceptance is retained
-in `bootstrap/evidence/current/current-resolved-application-counterexample.json`; a correction
+in `compiler/evidence/current/current-resolved-application-counterexample.json`; a correction
 with3 permanent actual-writer/Native comparisons is validating.
 
 All10 complete affected groups pass18 Rust tests. The actual44-module compiler
@@ -2127,8 +2127,8 @@ identity mutations, source refusals and the schema-valid pure-body forgery.
 All44 exact staged inputs pass Native checking and the independently audited
 Cinch-built5f2f checker with an empty executable PATH. All9 original API groups
 and11 Rust tests run unchanged:8 groups/10 tests pass; source-Prelude replacement
-still fails. See `bootstrap/evidence/current/current-owner-and-display-results.json` and
-`bootstrap/evidence/current/current-original-interface-api-results.json`.
+still fails. See `compiler/evidence/current/current-owner-and-display-results.json` and
+`compiler/evidence/current/current-original-interface-api-results.json`.
 
 A fresh matching44-module four-stage chain is running. Its Stage0 smokes and
 library-only provider pass; later stages and independent fixed-point/interface/
@@ -2153,12 +2153,12 @@ pure-body forgery and three invalid source signatures. Six narrow signed and
 unsigned C cases independently check direct literals and C-returned values.
 All44 exact compiler inputs pass both Native checking and the audited
 Cinch-built5f2f Stage3 source checker. See
-`bootstrap/evidence/current/current-typed-foreign-results.json`.
+`compiler/evidence/current/current-typed-foreign-results.json`.
 
 An added owner control exposes a remaining bug: Host can claim the opaque
 identity Host.Nested.Handle without admitting its defining Host.Nested
 module. This is a confirmed incorrectly accepted contract, retained in
-`bootstrap/evidence/current/current-foreign-owner-counterexample.json`; the scoped passing
+`compiler/evidence/current/current-foreign-owner-counterexample.json`; the scoped passing
 gates do not close it. Defining-owner validation is the next repair.
 
 All nine original API groups run unchanged: seven pass. Kinds now passes the
@@ -2185,7 +2185,7 @@ Stage3 executable and invocation records, and reruns Circuit. The Python
 adapter only bundles source, selects the actual Cinch CLI, links its emitted
 IR and maps source positions; it never substitutes a Native source frontend
 or rewrites diagnostic reasons. See
-`bootstrap/evidence/current/current-stage3-external-behavior-results.json`.
+`compiler/evidence/current/current-stage3-external-behavior-results.json`.
 
 Source records and their construction/pattern/projection syntax, borrow/lazy
 operations, indexed-pattern coverage, source assertions/proof search and task
@@ -2197,18 +2197,18 @@ acceptance suite remain intact and required. Acceptance5 is not complete.
 ## Matching runtime, tooling and Native editor checks pass (2026-11-06)
 
 Published5f2f/Native6b passes all171 runtime tests,43 tooling tests and39
-compiler/editor integration tests, with no skipped or filtered cases. An
+seed/editor integration tests, with no skipped or filtered cases. An
 independent audit verifies the complete frozen source snapshot, every log,
 the freshly compiled matching Native6b CLI and its Cargo compilation record.
 The43 compiler input bytes match the independently verified5f2f bootstrap
-chain exactly. See `bootstrap/evidence/current/current-native-auxiliary-results.json`.
+chain exactly. See `compiler/evidence/current/current-native-auxiliary-results.json`.
 
 The editor integration role here is the matching Native CLI. This evidence
 alone does not establish Cinch-built editor/frontend parity or Acceptance5.
 The separate complete235-group Native sweep and all105 original/current
 Stage3 target sweep continue; their incomplete or failed rows remain visible.
 Array ownership/staging, foreign contracts and source-prelude replacement
-still require repairs and matching final bootstrap/suite verification.
+still require repairs and matching final compiler/suite verification.
 
 ## Published5f2f reaches a verified bootstrap fixed point (2026-11-06)
 
@@ -2219,7 +2219,7 @@ consumption and changed-source rebuilding with observable changed behavior.
 Stage1 links the optimized exact pinned85 runtime. The Stage0 and library-only
 producer archives, all physical artifacts and Native interface decoding are
 independently verified. See
-`bootstrap/evidence/current/current-checked-decision-bootstrap-results.json`.
+`compiler/evidence/current/current-checked-decision-bootstrap-results.json`.
 
 All105 original/current targets now run through an immutable copy of this
 actual Stage3, with matching freshly built Native6b test hosts and authenticated
@@ -2253,7 +2253,7 @@ check through the actual Cinch-built917f reader with empty PATH. Three real
 clients execute both branches, including128-bit-range Int values, at32M with
 poisoning and zero leaks; three invalid source cases refuse. The actual object
 round trip, canonical metadata/layouts and all physical entries are audited.
-See `bootstrap/evidence/current/current-checked-source-decision-results.json`.
+See `compiler/evidence/current/current-checked-source-decision-results.json`.
 
 A fresh full Native suite and four-stage bootstrap are starting on this exact
 source, rather than carrying forward earlier-source pass counts. Interface
@@ -2271,18 +2271,18 @@ pinned85 runtime. Both checks pass with empty PATH and zero leaks. Release
 takes664.45s and debug4508.15s: an observed6.78x improvement for this input
 under bounded concurrent load. This is one observation, not a general timing
 promise. The Stage1 build-profile fix is already published in067446e. See
-`bootstrap/evidence/current/current-stage1-runtime-performance-results.json`.
+`compiler/evidence/current/current-stage1-runtime-performance-results.json`.
 
 The frozen917f chain independently passes all four stages and twelve smokes.
 Stage2/3 LLVM, executable and all43 canonical interfaces match; actual compiler
 interface consumption and changed-source behavior pass. This proves
 Acceptance1-4 for that earlier source, with explicit85f00ca Native22 seed and
 library-only provider roles. See
-`bootstrap/evidence/current/current-byte-observation-bootstrap-results.json`.
+`compiler/evidence/current/current-byte-observation-bootstrap-results.json`.
 
 Published711103 remains at7/9 original API groups. The merged private5f2f
 checked-helper decision repair has passed the actual self-built43-source
-check; full compiler/object and reached32M runtime controls are validating.
+check; full seed/object and reached32M runtime controls are validating.
 Matching latest-source bootstrap, all105 targets and Acceptance5 remain open.
 
 ## Original class contracts pass; API scope is7/9 (2026-11-06)
@@ -2304,14 +2304,14 @@ All four complete affected exporter/adapter/object groups pass eleven tests.
 All43 exact compiler inputs build with the explicit Native22 seed role and
 check through the actual Cinch-built917f reader with empty PATH. The real
 object round trip passes, including five zero-leak client reports. See
-`bootstrap/evidence/current/current-contextual-factory-results.json`.
+`compiler/evidence/current/current-contextual-factory-results.json`.
 
 All nine original API groups execute unchanged: seven groups and nine of eleven
 Rust tests pass. The complete original class-contract test now passes its
 factory, private closure, defining-contract/hash and mutation assertions. The
 two failures still require typed foreign declarations and source-family
 replacement with genuine dependency rechecking. See
-`bootstrap/evidence/current/current-original-interface-api-results.json`.
+`compiler/evidence/current/current-original-interface-api-results.json`.
 
 The frozen full Native sweep also exposes a valid checked-helper decision
 rejection, reproduced in the actual current Cinch CLI and accepted by current
@@ -2330,7 +2330,7 @@ cached compiler. The seed revision and compiler sources remain explicit.
 All43 tooling tests pass, including two cache/failure controls. A fresh
 85f00ca/Native22 seed builds all43 inputs of compiler1dd5b24b into Stage1;
 Stage0 and Stage1 each pass the original fib, precedence and named-refusal
-smokes. See `bootstrap/evidence/current/current-stage1-runtime-profile-results.json`.
+smokes. See `compiler/evidence/current/current-stage1-runtime-profile-results.json`.
 This is a verified build-profile correction; a same-IR runtime performance
 comparison is still running. It grants no Stage2/3 fixedpoint or final suite
 acceptance. Existing older chains retain their inputs and binaries.
@@ -2339,7 +2339,7 @@ The private dictionary-context exporter builds and passes its complete
 exporter, adapter and object gates, but its original class API replay exposes
 missing transitive private-class method dependencies. A closure repair with
 three levels of private class context is in validation. All105 required
-targets, matching final bootstrap/suites and Acceptance5 remain open.
+targets, matching final compiler/suites and Acceptance5 remain open.
 
 ## Constructor declarations retain their own type and index binders (2026-11-06)
 
@@ -2357,7 +2357,7 @@ including ten new source controls and independent Native schema/tree checks.
 All43 exact staged inputs also build with the explicit Native22 seed role and
 are checked by a checksum-verified copy of the actual Cinch-built917f compiler
 with an empty executable PATH. The real object round trip remains green.
-See `bootstrap/evidence/current/current-constructor-source-contract-results.json`.
+See `compiler/evidence/current/current-constructor-source-contract-results.json`.
 
 Actual CLI controls refuse reached hidden/indexed physical layouts with code5,
 a cleared empty IR sentinel and no executable. An ordinary generic Box client
@@ -2390,7 +2390,7 @@ the full runtime group, the frontend adapter and the library-object round trip.
 That is thirteen Rust tests, with twenty-five additional scope controls. All
 136 exposed runtime leak reports and five object-client reports are zero.
 The actual compiler builds from all 43 exact staged inputs with the explicit
-Native22 seed role. See `bootstrap/evidence/current/current-constructor-pattern-scope-results.json`.
+Native22 seed role. See `compiler/evidence/current/current-constructor-pattern-scope-results.json`.
 
 This establishes the independent checker prerequisite for existential support.
 Source existential declarations still refuse; admitting them requires real
@@ -2407,7 +2407,7 @@ groups pass all nine tests. The actual Cinch CLI emits and reloads the library
 object; an independently linked owned-bignum/ADT/array client runs at32M with
 poisoning and zero leaks. All1,842 physical units, fourteen new public/accessor
 symbols,4,224 descriptor words,60 interface contracts and26 method families
-are independently audited. See `bootstrap/evidence/current/current-row-parser-compiler-results.json`.
+are independently audited. See `compiler/evidence/current/current-row-parser-compiler-results.json`.
 
 The constructor-scope prerequisite is now separately verified and published
 above; the original038f parser/compiler receipts retain their exact scope.
@@ -2430,7 +2430,7 @@ corpus/agreement group, with none ignored or filtered. Five added whole-scheme
 tree checks include the exact original Ref/Array/Thunk copy signature; six
 malformed row inputs refuse. Actual compiler917f independently checks all43
 exact staged-driver inputs of this new compiler. See
-`bootstrap/evidence/current/current-row-argument-parser-results.json`.
+`compiler/evidence/current/current-row-argument-parser-results.json`.
 
 The separate generic user-row-family experiment is private: its Rust comparison
 finds that general declared Row parameters are still outside the current Native
@@ -2454,7 +2454,7 @@ The two open array cases require structural Copy/borrow/Thunk ownership and
 stage/generate evaluation with the specified named unsupported-array refusal.
 The source refuses before those respective semantic checks today. The direct
 Rust packed-width API case stays explicitly classified inside the mixed target.
-See `bootstrap/evidence/current/current-original-array-suite-results.json`.
+See `compiler/evidence/current/current-original-array-suite-results.json`.
 
 All nine original interface/API groups also execute through the actual Cinch
 writer and original Native public-reader/hash/mutation assertions. Six whole
@@ -2470,7 +2470,7 @@ inspect imported modules, and exact Cinch-emitted bytes for source modules;
 these distinct roles never grant a Native frontend fallback for client source.
 An earlier missing-imported-output transport failure is retained, and the
 corrected complete replay makes the anonymous group green. See
-`bootstrap/evidence/current/current-original-interface-api-results.json`.
+`compiler/evidence/current/current-original-interface-api-results.json`.
 
 These are complete failing-group receipts, not final Stage3 acceptance. All
 original100 targets and five additions remain required. The new matching917f
@@ -2499,14 +2499,14 @@ Seven complete affected groups pass: eleven Rust tests and all 48 byte-
 observation runtime inputs. A separate exact 43-module compiler build and both
 complete adapter/object groups pass all nine tests, including the real owned
 client at 32M with poisoning and zero leaks. See
-`bootstrap/evidence/current/current-byte-observation-repair-results.json` for the independent
+`compiler/evidence/current/current-byte-observation-repair-results.json` for the independent
 source, executable, log and object audits and the distinct Native producer roles.
 
 The original Native58 failure stays recorded on its frozen older Cinch inputs.
 A fresh matching stage chain has passed Stage0; the previous independently
 verified Acceptance1-4 chain belongs to compiler74f0. Matching final suites,
 all original API behavior and Acceptance5 remain open. The required inventory
-in `bootstrap/evidence/current/current-frontend-acceptance-scope.json` retains all original100
+in `compiler/evidence/current/current-frontend-acceptance-scope.json` retains all original100
 and adds five later groups: 96 portable and nine interface/API targets. Checker
 cache helpers cannot remove groups from selection. Full arrays, copyOut/borrow
 ownership, dictionary factories and generic object roots remain unfinished.
@@ -2519,7 +2519,7 @@ Three new refusals under both imported-library variants cover false result
 bounds, different actual arguments and recursive helpers without numeric body
 authority. All four retained/new local controls independently agree with the
 current Rust compiler. Original imported-contract mutation checks remain.
-See `bootstrap/evidence/current/current-measure-body-authority-results.json`; compiler production
+See `compiler/evidence/current/current-measure-body-authority-results.json`; compiler production
 sources are unchanged, and complete matching suites remain required.
 
 
@@ -2535,7 +2535,7 @@ The compiler's interface-only entry consumer passes with no compiler source
 bodies. A real changed-source rebuild changes its diagnostic behavior. The
 independent auditor also validates the emitted interface sets through the
 Native public reader. This proves Acceptance 1-4 for that exact snapshot;
-see `bootstrap/evidence/current/current-method-proof-bootstrap-results.json`.
+see `compiler/evidence/current/current-method-proof-bootstrap-results.json`.
 
 The later published `5fc23130` library-object compiler and the private byte-
 observation repair need their own matching bootstrap and complete suites.
@@ -2561,8 +2561,8 @@ public/closure symbols, all content hashes and descriptor prefixes. The owned
 bignum/ADT/array client passes at 32M with poisoning and zero leaks. The original
 array object case also passes unchanged through this actual Cinch frontend with
 a fresh current-Native host; its fourteen other cases were explicitly filtered.
-See `bootstrap/evidence/current/current-cinch-library-object-results.json` and
-`bootstrap/evidence/current/current-cinch-array-object-results.json`.
+See `compiler/evidence/current/current-cinch-library-object-results.json` and
+`compiler/evidence/current/current-cinch-array-object-results.json`.
 
 Reached source dictionary factories remain an explicit refusal, and generic
 representation-root CLI requests, the full fifteen-case array group, matching
@@ -2581,7 +2581,7 @@ objects and checking that output companions exist. It retains source import
 closure selection, argument boundaries and refusal of a Native fallback.
 All eight complete adapter tests pass against the current Rust producer,
 including the six original controls. See
-`bootstrap/evidence/current/current-output-mode-adapter-results.json`.
+`compiler/evidence/current/current-output-mode-adapter-results.json`.
 
 This is transport coverage. The actual Cinch library-object CLI is still private
 and under end-to-end validation; the published compiler source and stage pins
@@ -2603,7 +2603,7 @@ public/accessor definitions match, including Raw/Obj/TObj specialization,
 bignum/ADT ownership, partial application, proof-stage closures and hidden Nat
 arguments. An independently linked caller runs at 32M and both exposed leak
 reports are zero. All 43 compiler modules check. See
-`bootstrap/evidence/current/current-runtime-library-abi-results.json` for the actual scope.
+`compiler/evidence/current/current-runtime-library-abi-results.json` for the actual scope.
 The corrected assertion decodes escaped LLVM names. Its explicit Native-fixture
 cache checks every source byte and cannot replace a selected self-built frontend.
 
@@ -2629,14 +2629,14 @@ caller, checks exact bignum/ADT values and captured closures, and runs at 32M
 with ownership diagnostics. All 166 exposed reports have zero mortal leaks;
 three existing symbol tests retain their expected immortal interned handles.
 All 43 compiler modules check. See
-`bootstrap/evidence/current/current-runtime-library-root-results.json` for exact inputs/scopes.
+`compiler/evidence/current/current-runtime-library-root-results.json` for exact inputs/scopes.
 
 The preceding source repair passes all nineteen complete proof/interface groups:
 24 Rust tests, including every original imported-precondition caller case and
 conditional-method control. Those groups do not load RuntimeIr; their tested
 modules, fixture sources and producer are unchanged by the library-root step.
 Their original 74f0 receipt is retained in
-`bootstrap/evidence/current/current-cinch-proof-interface-results.json`. Exact polymorphic
+`compiler/evidence/current/current-cinch-proof-interface-results.json`. Exact polymorphic
 intrinsic aliases deduplicate; incompatible globals still refuse. Body owner
 lookup uses the longest UTF-8 byte prefix followed by a dot, and the reserved
 array names are refused in record declarations as well as data declarations.
@@ -2661,7 +2661,7 @@ The original `linear_facts` test and its exact assertion are unchanged.
 
 All twelve complete affected groups pass: 150 tests, none ignored or filtered.
 All 43 current compiler modules check and every Native test target compiles.
-See `bootstrap/evidence/current/current-native-alias-index-results.json`. The full Native sweep
+See `compiler/evidence/current/current-native-alias-index-results.json`. The full Native sweep
 continues on these exact inputs; its earlier failed snapshot remains recorded.
 The separate private Cinch loader/array candidate and its explicit 85f00ca
 seed/provider retain their own immutable inputs. Matching staged suites,
@@ -2680,14 +2680,14 @@ All eleven complete affected groups pass:141 tests, no ignored or filtered
 cases, all Native test targets compiling and all43 current compiler modules
 checking. Positive quantified, refined-input, alias and shadow cases remain;
 unknown names, wrong kinds, stronger promises and unproved pattern capture are
-refused. See `bootstrap/evidence/current/current-native-quantified-value-results.json`.
+refused. See `compiler/evidence/current/current-native-quantified-value-results.json`.
 
 The current Cinch source is5cea. Its serializer preserves source binder names
 in resolved contracts and uses checked binder positions in display schemes.
 Open row contracts stay explicitly unresolved; closed region callbacks retain
 their checked contracts. The actual5cea exporter separately passes43 controls
 and seven original metadata assertion blocks, including ownership, refinements,
-preconditions and region effects. See `bootstrap/evidence/current/current-cinch-serializer-results.json`.
+preconditions and region effects. See `compiler/evidence/current/current-cinch-serializer-results.json`.
 The exact TypeSyntax diagnostic assertion includes its existing obligation
 suffix. Original tests and declarations remain; test library roots use their
 exact tested ordering.
@@ -2712,7 +2712,7 @@ original array tests through the same c8d6 Stage3 now yields ten passing and
 five failing tests, with no ignored or filtered cases. All three missing-variant
 cases pass; positive packed and float programs and original assertions remain.
 The Option source is byte-identical to the current published library. See
-`bootstrap/evidence/current/current-array-test-library-variant-results.json`.
+`compiler/evidence/current/current-array-test-library-variant-results.json`.
 
 This corrects the test library inputs. The remaining copy/staging syntax,
 intrinsic alias and diagnostic, and object-emission failures remain open.
@@ -2733,7 +2733,7 @@ caller case remains, with explicit body-context removal/refusal and restoration
 controls. All28 fresh actual-exporter controls pass with13 zero-leak reports;
 independent decoding and bignum execution confirm changed private arithmetic,
 identity, chained methods, closure ownership and cycle refusal. All251 matching
-auxiliary tests pass. See `bootstrap/evidence/current/current-cinch-method-body-results.json`.
+auxiliary tests pass. See `compiler/evidence/current/current-cinch-method-body-results.json`.
 
 The explicit seed and separate library-provider pins now select published
 25b7e82, with their exact archived source hash and ABI6. Fresh Stage0 passes its
@@ -2758,7 +2758,7 @@ calls between methods; cyclic bodies stay opaque.
 All 251 matching auxiliary tests pass: 171 runtime, 41 tooling and 39 editor
 checks, with no skipped cases. Source identities, executable identity and complete
 logs are independently audited. See
-`bootstrap/evidence/current/current-cinch-method-body-progress.json` for the exact private source
+`compiler/evidence/current/current-cinch-method-body-progress.json` for the exact private source
 scope and the recorded full proof/interface gate status.
 
 A deliberate refresh to the published 25b7e82 Native seed and separate library
@@ -2789,7 +2789,7 @@ zero-leak reports. The original seven `total_bodies` tests remain, with their
 altered-ordering observation fixture isolated from unrelated string consumers.
 An eighth explicitly verifies that both constant ordering replacements reject
 the complete library's dependent string proofs. See
-`bootstrap/evidence/current/current-native-primitive-body-results.json`.
+`compiler/evidence/current/current-native-primitive-body-results.json`.
 
 The private Cinch compiler passes all 43 modules with the new Native producer.
 An identical actual Cinch exporter, given the corrected primitive metadata,
@@ -2824,7 +2824,7 @@ compiler modules checking. The seven new controls cover all five required Nat
 roots, private dependency closure, canonical serialization, malformed payloads,
 shared-definition disagreement and nested-module ownership. Every pre-existing
 integration test file is byte-identical. See
-`bootstrap/evidence/current/current-native-method-body-results.json`.
+`compiler/evidence/current/current-native-method-body-results.json`.
 
 The matching Cinch loader, exporter and proof consumer are still private and
 under validation; original imported-precondition and conditional-method tests
@@ -2862,7 +2862,7 @@ original comparison controls and every other existing assertion remain.
 The original larger-input counterexample is replayed: normal addition exits 0
 with zero leaks; altered addition is rejected at the first affected byte-buffer
 proof, and produces no accepted executable. See
-`bootstrap/evidence/current/current-native-arithmetic-results.json`.
+`compiler/evidence/current/current-native-arithmetic-results.json`.
 
 The separate unpublished Cinch candidate now also checks actual method owner,
 name, slot, class arguments and factory target. Its all-43 source gate, all three
@@ -2892,7 +2892,7 @@ adding two dependency-input controls. All three original bootstrap lexer tests
 pass unchanged through actual c8d6 Stage3 executable 645dd0bb, including the
 whole-prelude corpus and the previously failing carrying-token forms. The
 original full-suite failure remains recorded. See
-`bootstrap/evidence/current/current-stage3-import-closure-results.json`.
+`compiler/evidence/current/current-stage3-import-closure-results.json`.
 
 This is a scoped test-input repair; the complete current matching Native,
 self-built and API/Acceptance 5 gates remain open. The Cinch compiler source,
@@ -2914,7 +2914,7 @@ name-authority and malformed-layout controls. All 15 complete affected groups
 pass: 312 tests, all test targets typecheck, all 43 unchanged c8d6 compiler
 modules check, and 129 runtime leak reports are zero. The library group runs
 all 185 tests with debug ownership assertions, 32M heaps, RC debugging and leak
-checks. See `bootstrap/evidence/current/current-native-list-measure-results.json`.
+checks. See `compiler/evidence/current/current-native-list-measure-results.json`.
 
 The old b30 full sweep remains preserved as 58 groups passed, one failed and
 170 pending; this repair closes its known lattice failure but does not claim a
@@ -2949,7 +2949,7 @@ allocated objects/dictionaries with the correct ownership class. The whole-value
 pattern fixture reads its actual payload rather than comparing an object as an
 I64; its expected result and every other assertion remain. The previous compiler
 reproduces all five original opt-in leak failures. Successful replays produce
-242 zero-leak reports. See `bootstrap/evidence/current/current-native-comparison-results.json`.
+242 zero-leak reports. See `compiler/evidence/current/current-native-comparison-results.json`.
 The compiler's code-generation implementation is unchanged; its fixture updates
 are entirely under `cfg(test)`, with the compiled production prefix audited equal.
 
@@ -2991,7 +2991,7 @@ targets, and all 43 unchanged c8d6 compiler modules. This includes the original
 syntax cases, the complete concurrency/ownership groups and all 185 library
 units. Whole-group low-heap replays pass with 32M heaps and RC/leak checks:
 9 linear-fact tests (10 zero-leak executable reports) and 19 surface tests
-(25 zero-leak reports). See `bootstrap/evidence/current/current-native-measure-collection-results.json`.
+(25 zero-leak reports). See `compiler/evidence/current/current-native-measure-collection-results.json`.
 
 The current four-stage c8d6 fixed point and explicit seed/provider pins are
 unchanged. Complete matching Native49 and final-Stage3 suite50 remain required;
@@ -3012,7 +3012,7 @@ Both final compilers hash to
 `645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902`.
 The canonical 43-module source remains
 `c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985`.
-See `bootstrap/evidence/current/current-projection-proof-bootstrap-results.json`.
+See `compiler/evidence/current/current-projection-proof-bootstrap-results.json`.
 The explicit b64710b ABI6 seed/provider pins remain unchanged; the separate
 Native checked-type scope fix changes neither these inputs nor Cinch source.
 
@@ -3038,7 +3038,7 @@ closure escape refusals and the original ordinary-data case remain intact.
 New positive clients cover private data shadowed in the caller and recursive
 plain data. Replaying the complete 17-test concurrency group with 32M heaps,
 RC checks and leak reporting yields 14 zero-leak executable reports. See
-`bootstrap/evidence/current/current-native-checked-scope-results.json`.
+`compiler/evidence/current/current-native-checked-scope-results.json`.
 
 The failing Native47 sweep is preserved. A complete matching Native sweep
 is still required; these scoped checks do not close it. Cinch source c8d6
@@ -3061,7 +3061,7 @@ clients with zero leaks, all 15 array tests (31 actual clients), and 20 exact
 F32/F64 payload patterns. All 43 compiler modules and every test target also
 check. The complete evaluator, Core, independent typing, source proof,
 constructor, refinement, decision, interface and projection groups remain
-intact. See `bootstrap/evidence/current/current-projection-proof-runtime-results.json`.
+intact. See `compiler/evidence/current/current-projection-proof-runtime-results.json`.
 
 The new canonical 43-module source is
 `c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985`.
@@ -3080,7 +3080,7 @@ binding. Its retained Core must connect the actual opened Nat slot to the
 same local identity and carrier; merely accepting the text cannot pass.
 Additional negative cases keep unrelated variables, type parameters and
 proposition parameters unavailable as runtime values. See
-`bootstrap/evidence/current/current-source-pi-runtime-results.json`. Production compiler
+`compiler/evidence/current/current-source-pi-runtime-results.json`. Production compiler
 modules are unchanged. The earlier failing sweeps remain preserved; full
 matching Native/self-built suites and Acceptance 5 remain required.
 
@@ -3097,7 +3097,7 @@ All 43 complete affected Native groups pass independently: 691 tests without
 ignored or filtered cases, the original 16 proof/hygiene CLI commands,
 and all 43 current published Cinch compiler modules. Actual portable syntax
 clients also execute with 32M heaps and zero leaks. See
-`bootstrap/evidence/current/current-native-proof-repair-results.json`; it preserves the tested
+`compiler/evidence/current/current-native-proof-repair-results.json`; it preserves the tested
 source, binary and input hashes and the actual scope of each execution.
 
 This closes the recorded Native proof counterexample for this implementation.
@@ -3115,7 +3115,7 @@ fixtures now follow the selected pin, while source preparation and final
 interface consumption test both ABI5 and ABI6 explicitly. A canonical
 wrong-ABI contract still receives the precise ABI refusal. Production
 compiler, stage, loader and provider validation behavior is unchanged.
-See `bootstrap/evidence/current/current-abi6-tooling-results.json`.
+See `compiler/evidence/current/current-abi6-tooling-results.json`.
 
 The complete auxiliary gates now pass independently: 171 runtime, 41
 tooling and 39 editor checks, with no skipped or filtered cases. Runtime
@@ -3123,23 +3123,23 @@ evidence retains its actual earlier execution source identity and is reused
 only after exact equality of every runtime input, including all tests.
 Corrected tooling and editor checks execute freshly on the frozen repair.
 The Native producer and all 43 compiler module bytes match the published
-ABI6 compiler. See `bootstrap/evidence/current/current-abi6-auxiliary-results.json`.
+ABI6 compiler. See `compiler/evidence/current/current-abi6-auxiliary-results.json`.
 
 All 14 original external checks also pass independently through the exact
 current final ABI6 Stage3: both runner programs with exact reports and 32M
 zero leaks; defining-module-only fixities and separate renamed facades;
 identical and changed importer redeclaration refusals; and the complete
 class-identity group. Its direct Native API negative remains classified
-separately. See `bootstrap/evidence/current/current-abi6-stage3-external-results.json`.
+separately. See `compiler/evidence/current/current-abi6-stage3-external-results.json`.
 
 The compiler-only library object lacked the `Data.List.length [T]` variant
 used by the original runner and allocation tests. The separate library-only
 test object is freshly rebuilt from the same pinned b64710b ABI6 producer
-and runtime using `bootstrap/pins/test-library-object-roots.json`. All 55 checked
+and runtime using `compiler/pins/test-library-object-roots.json`. All 55 checked
 library identities and the runtime archive match the audited stage inputs;
 no ABI5 object or client frontend fallback is used. All eight original
 allocation tests now pass through final Stage3. The initial failing sweeps
-remain preserved. See `bootstrap/evidence/current/current-abi6-test-library-results.json`.
+remain preserved. See `compiler/evidence/current/current-abi6-test-library-results.json`.
 The remaining complete suites, original API scope and proof/Acceptance 5
 work remain required; these receipts do not establish full acceptance.
 
@@ -3153,7 +3153,7 @@ The final compiler consumes its entry through those interfaces without
 compiler source bodies. Rebuilding changed compiler source also produces
 a changed executable with the expected changed diagnostic.
 
-See `bootstrap/evidence/current/current-abi6-bootstrap-results.json`, for canonical compiler
+See `compiler/evidence/current/current-abi6-bootstrap-results.json`, for canonical compiler
 `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
 Both final executables hash to
 `2a7db4640f3fd8ebb272ecd55a9ce9e680f768f555d0953d70ca11ff7544f5f8`.
@@ -3183,7 +3183,7 @@ All 24 complete affected groups pass independently: 104 unfiltered tests,
 all 43 compiler modules, 31 actual Cinch array programs with zero leaks,
 12 invalid scheme/kind/range controls, three malformed constructor layouts,
 and 20 exact F32/F64 payload patterns through updates, slices and mixed-format
-append. See `bootstrap/evidence/current/current-array-kernel-effects-results.json`. That source
+append. See `compiler/evidence/current/current-array-kernel-effects-results.json`. That source
 check used the prior ABI5 stage configuration; its implementation matches the
 new ABI6 compiler apart from the explicit RuntimeAbi configuration module.
 
@@ -3191,10 +3191,10 @@ The seed and separate library-only provider are intentionally pinned to the
 published b64710b Rust source at ABI6, with verified source hashes and no patch.
 Fresh Stage0 and Stage1 build all 43 modules and pass all six smoke checks.
 Independent input, executable and source audits are in
-`bootstrap/evidence/current/current-abi6-development-stage-results.json`. Actual Stage1 also
+`compiler/evidence/current/current-abi6-development-stage-results.json`. Actual Stage1 also
 emits, links and executes generic and packed-U8 array clients; both return 42
 with 32M zero leaks and actual array runtime calls. See
-`bootstrap/evidence/current/current-abi6-development-array-results.json`.
+`compiler/evidence/current/current-abi6-development-array-results.json`.
 
 The current canonical compiler identity is
 `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
@@ -3215,13 +3215,13 @@ provenance for index calls, and safe replacement of source family homes
 already present in the supplied checked interface set. The original fixtures
 are unchanged. Structural successes do not prove their complete metadata,
 consumer or mutation semantics. See
-`bootstrap/evidence/current/current-original-interface-fixture-results.json`.
+`compiler/evidence/current/current-original-interface-fixture-results.json`.
 
 `Run.Eval` now explicitly imports the public `VStr` and `VChr` constructors it
 uses. The complete original Native evaluator/oracle target passes. Exact
 Stage3 now resolves those names and reaches code generation, which still
 refuses missing decision/proof runtime layouts and lowering. That remaining
-failure is preserved in `bootstrap/evidence/current/current-eval-source-import-results.json`;
+failure is preserved in `compiler/evidence/current/current-eval-source-import-results.json`;
 this is a scoped source-import correction, not a passing Stage3 oracle.
 Native's expected-family constructor selection is an intentional source rule.
 The stopped source45 Stage3 sweep retains its original 26 passes and evaluator
@@ -3249,8 +3249,8 @@ array program now checks and emits with the unchanged Core source copy.
 Changed Option payloads and reversed List fields are refused by real embedded
 consumers; reversed Option tags are refused by the existing codegen layout
 guard. None of the malformed programs is executed. See
-`bootstrap/evidence/current/current-rust-family-home-results.json` and
-`bootstrap/evidence/current/current-native-array-abi-controls.json`.
+`compiler/evidence/current/current-rust-family-home-results.json` and
+`compiler/evidence/current/current-native-array-abi-controls.json`.
 
 Cinch source, ABI and the pinned seed are unchanged, so the e2f bootstrap
 fixed-point proof below remains scoped to the same compiler and pinned inputs.
@@ -3274,23 +3274,23 @@ entry using those interfaces without compiler source bodies. Stage2 also
 rebuilds changed compiler source into a changed executable whose diagnostic
 proves the changed behavior. The unchanged pinned seed and admitted base
 artifacts are recorded explicitly; no previous Cinch compiler stage was reused.
-See `bootstrap/evidence/current/current-open-row-bootstrap-results.json`. This proves
+See `compiler/evidence/current/current-open-row-bootstrap-results.json`. This proves
 Acceptance 1-4 for compiler
 `e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5`.
 
 All matching auxiliary gates also pass independently: 171 runtime, 41 tooling
 and 39 editor tests, with no failures, ignored cases or filtering. Complete
 logs, frozen source and actual executable identities are audited in
-`bootstrap/evidence/current/current-open-row-auxiliary-results.json`.
+`compiler/evidence/current/current-open-row-auxiliary-results.json`.
 
 The source-decisions regression now expects opaque propositions to resolve
 successfully before the checker rejects their missing executable decision
 procedure. It demands that precise diagnostic and forbids a generic resolver
 failure. The complete group and all 43 compiler modules pass independently;
 production compiler inputs are unchanged. See
-`bootstrap/evidence/current/current-source-decision-phase-results.json`. The complete corrected
+`compiler/evidence/current/current-source-decision-phase-results.json`. The complete corrected
 group also passes through exact current Stage3, independently audited in
-`bootstrap/evidence/current/current-source-decision-stage3-results.json`. The complete Native
+`compiler/evidence/current/current-source-decision-stage3-results.json`. The complete Native
 and final-Stage3 sweeps remain in progress. Older frozen runs retain their
 original expected-phase failure rather than being relabelled.
 
@@ -3301,7 +3301,7 @@ changed importer redeclaration refusals, and the complete class-identity
 group. Its two portable builds use Stage3; its direct Native API negative
 stays classified separately. Artifacts, source, compiler identities and full
 logs are independently audited in
-`bootstrap/evidence/current/current-open-row-stage3-external-results.json`.
+`compiler/evidence/current/current-open-row-stage3-external-results.json`.
 
 Acceptance 5 remains open. The exact published Rust compiler still accepts the
 recursive false-proof counterexample; the isolated repair is not integrated.
@@ -3330,14 +3330,14 @@ partial-operation application.
 All nine complete matching suites pass independently: 57 Rust test cases,
 all 43 compiler modules, six writer/import/canonical-readback checks and three
 actual renamed-facade consumer checks. See
-`bootstrap/evidence/current/current-open-row-operation-results.json`, compiler
+`compiler/evidence/current/current-open-row-operation-results.json`, compiler
 `e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5`.
 The broader 33-group, 139 zero-leak runtime program and 60 row-semantic
 assertion receipt is retained separately as source5 evidence in
-`bootstrap/evidence/current/current-open-row-source-results.json`; it was not rerun on this
+`compiler/evidence/current/current-open-row-source-results.json`; it was not rerun on this
 combined nominal/Rust-operation source. Rust's independent four-group,
 51-case and 15-oracle repair is in
-`bootstrap/evidence/current/current-rust-operation-value-results.json`.
+`compiler/evidence/current/current-rust-operation-value-results.json`.
 
 The direct recursive-evidence counterexample is still independently accepted
 by this exact Rust candidate. Its receipt is updated; proof soundness remains
@@ -3357,22 +3357,22 @@ variant is refused. These are current checks, independently reproduced;
 no invalid proof executable was run. The actual e861 Stage3 compiler refuses
 all six inputs during name/namespace resolution, including both valid controls.
 Those unsupported-source refusals do not establish proof soundness.
-See `bootstrap/evidence/current/current-proof-frontends-audit.json`. The isolated ongoing proof
+See `compiler/evidence/current/current-proof-frontends-audit.json`. The isolated ongoing proof
 repair must pass all these negatives and retain the valid controls before
 integration; green existing tests cannot close this blocker.
 
 All complete matching auxiliary gates independently pass: 171 runtime tests,
 41 tooling tests and 39 syntax/editor tests, with zero failures, ignored tests,
 skips or filtering. Source, producer and complete log identities are checked in
-`bootstrap/evidence/current/current-opaque-auxiliary-results.json`. This does not close the full
-compiler/self-built suites, original API/array behavior or Acceptance 5.
+`compiler/evidence/current/current-opaque-auxiliary-results.json`. This does not close the full
+seed/self-built suites, original API/array behavior or Acceptance 5.
 
 The Stage3 report-directory harness failure is repaired. The external artifact
 now inherits the caller's working directory, matching the Native driver.
 All four complete harness tests and the original checker test pass under
 Native; that original complete checker also passes through actual e861 Stage3,
 including its exact full diagnostic report. See
-`bootstrap/evidence/current/current-stage3-harness-cwd-results.json`. Compiler, prelude, runtime
+`compiler/evidence/current/current-stage3-harness-cwd-results.json`. Compiler, prelude, runtime
 and bootstrap sources are unchanged. The previous selected sweep remains
 recorded as 16 passing groups followed by one failed harness group; this scoped
 rerun does not replace the full remaining Stage3 suite or Acceptance 5.
@@ -3393,8 +3393,8 @@ All 14 original final-Stage3 external checks pass independently: exact mixed
 and passing runner reports, 32M zero leaks, defining-module-only fixities,
 renamed and separate facades, identical and changed importer redeclaration
 refusals, and the full class_identity group with its explicit Native fixture.
-Evidence is `bootstrap/evidence/current/current-opaque-bootstrap-results.json` and
-`bootstrap/evidence/current/current-opaque-stage3-external-results.json`.
+Evidence is `compiler/evidence/current/current-opaque-bootstrap-results.json` and
+`compiler/evidence/current/current-opaque-stage3-external-results.json`.
 
 Acceptance 5 remains open: the complete matching suites, original target
 coverage and the confirmed recursive-proof soundness defect still require
@@ -3407,14 +3407,14 @@ The published opaque/HK Cinch compiler now builds a genuine Stage2 compiler
 through Stage1, rebuilding all 43 compiler modules. Stage2 passes all three
 smoke checks. Independent checks verify the actual Stage1 builder hash,
 Stage2 executable hash, frozen source and all 43 emitted compiler interfaces.
-See `bootstrap/evidence/current/current-opaque-stage2-results.json`. Stage3, fixed-point code
+See `compiler/evidence/current/current-opaque-stage2-results.json`. Stage3, fixed-point code
 and interfaces, API consumption and changed-source checks remain open.
 
 A separate check against the exact current published Rust implementation
 confirms that an ordinary recursive proposition-returning function can be
 accepted as evidence for the false refinement Zero at value 9. The complete
-source and compiler/input identities are in
-`bootstrap/evidence/current/current-recursive-evidence-blocker.json`. This current reproduction
+source and seed/input identities are in
+`compiler/evidence/current/current-recursive-evidence-blocker.json`. This current reproduction
 checks acceptance only; it does not execute the unsafe program. A related
 isolated repair is in progress. Existing passing suites do not close this
 soundness defect, which must be repaired and verified before goal completion.
@@ -3431,7 +3431,7 @@ Region annotations retain their existing refusal. Nominal kinds and ABI are unch
 Four complete Native suites pass all 28 tests, including all original effects,
 parameter and interface cases. All 43 compiler modules and ten original CLI
 reproductions pass independently. Evidence is
-`bootstrap/evidence/current/current-rust-row-kind-results.json`; this is scoped Rust evidence.
+`compiler/evidence/current/current-rust-row-kind-results.json`; this is scoped Rust evidence.
 The separate Cinch open-row implementation, matching complete final suites and
 the full Acceptance 1-5 audit remain open.
 
@@ -3452,7 +3452,7 @@ source cases exercise both accepted inference and these refusals.
 All 43 compiler modules and 30 complete affected groups pass independently, including
 all 139 runtime programs with expected results and zero leaks, plus 335 independent
 Core assertions. The original parser corpus now models its opaque declaration.
-The proof is `bootstrap/evidence/current/current-opaque-kind-inference-results.json`, for compiler
+The proof is `compiler/evidence/current/current-opaque-kind-inference-results.json`, for compiler
 `e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208`.
 Its exact Rust producer is recorded; later repairs need matching final suites.
 Fresh Stage1 built and passed all three smokes. Stage2/3 fixed-point verification,
@@ -3471,7 +3471,7 @@ Failed scoped checks retain the original literal diagnostic.
 All83 tests across six complete affected suites pass, with none ignored or
 filtered. The rebuilt compiler checks all43 Cinch compiler modules. Independent
 checking of the complete actual opaque-interface producer source also passes,
-including the direct numeral that exposed this bug. See [the scoped audit](../bootstrap/evidence/current/current-rust-scoped-literal-results.json).
+including the direct numeral that exposed this bug. See [the scoped audit](../compiler/evidence/current/current-rust-scoped-literal-results.json).
 Cinch source identity stays
 `80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470`.
 The Cinch opaque/constructor-kind follow-up and matching final complete suites
@@ -3494,7 +3494,7 @@ assumptions remain explicit errors.
 All43 compiler modules,27 complete focused groups,139 runtime programs with
 expected results and zero leaks, and335 independent Core assertions pass.
 Compiler identity: `80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470`.
-See [the independent scoped audit](../bootstrap/evidence/current/current-defining-refinement-interface-results.json).
+See [the independent scoped audit](../compiler/evidence/current/current-defining-refinement-interface-results.json).
 The frozen executions identify their exact Native producer; the later verified
 Rust opaque-kind repair is separate evidence. A final matching bootstrap and
 complete suites are still required.
@@ -3516,7 +3516,7 @@ and wrong argument kinds remain errors.
 
 All89 tests across ten complete affected groups pass, including the existing FFI
 runtime cases. The rebuilt Native compiler checks all43 Cinch compiler modules;
-all seven original opaque CLI cases now agree. See [the independent scoped audit](../bootstrap/evidence/current/current-rust-opaque-kind-results.json).
+all seven original opaque CLI cases now agree. See [the independent scoped audit](../compiler/evidence/current/current-rust-opaque-kind-results.json).
 Cinch sources retain identity
 `ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
 The Cinch opaque/interface implementation remains an isolated candidate.
@@ -3532,7 +3532,7 @@ overflow are still rejected.
 
 All82 tests across six complete affected groups pass, with none ignored or
 filtered. The newly built Native compiler checks all43 Cinch compiler modules;
-all six original CLI reproductions agree. See [the independent scoped audit](../bootstrap/evidence/current/current-rust-anonymous-refinement-literal-results.json).
+all six original CLI reproductions agree. See [the independent scoped audit](../compiler/evidence/current/current-rust-anonymous-refinement-literal-results.json).
 Cinch compiler sources retain identity
 `ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
 A complete matching Native sweep and final Cinch-built suites remain required;
@@ -3548,8 +3548,8 @@ program is still rejected; proof rules and successful checking are unchanged.
 All43 compiler modules and21 complete affected groups pass, including139 runtime
 programs with expected outcomes and zero leaks and335 independent Core assertions.
 Compiler identity: `ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
-See [the independent scoped audit](../bootstrap/evidence/current/current-refinement-obligation-results.json).
-The [nine unchanged original byte tests](../bootstrap/evidence/current/current-original-byte-diagnostic-results.json)
+See [the independent scoped audit](../compiler/evidence/current/current-refinement-obligation-results.json).
+The [nine unchanged original byte tests](../compiler/evidence/current/current-original-byte-diagnostic-results.json)
 also pass through the genuine ABI6 diagnostic Cinch frontend. That frontend is
 explicitly distinct from the final pinned-ABI5 Stage3 compiler.
 
@@ -3569,7 +3569,7 @@ bodies. Stage2 also rebuilds actually changed compiler source; that executable
 produces the changed diagnostic. Only the unchanged pinned seed and admitted
 base dependencies were reused.
 
-[The independent bootstrap audit](../bootstrap/evidence/current/current-value-index-bootstrap-results.json)
+[The independent bootstrap audit](../compiler/evidence/current/current-value-index-bootstrap-results.json)
 proves Acceptance1-4 for compiler
 `ef4f399642a225f45acf5bc95dc6b41816390b8b00393446870349c2752431d4`.
 Acceptance5 remains open: complete matching suites38 and the100-target behavior
@@ -3592,7 +3592,7 @@ All43 compiler modules and twelve complete focused groups pass. All139 runtime
 programs return their expected results with zero leaks, including the indexed
 constructor with an owned field. All335 independent Core assertions pass.
 Compiler identity: `ef4f399642a225f45acf5bc95dc6b41816390b8b00393446870349c2752431d4`.
-See [the independently verified checkpoint](../bootstrap/evidence/current/current-value-index-contract-results.json).
+See [the independently verified checkpoint](../compiler/evidence/current/current-value-index-contract-results.json).
 
 The unchanged original byte target passes8/9 through the diagnostic frontend.
 Its unsafe mutable-reader case is rejected, but the error wording lacks the
@@ -3613,7 +3613,7 @@ All43 compiler modules and eight complete focused groups pass, with135 runtime
 programs returning their expected outcomes and zero leaks. Seven new allocation
 checks run at five identifiers alongside all existing Core checks. Four source
 helper cases retain precise acceptance and refusal checks. Compiler identity:
-`1b2eb541e7712c3defff20e8a0b81b651457050019a0bbe5502d2111a24583d4`. See [the scoped evidence](../bootstrap/evidence/current/current-byte-helper-allocation-results.json).
+`1b2eb541e7712c3defff20e8a0b81b651457050019a0bbe5502d2111a24583d4`. See [the scoped evidence](../compiler/evidence/current/current-byte-helper-allocation-results.json).
 
 The unchanged original nine-test diagnostic passes six tests on this source.
 Three failures remain: local application carrier diagnostics, executable value
@@ -3632,7 +3632,7 @@ proof authority.
 All43 compiler modules and seven complete focused groups pass. All134 runtime
 programs return their expected exits with zero leaks, including the new
 byte-read alias program (exit221). Compiler identity: `b4b6367f93e165500d4589348684135f83c4746c66f91a2c9d1e683b98cfc3a7`.
-[The scoped proof](../bootstrap/evidence/current/current-byte-read-primitive-results.json)
+[The scoped proof](../compiler/evidence/current/current-byte-read-primitive-results.json)
 records exact inputs, executables, full logs and the actual runtime case.
 
 Typed helper normalization, allocator refinement proofs, executable index
@@ -3652,7 +3652,7 @@ Actual carrier failures now name the expected carrier, including Bytes.
 All43 compiler modules and seven complete focused groups pass. All133 runtime
 programs return their expected exits with zero leaks; six new independent Core
 checks execute at five large identifiers (30 assertions). Compiler identity:
-`445dbe70b656f15c42d45c1c17ba9d0de02b24a6bfa5fd2c503b860dd07ac169`. [The scoped proof](../bootstrap/evidence/current/current-intrinsic-view-results.json)
+`445dbe70b656f15c42d45c1c17ba9d0de02b24a6bfa5fd2c503b860dd07ac169`. [The scoped proof](../compiler/evidence/current/current-intrinsic-view-results.json)
 records exact source, executable and complete-log hashes.
 
 This does not close the original nine-test byte-length parity target. Byte reads,
@@ -3671,7 +3671,7 @@ nominal and declaring-module-only fixity checks remain intact.
 
 All 43 compiler modules and nine complete focused groups pass, including all
 133 runtime programs with expected exits and zero leaks. The compiler identity
-is `a93c6a7eef3a95be2d1fbac87794cb08eb6b0fcc00d293a521c9fb568186cc27`. See [the independently verified API repair](../bootstrap/evidence/current/current-task-interface-export-results.json).
+is `a93c6a7eef3a95be2d1fbac87794cb08eb6b0fcc00d293a521c9fb568186cc27`. See [the independently verified API repair](../compiler/evidence/current/current-task-interface-export-results.json).
 
 This supersedes the prior task compiler's source, so its successful four-stage
 chain does not prove this new source. A fresh matching chain and complete suites
@@ -3681,8 +3681,8 @@ roots now include those actual requests; all checked interface documents are
 byte-identical to the previous library artifact. Both original HashMap tests
 pass through the exact preceding compiler's Stage3, preserving the 32,000-key,
 collision, correctness and growth assertions. The new compiler repeats those
-tests in its own matching suites. See [the scoped library proof](../bootstrap/evidence/current/current-hashmap-library-support-results.json)
-and [the reproducible library roots](../bootstrap/pins/self-built-test-library-roots.json).
+tests in its own matching suites. See [the scoped library proof](../compiler/evidence/current/current-hashmap-library-support-results.json)
+and [the reproducible library roots](../compiler/pins/self-built-test-library-roots.json).
 Compiler stage roots and pins are unchanged. Acceptance 5 and the full goal remain open.
 
 ## Published task compiler rebuilds itself; API export follow-up open
@@ -3692,7 +3692,7 @@ All stage smoke tests pass. Stage2 and Stage3 have identical compiler IR,
 executables and all43 checked interfaces. The final compiler consumes those
 actual emitted APIs without compiler bodies; Stage2 rebuilds changed compiler
 source and the rebuilt executable exhibits the changed diagnostic.
-See [the independent chain proof](../bootstrap/evidence/current/current-structured-task-bootstrap-results.json).
+See [the independent chain proof](../compiler/evidence/current/current-structured-task-bootstrap-results.json).
 The original four-test exhaustion group also passes through fresh Stage1,
 including actual task stack exhaustion. Complete final Stage3 tests remain open.
 
@@ -3701,7 +3701,7 @@ The local Cinch repair passes real writer/reexport/reader/client and pipeline
 checks. Its type-export oracle exposed a Rust producer gap: checked Scope/Task
 signatures omitted resolved metadata. That Rust repair now passes nine tests
 across six complete groups, including source Shadow.Scope retaining its owner.
-See [the scoped Rust proof](../bootstrap/evidence/current/current-rust-task-interface-results.json).
+See [the scoped Rust proof](../compiler/evidence/current/current-rust-task-interface-results.json).
 All43 compiler sources check through the repaired host. The combined Cinch/API
 repair is in a new nine-group run; it requires a fresh final source chain and
 all matching suites. Acceptance1-4 above applies to published6b task source;
@@ -3723,7 +3723,7 @@ a saturated scope helper, empty scopes and ordinary builtin-name shadows.
 Twelve task source refusals remain; ownership/lifetime cases must reach the
 actual safety diagnostic. Fourteen new independent task-node checks execute at
 five large identifiers alongside all 23 existing scoped-region checks.
-See [the complete focused task proof](../bootstrap/evidence/current/current-structured-task-results.json).
+See [the complete focused task proof](../compiler/evidence/current/current-structured-task-results.json).
 
 The repair also discovers imported dependencies inside do blocks and infers
 fresh callback effect rows. Task error types left unconstrained after complete
@@ -3748,7 +3748,7 @@ the helper inside the scope and returning ordinary data still work.
 All 60 tests in the five complete concurrency, exhaustion, ownership, effects
 and region-interface groups pass, with none ignored or filtered. The new
 regression covers direct, aliased and tuple-wrapped escapes and executes a
-valid saturated helper. See [the scoped Rust proof](../bootstrap/evidence/current/current-rust-hidden-scope-capture-results.json).
+valid saturated helper. See [the scoped Rust proof](../compiler/evidence/current/current-rust-hidden-scope-capture-results.json).
 
 The separate Cinch task implementation passes its six complete focused groups.
 A fresh full bootstrap and complete matching suites remain required.
@@ -3765,7 +3765,7 @@ lambda capture rule. Saturating the helper inside the scope still works.
 All 59 tests in the five complete concurrency, exhaustion, ownership, effects
 and region-interface groups pass, with none ignored or filtered. The new
 regression covers direct, aliased and tuple-wrapped escapes and executes a
-valid saturated helper. See [the scoped Rust proof](../bootstrap/evidence/current/current-rust-hidden-scope-capture-results.json).
+valid saturated helper. See [the scoped Rust proof](../compiler/evidence/current/current-rust-hidden-scope-capture-results.json).
 
 The separate Cinch task implementation passes its six complete focused groups.
 A fresh full bootstrap and complete matching suites remain required.
@@ -3783,7 +3783,7 @@ All 43 compiler sources and six complete focused groups pass on identical
 compiler inputs. The corrected scope fixture executes 23 checks at each of
 five large identifier sizes, retaining all original typing tests. All 125
 existing runtime programs return their expected values with zero leaks.
-See [the scoped Core proof](../bootstrap/evidence/current/current-scoped-region-core-results.json).
+See [the scoped Core proof](../compiler/evidence/current/current-scoped-region-core-results.json).
 
 This is a Core foundation. Source task forms, linear handle consumption and
 capture/lifetime checking are still unfinished. Scoped nodes explicitly refuse
@@ -3805,12 +3805,12 @@ programs return their expected values with zero leaks. Twelve new source
 cases agree with the Rust frontend. An observable effect-order case writes
 exactly three bytes, evaluates each dependent statement once and returns 193;
 both frontends execute it with zero leaks. Original tests and object
-ABI/refusal/allocation checks remain. See [sequencing evidence](../bootstrap/evidence/current/current-direct-sequencing-results.json).
+ABI/refusal/allocation checks remain. See [sequencing evidence](../compiler/evidence/current/current-direct-sequencing-results.json).
 
 The preceding Rust-witness/Cinch 018a snapshot also completes all 208 compiler
 groups, totaling 1,274 tests, with no ignored or filtered cases. Every test
 executable and full log was independently audited. See [the complete Native
-sweep](../bootstrap/evidence/current/current-native-witness-sweep-results.json). Its Rust,
+sweep](../compiler/evidence/current/current-native-witness-sweep-results.json). Its Rust,
 prelude and runtime inputs match this sequencing snapshot; its tests do not
 replace full verification of the changed Cinch compiler.
 
@@ -3830,12 +3830,12 @@ lacks `withScope` and direct `do`. The newer sequencing repair is documented
 above; structured tasks still need implementation. The original
 assertion remains unchanged; the fix must create a real runtime task and
 retain scope lifetimes, handle consumption, effects and cancellation.
-See [the recorded failure](../bootstrap/evidence/current/current-self-built-task-blocker.json).
+See [the recorded failure](../compiler/evidence/current/current-self-built-task-blocker.json).
 
 Matching final-source auxiliary checks pass all 171 runtime, 41 tooling and
 39 editor tests. All 14 exact Stage3 external acceptance checks also pass.
-See [auxiliary evidence](../bootstrap/evidence/current/current-source-auxiliary-results.json)
-and [external evidence](../bootstrap/evidence/current/current-final-external-results.json).
+See [auxiliary evidence](../compiler/evidence/current/current-source-auxiliary-results.json)
+and [external evidence](../compiler/evidence/current/current-final-external-results.json).
 The full Native sweep remains running. The final self-built sweep stopped
 after its exhaustion failure, with 86 groups still pending. Acceptance5 is
 open. Sequencing changes are local and under focused validation; they require
@@ -3848,7 +3848,7 @@ All stages pass their three smoke checks. Stage2 and Stage3 have identical
 compiler IR, executable bytes and all 43 canonical checked interfaces.
 Stage3 checks its actual entry against the emitted APIs without compiler
 bodies; Stage2 rebuilds changed compiler source and the rebuilt executable
-exhibits the changed diagnostic. See [the current chain proof](../bootstrap/evidence/current/current-case-dispatch-bootstrap-results.json).
+exhibits the changed diagnostic. See [the current chain proof](../compiler/evidence/current/current-case-dispatch-bootstrap-results.json).
 
 The complete original case-evidence target now passes all 17 tests through
 both fresh Stage1 and final Stage3, including the original allocation
@@ -3866,7 +3866,7 @@ The original FFI diagnostic assertion is unchanged.
 
 All 109 tests in seven complete affected Native groups pass, with no ignored
 or filtered cases, and the repaired Rust CLI checks all 43 compiler modules.
-See [the scoped diagnostic proof](../bootstrap/evidence/current/current-rust-witness-diagnostics-results.json).
+See [the scoped diagnostic proof](../compiler/evidence/current/current-rust-witness-diagnostics-results.json).
 All Cinch, prelude and pinned-bootstrap inputs are byte-identical to the
 validated case/dispatch repair, so its fresh chain9 remains valid. The matching
 full Native and exact final self-built suites are rerunning on this Rust snapshot.
@@ -3889,7 +3889,7 @@ or filtered cases. All 119 runtime programs execute as expected with zero leaks.
 The four 100,000-iteration plain/if/Boolean-case/literal-case loops each allocate
 exactly 6 startup blocks, replacing the previous 200,006-block evidence loop.
 All original object ABI/refusal checks and 21 Boolean/case source inputs pass.
-See [the independently checked repair evidence](../bootstrap/evidence/current/current-case-dispatch-repair-results.json).
+See [the independently checked repair evidence](../compiler/evidence/current/current-case-dispatch-repair-results.json).
 
 The new Cinch compiler identity is 018a2e3ca7546d60a2ba4c62b200b6a446ce0545d4956c2a3f9362cf6f581bf1.
 Its fresh four-stage bootstrap and complete matching tests are the next gates;
@@ -3910,7 +3910,7 @@ oracle now checks the original inline source without rewriting it into a let.
 All97 tests in the six complete affected Native groups pass with no ignored or
 filtered cases, including actual runtime order, fresh mutable evidence and
 later-write refusal. The complete original guarded-call target passes too.
-See [the scoped Rust repair evidence](../bootstrap/evidence/current/current-rust-inline-argument-results.json).
+See [the scoped Rust repair evidence](../compiler/evidence/current/current-rust-inline-argument-results.json).
 These results do not replace the full matching Native sweep.
 
 The preceding Cinch frontend still has a confirmed allocation failure in its
@@ -3928,10 +3928,10 @@ checks. Stage2 and Stage3 produce byte-identical compiler IR, executables and
 all43 checked compiler interfaces. Stage3 consumes those actual emitted APIs
 without compiler-module bodies. Stage2 also rebuilds changed compiler source,
 and the resulting executable exhibits the changed diagnostic. The independently
-checked [current bootstrap receipt](../bootstrap/evidence/current/current-opaque-witness-bootstrap-results.json)
+checked [current bootstrap receipt](../compiler/evidence/current/current-opaque-witness-bootstrap-results.json)
 proves Acceptance1-4 for this source.
 
-All14 [exact final Stage3 external acceptance rows](../bootstrap/evidence/current/current-opaque-witness-stage3-external-results.json)
+All14 [exact final Stage3 external acceptance rows](../compiler/evidence/current/current-opaque-witness-stage3-external-results.json)
 now pass: original runner reports and zero leaks, definition-owned fixities
 through separate facades and renames, and complete class identity checks.
 Acceptance5 remains open: the complete208-group Native sweep,91-group final
@@ -3947,7 +3947,7 @@ The Rust optimizer now borrows a callee definition from its read-only table
 instead of cloning the entire Core body before deciding whether to unfold it.
 All16 tests in the complete optimizer target pass, including the fuel, effect
 order, linearity and rewrite barriers; none were ignored or filtered. See
-[the scoped Rust optimizer evidence](../bootstrap/evidence/current/current-rust-unfold-borrow-results.json).
+[the scoped Rust optimizer evidence](../compiler/evidence/current/current-rust-unfold-borrow-results.json).
 This result does not claim that the complete compiler suite has passed.
 
 The Cinch dependent-argument repair now passes all ten complete focused groups
@@ -3959,7 +3959,7 @@ optimizer, inference, Core, independent typing and typed-index targets pass,
 with no ignored or filtered cases. All93 runtime programs execute with expected
 results and zero leaked blocks. Seven new lexical-scope checks cover quantified
 let RHSs, nested schemes, lambda patterns and rejected escapes across five
-large runtime identities. See [the complete focused evidence](../bootstrap/evidence/current/current-dependent-argument-repair-results.json).
+large runtime identities. See [the complete focused evidence](../compiler/evidence/current/current-dependent-argument-repair-results.json).
 
 An ordinary checked computation can supply a dependent runtime argument through
 a retained strict witness. Its identity does not become an unchecked symbolic
@@ -3971,11 +3971,11 @@ and the independent Core checker remains authoritative.
 
 Matching auxiliary checks also pass: all171 runtime tests,41 tooling checks
 and39 syntax/editor checks, with no skips or ignored cases. See
-[the current auxiliary evidence](../bootstrap/evidence/current/current-source-auxiliary-results.json).
+[the current auxiliary evidence](../compiler/evidence/current/current-source-auxiliary-results.json).
 The complete original argv target now passes all three cases through the
 previous repaired Stage1 prototype (`39ad`): both portable builds use that
 actual Cinch compiler, while CLI forwarding remains a Native API case. This
-[scoped recovery](../bootstrap/evidence/current/current-stage1-argv-recovery.json) does not replace
+[scoped recovery](../compiler/evidence/current/current-stage1-argv-recovery.json) does not replace
 final acceptance through the exact new Stage3.
 
 A fresh Stage0/1/2/3 chain and complete208-group Native sweep now use the exact
@@ -3999,7 +3999,7 @@ including65-tag families, recursive/first-class70-constructor families, generic
 Raw/Obj/TObj layouts and a partially applied constructor retaining an owned
 integer. The complete checked-object target also passes all22 positive programs
 and every original ABI/admission refusal. See
-[the scoped repair evidence](../bootstrap/evidence/other/escaped-constructor-symbol-repair-results.json).
+[the scoped repair evidence](../compiler/evidence/other/escaped-constructor-symbol-repair-results.json).
 This checkpoint does not claim that bootstrap or complete-suite acceptance has finished.
 
 The backend uses the runtime's existing escaped-descriptor format and reads
@@ -4018,19 +4018,19 @@ compiler stage is freshly rebuilt. All four complete focused gates now pass,
 unblocking Stage2 and the complete208-group Native sweep. Its full inventory has
 compiled on the same source and private cache. Matching auxiliary checks all pass:
 171 runtime tests,41 tooling checks and39 editor/syntax checks, none ignored or
-skipped; see [the current auxiliary result](../bootstrap/evidence/current/current-source-auxiliary-results.json).
-The [current coverage audit](../bootstrap/evidence/current/current-external-coverage-audit.json)
+skipped; see [the current auxiliary result](../compiler/evidence/current/current-source-auxiliary-results.json).
+The [current coverage audit](../compiler/evidence/current/current-external-coverage-audit.json)
 recomputes all100 harness targets and remains open until their actual matching
 executions and final requirement audit complete. The eight original ordinary
 behavior targets are now running early through fresh Stage1.
 The complete original allocation target now passes all eight cases through this
 fresh Stage1, including the two earlier failures. Its custom C-probe case remains
 a direct Native API check; portable compiler builds select Stage1. See
-[the scoped allocation recovery](../bootstrap/evidence/current/current-stage1-allocation-recovery.json).
+[the scoped allocation recovery](../compiler/evidence/current/current-stage1-allocation-recovery.json).
 The next complete early target, command-line arguments, finished with one pass
 and two failures. The first diagnostic rejects a computed Nat passed to the
 dependent result contract of `nat-to-int`; later diagnostics cascade. The
-[original complete argv failure](../bootstrap/evidence/current/current-stage1-argv-failure.json)
+[original complete argv failure](../compiler/evidence/current/current-stage1-argv-failure.json)
 records this exact Stage1 and log identity. A separate unpublished candidate
 extends strict private witness binding to ordinary computed arguments. Its
 source and full proof/effect/ownership gates are still under validation.
@@ -4040,7 +4040,7 @@ the designed ABI5 array refusal. Exact final Stage3 runner reports, zero-leak
 execution, definition-owned fixities and class behavior remain required too.
 Stage2/3 IR, executable and all43 canonical interfaces must agree; actual API
 consumption and rebuilding changed compiler source remain separate gates.
-The [current acceptance audit](../bootstrap/evidence/current/current-bootstrap-acceptance-audit.json)
+The [current acceptance audit](../compiler/evidence/current/current-bootstrap-acceptance-audit.json)
 verifies Acceptance1 against the actual current Stage0/1 source and artifacts;
 Acceptance2-5 remain open. The coverage audit also records complete passes for
 all nine direct Native interface-API targets on this source; all91 selected
@@ -4052,7 +4052,7 @@ large constructor families and symbol-word classification. Its Native sweep
 retained138 passing groups and deferred70 after the necessary source repair was
 identified. Its unfinished Stage3 build and unstarted final-consumer queues were
 stopped; all completed artifacts, logs and original failures remain recorded.
-See [the complete original allocation result](../bootstrap/evidence/current/current-stage2-allocation-failure.json).
+See [the complete original allocation result](../compiler/evidence/current/current-stage2-allocation-failure.json).
 An intermediate repair's runtime target executed65-tag and generic70-tag
 programs with zero leaks, then failed when the legacy checker rejected a bare
 constructor as a function. The current complete runtime target passes that case
@@ -4073,7 +4073,7 @@ byte-identical compiler IR, executable bytes and all43 canonical compiler
 interfaces. Stage3 checks its actual entry using those emitted interfaces with
 compiler-module bodies absent. Stage2 rebuilds changed compiler source, and the
 resulting executable produces the requested changed diagnostic behavior.
-See [the complete fresh-chain evidence](../bootstrap/evidence/other/final-repaired-bootstrap-results.json).
+See [the complete fresh-chain evidence](../compiler/evidence/other/final-repaired-bootstrap-results.json).
 
 The chain and complete suite27 use frozen source
 `c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703`;
@@ -4086,14 +4086,14 @@ fixity; reexports carry that admitted fact without introducing declarations.
 All127 ordinary compiler-facing target groups pass, including previously
 ignored tests. The same snapshot passes all171 runtime tests,41 tooling checks
 and39 syntax/editor tests, with none skipped or ignored. See
-[ordinary target evidence](../bootstrap/evidence/other/ordinary-compiler-groups-results.json)
-and [auxiliary gates](../bootstrap/evidence/other/final-source-auxiliary-results.json).
+[ordinary target evidence](../compiler/evidence/other/ordinary-compiler-groups-results.json)
+and [auxiliary gates](../compiler/evidence/other/final-source-auxiliary-results.json).
 The81-group bootstrap-specific sweep continues as part of the complete208-group
 compiler run. Exact final-Stage3 external acceptance now passes: both original
 test-runner programs produce exact reports with zero leaks at32M, all seven
 fixity/facade probes pass, and the portable class build/run cases return37 and43.
 The class target's separate wrong-evidence case remains a Native API check.
-See [exact final-executable evidence](../bootstrap/evidence/other/final-stage3-external-results.json).
+See [exact final-executable evidence](../compiler/evidence/other/final-stage3-external-results.json).
 The complete208-group sweep and final acceptance audit remain required.
 
 The driver uses a separately pinned library-only producer and matching runtime,
@@ -4103,7 +4103,7 @@ compiler implementation modules. Prepared ABI5 stages remain separate from live
 ABI6 artifacts; the Stage0 seed is unchanged.
 
 The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
-reads the committed [status checkpoint](../bootstrap/progress.json). It follows
+reads the committed [status checkpoint](../compiler/progress.json). It follows
 active verification results and publishes meaningful count, stage and failure
 changes. Its estimated percentage is not a measured test pass rate.
 
@@ -4113,11 +4113,11 @@ The portable harness now names Native library fixture production explicitly in
 14 bootstrap targets. Check/build/run calls still select the configured Cinch
 frontend and never fall back after a selected compiler failure. The fixture
 helper rejects compiler implementation interfaces. All four harness checks pass;
-see [the scoped result](../bootstrap/evidence/other/explicit-native-fixture-harness-results.json).
+see [the scoped result](../compiler/evidence/other/explicit-native-fixture-harness-results.json).
 The complete79-group bootstrap run through final Stage3 is queued separately
 from the complete208-group Native run.
 
-The [external coverage inventory](../bootstrap/evidence/other/external-coverage-inventory.json)
+The [external coverage inventory](../compiler/evidence/other/external-coverage-inventory.json)
 also finds21 ordinary harness targets. Native interface serialization tests,
 portable program behavior and mixed targets need explicit classification and
 execution evidence. Eight ordinary portable targets are queued through final
@@ -4132,18 +4132,18 @@ the consumer builds and executions continue through the selected Cinch compiler.
 All four runners compile on their frozen snapshot. The three complete mixed
 consumer targets and the designed ABI5 array-refusal case now pass through the
 same exact earlier Stage3 compiler. Their source, binary, object-provider and
-log hashes are independently verified in [the scoped consumer result](../bootstrap/evidence/other/stage3-mixed-consumer-results.json).
+log hashes are independently verified in [the scoped consumer result](../compiler/evidence/other/stage3-mixed-consumer-results.json).
 These results apply to the earlier e85a5d0 compiler, not the newer0e28 candidate.
 
 The first array-refusal consumer stopped because its test-only object bundle
 lacked `Data.Option.is-none[O]`. The replacement bundle passes independent
 artifact validation and contains that exact requested unit. All55 interface
 documents match the previous bundle byte for byte. Its
-[test-only roots](../bootstrap/pins/test-support-object-roots.json) add only the
+[test-only roots](../compiler/pins/test-support-object-roots.json) add only the
 previously requested list-length and Option variants, plus the separately
 requested raw-list factory described below; compiler roots, Stage0 and library
 producer pins remain unchanged. See
-[the scoped artifact result](../bootstrap/evidence/other/test-library-variant-results.json).
+[the scoped artifact result](../compiler/evidence/other/test-library-variant-results.json).
 The exact array-refusal consumer rerun passes on the same Stage3 compiler and
 unchanged test runner. The complete canonical-artifact, byte-observation and machine-contract consumer
 targets also pass on that same unchanged Stage3 compiler.
@@ -4162,7 +4162,7 @@ all16 Rust optimizer tests. The Cinch implementation and its regressions are now
 published; the fresh staged compiler build is running. The previously failing
 function-valued entry, pure Unit entry, I64 overflow, first-class operation and
 owned-data cases all return the expected results with zero leaks at32M. See
-[the complete focused repair evidence](../bootstrap/evidence/current/current-compiler-repair-results.json). The earlier green bootstrap remains evidence for its original
+[the complete focused repair evidence](../compiler/evidence/current/current-compiler-repair-results.json). The earlier green bootstrap remains evidence for its original
 e85a5d0 source.
 
 The portable bootstrap sweep separately passes type-syntax and abstract NonZero
@@ -4173,7 +4173,7 @@ variant. All55 admitted base interfaces, plus the trivial library root interface
 match the previous bundle byte for byte. The unchanged complete target now
 passes through the same Stage3 compiler and runner, exercising all five nonce
 sizes. The original failed sweep remains recorded; this isolated recovery does
-not establish the complete79-group suite. See [the unchanged target recovery](../bootstrap/evidence/other/stage3-nonzero-types-recovery-results.json). See [the raw-list library artifact receipt](../bootstrap/evidence/other/test-library-list-variant-results.json). See [the retained failures and candidate scope](../bootstrap/evidence/other/additional-stage3-verification-results.json).
+not establish the complete79-group suite. See [the unchanged target recovery](../compiler/evidence/other/stage3-nonzero-types-recovery-results.json). See [the raw-list library artifact receipt](../compiler/evidence/other/test-library-list-variant-results.json). See [the retained failures and candidate scope](../compiler/evidence/other/additional-stage3-verification-results.json).
 
 ## Rust optimizer definition-table borrowing
 
@@ -4183,7 +4183,7 @@ definition table, although it only reads that table. The driver now borrows the
 current table; the existing updates between optimized functions are preserved.
 All16 optimizer tests and the complete exact-report checker test pass on the
 frozen repair snapshot, with no failures, ignored tests or filtered cases. See
-[the focused Rust result](../bootstrap/evidence/native/native-optimizer-borrow-results.json).
+[the focused Rust result](../compiler/evidence/native/native-optimizer-borrow-results.json).
 This is a Rust-only implementation checkpoint. The test snapshot also contains
 the Cinch candidate whose complete intrinsic, parser and runtime-lowering
 targets now also pass. Its fresh staged build and full suites remain required. Earlier full-suite and bootstrap evidence retains its
@@ -4197,13 +4197,13 @@ passes all stage smoke checks, exact Stage2/Stage3 compiler IR and executable
 comparison, and all43 canonical compiler-interface comparisons. Stage3 checks
 its actual entry through those emitted interfaces with compiler-module bodies
 absent. Stage2 also rebuilds a changed compiler whose diagnostic behavior changes
-as requested. See [complete chain evidence](../bootstrap/evidence/other/fresh-combined-bootstrap-results.json).
+as requested. See [complete chain evidence](../compiler/evidence/other/fresh-combined-bootstrap-results.json).
 
 This establishes the combined bootstrap on that snapshot. It predates the later
 reexport-fixity and Rust local-data/class-name repairs. The complete test sweep
 has exposed a compression-library class-name collision; its original failure is
 retained. Those repairs require independent validation and a matching final
-bootstrap/test run before the full goal is complete.
+compiler/test run before the full goal is complete.
 
 ## Rust local data and class-name collision
 
@@ -4212,19 +4212,19 @@ its private data type `Bits` was incorrectly looked up as the legacy
 `Algebra.Bits` signature. Ordinary lexical data lookup now precedes the semantic
 class-key fallback. Qualified declaring-class identities remain distinct.
 All three class-identity tests, four compression tests and seven module-parameter
-tests pass on the repair snapshot. See [focused evidence](../bootstrap/evidence/native/native-class-data-collision-results.json).
+tests pass on the repair snapshot. See [focused evidence](../compiler/evidence/native/native-class-data-collision-results.json).
 The original full-sweep failure is retained; complete final-source verification
 belongs to the new sweep.
 
 ## Isolated runtime export verification
 
 A clean nondefault Cargo target directory exposed four test failures: export
-checks searched `compiler/runtime/target` instead of the actual Cargo artifact
+checks searched `seed/runtime/target` instead of the actual Cargo artifact
 directory. A shared test-only helper now discovers runtime archives beside the
 running test executable. The existing `nm` checks still require every expected
 global text symbol. All171 runtime tests pass, with zero failures and zero
 ignored tests, in a fresh isolated directory. See
-[runtime evidence](../bootstrap/evidence/runtime/runtime-isolated-artifact-results.json).
+[runtime evidence](../compiler/evidence/runtime/runtime-isolated-artifact-results.json).
 
 The fresh passing stage chain and the running full suite capture this repair
 together with the operator reexport and Rust class/data-name repairs. The two superseded waiting
@@ -4245,7 +4245,7 @@ identical and changed importer declarations are both refused. Independent schema
 ABI and dependency-chain validation passes for the three actual artifacts.
 Both complete initial and expanded writer/parser/resolver/fixity runs pass.
 The matching repaired-source stage chain now passes. The complete suite27
-and repeats through its exact final Stage3 executable are still running. See [before/after evidence](../bootstrap/evidence/other/reexport-fixity-results.json).
+and repeats through its exact final Stage3 executable are still running. See [before/after evidence](../compiler/evidence/other/reexport-fixity-results.json).
 
 ## Checked interface type printing
 
@@ -4257,7 +4257,7 @@ matches Native's own resolved interface production. Unsolved, escaped and malfor
 identities and independent unresolved effect tails are refused. All12 report rows
 pass the focused Native regression. This feeds the checked writer below;
 unsupported contract forms retain explicit refusals. See
-[checked type export evidence](../bootstrap/evidence/other/checked-type-export-results.json).
+[checked type export evidence](../compiler/evidence/other/checked-type-export-results.json).
 
 ## Checked interface writer and complete seed closure
 
@@ -4274,7 +4274,7 @@ the full compiler contract gate is still open.
 The compiler entry now imports every bundled module through a qualified alias.
 The pinned seed actually builds this complete43-module source closure and emits
 all43 compiler interfaces, including unused modules. The source identity in
-[writer evidence](../bootstrap/evidence/other/checked-interface-writer-results.json) matches this
+[writer evidence](../compiler/evidence/other/checked-interface-writer-results.json) matches this
 checked snapshot exactly. The later actual self-built compiler also emits all43
 contracts; its complete readback and entry-consumer results are recorded below.
 Seed-produced contracts do not substitute for self-produced compiler contracts.
@@ -4300,7 +4300,7 @@ emits both contracts and runtime IR. The stage driver requests that combined mod
 and records the output protocol in its cache inputs. The complete pipeline target
 and real CLI probes pass on their named snapshots. Unsupported contract forms
 remain explicit refusals. See
-[advanced contract evidence](../bootstrap/evidence/other/advanced-interface-contract-results.json).
+[advanced contract evidence](../compiler/evidence/other/advanced-interface-contract-results.json).
 
 Module spans previously covered only the six-byte `module` keyword, making every
 produced source hash identical. Spans now cover the complete module body; independent
@@ -4331,7 +4331,7 @@ refinement tests pass, including the three baseline false accepts. The wider
 repair run passes238 tests and records one obsolete parameter-name expectation;
 all seven parameter tests pass with its defining identity corrected to
 `Api.Stepper`. This is scoped evidence, not a complete final-source sweep.
-See [repair results](../bootstrap/evidence/native/native-class-refinement-repair-results.json).
+See [repair results](../compiler/evidence/native/native-class-refinement-repair-results.json).
 
 ## Complete checked compiler-interface production
 
@@ -4354,9 +4354,9 @@ base contracts pass. It also requires the self-built compiler to check its entry
 using its emitted APIs with compiler-module bodies absent. That actual consumer
 probe exposed missing private nominal kind facts when completing public
 constructor layouts (`Text.Lex.Span`). That repair now passes the actual rebuilt
-consumer and the complete focused regression below; the fresh compiler/interface
+consumer and the complete focused regression below; the fresh seed/interface
 fixed point remains required. See
-[production evidence](../bootstrap/evidence/other/compiler-interface-production-results.json).
+[production evidence](../compiler/evidence/other/compiler-interface-production-results.json).
 
 ## Real entry consumption and private field kinds
 
@@ -4371,7 +4371,7 @@ and does not expose private constructors. The repaired actual Cinch compiler
 accepts the public return and refuses private constructor import, private type
 annotation and a wrong field carrier. The complete source-checker and expanded
 writer/privacy, nominal identity, parser and region-contract targets also pass.
-See [before/after and real consumer evidence](../bootstrap/evidence/other/private-constructor-kind-results.json).
+See [before/after and real consumer evidence](../compiler/evidence/other/private-constructor-kind-results.json).
 The fresh complete stage chain and final-source test sweep remain required.
 
 ## Self-built test runner executes and reports exactly
@@ -4382,8 +4382,8 @@ failures; the passing suite returns0 and reports zero failures. Both execute
 with a32M heap and report zero leaks. The separate checked test-library bundle
 adds the actually requested `Data.List.length[T]` variant using the existing
 library-only producer pin; compiler stage roots and both pins are unchanged.
-See [test-runner evidence](../bootstrap/evidence/other/self-built-test-runner-results.json)
-and [the reproducible test root set](../bootstrap/pins/test-runner-object-roots.json).
+See [test-runner evidence](../compiler/evidence/other/self-built-test-runner-results.json)
+and [the reproducible test root set](../compiler/pins/test-runner-object-roots.json).
 
 ## Earlier checkpoints
 
@@ -4418,7 +4418,7 @@ runtime lowering. Its7127 diagnostics include cascades; IR is empty and no Stage
 compiler exists. Cinch manifest consumption, shared layout seeding, checked
 external calls, private String/scalar lowering, full suites/correctness and
 Stage2/3 remain required. The seed is unchanged. See
-[the combined evidence](../bootstrap/evidence/runtime/runtime-imported-class-results.json) and
+[the combined evidence](../compiler/evidence/runtime/runtime-imported-class-results.json) and
 [the object linkage protocol](runtime-object-linkage.md).
 
 
@@ -4439,7 +4439,7 @@ This is the producer boundary. Cinch manifest consumption, shared layout seeding
 checked external calls/variants and class method families remain to be integrated.
 No Stage2 compiler or Stage3 fixed point is established. The seed is unchanged.
 See [the object linkage contract](runtime-object-linkage.md) and
-[the executable object evidence](../bootstrap/evidence/runtime/runtime-object-results.json).
+[the executable object evidence](../compiler/evidence/runtime/runtime-object-results.json).
 
 
 ## Source signatures and polymorphic dictionary methods
@@ -4461,7 +4461,7 @@ lowering, full current suites/correctness and Stage2/3 remain required. The last
 completed genuine full-source attempt passes the frontend and traverses beyond
 read-argv, then emits only runtime refusals with empty IR and no Stage2 compiler.
 Its diagnostics include cascades and do not count remaining features. See
-[the source-signature evidence](../bootstrap/evidence/runtime/runtime-source-signature-results.json).
+[the source-signature evidence](../compiler/evidence/runtime/runtime-source-signature-results.json).
 
 
 ## Rust same-file module dependency repair
@@ -4472,7 +4472,7 @@ later in that file. The new regression compiles and runs that program, returns21
 and checks the imported module's presence in the interface. All12 module,
 10 incremental and142 unit tests pass; all seven source-signature reference
 programs compile and execute with zero leaks. The seed remains unchanged. See
-[the module ordering evidence](../bootstrap/evidence/native/native-module-order-results.json).
+[the module ordering evidence](../compiler/evidence/native/native-module-order-results.json).
 
 
 ## Imported public constructor layouts
@@ -4489,7 +4489,7 @@ is recorded separately; no Stage2 executable or fixed point is established.
 The actual25-module String source probe identified missing source-signature
 namespace elaboration as another prerequisite for compiling base implementations.
 That source-signature work is still private and under validation. See
-[the imported layout evidence](../bootstrap/evidence/runtime/runtime-imported-layout-results.json).
+[the imported layout evidence](../compiler/evidence/runtime/runtime-imported-layout-results.json).
 
 
 ## Cinch dictionary and IO checkpoint
@@ -4508,7 +4508,7 @@ refuses executable base/library implementations and imported layouts. Its IR is
 empty and no Stage2 compiler exists; diagnostics do not count remaining features.
 Private String representation, complete current suites/correctness gates and the
 Stage2/3 fixed point remain required. The pinned seed stays unchanged. See
-[the dictionary/IO evidence](../bootstrap/evidence/runtime/runtime-dictionary-results.json).
+[the dictionary/IO evidence](../compiler/evidence/runtime/runtime-dictionary-results.json).
 
 
 ## Rust strict dictionary value checkpoint
@@ -4525,7 +4525,7 @@ leaks; unchanged IR remains byte-identical. Recursive strict initialization,
 full strict-self evidence and method-local polymorphic value environments still
 receive named refusals. The pinned seed is unchanged; full current-suite and
 Stage2/3 success remain unverified. See
-[the Rust strict-value evidence](../bootstrap/evidence/native/native-dictionary-values-results.json).
+[the Rust strict-value evidence](../compiler/evidence/native/native-dictionary-values-results.json).
 
 
 ## Rust dictionary ownership and scope checkpoint
@@ -4541,7 +4541,7 @@ out-of-scope uses stay rejected. The focused unit, ownership, reclamation,
 effect, representation, class-default and surface targets all pass. The seed
 is unchanged. Cinch dictionary/IO lowering is still under validation; no
 Stage2 or complete current-suite pass is established here. See
-[the Rust dictionary evidence](../bootstrap/evidence/native/native-dictionary-check-results.json).
+[the Rust dictionary evidence](../compiler/evidence/native/native-dictionary-check-results.json).
 
 
 The typed backend now lowers real ABI5 closures, lexical captures, partial
@@ -4556,7 +4556,7 @@ cleared and no Stage2 executable exists; traversal stops at main, so its three
 diagnostics are not a count of remaining features.
 Erased/dependent parameters, IO/effects, dictionaries, executable base code,
 extended layouts and complete correctness/current-suite/fixed-point gates remain
-required. See [the closure checkpoint](../bootstrap/evidence/runtime/runtime-closure-results.json).
+required. See [the closure checkpoint](../compiler/evidence/runtime/runtime-closure-results.json).
 
 ## Native checker checkpoint
 The development Rust checker now accepts equations returning functions and
@@ -4564,7 +4564,7 @@ structural lambda patterns through ordinary result checking and the existing
 exhaustive pattern compiler. All18 new executable examples report zero leaks;
 four invalid cases stay rejected. The142 unit,21 ownership,18 reclamation and17
 surface tests pass. This leaves the pinned stage0 unchanged. See
-[the Rust closure checker repair](../bootstrap/evidence/native/native-closure-check-results.json).
+[the Rust closure checker repair](../compiler/evidence/native/native-closure-check-results.json).
 
 ## Current Cinch backend checkpoint
 The typed backend now shares polymorphic workers by Raw/Obj/TObj class vectors
@@ -4580,7 +4580,7 @@ Demand traversal stops at that entry; the three diagnostics are not a count of
 remaining features. Closures, partial calls, dictionaries, effects,
 executable base implementations, higher/dependent representations and complete
 correctness/current-suite gates remain required. See
-[the class-specialization checkpoint](../bootstrap/evidence/runtime/runtime-class-results.json).
+[the class-specialization checkpoint](../compiler/evidence/runtime/runtime-class-results.json).
 
 ## Previous source-data checkpoint
 Typed runtime lowering now executes monomorphic source data, recursive constructors,
@@ -4594,7 +4594,7 @@ frontend diagnostics and5050 named runtime refusals; its IR is empty and no comp
 is built. The refusal count includes cascades and is not a count of missing features.
 Polymorphic representation specialization, closures, dictionaries, effects, executable base ABI,
 complete correctness/current-suite gates and the Stage2/3 fixed point remain
-required. See [the ADT checkpoint](../bootstrap/evidence/runtime/runtime-adt-results.json).
+required. See [the ADT checkpoint](../compiler/evidence/runtime/runtime-adt-results.json).
 
 ## Previous typed stage checkpoint
 The stage runner now selects the actual typed backend: each later stage invokes
@@ -4608,7 +4608,7 @@ executable, usable IR or Stage3 fixed point; the IR file is cleared to zero byte
 This staged snapshot precedes the tuple checkpoint below. Source ADTs,
 polymorphism, closures, dictionaries, effects, foreign/executable base ABI and
 complete correctness/current-suite gates remain required. See
-[the typed stage result](../bootstrap/evidence/other/typed-stage-driver-results.json).
+[the typed stage result](../compiler/evidence/other/typed-stage-driver-results.json).
 
 ## Previous tuple checkpoint
 
@@ -4621,7 +4621,7 @@ map. A17-field layout is refused explicitly. Cinch accepts the backend's entire
 polymorphism, closures, dictionaries, effects, foreign/base ABI lowering and the
 complete correctness/test/fixed-point gates remain unfinished. The new typed
 stage runner is separately under validation. See
-[the tuple checkpoint](../bootstrap/evidence/runtime/runtime-tuple-results.json).
+[the tuple checkpoint](../compiler/evidence/runtime/runtime-tuple-results.json).
 
 ## Previous typed compiler CLI checkpoint
 
@@ -4633,7 +4633,7 @@ complete existing pipeline regression also passes. Cinch accepts the entire
 updated compiler source bundle with zero diagnostics. The stage runner still
 needs to select typed emission and link the matching runtime for later stages;
 there is no Stage2 executable or fixed point yet. See
-[the emit-mode checkpoint](../bootstrap/evidence/runtime/runtime-emit-results.json).
+[the emit-mode checkpoint](../compiler/evidence/runtime/runtime-emit-results.json).
 
 ## Previous shared-runtime checkpoint
 
@@ -4645,7 +4645,7 @@ arguments. The corrected whole Rust target passes; Cinch independently accepts
 the backend's entire source dependency closure with zero diagnostics. Unsupported
 polymorphism is refused before IR is returned. The real `--emit-ir` CLI route is
 under separate validation; it is not yet part of this checkpoint.
-See [the runtime backend evidence](../bootstrap/evidence/runtime/runtime-ir-results.json).
+See [the runtime backend evidence](../compiler/evidence/runtime/runtime-ir-results.json).
 
 The retained-Core pipeline also passes fresh six stage0/1 smokes and a genuine
 Stage2 attempt accepts the complete compiler source, stopping only at the old
@@ -4653,7 +4653,7 @@ emitter's named refusals. That stage snapshot precedes the new backend module.
 There is still no Stage2 executable or Stage3 fixed point. Aggregate, closure,
 dictionary/effect/foreign lowering, the whole-program base/layout ABI, complete
 correctness checks and complete Native/self-built suites remain required.
-See [the retained pipeline stage result](../bootstrap/evidence/other/checked-program-stage2-results.json).
+See [the retained pipeline stage result](../compiler/evidence/other/checked-program-stage2-results.json).
 
 ## Previous retained-Core checkpoint
 
@@ -4665,7 +4665,7 @@ outside attempt to forge the constructor. Both complete scalar IR cases and the
 whole pipeline regression pass. The existing scalar renderer still uses the
 associated source; typed runtime lowering remains unfinished. The exact earlier
 Stage2 acceptance below belongs to the arity snapshot, before this handoff change.
-See [the retained-Core report](../bootstrap/evidence/other/checked-program-results.json).
+See [the retained-Core report](../compiler/evidence/other/checked-program-results.json).
 
 ## Previous full-source acceptance checkpoint
 
@@ -4675,7 +4675,7 @@ there are zero frontend diagnostics. Stage2 exits5 and emits neither LLVM
 nor an executable. The compiled source bundle matches the published compiler
 sources exactly. All six fresh stage0/1 smokes pass. Shared-runtime typed
 lowering, complete correctness checks, self-built tests and the Stage2/3 fixed
-point remain required. See [the exact stage result](../bootstrap/evidence/other/arity-stage2-results.json).
+point remain required. See [the exact stage result](../compiler/evidence/other/arity-stage2-results.json).
 
 ## Previous arity checkpoint
 
@@ -4687,7 +4687,7 @@ layout refusals. Both imported-precondition and global-checking regressions pass
 Fresh stage0/1 pass all six smokes. The complete new Stage2 attempt is running;
 no Stage2 compiler or IR is claimed. The preceding inference-only repair reduced
 the actual attempt to20 diagnostics, first at the now-repaired legacy arity check.
-See [the scoped arity checkpoint](../bootstrap/evidence/other/arity-binding-results.json).
+See [the scoped arity checkpoint](../compiler/evidence/other/arity-binding-results.json).
 
 ## Previous external frontend checkpoint
 
@@ -4698,13 +4698,13 @@ source, a separately executed binary returns37, and invalid input is refused.
 Four invocation receipts retain the actual inputs and commands. Both adapter
 control tests and the complete default-Native source-path and pipeline targets
 pass. EmitIr and tests calling Native APIs directly still require work; this is
-not a complete self-built suite. See [the adapter report](../bootstrap/evidence/other/external-frontend-results.json).
+not a complete self-built suite. See [the adapter report](../compiler/evidence/other/external-frontend-results.json).
 
 The older frozen handler/parser snapshot has now completed all191 integration
 targets and six general gates successfully, with unchanged inputs. It predates
 the later argument-witness, JSON, interface, resolver, Boolean and CLI changes;
 it does not prove a complete latest-source pass or self-hosting. See
-[the scoped full report](../bootstrap/evidence/other/handler-parser-full-suite-results.json).
+[the scoped full report](../compiler/evidence/other/handler-parser-full-suite-results.json).
 
 ## Previous Boolean checkpoint
 
@@ -4720,7 +4720,7 @@ The combined driver/checker candidate passes all six stage0/1 smokes. Actual
 stage2 clears Bootstrap.Guarded, then exits4 with446 diagnostics, first at
 Bootstrap.Infer.check-imported-value's inline arity sum passed to nat-to-int.
 Most later errors may be cascades. No stage2 IR or compiler exists yet. See
-[the Boolean branch checkpoint](../bootstrap/evidence/other/boolean-branch-results.json).
+[the Boolean branch checkpoint](../compiler/evidence/other/boolean-branch-results.json).
 
 ## Previous driver and resolver checkpoints
 
@@ -4730,7 +4730,7 @@ running its output. The original compile/link/run interface is preserved. The
 whole pipeline target passes, including real binaries, imported checks, invalid
 options and an execution spy, and fresh stage0/1 pass all six smokes. These modes
 prepare external frontend testing; they do not establish a complete self-built
-suite or complete correctness checking. See [the mode checkpoint](../bootstrap/evidence/other/frontend-modes-results.json).
+suite or complete correctness checking. See [the mode checkpoint](../compiler/evidence/other/frontend-modes-results.json).
 
 The last genuine stage2 result below is unchanged: the Boolean guard repair is
 separately under validation. Typed runtime lowering and the fixed point remain
@@ -4745,7 +4745,7 @@ Actualstage2 clears the resolver, then exits4 with872 diagnostics, first at
 Bootstrap.Guarded.read-expression's compound slot guard. Most later diagnostics
 may be cascades; no stage2 IR or compiler is produced. The next checker repair
 must preserve only the logically valid implication for each branch. See
-[the resolver checkpoint](../bootstrap/evidence/other/resolver-span-results.json).
+[the resolver checkpoint](../compiler/evidence/other/resolver-span-results.json).
 
 ## Previous interface checkpoint
 
@@ -4755,7 +4755,7 @@ whole module passes source checking; the complete interface hash/corruption
 and loader dependency regressions pass. Fresh stage0/1 pass all six smokes.
 The next actual stage2 attempt is running; no stage2 IR or compiler is claimed.
 All four intended argument-witness regressions also pass. See
-[the interface splice checkpoint](../bootstrap/evidence/other/interface-splice-results.json).
+[the interface splice checkpoint](../compiler/evidence/other/interface-splice-results.json).
 
 The preceding JSON candidate cleared Text.Json and stopped at this splice
 calculation, with1196 stage2 diagnostics; later errors may be cascades. Source
@@ -4770,7 +4770,7 @@ strict aliases whose actual carrier is refined Nat, including Size. It preserves
 lexical value identities and actual primitive/body authority. All four whole
 guarded-let, primitive-length, safe-byte and refinement targets pass, including
 three new positive and five negative source cases. The c774 producer is unchanged.
-See [the Native alias result](../bootstrap/evidence/native/native-length-alias-results.json).
+See [the Native alias result](../compiler/evidence/native/native-length-alias-results.json).
 
 Checked dependent arguments now keep their actual strict witness bindings in
 scope through application, with the original function evaluated first. Hoisting
@@ -4785,7 +4785,7 @@ byte-access guards. The complete module passes source checking; all nine JSON
 runtime tests and the whole parser corpus pass. Fresh stage0/1 pass all six
 smokes. The new actual stage2 attempt is running; no stage2 compiler or IR is
 claimed. Typed runtime lowering, full usage/totality checks and the stage2/3
-fixed point remain required. See [the scoped checkpoint](../bootstrap/evidence/other/argument-witness-results.json).
+fixed point remain required. See [the scoped checkpoint](../compiler/evidence/other/argument-witness-results.json).
 
 ## Previous parser, handler and producer checkpoint
 
@@ -4804,7 +4804,7 @@ an external copy with the frozen Native compiler. All23 tooling and39
 syntax tests pass, with no skips or frozen-input changes. A complete191
 integration plus six-general-gate Native-assisted matrix is running on
 that exact snapshot. This does not establish a self-built frontend pass.
-See [the scoped evidence](../bootstrap/evidence/other/parser-handler-seed-results.json).
+See [the scoped evidence](../compiler/evidence/other/parser-handler-seed-results.json).
 
 
 Cinch now elaborates source handlers to retained, independently checked Core.
@@ -4816,7 +4816,7 @@ where an inline span projection needs a stable dependent argument. The final
 Core correction also retains effects while constructing handler fields.
 No current stage2 compiler or full self-built suite pass is claimed. Typed
 runtime lowering, full usage/totality checks and the stage2/3 fixed point remain
-required. See [the exact scope](../bootstrap/evidence/other/handler-core-results.json) and
+required. See [the exact scope](../compiler/evidence/other/handler-core-results.json) and
 [the handler implementation boundary](bootstrap-handlers.md).
 
 
@@ -4826,7 +4826,7 @@ escape checks. The complete16-test effects target passes, including runtime
 execution of a valid polymorphic abort. The pinned b16 producer remains
 unchanged pending separate producer validation. Cinch handler elaboration
 and independent Core checking are under validation; no new stage2 compiler
-is claimed. See [the Native handler results](../bootstrap/evidence/native/native-handler-results.json).
+is claimed. See [the Native handler results](../compiler/evidence/native/native-handler-results.json).
 
 
 Checked refined runtime results now retain their full contracts when used as
@@ -4837,7 +4837,7 @@ Fresh stage0/1 pass all six smokes. Actual stage2 clears Text.Parse.line-text-at
 and exits4 with1422 diagnostics, first at the handler in run-parser-with.
 Handler elaboration, complete correctness checks, typed runtime lowering and
 the stage2/3 fixed point remain required. The188+5 complete baseline below
-belongs to an earlier source snapshot. See [the scoped result](../bootstrap/evidence/other/refined-argument-results.json).
+belongs to an earlier source snapshot. See [the scoped result](../compiler/evidence/other/refined-argument-results.json).
 
 ## Current verification boundary
 
@@ -4846,7 +4846,7 @@ The complete188 integration targets and five general gates now pass on the
 exact frozen inputs;188 gates ran fresh. This is the latest complete baseline,
 preceding the later lexer bindings, Native ownership repair/b16 producer and
 the refined-argument materialization candidate. It does not establish a complete
-current-source or self-built frontend pass. See [the full baseline report](../bootstrap/evidence/other/hypothesis-full-suite-results.json).
+current-source or self-built frontend pass. See [the full baseline report](../compiler/evidence/other/hypothesis-full-suite-results.json).
 
 Rust now retains the checked collection type when reifying constant lists and
 their constructors. Counted object and tagged bignum heads keep their actual
@@ -4856,7 +4856,7 @@ integer heads. The modern Native compiler passes182 focused checks. Separately,
 the previous f88 producer with only this repair passes180 checks; archive plus
 patch reproduces those exact sources as the intentionally pinned b16efd1 seed.
 ABI5/schema8 remain unchanged, and ABI6 arrays remain isolated. A new stage
-chain is required for this producer. See [the ownership report](../bootstrap/evidence/native/native-fold-ownership-results.json).
+chain is required for this producer. See [the ownership report](../compiler/evidence/native/native-fold-ownership-results.json).
 
 The complete Text.Lex source now passes the independently compiled Cinch
 checker. It reaches only the emitter's explicit runtime-layout refusals.
@@ -4866,7 +4866,7 @@ buffer bound. These are actual checked values, requiring no invented symbolic
 contract for string-length or record projections. Runtime probes retain the
 missing-nonempty-guard refusal. A new stage chain will use these implementation
 inputs; the188+5 sweep below remains scoped to the preceding8ea856a snapshot.
-See [the whole-lexer report](../bootstrap/evidence/other/lexer-bound-values-results.json).
+See [the whole-lexer report](../compiler/evidence/other/lexer-bound-values-results.json).
 
 Cinch now derives a checked total call's numeric bounds when that call appears
 only in an existing hypothesis. For example, `pos + width cp <= bytes-len out`
@@ -4881,22 +4881,22 @@ above2^128. All37 source cases,40 guarded-call Core checks and five whole
 regression targets pass. Fresh stage0/1 pass all six smokes. Actualstage2 clears
 the character-buffer bound and reaches `Text.Lex.attr-name-valid`, whose repeated
 `string-length name` call has no checked symbolic index contract. It exits4 with
-1649 diagnostics and produces no compiler. See [the actual stage report](../bootstrap/evidence/other/hypothesis-body-bounds-stages-results.json).
+1649 diagnostics and produces no compiler. See [the actual stage report](../compiler/evidence/other/hypothesis-body-bounds-stages-results.json).
 The full188+5 current-source matrix is running. The pinned f88 producer is
 unchanged: Text.Lex is compiled toolkit source, outside its embedded prelude.
-See [the hypothesis-bound report](../bootstrap/evidence/other/hypothesis-body-bounds-results.json).
+See [the hypothesis-bound report](../compiler/evidence/other/hypothesis-body-bounds-results.json).
 
 The guarded742 snapshot completed all187 integration targets and five general
 gates:176 fresh gates and16 whole gates reused only after checking identical
 relevant inputs. This is a complete development-compiler baseline, preceding
 the later f88 byte-let fix, curried-let fix and syntax/tactic integration.
-See [the guarded full-suite report](../bootstrap/evidence/other/guarded-full-suite-results.json).
+See [the guarded full-suite report](../compiler/evidence/other/guarded-full-suite-results.json).
 
 The f88 stage chain with the curried-let fix passes all six stage0/1 smokes.
 Its actual stage2 clears Text.Builder's byte-copy bound, then exits4 with1709
 diagnostics. The first remaining error is Text.Lex's repeated character-code
 conversion inside a dependent Nat index. No stage2 compiler, stage3 fixed point
-or self-built frontend suite exists yet. See [the stage report](../bootstrap/evidence/other/guarded-stages-results.json).
+or self-built frontend suite exists yet. See [the stage report](../compiler/evidence/other/guarded-stages-results.json).
 
 The reconciled syntax/tactic integration separately passes273 Native tests,
 39 experiment tests and19 bootstrap-tooling tests. Its bootstrap sources and
@@ -4911,7 +4911,7 @@ declarative grammar islands, HTML with interleaved Cinch, generated editor
 grammars/source maps, choreography projection, tensor pullbacks and finite
 goal-aware tactic plans. Strict aliases preserve both multiplicity and checked
 value/equation provenance. Tactic goals use the native checker's current value
-scope. These are development Rust compiler/front-end experiments; general
+scope. These are development Rust seed/front-end experiments; general
 reflected tactics and equivalent self-hosted support remain planned. The pinned
 stage0 seed and bootstrap source are unchanged by this integration.
 
@@ -4929,7 +4929,7 @@ wrong offsets/missing guards and argument-capture regressions. The40 call,
 units and12 whole Native targets pass on the same Native implementation.
 A fresh f88 staged attempt completed as recorded above; the187+5 sweep passed
 on the preceding742 snapshot. No genuine bootstrap or full current-source suite pass
-is claimed. See [the curried-let scope report](../bootstrap/evidence/other/curried-let-scope-results.json).
+is claimed. See [the curried-let scope report](../compiler/evidence/other/curried-let-scope-results.json).
 
 
 Rust now retains byte-offset equations through strict Nat lets by inspecting
@@ -4938,7 +4938,7 @@ Wrong offsets, missing guards, changed bodies and unknown providers remain
 refused. All142 Native units and12 whole regressions pass, including the five
 expanded guarded-let tests. The f88d6a4 seed intentionally reproduces those
 exact sources; archive plus patch is verified. ABI5/schema8 remain unchanged.
-See [the Rust byte-let report](../bootstrap/evidence/native/native-byte-let-results.json).
+See [the Rust byte-let report](../compiler/evidence/native/native-byte-let-results.json).
 
 The preceding742 stage run passes all six smokes but actualstage2 exits4
 with1713 body diagnostics, first at Text.Builder's inline byte-copy guard;
@@ -4964,7 +4964,7 @@ units and12 whole Native regressions pass on the same implementation bytes.
 The187-integration plus five-general-gate suite is running on the742 seed.
 All six fresh stage0/1 smokes pass; the actual stage2 attempt is running.
 Genuine self-hosting remains incomplete. See
-[the guarded-body consumer report](../bootstrap/evidence/other/guarded-body-consumer-results.json).
+[the guarded-body consumer report](../compiler/evidence/other/guarded-body-consumer-results.json).
 
 
 Rust now retains strict Nat let equations from actual checked bodies and
@@ -4976,7 +4976,7 @@ multi-term equality goals before pruning facts, and still checks its generated
 certificates independently. All142 Native units and12 whole regression targets
 pass, including four new guarded-let tests. The74239b7 seed intentionally
 reproduces those exact sources through archive plus patch. ABI5/schema8 remain
-unchanged. See [the Rust guarded-let report](../bootstrap/evidence/native/native-guarded-let-results.json).
+unchanged. See [the Rust guarded-let report](../compiler/evidence/native/native-guarded-let-results.json).
 
 The latest Cinch body-admission and body-association targets each pass50
 independent checks. The source-level guarded-call target is still running;
@@ -4992,7 +4992,7 @@ its exported body constant. The total-body cache fixture checks both unchanged
 reuse and retyping when an imported proof-relevant body changes; it still
 checks current transitive dependencies and loss of cyclic authority. Both
 corrected whole fixtures also pass against the newer published641613b seed.
-See [the complete conditional baseline report](../bootstrap/evidence/other/conditional-full-suite-results.json).
+See [the complete conditional baseline report](../compiler/evidence/other/conditional-full-suite-results.json).
 
 This full result belongs to the conditional baseline with the c126 seed,
 not the newer private guarded-body/Rust scope and arithmetic fixes. Their
@@ -5008,7 +5008,7 @@ Out-of-scope arguments and over-depth records are refused. All 141 Native unit
 tests and the whole class, conditional-method and guarded-body interface targets
 pass. The pinned seed is intentionally updated to those exact tested Native
 sources (641613b); archive plus patch reproduces them. ABI5/schema8 remain
-unchanged. See [the body-export report](../bootstrap/evidence/other/guarded-body-export-results.json).
+unchanged. See [the body-export report](../compiler/evidence/other/guarded-body-export-results.json).
 
 The Cinch consumer and a newly exposed Rust strict-let equation bug remain
 private and under validation. The conditional182+5 full suite stopped after
@@ -5038,7 +5038,7 @@ selected subtraction result equation. Later coverage/type/row diagnostics
 follow a prior Store error; no stage2 compiler, fixed point or self-built suite
 pass is claimed. Actual numeric body authority, handlers, full proof/usage/
 totality and typed runtime lowering remain required. See
-[the conditional consumer report](../bootstrap/evidence/other/conditional-method-consumer-results.json).
+[the conditional consumer report](../compiler/evidence/other/conditional-method-consumer-results.json).
 
 ## Previous schema regression checkpoint
 
@@ -5050,7 +5050,7 @@ The private conditional consumer passes19source/40Core checks, with seven
 whole regressions and a fresh182+5 matrix running. Its actual stage chain
 passes six smokes but still produces no stage2 compiler: a byte-copy bound
 needs the actual selected subtraction body equation. The consumer is not yet
-published. See [the regression report](../bootstrap/evidence/other/refinement-schema-regression-results.json).
+published. See [the regression report](../compiler/evidence/other/refinement-schema-regression-results.json).
 
 ## Previous Native conditional export checkpoint
 
@@ -5068,7 +5068,7 @@ The Cinch selection consumer is private: Native preflight passes, and its
 passes all six smokes but exits4 with214 stage2 body diagnostics and no compiler.
 The new seed's stages and a complete current suite remain unproven. The older
 180+5 matrix is still running. Self-hosting is incomplete. See
-[the conditional export report](../bootstrap/evidence/other/conditional-method-export-results.json).
+[the conditional export report](../compiler/evidence/other/conditional-method-export-results.json).
 
 ## Previous dependent constructor checkpoint
 
@@ -5086,7 +5086,7 @@ chain passes six smokes but exits4 at stage2 with214 body diagnostics and no
 compiler. Conditional-method selection remains a private prototype. Full
 self-hosting, independent semantic/usage/totality checks and typed runtime
 lowering remain incomplete. See
-[the dependent constructor report](../bootstrap/evidence/other/dependent-refinement-constructor-results.json).
+[the dependent constructor report](../compiler/evidence/other/dependent-refinement-constructor-results.json).
 
 ## Previous Rust anonymous-refinement checkpoint
 
@@ -5105,7 +5105,7 @@ snapshot passes all six fresh stage0/1 smokes; actual stage2 exits4 with214 body
 diagnostics and produces no compiler. Conditional `Sub Nat` remains the first
 blocker. A further dependent constructor-result materialization fix is private
 and under validation. Genuine self-hosting remains incomplete. See
-[the Rust anonymous-refinement report](../bootstrap/evidence/native/native-anonymous-refinement-results.json).
+[the Rust anonymous-refinement report](../compiler/evidence/native/native-anonymous-refinement-results.json).
 
 ## Previous Cinch constructor checkpoint
 
@@ -5123,7 +5123,7 @@ is claimed. The Rust seed remains the tested 3667043 source at ABI5/schema8.
 Conditional method authority, handlers, complete independent proof/usage/totality,
 typed runtime lowering, the full self-built frontend suite and stage2/3 fixed
 point remain required. Definition-owned fixities are preserved. See
-[the constructor checkpoint report](../bootstrap/evidence/other/refinement-constructor-checkpoint-results.json).
+[the constructor checkpoint report](../compiler/evidence/other/refinement-constructor-checkpoint-results.json).
 
 ## Previous Rust witness checkpoint
 
@@ -5142,7 +5142,7 @@ whole byte-observation target and all eight compiled Cinch consumer cases pass
 on the preceding Native fix. Remaining full-suite gates are unproven. The
 private Cinch explicit-refinement-constructor work is still under validation
 and is not part of this published Native checkpoint.
-See [the Rust proof-identity report](../bootstrap/evidence/native/native-proof-identity-checkpoint-results.json).
+See [the Rust proof-identity report](../compiler/evidence/native/native-proof-identity-checkpoint-results.json).
 
 Collection literals now elaborate through the actual defining `FromList`
 method and retained `Nil`/`Cons` constructors. The independently compiled Cinch
@@ -5178,7 +5178,7 @@ Definition-owned fixities are preserved. Later stages receive checked base
 interfaces, never Native compiler implementation bodies or a Native frontend
 fallback. Work stays within five heavy jobs: four shared slots and one reserved
 fifth lane, with serial Cargo/test/codegen workers and heaps at most 2G.
-See [the collection checkpoint report](../bootstrap/evidence/other/collection-checkpoint-results.json)
+See [the collection checkpoint report](../compiler/evidence/other/collection-checkpoint-results.json)
 for exact snapshots, individual results and limits. The preceding complete
 172+5 body-only run remains the last verified full-suite pass.
 
@@ -5193,7 +5193,7 @@ The compiled Cinch target passes 16 checks at five identities above 2^128,
 including missing-authority, conflicting-global and changed-callee cases.
 All five whole focused regressions pass: typing, globals, effects, parser and
 pipeline. Results and the exact snapshot are recorded in
-[the body-binding report](../bootstrap/evidence/other/body-binding-checkpoint-results.json).
+[the body-binding report](../compiler/evidence/other/body-binding-checkpoint-results.json).
 The full 175+5 suite for this newer snapshot has not run. The preceding body-only
 foundation passed all 172 integration targets and five general gates, including
 140 compiler units, 166 runtime tests and 19 tooling tests. That older complete
@@ -5226,7 +5226,7 @@ measure header before bodies and produces no IR or compiler. The complete
 174+5 suite for this Type/Core change has not run; the corrected 172+5 matrix
 belongs to the preceding body foundation. Snapshot `47ade0f579de4a420a7d2cd9f9382882299082d6f6736c4e47ec90bf289aade3`
 and exact validation scope are recorded in
-[the total-call report](../bootstrap/evidence/other/total-call-checkpoint-results.json).
+[the total-call report](../compiler/evidence/other/total-call-checkpoint-results.json).
 
 These components still need source/Core association with actual runtime globals
 and selected dictionary fields. The old Core class/slot reflection path has not
@@ -5254,7 +5254,7 @@ all six smokes; actual stage2 still exits4 at the one imported measure-contract
 header before bodies, producing no IR or compiler. The complete new
 172+5 Native-assisted matrix passed. The corrected frozen
 validation snapshot is `e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede`. Exact evidence and limits are in
-[the total-body report](../bootstrap/evidence/other/total-body-checkpoint-results.json).
+[the total-body report](../compiler/evidence/other/total-body-checkpoint-results.json).
 
 This standalone version-1 body format is not yet admitted by `.cinchif` schema7.
 The type/Core total-call bridge, declaration/refinement and package association,
@@ -5284,7 +5284,7 @@ one imported measure-contract header before bodies; it produces no IR or
 compiler executable. The exact staged compiler bundle matches this checkpoint.
 All 11 whole focused regression targets and the complete 170+5 Native-assisted
 matrix pass, including 140 compiler units, 166 runtime tests and 19 tooling tests
-with no compiler/runtime ignores. The resolver runner now expects successful
+with no seed/runtime ignores. The resolver runner now expects successful
 source decision elaboration; its obsolete refusal assertion was the only failure
 in the preceding run. The final frozen snapshot is
 `5e1dd3b718118c664d4243cde312a19774adaa83c0cba405936ed850b3943a75`:
@@ -5299,7 +5299,7 @@ primitive/instance-body authority, complete proof/usage/totality checking,
 handlers and typed shared-runtime lowering remain required. No new stage2/3
 fixed point or full self-built frontend suite has passed. The Native seed,
 ABI5/schema7 and definition-owned fixities are unchanged.
-[The source decision report](../bootstrap/evidence/other/source-decision-checkpoint-results.json)
+[The source decision report](../compiler/evidence/other/source-decision-checkpoint-results.json)
 records exact inputs, current results and limitations.
 
 ## Previous decision-constructor checkpoint (fbd7318)
@@ -5331,7 +5331,7 @@ percentage. The exact staged compiler bundle matches this checkpoint.
 The complete new169+5 Native-assisted suite is running:159 fresh gates and15
 exact-source whole focused targets. The installed164+5
 snapshot remains the last complete baseline; it does not establish this later
-implementation or the self-built frontend suite. [The decision report](../bootstrap/evidence/other/decision-checkpoint-results.json)
+implementation or the self-built frontend suite. [The decision report](../compiler/evidence/other/decision-checkpoint-results.json)
 records exact sources and scope. Self-hosting is not complete. The Native seed,
 ABI5/schema7 and definition-owned fixities remain unchanged.
 
@@ -5352,7 +5352,7 @@ Seven existing focused regression targets are still running. This is a
 work-in-progress checkpoint: the complete new167+5 suite and fresh stages have
 not run. The existing fragment emitter refuses these non-runtime signatures;
 typed proof erasure and runtime lowering remain required. `decide`, `Yes` and
-`No` source forms are not enabled here. [The source proof report](../bootstrap/evidence/other/source-proof-checkpoint-results.json)
+`No` source forms are not enabled here. [The source proof report](../compiler/evidence/other/source-proof-checkpoint-results.json)
 records exact validation scope. No self-built stage2 compiler or full frontend
 suite has passed. The seed, ABI5/schema7 and definition-owned fixities are unchanged.
 
@@ -5375,7 +5375,7 @@ bodies and produces no compiler. This is a work-in-progress type
 foundation: named proof terms and decisions are not enabled by this checkpoint.
 The complete new165+5 suite has not run. The completed164+5
 matrix belongs to the preceding kind/term checker. No stage2 compiler or
-self-built frontend suite has passed. [The proof-arrow report](../bootstrap/evidence/other/proof-arrow-checkpoint-results.json)
+self-built frontend suite has passed. [The proof-arrow report](../compiler/evidence/other/proof-arrow-checkpoint-results.json)
 records exact inputs and validation scope. The seed, ABI5/schema7 and
 definition-owned fixities are unchanged.
 
@@ -5408,7 +5408,7 @@ imported measure contract. No stage2 IR or compiler executable is produced.
 The exact compiler bundle matches this checkpoint. The prior installed
 source-instance snapshot passed all162+5 gates, including 140 compiler units and
 166 runtime tests; that result does not establish this implementation's complete
-suite. [The Core typing report](../bootstrap/evidence/other/core-typing-checkpoint-results.json)
+suite. [The Core typing report](../compiler/evidence/other/core-typing-checkpoint-results.json)
 records exact source and validation scope.
 
 This is not a complete independent proof/usage kernel. Complete declaration and
@@ -5443,7 +5443,7 @@ integration targets and five general gates and has not run. The completed
 Native-assisted result. Its exact sources are installed in the main working
 checkout. That pass does not establish this later implementation's complete
 result. Fresh stage0/1 smokes pass for the global-reference implementation;
-stage2 still exits4 with four headers before bodies and produces no IR/executable. [The global-reference report](../bootstrap/evidence/other/global-reference-checkpoint-results.json)
+stage2 still exits4 with four headers before bodies and produces no IR/executable. [The global-reference report](../compiler/evidence/other/global-reference-checkpoint-results.json)
 records exact sources and results. The prior fully completed Native-assisted
 checkpoint remains 623d33e; no self-built frontend suite has passed.
 
@@ -5481,7 +5481,7 @@ new Bootstrap.Instance module with zero unmodeled nodes; its pinned corpus table
 now includes that measured entry, with every previous count unchanged. This is not a complete current-suite pass
 or the suite through a self-built frontend. The previously verified baseline
 remains commit 623d33e. Header counts do not measure overall completion.
-[The instance checkpoint report](../bootstrap/evidence/other/source-instances-checkpoint-results.json)
+[The instance checkpoint report](../compiler/evidence/other/source-instances-checkpoint-results.json)
 records the frozen inputs and the exact validation state at publication.
 Real dictionary runtime lowering, the independent global kernel, and the full
 stage2/stage3 bootstrap remain unfinished.
@@ -5492,7 +5492,7 @@ Machine-integer value contracts and source effect declarations are now installed
 in the main working checkout and published with the source-matching seed.
 All 161 Native-assisted integration targets pass, together with all five general
 gates: 140 compiler unit tests, 166 runtime tests, binary/doc tests and tooling.
-The compiler/runtime test gates contain no ignored tests. This is not the suite
+The seed/runtime test gates contain no ignored tests. This is not the suite
 through a self-built frontend, and full self-hosting is not achieved.
 
 The complete suite uses 152 fresh gates, seven unchanged completed whole targets,
@@ -5501,7 +5501,7 @@ Cinch implementation, shared harness and each reused target's own fixtures;
 the independently changed runners and pipeline fixture are rerun. The frozen
 snapshot has 575 inputs, SHA256
 `d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840`. Coverage and results are in
-[the checkpoint report](../bootstrap/evidence/other/source-effects-checkpoint-results.json).
+[the checkpoint report](../compiler/evidence/other/source-effects-checkpoint-results.json).
 
 Cinch retains exact machine carriers and literal bounds, checked byte observations
 and strict-let proof identities. Machine arithmetic remains opaque to mathematical
@@ -5585,7 +5585,7 @@ verified staged bundle are unchanged; full-suite completion remains unproven.
 Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2
 attempt exits 4 before body checking with 5 header diagnostics.
 It produces no IR or compiler executable. The exact remaining categories are
-recorded in [the source-effect checkpoint report](../bootstrap/evidence/other/source-effects-checkpoint-results.json).
+recorded in [the source-effect checkpoint report](../compiler/evidence/other/source-effects-checkpoint-results.json).
 Header counts include cascades and are not a completion percentage.
 The frozen staged snapshot has 575 inputs, SHA256
 `4a83dcac07a3df0aeed88f8f49089db7d5ae7bf326ffd4a27137116a087333ae`. Its implementation matches the focused snapshot
@@ -5659,7 +5659,7 @@ The staged snapshot differs only in the intentionally updated seed pair:
 The compiler bundle is
 `8500b23e4fd519777f47c2f61c82c39ef290e0206df8f87aa622eacb20e1a46d`.
 Current results and pending gates are recorded in
-[the machine checkpoint report](../bootstrap/evidence/other/machine-checkpoint-results.json).
+[the machine checkpoint report](../compiler/evidence/other/machine-checkpoint-results.json).
 The older checkpoint-results.json and integration reports describe cf1f491.
 The original working checkout retains that fully validated byte checkpoint
 until the new complete suite passes; this publication contains the new work.
@@ -5793,7 +5793,7 @@ General nominal carrier closure, anonymous refinement serialization,
 checked measure/call contracts, remaining source forms, independent global
 typing checks, and typed runtime lowering still require implementation.
 These validation gates do not establish a self-built stage2, stage3 fixed
-point, changed-source behavior, or the complete compiler/runtime suite
+point, changed-source behavior, or the complete seed/runtime suite
 through the self-built frontend.
 
 Structural NonZero propositions now retain a distinct typed node through
@@ -6045,9 +6045,9 @@ are unchanged. Evidence is in `/tmp/cinch-instance-stages/`; its compiler
 source bundle is
 `84f6366e1cb42bb497de6aea9574da5286eede765308e4cb3cd74dcfbc917dbd`.
 The pipeline result is reused from the complete candidate validation only
-after verifying the compiler/test inputs are identical; only the intentionally
+after verifying the seed/test inputs are identical; only the intentionally
 verified seed pin/patch and these design records differ. These focused and
-staged results do not replace the full compiler/runtime and self-built
+staged results do not replace the full seed/runtime and self-built
 frontend acceptance gates.
 
 The internal proposition-type continuation now passes 33 checks over five
@@ -6386,7 +6386,7 @@ is O(k^2); `Bootstrap.Ir`'s signature search is O(decls^2);
 ## 3 Working rules that kept the agent waves safe
 
 - **Memory.** Never run a compiled program without `CINCH_HEAP_LIMIT` (2G or
-  less; `compiler/.cargo/config.toml` sets it for `cargo test`). Never raise
+  less; `seed/.cargo/config.toml` sets it for `cargo test`). Never raise
   a cap.
 - **Cargo.** Never pipe cargo output through `head` or anything that exits
   early: SIGPIPE kills the build and leaves the old binary in place, which
@@ -6416,8 +6416,8 @@ is O(k^2); `Bootstrap.Ir`'s signature search is O(decls^2);
 - **Embedded and non-embedded prelude.** 55 prelude modules are embedded in
   the compiler and 38 are not; the 38 compile only through a `Main` that
   imports them (or their `lib_*` test). Programs embedded in
-  `compiler/tests/*.rs` are separate again. A migration must check all
-  three; `rg` over `compiler/tests` for the changed functions.
+  `seed/tests/*.rs` are separate again. A migration must check all
+  three; `rg` over `seed/tests` for the changed functions.
 - **Agent budgets.** A slice agent stops at about 200-300 requests. Large
   migrations should delegate disjoint module sets to sub-agents from the
   start; a stopped agent can be resumed with a precise list of what

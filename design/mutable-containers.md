@@ -24,7 +24,7 @@ command in section 10. No em dashes.
 | Claim | Evidence |
 | --- | --- |
 | Mutable storage needs no new block kind and no ABI bump | a slot array is a `KIND_ARRAY` block with a word format; holes are word 0, which every count path already skips (section 2) |
-| The trusted core is nine intrinsics, private to each module that uses them | `compiler/src/slots.rs`; `lib_mutable::the_trusted_core_never_leaves_its_modules` |
+| The trusted core is nine intrinsics, private to each module that uses them | `seed/src/slots.rs`; `lib_mutable::the_trusted_core_never_leaves_its_modules` |
 | Purity is still a checked property | operations carry `Mut r`; a pure caller is refused with "effect rows do not match" (`lib_mutable::a_pure_function_cannot_touch_a_container`) |
 | The hash table is SwissTable's probe with F14's deletion | 8-slot chunks, 7-bit tags matched in SWAR, overflow counts instead of tombstones (section 5) |
 | Delete churn does not grow the table | twenty rounds of 5,000 inserts and deletes leave the capacity unchanged (check 6 of the behaviour program) |
@@ -50,7 +50,7 @@ scan, and `cinch_slots_new` allocates a block of holes (the array allocator
 zero-fills). No block kind, header field or extern changed, so the runtime ABI
 stays 9.
 
-The intrinsics (`cinch.runtime.slots*`, `compiler/src/slots.rs`):
+The intrinsics (`cinch.runtime.slots*`, `seed/src/slots.rs`):
 
 | Intrinsic | Signature | Emitted as |
 | --- | --- | --- |
@@ -417,7 +417,7 @@ Reading them:
 | behaviour program, `CINCH_LEAK_CHECK=1` | exit 0, `live=0 immortal=0 leaked=0` |
 | behaviour program, `CINCH_RC_DEBUG=1` (freed blocks poisoned, every count checked) | exit 0, leak-free |
 | behaviour program at `--opt-level 2` | exit 0, leak-free |
-| `cargo test --release --lib` in `compiler/runtime` | 152 passed, 1 failed: `only_the_sys_layer_declares_foreign_functions`, which fails identically on the unchanged tree (`trace.rs` declares `_dyld_get_image_vmaddr_slide`) |
+| `cargo test --release --lib` in `seed/runtime` | 152 passed, 1 failed: `only_the_sys_layer_declares_foreign_functions`, which fails identically on the unchanged tree (`trace.rs` declares `_dyld_get_image_vmaddr_slide`) |
 | neighbouring compiler suites | section 10 |
 
 ## 9 What remains

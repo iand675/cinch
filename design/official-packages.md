@@ -42,7 +42,7 @@ Grouped by the packages that want them, in the order worth building. Each is a `
 | Terminal attributes | `tcgetattr`, `tcsetattr`, `ioctl(TIOCGWINSZ)` | `Term.Tui` |
 | Hashing and AEAD hot loops | our own implementations behind thin primitives | `Crypto.*` |
 
-Everything above is small, testable, and already has a shape in `compiler/runtime/src/platform.rs` or `net.rs` to copy.
+Everything above is small, testable, and already has a shape in `seed/runtime/src/platform.rs` or `net.rs` to copy.
 
 The kernel-entry row is the one that changed shape during implementation. A body's `when` clause is a conjunction over the target profile, so the x86_64 and aarch64 instruction sequences live as two bodies of one prim (`Prim.Sys.Linux`), selected per target, and the operating system picks the module (`Prim.Sys.Darwin` against `Prim.Sys.Linux`). Two conditional-only prims in per-architecture modules cannot both sit in the built-in prelude, because the one whose arch does not match is refused at check time; two bodies of one prim have no such problem.
 

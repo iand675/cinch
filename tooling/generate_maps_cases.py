@@ -17,20 +17,20 @@ def pairs(rows: list[dict] | None, boolean: bool = False) -> str:
 
 def source(index: int, vectors: Path | None = None) -> str:
     """Embed one trace as plain inputs and expected observations in a fixed consumer."""
-    recorded = json.loads((vectors or ROOT / "compiler/tests/fixtures/maps-vectors.json").read_text())
+    recorded = json.loads((vectors or ROOT / "seed/tests/fixtures/maps-vectors.json").read_text())
     trace = recorded["traces"][index]
     assert recorded["format"] == 1 and len(trace["steps"]) == 100
     steps = []
     for row in trace["steps"]:
         steps.append("TraceStep " + " ".join((str(OPERATIONS.index(row["operation"])), str(row["key"]), str(row["value"]), pairs(row["pairs"]), pairs(row["expected"]), pairs(row["auxiliary"]), pairs(row["other"], True), str(row["observed"]))))
-    template = (ROOT / "compiler/tests/fixtures/mutable-map-trace.cinch.in").read_text()
+    template = (ROOT / "seed/tests/fixtures/mutable-map-trace.cinch.in").read_text()
     assert template.count("@STEPS@") == 1
     return template.replace("@STEPS@", "[" + ",\n    ".join(steps) + "]")
 
 
 def float_source(width: int, vectors: Path | None = None) -> str:
     """Render full-bit floating observations while retaining the declared input patterns."""
-    recorded = json.loads((vectors or ROOT / "compiler/tests/fixtures/maps-vectors.json").read_text())
+    recorded = json.loads((vectors or ROOT / "seed/tests/fixtures/maps-vectors.json").read_text())
     rows = [row for row in recorded["floats"] if row["width"] == width]
     assert len(rows) == 7
     names = ("repeat-nan", "distinct-nans", "replace-signed-zero", "equal-self", "clone", "copy-fresh", "delete-all-by-key")
@@ -45,7 +45,7 @@ def float_source(width: int, vectors: Path | None = None) -> str:
         "@FROM_BITS@": "      %value = bitcast i64 %0 to double\n      ret double %value" if width == 64 else "      %bits = trunc i64 %0 to i32\n      %value = bitcast i32 %bits to float\n      ret float %value",
         "@TO_BITS@": "      %bits = bitcast double %0 to i64\n      ret i64 %bits" if width == 64 else "      %bits = bitcast float %0 to i32\n      %wide = zext i32 %bits to i64\n      ret i64 %wide",
     }
-    template = (ROOT / "compiler/tests/fixtures/mutable-map-float.cinch.in").read_text()
+    template = (ROOT / "seed/tests/fixtures/mutable-map-float.cinch.in").read_text()
     for name, replacement in replacements.items():
         template = template.replace(name, replacement)
     assert "@" not in template
@@ -54,7 +54,7 @@ def float_source(width: int, vectors: Path | None = None) -> str:
 
 def edge_source(vectors: Path | None = None) -> str:
     """Render actual SDK value-NaN and callback-mutation observations without reproducing map logic."""
-    recorded = json.loads((vectors or ROOT / "compiler/tests/fixtures/maps-edge-vectors.json").read_text())
+    recorded = json.loads((vectors or ROOT / "seed/tests/fixtures/maps-edge-vectors.json").read_text())
     assert recorded["format"] == 1 and recorded["sdk"] == "go1.27.4"
     nan = recorded["value_nan"]
     deletion = recorded["delete_current_replacement"]
@@ -69,7 +69,7 @@ def edge_source(vectors: Path | None = None) -> str:
         "@EQUALITY_RESULT@": equality["equal"], "@EQUALITY_CALLBACKS@": equality["callbacks"],
         "@LEFT_SIZE@": equality["left_size"], "@RIGHT_SIZE@": equality["right_size"],
     }
-    template = (ROOT / "compiler/tests/fixtures/mutable-map-edge-control.cinch.in").read_text()
+    template = (ROOT / "seed/tests/fixtures/mutable-map-edge-control.cinch.in").read_text()
     for token, value in replacements.items():
         assert template.count(token) == 1, token
         template = template.replace(token, str(value))

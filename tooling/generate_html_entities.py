@@ -105,7 +105,7 @@ def generated() -> str:
 def main() -> None:
     """Replace only generated declarations, or fail without writing when the suffix is stale."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--module", type=Path, default=ROOT / "compiler/prelude/Text/Html.cinch")
+    parser.add_argument("--module", type=Path, default=ROOT / "seed/prelude/Text/Html.cinch")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     existing = args.module.read_text()

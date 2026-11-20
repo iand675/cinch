@@ -234,4 +234,4 @@ below cover the mathematical `Nat` and `Int` only.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Bits.cinch`. Source SHA-256: `8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Bits.cinch`. Source SHA-256: `8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

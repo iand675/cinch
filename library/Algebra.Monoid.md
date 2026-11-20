@@ -28,7 +28,7 @@ slice lifted the function-type requirement on class methods): the
 dictionary carries the identity value directly, so call sites write
 `mempty`.
 
-Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+Laws (asserted over sample values in seed/tests/lib_algebra.rs):
   left unit:  mempty <> x == x
   right unit: x <> mempty == x
 plus associativity of `<>` from Algebra.Semigroup.
@@ -241,4 +241,4 @@ class default, eta-expanded by the checker to this carrier's arity.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Monoid.cinch`. Source SHA-256: `8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Monoid.cinch`. Source SHA-256: `8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -42,7 +42,7 @@ def main() -> None:
     compiler = args.compiler.resolve()
     directory = args.artifacts.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    production = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+    production = ROOT / "seed/prelude/Text/Json/Codec.cinch"
     source = production.read_text()
     start = source.index("  prim folded-ascii16 ::")
     end = source.index("\n  -- |", start)

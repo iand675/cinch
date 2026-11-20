@@ -114,7 +114,7 @@ def priority_candidate(source: str) -> str:
 def main() -> None:
     """Record exact baseline and derived bytes so experimental scan variants remain reviewable."""
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline',type=Path,default=ROOT/'compiler/prelude/Text/Pem.cinch')
+    parser.add_argument('--baseline',type=Path,default=ROOT/'seed/prelude/Text/Pem.cinch')
     parser.add_argument('--priority-token',action='store_true')
     parser.add_argument('--end-prefilter',choices=['newline','dash'],default='newline')
     parser.add_argument('--output',type=Path,required=True)

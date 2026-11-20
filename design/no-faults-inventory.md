@@ -18,7 +18,7 @@ feeds `design/no-faults.md`.
   the evaluator's nesting bound, and a refused thread are one defined
   outcome: exit 73 with `cinch: exhausted: heap (<n> bytes)`,
   `cinch: exhausted: stack` or `cinch: exhausted: threads`
-  (`design/no-faults.md` section 4.1, `compiler/runtime/src/stack.rs`,
+  (`design/no-faults.md` section 4.1, `seed/runtime/src/stack.rs`,
   `tests/exhaustion.rs`). Nothing in the runtime aborts or dies on a
   signal for resource reasons any more.
 - **Division and remainder by zero (`DivByZero`, the `nat-div`/`nat-rem`/
@@ -162,8 +162,8 @@ Two structurally different fault regimes exist:
 
 - **Defined faults**: `cinch_panic`/`cinch_fault_div_zero`/`cinch_blackhole`/heap-limit exit, a
   deliberate `exit()` with a message on stderr. Exit codes: `70` BlackHole, `71` panic
-  (generic), `72` DivByZero, `73` HeapLimit (`compiler/runtime/src/abi.rs:17-28`,
-  `compiler/runtime/src/error.rs:48-60`).
+  (generic), `72` DivByZero, `73` HeapLimit (`seed/runtime/src/abi.rs:17-28`,
+  `seed/runtime/src/error.rs:48-60`).
 - **Undefined termination**: anything a `foreign` call does. These bypass the
   exit-code table entirely. Native stack overflow and a refused OS thread are no
   longer in this set: a 64 KiB guard band plus a signal handler makes the former
@@ -172,9 +172,9 @@ Two structurally different fault regimes exist:
 
 ---
 
-## 1. Runtime fault paths (`compiler/runtime/src/*.rs`)
+## 1. Runtime fault paths (`seed/runtime/src/*.rs`)
 
-Grouped by `Error` variant (`compiler/runtime/src/error.rs:12-45`) / exit code.
+Grouped by `Error` variant (`seed/runtime/src/error.rs:12-45`) / exit code.
 
 | `Error` variant | exit | site(s) | triggering operation | reachable by well-typed program |
 |---|---|---|---|---|
@@ -199,7 +199,7 @@ Additional direct `std::process::exit`/`panic!` sites not routed through `Error`
 
 ---
 
-## 2. Codegen-emitted fault sites (`compiler/src/codegen.rs`)
+## 2. Codegen-emitted fault sites (`seed/src/codegen.rs`)
 
 | site | emits | source construct | reachable by well-typed program |
 |---|---|---|---|
@@ -218,7 +218,7 @@ silently wraps (defined, non-faulting) and `ArithMode::Saturating` clamps (also 
 
 ---
 
-## 3. Checker-emitted `Fault` (`ECore::Fault`/`Core::Fault`, `compiler/src/check_terms.rs`, `check.rs`, `check_decls.rs`, `core.rs`)
+## 3. Checker-emitted `Fault` (`ECore::Fault`/`Core::Fault`, `seed/src/check_terms.rs`, `check.rs`, `check_decls.rs`, `core.rs`)
 
 | production site | source construct | reachable by well-typed program |
 |---|---|---|
@@ -243,7 +243,7 @@ For each faulting primitive: the `.cinch` functions that expose it with no total
 | read-only buffer write | **closed 2026-10-30 (NF5)**: no `Bytes` value is a literal's backing | `string-to-bytes` copies (as before) | none |
 | `Nat`/`Int` → `I64` range overflow | **closed 2026-10-30**: `nat-to-i64`/`int-to-i64` state the range they need | `checked-nat-to-i64`/`checked-int-to-i64` (`Option`), `nat-to-int`/`nat-from-int` (any size) | all sites migrated (see the closing note above) |
 
-Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist for several **container-level** invariants: `NonZero` (`Data/NonZero.cinch:32-34`), `NonEmpty` (`Data/NonEmpty.cinch:43-45`), `Sorted` (`Data/Sorted.cinch:30-32`), `Ascii` (`Data/Ascii.cinch:30-32`): but there is **no general `Fin n`/bounded-index refinement type** anywhere in `specifications/`, `design/`, or `compiler/prelude/`; `Bytes`/`List` indexing has no refined-index total alternative at all, which is why `bytes-get`/`bytes-set`/`nat-sub`/division dominate the exposure counts above.
+Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist for several **container-level** invariants: `NonZero` (`Data/NonZero.cinch:32-34`), `NonEmpty` (`Data/NonEmpty.cinch:43-45`), `Sorted` (`Data/Sorted.cinch:30-32`), `Ascii` (`Data/Ascii.cinch:30-32`): but there is **no general `Fin n`/bounded-index refinement type** anywhere in `specifications/`, `design/`, or `seed/prelude/`; `Bytes`/`List` indexing has no refined-index total alternative at all, which is why `bytes-get`/`bytes-set`/`nat-sub`/division dominate the exposure counts above.
 
 ---
 
@@ -271,7 +271,7 @@ Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist fo
 
 ## 7. Explicit escape hatches
 
-- **No `fault`/`panic`/`unreachable`/`error`/`absurd` function exists in the prelude** (grep across `compiler/prelude`, `compiler/src`, `specifications` for `absurd` returns nothing). The only source-level way to *intentionally* fault is:
+- **No `fault`/`panic`/`unreachable`/`error`/`absurd` function exists in the prelude** (grep across `seed/prelude`, `seed/src`, `specifications` for `absurd` returns nothing). The only source-level way to *intentionally* fault is:
   1. Write a `case`/`match` whose alternatives are all guarded and whose guards can all fail (§3): reaches `Core::Fault` → exit 70 via `__cinch_blackhole`. This is accidental-looking but works as a deliberate "crash here" idiom today, and nothing stops it.
   2. Call a known-partial prelude/runtime primitive directly (`nat-sub`, `nat-div`/`int-div`, `bytes-get`/`bytes-set`, etc., §1/§4): the de facto `panic`/`assert` idiom in this language, reusing the generic exit-71 path.
   3. Write a `foreign import` to a C function that calls `abort()`/raises `SIGSEGV`: fully outside the language's own fault story (§6).

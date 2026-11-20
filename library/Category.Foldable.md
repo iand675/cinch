@@ -26,7 +26,7 @@ mathematical meanings at every instance.
 `to-list`/`null`/`length` agree with the fold at every lawful
 instance (`foldr Cons Nil (to-list xs) == to-list xs`, `length` is
 the `to-list` length, `null` is the empty check); the semantics
-tests in compiler/tests/lib_foldable.rs carry them over sample
+tests in seed/tests/lib_foldable.rs carry them over sample
 values for List, Option and NonEmpty.
 
 Instance homes. The ownership rule is "instances live with their
@@ -335,4 +335,4 @@ of `sum`: the same walk with an explicit starting value.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Category/Foldable.cinch`. Source SHA-256: `f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Foldable.cinch`. Source SHA-256: `f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

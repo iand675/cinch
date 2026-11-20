@@ -94,7 +94,7 @@ def route(row: str) -> dict:
 
 def implemented(symbol: str) -> bool:
     """Distinguish a planned operation from a declaration that is actually present in owned source."""
-    home,name=symbol.rsplit('.',1);path=ROOT/'compiler/prelude'/(home.replace('.','/')+'.cinch')
+    home,name=symbol.rsplit('.',1);path=ROOT/'seed/prelude'/(home.replace('.','/')+'.cinch')
     if not path.exists():return False
     return bool(re.search(r'^\s+(?:(?:data|prim)\s+)?'+re.escape(name)+r'(?:\s+[^\n:=]+)?\s*(?:::|where)',path.read_text(),re.M))
 

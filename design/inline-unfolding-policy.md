@@ -1,7 +1,7 @@
 # The unfolding inliner
 
-Policy for `compiler/src/simplify.rs` (the seed simplifier) and
-`bootstrap/Bootstrap.RuntimeIr.cinch` (the self-hosted backend's inliner).
+Policy for `seed/src/simplify.rs` (the seed simplifier) and
+`compiler/Bootstrap.RuntimeIr.cinch` (the self-hosted backend's inliner).
 The goal is the one a hand-written compiler meets without trying: a
 dictionary method whose body is a primop, a field projection or a shallow
 decision must reach the instruction it names at the site that calls it, so
@@ -218,12 +218,12 @@ itself is not unfolded at all.
 
 ## 7 Where the policy lives
 
-- `compiler/src/simplify.rs`: `unfoldable` computes the class over
+- `seed/src/simplify.rs`: `unfoldable` computes the class over
   `program.fns` with the recursive set excluded and the transitivity
   memoized. `candidate` consults it instead of `is_cheap` for the many-site
   rules. `inline_unit` carries the stack, depth and node budget and
   re-enters itself on each copy.
-- `bootstrap/Bootstrap.RuntimeIr.cinch`: `unfold-shape` is the same
+- `compiler/Bootstrap.RuntimeIr.cinch`: `unfold-shape` is the same
   predicate over `CoreTerm`, returning the shape (chain, decisions) the cap
   depends on; `inline-class-candidate` adds the cap and the direct
   self-reference refusal; `inline-class-names` appends the class to the
@@ -296,8 +296,8 @@ an inliner to unfold (section 6).
 
 The class in section 3 is one rule. GHC's inliner is a decision procedure
 with eight inputs, and this section maps each onto the seed
-(`compiler/src/simplify.rs`) and the self-hosted backend
-(`bootstrap/Bootstrap.RuntimeIr.cinch`), saying for each whether we have it,
+(`seed/src/simplify.rs`) and the self-hosted backend
+(`compiler/Bootstrap.RuntimeIr.cinch`), saying for each whether we have it,
 lack it, or the input has no counterpart. Citations are to
 `/Users/ian/Code/ghc` as it stands, where the machinery is split across
 `GHC/Core/Unfold.hs` (guidance), `GHC/Core/Unfold/Make.hs` (construction),
@@ -542,7 +542,7 @@ build/<Module>.cinchif   the contract (schema 10, unchanged)
 build/<Module>.cinchopt  the unfoldings (schema 1)
 ```
 
-`compiler/src/ifaceopt.rs` defines it. It records the module, the
+`seed/src/ifaceopt.rs` defines it. It records the module, the
 `iface_hash` it was produced against, the runtime ABI, and one row per unit:
 arity, parameter representation classes and the body. The body encoding is a
 canonical tagged JSON form for exactly the unfoldable class (section 3): a

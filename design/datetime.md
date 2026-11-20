@@ -19,7 +19,7 @@ for its own decisions so they can be cited meanwhile.
 
 `Data.Date`, `Data.Time` and `Effect.Clock` exist (P38, D345, ported from
 Ruby's `Date`/`Time`). They are sound and tested
-(`compiler/tests/lib_civil_time.rs`) but they bake in four things this
+(`seed/tests/lib_civil_time.rs`) but they bake in four things this
 design removes:
 
 1. `Data.Time.Time` is a civil date-time that is also treated as an
@@ -176,7 +176,7 @@ preallocated `Bytes`.
 
 ## 5 Module map
 
-On disk under `compiler/prelude/`, not in the base package.
+On disk under `seed/prelude/`, not in the base package.
 
 | Module | Lane | Exports (summary) |
 | --- | --- | --- |
@@ -248,7 +248,7 @@ arithmetic, **E** text.
 Phase 3: **F** zoned arithmetic and RFC 9557, then integration.
 
 Each lane delivers its modules, a test file
-`compiler/tests/lib_time_<lane>.rs` in the shape of
+`seed/tests/lib_time_<lane>.rs` in the shape of
 `lib_civil_time.rs` (real module sources beside a `Main`, `check-*`
 functions summed into an exit bitmask), and a short report of every place
 the language or compiler refused what this note asks for.
@@ -281,7 +281,7 @@ the language or compiler refused what this note asks for.
 ## 11 As built (2026-11-17)
 
 All lanes landed on `lane/datetime`: 26 modules, about 13,800 lines, 69
-fixture programs, eight Rust suites (`compiler/tests/lib_time_{a..h}.rs`),
+fixture programs, eight Rust suites (`seed/tests/lib_time_{a..h}.rs`),
 all passing, as does the untouched `lib_civil_time.rs`. Where this section
 and the sections above disagree, this section is what exists.
 

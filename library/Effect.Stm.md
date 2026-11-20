@@ -360,4 +360,4 @@ their type). `empty` is `retry` and `<|>` is `or-else`.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stm.cinch`. Source SHA-256: `2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

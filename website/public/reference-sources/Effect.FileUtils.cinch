@@ -16,7 +16,7 @@
 -- The operations ride three landed surfaces: `Effect.Fs` (`fs-read`,
 -- `fs-write`, `fs-rename`, `fs-metadata`) for the read, write and
 -- atomic-move path; the `cinch.runtime.fsMkdir`/`fsRemove`/`fsTempDir`
--- intrinsics (`compiler/runtime/src/platform.rs`) for creation and
+-- intrinsics (`seed/runtime/src/platform.rs`) for creation and
 -- removal, which `Effect.Fs` does not expose; and `Effect.Random`
 -- (`random-bytes` for the entropy draw and the pure `hex-of-bytes` for
 -- the temp-name nonce). The draw is BOUND to a `let` before rendering,
@@ -72,7 +72,7 @@ module Effect.FileUtils where
     FileUtilsIoError :: FileUtilsError
 
   -- The mutating filesystem intrinsics (`cinch.runtime.*`;
-  -- `compiler/runtime/src/platform.rs`). Each reports the raw word: 0,
+  -- `seed/runtime/src/platform.rs`). Each reports the raw word: 0,
   -- or a negated error code from the shared vocabulary.
   foreign import ccall "cinch.runtime.fsMkdir" raw-mkdir :: Bytes -> Bool -> I64
   foreign import ccall "cinch.runtime.fsRemove" raw-remove :: Bytes -> Bool -> I64

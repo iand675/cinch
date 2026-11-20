@@ -121,7 +121,7 @@ module Effect.Stm where
   export tvar-new-io, tvar-read-io
 
   -- ---------------------------------------------------------------------
-  -- The cell (compiler/src/stm.rs, compiler/runtime/src/stm.rs). None of
+  -- The cell (seed/src/stm.rs, seed/runtime/src/stm.rs). None of
   -- these leave the module.
   -- ---------------------------------------------------------------------
 
@@ -277,7 +277,7 @@ module Effect.Stm where
       ret i64 %0
     }
 
-  -- The runtime's entry points (compiler/runtime/src/stm.rs).
+  -- The runtime's entry points (seed/runtime/src/stm.rs).
 
   -- The shared state's address: the version clock at 0, the count of
   -- waiting transactions at 128.

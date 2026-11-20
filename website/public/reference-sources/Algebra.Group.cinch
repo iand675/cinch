@@ -7,7 +7,7 @@
 -- states `invert` alone, and the laws below are the law shape the P18
 -- law-axiom layer will formalize.
 --
--- Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+-- Laws (asserted over sample values in seed/tests/prelude_split.rs):
 --   left inverse:  invert x <> x == mempty
 --   right inverse: x <> invert x == mempty
 -- For `Int` the monoid is the semiring's additive one (`add`/`zero`,

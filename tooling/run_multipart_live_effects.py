@@ -100,7 +100,7 @@ def main() -> None:
             raise RuntimeError('missing zero-leak observation')
         row['profiles'].append({'poison': poison, 'heap': heap, 'stack': '8M', 'stdout': observed.stdout, 'stderr': observed.stderr}); save()
     archive_completed(work, 'rust', 'live-effects', report)
-    report['runtime_claim'] = 'This exact candidate/fixture and compiler/archive passed both profiles; production remains unchanged.'
+    report['runtime_claim'] = 'This exact candidate/fixture and seed/archive passed both profiles; production remains unchanged.'
     save(); print('live both-effect runtime normal/poison passed and archived', flush=True)
 
 

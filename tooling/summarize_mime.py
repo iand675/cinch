@@ -42,7 +42,7 @@ def main() -> None:
     """Check source, profiles, artifacts and every primary SDK observation per frontend pair."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reports', nargs='+', type=Path, required=True)
-    parser.add_argument('--vectors', type=Path, default=ROOT / 'compiler/tests/fixtures/mime-vectors.json')
+    parser.add_argument('--vectors', type=Path, default=ROOT / 'seed/tests/fixtures/mime-vectors.json')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--allow-incomplete', action='store_true')
     args = parser.parse_args()

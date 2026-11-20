@@ -78,7 +78,7 @@
     "layer_control_groups": 12,
     "layer_repeat_count": 64
   },
-  "ci_execution": "SDK-free Cargo target supplied for parent serial gate; no Cargo or full compiler/bootstrap chain launched in this lane.",
+  "ci_execution": "SDK-free Cargo target supplied for parent serial gate; no Cargo or full seed/bootstrap chain launched in this lane.",
   "independent_reference": {
     "sdk": "go1.27.4",
     "generator_sha256": "afe636a7f5dc4ccf9760903f92034e7568d79c764850a63a6b82b6017f679d96",

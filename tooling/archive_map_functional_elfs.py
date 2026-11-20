@@ -47,7 +47,7 @@ def main() -> None:
     """Select only passed functional receipts, excluding every benchmark and compiler input."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpu", type=int, required=True)
-    parser.add_argument("--receipt", type=Path, default=ROOT / "bootstrap/evidence/stdlib/stdlib-maps-runtime-results.json")
+    parser.add_argument("--receipt", type=Path, default=ROOT / "compiler/evidence/stdlib/stdlib-maps-runtime-results.json")
     parser.add_argument("--archive", type=Path, default=ROOT / "build/maps-functional-elf-archive")
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})

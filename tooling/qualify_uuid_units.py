@@ -25,10 +25,10 @@ def main() -> None:
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu});assert args.maximum_units>0
     assert digest(COMPILER)=='330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2'
     assert digest(RUNTIME)=='d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf'
-    fixture=ROOT/'compiler/tests/fixtures/uuid-vectors.json';assert digest(fixture)=='af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e'
+    fixture=ROOT/'seed/tests/fixtures/uuid-vectors.json';assert digest(fixture)=='af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e'
     vectors=json.loads(fixture.read_text());path=ROOT/'build/uuid-qualification-progress.json'
     ledger=json.loads(path.read_text()) if path.exists() else {'kind':'partial-UUID-exact-tuple-qualification','compiler_sha256':digest(COMPILER),'runtime_sha256':digest(RUNTIME),'fixture_sha256':digest(fixture),'candidate_selected':False,'package_complete':False,'units':{}}
-    sources={name:digest(ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')) for name in ('Data.Uuid','Effect.Uuid')}
+    sources={name:digest(ROOT/'seed/prelude'/(name.replace('.','/')+'.cinch')) for name in ('Data.Uuid','Effect.Uuid')}
     if 'source_sha256' in ledger:assert ledger['source_sha256']==sources,'A source change needs its own qualification epoch'
     ledger['source_sha256']=sources
     first=ROOT/'build/uuid-parse-0-a1-results.json'

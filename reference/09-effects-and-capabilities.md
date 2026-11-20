@@ -539,6 +539,6 @@ Foreign operations declare their effects honestly, including `Blocking` and fail
 
 # Implementation
 
-The checker rules live in `check_terms.rs` and `check_decls.rs`: row unification in `types.rs`, handler elaboration and `@{...}` application in `check_terms.rs`, the entry rule in `check_decls.rs`. The provider declarations are `compiler/prelude/Effect/Sequencing.cinch`. End-to-end suites are `effects.rs`, `concurrency.rs`, `observability.rs`, and `interface_region_effects.rs`.
+The checker rules live in `check_terms.rs` and `check_decls.rs`: row unification in `types.rs`, handler elaboration and `@{...}` application in `check_terms.rs`, the entry rule in `check_decls.rs`. The provider declarations are `seed/prelude/Effect/Sequencing.cinch`. End-to-end suites are `effects.rs`, `concurrency.rs`, `observability.rs`, and `interface_region_effects.rs`.
 
 Tutorial chapters: [effects and I/O](../learn/10-effects-and-io.md) and [handlers and sequencing](../learn/11-handlers-and-sequencing.md). The normative text is [runtime capabilities, effects and sequencing](../specifications/runtime-capabilities-effects-and-sequencing.md); the implementation decisions are in [the design note](../design/effects-capabilities-sequencing.md).

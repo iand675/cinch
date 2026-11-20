@@ -39,7 +39,7 @@ Final Rust 64 KiB encode medians improve about 2.15–2.23 times without the lar
 
 Final Native 64 KiB encode improves about 1.25–1.28 times, writer about 1.65–2.53 times, and dash-heavy recovery about 5.35 times. Several small/ordinary rows regress. Native absolute large pipelines remain substantially slower than the reference and Rust frontend; the actual assembly retains 24 imported `Data.*` call sites in the Base64 encode tail, 50 in its decode tail, and 13 in PEM line copying. In contrast, selected private marker/blank machine loops retain zero imported `Data.*` calls. No Base64 source was edited. The parent owns comparison against a later admitted scalar-lowering compiler epoch.
 
-CPU0 was granted exclusively for executable sampling; own CPU2 builds and queued JSON work were held. The host exposes five cores but has a four-CPU cgroup quota. Final Rust and Native runs record `cpu.max` and `cpu.stat` before/after, with zero throttling delta; earlier runs did not collect those counters. No samples are corrected or dropped. Background compiler/target activity and exact artifacts are recorded in each experiment.
+CPU0 was granted exclusively for executable sampling; own CPU2 builds and queued JSON work were held. The host exposes five cores but has a four-CPU cgroup quota. Final Rust and Native runs record `cpu.max` and `cpu.stat` before/after, with zero throttling delta; earlier runs did not collect those counters. No samples are corrected or dropped. Background seed/target activity and exact artifacts are recorded in each experiment.
 
 ## Integration boundary
 

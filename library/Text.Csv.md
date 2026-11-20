@@ -200,4 +200,4 @@ renders in.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Csv.cinch`. Source SHA-256: `d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Csv.cinch`. Source SHA-256: `d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

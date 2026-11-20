@@ -12,8 +12,8 @@
 -- No drift from the layout spec is the design rule here. Every rule
 -- this scanner implements cites the sentence it follows, and the
 -- behavior is pinned token for token against the bootstrap compiler's
--- own lexer and layout pass (`compiler/src/lexer.rs`,
--- `compiler/src/layout.rs`) in `compiler/tests/parsers.rs`: the
+-- own lexer and layout pass (`seed/src/lexer.rs`,
+-- `seed/src/layout.rs`) in `seed/tests/parsers.rs`: the
 -- toolkit's token stream must agree with the compiler's on the shared
 -- corpus (kind, spelling, line, column, virtual flag), so a spec
 -- change that reaches the compiler cannot silently leave this module

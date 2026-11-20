@@ -231,8 +231,8 @@ def main() -> None:
     report = {
         "format": 1, "description": "Public CSV parse/render/owned-stream pipelines with prepared mutable input, normal reclamation and observable byte samples",
         "opt_level": 2, "compiler_sha256": compiler_hash,
-        "compiler_source_sha256": source_digest(list((ROOT / "compiler/src").rglob("*.rs")) + [ROOT / "compiler/Cargo.toml", ROOT / "compiler/Cargo.lock", ROOT / "compiler/build.rs"]),
-        "runtime_source_sha256": source_digest(list((ROOT / "compiler/runtime/src").rglob("*.*")) + [ROOT / "compiler/runtime/Cargo.toml"]),
+        "compiler_source_sha256": source_digest(list((ROOT / "seed/src").rglob("*.rs")) + [ROOT / "seed/Cargo.toml", ROOT / "seed/Cargo.lock", ROOT / "seed/build.rs"]),
+        "runtime_source_sha256": source_digest(list((ROOT / "seed/runtime/src").rglob("*.*")) + [ROOT / "seed/runtime/Cargo.toml"]),
         "driver_sha256": hashlib.sha256(SOURCE.encode()).hexdigest(), "runner_sha256": digest(Path(__file__)),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_sources.items()},
         "source_overrides": {name: str(path) for name, path in overrides.items()},

@@ -3,7 +3,7 @@
 //
 // The server command: `cinch lsp` dispatches to
 // `cinch::lsp::LspServer::run` over stdio (Content-Length framed
-// JSON-RPC), exactly the invocation exercised by compiler/tests/lsp.rs.
+// JSON-RPC), exactly the invocation exercised by seed/tests/lsp.rs.
 // The default command is this repository's driver crate
 // (tooling/lsp-driver), the same invocation in a standalone binary;
 // bin/cinch-lsp prefers `cinch lsp` when the binary is on PATH. Set

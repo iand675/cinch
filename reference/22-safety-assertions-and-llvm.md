@@ -246,4 +246,4 @@ These names describe emitted IR. They are not source attributes: writing `#[nonn
 
 - <span class="support-tag support-tag--planned">Coming soon</span> **Broader primitive semantic proofs and solver coverage.** The [verified primitives](../design/verified-primitives.md) and [proof automation](../design/proof-automation.md) designs describe the intended work. The annotations emitted today are translations of analyses that already hold; they are not those future proofs.
 
-Implementation: `compiler/src/check_decls.rs` (assertions and their analyses), `check_terms.rs` (must-use and the runtime-check count), `core.rs` (contract facts), `codegen.rs` (the IR restatements). Suites: `safety.rs`, `llvm_contract.rs`, `attributes.rs`, `tail_calls.rs`.
+Implementation: `seed/src/check_decls.rs` (assertions and their analyses), `check_terms.rs` (must-use and the runtime-check count), `core.rs` (contract facts), `codegen.rs` (the IR restatements). Suites: `safety.rs`, `llvm_contract.rs`, `attributes.rs`, `tail_calls.rs`.

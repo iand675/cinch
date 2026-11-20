@@ -63,4 +63,4 @@ Hash a whole chunk, returning its accepted count and the advanced immutable stat
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Adler32.cinch`. Source SHA-256: `561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Adler32.cinch`. Source SHA-256: `561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

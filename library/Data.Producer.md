@@ -126,4 +126,4 @@ is the `vecStreamStep` intrinsic.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Producer.cinch`. Source SHA-256: `47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Producer.cinch`. Source SHA-256: `47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

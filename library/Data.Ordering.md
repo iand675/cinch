@@ -53,4 +53,4 @@ Algebra.Semigroup at the prelude split).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Ordering.cinch`. Source SHA-256: `7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Ordering.cinch`. Source SHA-256: `7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

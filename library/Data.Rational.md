@@ -240,4 +240,4 @@ from an `r == s` partner.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Rational.cinch`. Source SHA-256: `87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Rational.cinch`. Source SHA-256: `87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

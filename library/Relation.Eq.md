@@ -55,4 +55,4 @@ constraints it uses. Instances live with their type.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Relation/Eq.cinch`. Source SHA-256: `a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Relation/Eq.cinch`. Source SHA-256: `a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

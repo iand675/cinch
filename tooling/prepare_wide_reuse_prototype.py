@@ -24,7 +24,7 @@ def replace(text, old, new, count=1):
 
 def pattern_identity(path, text):
     """Preserve checked nominal identity while keeping legacy imports untrusted."""
-    if path == "compiler/src/core.rs":
+    if path == "seed/src/core.rs":
         text = replace(text,
             "Con { tag: usize, fields: Vec<LocalId>, classes: Vec<Class> },",
             """Con {
@@ -69,7 +69,7 @@ def pattern_identity(path, text):
             "the index `i` is present when `args[i]` is logical field `i` of the")
         text = replace(text, "    /// sorted and deduplicated.\n    Reuse {",
                        "    /// sorted and deduplicated. A wide field occupies two raw words; its\n    /// logical index skips the complete i128 store, not only its low word.\n    Reuse {")
-    elif path == "compiler/src/check.rs":
+    elif path == "seed/src/check.rs":
         text = replace(text, "CPat::Con { tag, fields, classes } => CPat::Con {",
                        "CPat::Con { tag, fields, classes, ctor } => CPat::Con {")
         text = replace(text, "                            classes: classes.clone(),\n                        },",
@@ -78,7 +78,7 @@ def pattern_identity(path, text):
                        "CPat::Con { tag, fields, ctor, .. } => CPat::Con {")
         text = replace(text, "                            classes: fields.iter().map(|f| cx.local(*f)).collect(),",
                        "                            classes: fields.iter().map(|f| cx.local(*f)).collect(),\n                            ctor: ctor.clone(),")
-    elif path == "compiler/src/check_terms.rs":
+    elif path == "seed/src/check_terms.rs":
         text = replace(text, "alt_pats.push(CPat::con(tag, slots));",
                        """alt_pats.push(CPat::Con {
                         tag,
@@ -86,20 +86,20 @@ def pattern_identity(path, text):
                         classes: Vec::new(),
                         ctor: Some(fn_id(&constructor.module, &constructor.name)),
                     });""")
-    elif path == "compiler/src/simplify.rs":
+    elif path == "seed/src/simplify.rs":
         text = replace(text, "CPat::Con { tag: t1, fields: f1, classes: c1 },",
                        "CPat::Con { tag: t1, fields: f1, classes: c1, ctor: o1 },")
         text = replace(text, "CPat::Con { tag: t2, fields: f2, classes: c2 },",
                        "CPat::Con { tag: t2, fields: f2, classes: c2, ctor: o2 },")
         text = replace(text, ") => t1 == t2 && f1 == f2 && c1 == c2,",
                        ") => o1 == o2 && t1 == t2 && f1 == f2 && c1 == c2,")
-    elif path == "compiler/src/ifaceopt.rs":
+    elif path == "seed/src/ifaceopt.rs":
         # No schema extension: imported optimization bodies lack this checked
         # local identity certificate, so their wide reconstruction stays fresh.
         text = replace(text, "CPat::Con { tag, fields, classes } => JsonValue::Arr",
                        "CPat::Con { tag, fields, classes, .. } => JsonValue::Arr")
         text = replace(text, "fields, classes }\n        }", "fields, classes, ctor: None }\n        }")
-    elif path == "compiler/src/codegen.rs" or path == "compiler/src/coretext.rs":
+    elif path == "seed/src/codegen.rs" or path == "seed/src/coretext.rs":
         text = replace(text, "CPat::Con { tag, fields, classes } => {",
                        "CPat::Con { tag, fields, classes, .. } => {")
     # Synthetic struct literals with explicit classes have no nominal evidence.
@@ -242,15 +242,15 @@ def main():
     args = parser.parse_args()
     changed = {}
     claims = {}
-    for path in sorted(args.input.glob("compiler/**/*.rs")):
+    for path in sorted(args.input.glob("seed/**/*.rs")):
         relative = str(path.relative_to(args.input))
         original = path.read_text()
-        if "CPat::Con" not in original and relative not in ("compiler/src/rc.rs", "compiler/src/codegen.rs"):
+        if "CPat::Con" not in original and relative not in ("seed/src/rc.rs", "seed/src/codegen.rs"):
             continue
         target = pattern_identity(relative, original)
-        if relative == "compiler/src/rc.rs":
+        if relative == "seed/src/rc.rs":
             target = reuse(target)
-        if relative == "compiler/src/codegen.rs":
+        if relative == "seed/src/codegen.rs":
             target = emitter(target)
         if target != original:
             changed[relative] = "".join(difflib.unified_diff(original.splitlines(True), target.splitlines(True),
@@ -260,7 +260,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     tests = args.output / "wide_reuse.rs"
     if tests.exists():
-        relative = "compiler/tests/wide_reuse.rs"
+        relative = "seed/tests/wide_reuse.rs"
         target = tests.read_text()
         changed[relative] = "".join(difflib.unified_diff([], target.splitlines(True),
             fromfile="/dev/null", tofile="b/" + relative))

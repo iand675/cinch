@@ -3,7 +3,7 @@
 from pathlib import Path
 import hashlib,json
 ROOT=Path(__file__).resolve().parents[1]
-ORACLE=ROOT/'compiler/tests/fixtures/json-codec-syntax-partial-vectors.json'
+ORACLE=ROOT/'seed/tests/fixtures/json-codec-syntax-partial-vectors.json'
 assert hashlib.sha256(ORACLE.read_bytes()).hexdigest()=='7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d'
 ROWS=json.loads(ORACLE.read_text());assert len(ROWS)==902
 q=lambda x:json.dumps(x,ensure_ascii=False)
@@ -235,7 +235,7 @@ for model in models:
  s+='\n  -- | Stop at the earliest complete original row/property disagreement.\n  status :: Nat\n  status =\n'
  for group in range((len(selected)+15)//16):s+=f'    let result-a{group:03d} = check-group rows-a{group:03d} in\n    if result-a{group:03d} > 0 then result-a{group:03d} else\n'
  s+='    0\n\n  -- | Emit a normalized failing exit while keeping the complete original row/property code.\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in\n    let failed = status in\n    if failed == 0 then 0 else let printed = ioWrite (string-to-bytes (string-concat-all ["json-syntax-partial:", nat-to-string failed, "\\n"])) in 1\n'
- p=ROOT/f'compiler/tests/fixtures/json-syntax-partial-{model}-observations-v2.cinch';p.write_text(s)
+ p=ROOT/f'seed/tests/fixtures/json-syntax-partial-{model}-observations-v2.cinch';p.write_text(s)
  manifest['consumers'].append({'model':model,'path':str(p.relative_to(ROOT)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'rows':len(selected),'indices':[i for i,_ in selected]})
-p=ROOT/'bootstrap/evidence/stdlib/stdlib-json-syntax-partial-consumer-manifest-v2.json';p.write_text(json.dumps(manifest,indent=2)+'\n')
+p=ROOT/'compiler/evidence/stdlib/stdlib-json-syntax-partial-consumer-manifest-v2.json';p.write_text(json.dumps(manifest,indent=2)+'\n')
 print('Generated',sum(x['rows'] for x in manifest['consumers']),'unchanged rows across',len(models),'consumers')

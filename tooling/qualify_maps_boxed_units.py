@@ -33,7 +33,7 @@ def main() -> None:
     os.sched_setaffinity(0, {args.cpu})
     environment = {**os.environ, "CINCH_CLANG": str(args.clang.resolve()), "RUST_MIN_STACK": "67108864"}
     candidate = ROOT / "build/maps-entry-candidate/sources/Data.Mutable.Map.cinch"
-    assert digest(ROOT / "compiler/prelude/Data/Mutable/Map.cinch") == SOURCES["baseline"]
+    assert digest(ROOT / "seed/prelude/Data/Mutable/Map.cinch") == SOURCES["baseline"]
     assert digest(candidate) == SOURCES["entry"]
     ledger_path = ROOT / "build/maps-855-qualification-progress.json"
     ledger = json.loads(ledger_path.read_text()) if ledger_path.exists() else {

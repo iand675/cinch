@@ -90,7 +90,7 @@ module Main where
 
 def main() -> None:
     """Store the finite reference observations without depending on either compiler's arithmetic lowering."""
-    target = ROOT / "compiler/tests/fixtures/native-scalar-intrinsic-vectors.json"
+    target = ROOT / "seed/tests/fixtures/native-scalar-intrinsic-vectors.json"
     target.write_text(json.dumps(vectors(), indent=2) + "\n")
     print(f"{len(vectors())} scalar observations written to {target}")
 

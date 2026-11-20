@@ -10,7 +10,7 @@
 -- `to-list`/`null`/`length` agree with the fold at every lawful
 -- instance (`foldr Cons Nil (to-list xs) == to-list xs`, `length` is
 -- the `to-list` length, `null` is the empty check); the semantics
--- tests in compiler/tests/lib_foldable.rs carry them over sample
+-- tests in seed/tests/lib_foldable.rs carry them over sample
 -- values for List, Option and NonEmpty.
 --
 -- Instance homes. The ownership rule is "instances live with their

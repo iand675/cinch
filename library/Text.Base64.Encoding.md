@@ -401,4 +401,4 @@ Select a validated padding byte, or None for unpadded output.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Base64/Encoding.cinch`. Source SHA-256: `94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base64/Encoding.cinch`. Source SHA-256: `94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -111,4 +111,4 @@ Take a permit. Waits while there is none.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stm/TSem.cinch`. Source SHA-256: `a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TSem.cinch`. Source SHA-256: `a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

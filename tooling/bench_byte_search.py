@@ -143,7 +143,7 @@ def main()->None:
     parser.add_argument('--kinds',nargs='+',choices=['index','last','count','pipeline'],default=['index','last','count','pipeline'])
     parser.add_argument('--patterns',nargs='+',choices=['sparse','dense'],default=['sparse','dense'])
     parser.add_argument('--sizes',nargs='+',type=int,choices=[17,4097,65537],default=[17,4097,65537])
-    parser.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/Bytes/Search.cinch')
+    parser.add_argument('--module-source',type=Path,default=ROOT/'seed/prelude/Data/Bytes/Search.cinch')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--build-only',action='store_true')

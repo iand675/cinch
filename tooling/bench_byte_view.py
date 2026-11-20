@@ -84,7 +84,7 @@ DRIVER = r'''
 
 def source() -> str:
     """Reuse the fully checked runtime recipes without copying production private representations."""
-    helpers = (ROOT / 'compiler/tests/fixtures/byte-view-consumer.cinchpart').read_text()
+    helpers = (ROOT / 'seed/tests/fixtures/byte-view-consumer.cinchpart').read_text()
     helpers = helpers[:helpers.index('  -- | Compare an optional relative byte offset')]
     return helpers.replace('  import Data.String\n', '  import Data.String\n  import Data.Char\n  import Effect.Clock\n  import Text.Hex\n') + DRIVER
 
@@ -142,7 +142,7 @@ def main() -> None:
     """Build/preflight on a functional CPU and sample only during a separately coordinated timing window."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--compiler', type=Path, required=True)
-    p.add_argument('--module-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/View.cinch')
+    p.add_argument('--module-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/View.cinch')
     p.add_argument('--baseline-source', type=Path)
     p.add_argument('--before-source', type=Path)
     p.add_argument('--native-interfaces', type=Path)

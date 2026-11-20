@@ -32,7 +32,7 @@ sockets. The URL parser is Text.Uri's `uri-parse`, reused rather than
 re-written (D-family: one parser per grammar). Identifiers are
 kebab-case per D106.
 
-THE LAW SHAPE (what this slice's tests pin, compiler/tests/lib_http.rs):
+THE LAW SHAPE (what this slice's tests pin, seed/tests/lib_http.rs):
   1. a 200 with `Content-Length` reads its body whole, and the code,
      reason phrase and headers survive the round trip;
   2. a 404 is a RESPONSE, not an error: the status is data (the caller
@@ -323,4 +323,4 @@ The diagnostic line for a named error.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Http.cinch`. Source SHA-256: `28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

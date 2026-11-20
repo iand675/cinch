@@ -10,8 +10,8 @@
 -- THE BOUNDARY: this module BINDS the runtime's content-integrity
 -- primitives, it does not implement them. The algorithms are the
 -- runtime's responsibility, and their vectors are pinned in
--- `compiler/runtime/src/text.rs`'s tests and in
--- `compiler/tests/runtime_prims.rs`; nothing here re-derives a digest in
+-- `seed/runtime/src/text.rs`'s tests and in
+-- `seed/tests/runtime_prims.rs`; nothing here re-derives a digest in
 -- language. The four intrinsics below are the plain `foreign import
 -- ccall "cinch.runtime.<unit>"` machinery around the `cinch.runtime.text*`
 -- externs, exactly as `Effect.Fs` declares its own. `sha256-bytes` is
@@ -90,7 +90,7 @@ module Text.Digest where
     DigestSha1 :: Digest
     DigestMd5 :: Digest
 
-  -- The runtime's digest words (compiler/runtime/src/text.rs). SHA-256
+  -- The runtime's digest words (seed/runtime/src/text.rs). SHA-256
   -- is declared in `Data.Bytes` (its P31 content-addressing home) and
   -- reached through the same selector below. Each returns a fresh buffer
   -- of the algorithm's width.

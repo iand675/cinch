@@ -321,4 +321,4 @@ Observe every unicode-table key without exposing or copying range-table storage.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Unicode/Names.cinch`. Source SHA-256: `443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Names.cinch`. Source SHA-256: `443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

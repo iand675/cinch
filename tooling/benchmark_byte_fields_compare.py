@@ -65,12 +65,12 @@ def prepare(reassociated: bool = False, custom_preflights: tuple[Path, Path] | N
         new = candidate['dependencies']
         assert old.keys() == new.keys()
         assert [name for name in old if old[name] != new[name]] == ['Data.Bytes.Utf8']
-        source = (ROOT/'compiler/prelude/Data/Bytes/Utf8.cinch').read_text()
+        source = (ROOT/'seed/prelude/Data/Bytes/Utf8.cinch').read_text()
         experimental = ROOT/'benchmarks/stdlib/byte-fields-utf8-reassociated.cinch'
         before = 'hold-source source (packed-step (decode-raw base size offset))'
         after = 'packed-step (hold-source source (decode-raw base size offset))'
         assert source.count(before) == 1 and experimental.read_text() == source.replace(before, after)
-        assert digest(ROOT/'compiler/prelude/Data/Bytes/Utf8.cinch') == old['Data.Bytes.Utf8']
+        assert digest(ROOT/'seed/prelude/Data/Bytes/Utf8.cinch') == old['Data.Bytes.Utf8']
         assert digest(experimental) == new['Data.Bytes.Utf8']
     conditions = [dict(kind=kind, pattern=pattern, size=size, iterations=4,
                        expected=expected(kind, pattern, size, 4)) for kind,pattern,size in CONDITIONS]

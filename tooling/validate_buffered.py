@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate owned buffered-I/O consumers with explicit frozen compiler/runtime epochs and bounded memory."""
+"""Validate owned buffered-I/O consumers with explicit frozen seed/runtime epochs and bounded memory."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -34,7 +34,7 @@ def closure(project: Path, main: Path, embedded: set[str], source_overrides: Pat
     while pending:
         name=pending.pop()
         if name in embedded or name in found:continue
-        found.add(name);source=overrides.get(name,ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch'))
+        found.add(name);source=overrides.get(name,ROOT/'seed/prelude'/(name.replace('.','/')+'.cinch'))
         target=project/(name+'.cinch');target.write_bytes(source.read_bytes());paths.append(target)
         pending.extend(re.findall(r'^\s*import\s+([\w.]+)',target.read_text(),re.M))
     if any((project/(name+'.cinch')).exists() for name in embedded):raise ValueError('embedded source shadow')
@@ -47,7 +47,7 @@ def main() -> None:
     parser.add_argument('--frontend',choices=['rust','native'],required=True)
     parser.add_argument('--rust-snapshot',type=Path,default=RUST)
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
-    parser.add_argument('--source',type=Path,default=ROOT/'compiler/tests/fixtures/buffered-core-controls.cinch')
+    parser.add_argument('--source',type=Path,default=ROOT/'seed/tests/fixtures/buffered-core-controls.cinch')
     parser.add_argument('--cpu',type=int,default=2)
     parser.add_argument('--opt-level',choices=['0','2'],default='2')
     parser.add_argument('--artifacts',type=Path,required=True)

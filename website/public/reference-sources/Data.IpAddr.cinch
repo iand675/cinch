@@ -17,7 +17,7 @@
 -- constructors and at `ipv4-parse`/`ipv6-parse`; the raw constructor
 -- stays out of the export list per D143's surface rule.
 --
--- The law shape (exercised in compiler/tests/lib_uri_ipaddr.rs):
+-- The law shape (exercised in seed/tests/lib_uri_ipaddr.rs):
 --   parse/render round trip: `ipv4-parse (ipv4-to-string a) == Some a`
 --     and `ipv6-parse (ipv6-to-string a) == Some a`, so the canonical
 --     rendering is a fixed point of parsing;

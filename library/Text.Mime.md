@@ -447,4 +447,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Mime.cinch`. Source SHA-256: `399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Mime.cinch`. Source SHA-256: `399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

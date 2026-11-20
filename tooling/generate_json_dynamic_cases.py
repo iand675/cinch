@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / "compiler/tests/fixtures"
+FIXTURES = ROOT / "seed/tests/fixtures"
 
 HELPERS = r'''-- | Independent dynamic values, partial errors and complete encoding observations.
 module Main where

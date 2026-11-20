@@ -336,4 +336,4 @@ two that could drift.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/BigDecimal.cinch`. Source SHA-256: `0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/BigDecimal.cinch`. Source SHA-256: `0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -69,7 +69,7 @@ solver bug, and the verifier says so.
 ### The stage mapping in the seed compiler
 
 The Rust seed does not have four programs for four stages, and the honest
-mapping onto its pipeline is recorded here (`compiler/src/coretext.rs`,
+mapping onto its pipeline is recorded here (`seed/src/coretext.rs`,
 stage table at the top of the file):
 
 - `elaborated` and `solved` are fused. `crate::check` infers, elaborates to
@@ -257,7 +257,7 @@ readability; the naming rule below is what a printer emits):
 
 ## 5. Where it lives
 
-- The Rust seed prints from its own Core (`compiler/src/core.rs`); the
+- The Rust seed prints from its own Core (`seed/src/core.rs`); the
   printer walks `Program`'s `fns`, `instances`, `foreigns`, `prims` and
   `plans`, and reads the annotations the passes already compute
   (`UnitRepr`, `FnMeta`, `Program::lent`, `CtorLayout`).
@@ -298,14 +298,14 @@ local checker. The plan, with the editor and server work of section 8:
 
 1. Rust seed printer at `checked`, `owned` and `lowered`, with the
    structural verifier, `cinch core emit|verify|diff`, `--dump-core`, and
-   a golden corpus (one file per feature) in `compiler/tests/core/`.
+   a golden corpus (one file per feature) in `seed/tests/core/`.
    Acceptance: every golden file regenerates byte for byte, verifies
    cleanly, and `checked`/`owned` are identical across targets.
 2. Core grammar `tooling/tree-sitter-cinch-core` with its corpus and
    drift check, and a whole-file parse check over the golden files.
 3. Language-server branch for `.core` documents: diagnostics from the
    verifier, semantic tokens, hover, definition, symbols, folding, each
-   with a test in `compiler/tests/lsp.rs`.
+   with a test in `seed/tests/lsp.rs`.
 4. Editor integrations for `cinch-core` in vim, emacs, sublime, zed and
    vscode.
 5. Cinch compiler printer for the same stages. Acceptance: byte-identical
@@ -347,7 +347,7 @@ grammar with an indentation rule for `body` children. The corpus in
 `corpus/` has one case per form plus the layout edge cases (a node that
 fits on one line, a node that wraps, an empty case, a `release` with no
 moved fields). `tooling/check-grammar-drift.sh --core` regenerates and
-runs it, and a whole-file property check parses every `compiler/tests/core/*.core`
+runs it, and a whole-file property check parses every `seed/tests/core/*.core`
 golden file with zero ERROR nodes, which keeps the grammar honest against
 what the printer actually emits.
 
@@ -415,7 +415,7 @@ which is out of scope.
   test shim where one exists; where none exists, the fixture is checked
   in and the limitation recorded in `tooling/README.md`.
 - One language-server test per capability, extending
-  `compiler/tests/lsp.rs`: open a `.core` document, then request
+  `seed/tests/lsp.rs`: open a `.core` document, then request
   diagnostics (one clean file, one broken), semantic tokens, hover on a
   global and on a local, definition within the file, document symbols, and
   folding ranges.

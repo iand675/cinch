@@ -43,7 +43,7 @@ def main() -> None:
     compiler = args.compiler.resolve()
     directory = args.artifacts.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    production = ROOT / "compiler/prelude/Text/Json/Binary32.cinch"
+    production = ROOT / "seed/prelude/Text/Json/Binary32.cinch"
     source = production.read_text()
     primitives = []
     for name in ["binary32-bits", "binary32-value"]:

@@ -1,9 +1,9 @@
 # Compiling continuation-passing code to direct code
 
-Status: implemented in the Rust seed (`compiler/src/simplify.rs`,
-`compiler/src/codegen.rs`, `compiler/src/stack.rs`). Conformance entries
-D430 and D431. Evidence: `compiler/tests/cps.rs`,
-`compiler/tests/calling_convention.rs`.
+Status: implemented in the Rust seed (`seed/src/simplify.rs`,
+`seed/src/codegen.rs`, `seed/src/stack.rs`). Conformance entries
+D430 and D431. Evidence: `seed/tests/cps.rs`,
+`seed/tests/calling_convention.rs`.
 
 Continuation-passing style is how Cinch code is written when it needs
 early exit, backtracking, resumable parsing, or a monad over `forall r.
@@ -416,7 +416,7 @@ product result tail-calling another a million deep) and
 ## The runtime profile
 
 The measurements above first ran against an unoptimised runtime. The
-driver's `ensure_runtime` built `compiler/runtime` without `--release` and
+driver's `ensure_runtime` built `seed/runtime` without `--release` and
 linked `target/debug/libcinchruntime.a` into every program `cinch build`
 produced. The runtime crate sets no profile, so that archive was opt-level 0.
 Under callgrind one allocation cost about 1,800 instructions and one free

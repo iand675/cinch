@@ -10,7 +10,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFINITIONS = Path('/workspace/dasl-stdlib-io')
-AUDIT = DEFINITIONS / 'bootstrap/evidence/stdlib/stdlib-nominal-region-migration-audit.json'
+AUDIT = DEFINITIONS / 'compiler/evidence/stdlib/stdlib-nominal-region-migration-audit.json'
 INTERFACES = DEFINITIONS / 'build/nominal-region-library-imports/build'
 OUTPUT = ROOT / 'build/mutable-region-migration-static'
 
@@ -39,7 +39,7 @@ def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     records, patches = [], []
     for module in modules:
-        path = DEFINITIONS / 'compiler/prelude' / (module.replace('.', '/') + '.cinch')
+        path = DEFINITIONS / 'seed/prelude' / (module.replace('.', '/') + '.cinch')
         original = path.read_text()
         interface = INTERFACES / (module + '.cinchif')
         assert digest(interface) == inputs[module]['sha256']
@@ -97,7 +97,7 @@ def main() -> None:
               'patch': str(patch.relative_to(ROOT)), 'patch_sha256': digest(patch),
               'unchanged_facade': 'Data.Mutable reexports the defining identities; it declares no replacement nominal.',
               'scope': 'Public and private classification plus exact source/witness linkage only; every migrated closure still needs qualified source/interface/runtime gates.'}
-    (ROOT / 'bootstrap/evidence/stdlib/stdlib-mutable-region-migration-results.json').write_text(json.dumps(result, indent=2) + '\n')
+    (ROOT / 'compiler/evidence/stdlib/stdlib-mutable-region-migration-results.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'modules': len(modules), 'nominal_parameters': len(candidates),
                       'private_types_unchanged': sum(len(row['unchanged_private_types']) for row in records),
                       'proposal_bytes': sum((ROOT / row['proposal']).stat().st_size for row in records),

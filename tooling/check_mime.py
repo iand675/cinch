@@ -2,7 +2,7 @@
 """Run committed independent MIME fixtures through explicit public frontend pipelines.
 
 No SDK is required during fixture execution. Actual selected vector/copy kernel
-objects, callback trace objects, compiler/runtime/provider identities and separate
+objects, callback trace objects, seed/runtime/provider identities and separate
 normal/poison allocation profiles are retained in one source-epoch report.
 """
 from __future__ import annotations
@@ -181,7 +181,7 @@ def main() -> None:
     """Execute explicit frozen/current frontend identities under separately bounded profiles."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
-    parser.add_argument('--vectors', type=Path, default=ROOT / 'compiler/tests/fixtures/mime-vectors.json')
+    parser.add_argument('--vectors', type=Path, default=ROOT / 'seed/tests/fixtures/mime-vectors.json')
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--group-size', type=int, choices=(32, 64, 128), default=32, help='Bound each generated exact-case consumer; larger final groups amortize source checking')
     parser.add_argument('--resume', action='store_true')

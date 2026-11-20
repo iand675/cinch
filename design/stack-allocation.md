@@ -81,7 +81,7 @@ so interprocedural flow does not need a whole-program fixpoint to start.
 - The block's frame slot is an `alloca` in the entry block, 16-byte aligned
   and rounded to an even word count, so every slot keeps the stack a
   multiple of 16 bytes (the AArch64 stack-probe requirement that retired
-  the apply stub's dynamic alloca, `compiler/src/codegen.rs`).
+  the apply stub's dynamic alloca, `seed/src/codegen.rs`).
 - The block header is written once at the slot with a new
   `RC_FRAME` count (a value no correct program can produce on the heap), so
   every `dup`, `drop`, `release` and `Scan` path can treat it as immortal:
@@ -98,12 +98,12 @@ so interprocedural flow does not need a whole-program fixpoint to start.
 
 ## 5. Where it belongs in the two compilers
 
-- **Rust seed** (`compiler/src`): a new `stack.rs` pass between `rc::insert`
+- **Rust seed** (`seed/src`): a new `stack.rs` pass between `rc::insert`
   and `specialize::optimize`, plus codegen support for the frame slot and
   the `RC_FRAME` header. The Core text output gains a `@frame` annotation on
   the unit and an `(alloc-frame ...)` node form so the decision is
   inspectable, which is what the Core output work exists for.
-- **Cinch compiler** (`bootstrap/`): the same analysis in
+- **Cinch compiler** (`compiler/`): the same analysis in
   `Bootstrap.RuntimeIr`, where allocation is already emitted, with the same
   `RC_FRAME` convention. The two must agree on which blocks are frame-bound
   only if the bootstrap's fixed point compares `owned` Core; it compares IR,
@@ -136,11 +136,11 @@ Implemented (2026-11-10):
   the heap cap bounds live words far below it) and every count path treating
   it as immortal, with `CINCH_RC_DEBUG=1` traps for a frame free or a slow
   drop of a frame block.
-- The eligibility pass (`compiler/src/stack.rs`) after RC insertion, reusing
+- The eligibility pass (`seed/src/stack.rs`) after RC insertion, reusing
   the count pass's own postconditions as the lattice facts, with entry-block
   `alloca` lowering, `@frame` in Core output, `--no-stack-alloc`,
   `--stack-frame-limit`, and refusal reasons in the manifest.
-- The inliner (`compiler/src/simplify.rs`) with both rules: a single site for
+- The inliner (`seed/src/simplify.rs`) with both rules: a single site for
   a body of at most 40 nodes, and every site for a body of at most 12 nodes
   with no call and no allocation. A body that binds locals is admitted when
   every binder it makes is a `case` pattern binder, which is the shape the
@@ -276,7 +276,7 @@ but the parent's frame placement alone is insufficient lifetime evidence.
 Standalone blocks without counted payload still allow duplication, and safe
 consuming-callee transfers retain their existing rules. The reduced regressions
 and exact compiler epochs are recorded in
-[`nested-frame-payload-2026-11-16.md`](../compiler/evidence/nested-frame-payload-2026-11-16.md).
+[`nested-frame-payload-2026-11-16.md`](../seed/evidence/nested-frame-payload-2026-11-16.md).
 
 ### 7.4 Dead-unit elimination (item 2)
 
@@ -421,7 +421,7 @@ a `Dup` body and an `If` branch, so a form that stops preserving the flag
 fails the test rather than the bootstrap.
 
 The regression test is `a_frame_block_passed_to_a_tail_call_stays_on_the_heap`
-in `compiler/tests/stack_allocation.rs`: the same Core program the widening's
+in `seed/tests/stack_allocation.rs`: the same Core program the widening's
 test uses, with the call as the unit's result rather than a `let` value, under
 each of those forms, for a consumed and for a lent parameter. It takes a slot
 before this change and is refused as `escapes:tail-call` after it.
@@ -513,7 +513,7 @@ executed.
 Measured, and the result contradicts the attribution above. The bisect
 compared whole chain builds at two revisions, and `12c31ad9..9f4e4030`
 contains eleven commits, of which the stub is one (`5e8115a7`). The other
-ten are the interface optimisation artifact (`compiler/src/ifaceopt.rs`,
+ten are the interface optimisation artifact (`seed/src/ifaceopt.rs`,
 957 new lines), the simplifier, specialisation, the driver and the seed
 arena. To separate them, two arms were built from the identical base tree
 (`b4854641`, which is `main`) differing only in the two emitter files, so
@@ -545,8 +545,8 @@ the pass pays in. What it is not is the fix for the 5.6%, and the
 attribution to check next is the interface optimisation artifact and the
 simplifier changes in the same range.
 
-Both emitters carry the change, `compiler/src/codegen.rs` (`stub_def`,
-`stub_grow`) and `bootstrap/Bootstrap.RuntimeIr.cinch` (`app-stub`,
+Both emitters carry the change, `seed/src/codegen.rs` (`stub_def`,
+`stub_grow`) and `compiler/Bootstrap.RuntimeIr.cinch` (`app-stub`,
 `saturated-stub`, `app-partial`), and `design/reclamation.md` section 4
 states the ownership rule for the single entry.
 
@@ -743,7 +743,7 @@ bytes the frame slots hold, `stack.largest` and `stack.largest_class` are the
 largest candidate payload and the class that refused it, and
 `stack.partial` is the partial-escape population of section 8.5.
 
-The classes are `Refusal::ALL` in `compiler/src/stack.rs`:
+The classes are `Refusal::ALL` in `seed/src/stack.rs`:
 
 | Class | What it is |
 | --- | --- |
@@ -766,7 +766,7 @@ The classes are `Refusal::ALL` in `compiler/src/stack.rs`:
 | `head` | the callee of an application |
 
 Reproducing it: `python3 tooling/bootstrap.py build --stage 3` builds the
-seed, then `compiler/target/release/cinch emit-ir <bundle> --escape-report`.
+seed, then `seed/target/release/cinch emit-ir <bundle> --escape-report`.
 The two bundles this section reports are `tooling/pgo.py`'s training bundle
 (the five toolkit modules, 4,060 lines including the bundle's own source
 markers, `main = 0`) and `tooling/bootstrap.py`'s
@@ -980,8 +980,8 @@ the sweep keeps a unit the pass framed, or the tests stop assuming that
 adds 5 tests (14 to 19) and all 5 pass.
 
 Two caveats for whoever runs the target suite against
-`bootstrap/evidence/other/stage3-suite-baseline.json`. That baseline is dated from commit
-`5fc2d4ee`, which predates `bootstrap/Bootstrap.Expand.cinch`; two targets
+`compiler/evidence/other/stage3-suite-baseline.json`. That baseline is dated from commit
+`5fc2d4ee`, which predates `compiler/Bootstrap.Expand.cinch`; two targets
 therefore fail for a reason this pass cannot reach, and neither is a
 regression of the census. `bootstrap_parse` reports
 `Bootstrap.Expand` in its measured unmodeled table without the constant
@@ -1037,10 +1037,10 @@ for the toolkit bundle.
 
 ### 8.6 The lock pin
 
-`compiler/src` is a seed source: it is hashed into
-`bootstrap/pins/stage0.lock.json`'s `source_sha256` and pinned again by
-`bootstrap/pins/library-provider.lock.json`. The instrument changes
-`compiler/src/stack.rs`, `compiler/src/driver.rs` and `compiler/src/main.rs`,
+`seed/src` is a seed source: it is hashed into
+`compiler/pins/stage0.lock.json`'s `source_sha256` and pinned again by
+`compiler/pins/library-provider.lock.json`. The instrument changes
+`seed/src/stack.rs`, `seed/src/driver.rs` and `seed/src/main.rs`,
 so the seed hash moved, and the tree is pinned at the commit that carries it:
 
 ```
@@ -1057,14 +1057,14 @@ was computed from the commit's own tree (`git archive <revision>`, then
 working copy.
 
 The revision above is a commit in this lane that carries the instrument's
-`compiler/src`; since `design/` is not a seed source, every later commit in
+`seed/src`; since `design/` is not a seed source, every later commit in
 the lane hashes the same, so integration re-points both locks at whichever
 commit it lands and the hash check still passes. The locks themselves are
 left to integration: a lane never pushes `main`, and the pin is a
 `main`-level fact that the landing round applies once, with the rest of the
 round's pins. No runtime ABI bump: no block layout, header field,
 kind number or existing extern changed, so `RUNTIME_ABIS` stays 9 and
-`bootstrap/Bootstrap.RuntimeAbi.cinch` is untouched.
+`compiler/Bootstrap.RuntimeAbi.cinch` is untouched.
 
 Related designs: `ownership-and-usage.md`, `reclamation.md`,
 `compilation-speed.md`, `layouts-and-specialization.md`,

@@ -1,0 +1,1321 @@
+//! Reference counts: the count entry points, the release of dead blocks,
+//! and the marking of blocks shared across tasks (design/reclamation.md
+//! sections 3, 7, 8 and 9).
+//!
+//! A block word is any word that is neither 0 nor an immediate (low bit
+//! 1). [`cinch_dup`] and [`cinch_drop`] ignore every other word and every
+//! block that is never counted (`rc == 0`: statics, interned `Sym` cells;
+//! `rc == RC_FRAME`: a block in an activation's stack frame), so a `TObj`
+//! or nullable `Obj` word can be passed as it is. Generated code inlines
+//! the same fast paths and calls [`cinch_drop_slow`] only when a count is
+//! about to reach zero.
+//!
+//! # Frame blocks
+//!
+//! `seed/src/stack.rs` lowers a block that cannot escape its
+//! activation to an `alloca` with the header count [`block::RC_FRAME`]
+//! (`block_kinds.rs`). A frame block is never counted and never freed, and
+//! its payload is released exactly once by [`cinch_frame_release`]:
+//!
+//! 1. the first of the three paths into it sets [`block::RC_FRAME_RELEASED`]
+//!    in the header *before* dropping a child, so the payload's counted
+//!    words are dropped exactly once even though no count says which drop
+//!    is the last. The paths are the binder's static death (code
+//!    generation's own field-by-field release, which marks the block too),
+//!    a callee that took the block as an owned parameter and drops it, and
+//!    a parent frame block whose release walks the payload it was stored
+//!    in;
+//! 2. [`cinch_drop`] on a frame block calls the release, [`cinch_dup`] is a
+//!    no-op (a frame dup is a second static reference), `cinch_free` and
+//!    the release walk leave the block alone, [`cinch_mark_mt`] stops at
+//!    it, and the inline fast paths route both markers to
+//!    [`cinch_frame_release`] instead of counting;
+//! 3. [`cinch_drop_slow`] traps on a frame block under `CINCH_RC_DEBUG=1`
+//!    (a compiler bug: the debug paths go through [`cinch_drop`]), and in
+//!    a release build it releases the payload rather than handing stack
+//!    memory to the allocator.
+//!
+//! The two markers are the two largest counts the field can hold, which
+//! no heap block can reach; the payload's kind, layout and descriptor are
+//! untouched by the release, so a released block still reads its tag and
+//! its map.
+//!
+//! # Counts shared across tasks
+//!
+//! A positive count is single-threaded: only one thread can reach the
+//! block, and its count changes with ordinary loads and stores. A negative
+//! count `-n` is atomic: `n` references, held by any number of threads,
+//! changed only by atomic read-modify-writes ([`cinch_dup_mt`],
+//! [`cinch_drop_mt`]). A block becomes atomic by marking, never the other
+//! way: [`cinch_mark_mt`] negates the count of every mortal block
+//! reachable from a task body before its thread starts (mark on spawn,
+//! section 8), so the marked set is closed under reachability and an
+//! unmarked block is reachable from one thread only. Blocks are immutable
+//! once built, apart from slots their maps do not scan (a memo cell's
+//! value, a knot's value), so a marked block never gains an unmarked
+//! child. A block allocated later is unmarked, and stays thread-local
+//! until a spawn marks it or a join hands it, with its finished task's
+//! whole history, to the joiner.
+//!
+//! The count is the low `RC_BITS` of the header word, in two's
+//! complement. An atomic dup subtracts one from the whole word: the field
+//! of `-n` is `2^RC_BITS - n`, which never borrows from the kind above it.
+//! An atomic drop adds one, which carries into the kind only when it
+//! takes the last reference (`-1` to `0`); the thread that sees that
+//! carry owns the block alone, so it rewrites the header from the value
+//! its read-modify-write returned before anything reads the kind again.
+//! The orderings are `Arc`'s: a dup is relaxed (its caller already holds
+//! a reference, so the count cannot reach zero under it), a drop is a
+//! release, and the drop that takes the last reference is followed by an
+//! acquire fence, so every other thread's use of the block happens before
+//! its release.
+//!
+//! # Release
+//!
+//! [`cinch_drop_slow`] frees a block whose last reference is being
+//! dropped, and with it every block that reference kept alive. The walk
+//! is iterative and needs no memory beyond the dead blocks themselves, so
+//! a million-cell list is released in constant native stack. It is a
+//! pointer-reversal traversal: a dead block's count field is no longer a
+//! count, so it holds the block's resume cursor (the next slot to visit),
+//! and the slot through which the walk descended into a dying child holds
+//! the link back to the block's own parent. The header's kind and layout
+//! stay intact, which is what the scan of the block needs when the walk
+//! returns to it; a full pointer would not fit beside them in the header.
+//!
+//! Each block's counted slots ([`crate::block::Scan`]) are visited in
+//! reverse slot order (D390: destruction runs in reverse), and a block is
+//! freed after all of its children. A child whose count is above one is
+//! decremented; a child at one dies and is descended into. An atomic
+//! child is decremented atomically and dies when this walk took its last
+//! reference: whichever thread drops a shared block last frees it. The
+//! payload a runtime box owns outside its block (a bignum's limbs, a heap
+//! buffer's data) is released with it.
+//!
+//! # Marking
+//!
+//! [`cinch_mark_mt`] is a pointer-reversal walk too, over live blocks,
+//! and also needs no memory beyond them. A block's count must survive the
+//! walk (it only changes sign), so there is no field for a resume cursor.
+//! Instead the slot through which the walk descended holds the parent
+//! link tagged with [`MARK_LINK`] in its low two bits, a pattern no
+//! scanned slot otherwise holds (a block word has its low three bits
+//! clear, an immediate its low bit set). Returning to a block, the walk
+//! finds that slot by scanning down from the top for the tag, restores
+//! the child's word in it, and resumes below it. Finding the slot costs
+//! the counted slots above it, so a block of `w` scanned words costs at
+//! most `w^2 / 2` extra reads in all; every block a map covers inline has
+//! at most 16 words, and a constructor with one counted child (a list
+//! cell) costs one. A block is marked when the walk first reaches it,
+//! before its children, so a shared child or a cycle through a scanned
+//! slot is visited once.
+//!
+//! # Diagnostics
+//!
+//! * `CINCH_RC_DEBUG=1`: a freed block is poisoned and quarantined
+//!   ([`crate::block::free`]), and every count operation checks that the
+//!   header belongs to a live block, so a use after free or a corrupt
+//!   word traps instead of reading reused memory. These traps (and the
+//!   ones below on an invalid kind or a count of the wrong sign) fire only
+//!   on a compiler or runtime bug: design/no-faults.md's compiler-bug
+//!   traps, not program faults.
+//! * `CINCH_LEAK_CHECK=1`: [`cinch_exit_check`], which the generated
+//!   entry glue calls after `main` returns, reports the live header
+//!   blocks that are not immortal and turns a nonzero count into exit
+//!   code [`crate::abi::EXIT_LEAK`].
+
+use std::sync::atomic::{fence, AtomicBool, Ordering};
+
+use crate::block::{self, Scan, SCAN_OBJ, SCAN_RAW};
+
+/// The low bits of a slot [`cinch_mark_mt`] reversed: the parent link,
+/// a block address or 0, with this tag in its two low bits.
+const MARK_LINK: i64 = 2;
+
+/// Whether the program counts references ([`cinch_reclaim_enable`]).
+static RECLAIM: AtomicBool = AtomicBool::new(false);
+
+/// Record that the running program counts references (it was compiled
+/// with `TargetProfile::reclaim`). The code generator's global
+/// constructor calls it before any generated code runs. Without it the
+/// program owns no counts, so the runtime never marks a task body and
+/// never drops a task result: every block leaks, as the program expects.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_reclaim_enable() {
+    // Relaxed suffices: the constructor runs before `main`, and every
+    // thread that reads the flag is spawned after it.
+    RECLAIM.store(true, Ordering::Relaxed);
+}
+
+/// Whether the program counts references ([`cinch_reclaim_enable`]).
+pub fn reclaiming() -> bool {
+    RECLAIM.load(Ordering::Relaxed)
+}
+
+/// Whether `word` is a block pointer rather than 0 or an immediate.
+#[inline]
+fn is_block_word(word: i64) -> bool {
+    word != 0 && word & 1 == 0
+}
+
+/// Whether `kind` is the kind of a live block.
+#[inline]
+fn live_kind(kind: u8) -> bool {
+    (block::KIND_CTOR..=block::KIND_LAST).contains(&kind)
+}
+
+/// The compiler-bug trap of a count operation on a header no live block
+/// has.
+fn corrupt() -> ! {
+    crate::abi::panic_exit(b"compiler bug: reference count operation on a freed or corrupt block")
+}
+
+/// Debug mode's header validation of the block at `word`.
+#[inline]
+fn check(word: i64, h: u64) {
+    if word & 7 != 0 || !live_kind(block::kind(h)) {
+        corrupt();
+    }
+}
+
+/// Add one reference to the block behind `word`. Immediates, 0 and
+/// immortal blocks are ignored.
+///
+/// # Safety
+///
+/// `word` is 0, an immediate, or a live block word.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_dup(word: i64) {
+    if !is_block_word(word) {
+        return;
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    if crate::heap::rc_debug() {
+        check(word, h);
+    }
+    match block::rc(h) {
+        // Static blocks and frame blocks are never counted, released or
+        // not: a dup of a frame block is a second static reference, and the
+        // count field is not a count to change.
+        block::RC_IMMORTAL | block::RC_FRAME | block::RC_FRAME_RELEASED => {}
+        // No overflow check: the heap cap keeps every count below `RC_MAX`
+        // (block_kinds.rs).
+        n if n > 0 => unsafe { block::write_header(p, block::header(n + 1, block::kind(h), block::layout(h))) },
+        _ => unsafe { dup_atomic(p) },
+    }
+}
+
+/// Drop one reference to the block behind `word`, releasing it (and what
+/// only it kept alive) when that was the last. Immediates, 0 and immortal
+/// blocks are ignored.
+///
+/// # Safety
+///
+/// `word` is 0, an immediate, or a live block word whose reference the
+/// caller owns and does not use again.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_drop(word: i64) {
+    if !is_block_word(word) {
+        return;
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    if crate::heap::rc_debug() {
+        check(word, h);
+    }
+    match block::rc(h) {
+        // A static block is never counted and never freed: the process
+        // owns it. A frame block is released once (`cinch_frame_release`)
+        // and never freed: the activation's frame owns its memory.
+        block::RC_IMMORTAL | block::RC_FRAME_RELEASED => {}
+        block::RC_FRAME => unsafe { cinch_frame_release(word) },
+        block::RC_FRESH => unsafe { release(p) },
+        n if n > 1 => unsafe { block::write_header(p, block::header(n - 1, block::kind(h), block::layout(h))) },
+        _ => unsafe { drop_atomic(p) },
+    }
+}
+
+/// Release the block behind `word`, whose count is one: the reference
+/// being dropped is its last. This is the zero-crossing path of an
+/// inlined drop.
+///
+/// A frame block never has a count, so the inline fast paths route it to
+/// [`cinch_frame_release`] instead of here. The check stays because this
+/// path ends in the allocator, and freeing memory a frame owns would be
+/// the worst failure the runtime can have: a frame block that arrives
+/// here during the run releases its payload and returns.
+///
+/// # Safety
+///
+/// `word` is a live mortal block word with `rc == 1` whose reference the
+/// caller owns and does not use again, or a frame block word.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
+    if !is_block_word(word) {
+        corrupt();
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    if crate::heap::rc_debug() {
+        check(word, h);
+    }
+    match block::rc(h) {
+        // A frame block under `CINCH_RC_DEBUG=1` is a compiler bug: the
+        // debug paths call `cinch_drop`, which releases a frame payload
+        // without a count, so this path should never see one.
+        block::RC_FRAME | block::RC_FRAME_RELEASED if crate::heap::rc_debug() => corrupt(),
+        block::RC_FRAME => unsafe { cinch_frame_release(word) },
+        block::RC_FRAME_RELEASED => {}
+        block::RC_FRESH => unsafe { release(p) },
+        _ => corrupt(),
+    }
+}
+
+/// Release the payload of the frame block behind `word` exactly once:
+/// drop each counted child in reverse payload order, then leave the block
+/// marked [`block::RC_FRAME_RELEASED`]. The block itself is not freed and
+/// the allocator is not touched: its memory is the activation's frame.
+///
+/// # The exactly-once rule
+///
+/// A frame block has no count that could make one of its drops the last,
+/// so the release is owned by the first path that reaches it: the
+/// binder's static death, a callee that took the block as an owned
+/// parameter and drops it, or a parent frame block whose own release
+/// walks the payload it was stored in. The marker in the header is what
+/// makes that safe: it is set *before* the children are dropped, so every
+/// later path (a second release of the same reference, a child cycle back
+/// into this block, a parent that still holds the word) finds the payload
+/// already released and returns. The invariant is therefore not "one
+/// path releases" but "the children are dropped exactly once on every
+/// path", which the marker enforces without any count.
+///
+/// Consequences the compiler relies on:
+///
+/// - Two live references to one frame block are admissible only when its
+///   payload holds no counted word (`seed/src/stack.rs`'s duplicated
+///   rule): a second reference that outlives the release would read
+///   dropped children, and no count can tell the two references apart.
+/// - A released block keeps its kind, its layout and its payload words,
+///   so a `case` over it after the release still reads a tag. That is a
+///   program the ownership discipline cannot produce; the debug check
+///   below states it.
+///
+/// # Safety
+///
+/// `word` is a frame block word whose payload the caller's activation
+/// owns (the header is still readable, and the payload words are live
+/// until the frame returns).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_frame_release(word: i64) {
+    if !is_block_word(word) {
+        if crate::heap::rc_debug() {
+            corrupt();
+        }
+        return;
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    let n = block::rc(h);
+    if n == block::RC_FRAME_RELEASED {
+        // The marker: the payload's children have been dropped already.
+        return;
+    }
+    if crate::heap::rc_debug() {
+        check(word, h);
+        // A frame release of a heap block is a compiler bug: the block's
+        // count is live and `cinch_drop` owns its release.
+        if n != block::RC_FRAME {
+            corrupt();
+        }
+    }
+    if n != block::RC_FRAME {
+        return;
+    }
+    // Mark first: a child that points back here, or a second path into
+    // this block while the walk is in progress, then finds the payload
+    // released instead of dropping its children twice.
+    unsafe { block::write_header(p, block::header(block::RC_FRAME_RELEASED, block::kind(h), block::layout(h))) };
+    unsafe { release_children(p, h, crate::heap::rc_debug()) };
+}
+
+/// Drop every counted child of the block at `p` whose header is `h`, and
+/// leave the block itself untouched: no header write, no free.
+///
+/// This is the teardown of a block whose memory belongs to someone else:
+/// a frame block's release ([`cinch_frame_release`]) and an arena's
+/// `cinch_arena_leave` (`crate::arena`) both need the payload's references
+/// returned and nothing else. A child that is itself a frame or arena
+/// block takes its own path and answers nothing.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of a live block of a kind whose map the
+/// layout table describes, and its payload words are readable.
+pub(crate) unsafe fn release_children(p: *mut u8, h: u64, debug: bool) {
+    let scan = unsafe { Scan::of(p, h) };
+    let mut at = scan.words();
+    while let Some((slot, code)) = scan.counted_below(at) {
+        at = slot;
+        let w = unsafe { p.cast::<i64>().add(slot).read() };
+        if debug && code == SCAN_OBJ && w & 1 != 0 {
+            // An `Obj` slot never holds an immediate.
+            corrupt();
+        }
+        // A child that is itself a frame or arena block takes the same
+        // path: its own payload is dropped (once), and nothing is freed.
+        unsafe { cinch_drop(w) };
+    }
+}
+
+/// Add one reference to the block behind `word`, whose count is atomic
+/// (negative). This is the shared path of an inlined dup.
+///
+/// # Safety
+///
+/// `word` is a live block word with a negative count.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_dup_mt(word: i64) {
+    let p = word as usize as *mut u8;
+    if crate::heap::rc_debug() {
+        let h = unsafe { block::read_header(p) };
+        check(word, h);
+        if block::rc(h) >= 0 {
+            corrupt();
+        }
+    }
+    unsafe { dup_atomic(p) }
+}
+
+/// Drop one reference to the block behind `word`, whose count is atomic
+/// (negative), releasing it when this was the last reference on any
+/// thread. This is the shared path of an inlined drop.
+///
+/// # Safety
+///
+/// `word` is a live block word with a negative count whose reference the
+/// caller owns and does not use again.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_drop_mt(word: i64) {
+    let p = word as usize as *mut u8;
+    if crate::heap::rc_debug() {
+        let h = unsafe { block::read_header(p) };
+        check(word, h);
+        if block::rc(h) >= 0 {
+            corrupt();
+        }
+    }
+    unsafe { drop_atomic(p) }
+}
+
+/// One more reference to the atomic block `p`: the count `-n` becomes
+/// `-(n + 1)`, one less in the whole word (module docs).
+///
+/// # Safety
+///
+/// `p` is a live block with a negative count, one of whose references the
+/// caller holds.
+#[inline]
+unsafe fn dup_atomic(p: *mut u8) {
+    unsafe { block::header_cell(p) }.fetch_sub(1, Ordering::Relaxed);
+}
+
+/// One reference fewer to the atomic block `p`, releasing it when this
+/// was the last.
+///
+/// # Safety
+///
+/// `p` is a live block with a negative count; the caller owns one of its
+/// references and does not use it again.
+#[inline]
+unsafe fn drop_atomic(p: *mut u8) {
+    if unsafe { take_atomic(p) } {
+        unsafe { release(p) }
+    }
+}
+
+/// Drop one reference to the atomic block `p` and report whether it was
+/// the last. When it was, this thread owns `p` alone and its header is a
+/// count of one again, as [`release`] expects of a dying block.
+///
+/// # Safety
+///
+/// As for [`drop_atomic`].
+#[inline]
+unsafe fn take_atomic(p: *mut u8) -> bool {
+    let old = unsafe { block::header_cell(p) }.fetch_add(1, Ordering::Release);
+    if block::rc(old) != -1 {
+        return false;
+    }
+    // Every other thread's last use of `p` was released by its own
+    // decrement; acquire them before reading or freeing the block.
+    fence(Ordering::Acquire);
+    // The add carried out of the count into the kind; restore the header
+    // from the value before it.
+    unsafe { block::write_header(p, block::header(block::RC_FRESH, block::kind(old), block::layout(old))) };
+    true
+}
+
+/// Make every mortal block reachable from `word` atomically counted: the
+/// mark on spawn of design/reclamation.md section 8. The task runtime
+/// calls it on a body closure before the body's thread exists, and the
+/// thread's creation publishes the marks to it. The walk stops at
+/// immortal blocks, which are never counted, and at blocks already
+/// marked, whose reachable blocks are all marked already (module docs).
+///
+/// # Safety
+///
+/// `word` is 0, an immediate, or a live block word, and every block
+/// reachable from it that is not marked is reachable from this thread
+/// only.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
+    if !is_block_word(word) || !unsafe { claim(word) } {
+        return;
+    }
+    let mut cur = word as usize as *mut u8;
+    let mut parent: *mut u8 = std::ptr::null_mut();
+    // The slots of `cur` still to visit, or `None` on a fresh visit.
+    let mut resume: Option<usize> = None;
+    loop {
+        let scan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        let mut next = resume.take().unwrap_or_else(|| scan.words());
+        let mut child: Option<*mut u8> = None;
+        while let Some((at, _)) = scan.counted_below(next) {
+            next = at;
+            let slot = unsafe { cur.cast::<i64>().add(at) };
+            let w = unsafe { slot.read() };
+            if is_block_word(w) && unsafe { claim(w) } {
+                unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
+                child = Some(w as usize as *mut u8);
+                break;
+            }
+        }
+        if let Some(c) = child {
+            parent = cur;
+            cur = c;
+            continue;
+        }
+        if parent.is_null() {
+            return;
+        }
+        // Return to the parent: restore the reversed slot to the block
+        // just finished and resume below it.
+        let done = cur;
+        cur = parent;
+        let pscan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        let mut at = pscan.words();
+        let link = loop {
+            let Some((slot, _)) = pscan.counted_below(at) else {
+                corrupt();
+            };
+            at = slot;
+            let w = unsafe { cur.cast::<i64>().add(at).read() };
+            if w & 3 == MARK_LINK {
+                break w;
+            }
+        };
+        unsafe { cur.cast::<i64>().add(at).write(done as usize as i64) };
+        parent = (link & !3) as usize as *mut u8;
+        resume = Some(at);
+    }
+}
+
+/// [`cinch_mark_mt`] of an array block in time linear in its length:
+/// claim the array, then mark each counted element as its own root. The
+/// general walk would pay for every return to the array by rescanning its
+/// slots from the top (module docs, Marking), which is quadratic in the
+/// element count. The marked set ends the same.
+///
+/// # Safety
+///
+/// As for [`cinch_mark_mt`]; `word` is 0 or an array block word.
+pub(crate) unsafe fn mark_mt_array(word: i64) {
+    if !is_block_word(word) || !unsafe { claim(word) } {
+        return;
+    }
+    let p = word as usize as *const u8;
+    let scan = unsafe { Scan::of(p, block::read_header(p)) };
+    let mut at = scan.words();
+    while let Some((slot, _)) = scan.counted_below(at) {
+        at = slot;
+        unsafe { cinch_mark_mt(p.cast::<i64>().add(slot).read()) };
+    }
+}
+
+/// Mark the block behind the block word `word` when it is mortal and not
+/// marked yet: negate its count. Returns whether it was marked now, so
+/// that its children still need visiting.
+///
+/// # Safety
+///
+/// `word` is a live block word; when its count is positive, only this
+/// thread can reach it.
+#[inline]
+unsafe fn claim(word: i64) -> bool {
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    if crate::heap::rc_debug() {
+        check(word, h);
+    } else if !live_kind(block::kind(h)) {
+        corrupt();
+    }
+    let n = block::rc(h);
+    if n <= 0 || matches!(n, block::RC_FRAME | block::RC_FRAME_RELEASED) {
+        // Immortal (a static, an interned cell) or a frame block: neither
+        // is counted, so a task body that reaches one never marks it. A
+        // released frame block's field is its marker, not a count to negate.
+        return false;
+    }
+    #[cfg(test)]
+    if block::kind(h) == block::KIND_ARRAY {
+        crate::cycle::retire_array(p as usize);
+    }
+    unsafe { block::write_header(p, block::header(-n, block::kind(h), block::layout(h))) };
+    true
+}
+
+/// Whether payload word `slot` of the constructor block behind `word` is
+/// counted: its pointer map scans it (`Obj` or `TObj`).
+///
+/// # Safety
+///
+/// `word` is a live constructor block word with more than `slot` fields.
+pub(crate) unsafe fn field_counted(word: i64, slot: usize) -> bool {
+    let p = word as usize as *const u8;
+    unsafe { Scan::of(p, block::read_header(p)) }.code(slot) != SCAN_RAW
+}
+
+/// Move field `slot` out of the owned constructor block behind `word`
+/// and drop the block: the caller receives the field's reference. A
+/// unique block gives its field up without count traffic; a shared one
+/// keeps its own, so the field is dupped first.
+///
+/// # Safety
+///
+/// `word` is a live constructor block word with more than `slot` fields,
+/// whose reference the caller owns and does not use again.
+pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
+    let p = word as usize as *mut u8;
+    let h = unsafe { block::read_header(p) };
+    if crate::heap::rc_debug() {
+        check(word, h);
+    }
+    let at = unsafe { p.cast::<i64>().add(slot) };
+    let field = unsafe { at.read() };
+    if block::rc(h) == block::RC_FRESH {
+        // Only the caller can reach the block: the slot gives its
+        // reference up, and 0 is a word the release skips.
+        unsafe {
+            at.write(0);
+            release(p);
+        }
+    } else {
+        if unsafe { field_counted(word, slot) } {
+            unsafe { cinch_dup(field) };
+        }
+        unsafe { cinch_drop(word) };
+    }
+    field
+}
+
+/// The iterative release (module docs): free `root` and every block only
+/// it kept alive, children before parents, slots in reverse order.
+///
+/// The walk reads the debug setting, the layout table and the calling
+/// thread's small heap once, not once per block, and visits only the
+/// counted slots of each block ([`Scan::counted_below`]).
+///
+/// # Safety
+///
+/// `root` is a live mortal block whose last reference the caller holds.
+unsafe fn release(root: *mut u8) {
+    let debug = crate::heap::rc_debug();
+    let local = crate::small::local();
+    let mut cur = root;
+    let mut parent: *mut u8 = std::ptr::null_mut();
+    // The slots of `cur` still to visit, or `None` on a fresh visit.
+    let mut resume: Option<usize> = None;
+    loop {
+        let h = unsafe { block::read_header(cur) };
+        if !live_kind(block::kind(h)) {
+            corrupt();
+        }
+        let scan = unsafe { Scan::of(cur, h) };
+        let mut next = resume.take().unwrap_or_else(|| scan.words());
+        let mut child: Option<*mut u8> = None;
+        while let Some((at, code)) = scan.counted_below(next) {
+            next = at;
+            let slot = unsafe { cur.cast::<i64>().add(at) };
+            let w = unsafe { slot.read() };
+            if !is_block_word(w) {
+                // An `Obj` slot never holds an immediate.
+                if debug && code == SCAN_OBJ && w & 1 != 0 {
+                    corrupt();
+                }
+                continue;
+            }
+            let c = w as usize as *mut u8;
+            let ch = unsafe { block::read_header(c) };
+            if debug {
+                check(w, ch);
+            }
+            let dies = match block::rc(ch) {
+                block::RC_IMMORTAL => false,
+                // A frame block is never freed by a release: its activation
+                // owns the memory, and `cinch_frame_release` owns its
+                // payload. The walk leaves both markers alone rather than
+                // decrementing one, which is not a count.
+                block::RC_FRAME | block::RC_FRAME_RELEASED => false,
+                block::RC_FRESH => true,
+                n if n > 1 => {
+                    unsafe { block::write_header(c, block::header(n - 1, block::kind(ch), block::layout(ch))) };
+                    false
+                }
+                // Shared with other threads: whichever drop takes the last
+                // reference frees it, here or there.
+                _ => unsafe { take_atomic(c) },
+            };
+            if dies {
+                // `c` dies: park `cur` (its cursor in its count field, its
+                // parent in the vacated slot) and descend.
+                unsafe {
+                    block::write_header(cur, block::header(at as i64, block::kind(h), block::layout(h)));
+                    slot.write(parent as usize as i64);
+                }
+                child = Some(c);
+                break;
+            }
+        }
+        if let Some(c) = child {
+            parent = cur;
+            cur = c;
+            continue;
+        }
+        unsafe { dispose(cur, h, debug, local) };
+        if parent.is_null() {
+            return;
+        }
+        // Return to the parent: its cursor names the slot holding its own
+        // parent link.
+        cur = parent;
+        let ph = unsafe { block::read_header(cur) };
+        let at = block::rc(ph) as usize;
+        parent = unsafe { cur.cast::<i64>().add(at).read() } as usize as *mut u8;
+        resume = Some(at);
+    }
+}
+
+/// Free the dead block `p` (header `h`, its kind intact) after releasing
+/// what its runtime box owns outside the block.
+///
+/// # Safety
+///
+/// `p` is a dead heap block whose children have been released; `debug`
+/// and `local` are as [`block::free_in`] takes them.
+#[inline]
+unsafe fn dispose(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
+    #[cfg(test)]
+    FREE_LOG.with(|log| {
+        if let Some(v) = log.borrow_mut().as_mut() {
+            v.push(p as usize);
+        }
+    });
+    unsafe {
+        crate::abi::drop_box_payload(p, block::kind(h));
+        block::free_in(p, h, debug, local);
+    }
+}
+
+/// Dispose a test collector's unreachable block after every counted pointer edge was detached.
+///
+/// # Safety
+/// The block has no external owner, no later access is possible, and its original
+/// header is intact; outgoing live edges have already been released exactly once.
+#[cfg(test)]
+pub(crate) unsafe fn dispose_detached(p: *mut u8, h: u64) {
+    unsafe { dispose(p, h, crate::heap::rc_debug(), crate::small::local()) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The blocks this thread's releases freed, in order, while a test
+    /// records them.
+    static FREE_LOG: std::cell::RefCell<Option<Vec<usize>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The leak check at program exit: under `CINCH_LEAK_CHECK=1`, write
+/// `cinch-leak: live=<n> immortal=<n> leaked=<n>` to stderr, where
+/// `leaked` is the live header blocks that are not immortal, and return
+/// [`crate::abi::EXIT_LEAK`] when it is not zero. Otherwise `code`, the
+/// program's own exit word, is returned unchanged. The generated entry
+/// glue calls it after `main` returns, so a fault keeps its own exit code.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_exit_check(code: i64) -> i64 {
+    if !crate::heap::leak_check() {
+        return code;
+    }
+    let (_, _, immortal, _) = crate::heap::block_stats();
+    let live = crate::heap::live_blocks();
+    let leaked = live.saturating_sub(immortal);
+    crate::heap::write_leak_report(live, immortal, leaked);
+    if leaked == 0 {
+        code
+    } else {
+        i64::from(crate::abi::EXIT_LEAK)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::block::test_shapes::*;
+    use crate::block::{allocate_described, read_header, KIND_CLOSURE, KIND_CTOR, KIND_DICT};
+
+    /// A constructor block of description `description` (a test shape)
+    /// holding `fields`.
+    fn ctor(description: u64, fields: &[i64]) -> i64 {
+        let p = unsafe { allocate_described(fields.len() * 8, KIND_CTOR, description, false) }.cast::<i64>();
+        for (i, f) in fields.iter().enumerate() {
+            unsafe { p.add(i).write(*f) };
+        }
+        p as usize as i64
+    }
+
+    fn rc_of(word: i64) -> i64 {
+        block::rc(unsafe { read_header(word as usize as *const u8) })
+    }
+
+    /// Run `f` recording the blocks its releases free on this thread.
+    fn freed_by(f: impl FnOnce()) -> Vec<usize> {
+        FREE_LOG.with(|l| *l.borrow_mut() = Some(Vec::new()));
+        f();
+        FREE_LOG.with(|l| l.borrow_mut().take().unwrap())
+    }
+
+    /// A static immortal block, like the code generator's `.blk`.
+    fn immortal_nil() -> i64 {
+        static IMMORTAL_NIL: [u64; 2] = [block::static_header(block::KIND_CTOR, field_of(NIL)), 0];
+        IMMORTAL_NIL.as_ptr().wrapping_add(1) as usize as i64
+    }
+
+    #[test]
+    fn a_million_cell_list_releases_in_constant_stack() {
+        const N: usize = 1_000_000;
+        // The list is 24 MB: keep the live-bytes measurement of
+        // `abi::tests` from seeing it.
+        let _heavy = crate::heap::TEST_HEAVY.lock().unwrap_or_else(|e| e.into_inner());
+        // A small stack: any recursion per cell would overflow it.
+        let handle = std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(|| {
+                let mut xs = immortal_nil();
+                for i in 0..N {
+                    xs = ctor(CONS_T, &[((i as i64) << 1) | 1, xs]);
+                }
+                let freed = freed_by(|| unsafe { cinch_drop(xs) });
+                freed.len()
+            })
+            .expect("spawn");
+        assert_eq!(handle.join().expect("release thread"), N);
+    }
+
+    #[test]
+    fn shared_substructure_is_freed_exactly_once() {
+        let shared = ctor(CONS_T, &[(7 << 1) | 1, immortal_nil()]);
+        let a = ctor(PAIR_RO, &[123, shared]);
+        unsafe { cinch_dup(shared) };
+        let b = ctor(PAIR_RO, &[456, shared]);
+        assert_eq!(rc_of(shared), 2);
+        let first = freed_by(|| unsafe { cinch_drop(a) });
+        assert_eq!(first, vec![a as usize], "the shared tail survives the first owner");
+        assert_eq!(rc_of(shared), 1);
+        let second = freed_by(|| unsafe { cinch_drop(b) });
+        assert_eq!(second, vec![shared as usize, b as usize]);
+    }
+
+    #[test]
+    fn children_are_released_in_reverse_slot_order_before_their_parent() {
+        let leaves: Vec<i64> = (0..4).map(|_| ctor(NIL, &[])).collect();
+        // The third child has its own child, freed before it.
+        let inner = ctor(CONS_O, &[ctor(NIL, &[]), immortal_nil()]);
+        let grand = unsafe { (inner as usize as *const i64).read() };
+        let quad = ctor(QUAD, &[leaves[0], leaves[1], inner, leaves[3]]);
+        let order = freed_by(|| unsafe { cinch_drop(quad) });
+        let want: Vec<usize> = [leaves[3], grand, inner, leaves[1], leaves[0], quad].iter().map(|w| *w as usize).collect();
+        assert_eq!(order, want);
+        // `leaves[2]` was never referenced: release one by itself.
+        assert_eq!(freed_by(|| unsafe { cinch_drop(leaves[2]) }), vec![leaves[2] as usize]);
+    }
+
+    #[test]
+    fn tobj_immediates_are_skipped_and_boxed_numbers_freed() {
+        let digits = b"340282366920938463463374607431768211456";
+        let big = unsafe { crate::abi::cinch_nat_from_decimal(digits.as_ptr(), digits.len()) };
+        assert!(is_block_word(big));
+        let small = unsafe { crate::abi::cinch_nat_from_i64(41) };
+        assert!(!is_block_word(small));
+        let tail = ctor(CONS_T, &[small, immortal_nil()]);
+        let xs = ctor(CONS_T, &[big, tail]);
+        let freed = freed_by(|| unsafe { cinch_drop(xs) });
+        assert_eq!(freed, vec![tail as usize, big as usize, xs as usize]);
+    }
+
+    #[test]
+    fn raw_slots_are_never_touched() {
+        // An even raw word that is not a block: dereferencing it would
+        // crash.
+        let xs = ctor(PAIR_RO, &[0x10, immortal_nil()]);
+        assert_eq!(freed_by(|| unsafe { cinch_drop(xs) }), vec![xs as usize]);
+    }
+
+    #[test]
+    fn counts_above_one_only_decrement() {
+        let xs = ctor(CONS_T, &[3, immortal_nil()]);
+        unsafe {
+            cinch_dup(xs);
+            cinch_dup(xs);
+        }
+        assert_eq!(rc_of(xs), 3);
+        assert!(freed_by(|| unsafe { cinch_drop(xs) }).is_empty());
+        assert!(freed_by(|| unsafe { cinch_drop(xs) }).is_empty());
+        assert_eq!(rc_of(xs), 1);
+        assert_eq!(freed_by(|| unsafe { cinch_drop_slow(xs) }), vec![xs as usize]);
+        // Immediates, null and immortal blocks are ignored.
+        unsafe {
+            cinch_dup(0);
+            cinch_drop(0);
+            cinch_dup(0x2b);
+            cinch_drop(0x2b);
+            cinch_dup(immortal_nil());
+            cinch_drop(immortal_nil());
+        }
+        assert_eq!(rc_of(immortal_nil()), 0);
+    }
+
+    #[test]
+    fn closures_scan_their_filled_slots_by_shape() {
+        crate::block::install_test_layouts();
+        let obj = ctor(NIL, &[]);
+        let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
+        // Two of three parameters filled: the raw third slot is not there.
+        let clo = unsafe { allocate_described(5 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
+        unsafe {
+            clo.write(0x1000);
+            clo.add(1).write(3);
+            clo.add(2).write(2);
+            clo.add(3).write(obj);
+            clo.add(4).write(boxed);
+        }
+        let w = clo as usize as i64;
+        let freed = freed_by(|| unsafe { cinch_drop(w) });
+        assert_eq!(freed, vec![boxed as usize, obj as usize, w as usize]);
+    }
+
+    #[test]
+    fn dictionaries_scan_closure_methods_but_not_value_methods() {
+        crate::block::install_test_layouts();
+        let method = ctor(NIL, &[]);
+        let dict = unsafe { allocate_described(3 * 8, KIND_DICT, DICT_OR, false) }.cast::<i64>();
+        unsafe {
+            dict.write(2);
+            dict.add(1).write(method);
+            dict.add(2).write(0x40);
+        }
+        let w = dict as usize as i64;
+        assert_eq!(freed_by(|| unsafe { cinch_drop(w) }), vec![method as usize, w as usize]);
+    }
+
+    #[test]
+    fn wide_constructors_read_their_map_extension() {
+        let mut fields = Vec::new();
+        let mut want = Vec::new();
+        for w in 0..WIDE_WORDS {
+            match wide_code(w) {
+                block::SCAN_OBJ => {
+                    let c = ctor(NIL, &[]);
+                    want.push(c as usize);
+                    fields.push(c);
+                }
+                block::SCAN_TOBJ => fields.push(((w as i64) << 1) | 1),
+                // An even raw word: touching it would crash.
+                _ => fields.push(0x10),
+            }
+        }
+        let wide = ctor(wide(), &fields);
+        want.reverse();
+        want.push(wide as usize);
+        assert_eq!(freed_by(|| unsafe { cinch_drop(wide) }), want);
+    }
+
+    #[test]
+    fn memo_cells_scan_the_owned_slot_and_skip_the_untyped_value() {
+        let thunk = ctor(NIL, &[]);
+        let cell = unsafe { crate::abi::cinch_alloc(24, i64::from(block::KIND_MEMO)) };
+        let p = cell as usize as *mut i64;
+        unsafe {
+            p.write(0);
+            p.add(1).write(thunk);
+            p.add(2).write(0x10);
+        }
+        assert_eq!(freed_by(|| unsafe { cinch_drop(cell) }), vec![thunk as usize, cell as usize]);
+
+        let value = ctor(NIL, &[]);
+        let cell = unsafe { crate::abi::cinch_alloc(24, i64::from(block::KIND_MEMO)) };
+        let p = cell as usize as *mut i64;
+        unsafe {
+            p.write(2);
+            p.add(1).write(value);
+            p.add(2).write(value);
+        }
+        assert_eq!(freed_by(|| unsafe { cinch_drop(cell) }), vec![value as usize, cell as usize]);
+    }
+
+    #[test]
+    fn debug_mode_poisons_and_quarantines_freed_blocks() {
+        crate::heap::FORCE_RC_DEBUG.with(|d| d.set(true));
+        let xs = ctor(CONS_T, &[5, immortal_nil()]);
+        unsafe { cinch_drop(xs) };
+        let h = unsafe { read_header(xs as usize as *const u8) };
+        assert_eq!(block::kind(h), block::KIND_FREED);
+        let p = xs as usize as *const u64;
+        assert_eq!(unsafe { [p.read(), p.add(1).read()] }, [block::POISON; 2]);
+        crate::heap::FORCE_RC_DEBUG.with(|d| d.set(false));
+    }
+
+    #[test]
+    fn an_empty_mask_scans_nothing() {
+        // No counted field: the words are raw, and touching one would crash.
+        let w = ctor(crate::block::inline_description(crate::block::shape_field(2, 0)), &[0x10, 0x20]);
+        assert_eq!(freed_by(|| unsafe { cinch_drop(w) }), vec![w as usize]);
+    }
+
+    /// The first `n` payload words of the block behind `w`.
+    fn words_of(w: i64, n: usize) -> Vec<i64> {
+        (0..n).map(|i| unsafe { (w as usize as *const i64).add(i).read() }).collect()
+    }
+
+    #[test]
+    fn concurrent_counts_on_one_marked_block_end_exact_and_free_once() {
+        // Eight threads hammer one marked cell, each round four
+        // read-modify-writes of the same header word, through both the
+        // generic and the `_mt` entry points, under the debug checks (a
+        // count that reached zero early would free the cell, and the next
+        // operation on it would trap). 8 x 200,000 rounds is 6.4 million
+        // contended updates of one cache line: a plain load and store in
+        // place of the atomics loses updates within the first few
+        // thousand, so a wrong count shows in every run.
+        const THREADS: usize = 8;
+        const ROUNDS: usize = 200_000;
+        let leaf = ctor(NIL, &[]);
+        let xs = ctor(CONS_O, &[leaf, immortal_nil()]);
+        unsafe { cinch_mark_mt(xs) };
+        assert_eq!((rc_of(xs), rc_of(leaf)), (-1, -1));
+        let race = |last: bool| -> Vec<usize> {
+            // One reference per thread, taken before the threads start,
+            // as a spawn hands its body over.
+            for _ in 0..THREADS {
+                unsafe { cinch_dup(xs) };
+            }
+            let start = std::sync::Arc::new(std::sync::Barrier::new(THREADS + 1));
+            let threads: Vec<_> = (0..THREADS)
+                .map(|t| {
+                    let start = std::sync::Arc::clone(&start);
+                    std::thread::spawn(move || {
+                        crate::heap::FORCE_RC_DEBUG.with(|d| d.set(true));
+                        start.wait();
+                        for r in 0..ROUNDS {
+                            unsafe {
+                                if (r + t) % 2 == 0 {
+                                    cinch_dup(xs);
+                                    cinch_dup(xs);
+                                    cinch_drop(xs);
+                                    cinch_drop(xs);
+                                } else {
+                                    cinch_dup_mt(xs);
+                                    cinch_drop_mt(xs);
+                                    cinch_dup_mt(xs);
+                                    cinch_drop_mt(xs);
+                                }
+                            }
+                        }
+                        freed_by(|| unsafe { cinch_drop(xs) })
+                    })
+                })
+                .collect();
+            crate::heap::FORCE_RC_DEBUG.with(|d| d.set(true));
+            start.wait();
+            // The last round also drops this thread's own reference while
+            // the others still run, so any of the nine may free the cell.
+            let mut freed = if last { freed_by(|| unsafe { cinch_drop(xs) }) } else { Vec::new() };
+            for t in threads {
+                freed.extend(t.join().expect("count thread"));
+            }
+            crate::heap::FORCE_RC_DEBUG.with(|d| d.set(false));
+            freed
+        };
+        // Every thread's operations balance: the count ends exactly where
+        // it started and nothing is freed.
+        assert!(race(false).is_empty());
+        assert_eq!((rc_of(xs), rc_of(leaf)), (-1, -1));
+        // Whichever thread drops last frees the cell and its child, once.
+        let mut freed = race(true);
+        freed.sort_unstable();
+        let mut want = vec![xs as usize, leaf as usize];
+        want.sort_unstable();
+        assert_eq!(freed, want);
+        for w in [xs, leaf] {
+            assert_eq!(block::kind(unsafe { read_header(w as usize as *const u8) }), block::KIND_FREED);
+        }
+    }
+
+    #[test]
+    fn marking_stops_at_immortal_blocks() {
+        // An immortal block (count 0) holding a mortal one, so the walk
+        // could reach the mortal block only through it.
+        let behind = ctor(NIL, &[]);
+        let mut cell = [block::static_header(block::KIND_CTOR, field_of(CONS_O)), behind as u64, immortal_nil() as u64];
+        let imm = cell.as_mut_ptr().wrapping_add(1) as usize as i64;
+        let xs = ctor(CONS_O, &[imm, immortal_nil()]);
+        unsafe { cinch_mark_mt(xs) };
+        assert_eq!(rc_of(xs), -1);
+        assert_eq!((rc_of(imm), rc_of(immortal_nil())), (0, 0));
+        assert_eq!(rc_of(behind), 1, "the walk does not pass through an immortal block");
+        // An immortal root, an immediate and 0 mark nothing.
+        unsafe {
+            cinch_mark_mt(imm);
+            cinch_mark_mt(0x2b);
+            cinch_mark_mt(0);
+        }
+        assert_eq!(rc_of(behind), 1);
+        assert_eq!(words_of(xs, 2), vec![imm, immortal_nil()]);
+        assert_eq!(freed_by(|| unsafe { cinch_drop(xs) }), vec![xs as usize]);
+        assert_eq!(freed_by(|| unsafe { cinch_drop(behind) }), vec![behind as usize]);
+    }
+
+    #[test]
+    fn a_marked_subgraph_mixes_with_unmarked_blocks() {
+        // `body` stands for a task body: marking it marks `shared`.
+        let tail = ctor(CONS_T, &[(1 << 1) | 1, immortal_nil()]);
+        let shared = ctor(CONS_T, &[(2 << 1) | 1, tail]);
+        let body = ctor(CONS_O, &[shared, immortal_nil()]);
+        unsafe { cinch_mark_mt(body) };
+        assert_eq!((rc_of(body), rc_of(shared), rc_of(tail)), (-1, -1, -1));
+        // Blocks built after the spawn are unmarked, and point into it.
+        unsafe { cinch_dup(shared) };
+        let plain = ctor(PAIR_RO, &[7, shared]);
+        unsafe { cinch_dup(shared) };
+        let leaf = ctor(NIL, &[]);
+        let last = ctor(NIL, &[]);
+        let fresh = ctor(QUAD, &[leaf, shared, immortal_nil(), last]);
+        assert_eq!((rc_of(plain), rc_of(fresh), rc_of(shared)), (1, 1, -3));
+        // An unmarked block releases with plain counts and decrements its
+        // marked child atomically.
+        assert_eq!(freed_by(|| unsafe { cinch_drop(plain) }), vec![plain as usize]);
+        assert_eq!(rc_of(shared), -2);
+        // A second spawn marks what is new and stops at the marked
+        // subgraph, whose count is not negated twice; every reversed slot
+        // is back as it was.
+        let root = ctor(CONS_O, &[fresh, immortal_nil()]);
+        let before = words_of(fresh, 4);
+        unsafe { cinch_mark_mt(root) };
+        assert_eq!(words_of(fresh, 4), before);
+        assert_eq!(words_of(root, 2), vec![fresh, immortal_nil()]);
+        assert_eq!((rc_of(root), rc_of(fresh), rc_of(leaf), rc_of(last)), (-1, -1, -1, -1));
+        assert_eq!((rc_of(shared), rc_of(tail)), (-2, -1));
+        // The first body dies alone: `shared` is still held.
+        assert_eq!(freed_by(|| unsafe { cinch_drop_mt(body) }), vec![body as usize]);
+        assert_eq!(rc_of(shared), -1);
+        // The second takes everything left, children in reverse slot
+        // order before their parents, atomic counts reaching zero as they
+        // go.
+        let order = freed_by(|| unsafe { cinch_drop(root) });
+        let want: Vec<usize> = [last, tail, shared, leaf, fresh, root].iter().map(|w| *w as usize).collect();
+        assert_eq!(order, want);
+    }
+
+    #[test]
+    fn marking_visits_a_shared_child_once_and_reads_closures_by_shape() {
+        crate::block::install_test_layouts();
+        let shared = ctor(NIL, &[]);
+        unsafe { cinch_dup(shared) };
+        let other = ctor(NIL, &[]);
+        let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
+        // Three filled parameters `(Obj, TObj, Raw)`: the raw word is an
+        // even non-pointer that must not be read as a block.
+        let clo = unsafe { allocate_described(6 * 8, KIND_CLOSURE, CLOSURE_OTR, false) }.cast::<i64>();
+        unsafe {
+            clo.write(0x1000);
+            clo.add(1).write(3);
+            clo.add(2).write(3);
+            clo.add(3).write(other);
+            clo.add(4).write(boxed);
+            clo.add(5).write(0x10);
+        }
+        let clo = clo as usize as i64;
+        let quad = ctor(QUAD, &[shared, clo, shared, immortal_nil()]);
+        let before = words_of(clo, 6);
+        unsafe { cinch_mark_mt(quad) };
+        assert_eq!(words_of(clo, 6), before);
+        assert_eq!(words_of(quad, 4), vec![shared, clo, shared, immortal_nil()]);
+        assert_eq!(rc_of(shared), -2, "a shared child is marked once");
+        assert_eq!((rc_of(quad), rc_of(clo), rc_of(other), rc_of(boxed)), (-1, -1, -1, -1));
+        let order = freed_by(|| unsafe { cinch_drop(quad) });
+        let want: Vec<usize> = [boxed, other, clo, shared, quad].iter().map(|w| *w as usize).collect();
+        assert_eq!(order, want);
+    }
+
+    #[test]
+    fn a_million_cell_list_marks_in_constant_stack_and_keeps_its_words() {
+        const N: usize = 1_000_000;
+        let _heavy = crate::heap::TEST_HEAVY.lock().unwrap_or_else(|e| e.into_inner());
+        let handle = std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(|| {
+                let mut xs = immortal_nil();
+                for i in 0..N {
+                    xs = ctor(CONS_T, &[((i as i64) << 1) | 1, xs]);
+                }
+                unsafe { cinch_mark_mt(xs) };
+                // Every cell is marked once and the spine is intact.
+                let (mut cell, mut i) = (xs, N);
+                while cell != immortal_nil() {
+                    i -= 1;
+                    assert_eq!(rc_of(cell), -1);
+                    let w = words_of(cell, 2);
+                    assert_eq!(w[0], ((i as i64) << 1) | 1);
+                    cell = w[1];
+                }
+                assert_eq!(i, 0);
+                // A marked list releases through the atomic path.
+                freed_by(|| unsafe { cinch_drop(xs) }).len()
+            })
+            .expect("spawn");
+        assert_eq!(handle.join().expect("mark thread"), N);
+    }
+    /// A frame slot: the header word, then the payload, aligned the way
+    /// `seed/src/codegen.rs` aligns one.
+    #[repr(align(16))]
+    struct Slot([u64; 8]);
+
+    /// A frame block whose payload words are `payload` and whose header
+    /// layout is `layout`.
+    fn frame_slot(layout: u32, payload: &[i64]) -> Slot {
+        let mut slot = Slot([0; 8]);
+        slot.0[0] = block::header(block::RC_FRAME, block::KIND_CTOR, layout);
+        for (i, w) in payload.iter().enumerate() {
+            slot.0[1 + i] = *w as u64;
+        }
+        slot
+    }
+
+    /// The block word of a frame slot's payload.
+    fn word_of(slot: &Slot) -> i64 {
+        slot.0[1..].as_ptr() as usize as i64
+    }
+
+    #[test]
+    fn a_frame_block_is_released_once_and_never_freed() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
+        let w = word_of(&slot);
+        unsafe {
+            cinch_dup(w);
+            cinch_dup(w);
+        }
+        assert_eq!(rc_of(w), block::RC_FRAME, "a frame block is never counted");
+        // The first drop releases the payload: the child dies, the frame
+        // block itself stays (its memory is the activation's) and its header
+        // says the payload is released.
+        assert_eq!(freed_by(|| unsafe { cinch_drop(w) }), vec![child as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED, "the marker is the header's count field");
+        // A second drop finds the marker: no second release of the payload
+        // and no free of the block.
+        assert!(freed_by(|| unsafe { cinch_drop(w) }).is_empty());
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // The direct entry point is the same rule, from either state.
+        assert!(freed_by(|| unsafe { cinch_frame_release(w) }).is_empty());
+        // `cinch_free` is the raw release of a drop specialisation; a frame
+        // block never goes through it to the allocator.
+        unsafe { crate::abi::cinch_free(w) };
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // A spawn's mark stops at a frame block instead of negating it,
+        // released or not.
+        unsafe { cinch_mark_mt(w) };
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        // The kind and layout survive the marker, so a case still reads the
+        // tag and the payload's map still describes the payload.
+        let p = w as usize as *const u8;
+        let h = unsafe { block::read_header(p) };
+        assert_eq!((block::kind(h), block::layout(h)), (block::KIND_CTOR, field_of(CONS_O)));
+        assert_eq!(unsafe { crate::block::ctor_tag_of(p) }, block::shape_field_tag(field_of(CONS_O)));
+    }
+
+    #[test]
+    fn a_frame_release_walks_every_counted_child_in_reverse() {
+        crate::block::install_test_layouts();
+        // `QUAD` has four counted words, so the walk has an order to get
+        // wrong: reverse payload order.
+        let (a, b, c, d) = (ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]), ctor(NIL, &[]));
+        let slot = frame_slot(field_of(QUAD), &[a, b, c, d]);
+        let w = word_of(&slot);
+        let freed = freed_by(|| unsafe { cinch_frame_release(w) });
+        assert_eq!(freed, vec![d as usize, c as usize, b as usize, a as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+    }
+
+    #[test]
+    fn a_frame_block_stored_in_a_frame_block_is_released_once() {
+        crate::block::install_test_layouts();
+        // The parent is a frame block of `{raw; obj}`, the store the pass
+        // admits once the parent is itself frame-bound. The parent's release
+        // drops the child, whose own release drops its payload, and neither
+        // block is freed.
+        let leaf = ctor(NIL, &[]);
+        let inner = frame_slot(field_of(CONS_O), &[leaf, 0]);
+        let inner_w = word_of(&inner);
+        let outer = frame_slot(field_of(PAIR_RO), &[0, inner_w]);
+        let outer_w = word_of(&outer);
+        let freed = freed_by(|| unsafe { cinch_frame_release(outer_w) });
+        assert_eq!(freed, vec![leaf as usize]);
+        assert_eq!(rc_of(outer_w), block::RC_FRAME_RELEASED);
+        assert_eq!(rc_of(inner_w), block::RC_FRAME_RELEASED);
+        assert!(!freed.contains(&(inner_w as usize)) && !freed.contains(&(outer_w as usize)));
+    }
+
+    #[test]
+    fn a_frame_block_child_survives_a_heap_parent_release() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
+        let w = word_of(&slot);
+        // A heap cell holding the frame block: releasing the parent leaves
+        // the frame block (and its payload) to the activation, because the
+        // heap block can outlive the frame. The pass refuses that store.
+        let parent = ctor(CONS_O, &[w, immortal_nil()]);
+        let freed = freed_by(|| {
+            unsafe { cinch_drop(parent) };
+        });
+        assert_eq!(freed, vec![parent as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME);
+        assert_eq!(rc_of(child), 1);
+    }
+
+    #[test]
+    fn a_frame_block_never_reaches_the_allocator_through_a_release() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_slot(field_of(CONS_O), &[child, 0]);
+        let w = word_of(&slot);
+        // `cinch_drop_slow` ends in the allocator for a heap block; a frame
+        // block that arrives there (a module with no frame arm, so a
+        // compiler bug) releases the payload and returns instead of freeing
+        // memory the stack owns.
+        assert_eq!(freed_by(|| unsafe { cinch_drop_slow(w) }), vec![child as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
+        assert!(freed_by(|| unsafe { cinch_drop_slow(w) }).is_empty());
+    }
+
+}

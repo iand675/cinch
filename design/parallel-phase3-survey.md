@@ -93,7 +93,7 @@ phase's acceptance names.
 Both are surmountable. The third obstacle is not:
 
 **`Store` is not `Share`.** Probed inside the real ladder bundle (all 41
-`bootstrap/*.cinch` modules plus the five `Text.*` toolkit modules, with only
+`compiler/*.cinch` modules plus the five `Text.*` toolkit modules, with only
 the library interfaces loaded, which is the configuration the self-build
 actually uses):
 
@@ -169,7 +169,7 @@ reasons inside their own declarations, and that is the real blocker.
 `parMap` lowers through `Data.Array`'s `array-from-list` and `array-to-list`
 (`Bootstrap.Infer.par-map-array-call`), and `Data.Array` is a source module,
 not part of the embedded base package. `collect_compiler_sources` bundles the
-41 `bootstrap/*.cinch` modules and the five `Text.*` toolkit modules and
+41 `compiler/*.cinch` modules and the five `Text.*` toolkit modules and
 nothing else, so a `parMap` anywhere in the compiler fails at resolve:
 
 ```text
@@ -183,7 +183,7 @@ wants, is a prerequisite for using `parMap` over the module or definition
 list.
 
 Also recorded: **`parSetWorkers` is not a source builtin.** It exists in the
-runtime (`compiler/runtime/src/par.rs`) and is named in the design note, but
+runtime (`seed/runtime/src/par.rs`) and is named in the design note, but
 `Bootstrap.Builtin`'s `builtin-bindings` does not install it, so a
 `--par-eval N` flag written in Cinch would have to set the budget through
 `CINCH_THREADS` or have the builtin added (one entry plus its scheme).

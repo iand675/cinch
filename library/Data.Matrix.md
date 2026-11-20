@@ -33,7 +33,7 @@ ragged one (decision D143's surface rule).
 
 The laws the surface must satisfy (the Ruby behaviours pinned in the
 parity note, asserted consumer-side in
-compiler/tests/lib_matrix.rs): `identity n * m == m` for an
+seed/tests/lib_matrix.rs): `identity n * m == m` for an
 n-column m, `(a * b).transpose == b.transpose * a.transpose`,
 `determinant (identity n) == 1`, and a singular matrix has
 determinant 0 within a documented tolerance.
@@ -239,4 +239,4 @@ matrix. An empty row list is the 0x0 matrix.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Matrix.cinch`. Source SHA-256: `415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Matrix.cinch`. Source SHA-256: `415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

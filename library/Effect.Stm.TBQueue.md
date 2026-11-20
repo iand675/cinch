@@ -146,4 +146,4 @@ Append `x`. Waits while the queue is full.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Stm/TBQueue.cinch`. Source SHA-256: `07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TBQueue.cinch`. Source SHA-256: `07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

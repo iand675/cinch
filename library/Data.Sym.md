@@ -92,4 +92,4 @@ once.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Sym.cinch`. Source SHA-256: `60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sym.cinch`. Source SHA-256: `60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

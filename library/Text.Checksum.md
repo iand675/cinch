@@ -167,4 +167,4 @@ Continue a finished CRC-64 with the same reflected polynomial and additional byt
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Checksum.cinch`. Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Checksum.cinch`. Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -6,7 +6,7 @@ This archive contains the current overview and **all 26 pages linked from it**: 
 
 ## Current reader documentation
 
-The Rust Cinch compiler now implements a substantial language. The original export record below describes the October 2026 design archive, including its historical implementation-status wording. For current Rust behaviour, read the [documentation hub](documentation.md), [22-chapter language tutorial](learn/00-tutorial.md), [compiler user's guide](reference/00-guide.md), and [checked library reference](library/00-index.md). Specified work still being built is marked **Coming soon**; open design questions are labelled separately. The site serves these paths at `/documentation/`, `/learn/`, `/reference/`, and `/library/`.
+The Rust seed compiler in `seed/` now implements a substantial language, and the Cinch compiler in `compiler/` is the self-hosted implementation being brought to parity with it. The original export record below describes the October 2026 design archive, including its historical implementation-status wording. For current behaviour, read the [documentation hub](documentation.md), [22-chapter language tutorial](learn/00-tutorial.md), [compiler user's guide](reference/00-guide.md), and [checked library reference](library/00-index.md). Specified work still being built is marked **Coming soon**; open design questions are labelled separately. The site serves these paths at `/documentation/`, `/learn/`, `/reference/`, and `/library/`.
 
 ## Start here
 

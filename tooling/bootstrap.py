@@ -100,8 +100,18 @@ def source_hash(files: dict[str, bytes]) -> str:
 
 NATIVE_BUILD_SCRIPT = "compiler/build.rs"
 NATIVE_GRAMMAR = "tooling/tree-sitter-cinch"
+# The layout the pin's source hash is recorded in. A pinned archive keeps this
+# name; the working tree calls the same sources `seed/`.
+SEED_TREE = "compiler"
+SEED_WORKING_TREE = "seed"
 NATIVE_GRAMMAR_INPUTS = ("grammar.js", "tree-sitter.json", "src/scanner.c")
 NATIVE_GRAMMAR_BINDINGS = ("Cargo.toml", "bindings/rust/build.rs", "bindings/rust/lib.rs")
+
+
+def seed_source_root(directory: Path) -> Path:
+    """The seed source tree inside `directory`, whatever this tree names it."""
+    working = directory / SEED_WORKING_TREE
+    return working if working.is_dir() else directory / SEED_TREE
 
 
 def native_grammar_inputs(repository: Path, revision: str) -> list[str]:
@@ -113,17 +123,19 @@ def native_grammar_inputs(repository: Path, revision: str) -> list[str]:
 
 
 def seed_sources(directory: Path) -> dict[str, bytes]:
+    root = seed_source_root(directory)
     files = {}
-    for part in ("compiler/src", "compiler/prelude", "compiler/runtime/src"):
-        for path in (directory / part).rglob("*"):
+    for part in ("src", "prelude", "runtime/src"):
+        for path in (root / part).rglob("*"):
             if path.is_file():
-                files[str(path.relative_to(directory))] = path.read_bytes()
-    for part in ("compiler/Cargo.toml", "compiler/Cargo.lock", "compiler/.cargo/config.toml",
-                 "compiler/runtime/Cargo.toml", "compiler/runtime/Cargo.lock"):
-        files[part] = (directory / part).read_bytes()
-    if (directory / NATIVE_BUILD_SCRIPT).is_file():
-        files[NATIVE_BUILD_SCRIPT] = (directory / NATIVE_BUILD_SCRIPT).read_bytes()
-        has_binding = (directory / NATIVE_GRAMMAR / "Cargo.toml").is_file()
+                files[f"{SEED_TREE}/{part}/{path.relative_to(root / part).as_posix()}"] = path.read_bytes()
+    for part in ("Cargo.toml", "Cargo.lock", ".cargo/config.toml",
+                 "runtime/Cargo.toml", "runtime/Cargo.lock"):
+        files[f"{SEED_TREE}/{part}"] = (root / part).read_bytes()
+    if (root / "build.rs").is_file():
+        files[NATIVE_BUILD_SCRIPT] = (root / "build.rs").read_bytes()
+        grammar = directory / NATIVE_GRAMMAR
+        has_binding = (grammar / "Cargo.toml").is_file()
         for part in NATIVE_GRAMMAR_INPUTS + (NATIVE_GRAMMAR_BINDINGS if has_binding else ()):
             path = f"{NATIVE_GRAMMAR}/{part}"
             files[path] = (directory / path).read_bytes()
@@ -157,9 +169,13 @@ def native_source_archive(revision: str) -> bytes:
         if not archive.is_file():
             raise BootstrapError(f"CINCH_SOURCE_ARCHIVES has no archive for the pinned revision: {archive}")
         return archive.read_bytes()
-    paths = ["compiler"]
     where = git_root()
-    build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", NATIVE_BUILD_SCRIPT],
+    tree = SEED_TREE
+    if subprocess.run(["git", "ls-tree", "--name-only", revision, "--", SEED_WORKING_TREE],
+                      cwd=where, check=True, stdout=subprocess.PIPE).stdout.strip():
+        tree = SEED_WORKING_TREE
+    paths = [tree]
+    build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", f"{tree}/build.rs"],
                                   cwd=where, check=True, stdout=subprocess.PIPE).stdout
     if build_script:
         paths.extend(native_grammar_inputs(where, revision))
@@ -465,9 +481,9 @@ def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
 
 
 def seed_inputs() -> tuple[dict, bytes]:
-    lock = read_json(ROOT / "bootstrap" / "pins" / "stage0.lock.json")
+    lock = read_json(ROOT / "compiler" / "pins" / "stage0.lock.json")
     if lock.get("schema") != 1:
-        raise BootstrapError("unsupported or missing bootstrap/pins/stage0.lock.json")
+        raise BootstrapError("unsupported or missing compiler/pins/stage0.lock.json")
     patch = (ROOT / lock["patch"]).read_bytes()
     if digest(patch) != lock["patch_sha256"]:
         raise BootstrapError("the stage-0 patch differs from its lock; update the seed intentionally")
@@ -475,7 +491,7 @@ def seed_inputs() -> tuple[dict, bytes]:
 
 
 def library_provider_lock() -> dict:
-    lock = read_json(ROOT / "bootstrap/pins/library-provider.lock.json")
+    lock = read_json(ROOT / "compiler/pins/library-provider.lock.json")
     if not isinstance(lock, dict):
         raise BootstrapError("unsupported or missing library producer lock")
     revision, source = lock.get("revision"), lock.get("source_sha256")
@@ -484,7 +500,7 @@ def library_provider_lock() -> dict:
             or not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
             or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{64}", source)):
         raise BootstrapError("unsupported or missing library producer lock")
-    source_abi = ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch"
+    source_abi = ROOT / "compiler/Bootstrap.RuntimeAbi.cinch"
     if not source_abi.is_file() or source_abi.read_bytes() != runtime_abi_source(lock["runtime_abi"]):
         raise BootstrapError("library producer runtime ABI differs from the compiler's target ABI")
     return lock
@@ -542,7 +558,7 @@ def build_seed() -> Path:
         code = 0
     else:
         code = run(["cargo", "build", "--locked", "--release", "--bin", "cinch",
-                    "--target-dir", target], snapshot / "compiler", log)
+                    "--target-dir", target], seed_source_root(snapshot), log)
         product = target / "release" / "cinch"
     if code == 0 and product.is_file():
         shutil.copy2(product, directory / "cinch")
@@ -557,12 +573,12 @@ def build_seed_runtime() -> Path:
     snapshot = BUILD / "seed-sources" / digest(json.dumps(lock, sort_keys=True).encode())
     if source_hash(seed_sources(snapshot)) != lock["source_sha256"]:
         raise BootstrapError("the seed runtime source differs from the pinned seed")
-    runtime = snapshot / "compiler/runtime"
+    runtime = seed_source_root(snapshot) / "runtime"
     archive = runtime / "target/release/libcinchruntime.a"
     log = BUILD / "stage0/runtime-build.log"
     code = run(["cargo", "build", "--locked", "--release", "--manifest-path",
                 runtime / "Cargo.toml", "--target-dir", runtime / "target"],
-               snapshot / "compiler", log)
+               seed_source_root(snapshot), log)
     if code or not archive.is_file():
         raise BootstrapError(f"the optimized seed runtime did not build: {log}")
     # The pinned Native linker prefers a fresh release archive. Never let a
@@ -691,14 +707,14 @@ def collect_compiler_sources() -> dict[str, bytes]:
     lock = library_provider_lock()
     # Reproduction clients retained next to compiler sources are not compiler
     # modules and must not become aliases or duplicate the pipeline's Main.
-    files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("Bootstrap.*.cinch"))}
+    files = {p.name: p.read_bytes() for p in sorted((ROOT / "compiler").glob("Bootstrap.*.cinch"))}
     files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
     files["Bootstrap.Host.cinch"] = host_source()
     for module in TOOLKIT:
-        files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
+        files[f"Text.{module}.cinch"] = (ROOT / "seed" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     for module in COMPILER_PRELUDE:
-        files[f"{module}.cinch"] = (ROOT / "compiler" / "prelude" / f"{module.replace('.', '/')}.cinch").read_bytes()
-    files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
+        files[f"{module}.cinch"] = (ROOT / "seed" / "prelude" / f"{module.replace('.', '/')}.cinch").read_bytes()
+    files["Main.cinch"] = (ROOT / "compiler" / "programs" / "Run.Pipeline.cinch").read_bytes()
     # Every bundled compiler module participates in the source compilation.
     # Make the seed-built stage check that same complete closure, including
     # modules that the CLI does not call, and publish their real interfaces.
@@ -1026,7 +1042,7 @@ def runtime_archive() -> Path:
     if source_hash(seed_sources(snapshot)) != lock["source_sha256"]:
         raise BootstrapError("the pinned runtime source snapshot changed before linking")
     for profile in ("release", "debug"):
-        archive = snapshot / "compiler/runtime/target" / profile / "libcinchruntime.a"
+        archive = seed_source_root(snapshot) / "runtime/target" / profile / "libcinchruntime.a"
         if archive.is_file():
             return archive
     raise BootstrapError("the verified stage-1 build has no matching pinned runtime archive")
@@ -1308,8 +1324,8 @@ def main() -> int:
                 elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is not None and inputs.get("library_provider") != runtime_provider()["identity"]:
                     status = "different explicit library artifact"
                 elif status == "built" and stage >= 2 and LIBRARY_ARTIFACT is None and (
-                        inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "bootstrap/pins/library-provider.lock.json")
-                        or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "bootstrap/pins/library-object-roots.json")):
+                        inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "compiler/pins/library-provider.lock.json")
+                        or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "compiler/pins/library-object-roots.json")):
                     status = "stale library inputs"
                 elif status == "built" and inputs.get("host") != HOST:
                     status = "different build host"

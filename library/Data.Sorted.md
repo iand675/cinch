@@ -31,7 +31,7 @@ constructor `Sorted xs w` takes the list and its witness (a `Dec
 The instance below is the sorted MERGE, not list append: append of
 two sorted lists is not sorted in general, so the container's `<>`
 does NOT transfer (the preservation law rejects it naming
-`Sorted.preserve-<>`; asserted in compiler/tests/refinements.rs,
+`Sorted.preserve-<>`; asserted in seed/tests/refinements.rs,
 together with the deliberately non-preserving reverse-append).
 
 </details>
@@ -80,4 +80,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Sorted.cinch`. Source SHA-256: `860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sorted.cinch`. Source SHA-256: `860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

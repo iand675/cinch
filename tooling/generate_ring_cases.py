@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / 'compiler/tests/fixtures'
+FIXTURES = ROOT / 'seed/tests/fixtures'
 
 
 def source(index: int, mode: str = 'trace') -> str:

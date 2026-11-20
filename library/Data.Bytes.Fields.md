@@ -246,4 +246,4 @@ Retain a whole fixed buffer in fresh explicit progress without copying it.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Fields.cinch`. Source SHA-256: `1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Fields.cinch`. Source SHA-256: `1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

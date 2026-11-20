@@ -600,13 +600,13 @@ Nothing above proves anything about memory. The checker's obligations are about 
 
 | Question | Decided by | Where |
 | --- | --- | --- |
-| May this value be used here, and how many times? | Usage checker | `compiler/src/check_terms.rs` |
-| Does this borrow outlive its region? | Region escape check | `compiler/src/check.rs` |
-| Where does a retain or a release go? | The `rc` pass over `Core` | `compiler/src/rc.rs` |
-| What does a count word mean? | Runtime header encoding | `compiler/runtime/src/block_kinds.rs` |
+| May this value be used here, and how many times? | Usage checker | `seed/src/check_terms.rs` |
+| Does this borrow outlive its region? | Region escape check | `seed/src/check.rs` |
+| Where does a retain or a release go? | The `rc` pass over `Core` | `seed/src/rc.rs` |
+| What does a count word mean? | Runtime header encoding | `seed/runtime/src/block_kinds.rs` |
 | Was storage released? | Runtime counters | `CINCH_ALLOC_STATS`, `CINCH_LEAK_CHECK` |
 
-The insertion pass runs on the residual program after `core::optimize` and before code generation. Its placement rules are stated in the [reclamation design](../design/reclamation.md) section 4 and implemented in `compiler/src/rc.rs`: every counted binder is owned or borrowed, an owned variable with n owned uses on a path gets n-1 retains, a variable dead on a path is released at the start of that path, and constructor fields bound by a `case` are borrowed loads that are retained only when used as owned. `cinch_dup` and `cinch_drop` are emitted inline as header tests rather than as calls. The emitted release for an owned word loads the header atomically, shifts the count bits to the top of the word, and compares against one: a count above one is decremented and stored back with a plain store, a count of one calls `cinch_drop_slow`, a count of zero is an immortal block and does nothing, and a negative count is a block shared across tasks and goes to `cinch_drop_mt`. Blocks whose fields can contain objects carry pointer maps, which reclamation follows to release children iteratively rather than recursively, so releasing a million-cell list uses constant stack.
+The insertion pass runs on the residual program after `core::optimize` and before code generation. Its placement rules are stated in the [reclamation design](../design/reclamation.md) section 4 and implemented in `seed/src/rc.rs`: every counted binder is owned or borrowed, an owned variable with n owned uses on a path gets n-1 retains, a variable dead on a path is released at the start of that path, and constructor fields bound by a `case` are borrowed loads that are retained only when used as owned. `cinch_dup` and `cinch_drop` are emitted inline as header tests rather than as calls. The emitted release for an owned word loads the header atomically, shifts the count bits to the top of the word, and compares against one: a count above one is decremented and stored back with a plain store, a count of one calls `cinch_drop_slow`, a count of zero is an immortal block and does nothing, and a negative count is a block shared across tasks and goes to `cinch_drop_mt`. Blocks whose fields can contain objects carry pointer maps, which reclamation follows to release children iteratively rather than recursively, so releasing a million-cell list uses constant stack.
 
 `CINCH_RECLAIM=0` in the **compiler environment** removes that insertion. Compare the two builds of one program:
 

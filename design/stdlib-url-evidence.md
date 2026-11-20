@@ -47,7 +47,7 @@ Both frozen frontends pass the complete component and public capability suites
 on the exact final sources. There are 302 zero-leak process runs: one complete
 ordinary-memory run per suite/frontend at 32 MiB heap / 8 MiB stack, plus every
 bounded poisoned-free group at 256 MiB / 8 MiB. Bounded groups retain complete
-coverage while limiting quarantine. Exact compiler/source/executable/fixture
+coverage while limiting quarantine. Exact seed/source/executable/fixture
 hashes, commands and raw results are in `stdlib-url-validation.json`. All 258
 library declarations have canonical documentation without source-language
 comparisons. Three kernel-generation tests and generated-suffix freshness pass.

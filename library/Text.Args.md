@@ -36,7 +36,7 @@ A `Required`-wrapped spec must occur (a missing one is
 argv order (an option may repeat). `render-argv` renders an `Args`
 back through the `--name=value` spelling, so the round trip
 `parse-args specs (render-argv a) == Ok a` holds for well-formed
-`a` (asserted over sample argvs in compiler/tests/json.rs).
+`a` (asserted over sample argvs in seed/tests/json.rs).
 
 Named refusals (unproductions this module deliberately does not
 implement; each is a named boundary, never a silent gap):
@@ -179,4 +179,4 @@ occurrence, `--name` per flag, then the positional values.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Args.cinch`. Source SHA-256: `d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Args.cinch`. Source SHA-256: `d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

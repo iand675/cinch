@@ -193,4 +193,4 @@ Add `x`: `True` when it was not already a member.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/BTreeSet.cinch`. Source SHA-256: `95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/BTreeSet.cinch`. Source SHA-256: `95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -218,4 +218,4 @@ two) before its first growth.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/Deque.cinch`. Source SHA-256: `3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Deque.cinch`. Source SHA-256: `3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

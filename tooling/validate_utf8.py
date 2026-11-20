@@ -71,7 +71,7 @@ def main() -> None:
     started = time.monotonic()
     if args.reuse:
         prior = json.loads(identity_path.read_text()) if identity_path.exists() else json.loads(args.output.read_text())
-        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'compiler/tests/fixtures/utf8-vectors.json') or prior['executable_sha256'] != digest(exe) or prior.get('runtime_sha256') != digest(runtime) or prior.get('provider_sha256') != provider:
+        if prior['sources'] != current_sources or prior['compiler_sha256'] != digest(compiler) or prior['fixture_sha256'] != digest(ROOT / 'seed/tests/fixtures/utf8-vectors.json') or prior['executable_sha256'] != digest(exe) or prior.get('runtime_sha256') != digest(runtime) or prior.get('provider_sha256') != provider:
             raise ValueError('Refusing executable reuse after compiler, provider, runtime, fixture, source or executable identity changed')
         command = prior.get('compile_command')
     if not args.reuse:
@@ -82,12 +82,12 @@ def main() -> None:
             diagnostics = artifacts / 'consumer.ll.diagnostics'
             raise RuntimeError((diagnostics.read_text() if diagnostics.exists() else result.stdout) + '\n' + result.stderr)
     compile_seconds = time.monotonic() - started
-    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/utf8-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command}
+    identity = {'sources': current_sources, 'compiler_sha256': digest(compiler), 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/utf8-vectors.json'), 'executable_sha256': digest(exe), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command}
     identity_path.write_text(json.dumps(identity, indent=2) + '\n')
     if args.compile_only:
         print(f'{args.frontend} UTF8 corpus compiled', flush=True)
         return
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/utf8-vectors.json').read_text())
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/utf8-vectors.json').read_text())
     counts = [len(fixture['scalar_chunks']), len(fixture['pair_chunks']), (len(fixture['rows']) + 63) // 64]
     runs = []
     groups = [[str(mode), str(index)] for mode, count in enumerate(counts) for index in (range(count) if args.chunk is None else [args.chunk]) if index < count]
@@ -100,7 +100,7 @@ def main() -> None:
         if result.returncode or 'leaked=0' not in result.stderr:
             raise RuntimeError(f'{group}, poisoned={debug}, exit={result.returncode}: {result.stdout}\n{result.stderr}')
         runs.append({'group': group, 'poisoned': debug, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M', 'seconds': time.monotonic() - started, 'stderr': result.stderr})
-    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/utf8-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'source_override': str(args.source_override.resolve()) if args.source_override else None, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
+    report = {'frontend': args.frontend, 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'native_snapshot': str(args.native_snapshot) if args.frontend == 'native' else None, 'sources': {path.name: digest(path) for path in inputs}, 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/utf8-vectors.json'), 'executable_sha256': digest(exe), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'provider_sha256': provider, 'compile_command': command, 'reused_existing_executable': args.reuse, 'source_override': str(args.source_override.resolve()) if args.source_override else None, 'compile_seconds': compile_seconds, 'cpu': args.cpu, 'complete_domain': args.chunk is None, 'runs': runs, 'all_passed': True}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f'{args.frontend} UTF8 corpus passed {len(runs)} memory runs', flush=True)

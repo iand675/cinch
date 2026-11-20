@@ -71,7 +71,7 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| Rust runtime crate (`cinchruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `compiler/runtime/`; all `cinch_*` externs `#[unsafe(no_mangle)]`) |
+| Rust runtime crate (`cinchruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `seed/runtime/`; all `cinch_*` externs `#[unsafe(no_mangle)]`) |
 | Mathematical `Nat`/`Int` (bignum) | done (language types on the bignum runtime, unbounded digit-string literals, `Eq`/`Ord`/`Add`/`Sub`/`Mul`, `Neg` for `Int`, truncating `Nat` subtraction, `main :: Int` exit adapter) |
 | `Bytes`, string foundations | done (`new`/`len`/`get`/`set`, bounds faults at 71; the `Boxed<Bytes>` payload is `repr(C) { len; data }` with read-only `KIND_BYTES_STATIC` buffers faulting `ReadOnly` at 71 (D300)); strings are IMMUTABLE values (D297: `string-to-bytes`/`string-from-bytes` copy, mutation lives only on plain `Bytes`; the `StrBuf` constructor is module-private, D298) with `"..."` literals as shared read-only data-section constants (D299: zero construction, zero allocation; `#[no-alloc]`/`jpl` accept literals); `pack`/`unpack` at `Data.String` (D301) |
 
@@ -185,7 +185,7 @@ update as the slices land; 07 must reject, the rest must accept):
 ## Unplanned requirements (P16)
 
 Four spec MUSTs have no owning phase in P1-P15 (found by the 2026-10-25
-audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
+audit, `seed/SPEC-MAPPING.md` "Roadmap gaps"):
 
 | Requirement | Note |
 | --- | --- |
@@ -742,8 +742,8 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   the built-in prelude, while two arch bodies in one prim can. Cross
   compilation of the same source (`--target`), with the triple and data
   layout in the emitted module, is the companion change (D421). Spec
-  section 13; `compiler/src/check_decls.rs` (`WhenCond`, `WhenAtom`),
-  `compiler/tests/prim.rs`.
+  section 13; `seed/src/check_decls.rs` (`WhenCond`, `WhenAtom`),
+  `seed/tests/prim.rs`.
 - **D421 (one binary, every target, user direction)**: `--target`
   accepts `aarch64-apple-darwin`, `x86_64-apple-darwin`,
   `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`, building
@@ -753,8 +753,8 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `target datalayout`; `build` takes `--runtime-archive` for a foreign
   target and names the archive and the linker it needs when either is
   missing; `run` stays host only. An unknown triple is refused with the
-  supported list. `compiler/src/driver.rs` (`profile_of_triple`,
-  `cross_runtime`), `compiler/src/codegen.rs`, `compiler/tests/targets.rs`.
+  supported list. `seed/src/driver.rs` (`profile_of_triple`,
+  `cross_runtime`), `seed/src/codegen.rs`, `seed/tests/targets.rs`.
 - **D422 (sigil identifiers, user direction)**: `!` and `?` continue an
   identifier after its first character, in any position and in any run
   (`print!`, `empty?`, `read!?`, `a!b`), and neither ever starts one, so
@@ -771,13 +771,13 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   Identity spelling is unchanged: `!` and `?` are not plain identity
   characters, so `print!` is `print$21` and `empty?` is `empty$3f`, and
   the Core text format already admits `$` in a name segment.
-  `compiler/src/lexer.rs` (`is_ident_char`, `is_dash_glue_char`,
-  `is_macro_bang`, `scan_ident`), `compiler/prelude/Text/Lex.cinch`
+  `seed/src/lexer.rs` (`is_ident_char`, `is_dash_glue_char`,
+  `is_macro_bang`, `scan_ident`), `seed/prelude/Text/Lex.cinch`
   (`is-ident-char`, `is-dash-glue-char`, `is-macro-bang`,
   `scan-ident-acc`), `tooling/tree-sitter-cinch/src/scanner.c`,
-  `compiler/tests/syntax_sigil_identifiers.rs`,
-  `compiler/tests/bootstrap_lexer.rs`,
-  `compiler/tests/bootstrap_export_types.rs`. Spec: surface syntax
+  `seed/tests/syntax_sigil_identifiers.rs`,
+  `seed/tests/bootstrap_lexer.rs`,
+  `seed/tests/bootstrap_export_types.rs`. Spec: surface syntax
   amendments, and surface grammar local amendments section 8.
 - **D423 (hiding imports, user direction)**: `import X hiding (a, b)`
   imports the surface of `X` except the named members, which are then
@@ -787,15 +787,15 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   not imported; an import either selects or hides; `import stage` does
   not hide. The duplicate-name refusal names both remedies. Reason: two
   modules imported whole that export one name must not force a
-  selection list. `compiler/src/parser.rs`, `check_decls.rs`
+  selection list. `seed/src/parser.rs`, `check_decls.rs`
   (`ImportView`), `tooling/tree-sitter-cinch`, `tests/modules.rs`.
   The self-hosted frontend implements the same rule: `DImport` carries
   the hidden names, `Bootstrap.Resolve` subtracts them from the surface
   an import view contributes, so a hidden member is out of scope bare
   and under the qualifier alike and the refusal names the spelling the
-  program used (`bootstrap/Bootstrap.Ast.cinch`,
-  `bootstrap/Bootstrap.Parse.cinch`, `bootstrap/Bootstrap.Resolve.cinch`,
-  `bootstrap/programs/Run.Resolve.cinch`).
+  program used (`compiler/Bootstrap.Ast.cinch`,
+  `compiler/Bootstrap.Parse.cinch`, `compiler/Bootstrap.Resolve.cinch`,
+  `compiler/programs/Run.Resolve.cinch`).
 - **D424 (STM: algorithm in source)**: `Effect.Stm` is Cinch source
   over `prim` bodies in inline LLVM IR; the runtime owns only the
   `KIND_TVAR` cell (the one block whose scanned slot is rewritten in
@@ -831,7 +831,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   pass marks nothing; a value word is replaced only under the write
   lock and a reference to it is taken only under the pin. Replaced
   values leave by swap into the staging cell and are released after
-  the locks. `compiler/runtime/src/stm.rs`, `tests/stm.rs`.
+  the locks. `seed/runtime/src/stm.rs`, `tests/stm.rs`.
 - **D428 (P12 tasks are fibers on a scheduler, supersedes D79/D80's
   thread-per-task text)**: a task is a stackful fiber, not an OS
   thread. The runtime multiplexes every task over at most
@@ -853,10 +853,10 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   stand as written; only the implementation claim "one OS thread per
   task" is replaced. A target with no context switch keeps one OS
   thread per task behind the same entries, and the Wasm cooperative
-  backend is unchanged. `compiler/runtime/src/sched.rs`,
+  backend is unchanged. `seed/runtime/src/sched.rs`,
   `sched/fiber.rs`, `sched/switch.rs`, `sched/thread.rs`, `park.rs`,
-  `task.rs`; `compiler/runtime/tests/sched.rs`,
-  `compiler/tests/concurrency.rs`; `design/green-threads.md`.
+  `task.rs`; `seed/runtime/tests/sched.rs`,
+  `seed/tests/concurrency.rs`; `design/green-threads.md`.
 - **D429 (rank-N polymorphism, design/rank-n-polymorphism.md)**: a
   `forall` may appear in any type position. A nested quantifier binds
   types, type constructors, effect rows and regions (never `using`
@@ -883,7 +883,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   independent Core typing). It lowers a polytype to a class-indexed
   bundle of `3^k` components, `k <= 2`. Every fixture compiles through
   Stage 3 at the fixed point:
-  `bootstrap/evidence/current/current-rank-n-stage3-results.json`.
+  `compiler/evidence/current/current-rank-n-stage3-results.json`.
 - **D430 (compiling continuation-passing code, design/cps-optimisation.md)**:
   five optimisations, none of which changes observable behaviour. (1) On
   64-bit native targets, every tail call between two function units of a
@@ -1572,7 +1572,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   functions (the class shapes stay A7-deferred per D126) and
   `lib_category.rs` (7 law-group tests green at the time; rerun at
   integration). The full HK target surface and 17 probes are persisted
-  as `compiler/tests/fixtures/hk` (A7's acceptance fixtures). Open
+  as `seed/tests/fixtures/hk` (A7's acceptance fixtures). Open
   questions recorded for the HK slice: bare `pure` resolution (D22
   provider methods vs `Category.Applicative.pure`; recommendation:
   bare uses keep the provider meaning, the class method is reached
@@ -1938,7 +1938,7 @@ so the embedding sweep stays its own decision.
   expected-failure annotations, name filtering, shuffling and seeding
   are refused.
 - **D363 (sockets, name resolution and the piped child, reported)**:
-  the runtime gains `compiler/runtime/src/net.rs` (`tcp_connect`,
+  the runtime gains `seed/runtime/src/net.rs` (`tcp_connect`,
   `read`, `write`, `close`, `resolve`) and the piped-child ABI
   (`process_spawn`, `write_stdin`, `close_stdin`, `read` with a stream
   selector, `wait`, `close`) in `platform.rs`, both behind
@@ -1966,7 +1966,7 @@ so the embedding sweep stays its own decision.
   test binaries, a sibling build) raced a rebuild against a link and
   clang read a truncated file, failing with no diagnostic of its own.
   The build now holds an exclusive advisory lock on
-  `compiler/runtime/target/.cinch-runtime.lock` and a link holds it
+  `seed/runtime/target/.cinch-runtime.lock` and a link holds it
   shared, and a filesystem without advisory locking degrades to the
   previous behaviour rather than failing the build. `link_with` also
   captures clang's stderr and appends it to the error, because "failed
@@ -1975,7 +1975,7 @@ so the embedding sweep stays its own decision.
 - **D365 (the test-thread stack, reported)**: D337(b) named the
   options for the checker's per-expression recursion against the 2 MB
   test-thread stack; this lands the harness stack raise as
-  `compiler/.cargo/config.toml`'s `RUST_MIN_STACK` (64 MB), which
+  `seed/.cargo/config.toml`'s `RUST_MIN_STACK` (64 MB), which
   gives every target the headroom the first harnesses needed
   individually. The signature to know is every test in a target
   failing with no panic text: that is a test-thread stack abort, not a
@@ -2104,7 +2104,7 @@ so the embedding sweep stays its own decision.
   break programs that never touch a terminal. The POSIX calls are in
   the C library on both platforms, so no extra library and no driver
   flag are needed. The seven `cinch.runtime.pty*` units
-  (`compiler/runtime/src/pty.rs`) follow the net and piped-child
+  (`seed/runtime/src/pty.rs`) follow the net and piped-child
   convention: `Bytes` and scalars, the negative word as the negated
   shared code, presented as the prelude `Result`.
 - **D379 (the shared generic vocabulary, user direction)**: a generic
@@ -2125,7 +2125,7 @@ so the embedding sweep stays its own decision.
   `reverse` checks unchanged), and the facade re-exports the new names
   by the ordinary `export module` route, so
   `facade_export_list_is_the_checked_surface` and the probe table in
-  `compiler/tests/prelude_split.rs` cover them without an edit.
+  `seed/tests/prelude_split.rs` cover them without an edit.
 - **D380 (the consumer sweep, reported)**: `Text.*`, `Data.*` and
   `Effect.*` were swept in three slices: 33 private helpers deleted
   across 25 modules, every call site moved to the shared name,
@@ -2160,7 +2160,7 @@ so the embedding sweep stays its own decision.
   the sweep added the same two lines to the eight modules that gained
   a `<>`; no counterexample exists in the tree (every module that
   writes `<>` infix declares it). The mechanism, read off
-  `parse_prelude` in `compiler/src/driver.rs`: the embedded family is
+  `parse_prelude` in `seed/src/driver.rs`: the embedded family is
   parsed in two passes for check order - the modules the facade
   re-exports, then the class modules and the newer families - and each
   module is parsed with the facade's base table plus the tables of the
@@ -2188,7 +2188,7 @@ so the embedding sweep stays its own decision.
   surface probe splices back into a program (`tests/prelude_split.rs`),
   and what the artifact store ships as the contract a consumer reads,
   so the defect made the recorded contract unparseable rather than
-  merely ugly. Fixed in `compiler/src/types.rs`:
+  merely ugly. Fixed in `seed/src/types.rs`:
   `needs_parens_as_argument` parenthesizes an argument that is itself an
   application, an `App`, or a prefix-form type (`Thunk`, `Later`,
   `Lazy`, `Ref`, `Mut`, `Ptr`, `Handler`); a variable, a nullary
@@ -2286,7 +2286,7 @@ so the embedding sweep stays its own decision.
   `decls-of`) so a consumer reads the `List` back and then has the whole
   list vocabulary. A walker applied to a node that is not a spine yields
   the empty list, so a malformed spine cannot fault a consumer. Found by
-  building `bootstrap/Bootstrap.Ast.cinch`, where the first draft used
+  building `compiler/Bootstrap.Ast.cinch`, where the first draft used
   `List X` and did not compile.
 
 - **D388 (class methods may have default implementations)**: an equation
@@ -2323,7 +2323,7 @@ so the embedding sweep stays its own decision.
   equation had fewer) and now read the right way round. Also: a parameterized
   module's base instance now resolves for its own methods even when the
   scope is the class module's (`Some(i) != self.self_instance` beside the
-  `base` rule). Pinned by `compiler/tests/class_defaults.rs` (6 cases:
+  `base` rule). Pinned by `seed/tests/class_defaults.rs` (6 cases:
   taken and overridden, a default using the class module's private helper
   and its method's own constraint, the omitted-method refusal, the
   undeclared-method refusal, an ill-typed default reported at the class
@@ -2341,10 +2341,10 @@ so the embedding sweep stays its own decision.
   bootstrap-ladder rung. Design: `design/reclamation.md` (status quo,
   header, insertion algorithm, cycles, runtime values, concurrency,
   verification, staged slices S0-S12, spec conflicts). S0 landed: a counting
-  `#[global_allocator]` (`compiler/runtime/src/heap.rs`), every codegen
+  `#[global_allocator]` (`seed/runtime/src/heap.rs`), every codegen
   allocation routed through `cinch_alloc_raw`, `CINCH_ALLOC_STATS=1`, and a
   `CINCH_HEAP_LIMIT` cap (default 8 GiB, exit 73; 2 GiB for every program a
-  `cargo test` spawns, via `compiler/.cargo/config.toml`).
+  `cargo test` spawns, via `seed/.cargo/config.toml`).
 - **D390 (destructor order: reverse; decided by the user)**: effectful
   destructors run last-acquired, first-released, as the lazy specification's
   teardown says; `design/ownership-and-usage.md:72-73` (declaration order)
@@ -2505,8 +2505,8 @@ so the embedding sweep stays its own decision.
 - **D403 (reclamation S4 as built: the specialization collector)**: every
   `Core` binder, pattern, constructor field and instantiation carries a
   representation class (`Raw`, `Obj`, `TObj`, or `Param(i)` inside
-  generic bodies; `compiler/src/repr.rs`). After `core::optimize`, the
-  collector (`compiler/src/specialize.rs`) roots at every non-generic unit
+  generic bodies; `seed/src/repr.rs`). After `core::optimize`, the
+  collector (`seed/src/specialize.rs`) roots at every non-generic unit
   and copies each reached generic unit once per reached concrete class
   vector, as `@"<unit>@<letters>"` (R, O, T); instances are copied per
   vector of their own parameters, and methods with their own type
@@ -2558,7 +2558,7 @@ so the embedding sweep stays its own decision.
   that is S6.
 - **D406 (reclamation S6a as built: Perceus insertion, all parameters
   owned; behind `TargetProfile::reclaim`, off by default)**:
-  `compiler/src/rc.rs` inserts `Core::Dup`/`Core::Drop` after the
+  `seed/src/rc.rs` inserts `Core::Dup`/`Core::Drop` after the
   specialization collector at every driver emission site; a debug-build
   verifier rejects any path that does not consume an owned binder exactly
   once (a compile-time compiler-bug trap). Projections, `Demand`, `BoxGet`
@@ -2907,7 +2907,7 @@ through P17's branch weights. Implementation items ride those phases.
 ## Spec requirement mapping
 
 Every spec MUST is mapped to enforcement and tests in
-`compiler/SPEC-MAPPING.md` (101 rows, statuses I/P/N/CV, plus the
+`seed/SPEC-MAPPING.md` (101 rows, statuses I/P/N/CV, plus the
 wording flags for future decisions).
 
 ## Decisions log
@@ -2927,7 +2927,7 @@ wording flags for future decisions).
   foreign contracts, assumptions manifest, ABI symbol table), identity by
   content hash, imported interfaces recorded as the "checked against" chain.
   See `../design/compiled-interface-metadata.md`.
-- **D5 (P4)**: the runtime is a Rust crate (`compiler/runtime`, `cinchruntime`
+- **D5 (P4)**: the runtime is a Rust crate (`seed/runtime`, `cinchruntime`
   staticlib + rlib, std-only) linked with generated objects; not C. The
   runtime ABI reference lives in its `src/lib.rs` module docs and is cited by
   interface metadata (`runtime_abi`).

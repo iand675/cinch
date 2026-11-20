@@ -24,7 +24,7 @@
 -- constraint does not entail; the law's own context supplies the
 -- `Semigroup (NonZero Int)` dictionary, so the check reads this
 -- module's product and identity and decides both laws at samples
--- (asserted in compiler/tests/refinements.rs).
+-- (asserted in seed/tests/refinements.rs).
 module Data.NonZero where
 
   import Algebra.Semigroup
@@ -48,7 +48,7 @@ module Data.NonZero where
   -- (a non-zero product of non-zeros), associative (both checked
   -- sample-wise by the law layer). Integer addition does NOT preserve
   -- non-zerohood and its transfer is rejected by the preservation law
-  -- (asserted in compiler/tests/refinements.rs).
+  -- (asserted in seed/tests/refinements.rs).
   implicit instance Semigroup_NonZero :: Semigroup (NonZero Int) where
     (<>) p q = p * q
 

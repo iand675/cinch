@@ -15,12 +15,12 @@ def digest(path: Path) -> str:
 
 
 def main() -> None:
-    """Require both exact compiler/runtime epochs, ownership controls and canonical documentation."""
+    """Require both exact seed/runtime epochs, ownership controls and canonical documentation."""
     receipts = ["rust-v4", "native-raw-v1", "control-rust-v1", "control-native-raw-v1", "affected-rust-v1"]
     coverage = set()
     matrix = []
     for name in receipts:
-        path = ROOT / f"bootstrap/evidence/stdlib/stdlib-json-binary32-{name}-results.json"
+        path = ROOT / f"compiler/evidence/stdlib/stdlib-json-binary32-{name}-results.json"
         receipt = json.loads(path.read_text())
         native = receipt["frontend"] == "native-raw"
         assert receipt["opt_level"] == 2 and receipt["compiler_host_stack_kib"] == 65536
@@ -33,13 +33,13 @@ def main() -> None:
             assert receipt["provider_object_sha256"] == "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64"
             assert "-O2" in receipt["raw_link_command"]
         for module, identity in receipt["sources"].items():
-            source = ROOT / "compiler/prelude" / (module.replace(".", "/") + ".cinch")
+            source = ROOT / "seed/prelude" / (module.replace(".", "/") + ".cinch")
             assert digest(source) == identity, (path, module)
         for suite in receipt["suites"]:
-            fixture = ROOT / f"compiler/tests/fixtures/json-codec-{suite['suite']}.cinch"
+            fixture = ROOT / f"seed/tests/fixtures/json-codec-{suite['suite']}.cinch"
             assert digest(fixture) == suite["consumer_source_sha256"]
             reference_name = suite["suite"]
-            reference = ROOT / (f"compiler/tests/fixtures/json-codec-{reference_name}-vectors.json" if reference_name in {"float32", "float"} else "compiler/tests/fixtures/json-codec-vectors.json")
+            reference = ROOT / (f"seed/tests/fixtures/json-codec-{reference_name}-vectors.json" if reference_name in {"float32", "float"} else "seed/tests/fixtures/json-codec-vectors.json")
             assert receipt["reference_fixtures"][reference_name] == digest(reference)
             assert len(suite["runs"]) == 2
             assert sorted(run["poisoned_free_validation"] for run in suite["runs"]) == [False, True]
@@ -63,7 +63,7 @@ def main() -> None:
     for module in ["Binary32", "Value", "Codec"]:
         path = ROOT / f"build/json-binary32-docs/{module}.json"
         parsed = json.loads(path.read_text())
-        assert parsed["sourceSha256"] == digest(ROOT / f"compiler/prelude/Text/Json/{module}.cinch")
+        assert parsed["sourceSha256"] == digest(ROOT / f"seed/prelude/Text/Json/{module}.cinch")
         assert not parsed["diagnostics"] and not parsed["orphans"]
         declarations = list(parsed["declarations"])
         count = 0
@@ -76,18 +76,18 @@ def main() -> None:
             assert not any(word in doc["markdown"].lower() for word in ["golang", "go's", "go "]), declaration["id"]
         docs[module] = {"canonical_declarations": count, "diagnostics": 0, "orphans": 0,
                         "extract_sha256": digest(path)}
-    foreign_path = ROOT / "bootstrap/evidence/stdlib/stdlib-json-binary32-foreign-results.json"
+    foreign_path = ROOT / "compiler/evidence/stdlib/stdlib-json-binary32-foreign-results.json"
     foreign = json.loads(foreign_path.read_text())
-    assert foreign["production_source_sha256"] == digest(ROOT / "compiler/prelude/Text/Json/Binary32.cinch")
+    assert foreign["production_source_sha256"] == digest(ROOT / "seed/prelude/Text/Json/Binary32.cinch")
     assert len(foreign["targets"]) == 2 and not foreign["foreign_execution_claimed"]
     assert {target["triple"] for target in foreign["targets"]} == {"wasm32-unknown-unknown", "aarch64-unknown-linux-gnu"}
-    reference_path = ROOT / "compiler/tests/fixtures/json-codec-float32-vectors.json"
+    reference_path = ROOT / "seed/tests/fixtures/json-codec-float32-vectors.json"
     reference = json.loads(reference_path.read_text())
     observations = {key: len(reference[key]) for key in ["float32_encoding", "float32_conversion", "typed"]}
     assert observations == {"float32_encoding": 425, "float32_conversion": 85, "typed": 90}
     report = {
         "status": "Exact binary32 increment; full 92-record JSON package remains partial",
-        "sources": {module: digest(ROOT / f"compiler/prelude/Text/Json/{module}.cinch") for module in docs},
+        "sources": {module: digest(ROOT / f"seed/prelude/Text/Json/{module}.cinch") for module in docs},
         "documentation": docs, "independent_observations_per_frontend": observations,
         "ownership_control_groups_per_frontend": 5, "retained_pipeline_iterations_per_control_run": 512,
         "same_selected_source_memory_processes": len(matrix) * 2, "matrices": matrix,
@@ -101,7 +101,7 @@ def main() -> None:
         "parent_owned_checks_pending": ["Expanded lib_json_codec/lib_json_value Cargo targets", "Big-endian actual-bitcast foreign gate", "Integration/provider/full-suite gates"],
         "remaining_scope": ["Raw Number string casts and numeric outcomes", "Dynamic JsonAny and legacy bridges", "Containing-record error metadata and independent capabilities", "Bounded incremental Effect.Json reader/writer", "Full 92-record review and paired public pipeline benchmarks"],
     }
-    output = ROOT / "bootstrap/evidence/stdlib/stdlib-json-binary32-evidence.json"
+    output = ROOT / "compiler/evidence/stdlib/stdlib-json-binary32-evidence.json"
     output.write_text(json.dumps(report, indent=2) + "\n")
     print(f"binary32 checkpoint: {sum(row['canonical_declarations'] for row in docs.values())} canonical declarations, {len(matrix)*2} selected-source memory processes")
 

@@ -73,4 +73,4 @@ Empty inputs and zero counts need no fill traversal; byte values are never decod
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Build.cinch`. Source SHA-256: `6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Build.cinch`. Source SHA-256: `6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

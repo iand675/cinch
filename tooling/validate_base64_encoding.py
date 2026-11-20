@@ -12,14 +12,14 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "compiler/tests/fixtures/base64-encoding-vectors.json"
-HELPERS = ROOT / "compiler/tests/fixtures/base64-encoding-consumer.cinch"
+FIXTURE = ROOT / "seed/tests/fixtures/base64-encoding-vectors.json"
+HELPERS = ROOT / "seed/tests/fixtures/base64-encoding-consumer.cinch"
 MODULES = {
-    "Text.Base64.Encoding": "compiler/prelude/Text/Base64/Encoding.cinch",
-    "Effect.Base64": "compiler/prelude/Effect/Base64.cinch",
-    "Effect.Stream": "compiler/prelude/Effect/Stream.cinch",
-    "Text.Hex": "compiler/prelude/Text/Hex.cinch",
-    "Data.Bytes.Word": "compiler/prelude/Data/Bytes/Word.cinch",
+    "Text.Base64.Encoding": "seed/prelude/Text/Base64/Encoding.cinch",
+    "Effect.Base64": "seed/prelude/Effect/Base64.cinch",
+    "Effect.Stream": "seed/prelude/Effect/Stream.cinch",
+    "Text.Hex": "seed/prelude/Text/Hex.cinch",
+    "Data.Bytes.Word": "seed/prelude/Data/Bytes/Word.cinch",
 }
 GROUPS = [*(f"valid-{i}" for i in range(9)), *(f"malformed-{i}" for i in range(9)), "strict", "buffers", "streams", "long-stream"]
 

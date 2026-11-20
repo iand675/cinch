@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def rendered() -> str:
     """Generate shallow bounded public-API checks from independent SDK records."""
-    fixture = json.loads((ROOT / 'compiler/tests/fixtures/unicode-vectors.json').read_text())
-    scalar = (ROOT / 'compiler/tests/fixtures/unicode-kernel-consumer.cinch.in').read_text()
+    fixture = json.loads((ROOT / 'seed/tests/fixtures/unicode-vectors.json').read_text())
+    scalar = (ROOT / 'seed/tests/fixtures/unicode-kernel-consumer.cinch.in').read_text()
     flag_start = scalar.index('  -- | Turn one public predicate')
     flag_end = scalar.index('  -- | Observe every public char classification')
     hash_start = scalar.index('  -- | Observe every byte of a U32')

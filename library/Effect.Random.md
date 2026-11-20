@@ -139,4 +139,4 @@ here) and only keeps the propagation total.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Random.cinch`. Source SHA-256: `75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Random.cinch`. Source SHA-256: `75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

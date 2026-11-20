@@ -19,15 +19,15 @@
         "debug_symbols": false,
         "codegen_units": 1
       },
-      "gates": "bootstrap/evidence/stdlib/stdlib-string-phase2-parent-results.json",
+      "gates": "compiler/evidence/stdlib/stdlib-string-phase2-parent-results.json",
       "embedded_sources": {
         "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
         "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
       },
       "rust_sources": {
-        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
-        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
-        "compiler/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c"
+        "seed/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+        "seed/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "seed/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c"
       },
       "scope": "Rust frontend snapshot only; this is not adoption of the provisional Native scalar-import family."
     },
@@ -59,7 +59,7 @@
     "rc_debug_instrumentation": false,
     "ordinary_reclaim": true,
     "source_shadow_used": false,
-    "scope": "Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No compiler/provider copies or unrelated optional loop counters.",
+    "scope": "Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No seed/provider copies or unrelated optional loop counters.",
     "phase": "ordinary-RC O2 public pipeline build",
     "link_command": [
       "clang",

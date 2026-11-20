@@ -190,4 +190,4 @@ Zigzag-encode an I64, then encode it as an unsigned varint. Zero maps to 0, -1 t
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Binary.cinch`. Source SHA-256: `9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Binary.cinch`. Source SHA-256: `9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

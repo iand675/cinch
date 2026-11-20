@@ -17,7 +17,7 @@ Algebra.Semigroup: associative binary combination on a carrier.
 law. This module declares the operator and owns its fixity. Consumers
 inherit the declaration through imports and cannot redeclare it.
 
-Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+Laws (asserted over sample values in seed/tests/lib_algebra.rs):
   associativity: (x <> y) <> z == x <> (y <> z)
 A class constraint entails nothing (the standing no-superbundle
 rule): this module states no Monoid import and every function names
@@ -132,4 +132,4 @@ constraint.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Semigroup.cinch`. Source SHA-256: `f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semigroup.cinch`. Source SHA-256: `f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

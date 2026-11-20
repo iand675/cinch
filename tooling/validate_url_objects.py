@@ -13,7 +13,7 @@ def source() -> str:
     """Extract the maintained primitive declarations and retain every kernel in one reachable entry."""
     result = "-- | Actual URL foreign-object kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n"
     for module, names in [("Codec", ["load-eight", "load-one", "classify-one", "classify-eight", "decode-flags-eight", "hex-pair"]), ("Scan", ["mask-eight", "population"])]:
-        text = (ROOT / f"compiler/prelude/Text/Url/{module}.cinch").read_text()
+        text = (ROOT / f"seed/prelude/Text/Url/{module}.cinch").read_text()
         for name in names:
             start = text.index(f"  prim {name} ::")
             end = text.find("\n  -- |", start)

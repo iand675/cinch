@@ -37,7 +37,7 @@ macro_call = var_path, "!", token_tree ;
 token_tree = ? balanced token tree in (), [] or {}; nested delimiters match ? ;
 ```
 
-The lexer already does the hard half. `compiler/prelude/Text/Lex.cinch:511`
+The lexer already does the hard half. `seed/prelude/Text/Lex.cinch:511`
 (`is-macro-bang`) ends a word at a `!` that is tight against `(`, `[` or
 `{`, so `f!(x)` lexes as `TVar "f"`, `TPunct "!"`, `TPunct "("`, ... . A
 name that itself ends in `!` invokes with one more bang (`f!!(x)`), and
@@ -50,10 +50,10 @@ Read these before writing anything. Every diagnostic below goes in verbatim.
 
 | What | Where |
 |---|---|
-| Ordering: expand before the ordinary check | `compiler/src/check_decls.rs:18958-18960` (`expand_remaining_macros`, with the comment "Macro calls in ordinary code expand before the ordinary check") |
+| Ordering: expand before the ordinary check | `seed/src/check_decls.rs:18958-18960` (`expand_remaining_macros`, with the comment "Macro calls in ordinary code expand before the ordinary check") |
 | The term-position expansion | `check_decls.rs:20334-20360` (`expand_macros_in_term`, the `MacroCall` arm) |
 | The call itself | `check_decls.rs:20556-20660` (`eval_macro_call`) |
-| Splitting the tree into arguments | `compiler/src/ast.rs:456` (`arg_groups`) and `:500` (`macro_arg_groups`) |
+| Splitting the tree into arguments | `seed/src/ast.rs:456` (`arg_groups`) and `:500` (`macro_arg_groups`) |
 | The declaration walk | `check_decls.rs:20501` (`expand_macros_in_decl`) |
 | Expansion at emission | `check_decls.rs:20220-20224` (generated code expands where it is emitted) |
 
@@ -74,7 +74,7 @@ with a message about the argument count, not about arity.
 
 ## Where the expander goes in the self-hosted chain
 
-`Bootstrap.Stage.expand-declaration` (`bootstrap/Bootstrap.Stage.cinch:449`,
+`Bootstrap.Stage.expand-declaration` (`compiler/Bootstrap.Stage.cinch:449`,
 the `DMacro` arm at `:451`) is the walk. That arm currently returns
 `Ok (Nil, fuel)`, so a macro leaves no runtime trace, and every other
 declaration returns `Ok ([declaration], fuel)`. That is the arm to extend: a
@@ -157,7 +157,7 @@ module Main where
   main = wrap!(40)
 ```
 
-`compiler/target/debug/cinch run` on that file exits 42. That binary is the
+`seed/target/debug/cinch run` on that file exits 42. That binary is the
 seed and the specification; use it to pin any behaviour before mirroring it.
 
 ## Fast checks while you iterate
@@ -167,7 +167,7 @@ against about 11 minutes for a chain rebuild. Copy the module and the
 `Text.*` prelude files it imports into one directory, then:
 
 ```
-compiler/target/debug/cinch check Bootstrap.Stage.cinch
+seed/target/debug/cinch check Bootstrap.Stage.cinch
 ```
 
 That catches type errors and wrong constructor arities. It does not catch

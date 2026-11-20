@@ -25,7 +25,7 @@ O(input * program) instruction dispatches BY CONSTRUCTION and no
 input can make it cost more. A backtracking engine's ReDoS surface
 (the classic `(a+)+b` against a long run of `a`) does not exist
 here: there is no backtracking to blow up. The claim is pinned
-step-for-step and against the clock in `compiler/tests/regex.rs`.
+step-for-step and against the clock in `seed/tests/regex.rs`.
 
 THE PATTERN LANGUAGE (the RE2 subset):
   literals and escapes: `\n \r \t \f \v`, `\<punctuation>` as the
@@ -356,4 +356,4 @@ dropped, Ruby's default.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Regex.cinch`. Source SHA-256: `ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Regex.cinch`. Source SHA-256: `ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

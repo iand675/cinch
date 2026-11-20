@@ -284,4 +284,4 @@ written loops).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Darwin.cinch`. Source SHA-256: `79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Prim/Sys/Darwin.cinch`. Source SHA-256: `79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

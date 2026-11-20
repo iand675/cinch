@@ -74,7 +74,7 @@ def main()->None:
         snapshot=rust if args.frontend=='rust' else native
         compiler=snapshot/'cinch';runtime=snapshot/'libcinchruntime.a'
         provenance_path=snapshot/('provenance.json' if args.frontend=='rust' else 'snapshot.json');provenance=json.loads(provenance_path.read_text())
-        if digest(compiler)!=provenance['compiler_sha256'] or digest(runtime)!=provenance['runtime_sha256']:raise ValueError('snapshot compiler/runtime mismatch')
+        if digest(compiler)!=provenance['compiler_sha256'] or digest(runtime)!=provenance['runtime_sha256']:raise ValueError('snapshot seed/runtime mismatch')
         if args.frontend=='native':
             provider_path=native/'provider/provider.json';provider=json.loads(provider_path.read_text())
             if digest(runtime)!=provider['runtime']['sha256']:raise ValueError('native provider/runtime mismatch')
@@ -93,7 +93,7 @@ def main()->None:
         (artifacts/'compile.stdout').write_text(result.stdout);(artifacts/'compile.stderr').write_text(result.stderr)
         if result.returncode:
             diagnostic=ir.with_name(ir.name+'.diagnostics');raise RuntimeError((diagnostic.read_text() if diagnostic.exists() else result.stdout)+result.stderr)
-        identity={'frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'interfaces_sha256':digest(interfaces),'objects_sha256':digest(objects_path),'sources':{path.name:digest(path) for path in paths},'compile_command':command,'rc_debug_instrumentation':False,'ordinary_reclaim':True,'source_shadow_used':False,'scope':'Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No compiler/provider copies or unrelated optional loop counters.'}
+        identity={'frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'interfaces_sha256':digest(interfaces),'objects_sha256':digest(objects_path),'sources':{path.name:digest(path) for path in paths},'compile_command':command,'rc_debug_instrumentation':False,'ordinary_reclaim':True,'source_shadow_used':False,'scope':'Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No seed/provider copies or unrelated optional loop counters.'}
         identity['source_overrides']=str(args.source_overrides) if args.source_overrides else None
         if args.frontend=='native':identity['provider']={'sha256':digest(provider_path),'object_sha256':objects['object_sha256'],'metadata_sha256':objects['metadata_sha256']}
         if args.action=='check':
@@ -114,7 +114,7 @@ def main()->None:
         if digest(artifacts/name)!=identity[key]:raise ValueError('frozen benchmark artifact changed: '+name)
     for name,value in identity['sources'].items():
         if digest(artifacts/'project'/name)!=value:raise ValueError('frozen benchmark source changed: '+name)
-    if digest(Path(identity['compiler']))!=identity['compiler_sha256'] or digest(Path(identity['runtime']))!=identity['runtime_sha256']:raise ValueError('frozen compiler/runtime changed')
+    if digest(Path(identity['compiler']))!=identity['compiler_sha256'] or digest(Path(identity['runtime']))!=identity['runtime_sha256']:raise ValueError('frozen seed/runtime changed')
     if args.action=='measure' and args.cpu!=0:raise ValueError('measure requires the explicitly granted timing CPU0')
     report={**identity,'action':args.action,'cpu':args.cpu,'runner_sha256':digest(Path(__file__)),'results':[],'cpu_stat_start':Path('/sys/fs/cgroup/cpu.stat').read_text()}
     for mode in args.workloads:

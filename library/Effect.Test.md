@@ -351,4 +351,4 @@ while the suite runs; `render-report` is the summary after it.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Test.cinch`. Source SHA-256: `25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Test.cinch`. Source SHA-256: `25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

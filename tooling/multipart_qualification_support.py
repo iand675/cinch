@@ -112,7 +112,7 @@ def build_fixture(work: Path, clang: str) -> dict:
     kernel = work / "kernels.ll"
     kernel.write_text("define i32 @multipart_equal16(i64 %0, i64 %1, i8 %2) {\n" + body.group(1) + "\n}\n")
     fixture = work / "fixture.c"
-    shutil.copyfile(ROOT / "compiler/tests/fixtures/multipart-fixture.c", fixture)
+    shutil.copyfile(ROOT / "seed/tests/fixtures/multipart-fixture.c", fixture)
     run([clang, "-O2", "-c", str(kernel), "-o", str(work / "kernels.o")], work)
     run([clang, "-O2", "-fno-vectorize", "-fno-slp-vectorize", "-c", str(fixture), "-o", str(work / "fixture.o")], work)
     return {"kernel_ir_sha256": digest(kernel), "kernel_object_sha256": digest(work / "kernels.o"),

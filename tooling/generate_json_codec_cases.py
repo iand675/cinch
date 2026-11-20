@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / "compiler/tests/fixtures"
+FIXTURES = ROOT / "seed/tests/fixtures"
 HELPERS = r'''-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
 module Main where
   import Text.Json.Value
@@ -456,7 +456,7 @@ def program(suite: str, fixture: dict) -> str:
     if suite in {"typed", "float", "float32", "raw-number", "raw-number-edge", "field", "integer", "binary", "map", "map-encode"}:
         helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FLOAT32_HELPERS if suite == "float32" else RAW_NUMBER_HELPERS if suite in {"raw-number", "raw-number-edge"} else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
     if suite == "raw-number-kernel":
-        production = (ROOT / "compiler/prelude/Text/Json/Value.cinch").read_text()
+        production = (ROOT / "seed/prelude/Text/Json/Value.cinch").read_text()
         begin = production.index("  prim numeric-hex-round ::")
         end = production.index("\n  -- |", begin)
         helpers = HELPERS.replace("  import Data.Machine\n", "  import Data.Machine\n  import Data.Bytes.Word\n") + "\n  -- | Exact production rounding primitive.\n" + production[begin:end] + RAW_NUMBER_KERNEL_HELPERS

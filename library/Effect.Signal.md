@@ -44,7 +44,7 @@ identical on Darwin and Linux). A portable mapping would need a
 runtime intrinsic that reports the host's numbers; none exists in
 this slice (see the refusals below).
 
-The boundary word (`compiler/runtime/src/platform.rs`,
+The boundary word (`seed/runtime/src/platform.rs`,
 `cinch_signal_send`) takes two machine words (pid then signal
 number) and returns `kill(2)`'s raw result: `0` on success, `-1` on
 failure, or `-6` (the runtime's `INVALID_ARGUMENT` sentinel) when
@@ -173,4 +173,4 @@ error on any failure, `Ok ()` when the kernel accepted it.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Signal.cinch`. Source SHA-256: `93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Signal.cinch`. Source SHA-256: `93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -245,4 +245,4 @@ bytes leaves buffer and cursor unchanged.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/StringIo.cinch`. Source SHA-256: `9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/StringIo.cinch`. Source SHA-256: `9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

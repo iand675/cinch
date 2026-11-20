@@ -34,7 +34,7 @@ in
 
   scripts.safelang = {
     exec = ''
-      cargo run --manifest-path "$DEVENV_ROOT/compiler/Cargo.toml" --quiet -- "$@"
+      cargo run --manifest-path "$DEVENV_ROOT/seed/Cargo.toml" --quiet -- "$@"
     '';
     description = "Run the SafeLang bootstrap compiler";
   };
@@ -59,7 +59,7 @@ in
 
   scripts.safelang-test = {
     exec = ''
-      cargo test --manifest-path "$DEVENV_ROOT/compiler/Cargo.toml" --quiet
+      cargo test --manifest-path "$DEVENV_ROOT/seed/Cargo.toml" --quiet
     '';
     description = "Run the SafeLang compiler test suites";
   };

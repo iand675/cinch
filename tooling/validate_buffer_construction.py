@@ -15,7 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def consumer(expressions:list[str],extra:str)->str:
     """Dispatch small independent process batches so poisoned frees fit the fixed debug heap."""
-    source=(ROOT/'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text().replace('  import Data.String\n','  import Data.String\n  import Effect.Process\n')+'\n'+extra
+    source=(ROOT/'seed/tests/fixtures/string-construction-consumer.cinchpart').read_text().replace('  import Data.String\n','  import Data.String\n  import Effect.Process\n')+'\n'+extra
     dispatch='False'
     for first in reversed(range(0,len(expressions),8)):
         number=first//8;name=f'checks{number}'
@@ -36,8 +36,8 @@ def main()->None:
     """Compile exact selected String/Bytes epochs and run normal plus poisoned ownership checks."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
-    parser.add_argument('--string-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch')
-    parser.add_argument('--bytes-source',type=Path,default=ROOT/'compiler/prelude/Data/Bytes.cinch')
+    parser.add_argument('--string-source',type=Path,default=ROOT/'seed/prelude/Data/String.cinch')
+    parser.add_argument('--bytes-source',type=Path,default=ROOT/'seed/prelude/Data/Bytes.cinch')
     parser.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -46,9 +46,9 @@ def main()->None:
     parser.add_argument('--first',type=int,default=0)
     parser.add_argument('--limit',type=int)
     args=parser.parse_args()
-    fixture_path=ROOT/'compiler/tests/fixtures/buffer-construction-vectors.json';fixture=json.loads(fixture_path.read_text())
+    fixture_path=ROOT/'seed/tests/fixtures/buffer-construction-vectors.json';fixture=json.loads(fixture_path.read_text())
     report={'compiler_sha256':digest(args.compiler),'epoch':args.epoch,'selected_sources':{'Data.String':digest(args.string_source),'Data.Bytes':digest(args.bytes_source)},'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'native_base_validation_claimed':False,'results':[]}
-    extra=(ROOT/'compiler/tests/fixtures/buffer-construction-consumer.cinchpart').read_text()
+    extra=(ROOT/'seed/tests/fixtures/buffer-construction-consumer.cinchpart').read_text()
     for group in args.groups:
         project=args.artifacts/group;project.mkdir(parents=True,exist_ok=True)
         rows=fixture.get(group,[None])[args.first:]

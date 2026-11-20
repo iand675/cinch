@@ -40,7 +40,7 @@ Int)` exists. The unit laws state over `Semigroup.<>`, which a class
 constraint does not entail; the law's own context supplies the
 `Semigroup (NonZero Int)` dictionary, so the check reads this
 module's product and identity and decides both laws at samples
-(asserted in compiler/tests/refinements.rs).
+(asserted in seed/tests/refinements.rs).
 
 </details>
 
@@ -86,8 +86,8 @@ own methods, so it preserves the refinement by construction.
 (a non-zero product of non-zeros), associative (both checked
 sample-wise by the law layer). Integer addition does NOT preserve
 non-zerohood and its transfer is rejected by the preservation law
-(asserted in compiler/tests/refinements.rs).
+(asserted in seed/tests/refinements.rs).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/NonZero.cinch`. Source SHA-256: `dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonZero.cinch`. Source SHA-256: `dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

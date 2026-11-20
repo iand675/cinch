@@ -253,4 +253,4 @@ and return the exact advanced borrowed sink on either outcome.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Mime.cinch`. Source SHA-256: `1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Mime.cinch`. Source SHA-256: `1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

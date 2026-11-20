@@ -51,7 +51,7 @@
 --   agreement:     `coverage-total c` is the sum of the counts
 --                  `coverage-counts` reports.
 -- The test asserts all three over sample recorders
--- (compiler/tests/lib_coverage.rs). Commutativity also holds (addition
+-- (seed/tests/lib_coverage.rs). Commutativity also holds (addition
 -- and the map union are symmetric) and is checked there, but it is not
 -- the law anything depends on: only the keywise sum is observable.
 --

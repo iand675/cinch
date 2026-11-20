@@ -18,7 +18,7 @@ def declaration(source: str, name: str) -> str:
 
 def prefix(source: str | None=None) -> str:
     """Copy actual private code without exporting pointers from the maintained package."""
-    source=source if source is not None else (ROOT/'compiler/prelude/Text/Pem.cinch').read_text()
+    source=source if source is not None else (ROOT/'seed/prelude/Text/Pem.cinch').read_text()
     output='-- | Actual PEM byte kernels with checked caller-owned test buffers.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n  import Data.String\n\n'
     optional=[name for name in ['proc-token','find-end-machine','last-begin-machine'] if re.search(r'^  (?:prim )?'+name+r' ::',source,re.M)]
     for name in NAMES+['hold','natural','find-machine','blank-machine']+optional:
@@ -28,7 +28,7 @@ def prefix(source: str | None=None) -> str:
 
 def rendered(foreign: bool=False, source: str | None=None) -> str:
     """Retain observable unknown-input reads in portable objects; exhaust byte/lane mutations on hosts."""
-    actual=source if source is not None else (ROOT/'compiler/prelude/Text/Pem.cinch').read_text()
+    actual=source if source is not None else (ROOT/'seed/prelude/Text/Pem.cinch').read_text()
     priority='  prim proc-token ::' in actual
     if foreign:
         output=prefix(actual)+'''  -- | Give each independent predicate a distinct observable output bit.

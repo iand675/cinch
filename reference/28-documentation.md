@@ -225,7 +225,7 @@ data Rect where
 ```
 ````
 
-`cinch test` fences stay plain in both modes, because their heredoc sections are not Cinch source. The highlighting comes from `compiler/src/highlight.rs` over `tooling/tree-sitter-cinch`, the same classifier the REPL uses for its transcript.
+`cinch test` fences stay plain in both modes, because their heredoc sections are not Cinch source. The highlighting comes from `seed/src/highlight.rs` over `tooling/tree-sitter-cinch`, the same classifier the REPL uses for its transcript.
 
 `cinch doc highlight` applies that classifier to a bare `.cinch` file:
 
@@ -311,7 +311,7 @@ cinch doc index . --out symbols.json
 
 `index` walks a directory of sources. Each record has `id`, `module`, `kind`, `name`, `summary`, `source`, and `line`. An undocumented declaration is still indexed, with an empty `summary`.
 
-`lookup` builds the same index over `--dir` (default `compiler/prelude`) and searches it, matching an exact `id` first and then a bare `name`:
+`lookup` builds the same index over `--dir` (default `seed/prelude`) and searches it, matching an exact `id` first and then a bare `name`:
 
 ```sh
 cinch doc lookup Shapes.area --dir .
@@ -377,7 +377,7 @@ main = if width * 4 == 12 then 0 else 1
 ````
 
 ```sh
-cinch doc test . --compiler /path/to/compiler/target/debug/cinch
+cinch doc test . --compiler /path/to/seed/target/debug/cinch
 ```
 
 ```text
@@ -461,7 +461,7 @@ New source should use `-- |`. A canonical marker wins over a legacy block when b
 
 ```sh
 python3 website/scripts/generate-library-reference.py \
-  --compiler compiler/target/debug/cinch --validate-docs
+  --compiler seed/target/debug/cinch --validate-docs
 ```
 
 That is how the [library reference](../library/00-index.md) stays in sync with the sources, and why those pages are generated rather than edited.
@@ -474,4 +474,4 @@ That is how the [library reference](../library/00-index.md) stays in sync with t
 - `cinch doc test` compiles and runs only self-contained fences, one temporary directory per case.
 - Mermaid and math are recorded, not rendered, by the compiler. The site renders them.
 
-Implementation: `compiler/src/cinchdoc.rs` for `cinch doc`, `compiler/src/highlight.rs` for token classification over `tooling/tree-sitter-cinch`. The [compiler guide](01-using-the-compiler.md) covers the build commands that produce the `.cinchif` files `--iface` reads.
+Implementation: `seed/src/cinchdoc.rs` for `cinch doc`, `seed/src/highlight.rs` for token classification over `tooling/tree-sitter-cinch`. The [compiler guide](01-using-the-compiler.md) covers the build commands that produce the `.cinchif` files `--iface` reads.

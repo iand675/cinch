@@ -17,7 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
-HELPERS = (ROOT / "compiler/tests/fixtures/path-consumer-helpers.cinchpart").read_text()
+HELPERS = (ROOT / "seed/tests/fixtures/path-consumer-helpers.cinchpart").read_text()
 
 
 def literal(value: str) -> str:
@@ -82,32 +82,32 @@ def main() -> None:
     parser.add_argument("--native-interfaces", type=Path)
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--groups", nargs="+", choices=["lexical", "joins", "globs", "owners"], default=["lexical", "joins", "globs"])
-    parser.add_argument("--module-source", type=Path, default=ROOT / "compiler/prelude/Text/Path.cinch")
+    parser.add_argument("--module-source", type=Path, default=ROOT / "seed/prelude/Text/Path.cinch")
     parser.add_argument("--first", type=int, default=0)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
-    fixture = json.loads((ROOT / "compiler/tests/fixtures/path-vectors.json").read_text())
+    fixture = json.loads((ROOT / "seed/tests/fixtures/path-vectors.json").read_text())
     report = {"frontend": str(args.compiler.resolve()), "frontend_sha256": hashlib.sha256(args.compiler.read_bytes()).hexdigest(), "native_interfaces": str(args.native_interfaces) if args.native_interfaces else None, "source_sha256": hashlib.sha256(args.module_source.read_bytes()).hexdigest(), "results": []}
     actual_compiler = args.compiler.parent / "cinch" if args.native_interfaces else args.compiler
     report["compiler_sha256"] = hashlib.sha256(actual_compiler.read_bytes()).hexdigest()
     for group in args.groups:
         work = args.artifacts / group
         work.mkdir(parents=True, exist_ok=True)
-        for name, path in [("Text.Path", args.module_source), ("Data.Bytes.Word", ROOT / "compiler/prelude/Data/Bytes/Word.cinch")]:
+        for name, path in [("Text.Path", args.module_source), ("Data.Bytes.Word", ROOT / "seed/prelude/Data/Bytes/Word.cinch")]:
             shutil.copyfile(path, work / f"{name}.cinch")
         rows = [None] if group == "owners" else fixture[group][args.first:]
         if args.limit is not None:
             rows = rows[:args.limit]
         source = consumer(["owner-case ()"]) if group == "owners" else consumer(checks(group, rows))
         if group == "owners":
-            source = source.replace("  -- | Return failure", (ROOT / "compiler/tests/fixtures/path-owner-consumer.cinchpart").read_text() + "\n  -- | Return failure")
+            source = source.replace("  -- | Return failure", (ROOT / "seed/tests/fixtures/path-owner-consumer.cinchpart").read_text() + "\n  -- | Return failure")
         (work / "Main.cinch").write_text(source)
         exe = (work / "consumer").resolve()
         if args.native_interfaces:
             bundle = (work / "Bundle.cinch").resolve()
-            bundle.write_text((ROOT / "compiler/prelude/Data/Bytes/Word.cinch").read_text() + "\n" + args.module_source.read_text() + "\n" + source)
+            bundle.write_text((ROOT / "seed/prelude/Data/Bytes/Word.cinch").read_text() + "\n" + args.module_source.read_text() + "\n" + source)
             run([sys.executable, str(args.compiler.resolve()), "--rc-debug", "--compile-only", "--interfaces", str(args.native_interfaces.resolve()), str(bundle), str(exe.with_suffix('.ll')), str(exe), str(exe.with_suffix('.link.txt'))])
         else:
             run([str(args.compiler.resolve()), "build", str((work / "Main.cinch").resolve()), "-o", str(exe), "--opt-level", "2", "--rc-debug"])

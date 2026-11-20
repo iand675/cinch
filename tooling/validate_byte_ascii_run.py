@@ -35,7 +35,7 @@ def checks() -> list[str]:
 
 def consumer(expressions: list[str], width: int) -> str:
     """Choose bounded memory groups without changing the observer or its heap limits."""
-    source = (ROOT/'compiler/tests/fixtures/byte-view-ascii-run-consumer.cinchpart').read_text()
+    source = (ROOT/'seed/tests/fixtures/byte-view-ascii-run-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0,len(expressions),width)):
         number = first//width
@@ -49,7 +49,7 @@ def consumer(expressions: list[str], width: int) -> str:
 
 
 def main() -> None:
-    """Preserve exact compiler/source/runtime identities and all failed diagnostics before asserting results."""
+    """Preserve exact seed/source/runtime identities and all failed diagnostics before asserting results."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
     parser.add_argument('--runtime-archive',type=Path)

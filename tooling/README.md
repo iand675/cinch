@@ -10,8 +10,8 @@ D198-D205, D221-D227 where the specs understate).
 ## Layout
 
 - `tree-sitter-cinch/`: the grammar (`grammar.js`) and the external
-  scanner (`src/scanner.c`), a port of `compiler/src/lexer.rs` and
-  `compiler/src/layout.rs`.
+  scanner (`src/scanner.c`), a port of `seed/src/lexer.rs` and
+  `seed/src/layout.rs`.
 - `tree-sitter-cinch/corpus/`: parse-tree assertions for the tricky
   cases (the minus table, dash names, tick disambiguation, operator
   runs like `<$>`/`>>=`/`<>`, attributes, prim/contract forms, layout).
@@ -31,23 +31,23 @@ D198-D205, D221-D227 where the specs understate).
   runs the corpus assertions). `--core` does the same for the Core
   grammar.
 - `check-real-files-parse.sh`: parses every real `.cinch` file under
-  `compiler/prelude/` and `examples/source/` and, for Core, every
-  `*.core` under `compiler/tests/core/` and
+  `seed/prelude/` and `examples/source/` and, for Core, every
+  `*.core` under `seed/tests/core/` and
   `tree-sitter-cinch-core/samples/`, requiring zero ERROR nodes (the
   whole-file property net). `--surface` and `--core` restrict it to one
   grammar.
 - `run-bootstrap-ladder.sh`: assembles a project out of the toolkit sources,
-  every `bootstrap/*.cinch` module and (optionally) one rung program, and
+  every `compiler/*.cinch` module and (optionally) one rung program, and
   either type-checks the ladder's modules or runs one rung through the real
   CLI. The compiler does not embed the P30/P31 toolkit, so this assembly is
   how a rung runs outside the test harness.
   With `--all-programs` it asks the design document's question of every
-  rung: is the artifact runnable? It builds each `bootstrap/programs/Run.*.cinch`
+  rung: is the artifact runnable? It builds each `compiler/programs/Run.*.cinch`
   and reports its exit code, failing only when a program did not build.
-- `check-bootstrap-layout.py`: guards the `bootstrap/` layout. It fails when
+- `check-compiler-layout.py`: guards the `compiler/` layout. It fails when
   a result, note or patch lands at the top level again, when a result sits in
   the wrong `evidence/` subject directory, or when a tracked text file still
-  names a bootstrap file at its old path.
+  names a compiler file at its old path.
 - `shard_ir.py`: the deterministic IR splitter for the stage link
   (below), which also runs as a `CINCH_CLANG` wrapper so the pinned seed's
   own link of Stage1 gets the same treatment.
@@ -179,7 +179,7 @@ mangled names are long, so the symbol table in `__LINKEDIT` is 33k entries
 larger.
 \\\\\\\        to: qrutmztx 0052933a "Add a build profile harness for the ladder" (rebased revision)
 - `profile_build.py`: measures where the ladder spends its time and writes
-  `bootstrap/evidence/other/speed-baseline.json` (see below).
+  `compiler/evidence/other/speed-baseline.json` (see below).
 
 ## Development builds
 
@@ -214,7 +214,7 @@ what the build relies on.
 A client that needs a representation of a polymorphic export which the
 exporting module did not emit asks for it; the build adds the request to
 `<out>/discovered-roots.json` and rebuilds that module. Copy a new request
-into `bootstrap/pins/module-object-roots.json` so a clean build starts with it.
+into `compiler/pins/module-object-roots.json` so a clean build starts with it.
 
 ## Build profile
 
@@ -271,7 +271,7 @@ the graph.
 Only the standard library, `clang` and `sample` are needed. Everything the
 run generates lands in `build/bootstrap-profile` or `build/bootstrap`, both ignored by
 git, so measuring never edits a source file. The one exception is the
-baseline itself, `bootstrap/evidence/other/speed-baseline.json`.
+baseline itself, `compiler/evidence/other/speed-baseline.json`.
 
 ## Drift check (CI)
 
@@ -321,7 +321,7 @@ pattern shape including the empty case, `release` with empty moved and
 rest lists, a one-line node and the same node wrapped, and comments.
 `tooling/check-grammar-drift.sh --core` regenerates the parser and runs
 them. `tooling/check-real-files-parse.sh --core` parses the printer's
-golden `compiler/tests/core/*.core` files when that directory exists and
+golden `seed/tests/core/*.core` files when that directory exists and
 `samples/forms.core` always, requiring zero `ERROR` and `MISSING` nodes.
 The golden files are another slice's deliverable; until they land the
 script reports that it skipped them.
@@ -385,7 +385,7 @@ Decisions the design note leaves open or states only in prose:
 
 `cinch lsp` dispatches to `cinch::lsp::LspServer::run` over stdio
 (Content-Length framed JSON-RPC), exactly the invocation exercised by
-`compiler/tests/lsp.rs`, so editors can exec the compiler binary
+`seed/tests/lsp.rs`, so editors can exec the compiler binary
 directly. `lsp-driver/` is the same invocation in a standalone two-file
 driver:
 
@@ -436,7 +436,7 @@ either way.
 Install (once):
 
 ```sh
-cargo build --release --manifest-path compiler/Cargo.toml   # the `cinch` binary
+cargo build --release --manifest-path seed/Cargo.toml   # the `cinch` binary
 tooling/editors/zed/sync-grammar.sh
 ```
 
@@ -591,7 +591,7 @@ the grammar slice:
 ## Scanner and grammar decisions (unnumbered)
 
 - All terminals come from `src/scanner.c`, a straight port of
-  `compiler/src/lexer.rs` plus the `layout.rs` frame machine. Regex
+  `seed/src/lexer.rs` plus the `layout.rs` frame machine. Regex
   tokens cannot express the context-sensitive rules: dash glue vs the
   minus whitespace contract (D102/D128), negative literal signs
   (D129), the tick Char-vs-Symbol rule (D123), `$` continuing but never
@@ -642,7 +642,7 @@ the grammar slice:
   `tooling/check-real-files-parse.sh --core` parses
   `tree-sitter-cinch-core/samples/forms.core` with zero ERROR or MISSING
   nodes. That same check reports that it skipped
-  `compiler/tests/core/` because the printer slice has not created it
+  `seed/tests/core/` because the printer slice has not created it
   yet; when the golden files land they are parsed with no change to the
   script.
 - The corpus is green end to end: `tooling/check-grammar-drift.sh`
@@ -652,10 +652,10 @@ the grammar slice:
   restored from the asserted behavior (`y--3` lexes as identifier `y`
   plus line comment `--3`).
 - `tooling/check-real-files-parse.sh --surface` is not green today: it
-  parses 113 files under `compiler/prelude/` and `examples/source/` and
+  parses 113 files under `seed/prelude/` and `examples/source/` and
   26 of them report ERROR nodes. Those modules use forms the grammar does not have
   yet, refinement types first among them (`type Ascii = refine (s ::
-  String) with Ascii s` in `compiler/prelude/Data/Ascii.cinch`). The
+  String) with Ascii s` in `seed/prelude/Data/Ascii.cinch`). The
   drift check stays green, so this is missing grammar coverage rather
   than a scanner fault, and it is what an editor shows as invalid
   syntax in those files.

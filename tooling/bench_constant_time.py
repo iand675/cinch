@@ -18,7 +18,7 @@ def prepare(root, compiler, artifact_root, variant, source):
     directory=artifact_root/variant
     directory.mkdir(parents=True,exist_ok=True)
     (directory/'Crypto.ConstantTime.cinch').write_bytes(source.read_bytes())
-    for name,path in [('Data.Bytes.Word.cinch',root/'compiler/prelude/Data/Bytes/Word.cinch'),
+    for name,path in [('Data.Bytes.Word.cinch',root/'seed/prelude/Data/Bytes/Word.cinch'),
                       ('Main.cinch',root/'benchmarks/stdlib/constant-time-equality.cinch')]:
         (directory/name).write_bytes(path.read_bytes())
     result=subprocess.run([str(compiler.resolve()),'emit-ir',str(directory/'Main.cinch'),
@@ -53,7 +53,7 @@ def main():
     for variant in variants:
         work=args.artifact_root.resolve()/variant if args.artifact_root else root/f'build/constant-time-benchmark-{variant}'
         if args.compiler and prior is None:
-            source=root/('benchmarks/stdlib/constant-time-equality-baseline.cinchpart' if variant==args.baseline else 'compiler/prelude/Crypto/ConstantTime.cinch')
+            source=root/('benchmarks/stdlib/constant-time-equality-baseline.cinchpart' if variant==args.baseline else 'seed/prelude/Crypto/ConstantTime.cinch')
             work=prepare(root,args.compiler,args.artifact_root.resolve(),variant,source)
         executable=work/'consumer';ir=work/'consumer.ll'
         command=[args.clang,'-O2',str(ir),str(support),str(runtime),'-lpthread','-ldl','-lm','-o',str(executable)]

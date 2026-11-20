@@ -26,12 +26,12 @@ def main() -> None:
         directory=args.artifacts/triple;directory.mkdir()
         modules=('Data.Uuid','Text.Hex','Data.Bytes.Word')
         for module in modules:
-            source=ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')
+            source=ROOT/'seed/prelude'/(module.replace('.','/')+'.cinch')
             if args.candidate_sources and module=='Data.Uuid':
                 candidate=args.candidate_sources.resolve()/(module+'.cinch')
                 if candidate.is_file():source=candidate
             (directory/(module+'.cinch')).write_bytes(source.read_bytes())
-        entry=directory/'Main.cinch';entry.write_bytes((ROOT/'compiler/tests/fixtures/uuid-portable.cinch').read_bytes())
+        entry=directory/'Main.cinch';entry.write_bytes((ROOT/'seed/tests/fixtures/uuid-portable.cinch').read_bytes())
         ir=directory/'consumer.ll';command=[str(args.compiler.resolve()),'emit-ir',str(entry.resolve()),'--target',triple,'-o',str(ir.resolve())]
         result=execute(command,directory,environment,True);(directory/'emit.log').write_text(result['stdout']+result['stderr'])
         row={'target':triple,'emit':result,'sources':{p.name:digest(p) for p in directory.glob('*.cinch')}};report['targets'].append(row)

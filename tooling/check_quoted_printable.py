@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check committed independent quoted-printable value, stream and ownership fixtures.
 
-Explicit compiler/runtime pairs emit through the public CLI. Each consumer links
+Explicit seed/runtime pairs emit through the public CLI. Each consumer links
 an independent sink fixture and the actual selected SIMD classifier object, then
 runs separate normal and poisoned-free allocation profiles. CI needs no SDK.
 """
@@ -126,7 +126,7 @@ def main() -> None:
     parser.add_argument('--start-free-mib', type=int, default=0)
     parser.add_argument('--pause-free-mib', type=int, default=0)
     parser.add_argument('--unarchived-cap-mib', type=int, default=0)
-    parser.add_argument('--vectors', type=Path, default=ROOT / 'compiler/tests/fixtures/quoted-printable-vectors.json')
+    parser.add_argument('--vectors', type=Path, default=ROOT / 'seed/tests/fixtures/quoted-printable-vectors.json')
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--rust', type=Path)

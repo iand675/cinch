@@ -76,7 +76,7 @@ def main() -> None:
         if not separator or name not in MODULES or name in overrides:
             parser.error("source overrides must name each selected module at most once as MODULE=PATH")
         overrides[name] = Path(value).resolve()
-    modules = {name: overrides.get(name, ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes() for name in MODULES}
+    modules = {name: overrides.get(name, ROOT / "seed/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes() for name in MODULES}
     report = {"format": 1, "frontend": args.frontend, "compiler_sha256": digest(compiler), "runtime_sha256": digest(runtime),
               "runner_sha256": digest(Path(__file__)), "cpu_affinity": [args.cpu], "opt_level": args.opt_level,
               "sources": {name: hashlib.sha256(data).hexdigest() for name, data in modules.items()}, "suites": [], "status": "running"}
@@ -100,16 +100,16 @@ def main() -> None:
     if "source" in args.modes:
         jobs["source"] = "module Main where\n  import Data.Mutable.Map\n  import Data.Mutable.Map.Optional\n  import Data.Mutable.Map.Float\n  main :: Int\n  main = 0\n"
     if "region" in args.modes:
-        jobs["region"] = (ROOT / "compiler/tests/fixtures/maps-region-pair.cinch").read_text()
-        jobs["region-source"] = (ROOT / "compiler/tests/fixtures/maps-region-source.cinch").read_text()
+        jobs["region"] = (ROOT / "seed/tests/fixtures/maps-region-pair.cinch").read_text()
+        jobs["region-source"] = (ROOT / "seed/tests/fixtures/maps-region-source.cinch").read_text()
     if "negative" in args.modes:
-        jobs["negative-pure-read"] = (ROOT / "compiler/tests/fixtures/mutable-map-negative-pure-read.cinch").read_text()
+        jobs["negative-pure-read"] = (ROOT / "seed/tests/fixtures/mutable-map-negative-pure-read.cinch").read_text()
     if "control" in args.modes:
-        jobs["control"] = (ROOT / "compiler/tests/fixtures/mutable-map-control.cinch").read_text()
+        jobs["control"] = (ROOT / "seed/tests/fixtures/mutable-map-control.cinch").read_text()
     if "edge" in args.modes:
         jobs["edge"] = edge_source()
     if "effect" in args.modes:
-        jobs["effect"] = (ROOT / "compiler/tests/fixtures/mutable-map-effect-control.cinch").read_text()
+        jobs["effect"] = (ROOT / "seed/tests/fixtures/mutable-map-effect-control.cinch").read_text()
     if "trace" in args.modes:
         jobs.update({f"trace-{index}": source(index) for index in args.cases})
     if "float" in args.modes:

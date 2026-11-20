@@ -21,8 +21,8 @@ open).
 The primitive types specification, section 1: a primitive machine scalar
 "occupies its stated fixed layout, is passed, stored and compared inline,
 and involves no indirection, allocation or ownership transfer". Both
-compilers hold every value in one `i64` word (`compiler/src/repr.rs`
-header; `bootstrap/Bootstrap.RuntimeIr.cinch` header). A 128-bit scalar
+compilers hold every value in one `i64` word (`seed/src/repr.rs`
+header; `compiler/Bootstrap.RuntimeIr.cinch` header). A 128-bit scalar
 does not fit, so it needs a representation of its own, and that
 representation has to reach every place a value is held.
 
@@ -91,7 +91,7 @@ unboxes: two loads and a drop of the box. This is
 the one layout that does not fit a word.
 
 The edges are made explicit in `Core`, not left as conventions inside the
-emitter. A pass after specialisation (`compiler/src/wide.rs`) walks every
+emitter. A pass after specialisation (`seed/src/wide.rs`) walks every
 unit with one fact per value position, `Wide` or `Word`, and inserts
 `Core::WideBox(e)` and `Core::WideUnbox(e)` where the two disagree. The
 emitter then has two total rules: a wide position's operand is `i128`, a
@@ -169,7 +169,7 @@ module.
 
 `I128` and `U128` are C's `__int128` and `unsigned __int128`, crossing as
 LLVM `i128`, which is clang's own spelling on x86-64 and AArch64. Inside
-a by-value aggregate (`compiler/src/cabi.rs`) a 16-byte integer leaf is
+a by-value aggregate (`seed/src/cabi.rs`) a 16-byte integer leaf is
 two System V INTEGER eightbytes at a 16-aligned offset, one `i128`
 register pair on AAPCS64, and by reference on Microsoft x64, as clang
 classifies `__int128` members; the current refusal of wide leaves is
@@ -189,9 +189,9 @@ predates `W` must refuse such an interface rather than misread it, so
 
 ## 9 The stage compiler
 
-The stage compiler (`bootstrap/*.cinch`) checks and lowers its own
+The stage compiler (`compiler/*.cinch`) checks and lowers its own
 programs; it does not compile the base library, which comes from the
-pinned producer (`bootstrap/pins/library-provider.lock.json`). Parity
+pinned producer (`compiler/pins/library-provider.lock.json`). Parity
 therefore has two halves:
 
 - **its own checker and backend**: `I128`/`U128` as kernel types with
@@ -201,7 +201,7 @@ therefore has two halves:
   at its word positions, and the foreign marshal at `i128`;
 - **its view of the library**: `Data.Wide` reaches stage programs once the
   provider lock and the seed pin move to a revision that contains it, with
-  `bootstrap/pins/library-object-roots.json` entries for the units stage
+  `compiler/pins/library-object-roots.json` entries for the units stage
   programs reach.
 
 The fixed point (`tooling/bootstrap.sh check`) is the gate for both.
@@ -228,12 +228,12 @@ suites on clang 19 and 20, and from phase 4 the fixed point.
 
 ## 11 What landed in phase 1, and where it departs
 
-Phase 1 is in the seed compiler (`compiler/src`), with `tests/wide.rs`
+Phase 1 is in the seed compiler (`seed/src`), with `tests/wide.rs`
 running every lowered position against real hardware under the leak
 checker. Five decisions differ from, or refine, the text above.
 
 **The box is a constructor, not two new `Core` nodes.** Section 3 named
-`Core::WideBox` and `Core::WideUnbox`. The edge pass (`compiler/src/wide.rs`)
+`Core::WideBox` and `Core::WideUnbox`. The edge pass (`seed/src/wide.rs`)
 uses the constructor machinery instead: a box is an application of the
 builtin one-field constructor `<builtin>.WideBox`, whose field is `Wide`,
 and an unbox is `let b = e in b.0`, a projection of that field. The pass
@@ -339,7 +339,7 @@ one.
 result does not join a tail group. A Wide specialization of a group
 member is an ordinary worker that the group's transfers call.
 
-`compiler/tests/bootstrap_wide.rs` runs the lowering end to end under
+`seed/tests/bootstrap_wide.rs` runs the lowering end to end under
 the leak checker, refusals included.
 
 Still to come:

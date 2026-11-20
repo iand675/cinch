@@ -3662,9 +3662,9 @@
       ],
       "validation_status": "Exact compiler, source and parent-gate epochs are recorded in validation_evidence; source changes require requalification.",
       "validation_evidence": [
-        "bootstrap/evidence/stdlib/stdlib-string-combined-native-family-results.json",
-        "bootstrap/evidence/stdlib/stdlib-utf8-text-final-native-validation-results.json",
-        "bootstrap/evidence/stdlib/stdlib-string-phase2-parent-results.json"
+        "compiler/evidence/stdlib/stdlib-string-combined-native-family-results.json",
+        "compiler/evidence/stdlib/stdlib-utf8-text-final-native-validation-results.json",
+        "compiler/evidence/stdlib/stdlib-string-phase2-parent-results.json"
       ],
       "string_dependency": {
         "module": "Data.String",
@@ -3679,7 +3679,7 @@
     "Char is scalar-only; numeric range membership includes surrogate code points.",
     "Built-in tables and catalogs are immutable; custom metadata is checked before private owned storage is allocated.",
     "Simple mappings preserve one scalar; no normalization, expansion or full case folding is supplied by this package.",
-    "Raw byte APIs retain malformed/non-UTF8 input; text adapters use public immutable String scalar/count observations without copying or exposing backing. Exact combined String compiler/distribution and consumer epochs are recorded in the linked validation receipts.",
+    "Raw byte APIs retain malformed/non-UTF8 input; text adapters use public immutable String scalar/count observations without copying or exposing backing. Exact combined String seed/distribution and consumer epochs are recorded in the linked validation receipts.",
     "Invalid decoding consumes one byte as U+FFFD; invalid numeric encoding emits U+FFFD; rune-length reports None for invalid numbers.",
     "Append and repair outputs are unconditionally fresh; encode-into capacity refusal writes nothing."
   ]

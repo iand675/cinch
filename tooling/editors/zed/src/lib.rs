@@ -4,7 +4,7 @@
 //! `extension.toml` and `languages/cinch/`). This binary exists for the one
 //! procedural part: telling Zed how to start the Cinch language server,
 //! which is the compiler binary itself (`cinch lsp`, stdio JSON-RPC, see
-//! `compiler/src/lsp.rs`).
+//! `seed/src/lsp.rs`).
 
 use zed_extension_api as zed;
 
@@ -43,7 +43,7 @@ impl zed::Extension for CinchExtension {
 
         Err(
             "no Cinch language server found: build the compiler \
-             (`cargo build --release --manifest-path compiler/Cargo.toml`) and put `cinch` \
+             (`cargo build --release --manifest-path seed/Cargo.toml`) and put `cinch` \
              on PATH, or set `lsp.cinch-lsp.binary.path` (and its `arguments` to [\"lsp\"]) \
              in Zed settings"
                 .to_string(),

@@ -22,7 +22,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PRELUDE = ROOT / "compiler/prelude"
+PRELUDE = ROOT / "seed/prelude"
 WORKLOADS = (
     "hex-encode", "hex-decode", "base32-encode", "base32-decode",
     "base64-encode", "base64-decode", "adler32", "crc32", "crc32c",
@@ -526,7 +526,7 @@ def run(args: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 def main() -> None:
     """Build once, warm up independently, and retain every measured sample."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--compiler", type=Path, default=ROOT / "compiler/target/debug/cinch")
+    parser.add_argument("--compiler", type=Path, default=ROOT / "seed/target/debug/cinch")
     parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Use a retained source-distributed module for a matched baseline; record its path and bytes")
     parser.add_argument("--opt-level", type=int, choices=range(4), default=2, help="Use this Clang level for both the executable and retained assembly")
     parser.add_argument("--sizes", nargs="+", type=int, default=[32, 1024, 16384])
@@ -560,8 +560,8 @@ def main() -> None:
     report = {
         "format": 1, "opt_level": args.opt_level, "label": args.label, "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
         "compiler_sha256": digest(compiler),
-        "compiler_source_sha256": source_digest(list((ROOT / "compiler/src").rglob("*.rs")) + [ROOT / "compiler/Cargo.toml", ROOT / "compiler/Cargo.lock", ROOT / "compiler/build.rs"]),
-        "runtime_source_sha256": source_digest(list((ROOT / "compiler/runtime/src").rglob("*.*")) + [ROOT / "compiler/runtime/Cargo.toml"]),
+        "compiler_source_sha256": source_digest(list((ROOT / "seed/src").rglob("*.rs")) + [ROOT / "seed/Cargo.toml", ROOT / "seed/Cargo.lock", ROOT / "seed/build.rs"]),
+        "runtime_source_sha256": source_digest(list((ROOT / "seed/runtime/src").rglob("*.*")) + [ROOT / "seed/runtime/Cargo.toml"]),
         "runner_sha256": digest(Path(__file__)),
         "working_tree_dirty": bool(run(["git", "status", "--porcelain"], cwd=ROOT).stdout.strip()),
         "driver_sha256": hashlib.sha256(SOURCE.encode()).hexdigest(),

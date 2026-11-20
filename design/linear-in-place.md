@@ -39,7 +39,7 @@ only searches a straight-line spine.
 
 ## 2 What the mechanism is, in one paragraph
 
-`compiler/src/rc.rs` runs after inlining and inserts counts. When a `case`
+`seed/src/rc.rs` runs after inlining and inserts counts. When a `case`
 arm's scrutinee dies (owned, not live, not read again) and a constructor of
 the same payload shape is allocated on that arm's spine, the pass emits
 `Release { block, token }` instead of a plain drop, and rewrites the
@@ -100,7 +100,7 @@ unit Main.mp :: (Data.Core.List Int) -> (Data.Core.List Int)
 ### 3.2 And they do it with no linearity in sight
 
 The prelude's list append is the `Semigroup` instance
-(`compiler/prelude/Data/List.cinch:517`); the module contains no `%1` at all:
+(`seed/prelude/Data/List.cinch:517`); the module contains no `%1` at all:
 
 ```cinch
 implicit instance Semigroup_List t :: Semigroup (List t) where
@@ -110,7 +110,7 @@ implicit instance Semigroup_List t :: Semigroup (List t) where
 ```
 
 Every parameter there is `%many`, the unannotated default
-(`compiler/src/types.rs`, `default_mult`). Nothing in that definition says the
+(`seed/src/types.rs`, `default_mult`). Nothing in that definition says the
 left operand is consumed. The reuse pass derives it: the arm's scrutinee is
 owned, nothing reads it again, and a same-shaped `Cons` is born on the spine.
 The owned Core for a program calling `<>` shows the pair, so the reuse is
@@ -193,7 +193,7 @@ lists are a different shape and its cost is inherent to the algorithm.
 
 ## 4 The census: call sites
 
-Counted over `bootstrap/*.cinch`, 42,306 lines across 44 modules, comment
+Counted over `compiler/*.cinch`, 42,306 lines across 44 modules, comment
 lines excluded so prose does not inflate the count.
 
 | Operation | Call sites | Notes |
@@ -237,7 +237,7 @@ it reaches all of them.
 
 Call sites are an upper bound. The real question is what the pass achieves on
 the compiler's own residual program, so I dumped owned Core for all 44
-`bootstrap/*.cinch` modules (5,927 units) and parsed every `release` site with
+`compiler/*.cinch` modules (5,927 units) and parsed every `release` site with
 an S-expression reader, walking the exact spine `rc.rs insert_reuse` walks.
 
 Every release falls into one of five buckets:
@@ -352,12 +352,12 @@ linearity:
 
 ## 8 What was and was not built
 
-**Built: nothing in `compiler/src`.** This is the deliberate outcome. The
+**Built: nothing in `seed/src`.** This is the deliberate outcome. The
 operations the lane was chartered to implement (`append`, `map` in place,
 `concat`) already lower to reuse, so an intrinsic or a second public name would
 have been a parallel mechanism doing worse work than the pass already does, and
-would have needed a lock bump for `compiler/runtime/src` and
-`compiler/prelude` to do it.
+would have needed a lock bump for `seed/runtime/src` and
+`seed/prelude` to do it.
 
 **Not built, with the reason:**
 
@@ -371,8 +371,8 @@ would have needed a lock bump for `compiler/runtime/src` and
 | `filter` | no sites | 2 call sites in the whole compiler; not worth a mechanism |
 | `Data.HashMap` / `Data.Set` insertion | out of scope for reuse as shaped | path copying is `design/reclamation.md`'s stated next target, not this lane's |
 
-**Lock bumps: none needed.** No file under `compiler/runtime/src` or
-`compiler/prelude` was modified, so no stage0 re-pin and no library-provider
+**Lock bumps: none needed.** No file under `seed/runtime/src` or
+`seed/prelude` was modified, so no stage0 re-pin and no library-provider
 re-pin. `runtime_abi` did not move.
 
 **Which gates this lane ran.** The deliverable is a measurement, so the gates
@@ -383,7 +383,7 @@ that matter are the ones that make the numbers trustworthy, and those it ran:
 | the compiler's own source set checks clean | yes: the stage-3 compiler's `--check` exits 0 with an empty diagnostics file, and the Rust frontend on the same source set writes 115 interfaces |
 | every number reproducible | yes, identical over repeats with `build/` removed |
 | owned Core dump for all 44 modules | yes, 5,927 units parsed |
-| `cargo test --lib`, the list/reclamation/hashmap suites, the smokes | **not run**, and not required: no file under `compiler/` was modified |
+| `cargo test --lib`, the list/reclamation/hashmap suites, the smokes | **not run**, and not required: no file under `seed/` was modified |
 | fixed point (stage2/stage3 byte equality) | **not run**, same reason |
 
 The two skipped rows are the gates for a code change. This lane's only change
@@ -399,7 +399,7 @@ per section 10, those gates become required and belong to that change.
 # owned Core for every bootstrap module, then the reuse census over it.
 # `check` never reaches the owned stage, so `emit-ir` is the command; it
 # writes the dump before refusing for want of a `main`.
-for f in bootstrap/*.cinch; do
+for f in compiler/*.cinch; do
   m="${f%.cinch}"
   cinch emit-ir "$m.cinch" -o /tmp/o.ll --dump-core owned >/dev/null 2>&1
 done
@@ -481,7 +481,7 @@ records the pass change that collects part of it, and the measurements.
 
 ### 11.1 What was added
 
-Two search extensions to `compiler/src/rc.rs`. Both keep the existing pairing
+Two search extensions to `seed/src/rc.rs`. Both keep the existing pairing
 logic and the existing soundness argument, and both are the one mechanism: no
 second pass, no new node, no calling-convention change.
 
@@ -646,7 +646,7 @@ this lane.
 
 ### 11.6 Lock bump
 
-**Needed.** `compiler/src/rc.rs` changed, so the stage0 seed and the library
+**Needed.** `seed/src/rc.rs` changed, so the stage0 seed and the library
 provider both need re-pinning. `runtime_abi` did not move.
 
 

@@ -13,16 +13,16 @@ from audit_stdlib_surface import declarations
 
 ROOT = Path(__file__).resolve().parents[1]
 BASIS = "bfb4cb57113016a6cb054fd5c460b6cea6fcf60d"
-OUTPUT = ROOT / "bootstrap/evidence/stdlib/stdlib-maps-audit.json"
+OUTPUT = ROOT / "compiler/evidence/stdlib/stdlib-maps-audit.json"
 HOMES = (
     "Data.Map", "Data.HashMap", "Data.Mutable.HashTable",
     "Data.Mutable.BTree", "Data.Mutable.IndexMap",
 )
 SUPPORT = ("Data.Producer", "Data.Hash", "Relation.Eq", "Relation.Ord", "Data.Compare", "Data.Machine")
 TESTS = (
-    "compiler/tests/lib_map_set_ops.rs", "compiler/tests/lib_hashmap_real.rs",
-    "compiler/tests/lib_hash_keys.rs", "compiler/tests/lib_mutable.rs",
-    "compiler/tests/fixtures/mutable_containers.cinch",
+    "seed/tests/lib_map_set_ops.rs", "seed/tests/lib_hashmap_real.rs",
+    "seed/tests/lib_hash_keys.rs", "seed/tests/lib_mutable.rs",
+    "seed/tests/fixtures/mutable_containers.cinch",
 )
 
 
@@ -33,7 +33,7 @@ def digest(path: Path) -> str:
 
 def module_inventory(module: str) -> dict:
     """Record actual exports and their declaration lines, not inferred names."""
-    path = Path("compiler/prelude") / (module.replace(".", "/") + ".cinch")
+    path = Path("seed/prelude") / (module.replace(".", "/") + ".cinch")
     lines = (ROOT / path).read_text().splitlines()
     exports = [name.strip() for line in lines if line.startswith("  export ")
                for name in line.removeprefix("  export ").split(",")]

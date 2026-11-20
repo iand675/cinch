@@ -13,7 +13,7 @@ from bench_stdlib import source_closure
 from validate_byte_view import digest, input_bytes, run
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-view-index-byte-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-view-index-byte-vectors.json'
 PROTO = ROOT / 'benchmarks/stdlib/byte-view-index-byte-prototype.cinch'
 
 
@@ -102,10 +102,10 @@ def crosscheck(rows: list[dict]) -> None:
 
 def consumer(checks: list[str], width: int) -> str:
     """Use public views and bounded process groups without mirroring the production search worker."""
-    prefix = (ROOT / 'compiler/tests/fixtures/byte-view-consumer.cinchpart').read_text()
+    prefix = (ROOT / 'seed/tests/fixtures/byte-view-consumer.cinchpart').read_text()
     prefix = prefix[:prefix.index('  -- | Compare an optional relative byte offset')]
     text = prefix.replace('  import Data.String\n', '  import Data.String\n  import Text.Hex\n')
-    text += (ROOT / 'compiler/tests/fixtures/byte-view-index-byte-consumer.cinchpart').read_text()
+    text += (ROOT / 'seed/tests/fixtures/byte-view-index-byte-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0, len(checks), width)):
         number = first//width
@@ -171,7 +171,7 @@ def main() -> None:
     for group in args.groups:
         if group == 'portable':
             assert not args.native_interfaces, 'full foreign-target object emission requires the typed Rust frontend'
-            text = (ROOT/'compiler/tests/fixtures/byte-view-index-byte-portable.cinch').read_text()
+            text = (ROOT/'seed/tests/fixtures/byte-view-index-byte-portable.cinch').read_text()
             work = args.artifacts/group
             entry,deps = prepare(text,work,args.module_source)
             objects = []

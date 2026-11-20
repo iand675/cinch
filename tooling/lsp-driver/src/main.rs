@@ -2,7 +2,7 @@
 //!
 //! The `cinch lsp` subcommand dispatches to the same server
 //! (`cinch::lsp::LspServer`) over stdio with `Content-Length` framed
-//! JSON-RPC, exactly as driven by `compiler/tests/lsp.rs`, so editors
+//! JSON-RPC, exactly as driven by `seed/tests/lsp.rs`, so editors
 //! can exec the compiler binary directly. This driver remains for
 //! editors that prefer a dedicated server binary: it is the same
 //! invocation in a two-file wrapper.

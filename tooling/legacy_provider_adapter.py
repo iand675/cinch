@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit with one sealed legacy Native compiler/current-base tuple without selecting fallback artifacts."""
+"""Emit with one sealed legacy Native seed/current-base tuple without selecting fallback artifacts."""
 from __future__ import annotations
 
 import hashlib

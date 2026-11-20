@@ -22,7 +22,7 @@ def main()->None:
     """Keep String source epochs explicit and each poison quarantine inside its fixed heap cap."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
-    parser.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch')
+    parser.add_argument('--module-source',type=Path,default=ROOT/'seed/prelude/Data/String.cinch')
     parser.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override')
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -30,14 +30,14 @@ def main()->None:
     parser.add_argument('--groups',nargs='+',choices=['joins','owners'],default=['joins','owners'])
     parser.add_argument('--first',type=int,default=0)
     parser.add_argument('--limit',type=int)
-    args=parser.parse_args();fixture_path=ROOT/'compiler/tests/fixtures/string-join-vectors.json';fixture=json.loads(fixture_path.read_text())
+    args=parser.parse_args();fixture_path=ROOT/'seed/tests/fixtures/string-join-vectors.json';fixture=json.loads(fixture_path.read_text())
     report={'compiler_sha256':digest(args.compiler),'source_sha256':digest(args.module_source),'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'epoch':'source-override','fresh_embedded_validation_claimed':False,'native_base_validation_claimed':False,'results':[]}
     report.update(epoch=args.epoch,fresh_embedded_validation_claimed=args.epoch=='fresh-embedded',source_shadow_used=args.epoch=='source-override',compile_rc_debug_flag=False)
     for group in args.groups:
         project=args.artifacts/group;project.mkdir(parents=True,exist_ok=True);rows=fixture.get(group,[None])[args.first:]
         if args.limit is not None:rows=rows[:args.limit]
         expressions=checks(rows) if group=='joins' else ['join-owners-case ()']
-        text=consumer(expressions,(ROOT/'compiler/tests/fixtures/string-join-consumer.cinchpart').read_text());entry=project/'Main.cinch';entry.write_text(text)
+        text=consumer(expressions,(ROOT/'seed/tests/fixtures/string-join-consumer.cinchpart').read_text());entry=project/'Main.cinch';entry.write_text(text)
         for name,path in source_closure(text).items():shutil.copyfile(path,project/(name+'.cinch'))
         selected=args.module_source.resolve()
         shadow=project/'Data.String.cinch'

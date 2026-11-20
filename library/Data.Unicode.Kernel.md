@@ -789,4 +789,4 @@ Patch edition of the immutable classification and mapping data.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Unicode/Kernel.cinch`. Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Kernel.cinch`. Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

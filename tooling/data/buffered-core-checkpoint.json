@@ -608,7 +608,7 @@
   },
   "known_ownership_cycle": {
     "status": "open; full80 package promotion held",
-    "evidence": "compiler/runtime/repros/buffered-transfer-cycle/receipt.json",
+    "evidence": "seed/runtime/repros/buffered-transfer-cycle/receipt.json",
     "observation": "Reciprocal transfer callback retention creates a22-block strong ownership cycle, including the valid EOF scenario. Test-only quiescent reclamation experiments are separate from the production runtime."
   }
 }

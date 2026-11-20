@@ -7,7 +7,7 @@
 -- input can make it cost more. A backtracking engine's ReDoS surface
 -- (the classic `(a+)+b` against a long run of `a`) does not exist
 -- here: there is no backtracking to blow up. The claim is pinned
--- step-for-step and against the clock in `compiler/tests/regex.rs`.
+-- step-for-step and against the clock in `seed/tests/regex.rs`.
 --
 -- THE PATTERN LANGUAGE (the RE2 subset):
 --   literals and escapes: `\n \r \t \f \v`, `\<punctuation>` as the

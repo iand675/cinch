@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "compiler/tests/fixtures/mutable-inference-vectors.json"
+FIXTURE = ROOT / "seed/tests/fixtures/mutable-inference-vectors.json"
 
 HELPERS = r'''-- | Recheck source-level mutation regions, definition-site kinds and strict value restrictions.
 module Main where

@@ -1974,4 +1974,4 @@ This facade re-exports the following checked values. Follow a defining module fo
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prelude.cinch`. Source SHA-256: `7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Prelude.cinch`. Source SHA-256: `7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

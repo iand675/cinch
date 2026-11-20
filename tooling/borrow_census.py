@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure inferred borrowing and ownership sites in an owned Core dump.
 
-    CINCH_BORROW_REPORT=1 compiler/target/release/cinch core emit \\
+    CINCH_BORROW_REPORT=1 seed/target/release/cinch core emit \\
         build/bootstrap/stage1/compiler.cinch --stage=owned \\
         -o /tmp/compiler.owned.core 2>/tmp/compiler.borrow.log
     python3 tooling/borrow_census.py /tmp/compiler.owned.core \\

@@ -29,7 +29,7 @@ def checks(group:str,rows:list[dict])->list[str]:
 
 def consumer(expressions:list[str])->str:
     """Keep ordinary full-corpus runs and one-assertion poison selections in the same executable."""
-    source=(ROOT/'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text().replace('  import Data.String\n','  import Data.String\n  import Data.Char\n  import Effect.Process\n')+'\n'+(ROOT/'compiler/tests/fixtures/string-scalar-consumer.cinchpart').read_text()
+    source=(ROOT/'seed/tests/fixtures/string-construction-consumer.cinchpart').read_text().replace('  import Data.String\n','  import Data.String\n  import Data.Char\n  import Effect.Process\n')+'\n'+(ROOT/'seed/tests/fixtures/string-scalar-consumer.cinchpart').read_text()
     groups=[]
     for first in range(0,len(expressions),64):
         group=first//64;name=f'checks{group}';groups.append(name+' ()');batch=expressions[first:first+64]
@@ -45,8 +45,8 @@ def consumer(expressions:list[str])->str:
 
 def main()->None:
     """Keep compiler stack, compiled-program limits and source epochs independently receipted."""
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',type=Path,required=True);p.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch');p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--opt-level',type=int,choices=[0,2],default=0);p.add_argument('--groups',nargs='+',choices=['texts','edges','aggregates','raw','owners'],default=['texts','edges','aggregates','raw','owners']);p.add_argument('--first',type=int,default=0);p.add_argument('--limit',type=int);p.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override');args=p.parse_args()
-    fixture_path=ROOT/'compiler/tests/fixtures/string-scalar-vectors.json';fixture=json.loads(fixture_path.read_text());report={'compiler_sha256':digest(args.compiler),'source_sha256':digest(args.module_source),'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'epoch':'explicit sealed String source override','fresh_embedded_validation_claimed':False,'fresh_native_provider_validation_claimed':False,'results':[]}
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',type=Path,required=True);p.add_argument('--module-source',type=Path,default=ROOT/'seed/prelude/Data/String.cinch');p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--opt-level',type=int,choices=[0,2],default=0);p.add_argument('--groups',nargs='+',choices=['texts','edges','aggregates','raw','owners'],default=['texts','edges','aggregates','raw','owners']);p.add_argument('--first',type=int,default=0);p.add_argument('--limit',type=int);p.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override');args=p.parse_args()
+    fixture_path=ROOT/'seed/tests/fixtures/string-scalar-vectors.json';fixture=json.loads(fixture_path.read_text());report={'compiler_sha256':digest(args.compiler),'source_sha256':digest(args.module_source),'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'epoch':'explicit sealed String source override','fresh_embedded_validation_claimed':False,'fresh_native_provider_validation_claimed':False,'results':[]}
     report.update(epoch=args.epoch,fresh_embedded_validation_claimed=args.epoch=='fresh-embedded',source_shadow_used=args.epoch=='source-override',compile_rc_debug_flag=False)
     for group in args.groups:
         rows=fixture.get(group,[None])[args.first:]

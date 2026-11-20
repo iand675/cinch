@@ -4,7 +4,7 @@ from pathlib import Path
 import hashlib
 import re
 root=Path(__file__).resolve().parents[1]
-fixtures=root/'compiler/tests/fixtures'
+fixtures=root/'seed/tests/fixtures'
 category=fixtures/'json-codec-method-categories.cinch';metadata=fixtures/'json-codec-method-metadata.cinch'
 def blocks(path):
     text=path.read_text();start=text.index('  -- |')

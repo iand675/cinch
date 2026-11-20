@@ -31,7 +31,7 @@ tokenizer, not a shell: outside quotes every other metacharacter
 Design law shape:
   round trip: `split (join (Cons s Nil)) == Ok (Cons s Nil)` for
     every `s` (the escaping family inverts splitting; asserted over
-    hostile strings in compiler/tests/lib_shellwords.rs);
+    hostile strings in seed/tests/lib_shellwords.rs);
   empty-word preservation: a quoted empty argument is an
     empty-string word (`split "''" == Ok (Cons "" Nil)` and the
     double-quoted form likewise), never dropped;
@@ -139,4 +139,4 @@ scalars).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Shellwords.cinch`. Source SHA-256: `a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Shellwords.cinch`. Source SHA-256: `a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

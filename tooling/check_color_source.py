@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check a complete isolated color source with an explicit frozen compiler/runtime identity."""
+"""Check a complete isolated color source with an explicit frozen seed/runtime identity."""
 from __future__ import annotations
 import argparse
 import json

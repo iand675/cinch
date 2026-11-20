@@ -72,4 +72,4 @@ Decode the byte serialization by parsing a fresh immutable URL value.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url/Parser.cinch`. Source SHA-256: `d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Parser.cinch`. Source SHA-256: `d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

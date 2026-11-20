@@ -10,7 +10,7 @@
 // Design notes (full discussion in tooling/README.md):
 //
 // * All terminals are produced by the external scanner (src/scanner.c), a
-//   port of compiler/src/lexer.rs and compiler/src/layout.rs. That is the
+//   port of seed/src/lexer.rs and seed/src/layout.rs. That is the
 //   only way to reproduce the context-sensitive lexical rules exactly:
 //   dash identifiers versus the minus whitespace contract (D102/D128/D129),
 //   negative literals, the tick Char-vs-Symbol rule, `$` continuing but
@@ -118,7 +118,7 @@ module.exports = grammar({
     $.constructor,
     $.wildcard,
 
-    // Reserved words (compiler/src/lexer.rs `keyword`).
+    // Reserved words (seed/src/lexer.rs `keyword`).
     $.kw_module,
     $.kw_where,
     $.kw_data,

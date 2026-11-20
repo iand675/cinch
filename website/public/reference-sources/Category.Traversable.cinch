@@ -17,7 +17,7 @@
 -- order exactly: their applicatives are left-biased and the
 -- combinations nest in traversal order, so the returned error is
 -- always the FIRST error in traversal order (asserted over sample
--- values in compiler/tests/lib_foldable.rs).
+-- values in seed/tests/lib_foldable.rs).
 --
 -- Instance homes. List and Option got theirs at the prelude split
 -- (Data.List/Data.Option). NonEmpty's instance lives with its type in

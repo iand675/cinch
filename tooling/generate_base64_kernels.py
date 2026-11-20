@@ -134,7 +134,7 @@ def generated() -> str:
 def main() -> None:
     """Replace only the generated suffix, or check that the source is current without writing."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--module", type=Path, default=ROOT / "compiler/prelude/Text/Base64/Encoding.cinch")
+    parser.add_argument("--module", type=Path, default=ROOT / "seed/prelude/Text/Base64/Encoding.cinch")
     parser.add_argument("--fragment", type=Path)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()

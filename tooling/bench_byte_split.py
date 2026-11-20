@@ -46,13 +46,13 @@ def expected(name: str, size: int, iterations: int) -> tuple[int, str, str, str]
 
 
 def main() -> None:
-    """Separate bounded compiler/ownership preparation from explicitly granted exclusive timing."""
+    """Separate bounded seed/ownership preparation from explicitly granted exclusive timing."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--driver-source', type=Path, default=ROOT / 'benchmarks/stdlib/byte-split-driver.cinch')
-    parser.add_argument('--split-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/Split.cinch')
+    parser.add_argument('--split-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/Split.cinch')
     parser.add_argument('--before-split-source', type=Path)
-    parser.add_argument('--view-source', type=Path, default=ROOT / 'compiler/prelude/Data/Bytes/View.cinch')
+    parser.add_argument('--view-source', type=Path, default=ROOT / 'seed/prelude/Data/Bytes/View.cinch')
     parser.add_argument('--runtime-archive', type=Path, required=True)
     parser.add_argument('--native-interfaces', type=Path)
     parser.add_argument('--native-objects', type=Path)

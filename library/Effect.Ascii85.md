@@ -94,4 +94,4 @@ Observe the advanced underlying sink, including after a failed write.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Ascii85.cinch`. Source SHA-256: `ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Ascii85.cinch`. Source SHA-256: `ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

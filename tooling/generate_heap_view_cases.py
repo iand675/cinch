@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "compiler/tests/fixtures/heap-view-vectors.json"
-HELPERS = ROOT / "compiler/tests/fixtures/heap-view-consumer.cinch"
+FIXTURE = ROOT / "seed/tests/fixtures/heap-view-vectors.json"
+HELPERS = ROOT / "seed/tests/fixtures/heap-view-consumer.cinch"
 KINDS = {"init": 0, "push": 1, "fix": 2, "remove": 3, "pop": 4, "reverse": 5, "invalid": 6}
 
 

@@ -310,7 +310,7 @@ def build_fixture(work: Path, clang: str) -> dict:
     kernel = work / "kernels.ll"
     kernel.write_text("define i32 @multipart_equal16(i64 %0, i64 %1, i8 %2) {\n" + body.group(1) + "\n}\n")
     fixture = work / "fixture.c"
-    shutil.copyfile(ROOT / "compiler/tests/fixtures/multipart-fixture.c", fixture)
+    shutil.copyfile(ROOT / "seed/tests/fixtures/multipart-fixture.c", fixture)
     run([clang, "-O2", "-c", str(kernel), "-o", str(work / "kernels.o")], work)
     run([clang, "-O2", "-fno-vectorize", "-fno-slp-vectorize", "-c", str(fixture), "-o", str(work / "fixture.o")], work)
     return {"kernel_ir_sha256": digest(kernel), "kernel_object_sha256": digest(work / "kernels.o"),
@@ -322,7 +322,7 @@ def main() -> None:
     """Run one selected frontend at a time with exact source-epoch resume checks."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", type=Path, required=True)
-    parser.add_argument("--vectors", type=Path, default=ROOT / "compiler/tests/fixtures/multipart-vectors.json")
+    parser.add_argument("--vectors", type=Path, default=ROOT / "seed/tests/fixtures/multipart-vectors.json")
     parser.add_argument("--group-size", type=int, choices=(32, 64, 128), default=64)
     parser.add_argument("--form-group-size", type=int, choices=(1, 8, 32), default=1, help="Explicitly group independently reset real-filesystem observations")
     parser.add_argument("--prepare-only", action="store_true")
@@ -339,7 +339,7 @@ def main() -> None:
     parser.add_argument("--text-source", type=Path, help="Explicit immutable Text.Multipart source candidate; its path and exact hash are recorded")
     parser.add_argument("--qp-source", type=Path, help="Explicit reachable shared codec candidate; all source hashes remain recorded")
     parser.add_argument("--start-free-mib", type=int, default=0, help="Explicit coordinated initial disk guard; zero preserves historical invocation policy")
-    parser.add_argument("--pause-free-mib", type=int, default=0, help="Explicit disk reserve checked at every compiler/link/profile boundary")
+    parser.add_argument("--pause-free-mib", type=int, default=0, help="Explicit disk reserve checked at every seed/link/profile boundary")
     parser.add_argument("--unarchived-cap-mib", type=int, default=0, help="Bound newly generated plain outputs in this work directory")
     args = parser.parse_args()
     if args.rust and not args.rust_runtime:
@@ -347,7 +347,7 @@ def main() -> None:
     if args.initialize_rust_runtime and (not args.rust or args.native or args.resume):
         parser.error("runtime initialization requires a fresh explicit Rust-only invocation")
     if not args.prepare_only and not args.rust and not args.native:
-        parser.error("select at least one explicit compiler/runtime pair")
+        parser.error("select at least one explicit seed/runtime pair")
     work = args.work.resolve(); work.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(work).free < args.start_free_mib * 1024 * 1024:
         raise RuntimeError("resource pause before preparation; no compiler or runtime started")

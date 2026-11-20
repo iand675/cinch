@@ -51,7 +51,7 @@ exactly when `cmp` is `EQ`); `cmp` is a total order on the
 wall-nanosecond line; `hour`/`minute`/`second`/`nanosecond` are the
 fields of `nanoseconds-of-day`; and ISO 8601 `to-string`/
 `from-string` round trip. The checks are
-compiler/tests/lib_civil_time.rs.
+seed/tests/lib_civil_time.rs.
 
 NAMED REFUSALS (boundaries this module deliberately does not
 cross):
@@ -289,4 +289,4 @@ type per design/base-library.md).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Time.cinch`. Source SHA-256: `6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time.cinch`. Source SHA-256: `6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

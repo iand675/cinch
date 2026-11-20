@@ -46,7 +46,7 @@ def main() -> None:
     files = bootstrap.collect_compiler_sources()
     production_hash = bootstrap.source_hash(files)
     implementation = files['Bootstrap.RuntimeIr.cinch']
-    suffix = (bootstrap.ROOT / 'compiler/tests/fixtures/foreign-alias-guard-probes.cinch.inc').read_bytes()
+    suffix = (bootstrap.ROOT / 'seed/tests/fixtures/foreign-alias-guard-probes.cinch.inc').read_bytes()
     files['Bootstrap.RuntimeIr.cinch'] = implementation + b'\n' + suffix
     files['Main.cinch'] = MAIN.encode()
     source, ir, executable = args.artifacts / 'Bundle.cinch', args.artifacts / 'probe.ll', args.artifacts / 'probe'

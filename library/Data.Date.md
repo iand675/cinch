@@ -42,7 +42,7 @@ and the year's length on December 31; `day-of-week` is
 `to-epoch-days` read modulo 7 with 1970-01-01 (a Thursday) at 4,
 which is Ruby's `wday` convention (0 is Sunday); and ISO 8601
 `to-string`/`from-string` round trip. The checks are
-compiler/tests/lib_civil_time.rs.
+seed/tests/lib_civil_time.rs.
 
 NAMED REFUSALS (boundaries this module deliberately does not
 cross):
@@ -288,4 +288,4 @@ type per design/base-library.md).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Date.cinch`. Source SHA-256: `010d01be4d6ef58d6642ba06d09cac5782186ed9f20e2e627864672b9eaa6233`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Date.cinch`. Source SHA-256: `010d01be4d6ef58d6642ba06d09cac5782186ed9f20e2e627864672b9eaa6233`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

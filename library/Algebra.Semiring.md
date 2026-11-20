@@ -27,7 +27,7 @@ with no `Semiring` instance (primitive types specification
 section 8). A class constraint entails nothing (the standing
 no-superbundle rule): the class states its four operations alone.
 
-Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+Laws (asserted over sample values in seed/tests/prelude_split.rs):
   add associativity:      add (add x y) z == add x (add y z)
   add commutativity:      add x y == add y x
   add identity:           add zero x == x, add x zero == x
@@ -89,4 +89,4 @@ Data.Int, beside their other instances.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Semiring.cinch`. Source SHA-256: `9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semiring.cinch`. Source SHA-256: `9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

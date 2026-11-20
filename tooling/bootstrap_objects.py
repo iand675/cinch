@@ -36,7 +36,7 @@ def identity_encoding(symbol):
 def defining_symbol(encoded):
     """The source identity an `i.` linkage spelling names, or `None`.
 
-    The grammar is bootstrap/Bootstrap.Nominal.cinch's: `$` plus two lowercase
+    The grammar is compiler/Bootstrap.Nominal.cinch's: `$` plus two lowercase
     hex digits is one byte of a UTF-8 scalar, a plain character is itself, and
     a spelling is canonical only when re-encoding the decoded identity
     reproduces it exactly.
@@ -227,7 +227,7 @@ def artifact_provider(driver, receipt_path):
                 or not re.fullmatch(r"[0-9a-f]{64}", producer.get("source_sha256", ""))):
             refuse("producer identity is incomplete or inconsistent")
         package = read_document(directory / "base/cinch-base.cinchpkg")
-        if artifacts["base/cinch-base.cinchpkg"] != driver.file_hash(driver.ROOT / "compiler/prelude/cinch-base.cinchpkg"):
+        if artifacts["base/cinch-base.cinchpkg"] != driver.file_hash(driver.seed_source_root(driver.ROOT) / "prelude/cinch-base.cinchpkg"):
             refuse("base package differs from current sources")
         modules = package["modules"]
         sources = receipt.get("sources", {})
@@ -253,14 +253,14 @@ def artifact_provider(driver, receipt_path):
             relative = "base/" + module["path"]
             if relative not in artifacts or sources[name] != {"path": relative, "sha256": artifacts[relative]}:
                 refuse("unretained base source: " + name)
-            if artifacts[relative] != driver.file_hash(driver.ROOT / "compiler/prelude" / module["path"]):
+            if artifacts[relative] != driver.file_hash(driver.seed_source_root(driver.ROOT) / "prelude" / module["path"]):
                 refuse("base module differs from current sources: " + name)
             if name not in documents or documents[name].get("source_hash") != content_hash((directory / relative).read_bytes()):
                 refuse("interface source hash mismatch: " + name)
         if ((directory / "library/CinchBaseObject.cinch").read_bytes() != ARTIFACT_ENTRY
                 or documents.get("CinchBaseObject", {}).get("source_hash") != content_hash(ARTIFACT_ENTRY)):
             refuse("artifact root source differs from its checked interface")
-        roots_sha256 = driver.file_hash(driver.ROOT / "bootstrap/pins/library-object-roots.json")
+        roots_sha256 = driver.file_hash(driver.ROOT / "compiler/pins/library-object-roots.json")
         if artifacts["roots.json"] != roots_sha256:
             refuse("requested object roots differ from this compiler")
         roots = read_document(directory / "roots.json")
@@ -294,7 +294,7 @@ def artifact_provider(driver, receipt_path):
 
 def provider(driver):
     lock = driver.library_provider_lock()
-    roots = (driver.ROOT / "bootstrap/pins/library-object-roots.json").read_bytes()
+    roots = (driver.ROOT / "compiler/pins/library-object-roots.json").read_bytes()
     inputs = {"protocol": 2, "host": driver.HOST, "producer": lock,
               "roots_sha256": driver.digest(roots), "entry_sha256": driver.digest(ENTRY)}
     snapshot = source_snapshot(driver, lock)
@@ -318,7 +318,7 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
         log.write_text(f"prebuilt pinned compiler: {product}\n")
     else:
         code = driver.run(["cargo", "build", "--locked", "--release", "--bin", "cinch", "--target-dir", target],
-                          snapshot / "compiler", log)
+                          driver.seed_source_root(snapshot), log)
         if code:
             raise driver.BootstrapError(f"library producer did not build (exit {code}): {log}")
         product = target / "release/cinch"
@@ -327,8 +327,8 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
     executable.replace(directory / "cinch")
     runtime_target = driver.BUILD / "library-runtime" / toolchain
     code = driver.run(["cargo", "build", "--locked", "--release", "--manifest-path",
-                       snapshot / "compiler/runtime/Cargo.toml", "--target-dir", runtime_target],
-                      snapshot / "compiler", log, append=True)
+                       driver.seed_source_root(snapshot) / "runtime/Cargo.toml", "--target-dir", runtime_target],
+                      driver.seed_source_root(snapshot), log, append=True)
     if code:
         raise driver.BootstrapError(f"library runtime did not build (exit {code}): {log}")
     shutil.copy2(runtime_target / "release/libcinchruntime.a", directory / "libcinchruntime.a")

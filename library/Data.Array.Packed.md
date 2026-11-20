@@ -133,4 +133,4 @@ This module exports no type declarations.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Array/Packed.cinch`. Source SHA-256: `799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Array/Packed.cinch`. Source SHA-256: `799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

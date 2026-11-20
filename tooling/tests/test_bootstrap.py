@@ -77,16 +77,16 @@ class BootstrapContract(unittest.TestCase):
         original = bootstrap.ROOT
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "bootstrap").mkdir()
-            (root / "bootstrap" / "pins").mkdir()
-            for path in (original / "bootstrap").glob("Bootstrap.*.cinch"):
-                (root / "bootstrap" / path.name).write_bytes(path.read_bytes())
-            (root / "bootstrap/programs").symlink_to(original / "bootstrap/programs", target_is_directory=True)
-            (root / "compiler").symlink_to(original / "compiler", target_is_directory=True)
-            (root / "bootstrap/pins/library-provider.lock.json").write_bytes((original / "bootstrap/pins/library-provider.lock.json").read_bytes())
+            (root / "compiler").mkdir()
+            (root / "compiler" / "pins").mkdir()
+            for path in (original / "compiler").glob("Bootstrap.*.cinch"):
+                (root / "compiler" / path.name).write_bytes(path.read_bytes())
+            (root / "compiler/programs").symlink_to(original / "compiler/programs", target_is_directory=True)
+            (root / "seed").symlink_to(original / "seed", target_is_directory=True)
+            (root / "compiler/pins/library-provider.lock.json").write_bytes((original / "compiler/pins/library-provider.lock.json").read_bytes())
             with patch.object(bootstrap, "ROOT", root):
                 before = bootstrap.collect_compiler_sources()
-                (root / "bootstrap/regression-client.cinch").write_text("module Main where\n  main :: Int\n  main = 0\n")
+                (root / "compiler/regression-client.cinch").write_text("module Main where\n  main :: Int\n  main = 0\n")
                 after = bootstrap.collect_compiler_sources()
             self.assertEqual(before, after)
             self.assertNotIn("regression-client", after["Main.cinch"].decode())
@@ -94,12 +94,12 @@ class BootstrapContract(unittest.TestCase):
     def test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive(self):
         with tempfile.TemporaryDirectory() as temp:
             build = Path(temp)
-            files = {"compiler/runtime/src/lib.rs": b"pinned runtime"}
+            files = {"seed/runtime/src/lib.rs": b"pinned runtime"}
             lock = {"revision": "seed", "source_sha256": bootstrap.source_hash(files)}
             archive = build / "seed-sources" / bootstrap.digest(json.dumps(lock, sort_keys=True).encode())
-            runtime = archive / "compiler/runtime"
+            runtime = archive / "seed/runtime"
             (runtime / "src").mkdir(parents=True)
-            (runtime / "src/lib.rs").write_bytes(files["compiler/runtime/src/lib.rs"])
+            (runtime / "src/lib.rs").write_bytes(files["seed/runtime/src/lib.rs"])
             (runtime / "Cargo.toml").write_text("pinned package")
             debug = runtime / "target/debug/libcinchruntime.a"
             debug.parent.mkdir(parents=True)
@@ -196,7 +196,7 @@ class BootstrapContract(unittest.TestCase):
         modules = sorted(name[:-6] for name in files if name.endswith(".cinch") and name != "Main.cinch")
         for index, module in enumerate(modules):
             self.assertEqual(entry.count(f"  import {module} as CompilerSource{index}\n"), 1)
-        original = (bootstrap.ROOT / "bootstrap/programs/Run.Pipeline.cinch").read_text()
+        original = (bootstrap.ROOT / "compiler/programs/Run.Pipeline.cinch").read_text()
         without_imports = "".join(line for line in entry.splitlines(keepends=True)
                                   if not line.startswith("  import ") or " as CompilerSource" not in line)
         self.assertEqual(without_imports, original)
@@ -210,7 +210,7 @@ class BootstrapContract(unittest.TestCase):
         # fixed point publishes its interface and the seed checks the closure.
         files = bootstrap.collect_compiler_sources()
         self.assertIn("Data.Array", bootstrap.COMPILER_PRELUDE)
-        source = bootstrap.ROOT / "compiler/prelude/Data/Array.cinch"
+        source = bootstrap.ROOT / "seed/prelude/Data/Array.cinch"
         self.assertEqual(files["Data.Array.cinch"], source.read_bytes())
         self.assertEqual(files["Data.Array.cinch"].count(b"module Data.Array where"), 1)
         # It is imported like every other bundled module, under a qualified
@@ -222,7 +222,7 @@ class BootstrapContract(unittest.TestCase):
         # The base package must not also provide it: a module that is both
         # embedded and a source would be a duplicate definition, and the
         # whole point of the entry is that the base package lacks it.
-        package = json.loads((bootstrap.ROOT / "compiler/prelude/cinch-base.cinchpkg").read_text())
+        package = json.loads((bootstrap.ROOT / "seed/prelude/cinch-base.cinchpkg").read_text())
         self.assertNotIn("Data.Array", [module["name"] for module in package["modules"]])
 
     def test_fixed_point_requires_matching_executables(self):
@@ -308,7 +308,7 @@ class BootstrapContract(unittest.TestCase):
                 bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
 
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
-        live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
+        live = (bootstrap.ROOT / "compiler/Bootstrap.RuntimeAbi.cinch").read_bytes()
         self.assertEqual(live, bootstrap.runtime_abi_source(10))
         pinned = bootstrap.collect_compiler_sources()
         lock = bootstrap.library_provider_lock()
@@ -560,7 +560,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual(run.call_count, 2)
 
     def test_seed_archive_cannot_escape_snapshot_or_add_links(self):
-        for name, kind in (("../escape", tarfile.REGTYPE), ("compiler/link", tarfile.SYMTYPE)):
+        for name, kind in (("../escape", tarfile.REGTYPE), ("seed/link", tarfile.SYMTYPE)):
             archive = io.BytesIO()
             with tarfile.open(fileobj=archive, mode="w") as tar:
                 item = tarfile.TarInfo(name)

@@ -122,7 +122,7 @@ D-numbers) that amend or interpret this chapter's normative text.
 - **By-value aggregate conventions, 2026-11-15.** This amends the D66
   and D190 notes. A `#[byval]` parameter or `#[sret]` result crosses as
   the target's C calling convention places that struct, decided from the
-  target and the aggregate's scalar fields (`compiler/src/cabi.rs`):
+  target and the aggregate's scalar fields (`seed/src/cabi.rs`):
   System V x86-64 classifies eightbytes into INTEGER and SSE registers
   up to 16 bytes, with a `byval` stack copy for larger, misaligned or
   out-of-register structs, and `sret` for larger results; AAPCS64 passes

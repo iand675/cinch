@@ -17,7 +17,7 @@ def block_fields(block: dict) -> list[str]:
 
 def rendered() -> str:
     """Use one byte stream per operation so the compiler never sees a giant refined constructor list."""
-    data = json.loads((ROOT / 'compiler/tests/fixtures/pem-vectors.json').read_text())
+    data = json.loads((ROOT / 'seed/tests/fixtures/pem-vectors.json').read_text())
     values, words = {}, []
     for kind in ['encode', 'decode']:
         fields, offsets, size = [], [], 0
@@ -29,7 +29,7 @@ def rendered() -> str:
         values['__' + kind.upper() + '_GROUPS__'] = str(len(offsets))
         values['__' + kind.upper() + '_ROWS__'] = str(len(data[kind + 's']))
         words.append(render_words('pem-' + kind + '-offsets', 32, offsets))
-    source = (ROOT / 'compiler/tests/fixtures/pem-consumer.cinch.in').read_text()
+    source = (ROOT / 'seed/tests/fixtures/pem-consumer.cinch.in').read_text()
     for marker, value in values.items(): source = source.replace(marker, value)
     return source.replace('__WORDS__', '\n'.join(words))
 

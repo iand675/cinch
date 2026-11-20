@@ -12,10 +12,10 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
-    "Data.Bytes.Word": ROOT / "compiler/prelude/Data/Bytes/Word.cinch",
-    "Effect.Stream": ROOT / "compiler/prelude/Effect/Stream.cinch",
-    "Text.Csv.Record": ROOT / "compiler/prelude/Text/Csv/Record.cinch",
-    "Effect.Csv": ROOT / "compiler/prelude/Effect/Csv.cinch",
+    "Data.Bytes.Word": ROOT / "seed/prelude/Data/Bytes/Word.cinch",
+    "Effect.Stream": ROOT / "seed/prelude/Effect/Stream.cinch",
+    "Text.Csv.Record": ROOT / "seed/prelude/Text/Csv/Record.cinch",
+    "Effect.Csv": ROOT / "seed/prelude/Effect/Csv.cinch",
 }
 
 
@@ -53,13 +53,13 @@ def main() -> None:
         parser.error("the frozen Native wrapper uses optimization level 2")
     compiler = args.compiler.resolve()
     frozen_modules = {name: path.read_bytes() for name, path in MODULES.items()}
-    frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/csv-record-{suite}.cinch").read_bytes() for suite in args.suites}
+    frozen_consumers = {suite: (ROOT / f"seed/tests/fixtures/csv-record-{suite}.cinch").read_bytes() for suite in args.suites}
     report = {
         "description": "Independent configurable CSV consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level, "runner_sha256": digest(Path(__file__)),
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
-        "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/csv-record-vectors.json"),
+        "fixture_sha256": digest(ROOT / "seed/tests/fixtures/csv-record-vectors.json"),
         "cpu_affinity": [args.cpu], "suites": [],
     }
     if args.frontend == "native":

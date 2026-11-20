@@ -134,4 +134,4 @@ One or two code units for a scalar, or None for a negative, surrogate or out-of-
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Utf16.cinch`. Source SHA-256: `fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Utf16.cinch`. Source SHA-256: `fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

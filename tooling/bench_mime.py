@@ -45,7 +45,7 @@ def functional_smoke(exe: Path, reference: Path, sizes: list[int], count: int, w
 
 
 def main() -> None:
-    """Build exact compiler/runtime pairs and alternate complete public pipeline timings."""
+    """Build exact seed/runtime pairs and alternate complete public pipeline timings."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--compiler', type=Path, required=True)

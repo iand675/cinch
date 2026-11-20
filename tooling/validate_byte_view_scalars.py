@@ -14,7 +14,7 @@ from bench_stdlib import source_closure
 from validate_byte_view import digest, run
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / 'compiler/tests/fixtures/byte-view-scalar-vectors.json'
+FIXTURE = ROOT / 'seed/tests/fixtures/byte-view-scalar-vectors.json'
 
 
 def hash_word(value: int, current: int) -> int:
@@ -54,7 +54,7 @@ def crosscheck(rows: list[dict]) -> None:
 
 def consumer(checks: list[str], width: int) -> str:
     """Select bounded groups so each poisoned quarantine fits the unchanged fixed heap cap."""
-    text = (ROOT / 'compiler/tests/fixtures/byte-view-scalar-consumer.cinchpart').read_text()
+    text = (ROOT / 'seed/tests/fixtures/byte-view-scalar-consumer.cinchpart').read_text()
     dispatch = 'False'
     for first in reversed(range(0, len(checks), width)):
         i = first // width
@@ -82,7 +82,7 @@ def main() -> None:
     rows = fixture['rows'][:args.limit]
     if not args.skip_crosscheck:
         crosscheck(rows)
-    report = {'frontend_sha256': digest(args.compiler), 'source_sha256': digest(ROOT / 'compiler/prelude/Data/Bytes/View.cinch'),
+    report = {'frontend_sha256': digest(args.compiler), 'source_sha256': digest(ROOT / 'seed/prelude/Data/Bytes/View.cinch'),
               'fixture_sha256': digest(FIXTURE), 'independent_rows': len(rows), 'source_distributed_only': True,
               'opt_level': args.opt_level, 'compiler_stack_bytes': 67108864, 'program_stack_bytes': 8388608,
               'runtime_sha256': digest(args.runtime_archive) if args.runtime_archive else None, 'results': []}

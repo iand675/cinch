@@ -105,7 +105,7 @@ def main()->None:
     parser.add_argument('--cpu',type=int,default=0)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    source=ROOT/'compiler/prelude/Text/Binary/Layout.cinch'
+    source=ROOT/'seed/prelude/Text/Binary/Layout.cinch'
     scalar=source.read_text().replace('ScalarAtom width pack unpack -> put-atom-elements width pack order output start values','ScalarAtom width pack unpack -> put-elements size put order output start values').replace('ScalarAtom width pack unpack -> get-atom-elements count width unpack order input start Nil','ScalarAtom width pack unpack -> get-elements count size get order input start Nil')
     report={'compiler_sha256':digest(args.compiler),'driver_sha256':hashlib.sha256(SOURCE.encode()).hexdigest(),'source_sha256':digest(source),'baseline_sha256':hashlib.sha256(scalar.encode()).hexdigest(),'optimization':2,'cpu':args.cpu,'results':[],'executables':{}}
     executables={}

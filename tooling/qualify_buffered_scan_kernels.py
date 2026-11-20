@@ -11,7 +11,7 @@ import shutil
 import subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
-SOURCE=ROOT/'compiler/prelude/Effect/Buffered/Internal/Scan.cinch'
+SOURCE=ROOT/'seed/prelude/Effect/Buffered/Internal/Scan.cinch'
 C_SOURCE=r'''/** Independent numeric-byte expectations for the production SIMD masks. */
 #include <stdint.h>
 #include <stdio.h>

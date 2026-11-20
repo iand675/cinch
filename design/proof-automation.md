@@ -126,7 +126,7 @@ Ordered by the obligations the current roadmap creates:
   facts over variables"): `x - y <= c` constraints over `Nat`, `Int`,
   machine integers and `Char`, decided by Bellman-Ford negative-cycle
   detection with bounded case splits on `/=` facts (`linear_entails`,
-  `compiler/src/types.rs`). It follows section 1's rule in miniature.
+  `seed/src/types.rs`). It follows section 1's rule in miniature.
   The search is untrusted: it emits a certificate (`DiffCert`), a
   negative cycle whose edges each cite a hypothesis conjunct, the
   negated goal, a sort's range axiom or a case split's alternative,

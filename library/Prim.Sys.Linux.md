@@ -39,7 +39,7 @@ imports this module. The arch that emitted here is aarch64
 A prim body can be gated on the compile target: `when arch aarch64`,
 `when os linux`, or both as one body's conjunction, and the checker
 selects the matching body against the target profile (pinned by
-`compiler/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
+`seed/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
 and `clauses_on_one_body_are_a_conjunction`). That is why the two
 architectures live in one module here: the architecture is expressible
 in the body, so no per-architecture split is needed. `Prim.Sys.Darwin`
@@ -282,4 +282,4 @@ written.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

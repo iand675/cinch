@@ -437,23 +437,23 @@ Part II's decisions, 2026-11-13 (section 12 unless named otherwise):
 
 ### 10.3 Current state of the code (file:line at 2026-10-29)
 
-- `Core` is untyped: `compiler/src/core.rs:1621` (`pub enum Core`),
+- `Core` is untyped: `seed/src/core.rs:1621` (`pub enum Core`),
   patterns at `core.rs:1567` (`CPat`), units at `core.rs:2687` (`FnDef`).
-  The checker's `lower()` at `compiler/src/check.rs:793` drops every type;
+  The checker's `lower()` at `seed/src/check.rs:793` drops every type;
   representation classes must be attached before or during `lower()`.
 - Every value is one `i64` word; constructor blocks are `(1+n)*8` bytes with
   the tag in word 0 (`codegen.rs` `ctor_body`); nullary constructors and
   static closures are shared constants.
 - Allocation: all codegen allocation goes through `cinch_alloc_raw`
-  (`compiler/runtime/src/abi.rs:271`, 33 mentions in `codegen.rs`), counted
-  by the `#[global_allocator]` in `compiler/runtime/src/heap.rs`.
+  (`seed/runtime/src/abi.rs:271`, 33 mentions in `codegen.rs`), counted
+  by the `#[global_allocator]` in `seed/runtime/src/heap.rs`.
   `cinch_free` is still a no-op (`abi.rs:298`): nothing is reclaimed yet.
 - Byte copies and comparisons are runtime primitives as of 2026-10-29
   (`BytesOp::Copy`/`BytesOp::Compare` in `core.rs`, `cinch_bytes_copy`
   `abi.rs:572`, `cinch_bytes_compare` `abi.rs:595`): copying a byte in Cinch
   boxed a `Nat` offset per byte before this.
 - Programs run on a 1 GiB reserved stack (`cinch_run_main`,
-  `compiler/runtime/src/platform.rs:555`, override `CINCH_STACK_SIZE`), and
+  `seed/runtime/src/platform.rs:555`, override `CINCH_STACK_SIZE`), and
   mixed-arity mutual tail calls are `musttail` through widened workers
   `@"<unit>#tail"` (`core.rs:2977` `tail_widths`).
 - Class methods may have defaults (D388), which representation instances'
@@ -490,14 +490,14 @@ parsing `Data/Machine.cinch` exceeds 2 GiB (69 M blocks at a 1500 M cap).
   `cinch: exhausted: heap (<n> bytes)`). While nothing was reclaimed it
   capped total allocation; since reclamation landed (2026-10-30) it caps
   live bytes (`design/no-faults.md` section 4). Every program a `cargo test`
-  spawns inherits `CINCH_HEAP_LIMIT=2G` from `compiler/.cargo/config.toml`.
+  spawns inherits `CINCH_HEAP_LIMIT=2G` from `seed/.cargo/config.toml`.
 - A test that legitimately needs more than the cap is NOT given a larger
   cap: the input that exceeds it is named in a `BLOCKED_ON_RECLAMATION`
   const with its measured `cinch-alloc` line, the main test asserts it still
   stops at the cap (so one that starts passing says so), and an `#[ignore]`
-  test runs it uncapped. Instances: `compiler/tests/bootstrap_manifest.rs`
-  (`Data.Machine.cinchif`, `Prelude.cinchif`), `compiler/tests/bootstrap_parse.rs`
-  (`Data.Machine`), `compiler/tests/lib_hashmap_real.rs` (both tests,
+  test runs it uncapped. Instances: `seed/tests/bootstrap_manifest.rs`
+  (`Data.Machine.cinchif`, `Prelude.cinchif`), `seed/tests/bootstrap_parse.rs`
+  (`Data.Machine`), `seed/tests/lib_hashmap_real.rs` (both tests,
   ignored with the measured line). Each becomes one `--ignored` run away from
   green when reclamation lands.
 - Never restructure program code to allocate less as a workaround for the
@@ -516,7 +516,7 @@ parsing `Data/Machine.cinch` exceeds 2 GiB (69 M blocks at a 1500 M cap).
   its corpus copies back into `examples/source/`.
 - The incremental linker splits emitted IR by unit symbol; a new symbol
   shape (`@"<unit>#tail"`) must be owned by its unit in `split_ir`
-  (`compiler/src/incremental.rs`), or reassembly drops it.
+  (`seed/src/incremental.rs`), or reassembly drops it.
 
 ## Part II: lazy layout specialisation (2026-11-13)
 
@@ -541,7 +541,7 @@ Assumed, not restated:
 
 - A function boundary already crosses a value at a narrower width where the
   type proves one (`ParamContract::narrow`, `Crossing::Bits`/`Csize`,
-  `compiler/tests/narrow_boundary.rs`). That is a *boundary* change: the
+  `seed/tests/narrow_boundary.rs`). That is a *boundary* change: the
   body is unchanged, the entry widens and every return narrows.
 - The uniform word stays the default. A 64-bit scalar stays 8 unboxed
   bytes; a heap slot stays 8 bytes (`narrow-value-representation.md`,
@@ -563,8 +563,8 @@ Every count below is observed, not estimated, except where a line says
 - Block and byte counts: `CINCH_ALLOC_STATS=1 CINCH_ALLOC_KINDS=1`, read
   from the `cinch-alloc:` line (`blocks`, `bytes`, `peak`, `header-bytes`)
   and the `cinch-alloc-kind:` / `cinch-alloc-size:` censuses
-  (`compiler/runtime/src/heap.rs`, `alloc_kinds.rs`). The size classes are
-  the small allocator's own (`compiler/runtime/src/small.rs`): whole
+  (`seed/runtime/src/heap.rs`, `alloc_kinds.rs`). The size classes are
+  the small allocator's own (`seed/runtime/src/small.rs`): whole
   multiples of 8 bytes up to 256.
 - Emitted layout: `cinch emit-ir` on the same source, reading the
   `cinch_alloc_ctor(i64 <payload>, i64 <descriptor>)` call and the
@@ -661,7 +661,7 @@ constructor bodies; the module's own `target datalayout` says `p:32:32`.
 A real wasm32 module was built and executed to confirm the pipeline, not
 just the IR: `emit-ir --target wasm32-unknown-unknown`, clang 21
 (`--target=wasm32-unknown-unknown`), `wasm-ld` against
-`compiler/runtime/target/wasm32-unknown-unknown/release/libcinchruntime.a`,
+`seed/runtime/target/wasm32-unknown-unknown/release/libcinchruntime.a`,
 then Node. `List Nat` of 1000 elements answers 0. The freestanding module
 has no libc and no `atexit`, so its `CINCH_ALLOC_STATS` line never prints;
 the per-cell figures above are the same bytes by construction (the payload
@@ -729,7 +729,7 @@ program-wide table, not a derived identity.
   own indices past the prefix (`Bootstrap.RuntimeIr.cinch:4436`
   `library-layout-words`: `prefix <> library-layout-tail count ...`). The
   test that guards it asserts `&words[..prefix.len()] == &prefix`
-  (`compiler/tests/bootstrap_runtime_objects.rs:151`).
+  (`seed/tests/bootstrap_runtime_objects.rs:151`).
 - `Layouts::next` starts at 0 in every module, so the prefix rule is the
   only thing keeping two modules from handing out the same index to
   different maps. It works because a consumer is compiled *after* its

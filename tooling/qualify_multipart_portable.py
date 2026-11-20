@@ -55,7 +55,7 @@ def main() -> None:
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
     work = args.work.resolve(); work.mkdir(parents=True, exist_ok=True)
-    source = ROOT / "compiler/tests/fixtures/multipart-portable.cinch"
+    source = ROOT / "seed/tests/fixtures/multipart-portable.cinch"
     dependencies = source_closure(source.read_text())
     report = {"scope": __doc__, "compiler_sha256": digest(args.compiler), "entry_sha256": digest(source),
               "dependencies": {name: digest(path) for name, path in dependencies.items()},

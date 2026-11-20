@@ -26,7 +26,7 @@ def main() -> None:
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     artifacts=args.artifacts.resolve();project=artifacts/'project';project.mkdir(parents=True,exist_ok=True)
-    text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT / ('compiler/tests/fixtures/utf8-span-controls.cinch' if args.kind == 'utf8-spans' else 'compiler/tests/fixtures/utf8-ownership-consumer.cinch')).read_text()
+    text=edges() if args.kind=='edges' else catalog() if args.kind=='catalog' else (ROOT / ('seed/tests/fixtures/utf8-span-controls.cinch' if args.kind == 'utf8-spans' else 'seed/tests/fixtures/utf8-ownership-consumer.cinch')).read_text()
     source=project/'Main.cinch';source.write_text(text)
     paths=source_closure(project,source)+[source];exe=artifacts/'consumer'
     if args.tables_override:

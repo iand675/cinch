@@ -20,13 +20,22 @@ import bootstrap_objects
 from bootstrap_interfaces import content_hash
 
 
+def checkpoint_tree(files: dict[str, bytes]) -> str:
+    """The directory a committed source envelope records the seed under."""
+    prefix = bootstrap.SEED_WORKING_TREE + '/'
+    return bootstrap.SEED_WORKING_TREE if any(name.startswith(prefix) for name in files) else bootstrap.SEED_TREE
+
+
 def committed_sources(repository: Path, checkpoint: str) -> tuple[str, dict[str, bytes]]:
     """Read exactly the seed-source envelope from an immutable commit without consulting working files."""
     revision = subprocess.check_output(
         ['git', '-C', str(repository), 'rev-parse', '--verify', checkpoint + '^{commit}'], text=True).strip()
-    paths = ['compiler/src', 'compiler/prelude', 'compiler/runtime/src', 'compiler/Cargo.toml',
-             'compiler/Cargo.lock', 'compiler/.cargo/config.toml', 'compiler/runtime/Cargo.toml',
-             'compiler/runtime/Cargo.lock', bootstrap.NATIVE_BUILD_SCRIPT]
+    tree = bootstrap.SEED_WORKING_TREE if subprocess.run(
+        ['git', '-C', str(repository), 'cat-file', '-e', f'{revision}:{bootstrap.SEED_WORKING_TREE}'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 else bootstrap.SEED_TREE
+    paths = [f'{tree}/src', f'{tree}/prelude', f'{tree}/runtime/src', f'{tree}/Cargo.toml',
+             f'{tree}/Cargo.lock', f'{tree}/.cargo/config.toml', f'{tree}/runtime/Cargo.toml',
+             f'{tree}/runtime/Cargo.lock', f'{tree}/build.rs']
     paths.extend(bootstrap.native_grammar_inputs(repository, revision))
     archive = subprocess.check_output(['git', '-C', str(repository), 'archive', '--format=tar', revision, *paths])
     files = {}
@@ -82,7 +91,7 @@ def verify_source_claims(provenance: dict, files: dict[str, bytes]) -> dict:
             if (not isinstance(module, str) or not module or '/' in module or '\\' in module
                     or any(not part for part in module.split('.')) or not isinstance(expected, str) or len(expected) != 64):
                 raise bootstrap.BootstrapError('qualified snapshot has a malformed library source claim')
-            name = 'compiler/prelude/' + module.replace('.', '/') + '.cinch'
+            name = checkpoint_tree(files) + '/prelude/' + module.replace('.', '/') + '.cinch'
             if name not in files or bootstrap.digest(files[name]) != expected:
                 raise bootstrap.BootstrapError('qualified library source claim mismatch: ' + module)
         library_count = len(claims)
@@ -102,8 +111,10 @@ def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, che
         if bootstrap.file_hash(snapshot / name) != provenance[key]:
             raise bootstrap.BootstrapError('qualified snapshot digest mismatch: ' + name)
     claim_verification = verify_source_claims(provenance, files)
-    package_name = 'compiler/prelude/cinch-base.cinchpkg'
-    package_path = bootstrap.ROOT / package_name
+    tree = checkpoint_tree(files)
+    working = bootstrap.seed_source_root(bootstrap.ROOT)
+    package_name = f'{tree}/prelude/cinch-base.cinchpkg'
+    package_path = working / 'prelude/cinch-base.cinchpkg'
     if files[package_name] != package_path.read_bytes():
         raise bootstrap.BootstrapError('qualified snapshot base package differs from this lane')
     package = bootstrap.read_json(package_path)
@@ -111,8 +122,8 @@ def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, che
         raise bootstrap.BootstrapError('qualified snapshot base package has duplicate modules')
     modules = {}
     for row in package['modules']:
-        name = 'compiler/prelude/' + row['path']
-        if files[name] != (bootstrap.ROOT / name).read_bytes():
+        name = f'{tree}/prelude/' + row['path']
+        if files[name] != (working / 'prelude' / row['path']).read_bytes():
             raise bootstrap.BootstrapError('qualified embedded module differs from this lane: ' + row['name'])
         modules[row['name']] = {'path': row['path'], 'sha256': bootstrap.digest(files[name])}
     identity = {'kind': 'qualified-producer-snapshot-reuse', 'source_checkpoint': revision,
@@ -120,7 +131,7 @@ def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, che
                 'compiler_sha256': bootstrap.file_hash(snapshot / 'cinch'),
                 'runtime_sha256': bootstrap.file_hash(snapshot / 'libcinchruntime.a'),
                 'runtime_source_sha256': bootstrap.source_hash({name: data for name, data in files.items()
-                                                               if name.startswith('compiler/runtime/')}),
+                                                               if name.startswith(f'{tree}/runtime/')}),
                 'provenance_sha256': bootstrap.file_hash(provenance_path), 'provenance': provenance,
                 'claim_verification': claim_verification,
                 'embedded_sources': modules, 'new_compiler_build_performed': False,
@@ -139,17 +150,19 @@ def emit(output: Path, snapshot: Path, provenance_path: Path, repository: Path, 
         shutil.copy2(snapshot / name, output / name)
         if bootstrap.file_hash(output / name) != identity[key]:
             raise bootstrap.BootstrapError('copied qualified snapshot changed: ' + name)
-    package_path = bootstrap.ROOT / 'compiler/prelude/cinch-base.cinchpkg'
+    tree = checkpoint_tree(files)
+    working = bootstrap.seed_source_root(bootstrap.ROOT)
+    package_path = working / 'prelude/cinch-base.cinchpkg'
     package = bootstrap.read_json(package_path)
     sources = {}
     for module in package['modules']:
         relative = 'base/' + module['path']
         destination = output / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(files['compiler/prelude/' + module['path']])
+        destination.write_bytes(files[f'{tree}/prelude/' + module['path']])
         sources[module['name']] = {'path': relative, 'sha256': bootstrap.file_hash(destination)}
     shutil.copy2(package_path, output / 'base/cinch-base.cinchpkg')
-    shutil.copy2(bootstrap.ROOT / 'bootstrap/pins/library-object-roots.json', output / 'roots.json')
+    shutil.copy2(bootstrap.ROOT / 'compiler/pins/library-object-roots.json', output / 'roots.json')
     library = output / 'library'
     library.mkdir()
     entry = library / 'CinchBaseObject.cinch'

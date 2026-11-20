@@ -12,7 +12,7 @@ from validate_url import ROOT, BUILD_ROOT, digest
 def source() -> str:
     """Extract the maintained primitive declarations and retain every kernel in one reachable entry."""
     result = "-- | Actual UTF8 foreign-object kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n"
-    text = (ROOT / "compiler/prelude/Data/Bytes/Utf8.cinch").read_text()
+    text = (ROOT / "seed/prelude/Data/Bytes/Utf8.cinch").read_text()
     for name in ['load-one', 'load-four', 'load-eight', 'ascii-eight', 'ascii-sixteen', 'decode-word', 'encode-word', 'scan-lt', 'scan-ge', 'scan-gt', 'scan-eq', 'scan-add', 'scan-sub', 'scan-address', 'packed-width', 'packed-valid', 'scan-simple', 'scan-ready', 'scan-four', 'scan-from-packed', 'scan-width', 'scan-valid']:
         start = text.index(f"  prim {name} ::")
         end = text.find("\n  -- |", start)

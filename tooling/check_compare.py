@@ -210,7 +210,7 @@ def defaults_source(data: dict) -> tuple[str,int]:
 def prepare(work: Path, vectors: Path) -> dict[str,int]:
     """Materialize sources before requesting any compile resources."""
     data=json.loads(vectors.read_text()); counts={}
-    shutil.copyfile(ROOT/'compiler/prelude/Data/Compare.cinch',work/'Data.Compare.cinch')
+    shutil.copyfile(ROOT/'seed/prelude/Data/Compare.cinch',work/'Data.Compare.cinch')
     for kind,key in [('F32','f32'),('F64','f64'),('String','strings')]:
         rows=data[key]; (work/f'{kind}.source').write_text(scalar_source(kind,rows)); counts[kind]=len(rows)
     for kind in sorted({row['type'] for row in data['integers']}):
@@ -224,7 +224,7 @@ def main() -> None:
     """Prepare fixtures or execute exact frozen frontend/runtime pairs under bounded profiles."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work',type=Path,required=True)
-    parser.add_argument('--vectors',type=Path,default=ROOT/'compiler/tests/fixtures/compare-vectors.json')
+    parser.add_argument('--vectors',type=Path,default=ROOT/'seed/tests/fixtures/compare-vectors.json')
     parser.add_argument('--prepare-only',action='store_true')
     parser.add_argument('--resume',action='store_true',help='Retain verified completed cases with identical source and frontend identities')
     parser.add_argument('--rust',type=Path)

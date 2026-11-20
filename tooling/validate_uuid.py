@@ -62,7 +62,7 @@ def main() -> None:
     directory=args.artifacts.resolve();directory.mkdir(parents=True)
     modules={}
     for name in MODULES:
-        path=ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')
+        path=ROOT/'seed/prelude'/(name.replace('.','/')+'.cinch')
         if args.candidate_sources and name in ('Data.Uuid','Effect.Uuid'):
             candidate=args.candidate_sources.resolve()/(name+'.cinch')
             if candidate.is_file():path=candidate
@@ -74,14 +74,14 @@ def main() -> None:
         assert args.consumer is not None
         text=args.consumer.read_text()
     elif args.mode in ('control','io'):
-        text=(ROOT/f'compiler/tests/fixtures/uuid-{args.mode}.cinch').read_text()
+        text=(ROOT/f'seed/tests/fixtures/uuid-{args.mode}.cinch').read_text()
     else:text=source(args.mode,args.start,args.count)
     entry=directory/'Main.cinch';entry.write_text(text)
     executable,llvm=directory/'consumer',directory/'consumer.ll'
     report={'kind':'bounded-UUID-candidate-qualification','mode':args.mode,'start':args.start,'count':args.count,
             'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'clang_sha256':digest(clang),
             'runner_sha256':digest(Path(__file__)),'sources':{k:hashlib.sha256(v).hexdigest() for k,v in modules.items()},
-            'fixture_sha256':digest(ROOT/'compiler/tests/fixtures/uuid-vectors.json'),'consumer_sha256':digest(entry),
+            'fixture_sha256':digest(ROOT/'seed/tests/fixtures/uuid-vectors.json'),'consumer_sha256':digest(entry),
             'candidate_selected':False,'package_complete':False,'native_family_relabelled':False,
             'candidate_sources':str(args.candidate_sources.resolve()) if args.candidate_sources else None,
             'cpu_affinity':[args.cpu],'free_before':free,'fresh_start_mib':args.minimum_free_mib,

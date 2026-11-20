@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def consumer(expressions:list[str])->str:
     """Dispatch independent process batches with a fixed bounded poison quarantine."""
-    source=(ROOT/'compiler/tests/fixtures/byte-build-consumer.cinchpart').read_text()
+    source=(ROOT/'seed/tests/fixtures/byte-build-consumer.cinchpart').read_text()
     dispatch='False'
     for first in reversed(range(0,len(expressions),8)):
         number=first//8;name=f'checks{number}'
@@ -43,10 +43,10 @@ def main() -> None:
     parser.add_argument('--first', type=int, default=0)
     parser.add_argument('--limit', type=int)
     args = parser.parse_args()
-    fixture_path = ROOT / 'compiler/tests/fixtures/byte-build-vectors.json'
+    fixture_path = ROOT / 'seed/tests/fixtures/byte-build-vectors.json'
     fixture = json.loads(fixture_path.read_text())
     compiler = args.compiler.parent / 'cinch' if args.native_interfaces else args.compiler
-    report = {'compiler_sha256': digest(compiler), 'frontend_sha256': digest(args.compiler), 'source_sha256': digest(ROOT / 'compiler/prelude/Data/Bytes/Build.cinch'), 'fixture_sha256': digest(fixture_path), 'opt_level': None if args.native_interfaces else args.opt_level, 'source_distributed_module': True, 'changed_embedded_constructor_validation_claimed': False, 'native_base_interfaces_sha256': digest(args.native_interfaces) if args.native_interfaces else None, 'results': []}
+    report = {'compiler_sha256': digest(compiler), 'frontend_sha256': digest(args.compiler), 'source_sha256': digest(ROOT / 'seed/prelude/Data/Bytes/Build.cinch'), 'fixture_sha256': digest(fixture_path), 'opt_level': None if args.native_interfaces else args.opt_level, 'source_distributed_module': True, 'changed_embedded_constructor_validation_claimed': False, 'native_base_interfaces_sha256': digest(args.native_interfaces) if args.native_interfaces else None, 'results': []}
     for group in args.groups:
         project = args.artifacts / group
         project.mkdir(parents=True, exist_ok=True)

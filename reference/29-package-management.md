@@ -17,7 +17,7 @@ A package manifest is a file named `.cinchpkg`: canonical JSON with the package 
   "schema": 1,
   "name": "cinch-base",
   "version": "0.1.0",
-  "source_manifest": "the embedded prelude family (compiler/prelude/Prelude.cinch is the facade)",
+  "source_manifest": "the embedded prelude family (seed/prelude/Prelude.cinch is the facade)",
   "modules": [
     { "name": "Data.Core", "path": "Data/Core.cinch", "embedded": true },
     { "name": "Prelude", "path": "Prelude.cinch", "embedded": true, "facade": true }
@@ -683,4 +683,4 @@ There is no source replacement, override map, workspace, `--frozen`, or offline 
 | L2 builder-key verification and VSA issuance | Not implemented |
 | Registry HTTP prototype | Runnable in `registry/` |
 
-Implementation: `compiler/src/pkg.rs`, `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, `registry/lib/store.mjs`, `registry/lib/canonical.mjs`, `registry/lib/provenance.mjs`, `registry/lib/signer.mjs`. Suites: `compiler/tests/package_manifest.rs`, `compiler/tests/package_store.rs`, `compiler/tests/canonical_artifacts.rs`, the `pkg.rs` unit tests, and `registry/test/registry.test.mjs`.
+Implementation: `seed/src/pkg.rs`, `seed/src/driver.rs`, `seed/src/store.rs`, `seed/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, `registry/lib/store.mjs`, `registry/lib/canonical.mjs`, `registry/lib/provenance.mjs`, `registry/lib/signer.mjs`. Suites: `seed/tests/package_manifest.rs`, `seed/tests/package_store.rs`, `seed/tests/canonical_artifacts.rs`, the `pkg.rs` unit tests, and `registry/test/registry.test.mjs`.

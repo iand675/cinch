@@ -104,8 +104,8 @@ bounded, no static check can rule exhaustion out. So there are two tiers:
 ### 4.1 As built (2026-10-30): the implicit `Exhausted` at `main`
 
 Section 7's decision is implemented in the runtime
-(`compiler/runtime/src/abi.rs`, `heap.rs`, `stack.rs`; tests in
-`compiler/tests/exhaustion.rs`). Every resource exhaustion is one
+(`seed/runtime/src/abi.rs`, `heap.rs`, `stack.rs`; tests in
+`seed/tests/exhaustion.rs`). Every resource exhaustion is one
 outcome: exit code **73** and exactly one stderr line naming the
 resource.
 

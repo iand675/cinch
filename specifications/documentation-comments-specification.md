@@ -3,7 +3,7 @@
 Draft 0.1. This chapter defines the source-level documentation comment format,
 how comments attach to declarations, the canonical `.cinchdoc` artifact, and the
 symbol lookup model. The reference implementation is `cinch doc` in
-`compiler/src/cinchdoc.rs`.
+`seed/src/cinchdoc.rs`.
 
 Documentation is not part of a module's checked contract. A `.cinchdoc` change
 does not change `iface_hash`, does not invalidate a compiled interface, and does
@@ -188,8 +188,8 @@ The parser records every test as `{name, mode, input, stdin, args, expect,
 error, exit, line}` in the document. The `test` command compiles and runs it:
 
 ```sh
-cinch doc test compiler/prelude \
-  --compiler compiler/target/debug/cinch --legacy
+cinch doc test seed/prelude \
+  --compiler seed/target/debug/cinch --legacy
 ```
 
 `--- input` is a complete program or a module body. The runner wraps a module
@@ -272,7 +272,7 @@ detectable.
 {
   "schema": 1,
   "module": "Data.Option",
-  "source": "compiler/prelude/Data/Option.cinch",
+  "source": "seed/prelude/Data/Option.cinch",
   "sourceSha256": "...",
   "doc": {
     "summary": "The optional value: None or Some x.",
@@ -367,7 +367,7 @@ has the form:
       "kind": "value",
       "name": "maybe",
       "summary": "The fold: the default unless there is a value.",
-      "source": "compiler/prelude/Data/Option.cinch",
+      "source": "seed/prelude/Data/Option.cinch",
       "line": 47
     }
   ]
@@ -416,17 +416,17 @@ it MUST preserve the text and line associations.
 # 11 Reference tooling
 
 The reference implementation is the compiler's `doc` command
-(`compiler/src/cinchdoc.rs`):
+(`seed/src/cinchdoc.rs`):
 
 ```sh
-cinch doc extract compiler/prelude/Data/Option.cinch \
+cinch doc extract seed/prelude/Data/Option.cinch \
   --legacy --out /tmp/Data.Option.cinchdoc
 
-cinch doc lookup Data.Option.maybe --dir compiler/prelude --legacy
+cinch doc lookup Data.Option.maybe --dir seed/prelude --legacy
 
-cinch doc index compiler/prelude --legacy --out /tmp/cinch-docs.json
+cinch doc index seed/prelude --legacy --out /tmp/cinch-docs.json
 
-cinch doc render compiler/prelude/Data.Option.cinch --legacy
+cinch doc render seed/prelude/Data.Option.cinch --legacy
 ```
 
 `--iface MODULE.cinchif` supplies checked identities and rendered schemes.

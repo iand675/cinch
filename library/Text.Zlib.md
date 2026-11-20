@@ -29,7 +29,7 @@ every decoder accepts, never a compressed one. Bit-exactness with
 any particular encoder was never the shape; `inflate (deflate x) ==
 x` is, and the other direction is pinned by handing the encoder's
 output to a real decoder (python's `zlib`, in
-compiler/tests/lib_zlib.rs).
+seed/tests/lib_zlib.rs).
 
 THE DESIGN LAW SHAPE: decoding never guesses. Nothing here produces
 bytes it cannot justify, and every refusal names itself:
@@ -66,7 +66,7 @@ accepts the 32K maximum and the encoder declares exactly what it
 writes. `crc32` sits beside the wrapper's Adler-32 because the rest
 of the family wants it (gzip's container, PNG), not because zlib
 reads it; both are pinned to published vectors in
-compiler/tests/lib_zlib.rs.
+seed/tests/lib_zlib.rs.
 
 The two spellings are the Ruby ones (`Zlib.adler32`, `Zlib.crc32`)
 and, here, also the only legal ones: a digit cannot continue an
@@ -168,4 +168,4 @@ The whole stream: header, blocks, trailing Adler-32.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Zlib.cinch`. Source SHA-256: `106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

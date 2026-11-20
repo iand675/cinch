@@ -23,7 +23,7 @@
 -- A prim body can be gated on the compile target: `when arch aarch64`,
 -- `when os linux`, or both as one body's conjunction, and the checker
 -- selects the matching body against the target profile (pinned by
--- `compiler/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
+-- `seed/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
 -- and `clauses_on_one_body_are_a_conjunction`). That is why the two
 -- architectures live in one module here: the architecture is expressible
 -- in the body, so no per-architecture split is needed. `Prim.Sys.Darwin`

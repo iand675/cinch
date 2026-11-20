@@ -47,14 +47,14 @@ A container-generic surface sits above the primitive:
 > (`MkParallel`, `runParallel`, and a `lift-a2` that is `both`). That type
 > does not exist anywhere in the tree: `grep` for `MkParallel`, `runParallel`
 > or `data Parallel` returns nothing outside this note. `traverse` itself is
-> present in `compiler/prelude/Category/Traversable.cinch` and needs an
+> present in `seed/prelude/Category/Traversable.cinch` and needs an
 > `Applicative f`, so `parTraverse` cannot be written until something
 > supplies `Applicative Parallel`. The obvious encoding is a newtype over the
 > computation, `MkParallel (Unit ->{|e} a)`, which is what `Parallel` means in
 > the languages this borrows from. It does not typecheck here, and the reason
 > is concrete rather than a design preference: the callback's row has to be a
 > **parameter** of the wrapper (`Parallel e a`), and no data type in the tree
-> takes a row parameter. Every `:: Row` occurrence in `compiler/prelude`,
+> takes a row parameter. Every `:: Row` occurrence in `seed/prelude`,
 > `bootstrap` and `library` is either inside a `forall` in a signature or a
 > value-level type named `Row` (`Bootstrap.Proof.MkSearchRow :: Row -> ...`).
 > The same wall refused `forall (a :: Type) (e :: Row).` inside a `signature`
@@ -178,11 +178,11 @@ per-container code in the compiler.
 Both declarations are **kernel declarations** installed by the checker
 (`Bootstrap.Builtin.parallelism-declarations`), not a new prelude module.
 The reason is a hard constraint, not a preference: the embedded base library
-is pinned. `bootstrap/pins/library-provider.lock.json` fixes a `revision` and a
-`source_sha256` over the whole `compiler/prelude` tree, and the ladder's
+is pinned. `compiler/pins/library-provider.lock.json` fixes a `revision` and a
+`source_sha256` over the whole `seed/prelude` tree, and the ladder's
 `library_provider_lock()` refuses to run when
 `Bootstrap.RuntimeAbi.cinch` or the pinned source hash disagree. Adding
-`Category/Parallelism.cinch` to `compiler/prelude` would change that hash and
+`Category/Parallelism.cinch` to `seed/prelude` would change that hash and
 require a lock bump, which this change must not do.
 
 The kernel already owns exactly this kind of vocabulary: `builtin-declarations`
@@ -414,7 +414,7 @@ machinery:
    with no context and no strict value field, so the projection collapses to
    a direct call to the instance's method unit at the method's own
    representation. The dictionary block is not built and no indirect apply
-   survives (the property `compiler/tests/rc_specialisation.rs` already
+   survives (the property `seed/tests/rc_specialisation.rs` already
    pins for static dictionaries).
 
 A user instance takes the same path. A user instance *with* a context (say

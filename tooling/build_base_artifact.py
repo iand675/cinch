@@ -33,14 +33,14 @@ def build(output: Path, cargo_target: Path) -> Path:
             subprocess.run(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT, check=True)
 
     execute(["cargo", "build", "--locked", "--release", "--bin", "cinch", "--target-dir", str(cargo_target)],
-            bootstrap.ROOT / "compiler", output / "compiler-build.log")
+            bootstrap.seed_source_root(bootstrap.ROOT), output / "compiler-build.log")
     shutil.copy2(cargo_target / "release/cinch", output / "cinch")
     runtime_target = cargo_target / "runtime"
     execute(["cargo", "build", "--locked", "--release", "--manifest-path",
-             str(bootstrap.ROOT / "compiler/runtime/Cargo.toml"), "--target-dir", str(runtime_target)],
-            bootstrap.ROOT / "compiler", output / "runtime-build.log")
+             str(bootstrap.seed_source_root(bootstrap.ROOT) / "runtime/Cargo.toml"), "--target-dir", str(runtime_target)],
+            bootstrap.seed_source_root(bootstrap.ROOT), output / "runtime-build.log")
     shutil.copy2(runtime_target / "release/libcinchruntime.a", output / "libcinchruntime.a")
-    package_path = bootstrap.ROOT / "compiler/prelude/cinch-base.cinchpkg"
+    package_path = bootstrap.seed_source_root(bootstrap.ROOT) / "prelude/cinch-base.cinchpkg"
     package = bootstrap.read_json(package_path)
     sources = {}
     for module in package["modules"]:
@@ -51,7 +51,7 @@ def build(output: Path, cargo_target: Path) -> Path:
         sources[module["name"]] = {"path": relative, "sha256": bootstrap.file_hash(destination)}
     shutil.copy2(package_path, output / "base/cinch-base.cinchpkg")
     roots = output / "roots.json"
-    shutil.copy2(bootstrap.ROOT / "bootstrap/pins/library-object-roots.json", roots)
+    shutil.copy2(bootstrap.ROOT / "compiler/pins/library-object-roots.json", roots)
     library = output / "library"
     library.mkdir()
     entry = library / "CinchBaseObject.cinch"

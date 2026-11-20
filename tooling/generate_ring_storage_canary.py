@@ -18,7 +18,7 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     source = args.source.read_text()
-    hook = (ROOT / 'compiler/tests/fixtures/ring-storage-canary.cinchfrag').read_text()
+    hook = (ROOT / 'seed/tests/fixtures/ring-storage-canary.cinchfrag').read_text()
     hook = hook.replace('CANARY-CONTAINER', 'dense' if args.pinned else 'arena')
     marker = '  export ring-for-each, ring-to-list\n'
     assert source.count(marker) == 1

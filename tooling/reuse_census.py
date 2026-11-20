@@ -9,7 +9,7 @@ module. `check` never reaches the owned stage, so `emit-ir` is the command;
 it writes the dump before refusing for want of a `main`.
 
 For every `(release ...)` site the report classifies the outcome the way
-`compiler/src/rc.rs` decides it:
+`seed/src/rc.rs` decides it:
 
   reused        the release carries `@token(`, so `insert_reuse` found a
                 compatible allocation on the arm's spine
@@ -34,7 +34,7 @@ a `Dup` body, a `Drop` body, a call's arguments in order, and a jump's
 arguments in order. Anything else ends the search, because a reuse under a
 branch could be skipped and the kept cell would leak.
 
-Numbers from the 2026-11-13 run over all 44 `bootstrap/*.cinch` modules
+Numbers from the 2026-11-13 run over all 44 `compiler/*.cinch` modules
 (5,927 units) are in `design/linear-in-place.md` section 5. The 2026-11-14
 run, which added the call-argument and branch-arm positions and the host
 split, is in `design/compilation-speed.md` section 2.21.

@@ -190,7 +190,7 @@ Resolved since draft 0.3: the `Bits` class (section 11's open decision) is imple
 
 # Implementation status
 
-The compiler in `compiler/` implements this chapter's machine types and families (the `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize` names, the checked/wrapping/saturating families, explicit conversions, and literal range checking), and now has the mathematical `Nat` and `Int` on the bignum runtime with unbounded digit-string literals. `&&`/`||` short-circuit as required by section 10. Deviations still open: machine conversion names (`toInt`, `toNat`, `checkedFromInt`, `checkedFromNat`) are spelled with the machine type suffix (`intToI64` style) until the module slice lets this chapter's dotted spelling land (decision D6 in `compiler/CONFORMANCE.md`), and `Bytes` has no string literal form yet.
+The compiler in `seed/` implements this chapter's machine types and families (the `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize` names, the checked/wrapping/saturating families, explicit conversions, and literal range checking), and now has the mathematical `Nat` and `Int` on the bignum runtime with unbounded digit-string literals. `&&`/`||` short-circuit as required by section 10. Deviations still open: machine conversion names (`toInt`, `toNat`, `checkedFromInt`, `checkedFromNat`) are spelled with the machine type suffix (`intToI64` style) until the module slice lets this chapter's dotted spelling land (decision D6 in `compiler/CONFORMANCE.md`), and `Bytes` has no string literal form yet.
 
 # Amendments
 

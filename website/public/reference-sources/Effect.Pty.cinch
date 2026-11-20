@@ -19,7 +19,7 @@
 -- capability calls it, never ambient at compile time). Every failure is
 -- a NAMED `PtyError` value in a `Result` (the house style), never a
 -- fault: the boundary's raw word carries the shared platform error codes
--- (`compiler/runtime/src/platform.rs`), which `pty-error-code` maps one
+-- (`seed/runtime/src/platform.rs`), which `pty-error-code` maps one
 -- for one.
 --
 -- The boundary words themselves are the `cinch.runtime.pty*` units
@@ -167,7 +167,7 @@ module Effect.Pty where
   pty-command-with-env :: Path -> List String -> List (String, String) -> PtyCommand
   pty-command-with-env prog args env = PtyCommand prog args env
 
-  -- The pseudo-terminal words (`compiler/runtime/src/pty.rs`). The
+  -- The pseudo-terminal words (`seed/runtime/src/pty.rs`). The
   -- program text, the NUL-separated argument and environment words and
   -- every payload cross as `Bytes`, and each result is the boundary word
   -- as a `Result` whose `Err` payload is the named code's own number

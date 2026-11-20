@@ -13,7 +13,7 @@
 -- REAL needs float bit access and TEXT a length-prefixed copy (D65);
 -- those instances land with their generators. The class law shape is
 -- the round trip: `decode (encode x) == Some x` (asserted over sample
--- values in compiler/tests/prelude_split.rs).
+-- values in seed/tests/prelude_split.rs).
 --
 -- `JsonCodec` is the JSON-value column beside it (P31): the same law
 -- shape over the `Json` family, with a named decode error instead of

@@ -66,12 +66,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--runtime-archive', type=Path, required=True)
-    parser.add_argument('--module-source', type=Path, default=ROOT/'compiler/prelude/Data/Bytes/Split.cinch')
-    parser.add_argument('--view-source', type=Path, default=ROOT/'compiler/prelude/Data/Bytes/View.cinch')
+    parser.add_argument('--module-source', type=Path, default=ROOT/'seed/prelude/Data/Bytes/Split.cinch')
+    parser.add_argument('--view-source', type=Path, default=ROOT/'seed/prelude/Data/Bytes/View.cinch')
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    source = (ROOT/'compiler/tests/fixtures/byte-split-portable.cinch').read_text()
+    source = (ROOT/'seed/tests/fixtures/byte-split-portable.cinch').read_text()
     deps = source_closure(source, {'Data.Bytes.Split':args.module_source, 'Data.Bytes.View':args.view_source})
     report = {'compiler_sha256':digest(args.compiler),'runtime_sha256':digest(args.runtime_archive),
               'entry_sha256':hashlib.sha256(source.encode()).hexdigest(),

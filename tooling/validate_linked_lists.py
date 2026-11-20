@@ -13,8 +13,8 @@ import subprocess
 from generate_linked_list_cases import source
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = {'Data.Mutable.LinkedList': ROOT / 'compiler/prelude/Data/Mutable/LinkedList.cinch',
-           'Data.Mutable.Vec': ROOT / 'compiler/prelude/Data/Mutable/Vec.cinch'}
+MODULES = {'Data.Mutable.LinkedList': ROOT / 'seed/prelude/Data/Mutable/LinkedList.cinch',
+           'Data.Mutable.Vec': ROOT / 'seed/prelude/Data/Mutable/Vec.cinch'}
 
 
 def digest(path: Path) -> str:
@@ -57,7 +57,7 @@ def main() -> None:
         if mode in args.modes:
             jobs[mode] = source(0, mode)
     report = {'description': __doc__, 'frontend': args.frontend, 'compiler_sha256': digest(args.compiler),
-              'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/linked-list-vectors.json'),
+              'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'seed/tests/fixtures/linked-list-vectors.json'),
               'sources': {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen.items()},
               'compiler_host_stack': '64M', 'cpu_affinity': [args.cpu], 'suites': []}
     if args.frontend == 'native':

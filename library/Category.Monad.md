@@ -115,4 +115,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Category/Monad.cinch`. Source SHA-256: `6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Monad.cinch`. Source SHA-256: `6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

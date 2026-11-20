@@ -25,7 +25,7 @@ def main() -> None:
     args = parser.parse_args()
     project = args.artifacts.resolve()
     project.mkdir(parents=True, exist_ok=False)
-    fixture = ROOT / 'compiler/tests/fixtures/string-join-namespace-consumer.cinch'
+    fixture = ROOT / 'seed/tests/fixtures/string-join-namespace-consumer.cinch'
     text = fixture.read_text()
     sources = source_closure(text)
     assert 'Data.String' not in sources, 'namespace clients must use the compiler embedded String'

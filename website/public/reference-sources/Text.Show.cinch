@@ -37,7 +37,7 @@ module Text.Show where
 
   -- The decimal rendering agrees with the concrete conversions below
   -- (the class's law shape: `show` is the rendering; asserted over
-  -- sample values in compiler/tests/prelude_split.rs).
+  -- sample values in seed/tests/prelude_split.rs).
   implicit instance Show_Nat :: Show Nat where
     show n = nat-to-string n
 
@@ -53,7 +53,7 @@ module Text.Show where
     show s = s
 
   -- The fixed text: each renders as its literal constructor spelling
-  -- (probed in compiler/tests/string_literals.rs).
+  -- (probed in seed/tests/string_literals.rs).
   implicit instance Show_Bool :: Show Bool where
     show b = if b then "True" else "False"
 

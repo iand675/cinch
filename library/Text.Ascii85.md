@@ -277,4 +277,4 @@ A safe encoded byte bound, including a full five-symbol final allocation.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Ascii85.cinch`. Source SHA-256: `6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Ascii85.cinch`. Source SHA-256: `6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

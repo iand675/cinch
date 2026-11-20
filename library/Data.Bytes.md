@@ -150,7 +150,7 @@ conversion out of a `String` copies.
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 SHA-256 (FIPS 180-4) at content-addressing strength over a
-buffer (the P31 content identity; `compiler/runtime/src/text.rs`,
+buffer (the P31 content identity; `seed/runtime/src/text.rs`,
 the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
 digest as a fresh 32-byte buffer.
 
@@ -179,4 +179,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

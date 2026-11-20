@@ -42,7 +42,7 @@ def main():
     args = parser.parse_args()
     vectors = json.loads(args.vectors.read_text())
     assert vectors['sdk_version'] == 'go1.27.4'
-    fixture = ROOT/'compiler/tests/fixtures'/('buffered-scanner-traces.cinch' if args.suite == 'scanner' else 'buffered-split-traces.cinch')
+    fixture = ROOT/'seed/tests/fixtures'/('buffered-scanner-traces.cinch' if args.suite == 'scanner' else 'buffered-split-traces.cinch')
     marker = '  -- | Independent full scanner trace ' if args.suite == 'scanner' else '  -- | Independent direct observations '
     header = fixture.read_text().split(marker, 1)[0]
     assert 'report-failure ::' in header and 'main ::' not in header
@@ -94,7 +94,7 @@ def main():
     manifest = {'suite': args.suite, 'builtins': args.builtins, 'histories': len(rows) if args.suite == 'scanner' else None,
                 'observations': count, 'source_sha256': digest(args.output), 'vectors_sha256': digest(args.vectors), 'sdk_version': vectors['sdk_version'],
                 'helper_fixture_sha256': digest(fixture), 'generator_sha256': digest(Path(__file__)),
-                'status': 'Generated independent observations; no compiler/runtime result implied.'}
+                'status': 'Generated independent observations; no seed/runtime result implied.'}
     args.output.with_suffix('.json').write_text(json.dumps(manifest, indent=2)+'\n')
     print(f'Generated {count} independent {args.suite} observations')
 

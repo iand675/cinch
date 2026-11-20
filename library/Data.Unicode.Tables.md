@@ -192,4 +192,4 @@ Read one immutable turkic-deltas entry; an out-of-range index returns zero.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Unicode/Tables.cinch`. Source SHA-256: `52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Tables.cinch`. Source SHA-256: `52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

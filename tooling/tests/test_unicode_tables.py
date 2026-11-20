@@ -84,7 +84,7 @@ class UnicodeTableTests(unittest.TestCase):
     def test_generated_sources_are_fresh_and_every_case_page_is_shallow(self) -> None:
         """Generation cannot reintroduce giant literal constructors or dynamic constant-vector stack copies."""
         source = generator.generated(self.database)
-        self.assertEqual(source, (ROOT / 'compiler/prelude/Data/Unicode/Tables.cinch').read_text())
+        self.assertEqual(source, (ROOT / 'seed/prelude/Data/Unicode/Tables.cinch').read_text())
         self.assertNotIn('extractelement', source)
         self.assertIsNone(re.search(r'^\s*data\s', source, re.MULTILINE))
         for text in [source]:

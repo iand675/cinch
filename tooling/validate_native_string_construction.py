@@ -40,7 +40,7 @@ def main() -> None:
     manifest, objects = args.artifacts / "interfaces.json", args.artifacts / "objects.json"
     bootstrap.write_json(manifest, provider["interfaces"])
     bootstrap.write_json(objects, provider["configuration"])
-    fixture_path = ROOT / "compiler/tests/fixtures/string-construction-vectors.json"
+    fixture_path = ROOT / "seed/tests/fixtures/string-construction-vectors.json"
     fixture = json.loads(fixture_path.read_text())
     expected = {row[0]: row[1] for row in provider["interfaces"]["interfaces"]}["Data.String"]
     report = {"compiler_sha256": digest(args.compiler), "provider": provider["identity"],

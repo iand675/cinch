@@ -22,20 +22,20 @@ def main() -> None:
     args = parser.parse_args()
     assert args.maximum_units > 0
     os.sched_setaffinity(0, {args.cpu})
-    fixture = ROOT / 'compiler/tests/fixtures/uuid-vectors.json'
+    fixture = ROOT / 'seed/tests/fixtures/uuid-vectors.json'
     assert digest(fixture) == 'af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e'
     vectors = json.loads(fixture.read_text())
     path = ROOT / 'build/uuid-native-qualification-progress.json'
     ledger = json.loads(path.read_text()) if path.exists() else {
         'kind': 'partial-historical-Native-pure-UUID-matrix',
-        'pair_review_sha256': digest(ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json'),
+        'pair_review_sha256': digest(ROOT / 'compiler/evidence/stdlib/stdlib-uuid-native-pair-review.json'),
         'fixture_sha256': digest(fixture),
         'source_sha256': digest(ROOT / 'experiments/uuid-candidate-v1/sources/Data.Uuid.cinch'),
         'candidate_selected': False, 'package_complete': False,
         'new66_family_relabelled': False, 'io_or_mvar_requested': False, 'units': {}}
-    assert ledger['pair_review_sha256'] == digest(ROOT / 'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json')
+    assert ledger['pair_review_sha256'] == digest(ROOT / 'compiler/evidence/stdlib/stdlib-uuid-native-pair-review.json')
     assert ledger['source_sha256'] == digest(ROOT / 'experiments/uuid-candidate-v1/sources/Data.Uuid.cinch')
-    assert ledger['source_sha256'] == digest(ROOT / 'compiler/prelude/Data/Uuid.cinch')
+    assert ledger['source_sha256'] == digest(ROOT / 'seed/prelude/Data/Uuid.cinch')
     first = ROOT / 'build/uuid-native-parse-0-a1-results.json'
     if first.exists() and 'parse-0000' not in ledger['units']:
         report = json.loads(first.read_text())

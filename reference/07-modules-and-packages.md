@@ -577,7 +577,7 @@ Signature blocks do admit `opaque type` and `record` members today, which the pa
 
 # Packages
 
-A package is a manifest plus module sources. The embedded base library ships as `compiler/prelude/cinch-base.cinchpkg`, a manifest naming its modules and their check order; a project package is a `.cinchpkg` beside its sources, installed into `vendor/` by `cinch pkg`. Manifests, the `pkg` subcommands, the local store, and the registry protocol are on [packages, manifests, and the registry](29-package-management.md). The implicit `Prelude` is a facade that re-exports curated surfaces from the defining homes, not every module in the repository; a source module beside the entry shadows the embedded copy of the same name.
+A package is a manifest plus module sources. The embedded base library ships as `seed/prelude/cinch-base.cinchpkg`, a manifest naming its modules and their check order; a project package is a `.cinchpkg` beside its sources, installed into `vendor/` by `cinch pkg`. Manifests, the `pkg` subcommands, the local store, and the registry protocol are on [packages, manifests, and the registry](29-package-management.md). The implicit `Prelude` is a facade that re-exports curated surfaces from the defining homes, not every module in the repository; a source module beside the entry shadows the embedded copy of the same name.
 
 Installation is a separate step from compilation. `cinch pkg install` writes `vendor/` and a lock; `cinch check`, `build`, and `run` then resolve imports against the resulting source tree through rule 3 above.
 

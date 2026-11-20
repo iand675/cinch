@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate source-distributed PEM public consumers against explicit matched compiler/base artifacts."""
+"""Validate source-distributed PEM public consumers against explicit matched seed/base artifacts."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -39,7 +39,7 @@ def source_closure(project: Path, main: Path, embedded: set[str]) -> list[Path]:
         name = pending.pop()
         if name in embedded or name in found: continue
         found.add(name)
-        original = ROOT / 'compiler/prelude' / (name.replace('.', '/') + '.cinch')
+        original = ROOT / 'seed/prelude' / (name.replace('.', '/') + '.cinch')
         target = project / (name + '.cinch'); target.write_bytes(original.read_bytes()); paths.append(target)
         pending.extend(re.findall(r'^\s*import\s+([A-Za-z0-9_.]+)', target.read_text(), re.M))
     if any((project / (name + '.cinch')).exists() for name in embedded): raise ValueError('Refusing embedded source shadow')
@@ -74,7 +74,7 @@ def main() -> None:
     if args.frontend == 'rust' and digest(compiler) != provider['producer']['compiler_sha256']: raise ValueError('Rust embedded producer mismatch')
     for key in ['object', 'metadata']:
         if digest(Path(objects[key])) != objects[key + '_sha256']: raise ValueError('Admitted object/metadata bytes changed')
-    fixture_path = args.source or ROOT / 'compiler/tests/fixtures/pem-vectors.json'
+    fixture_path = args.source or ROOT / 'seed/tests/fixtures/pem-vectors.json'
     fixture = json.loads(fixture_path.read_text()) if args.source is None else None
     counts = [(len(fixture[key]) + 7) // 8 for key in ['encodes', 'decodes']] if fixture else []
     if args.group and (args.source or not 0 <= args.group[0] < 2 or not 0 <= args.group[1] < counts[args.group[0]]): parser.error('invalid corpus group')

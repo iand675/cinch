@@ -17,7 +17,7 @@ Non-embedded source closure: [Effect.Net](Effect.Net.md).
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Effect.Net: TCP sockets and name resolution over the runtime's
-`cinch_net_*` externs (`compiler/runtime/src/net.rs`). A `Socket` is
+`cinch_net_*` externs (`seed/runtime/src/net.rs`). A `Socket` is
 a live connection the runtime's handle table owns; `net-read` and
 `net-write` move bytes over it; `net-resolve` is the DNS primitive
 (one `<ip>:<port>` line per resolved address), which the name
@@ -29,7 +29,7 @@ capability calls it, never ambient at compile time, so a build
 cannot depend on what the network answered). Every failure is a
 NAMED `NetError` value in a `Result` (the house style), never a
 fault: the boundary's raw word carries the shared platform error
-codes (`compiler/runtime/src/platform.rs`), which `net-error-code`
+codes (`seed/runtime/src/platform.rs`), which `net-error-code`
 maps one for one.
 
 The boundary words themselves are the `cinch.runtime.net*` units
@@ -184,4 +184,4 @@ The handle word of a socket, for the layers above this one.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Net.cinch`. Source SHA-256: `a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

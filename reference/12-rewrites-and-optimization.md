@@ -454,4 +454,4 @@ Two knobs are not in the driver's gift: `fuel` and `measure` come from the targe
 
 The normative text is [the supercompilation and JIT specification](../specifications/supercompilation-and-jit-specification.md), with the rewrite rules themselves in [the modules and compilation specification](../specifications/modules-and-compilation-specification.md) section 5. The [practice chapter](../learn/19-rewrites-and-performance.md) walks through tuning a program.
 
-Implementation: `core.rs` (`optimize`, the driver, barriers, whistle, weight reconciliation), `specialize.rs` (representation copies), `check_decls.rs` (`check_rewrite`, `check_justify`), `codegen.rs`. Suites: `compiler/tests/optimizer.rs`, `compiler/tests/laws.rs`.
+Implementation: `core.rs` (`optimize`, the driver, barriers, whistle, weight reconciliation), `specialize.rs` (representation copies), `check_decls.rs` (`check_rewrite`, `check_justify`), `codegen.rs`. Suites: `seed/tests/optimizer.rs`, `seed/tests/laws.rs`.

@@ -14,12 +14,12 @@ from generate_heap_view_cases import consumer
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
-    "Text.Hex": ROOT / "compiler/prelude/Text/Hex.cinch",
-    "Data.Bytes.Word": ROOT / "compiler/prelude/Data/Bytes/Word.cinch",
-    "Data.Mutable.Vec": ROOT / "compiler/prelude/Data/Mutable/Vec.cinch",
-    "Data.Mutable.Var": ROOT / "compiler/prelude/Data/Mutable/Var.cinch",
-    "Data.Mutable.Heap": ROOT / "compiler/prelude/Data/Mutable/Heap.cinch",
-    "Data.Mutable.HeapView": ROOT / "compiler/prelude/Data/Mutable/HeapView.cinch",
+    "Text.Hex": ROOT / "seed/prelude/Text/Hex.cinch",
+    "Data.Bytes.Word": ROOT / "seed/prelude/Data/Bytes/Word.cinch",
+    "Data.Mutable.Vec": ROOT / "seed/prelude/Data/Mutable/Vec.cinch",
+    "Data.Mutable.Var": ROOT / "seed/prelude/Data/Mutable/Var.cinch",
+    "Data.Mutable.Heap": ROOT / "seed/prelude/Data/Mutable/Heap.cinch",
+    "Data.Mutable.HeapView": ROOT / "seed/prelude/Data/Mutable/HeapView.cinch",
 }
 
 
@@ -61,7 +61,7 @@ def main() -> None:
         "frontend": args.frontend, "runner_sha256": digest(Path(__file__)),
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
-        "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/heap-view-vectors.json"),
+        "fixture_sha256": digest(ROOT / "seed/tests/fixtures/heap-view-vectors.json"),
         "cpu_affinity": [args.cpu], "suites": [],
     }
     if args.frontend == "native":

@@ -64,4 +64,4 @@ Replace the initialized value, retaining the replacement and releasing the previ
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Buffered/Internal/Cell.cinch`. Source SHA-256: `3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Buffered/Internal/Cell.cinch`. Source SHA-256: `3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

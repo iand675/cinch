@@ -168,4 +168,4 @@ Split immediately after the final slash, preserving repeated and trailing separa
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Path.cinch`. Source SHA-256: `8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Path.cinch`. Source SHA-256: `8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

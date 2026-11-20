@@ -10,7 +10,7 @@ import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "compiler/tests/fixtures/binary-layout-consumers.cinchpart"
+TARGET = ROOT / "seed/tests/fixtures/binary-layout-consumers.cinchpart"
 
 # Field names and typed bit views keep every concrete layout exercised.
 KINDS = [

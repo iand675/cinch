@@ -23,7 +23,7 @@ def source(path: Path) -> str:
 def main() -> None:
     """Use the frozen Rust emitter for supported foreign profiles and preserve exact object identities."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, default=ROOT / "compiler/prelude/Data/Unicode/Tables.cinch")
+    parser.add_argument("--source", type=Path, default=ROOT / "seed/prelude/Data/Unicode/Tables.cinch")
     parser.add_argument("--cpu", type=int, default=2)
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)

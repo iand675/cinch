@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify only pure UUID adapters against one explicit historical Native compiler/provider/runtime tuple."""
+"""Qualify only pure UUID adapters against one explicit historical Native seed/provider/runtime tuple."""
 from __future__ import annotations
 import argparse
 import json
@@ -24,16 +24,16 @@ def main() -> None:
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
     assert shutil.disk_usage(ROOT).free>=350*1024*1024
     assert not args.artifacts.exists();directory=args.artifacts.resolve();directory.mkdir(parents=True)
-    reviewed=ROOT/'bootstrap/evidence/stdlib/stdlib-uuid-native-pair-review.json';pair=json.loads(reviewed.read_text())
+    reviewed=ROOT/'compiler/evidence/stdlib/stdlib-uuid-native-pair-review.json';pair=json.loads(reviewed.read_text())
     for name,key in [('cinch','compiler_sha256'),('frontend.py','frontend_sha256'),('base-interfaces.json','interfaces_sha256'),('objects.json','objects_sha256'),('libcinchruntime.a','runtime_sha256')]:assert digest(PAIR/name)==pair[key]
     objects=json.loads((PAIR/'objects.json').read_text())
     for key in ('object','metadata'):assert digest(Path(objects[key]))==objects[key+'_sha256']
     assert objects['target']=='x86_64-unknown-linux-gnu'
     modules=('Data.Bytes.Word','Text.Hex','Data.Uuid');paths=[]
     for module in modules:
-        path=directory/(module+'.cinch');path.write_bytes((ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')).read_bytes());paths.append(path)
+        path=directory/(module+'.cinch');path.write_bytes((ROOT/'seed/prelude'/(module.replace('.','/')+'.cinch')).read_bytes());paths.append(path)
     if args.mode=='source':text='-- | Pure identifier source-only historical pair probe.\nmodule Main where\n  import Data.Uuid\n  -- | No IO or MVar operation is requested.\n  main :: Int\n  main = 0\n'
-    elif args.mode=='control':text=(ROOT/'compiler/tests/fixtures/uuid-control.cinch').read_text()
+    elif args.mode=='control':text=(ROOT/'seed/tests/fixtures/uuid-control.cinch').read_text()
     else:text=source(args.mode,args.start,args.count)
     entry=directory/'Main.cinch';entry.write_text(text);paths.append(entry)
     bundle=directory/'Bundle.cinch';bundle.write_text('\n\n'.join(path.read_text() for path in paths))

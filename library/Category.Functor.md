@@ -89,4 +89,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Category/Functor.cinch`. Source SHA-256: `2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Functor.cinch`. Source SHA-256: `2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

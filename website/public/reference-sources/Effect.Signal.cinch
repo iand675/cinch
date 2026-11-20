@@ -26,7 +26,7 @@
 -- runtime intrinsic that reports the host's numbers; none exists in
 -- this slice (see the refusals below).
 --
--- The boundary word (`compiler/runtime/src/platform.rs`,
+-- The boundary word (`seed/runtime/src/platform.rs`,
 -- `cinch_signal_send`) takes two machine words (pid then signal
 -- number) and returns `kill(2)`'s raw result: `0` on success, `-1` on
 -- failure, or `-6` (the runtime's `INVALID_ARGUMENT` sentinel) when

@@ -36,7 +36,7 @@ backing is a read or the source of a copy.
 
 The functions here are the REFERENCE SEMANTICS for UTF-8. The
 runtime provides SIMD-accelerated implementations of the same rules
-(`cinch_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+(`cinch_utf8_*` in `seed/runtime/src/string.rs`), tested to agree
 with this code; the acceleration is a representation detail behind
 the primitive operations chapter's justified bodies (D89).
 
@@ -416,4 +416,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

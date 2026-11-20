@@ -25,7 +25,7 @@ def sealed(folder: Path) -> dict:
         if digest(folder/(name+'.cinch'))!=expected:
             raise RuntimeError('changed sealed source: '+name)
     if digest(Path(report['compiler']))!=report['compiler_sha256'] or digest(Path(report['runtime']))!=report['runtime_sha256']:
-        raise RuntimeError('changed frozen compiler/runtime identity')
+        raise RuntimeError('changed frozen seed/runtime identity')
     return report
 
 

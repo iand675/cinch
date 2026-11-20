@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def source() -> str:
     """Extract the consumed kernel and compute each lane expectation using unbounded integers."""
-    ring = (ROOT / 'compiler/prelude/Data/Mutable/Ring.cinch').read_text()
+    ring = (ROOT / 'seed/prelude/Data/Mutable/Ring.cinch').read_text()
     start = ring.index('  -- | Offset independent previous/next links')
     end = ring.index('  -- | Adjust both links', start)
     values = [0, 1, (1 << 32) - 1, 1 << 32, (1 << 63) - 1, 1 << 63, (1 << 64) - 1]

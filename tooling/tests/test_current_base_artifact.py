@@ -25,17 +25,17 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         base = Path(self.temporary.name)
         self.root, self.directory = base / "checkout", base / "artifact"
-        (self.root / "bootstrap").mkdir(parents=True)
-        (self.root / "compiler/prelude/Data").mkdir(parents=True)
+        (self.root / "compiler").mkdir(parents=True)
+        (self.root / "seed/prelude/Data").mkdir(parents=True)
         self.directory.mkdir()
         package = {"modules": [{"name": "Data.String", "path": "Data/String.cinch"}]}
-        bootstrap.write_json(self.root / "compiler/prelude/cinch-base.cinchpkg", package)
+        bootstrap.write_json(self.root / "seed/prelude/cinch-base.cinchpkg", package)
         source = b"-- | Retain the exact construction source identity.\nmodule Data.String where\n"
-        (self.root / "compiler/prelude/Data/String.cinch").write_bytes(source)
-        bootstrap.write_json(self.root / "bootstrap/pins/library-provider.lock.json", {
+        (self.root / "seed/prelude/Data/String.cinch").write_bytes(source)
+        bootstrap.write_json(self.root / "compiler/pins/library-provider.lock.json", {
             "schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64})
-        (self.root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
-        bootstrap.write_json(self.root / "bootstrap/pins/library-object-roots.json", {"schema": 1, "units": []})
+        (self.root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
+        bootstrap.write_json(self.root / "compiler/pins/library-object-roots.json", {"schema": 1, "units": []})
         self.target = "x86_64-unknown-linux-gnu"
         self.host = {"machine": "x86_64", "system": "Linux"}
         self.documents = {}
@@ -55,8 +55,8 @@ class CurrentBaseArtifactContract(unittest.TestCase):
                          "object_content_hash": content_hash(b"object"), "ir_content_hash": content_hash(b"LLVM")}
         files = {"cinch": b"producer", "library.o": b"object", "library.ll": b"LLVM",
                  "libcinchruntime.a": b"matching runtime", "base/Data/String.cinch": source,
-                 "base/cinch-base.cinchpkg": (self.root / "compiler/prelude/cinch-base.cinchpkg").read_bytes(),
-                 "roots.json": (self.root / "bootstrap/pins/library-object-roots.json").read_bytes(),
+                 "base/cinch-base.cinchpkg": (self.root / "seed/prelude/cinch-base.cinchpkg").read_bytes(),
+                 "roots.json": (self.root / "compiler/pins/library-object-roots.json").read_bytes(),
                  "library/CinchBaseObject.cinch": bootstrap_objects.ARTIFACT_ENTRY}
         for name, raw in files.items():
             path = self.directory / name
@@ -128,7 +128,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         ]:
             with self.subTest(kind=kind):
                 roots = {"schema": 1, kind: [demand]}
-                bootstrap.write_json(self.root / "bootstrap/pins/library-object-roots.json", roots)
+                bootstrap.write_json(self.root / "compiler/pins/library-object-roots.json", roots)
                 bootstrap.write_json(self.directory / "roots.json", roots)
                 self.seal()
                 with self.assertRaisesRegex(bootstrap.BootstrapError, message + " specialization is absent"):
@@ -171,7 +171,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
 
     def test_old_source_cannot_claim_the_current_base_epoch(self):
         """Current checkout bytes are an independent source-freshness boundary."""
-        (self.root / "compiler/prelude/Data/String.cinch").write_bytes(b"new current implementation")
+        (self.root / "seed/prelude/Data/String.cinch").write_bytes(b"new current implementation")
         with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from current sources"):
             self.admit()
 
@@ -263,7 +263,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         self.assertEqual(len(commands), 3)
         self.assertEqual(provider["identity"]["producer"]["mode"], "fresh-embedded")
         self.assertEqual((output / "base/Data/String.cinch").read_bytes(),
-                         (self.root / "compiler/prelude/Data/String.cinch").read_bytes())
+                         (self.root / "seed/prelude/Data/String.cinch").read_bytes())
 
     def test_stage3_verifier_accepts_the_exact_explicit_library_epoch(self):
         """Stage3 selection validates the chosen provider instead of requiring an unrelated pin identity."""

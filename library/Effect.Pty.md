@@ -37,7 +37,7 @@ determinism rule: a terminal is consulted when a program with the
 capability calls it, never ambient at compile time). Every failure is
 a NAMED `PtyError` value in a `Result` (the house style), never a
 fault: the boundary's raw word carries the shared platform error codes
-(`compiler/runtime/src/platform.rs`), which `pty-error-code` maps one
+(`seed/runtime/src/platform.rs`), which `pty-error-code` maps one
 for one.
 
 The boundary words themselves are the `cinch.runtime.pty*` units
@@ -319,4 +319,4 @@ keeps the session.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Pty.cinch`. Source SHA-256: `04dfbae47c6b1b0db95b5393eabbe0a509d14e3962e2597f2e24e205f5a9c1be`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Pty.cinch`. Source SHA-256: `04dfbae47c6b1b0db95b5393eabbe0a509d14e3962e2597f2e24e205f5a9c1be`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

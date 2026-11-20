@@ -24,13 +24,13 @@ selection hints; they never decide correctness.
 
 | Fact | Where | What it means |
 | --- | --- | --- |
-| Manifest | `compiler/prelude/cinch-base.cinchpkg`, parsed by `Package::parse` in `compiler/src/driver.rs` | Schema 1: name, version, `modules[]` (name, path, embedded flag, facade flag), and a total `order`. |
+| Manifest | `seed/prelude/cinch-base.cinchpkg`, parsed by `Package::parse` in `seed/src/driver.rs` | Schema 1: name, version, `modules[]` (name, path, embedded flag, facade flag), and a total `order`. |
 | Imports | Read from source by `scan_file` | Deliberately not duplicated in the manifest, so a manifest cannot disagree with the source. |
-| Contract identity | `Iface::iface_hash` in `compiler/src/interface.rs` | 64-bit FNV-1a over canonical interface JSON with `source_hash`, `compiler`, and `units` cleared. Excludes body and source, so a body-only change keeps the identity. |
+| Contract identity | `Iface::iface_hash` in `seed/src/interface.rs` | 64-bit FNV-1a over canonical interface JSON with `source_hash`, `compiler`, and `units` cleared. Excludes body and source, so a body-only change keeps the identity. |
 | Instantiation identity | `UnitExport.unit_id` | Hash of target module, parameter signatures, and argument identities. Excluded from `iface_hash`; a dictionary change moves the unit, not the target module contract. |
-| Build identity | `package_key` in `compiler/src/store.rs` | Content hash over package name, version, manifest bytes, module entries, every source hash, interface schema, runtime ABI, language version, compiler version, target profile, and WIT adapters. This is the local cache key; section 2 defines the strong artifact digest. |
-| Store | `Store` in `compiler/src/store.rs` | Per-user cache of `<root>/<key>` entries holding verified interfaces plus object and IR bodies. A mismatch is a hard error with `--rebuild`. |
-| Build evidence | `Iface` in `compiler/src/interface.rs` and the artifact manifest | Records source hashes, captured stage inputs, assumptions, foreign contracts, and `trust.level`; this is the raw material for SLSA provenance. |
+| Build identity | `package_key` in `seed/src/store.rs` | Content hash over package name, version, manifest bytes, module entries, every source hash, interface schema, runtime ABI, language version, compiler version, target profile, and WIT adapters. This is the local cache key; section 2 defines the strong artifact digest. |
+| Store | `Store` in `seed/src/store.rs` | Per-user cache of `<root>/<key>` entries holding verified interfaces plus object and IR bodies. A mismatch is a hard error with `--rebuild`. |
+| Build evidence | `Iface` in `seed/src/interface.rs` and the artifact manifest | Records source hashes, captured stage inputs, assumptions, foreign contracts, and `trust.level`; this is the raw material for SLSA provenance. |
 | Compatibility | `specifications/runtime-evolution-specification.md` | A replacement must refine the published contract for existing clients; rejection names the failing dimension. |
 | Compile-time execution | `specifications/modules-and-compilation-specification.md` sections 7 to 10 | `stage` code runs under capabilities with refresh, replay, and live modes; build identity includes generator, inputs, and policy. |
 | Transitive trust | `context/design-conversation.md` | An artifact must report its guarantees and assumptions transitively; a dependency cannot hide an unchecked foreign contract. |
@@ -1402,14 +1402,14 @@ Each needs a direction before P1.
 
 P0 touches five places:
 
-- `compiler/src/driver.rs`: schema check, dependency types, path resolution
+- `seed/src/driver.rs`: schema check, dependency types, path resolution
   ahead of the directory scan.
-- `compiler/src/store.rs`: strong source-tree root, package ingestion, and
+- `seed/src/store.rs`: strong source-tree root, package ingestion, and
   artifact identity that includes the selected closure and build policy.
-- `compiler/src/lock.rs` (new): canonical read and write for `.cinchlock`.
-- `compiler/src/resolve.rs` (new): deterministic selection, cycle detection, and
+- `seed/src/lock.rs` (new): canonical read and write for `.cinchlock`.
+- `seed/src/resolve.rs` (new): deterministic selection, cycle detection, and
   the coherence handoff to the checker.
-- `compiler/tests/package_deps.rs` (new): the P0 cases listed above, plus a
+- `seed/tests/package_deps.rs` (new): the P0 cases listed above, plus a
   golden lock file so canonical bytes are pinned.
 
 The compiler already has the right primitive for the coherence handoff: the

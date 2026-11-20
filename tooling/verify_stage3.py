@@ -28,7 +28,7 @@ def publish_interfaces(manifest, source, prefix):
 
 
 # Target profile flags the staged compiler accepts in any position before its
-# paths. The selectors in compiler/tests/common put them after the mode word.
+# paths. The selectors in seed/tests/common put them after the mode word.
 # `--no-reclaim` is one of them: it is a word, not a path, so a caller that
 # leaves it in the argument list would hand it to the compiler as a source.
 PROFILE_FLAGS = ("--clear-features", "--rc-debug", "--no-reclaim", "--portable-isa")
@@ -101,8 +101,8 @@ def stage3_artifacts():
         library_matches = provider == bootstrap.runtime_provider()["identity"]
     else:
         library_matches = (bootstrap.LIBRARY_ARTIFACT is None
-                           and provider.get("producer") == bootstrap.read_json(bootstrap.ROOT / "bootstrap/pins/library-provider.lock.json")
-                           and provider.get("roots_sha256") == bootstrap.file_hash(bootstrap.ROOT / "bootstrap/pins/library-object-roots.json"))
+                           and provider.get("producer") == bootstrap.read_json(bootstrap.ROOT / "compiler/pins/library-provider.lock.json")
+                           and provider.get("roots_sha256") == bootstrap.file_hash(bootstrap.ROOT / "compiler/pins/library-object-roots.json"))
     if (inputs.get("source_sha256") != bootstrap.source_hash(bootstrap.collect_compiler_sources())
             or inputs.get("built_by_stage") != 2 or inputs.get("protocol") != bootstrap.PROTOCOL
             or inputs.get("host") != bootstrap.HOST or not bootstrap.cached(stage, inputs)
@@ -207,7 +207,7 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
             if document.get("target") != triple or document.get("reclaim") is not reclaim:
                 raise ValueError("base library producer emitted a different target or ownership mode")
             snapshot = source_snapshot(bootstrap, identity["producer"])
-            package = bootstrap.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
+            package = bootstrap.read_json(snapshot / "seed/prelude/cinch-base.cinchpkg")
             bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
             library = output / "library.o"
             bootstrap.write_json(config, dict(schema=1, target=triple, object=str(library),
@@ -261,7 +261,7 @@ def write_wrapper(wrapper, compiler, objects, runtime):
 
 
 def run_target(target, api, evidence, cargo_target, env, interface_sha, native_assertions):
-    compiler = bootstrap.ROOT / "compiler"
+    compiler = bootstrap.ROOT / "seed"
     invocations = evidence / "invocations" / target
     log = evidence / (target + ".log")
     command = ["cargo", "test", "--locked", "--target-dir", str(cargo_target), "--test", target,
@@ -283,7 +283,7 @@ def run_target(target, api, evidence, cargo_target, env, interface_sha, native_a
 def verify(evidence, cargo_target, jobs=1):
     if jobs < 1:
         raise ValueError("Stage3 verification needs at least one worker")
-    scope_path = bootstrap.ROOT / "bootstrap/evidence/current/current-frontend-acceptance-scope.json"
+    scope_path = bootstrap.ROOT / "compiler/evidence/current/current-frontend-acceptance-scope.json"
     scope = bootstrap.read_json(scope_path)
     api = scope["interface_api_targets"]
     targets = scope["portable_targets"] + api
@@ -293,7 +293,7 @@ def verify(evidence, cargo_target, jobs=1):
         raise ValueError("Stage3 test scope must cover every preserved portable target exactly once")
     native_assertions = scope.get("native_api_assertions", {})
     for target, review in native_assertions.items():
-        test = bootstrap.ROOT / "compiler/tests" / (target + ".rs")
+        test = bootstrap.ROOT / "seed/tests" / (target + ".rs")
         if target not in targets or not matches_digest(test, review.get("source_sha256")):
             raise ValueError(f"Stage3 direct Rust assertions need a source review for {target}")
     compiler, manifest, objects, runtime, hashes = stage3_artifacts()
@@ -309,7 +309,7 @@ def verify(evidence, cargo_target, jobs=1):
                CINCH_TEST_COMPILER=str(wrapper), CINCH_TEST_TARGET_INPUTS=str(wrapper), CINCH_TEST_INTERFACES=str(manifest),
                CINCH_TEST_OBJECTS=str(objects), CINCH_TEST_LIBRARY_OBJECT=bootstrap.read_json(objects)["object"],
                CINCH_TEST_RUNTIME_ARCHIVE=str(runtime),
-               CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "compiler"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")
+               CINCH_TEST_SOURCE_ROOT=str(bootstrap.ROOT / "seed"), TMPDIR=str(fixtures), PYTHONDONTWRITEBYTECODE="1")
     report = {
         "stage": 3, "compiler_sha256": hashes[compiler], "interfaces_sha256": hashes[manifest],
         "scope_sha256": bootstrap.file_hash(scope_path), "total_targets": len(targets), "rows": [], "status": "running"}

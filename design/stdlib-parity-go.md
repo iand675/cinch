@@ -160,8 +160,8 @@ Copy the needed module beside a consumer entry:
 
 ```sh
 mkdir -p /tmp/cinch-binary-example
-cp compiler/prelude/Text/Binary.cinch /tmp/cinch-binary-example/Text.Binary.cinch
-cp compiler/prelude/Data/Bytes/Word.cinch /tmp/cinch-binary-example/Data.Bytes.Word.cinch
+cp seed/prelude/Text/Binary.cinch /tmp/cinch-binary-example/Text.Binary.cinch
+cp seed/prelude/Data/Bytes/Word.cinch /tmp/cinch-binary-example/Data.Bytes.Word.cinch
 ```
 
 Save this as `/tmp/cinch-binary-example/Main.cinch` and run it with
@@ -187,26 +187,26 @@ concatenated bytes. CRC polynomial arguments use Go's reflected representation.
 
 ### Verification
 
-[Native consumer tests](../compiler/tests/lib_go_stdlib.rs) compile and run
-real imports against [Go-generated fixtures](../compiler/tests/fixtures/go-stdlib-vectors.json).
+[Native consumer tests](../seed/tests/lib_go_stdlib.rs) compile and run
+real imports against [Go-generated fixtures](../seed/tests/fixtures/go-stdlib-vectors.json).
 The corpus includes RFC 4648 examples, all 256 byte values, a deterministic
 257-byte buffer, integer width truncations, and signed/unsigned 64-bit limits.
-[ASCII85 tests](../compiler/tests/lib_ascii85.rs) additionally cover every
+[ASCII85 tests](../seed/tests/lib_ascii85.rs) additionally cover every
 two-chunk split, empty feeds, malformed input after complete words, streaming
 short writes, sticky failures and mutable-alias isolation. They inspect the
 emitted SIMD and compile its kernels for AArch64 and big-endian PowerPC; those
 cross-target checks do not claim execution on that hardware.
-[Hexadecimal buffer tests](../compiler/tests/lib_hex.rs) verify prefix progress,
+[Hexadecimal buffer tests](../seed/tests/lib_hex.rs) verify prefix progress,
 all byte values and lane positions, overlap, short destinations and exact dump
-columns. [Stream tests](../compiler/tests/lib_hex_stream.rs) exercise every source
+columns. [Stream tests](../seed/tests/lib_hex_stream.rs) exercise every source
 split, one-byte reads, short/failing sinks, mutable aliases and dump finalization.
 Ordinary bounded-memory runs are separate from debug poisoning runs: the debug
 runtime deliberately quarantines freed blocks, so its heap peak measures retained
 diagnostic storage as well as live values.
-[UTF-16 tests](../compiler/tests/lib_utf16.rs) compare all scalar/pair APIs
+[UTF-16 tests](../seed/tests/lib_utf16.rs) compare all scalar/pair APIs
 against independent fixtures, exhaust all 65,536 individual code units, and
 check both byte orders, odd byte counts, marks and SWAR block tails.
-[Word-operation tests](../compiler/tests/lib_word_ops.rs) compare fixed/native
+[Word-operation tests](../seed/tests/lib_word_ops.rs) compare fixed/native
 widths against independent edge and random fixtures, exhaust eight-bit reversal,
 and verify carry/borrow, signed rotations, division faults and proof preconditions.
 Cross compilation covers 32-bit Wasm, ARM and big-endian PowerPC kernels.
@@ -216,7 +216,7 @@ empty chunks. The fixture generator calls Go's actual standard packages.
 Go is needed only for fixture regeneration:
 
 ```sh
-go run tooling/go_stdlib_vectors.go > compiler/tests/fixtures/go-stdlib-vectors.json
+go run tooling/go_stdlib_vectors.go > seed/tests/fixtures/go-stdlib-vectors.json
 cd compiler
 cargo test --test lib_go_stdlib
 ```

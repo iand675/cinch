@@ -1,6 +1,6 @@
 # Green threads: structured tasks as fibers on a scheduler
 
-Status: as built, 2026-11-11. The native runtime runs every structured-concurrency task as a stackful fiber, multiplexed over a small set of OS threads by a scheduler (`compiler/runtime/src/sched.rs`). A task that waits is suspended and its thread runs another task; a program whose whole thread budget is one OS thread still suspends and resumes its tasks, on that thread. This note records the model, the protocol that makes a park safe, which per-thread state follows a fiber, the rule that keeps a migrating fiber from reading another thread's state, blocking regions, timers, the measured cost, and what is not done.
+Status: as built, 2026-11-11. The native runtime runs every structured-concurrency task as a stackful fiber, multiplexed over a small set of OS threads by a scheduler (`seed/runtime/src/sched.rs`). A task that waits is suspended and its thread runs another task; a program whose whole thread budget is one OS thread still suspends and resumes its tasks, on that thread. This note records the model, the protocol that makes a park safe, which per-thread state follows a fiber, the rule that keeps a migrating fiber from reading another thread's state, blocking regions, timers, the measured cost, and what is not done.
 
 The short version:
 
@@ -87,7 +87,7 @@ The non-atomic fields of a fiber (saved stack pointer, stack, body, saved per-ta
 
 # 4 State that follows the fiber
 
-Some state the runtime keeps per OS thread is logically per task. The scheduler exchanges it at every switch in and switch out, so a fiber finds its own wherever it resumes and the thread underneath keeps its own. The audit covers every `thread_local!` and thread-specific key in `compiler/runtime/src`:
+Some state the runtime keeps per OS thread is logically per task. The scheduler exchanges it at every switch in and switch out, so a fiber finds its own wherever it resumes and the thread underneath keeps its own. The audit covers every `thread_local!` and thread-specific key in `seed/runtime/src`:
 
 | state | where | follows | why |
 |-------|-------|---------|-----|
@@ -135,7 +135,7 @@ A `Blocking` foreign call is the one place a task holds an OS thread, and the re
 The offload contract (D79: a `Blocking` call blocks only its own task) is therefore kept around that fact instead of by defeating it, by bracketing such calls:
 
 - `sched::blocking(|| ...)` inside the runtime, used for the stdin read of `cinch_io_read`.
-- `cinch_sched_blocking_enter()` and `cinch_sched_blocking_exit()` for generated code. The code generator puts the pair around the call in the wrapper of every foreign import whose declared row carries `Blocking` (`compiler/src/codegen.rs`, `foreign_call`; the plan records the label as `ForeignPlan::blocking`). A program with no such import emits neither the calls nor their declarations, so its IR is unchanged. The cooperative (Wasm) profile emits no bracket.
+- `cinch_sched_blocking_enter()` and `cinch_sched_blocking_exit()` for generated code. The code generator puts the pair around the call in the wrapper of every foreign import whose declared row carries `Blocking` (`seed/src/codegen.rs`, `foreign_call`; the plan records the label as `ForeignPlan::blocking`). A program with no such import emits neither the calls nor their declarations, so its IR is unchanged. The cooperative (Wasm) profile emits no bracket.
 
 While a context is inside a region the number of allowed workers is one higher. A worker is started at the moment a fiber is runnable with no thread on its way to it, which may be at entry to the region or later. When the region ends the allowance drops, an idle worker is told to look again, and one that finds itself surplus exits. Only contexts the budget counts take part: a fiber, or the program's thread in its own code. On any other thread both calls do nothing.
 
@@ -161,7 +161,7 @@ Nothing changes in what crosses between tasks or when. `Scope::spawn` still mark
 
 # 11 Measurements
 
-Apple arm64 (M-series), 18 cores, macOS 27.0.1, release build of the runtime, 2026-11-11. The harness is `compiler/runtime/tests/sched.rs` (`what_tasks_cost`, run with `--release -- --ignored --nocapture`); "before" is the same tree built with `--cfg cinch_thread_tasks`, which is the old one-OS-thread-per-task code path. Task bodies return at once. Times are the best of five passes of 2,000 tasks; the ranges are across four runs of the harness, each in its own build directory so the two backends cannot be confused.
+Apple arm64 (M-series), 18 cores, macOS 27.0.1, release build of the runtime, 2026-11-11. The harness is `seed/runtime/tests/sched.rs` (`what_tasks_cost`, run with `--release -- --ignored --nocapture`); "before" is the same tree built with `--cfg cinch_thread_tasks`, which is the old one-OS-thread-per-task code path. Task bodies return at once. Times are the best of five passes of 2,000 tasks; the ranges are across four runs of the harness, each in its own build directory so the two backends cannot be confused.
 
 | shape | one OS thread per task | fibers |
 |-------|------------------------|--------|
@@ -186,7 +186,7 @@ Ten thousand tasks that run to completion (the `many` scenario) use four stacks 
 
 # 12 Tests
 
-`compiler/runtime/tests/sched.rs` runs each scenario in a child process with its own `CINCH_THREADS` and a watchdog, on the test's own thread and as a program's `main`:
+`seed/runtime/tests/sched.rs` runs each scenario in a child process with its own `CINCH_THREADS` and a watchdog, on the test's own thread and as a program's `main`:
 
 1. one thread: task A parks mid-body, task B, started later on the same OS thread, unparks it, A resumes, both are joined; no worker thread is started;
 2. 10,000 tasks in one scope with a budget of 4 (and of 1), joined, nothing leaked, at most four stacks mapped;
@@ -196,7 +196,7 @@ Ten thousand tasks that run to completion (the `many` scenario) use four stacks 
 6. with a budget of 2, two tasks inside blocking regions wait for a third, which runs on a third thread that then exits; and the program's thread blocked in a region with a budget of 1;
 7. `cinch_io_sleep` in a task returns after its time, another task runs meanwhile on the same thread, a cancellation ends a ten-minute sleep at once, and the timer queue is empty afterwards.
 
-`compiler/tests/concurrency.rs` does the end-to-end versions with compiled programs: the one-thread suspend and resume, ten thousand tasks with the leak check, the failure policy with a sibling that polls without sleeping (which finishes on one thread only because the poll yields), a sleeping task that lets a later task write first, and two `Blocking` foreign calls that wait for a third task under a budget of two (which deadlocks without the generated bracket). `compiler/tests/exhaustion.rs` runs the task stack overflow on a worker and with a budget of one.
+`seed/tests/concurrency.rs` does the end-to-end versions with compiled programs: the one-thread suspend and resume, ten thousand tasks with the leak check, the failure policy with a sibling that polls without sleeping (which finishes on one thread only because the poll yields), a sleeping task that lets a later task write first, and two `Blocking` foreign calls that wait for a third task under a budget of two (which deadlocks without the generated bracket). `seed/tests/exhaustion.rs` runs the task stack overflow on a worker and with a budget of one.
 
 # 13 What is not done
 

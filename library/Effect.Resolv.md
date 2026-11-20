@@ -18,7 +18,7 @@ Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md), [Effect.Net](Effect.
 
 Effect.Resolv: name resolution as typed addresses, over the
 resolution intrinsic (`Effect.Net`'s `net-resolve`, the runtime's
-`cinch_net_resolve` in `compiler/runtime/src/net.rs`). The boundary
+`cinch_net_resolve` in `seed/runtime/src/net.rs`). The boundary
 answers one `<ip>:<port>` line per resolved address; this home is
 the DNS vocabulary over those lines, parsing each into a
 `Data.IpAddr` address paired with its port, so a caller holds
@@ -84,7 +84,7 @@ Named refusals (boundaries this module deliberately does not cross):
 
 What went wrong, named. The four shared platform names are the
 boundary's own vocabulary (`Effect.Net`'s `NetError`, the codes
-`compiler/runtime/src/platform.rs` shares across the externs);
+`seed/runtime/src/platform.rs` shares across the externs);
 `ResolvMalformedAnswer` is this home's extra name for a line the
 boundary returned that is not a well-formed `<ip>:<port>`, which a
 well-behaved boundary never produces but which this parser refuses
@@ -165,4 +165,4 @@ onto each line); the addresses are the same for every port.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Resolv.cinch`. Source SHA-256: `65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Resolv.cinch`. Source SHA-256: `65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

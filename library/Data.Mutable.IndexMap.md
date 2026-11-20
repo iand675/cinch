@@ -227,4 +227,4 @@ moved entry changes position.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/IndexMap.cinch`. Source SHA-256: `119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/IndexMap.cinch`. Source SHA-256: `119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

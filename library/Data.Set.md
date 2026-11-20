@@ -48,7 +48,7 @@ The bootstrap's deletion and union refusals are over: the family now
 ships `set-delete`, `set-union`, `set-intersection`,
 `set-difference`, `set-subset`, `set-map`, `set-filter` and
 `set-fold` (the union behavior the bootstrap asserted test-locally
-in compiler/tests/prelude_split.rs is now the family's own).
+in seed/tests/prelude_split.rs is now the family's own).
 
 Module scheme (design/base-library.md): the type's home carries its
 `FromList` instance (`[a, b, c]` at `Set a` folds `set-insert`).
@@ -244,4 +244,4 @@ section 10).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Set.cinch`. Source SHA-256: `da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Set.cinch`. Source SHA-256: `da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

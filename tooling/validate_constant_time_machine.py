@@ -96,7 +96,7 @@ def main():
         for key in ['compiler_sha256', 'runtime_sha256', 'source_llvm_sha256']:
             assert previous[key] == report[key], key
         assert len(previous['guards']) == 2
-        assert previous['guard_source_sha256'] == digest(root / 'compiler/tests/fixtures/constant-time-guard.c')
+        assert previous['guard_source_sha256'] == digest(root / 'seed/tests/fixtures/constant-time-guard.c')
         assert previous['optimized_llvm_sha256'] == digest(work / 'optimized.ll')
         assert previous['optimized_assembly_sha256'] == digest(work / 'optimized.s')
         for guard in previous['guards']:
@@ -122,7 +122,7 @@ def main():
             body = definition(optimized, 'Crypto.ConstantTime.' + name + '.llvm')
             assert not re.search(r'\b(?:br|switch|call|invoke|load|store)\b', body), body
             report['scalar_audit'][name] = 'straight-line SSA; no branch, call, or memory access'
-        guard = root / 'compiler/tests/fixtures/constant-time-guard.c'
+        guard = root / 'seed/tests/fixtures/constant-time-guard.c'
         report['guard_source_sha256'] = digest(guard)
         for level in [0, 2]:
             executable = work / f'guard-o{level}'

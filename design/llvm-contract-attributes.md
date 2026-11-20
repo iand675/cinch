@@ -84,7 +84,7 @@ the self-hosted emitter's output (`build/bootstrap/stage3/compiler.ll`,
 | `freeze` | 27 ops | 0 |
 | `noreturn` | 1 | 1 |
 
-The self-hosted emitter (`bootstrap/Bootstrap.RuntimeIr.cinch`) emits no
+The self-hosted emitter (`compiler/Bootstrap.RuntimeIr.cinch`) emits no
 attribute group at all, so every claim below is a seed-side claim. The
 fixed point makes the two agree in behaviour, not in this surface: the
 self-hosted chain has to grow the same classification before any of it

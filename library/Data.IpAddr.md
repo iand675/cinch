@@ -35,7 +35,7 @@ octets at most 255, exactly eight 16-bit groups) live at the smart
 constructors and at `ipv4-parse`/`ipv6-parse`; the raw constructor
 stays out of the export list per D143's surface rule.
 
-The law shape (exercised in compiler/tests/lib_uri_ipaddr.rs):
+The law shape (exercised in seed/tests/lib_uri_ipaddr.rs):
   parse/render round trip: `ipv4-parse (ipv4-to-string a) == Some a`
     and `ipv6-parse (ipv6-to-string a) == Some a`, so the canonical
     rendering is a fixed point of parsing;
@@ -238,4 +238,4 @@ over).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/IpAddr.cinch`. Source SHA-256: `1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/IpAddr.cinch`. Source SHA-256: `1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

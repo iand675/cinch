@@ -108,4 +108,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Array.cinch`. Source SHA-256: `3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Array.cinch`. Source SHA-256: `3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

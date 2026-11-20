@@ -240,4 +240,4 @@ Read a cursor's current value through its canonical node owner.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/Ring.cinch`. Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Ring.cinch`. Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

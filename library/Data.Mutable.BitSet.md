@@ -187,4 +187,4 @@ The set bits, ascending.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Mutable/BitSet.cinch`. Source SHA-256: `1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/BitSet.cinch`. Source SHA-256: `1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

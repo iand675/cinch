@@ -39,4 +39,4 @@ Validate an unbracketed decoded IPv6 address, allowing one nonempty percent zone
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Url/Ip.cinch`. Source SHA-256: `8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Ip.cinch`. Source SHA-256: `8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

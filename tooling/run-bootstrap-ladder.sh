@@ -2,11 +2,11 @@
 # Assemble a bootstrap-ladder project and run it through the real compiler
 # CLI. Rationale: the compiler does not embed the P30/P31 toolkit
 # (Text.Lex, Text.Scan, Text.Parse, Text.Json and Text.Builder are on disk and absent
-# from compiler/prelude/cinch-base.cinchpkg), and every bootstrap artifact
+# from seed/prelude/cinch-base.cinchpkg), and every bootstrap artifact
 # imports it, so a rung runs as a PROJECT: the toolkit sources, every
-# bootstrap/*.cinch module and one program are copied beside each other in
+# compiler/*.cinch module and one program are copied beside each other in
 # a temp directory and the program runs there. This is the assembly
-# compiler/tests/common/mod.rs performs for the tests, exposed so a rung
+# seed/tests/common/mod.rs performs for the tests, exposed so a rung
 # can be run by hand.
 #
 # Usage:
@@ -23,17 +23,17 @@
 # claim, not this script's.
 #
 # Requirements: a Rust toolchain (the script drives `cargo run` from
-# compiler/), and clang on PATH for the rungs that link.
+# seed/), and clang on PATH for the rungs that link.
 set -euo pipefail
 
-# This script runs from the root, outside Cargo's compiler-local config.
+# This script runs from the root, outside Cargo's seed-local config.
 export CARGO_BUILD_JOBS=1
 export RUST_TEST_THREADS=1
 export CARGO_PROFILE_DEV_CODEGEN_UNITS=1
 export CARGO_PROFILE_TEST_CODEGEN_UNITS=1
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 
-# Cargo's compiler/.cargo/config.toml is not read when this script is
+# Cargo's seed/.cargo/config.toml is not read when this script is
 # launched from the repository root. Apply the ladder's heap guard here.
 heap_limit="${CINCH_HEAP_LIMIT:-2G}"
 if [[ ! "$heap_limit" =~ ^([0-9]+)([KkMmGg]?)$ ]]; then
@@ -56,15 +56,15 @@ fi
 export CINCH_HEAP_LIMIT="$heap_limit"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-compiler="$root/compiler"
+seed="$root/seed"
 dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 
 # The toolkit the artifacts import and the package does not embed.
 toolkit=(Lex Scan Parse Json Builder)
-for m in "${toolkit[@]}"; do cp "$compiler/prelude/Text/$m.cinch" "$dir/"; done
+for m in "${toolkit[@]}"; do cp "$seed/prelude/Text/$m.cinch" "$dir/"; done
 # Every bootstrap module.
-cp "$root"/bootstrap/*.cinch "$dir/"
+cp "$root"/compiler/*.cinch "$dir/"
 
 if [ "$#" -eq 0 ]; then
   # No program given: type-check every ladder module as a project. A module
@@ -72,9 +72,9 @@ if [ "$#" -eq 0 ]; then
   # from the CLI is evidence that the artifacts do not depend on the test
   # harness for their correctness.
   failed=0
-  for f in "$root"/bootstrap/*.cinch; do
+  for f in "$root"/compiler/*.cinch; do
     name="$(basename "$f")"
-    if cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- check "$dir/$name" >/dev/null 2>&1; then
+    if cargo run -q --manifest-path "$seed/Cargo.toml" --bin cinch -- check "$dir/$name" >/dev/null 2>&1; then
       echo "run-bootstrap-ladder: OK   $name"
     else
       echo "run-bootstrap-ladder: FAIL $name"
@@ -94,15 +94,15 @@ if [ "$1" = "--all-programs" ]; then
   # cannot share a directory.
   built=0
   broke=0
-  for prog in "$root"/bootstrap/programs/*.cinch; do
+  for prog in "$root"/compiler/programs/*.cinch; do
     [ -f "$prog" ] || continue
     name="$(basename "$prog")"
     one="$(mktemp -d)"
-    for m in "${toolkit[@]}"; do cp "$compiler/prelude/Text/$m.cinch" "$one/"; done
-    cp "$root"/bootstrap/*.cinch "$one/"
+    for m in "${toolkit[@]}"; do cp "$seed/prelude/Text/$m.cinch" "$one/"; done
+    cp "$root"/compiler/*.cinch "$one/"
     cp "$prog" "$one/$name"
     err="$(mktemp)"
-    if ! cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- build "$one/$name" -o "$one/program" 2>"$err"; then
+    if ! cargo run -q --manifest-path "$seed/Cargo.toml" --bin cinch -- build "$one/$name" -o "$one/program" 2>"$err"; then
       echo "run-bootstrap-ladder: DID NOT BUILD $name"
       tail -20 "$err"
       broke=$((broke + 1))
@@ -123,11 +123,11 @@ fi
 
 program="$1"
 shift
-[ -f "$program" ] || program="$root/bootstrap/$program"
+[ -f "$program" ] || program="$root/compiler/$program"
 if [ ! -f "$program" ]; then
   echo "run-bootstrap-ladder: no such program: $1" >&2
   exit 2
 fi
 name="$(basename "$program")"
 cp "$program" "$dir/$name"
-cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- run "$dir/$name" -- "$@"
+cargo run -q --manifest-path "$seed/Cargo.toml" --bin cinch -- run "$dir/$name" -- "$@"
