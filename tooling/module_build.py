@@ -242,6 +242,8 @@ class Builder:
         self.compiler = Path(args.builder).resolve()
         self.clang = os.environ.get("CINCH_CLANG") or shutil.which("clang") or "clang"
         self.opt_level = args.opt_level
+        self.keep = args.keep_inputs
+        self.bare_modules = True
         self.jobs = args.jobs
         self.base = Base(self.out, self.clang)
         self.sources, self.imports, self.order = module_graph(files)
@@ -367,7 +369,7 @@ class Builder:
         for module, futures in list(self.pending.items()):
             for future in futures:
                 future.result()
-            (self.directory(module) / "objects.json").write_text(
+            (self.directory(module) / "objects.list.json").write_text(
                 json.dumps([str(path) for path in self.objects[module]]))
         self.pending.clear()
 
@@ -378,7 +380,7 @@ class Builder:
         stamp = directory / "key"
         interface = directory / f"iface.{module}.cinchif"
         saved = directory / "delta.json"
-        listed = directory / "objects.json"
+        listed = directory / "objects.list.json"
         if stamp.is_file() and stamp.read_text() == key and interface.is_file() and saved.is_file() and listed.is_file():
             objects = [Path(path) for path in json.loads(listed.read_text())]
             if all(path.is_file() for path in objects):
@@ -398,13 +400,23 @@ class Builder:
             bootstrap.write_json(requested, {"schema": 1, "units": self.roots[module],
                                              "dictionaries": [], "methods": []})
             command += ["--object-roots", str(requested)]
-        command += ["--interfaces", str(manifest), "--objects", str(objects), source.name,
-                    "unit.ll", "layer.o", "layer.abi.json", "iface."]
+        # `-` for the object: this build assembles the IR itself, so the
+        # compiler makes neither an object nor a merged layer. A builder from
+        # before that option was understood refuses the path, and is asked
+        # again for the layer it knows how to make.
+        command += ["--interfaces", str(manifest), "--objects", str(objects), source.name, "unit.ll"]
+        tail = [["-", "layer.abi.json", "iface."], ["layer.o", "layer.abi.json", "iface."]]
         started = time.monotonic()
-        result = subprocess.run(command, cwd=directory, env=self.environment,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         diagnostics = directory / "unit.ll.diagnostics"
-        text = diagnostics.read_text(errors="replace") if diagnostics.is_file() else ""
+        for words in tail if self.bare_modules else tail[1:]:
+            result = subprocess.run(command + words, cwd=directory, env=self.environment,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            text = diagnostics.read_text(errors="replace") if diagnostics.is_file() else ""
+            if result.returncode == 0 or words[0] != "-" or "cannot read linked object" not in text:
+                break
+            # A builder that does not know `-` links to standard output and
+            # then finds no object to read.
+            self.bare_modules = False
         if result.returncode:
             return "refused", text or result.stdout.decode(errors="replace")
         self.deltas[module] = delta_of(module, bootstrap.read_json(directory / "layer.abi.json"), provider, interface)
@@ -413,8 +425,10 @@ class Builder:
         bootstrap.write_json(saved, self.deltas[module])
         # The layer and the provider copy are the provider again plus this
         # module; nothing reads them once the delta is taken.
-        for name in ("layer.o", "layer.o.provider.o", "layer.abi.json", "provider.abi.json"):
-            (directory / name).unlink(missing_ok=True)
+        if not self.keep:
+            for name in ("layer.o", "layer.o.provider.o", "layer.o.new.o", "-.provider.o", "-.new.o",
+                         "layer.abi.json", "provider.abi.json"):
+                (directory / name).unlink(missing_ok=True)
         stamp.write_text(key)
         seconds = time.monotonic() - started
         self.compiled.append((module, seconds))
@@ -553,6 +567,8 @@ def main() -> int:
     parser.add_argument("--out", required=True, help="the build directory; it is also the cache")
     parser.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 2)
     parser.add_argument("--opt-level", type=int, default=1, choices=range(4))
+    parser.add_argument("--keep-inputs", action="store_true",
+                        help="leave each module's provider manifest and layer in place, to rerun its compile by hand")
     parser.add_argument("--check", type=Path, metavar="COMPILER_LL",
                         help="a stage's compiler.ll; the result must emit it again for that chain's bundle")
     args = parser.parse_args()

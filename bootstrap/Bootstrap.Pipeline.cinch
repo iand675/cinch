@@ -872,9 +872,26 @@ module Bootstrap.Pipeline where
   write-library-object profile document closure exported prefix text units facts provider-code ir object abi =
     case fs-write ir (string-to-bytes text) of
       Err error -> pipeline-write-failed
-      Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+      Ok done -> if string-compare (path-to-string object) "-" == 0 then publish-library-module document closure exported prefix text units facts ir abi
+        else case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+          Err error -> pipeline-write-failed
+          Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+  -- An object path of `-` asks for the module without its object: the IR,
+  -- the checked interfaces and the manifest, and no assembler or linker run.
+  -- A build that compiles the IR itself (tooling/module_build.py optimises
+  -- it in pieces and links the modules once) has no use for an unoptimised
+  -- object or for the provider with that object merged in, and for a large
+  -- module producing them is a quarter of the compile. The manifest records
+  -- the hash of an empty object, because no object was made.
+  publish-library-module :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path ->{IO r, Diverge} Int
+  publish-library-module document closure exported prefix text units facts ir abi =
+    case write-object-interfaces prefix exported of
+      Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
+      Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Err error -> pipeline-write-failed
-        Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+        Ok done -> case fs-write abi (canonical-bytes (object-manifest document closure units facts text (string-to-bytes ""))) of
+          Err error -> pipeline-write-failed
+          Ok done -> pipeline-ok
   assemble-library-object :: forall r. using (io :: Io r) => String -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
   assemble-library-object triple document closure exported prefix text units facts ir object abi =
     let object-name = path-to-string object in
