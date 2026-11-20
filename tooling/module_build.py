@@ -217,19 +217,29 @@ def manifest_bytes(base: Base, merged: dict, raw: dict[str, bytes]) -> bytes:
 
 
 def delta_of(module: str, produced: dict, provider: dict, interface: Path) -> dict:
-    """What one module's compile added to its provider's manifest."""
-    units = produced["units"][len(provider["units"]):]
-    if produced["units"][:len(provider["units"])] != provider["units"]:
-        raise BuildError(f"{module}: the layer manifest does not extend its provider's units")
+    """What one module's compile added to its provider's manifest.
+
+    A builder asked for a module without its object answers with the
+    module's units and facts. An older one answers with the provider's
+    manifest and the module merged in, and the delta is the difference.
+    Either way a fact the provider already states is not part of it.
+    """
+    if "facts" in produced:
+        units, facts = produced["units"], produced["facts"]
+    else:
+        units, facts = produced["units"][len(provider["units"]):], produced
+        if produced["units"][:len(provider["units"])] != provider["units"]:
+            raise BuildError(f"{module}: the layer manifest does not extend its provider's units")
+        added = [row["module"] for row in produced["interfaces"]
+                 if row["module"] not in {other["module"] for other in provider["interfaces"]}]
+        if added != [module]:
+            raise BuildError(f"{module}: the layer adds interfaces {added}, expected only its own")
     delta = {"module": module, "iface_hash": interface_hash(read_contract(interface)), "units": units}
     for name in MAPS:
-        delta[name] = {key: value for key, value in produced[name].items() if provider[name].get(key) != value}
+        delta[name] = {key: value for key, value in (facts.get(name) or {}).items()
+                       if provider[name].get(key) != value}
     known = {canonical(row) for row in provider["method_families"]}
-    delta["method_families"] = [row for row in produced["method_families"] if canonical(row) not in known]
-    added = [row["module"] for row in produced["interfaces"]
-             if row["module"] not in {other["module"] for other in provider["interfaces"]}]
-    if added != [module]:
-        raise BuildError(f"{module}: the layer adds interfaces {added}, expected only its own")
+    delta["method_families"] = [row for row in facts.get("method_families") or [] if canonical(row) not in known]
     return delta
 
 
