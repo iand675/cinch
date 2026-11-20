@@ -72,8 +72,8 @@ the call path, which refuses it. No assertion changed.
 `tagged_primitive_wrappers_expose_their_fast_paths` required the client's IR
 to call `Data.Nat.Add_Nat.+`. The client now holds that method's fast path
 inline, so the test accepts either the call or the inlined immediate test
-followed by `cinch_nat_add`. The owner of the goal should confirm that
-reading of "keep the existing assertions".
+followed by `cinch_nat_add`. The owner of the goal accepted that reading of
+"keep the existing assertions" on 2026-11-20.
 
 69958cfd carries both changes. Its chain reaches the fixed point, and the
 three targets were run against its Stage 3 with the results in the last
