@@ -43,6 +43,7 @@
 #include "tree_sitter/parser.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -233,6 +234,7 @@ enum TokenKind {
 #define MAX_FRAMES 64
 #define MAX_QUEUE 32
 #define MAX_WORD 96
+#define MAX_REPLAY 64
 
 enum FrameKind {
   FRAME_PAREN,
@@ -247,6 +249,14 @@ typedef struct {
   uint16_t col; /* blocks: the block column; delims: the with-clause
                    flag (layout.rs `Delim(_, bool)`) */
 } Frame;
+
+typedef struct {
+  bool on;
+  char prev_char;
+  uint32_t line;
+  uint32_t col;
+  bool leading;
+} Marks;
 
 typedef struct {
   Frame frames[MAX_FRAMES];
@@ -279,6 +289,19 @@ typedef struct {
   bool prev_tok_valid;
 
   bool machine_done;
+
+  /* Per-scan scratch, omitted from the serialized layout state. */
+  Marks marks;
+  /* Replay buffer: the scanner cannot rewind to a token's final mark, but
+     the layout lookahead (and the contextual word decisions) must read
+     from there. Everything consumed past the last mark lands here and is
+     replayed first; the buffer is reset at every mark (the last mark is
+     the only position ever rewound to). Overflow past the buffer is
+     dropped: no token type consumes more than a handful of characters
+     past its final mark (the tentative rejects), and every long capture
+     marks at its end. */
+  char replay[MAX_REPLAY];
+  unsigned r_len, r_pos;
 } Scanner;
 
 static const char *SYM_NAMES[] = {
@@ -305,37 +328,13 @@ static const char *SYM_NAMES[] = {
   "PRIM_FRAGMENT","TOKEN_TREE",
 };
 
-typedef struct {
-  bool on;
-  char prev_char;
-  uint32_t line;
-  uint32_t col;
-  bool leading;
-} Marks;
-
-static Marks marks;
-
-/* Replay buffer: the scanner cannot rewind to a token's final mark, but
-   the layout lookahead (and the contextual word decisions) must read
-   from there. Everything consumed past the last mark lands here and is
-   replayed first; the buffer is reset at every mark (the last mark is
-   the only position ever rewound to). Overflow past the buffer is
-   dropped: no token type consumes more than a handful of characters
-   past its final mark (the tentative rejects), and every long capture
-   marks at its end. */
-#define MAX_REPLAY 64
-static char replay[MAX_REPLAY];
-static unsigned r_len, r_pos;
-
-static void r_rewind(void) { r_pos = 0; }
-
 /* The character at the scan position: replay first, then the lexer. */
-static char peekc(TSLexer *lexer) {
-  if (r_pos < r_len) return replay[r_pos];
+static char peekc(const Scanner *s, TSLexer *lexer) {
+  if (s->r_pos < s->r_len) return s->replay[s->r_pos];
   return (char)lexer->lookahead;
 }
 
-static bool at_eof(TSLexer *lexer) { return peekc(lexer) == 0; }
+static bool at_eof(const Scanner *s, TSLexer *lexer) { return peekc(s, lexer) == 0; }
 
 /* Mark the current position as a legal token end (the last mark wins;
    marks never move backwards). Everything consumed since the mark is
@@ -343,29 +342,29 @@ static bool at_eof(TSLexer *lexer) { return peekc(lexer) == 0; }
    restarts at every mark: only the overflow past the final mark is
    ever rewound over. */
 static void mark(Scanner *s, TSLexer *lexer) {
-  if (!marks.on) return;
+  if (!s->marks.on) return;
   lexer->mark_end(lexer);
-  r_len = 0;
-  r_pos = 0;
-  marks.prev_char = s->prev_char;
-  marks.line = s->cur_line;
-  marks.col = s->cur_col;
-  marks.leading = s->line_leading;
+  s->r_len = 0;
+  s->r_pos = 0;
+  s->marks.prev_char = s->prev_char;
+  s->marks.line = s->cur_line;
+  s->marks.col = s->cur_col;
+  s->marks.leading = s->line_leading;
 }
 
 static void take(Scanner *s, TSLexer *lexer, bool skip) {
   char c;
-  if (r_pos < r_len) {
+  if (s->r_pos < s->r_len) {
     /* Replaying overflow past the mark: already consumed physically,
        so the lexer is not advanced again. */
-    c = replay[r_pos++];
+    c = s->replay[s->r_pos++];
   } else {
     c = (char)lexer->lookahead;
     lexer->advance(lexer, skip);
-    if (marks.on && r_len < MAX_REPLAY) replay[r_len++] = c;
+    if (s->marks.on && s->r_len < MAX_REPLAY) s->replay[s->r_len++] = c;
     /* Normal scanning reads at the buffer end; only the layout
        lookahead rewinds `r_pos`. */
-    r_pos = r_len;
+    s->r_pos = s->r_len;
   }
   if (c == '\n') {
     s->cur_line++;
@@ -535,9 +534,10 @@ void tree_sitter_cinch_external_scanner_destroy(void *payload) {
 unsigned tree_sitter_cinch_external_scanner_serialize(void *payload,
                                                         char *buffer) {
   Scanner *s = (Scanner *)payload;
-  if (sizeof(Scanner) > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
-  memcpy(buffer, s, sizeof(Scanner));
-  return (unsigned)sizeof(Scanner);
+  size_t state_size = offsetof(Scanner, marks);
+  if (state_size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
+  memcpy(buffer, s, state_size);
+  return (unsigned)state_size;
 }
 
 void tree_sitter_cinch_external_scanner_deserialize(void *payload,
@@ -548,7 +548,8 @@ void tree_sitter_cinch_external_scanner_deserialize(void *payload,
   s->cur_line = 1;
   s->cur_col = 1;
   s->line_leading = true;
-  if (length == sizeof(Scanner)) memcpy(s, buffer, sizeof(Scanner));
+  size_t state_size = offsetof(Scanner, marks);
+  if (length == state_size) memcpy(s, buffer, state_size);
 }
 
 /* ---------------------------------------------------------- scanning */
@@ -567,11 +568,11 @@ static void queue_push(Scanner *s, uint8_t sym) {
    holds the characters consumed so far. */
 static void scan_run(Scanner *s, TSLexer *lexer, char *run, size_t *rlen) {
   for (;;) {
-    char c = peekc(lexer);
+    char c = peekc(s, lexer);
     if (c == '$') {
       /* `$` continues a run but never starts one; `$(` is a splice. */
       take(s, lexer, false);
-      if (peekc(lexer) == '(') break; /* cut before the `$` */
+      if (peekc(s, lexer) == '(') break; /* cut before the `$` */
       if (*rlen + 1 < MAX_WORD) run[(*rlen)++] = '$';
       mark(s, lexer);
       continue;
@@ -581,7 +582,7 @@ static void scan_run(Scanner *s, TSLexer *lexer, char *run, size_t *rlen) {
       /* A negative-literal sign never joins a run (`=-3`). */
       char prev = s->prev_char;
       take(s, lexer, false);
-      if (sign_minus_context(prev, peekc(lexer))) break;
+      if (sign_minus_context(prev, peekc(s, lexer))) break;
       if (*rlen + 1 < MAX_WORD) run[(*rlen)++] = '-';
       mark(s, lexer);
       continue;
@@ -597,15 +598,15 @@ static void scan_run(Scanner *s, TSLexer *lexer, char *run, size_t *rlen) {
    number may end before it (`1.foo`). */
 static int scan_number(Scanner *s, TSLexer *lexer) {
   bool is_float = false;
-  if (peekc(lexer) == '0') {
+  if (peekc(s, lexer) == '0') {
     take(s, lexer, false);
     mark(s, lexer);
-    char n1 = peekc(lexer);
+    char n1 = peekc(s, lexer);
     if (n1 == 'x' || n1 == 'X') {
       take(s, lexer, false);
       unsigned digits = 0;
       for (;;) {
-        char d = peekc(lexer);
+        char d = peekc(s, lexer);
         if (is_hex_digit(d)) {
           digits++;
           take(s, lexer, false);
@@ -619,34 +620,34 @@ static int scan_number(Scanner *s, TSLexer *lexer) {
       if (digits == 0) return -1;
       return INT_LITERAL;
     }
-    while (is_digit(peekc(lexer)) ||
-           peekc(lexer) == '_') {
+    while (is_digit(peekc(s, lexer)) ||
+           peekc(s, lexer) == '_') {
       take(s, lexer, false);
       mark(s, lexer);
     }
   } else {
-    while (is_digit(peekc(lexer)) ||
-           peekc(lexer) == '_') {
+    while (is_digit(peekc(s, lexer)) ||
+           peekc(s, lexer) == '_') {
       take(s, lexer, false);
       mark(s, lexer);
     }
   }
-  if (peekc(lexer) == '.') {
+  if (peekc(s, lexer) == '.') {
     take(s, lexer, false); /* cut before the dot stays marked */
-    if (is_digit(peekc(lexer))) {
+    if (is_digit(peekc(s, lexer))) {
       is_float = true;
-      while (is_digit(peekc(lexer)) ||
-             peekc(lexer) == '_') {
+      while (is_digit(peekc(s, lexer)) ||
+             peekc(s, lexer) == '_') {
         take(s, lexer, false);
         mark(s, lexer);
       }
-      if (peekc(lexer) == 'e' || peekc(lexer) == 'E') {
+      if (peekc(s, lexer) == 'e' || peekc(s, lexer) == 'E') {
         take(s, lexer, false);
-        if (peekc(lexer) == '+' ||
-            peekc(lexer) == '-') {
+        if (peekc(s, lexer) == '+' ||
+            peekc(s, lexer) == '-') {
           take(s, lexer, false);
         }
-        while (is_digit(peekc(lexer))) {
+        while (is_digit(peekc(s, lexer))) {
           take(s, lexer, false);
           mark(s, lexer);
         }
@@ -658,8 +659,8 @@ static int scan_number(Scanner *s, TSLexer *lexer) {
 
 /* `lex_escape` after the backslash. */
 static bool scan_escape(Scanner *s, TSLexer *lexer) {
-  if (at_eof(lexer)) return false;
-  char c = peekc(lexer);
+  if (at_eof(s, lexer)) return false;
+  char c = peekc(s, lexer);
   take(s, lexer, false);
   switch (c) {
   case '\\':
@@ -670,11 +671,11 @@ static bool scan_escape(Scanner *s, TSLexer *lexer) {
   case 't':
     return true;
   case 'u':
-    if (peekc(lexer) != '{') return false;
+    if (peekc(s, lexer) != '{') return false;
     take(s, lexer, false);
     for (;;) {
-      if (at_eof(lexer)) return false;
-      char h = peekc(lexer);
+      if (at_eof(s, lexer)) return false;
+      char h = peekc(s, lexer);
       if (h == '}') {
         take(s, lexer, false);
         return true;
@@ -690,8 +691,8 @@ static bool scan_escape(Scanner *s, TSLexer *lexer) {
 static bool scan_string(Scanner *s, TSLexer *lexer) {
   take(s, lexer, false); /* the opening quote */
   for (;;) {
-    if (at_eof(lexer)) return false;
-    char c = peekc(lexer);
+    if (at_eof(s, lexer)) return false;
+    char c = peekc(s, lexer);
     if (c == '\n' || c == '\r') return false;
     if (c == '"') {
       take(s, lexer, false);
@@ -717,10 +718,10 @@ static bool scan_string(Scanner *s, TSLexer *lexer) {
 static void scan_word_rest(Scanner *s, TSLexer *lexer, char *word,
                            size_t *len) {
   for (;;) {
-    char c = peekc(lexer);
+    char c = peekc(s, lexer);
     if (c == '!') {
       take(s, lexer, false); /* cut before the bang stays marked */
-      char next = peekc(lexer);
+      char next = peekc(s, lexer);
       if (next == '(' || next == '[' || next == '{') return;
       if (*len + 1 < MAX_WORD) word[(*len)++] = '!';
       mark(s, lexer);
@@ -730,7 +731,7 @@ static void scan_word_rest(Scanner *s, TSLexer *lexer, char *word,
       mark(s, lexer);
     } else if (c == '-') {
       take(s, lexer, false); /* cut before the dash stays marked */
-      if (is_dash_glue_char(peekc(lexer))) {
+      if (is_dash_glue_char(peekc(s, lexer))) {
         if (*len + 1 < MAX_WORD) word[(*len)++] = '-';
       } else {
         return;
@@ -746,12 +747,12 @@ static void scan_word_rest(Scanner *s, TSLexer *lexer, char *word,
 static bool scan_fragment(Scanner *s, TSLexer *lexer) {
   unsigned depth = 1;
   bool in_str = false;
-  while (!at_eof(lexer)) {
-    char c = peekc(lexer);
+  while (!at_eof(s, lexer)) {
+    char c = peekc(s, lexer);
     if (in_str) {
       if (c == '\\') {
         take(s, lexer, false);
-        if (!at_eof(lexer)) take(s, lexer, false);
+        if (!at_eof(s, lexer)) take(s, lexer, false);
       } else if (c == '"') {
         in_str = false;
         take(s, lexer, false);
@@ -788,12 +789,12 @@ static bool scan_fragment(Scanner *s, TSLexer *lexer) {
 static bool scan_token_tree(Scanner *s, TSLexer *lexer, unsigned depth,
                             char close) {
   bool in_str = false;
-  while (!at_eof(lexer)) {
-    char c = peekc(lexer);
+  while (!at_eof(s, lexer)) {
+    char c = peekc(s, lexer);
     if (in_str) {
       if (c == '\\') {
         take(s, lexer, false);
-        if (!at_eof(lexer)) take(s, lexer, false);
+        if (!at_eof(s, lexer)) take(s, lexer, false);
       } else if (c == '"') {
         in_str = false;
         take(s, lexer, false);
@@ -809,8 +810,8 @@ static bool scan_token_tree(Scanner *s, TSLexer *lexer, unsigned depth,
     }
     if (c == '-') {
       take(s, lexer, false);
-      if (peekc(lexer) == '-') {
-        while (peekc(lexer) != '\n' && !at_eof(lexer))
+      if (peekc(s, lexer) == '-') {
+        while (peekc(s, lexer) != '\n' && !at_eof(s, lexer))
           take(s, lexer, false);
         continue;
       }
@@ -818,20 +819,20 @@ static bool scan_token_tree(Scanner *s, TSLexer *lexer, unsigned depth,
     }
     if (c == '{') {
       take(s, lexer, false);
-      if (peekc(lexer) == '-') {
+      if (peekc(s, lexer) == '-') {
         take(s, lexer, false);
         unsigned d2 = 1;
-        while (d2 > 0 && !at_eof(lexer)) {
-          char e = peekc(lexer);
+        while (d2 > 0 && !at_eof(s, lexer)) {
+          char e = peekc(s, lexer);
           if (e == '{') {
             take(s, lexer, false);
-            if (peekc(lexer) == '-') {
+            if (peekc(s, lexer) == '-') {
               take(s, lexer, false);
               d2++;
             }
           } else if (e == '-') {
             take(s, lexer, false);
-            if (peekc(lexer) == '}') {
+            if (peekc(s, lexer) == '}') {
               take(s, lexer, false);
               d2--;
             }
@@ -867,16 +868,16 @@ static bool scan_token_tree(Scanner *s, TSLexer *lexer, unsigned depth,
 /* Raw attribute arguments (`lex_attr`): `( ... )` with opaque strings,
    or the `= literal` tail up to `]`. */
 static bool scan_attr_args(Scanner *s, TSLexer *lexer) {
-  if (peekc(lexer) == '(') {
+  if (peekc(s, lexer) == '(') {
     take(s, lexer, false);
     unsigned depth = 1;
     bool in_str = false;
-    while (!at_eof(lexer)) {
-      char d = peekc(lexer);
+    while (!at_eof(s, lexer)) {
+      char d = peekc(s, lexer);
       if (in_str) {
         if (d == '\\') {
           take(s, lexer, false);
-          if (!at_eof(lexer)) take(s, lexer, false);
+          if (!at_eof(s, lexer)) take(s, lexer, false);
         } else if (d == '"') {
           in_str = false;
           take(s, lexer, false);
@@ -904,11 +905,11 @@ static bool scan_attr_args(Scanner *s, TSLexer *lexer) {
     }
     return false;
   }
-  if (peekc(lexer) == '=') {
+  if (peekc(s, lexer) == '=') {
     /* At least the `=` is consumed and marked, so the token is never
        zero width. */
-    if (at_eof(lexer)) return false;
-    while (peekc(lexer) != ']' && !at_eof(lexer)) {
+    if (at_eof(s, lexer)) return false;
+    while (peekc(s, lexer) != ']' && !at_eof(s, lexer)) {
       take(s, lexer, false);
       mark(s, lexer);
     }
@@ -920,7 +921,7 @@ static bool scan_attr_args(Scanner *s, TSLexer *lexer) {
 static bool scan_attr_name(Scanner *s, TSLexer *lexer) {
   unsigned n = 0;
   for (;;) {
-    char c = peekc(lexer);
+    char c = peekc(s, lexer);
     if (is_ident_char(c) || c == '.' || c == '-') {
       n++;
       take(s, lexer, false);
@@ -939,36 +940,36 @@ static void scan_percent(Scanner *s, TSLexer *lexer, char *run,
   run[(*rlen)++] = '%';
   take(s, lexer, false);
   mark(s, lexer);
-  char n1 = peekc(lexer);
+  char n1 = peekc(s, lexer);
   int mult = -1;
   bool consumed = false;
   if (n1 == '0' || n1 == '1') {
     char save = n1;
     take(s, lexer, false);
     consumed = true;
-    if (!is_ident_char(peekc(lexer))) {
+    if (!is_ident_char(peekc(s, lexer))) {
       mult = save == '0' ? MULT_ZERO : MULT_ONE;
     }
   } else if (n1 == 'a') {
     take(s, lexer, false);
     consumed = true;
-    if (peekc(lexer) == 'f') {
+    if (peekc(s, lexer) == 'f') {
       take(s, lexer, false);
-      if (peekc(lexer) == 'f') {
+      if (peekc(s, lexer) == 'f') {
         take(s, lexer, false);
-        if (!is_ident_char(peekc(lexer))) mult = MULT_AFF;
+        if (!is_ident_char(peekc(s, lexer))) mult = MULT_AFF;
       }
     }
   } else if (n1 == 'm') {
     take(s, lexer, false);
     consumed = true;
-    if (peekc(lexer) == 'a') {
+    if (peekc(s, lexer) == 'a') {
       take(s, lexer, false);
-      if (peekc(lexer) == 'n') {
+      if (peekc(s, lexer) == 'n') {
         take(s, lexer, false);
-        if (peekc(lexer) == 'y') {
+        if (peekc(s, lexer) == 'y') {
           take(s, lexer, false);
-          if (!is_ident_char(peekc(lexer))) mult = MULT_MANY;
+          if (!is_ident_char(peekc(s, lexer))) mult = MULT_MANY;
         }
       }
     }
@@ -1053,7 +1054,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
     return true;
   }
   if (s->attr_state == 2) {
-    char c = peekc(lexer);
+    char c = peekc(s, lexer);
     if (c == ']') {
       take(s, lexer, false);
       mark(s, lexer);
@@ -1069,7 +1070,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
     return false;
   }
 
-  char c0 = peekc(lexer);
+  char c0 = peekc(s, lexer);
 
   if (c0 == ')') {
     take(s, lexer, false);
@@ -1136,7 +1137,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
   }
   if (c0 == '[') {
     take(s, lexer, false);
-    if (peekc(lexer) == '|') {
+    if (peekc(s, lexer) == '|') {
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = LQUOTE;
@@ -1155,21 +1156,21 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
   }
   if (c0 == '{') {
     take(s, lexer, false);
-    if (peekc(lexer) == '-') {
+    if (peekc(s, lexer) == '-') {
       /* Block comment (nested): trivia. */
       take(s, lexer, false);
       unsigned depth = 1;
-      while (depth > 0 && !at_eof(lexer)) {
-        char e = peekc(lexer);
+      while (depth > 0 && !at_eof(s, lexer)) {
+        char e = peekc(s, lexer);
         if (e == '{') {
           take(s, lexer, false);
-          if (peekc(lexer) == '-') {
+          if (peekc(s, lexer) == '-') {
             take(s, lexer, false);
             depth++;
           }
         } else if (e == '-') {
           take(s, lexer, false);
-          if (peekc(lexer) == '}') {
+          if (peekc(s, lexer) == '}') {
             take(s, lexer, false);
             depth--;
           }
@@ -1201,7 +1202,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
   }
   if (c0 == '|') {
     take(s, lexer, false);
-    if (peekc(lexer) == ']') {
+    if (peekc(s, lexer) == ']') {
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = RQUOTE;
@@ -1219,7 +1220,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
   }
   if (c0 == '$') {
     take(s, lexer, false);
-    if (peekc(lexer) == '(') {
+    if (peekc(s, lexer) == '(') {
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = SPLICE_OPEN;
@@ -1232,7 +1233,7 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
   }
   if (c0 == '#') {
     take(s, lexer, false);
-    if (peekc(lexer) == '[') {
+    if (peekc(s, lexer) == '[') {
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = ATTR_OPEN;
@@ -1251,12 +1252,12 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
     /* Tick syntax (D123, amendments section 12): tick, one character,
        tick is a `Char` and wins; `''T` is a type Name; `'foo` a Sym. */
     take(s, lexer, false); /* the tick */
-    char c1 = peekc(lexer);
+    char c1 = peekc(s, lexer);
     if (c1 == '\\') {
       take(s, lexer, false);
       if (!scan_escape(s, lexer)) return false;
       mark(s, lexer);
-      if (peekc(lexer) != '\'') return false;
+      if (peekc(s, lexer) != '\'') return false;
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = CHAR_LITERAL;
@@ -1264,16 +1265,16 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
     }
     if (c1 == '\'') {
       take(s, lexer, false);
-      if (!is_word_start(peekc(lexer))) return false;
+      if (!is_word_start(peekc(s, lexer))) return false;
       size_t len = 0;
       scan_word_rest(s, lexer, out->word, &len);
       out->word[len] = 0;
       out->symbol = TYPE_NAME_LITERAL;
       return true;
     }
-    if (c1 == '\n' || c1 == '\r' || at_eof(lexer)) return false;
+    if (c1 == '\n' || c1 == '\r' || at_eof(s, lexer)) return false;
     take(s, lexer, false); /* the one character */
-    if (peekc(lexer) == '\'') {
+    if (peekc(s, lexer) == '\'') {
       take(s, lexer, false);
       mark(s, lexer);
       out->symbol = CHAR_LITERAL;
@@ -1306,16 +1307,16 @@ static bool scan_token(Scanner *s, TSLexer *lexer, TokenClass *out) {
     /* D102/D129: comment, negative literal, or symbol run. */
     char prev = s->prev_char;
     take(s, lexer, false);
-    if (peekc(lexer) == '-') {
+    if (peekc(s, lexer) == '-') {
       /* A line comment: comments win over symbol runs. */
-      while (peekc(lexer) != '\n' && !at_eof(lexer))
+      while (peekc(s, lexer) != '\n' && !at_eof(s, lexer))
         take(s, lexer, false);
       mark(s, lexer);
       out->symbol = COMMENT;
       out->kind = KIND_COMMENT;
       return true;
     }
-    if (sign_minus_context(prev, peekc(lexer))) {
+    if (sign_minus_context(prev, peekc(s, lexer))) {
       int n = scan_number(s, lexer);
       if (n < 0) return false;
       out->symbol = n;
@@ -1561,15 +1562,15 @@ static void classify_next(Scanner *s, TSLexer *lexer, TokenClass *out,
                           uint32_t *tok_col, uint32_t *tok_line) {
   /* Everything consumed past the final mark is replayed: start from
      the mark and seed the tracking from its record. */
-  r_rewind();
   Scanner tmp = *s;
-  tmp.cur_line = marks.line;
-  tmp.cur_col = marks.col;
-  tmp.prev_char = marks.prev_char;
-  tmp.line_leading = marks.leading;
+  tmp.r_pos = 0;
+  tmp.cur_line = s->marks.line;
+  tmp.cur_col = s->marks.col;
+  tmp.prev_char = s->marks.prev_char;
+  tmp.line_leading = s->marks.leading;
   for (;;) {
-    while (peekc(lexer) == ' ' || peekc(lexer) == '\t' ||
-           peekc(lexer) == '\n' || peekc(lexer) == '\r') {
+    while (peekc(&tmp, lexer) == ' ' || peekc(&tmp, lexer) == '\t' ||
+           peekc(&tmp, lexer) == '\n' || peekc(&tmp, lexer) == '\r') {
       take(&tmp, lexer, false);
     }
     /* The tracked column is the truth here: during replay the lexer
@@ -1577,7 +1578,7 @@ static void classify_next(Scanner *s, TSLexer *lexer, TokenClass *out,
        overflow position. */
     *tok_col = tmp.cur_col;
     *tok_line = tmp.cur_line;
-    if (at_eof(lexer)) {
+    if (at_eof(&tmp, lexer)) {
       out->kind = KIND_EOF;
       out->symbol = -1;
       out->word[0] = 0;
@@ -1601,8 +1602,8 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
   Scanner *s = (Scanner *)payload;
   Scanner snapshot = *s;
 
-  r_len = 0;
-  r_pos = 0;
+  s->r_len = 0;
+  s->r_pos = 0;
   /* Queued virtual tokens come first (zero width at this position). */
   if (s->q_len > s->q_head) {
     uint8_t sym = s->queue[s->q_head++];
@@ -1611,26 +1612,26 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
       s->q_len = 0;
     }
     s->bang_pending = false;
-    marks.on = true;
+    s->marks.on = true;
     mark(s, lexer);
     lexer->result_symbol = sym;
     return true;
   }
 
   /* Whitespace (comments scan as trivia tokens below). */
-  while (peekc(lexer) == ' ' || peekc(lexer) == '\t' || peekc(lexer) == '\n' ||
-         peekc(lexer) == '\r') {
+  while (peekc(s, lexer) == ' ' || peekc(s, lexer) == '\t' || peekc(s, lexer) == '\n' ||
+         peekc(s, lexer) == '\r') {
     take(s, lexer, true);
   }
 
-  if (at_eof(lexer)) {
+  if (at_eof(s, lexer)) {
     if (!s->machine_done) {
       TokenClass eof_tc;
       memset(&eof_tc, 0, sizeof(eof_tc));
       eof_tc.kind = KIND_EOF;
-      marks.on = false;
+      s->marks.on = false;
       layout_machine(s, &eof_tc, s->cur_col, s->cur_line);
-      marks.on = true;
+      s->marks.on = true;
       s->machine_done = true;
     }
     if (s->q_len > s->q_head) {
@@ -1650,7 +1651,7 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
   uint32_t tok_line = s->cur_line;
   bool tok_line_start = s->line_leading;
 
-  marks.on = true;
+  s->marks.on = true;
   TokenClass tc;
   if (!scan_token(s, lexer, &tc)) {
     *s = snapshot;
@@ -1661,10 +1662,10 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
     /* Comments are trivia: no layout machine, no note. The machine for
        the next real token runs in the lookahead of the call that
        returns it (or of the last real token). */
-    s->prev_char = marks.prev_char;
-    s->cur_line = marks.line;
-    s->cur_col = marks.col;
-    s->line_leading = marks.leading;
+    s->prev_char = s->marks.prev_char;
+    s->cur_line = s->marks.line;
+    s->cur_col = s->marks.col;
+    s->line_leading = s->marks.leading;
     lexer->result_symbol = COMMENT;
     return true;
   }
@@ -1684,7 +1685,7 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
      tokens are then queued before it is scanned. */
   TokenClass next_tc;
   uint32_t next_col = 0, next_line = 0;
-  marks.on = false;
+  s->marks.on = false;
   classify_next(s, lexer, &next_tc, &next_col, &next_line);
 
   int symbol = tc.symbol;
@@ -1695,13 +1696,13 @@ bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
 
   layout_machine(s, &next_tc, next_col, next_line);
   s->machine_done = true;
-  marks.on = true;
+  s->marks.on = true;
 
   /* Commit position tracking up to the final mark. */
-  s->prev_char = marks.prev_char;
-  s->cur_line = marks.line;
-  s->cur_col = marks.col;
-  s->line_leading = marks.leading;
+  s->prev_char = s->marks.prev_char;
+  s->cur_line = s->marks.line;
+  s->cur_col = s->marks.col;
+  s->line_leading = s->marks.leading;
 
   lexer->result_symbol = symbol;
   return true;

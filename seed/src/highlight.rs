@@ -262,6 +262,29 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_parsers_have_independent_lookahead() {
+        let samples = [
+            "data Box where\n  Box :: Int -> Box",
+            "module Demo where\n  value :: Int\n  value = 12.5",
+            "-- comment\ndata Color where\n  Red :: Color\n  Blue :: Color",
+            "value = let name = 1 in name-2",
+        ];
+        let start = std::sync::Barrier::new(samples.len());
+        std::thread::scope(|scope| {
+            for source in samples {
+                let expected = token_spans(source);
+                let start = &start;
+                scope.spawn(move || {
+                    start.wait();
+                    for _ in 0..64 {
+                        assert_eq!(token_spans(source), expected, "{source}");
+                    }
+                });
+            }
+        });
+    }
+
+    #[test]
     fn highlights_comments_skipped_by_the_grammar() {
         let html = html("-- a note\nvalue :: Int\nvalue = 1");
         assert!(html.contains("<span class=\"tok-comment\">-- a note</span>"), "{html}");
