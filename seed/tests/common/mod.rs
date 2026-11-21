@@ -45,6 +45,14 @@ pub const TOOLKIT: &[(&str, &str)] = &[
         "Text.Builder.cinch",
         include_str!("../../prelude/Text/Builder.cinch"),
     ),
+    (
+        "Data.Bytes.Word.cinch",
+        include_str!("../../prelude/Data/Bytes/Word.cinch"),
+    ),
+    (
+        "Text.Fnv.cinch",
+        include_str!("../../prelude/Text/Fnv.cinch"),
+    ),
 ];
 
 /// A fresh project directory holding the toolkit and `files`. The caller

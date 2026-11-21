@@ -35,7 +35,7 @@ TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 # `par-map-array-call`), so a `parMap` anywhere in the compiler's own source
 # resolves only when the module is in the same source set. One entry, because
 # nothing else the compiler reaches for is outside the base package.
-COMPILER_PRELUDE = ("Data.Array",)
+COMPILER_PRELUDE = ("Data.Array", "Data.Bytes.Word", "Text.Fnv")
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None

@@ -75,6 +75,7 @@ module Bootstrap.Interface where
 
   import Data.Bool
   import Data.Bytes
+  import Text.Fnv (fnv64a)
   import Data.Int
   import Data.Json
   import Data.List
@@ -270,25 +271,6 @@ module Bootstrap.Interface where
 
   -- -------------------------------------------------------------------- fnv
 
-  -- FNV-1a 64, the rule `Iface::iface_hash` and `interface::content_hash`
-  -- apply: the offset basis, then `h ^= byte; h *= prime` per byte, wrapping
-  -- at 64 bits.
-  fnv-basis :: U64
-  fnv-basis = 0xcbf29ce484222325
-
-  fnv-prime :: U64
-  fnv-prime = 0x100000001b3
-
-  fnv-bytes :: Bytes -> U64
-  fnv-bytes b = fnv-from b (bytes-len b) 0 fnv-basis
-
-  fnv-from :: using (end == bytes-len b) => (b :: Bytes) -> (end :: Nat) -> Nat -> U64 -> U64
-  fnv-from b end i h =
-    if i < end then
-      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
-      fnv-from b end (i + 1) (wrapping-mul-u64 (bit-xor-u64 h byte) fnv-prime)
-    else h
-
   -- The decimal spelling of a `U64`, the form the interface records both
   -- hashes in. A `U64` can exceed `I64`, so it is rendered by division rather
   -- than through a signed conversion.
@@ -320,7 +302,7 @@ module Bootstrap.Interface where
   -- The FNV-1a 64 spelling the interface's `source_hash` must carry for these
   -- source bytes (`interface::content_hash`).
   fnv-source-hash :: Bytes -> String
-  fnv-source-hash src = u64-decimal (fnv-bytes src)
+  fnv-source-hash src = u64-decimal (fnv64a src)
 
   -- The SHA-256 of these bytes, lowercase hex. Not the interface's rule (see
   -- the header): this is the digest the package identity uses, exposed where a
@@ -465,7 +447,7 @@ module Bootstrap.Interface where
   -- The artifact's interface identity, recomputed from its own bytes.
   iface-hash :: Bytes -> Json -> Option String
   iface-hash src doc = case iface-contract src doc of
-    Some c -> Some (u64-decimal (fnv-bytes c))
+    Some c -> Some (u64-decimal (fnv64a c))
     None -> None
 
   -- --------------------------------------------------------- list predicates
