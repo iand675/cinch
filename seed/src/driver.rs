@@ -2629,13 +2629,17 @@ fn write_artifacts(
     let mut rendered = std::collections::BTreeMap::new();
     for iface in ifaces {
         let p = out_dir.join(format!("{}.cinchif", iface.module));
-        let json = iface.to_json();
-        std::fs::write(&p, &json)
-            .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
-        if package_modules.contains(iface.module.as_str()) {
-            if let Some(contract_hash) = contract_hashes.get(iface.module.as_str()) {
-                rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
-            }
+        let error = |e| Error::plain(format!("{}: {e}", p.display()));
+        let store_hash = contract_hashes.get(iface.module.as_str())
+            .filter(|_| package_modules.contains(iface.module.as_str()));
+        if let Some(contract_hash) = store_hash {
+            let json = iface.to_json();
+            std::fs::write(&p, &json).map_err(error)?;
+            rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
+        } else {
+            let mut output = std::io::BufWriter::new(std::fs::File::create(&p).map_err(error)?);
+            iface.write_json(&mut output).map_err(error)?;
+            std::io::Write::flush(&mut output).map_err(error)?;
         }
         let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
         match &body_index {

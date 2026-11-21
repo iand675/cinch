@@ -14,6 +14,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
+use std::sync::Arc;
 
 /// 5: definition-site class contexts, method slots and resolved method schemes.
 /// 4: occurrence-resolved pure schemes and their private nominal contracts.
@@ -888,6 +889,14 @@ impl Iface {
         self.json_document(false).to_canonical_string()
     }
 
+    /// Stream the same canonical bytes into a buffered file output.
+    pub(crate) fn write_json(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
+        let mut output = CanonicalOutput { writer, error: None };
+        self.json_document(false)
+            .write_canonical_to(&mut output)
+            .map_err(|_| output.error.expect("a failed output records its I/O error"))
+    }
+
     fn json_document(&self, contract: bool) -> JsonValue {
         // Sort references: moving an exported value into order should not
         // make a second copy of its checked total-body dependency closure.
@@ -918,6 +927,7 @@ impl Iface {
         let assertions = ordered(&self.assertions);
         let contracts = ordered(&self.contracts);
         let laws = ordered(&self.laws);
+        let mut body_rows = HashMap::new();
 
         let exports = JsonValue::obj([
             (
@@ -929,7 +939,7 @@ impl Iface {
                         ("resolved".to_string(), resolved_scheme_json(v.resolved.as_ref())),
                         ("symbol".to_string(), (&v.symbol).into()),
                         ("arity".to_string(), v.arity.into()),
-                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| graph.to_json_value())),
+                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| graph.to_shared_json_value(&mut body_rows))),
                     ]);
                     if let Some(ordering) = v.keyed_ordering {
                         row.insert("keyed_ordering".into(), JsonValue::obj([
@@ -1048,7 +1058,7 @@ impl Iface {
                                 ("slot", body.slot.into()),
                                 ("implementation", (&body.implementation).into()),
                                 ("resolved", resolved_scheme_json(Some(&body.resolved))),
-                                ("total_body", body.total_body.to_json_value()),
+                                ("total_body", body.total_body.to_shared_json_value(&mut body_rows)),
                             ])));
                         }
                     }
@@ -1213,7 +1223,11 @@ impl Iface {
     /// instantiating a module never changes the contract hash of the
     /// parameterized module (or of its instantiator).
     pub fn iface_hash(&self) -> String {
-        fnv1a64(self.json_document(true).to_canonical_string().as_bytes()).to_string()
+        let mut hash = ContractHash(FNV_OFFSET);
+        self.json_document(true)
+            .write_canonical_to(&mut hash)
+            .expect("hashing canonical bytes cannot fail");
+        hash.0.to_string()
     }
 
     /// Parse a canonical (or at least schema-shaped) interface document.
@@ -1643,13 +1657,26 @@ pub fn content_hash_bytes(bytes: &[u8]) -> String {
     fnv1a64(bytes).to_string()
 }
 
+const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+
 fn fnv1a64(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in bytes {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+    fnv_update(FNV_OFFSET, bytes)
+}
+
+fn fnv_update(mut hash: u64, bytes: &[u8]) -> u64 {
+    for &byte in bytes {
+        hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
     }
-    h
+    hash
+}
+
+struct ContractHash(u64);
+
+impl fmt::Write for ContractHash {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        self.0 = fnv_update(self.0, text.as_bytes());
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- parsing
@@ -1683,6 +1710,8 @@ pub(crate) enum JsonValue {
     Bool(bool),
     Arr(Vec<JsonValue>),
     Obj(BTreeMap<String, JsonValue>),
+    /// Output-only canonical JSON for a checked definition shared by several export closures.
+    CanonicalBodyRow(Arc<str>),
 }
 
 impl From<&str> for JsonValue {
@@ -1805,32 +1834,38 @@ impl JsonValue {
     /// Every JSON artifact the compiler writes goes through here so a
     /// Cinch program can reproduce the bytes.
     pub(crate) fn write_canonical(&self, out: &mut String) {
+        self.write_canonical_to(out)
+            .expect("writing canonical bytes into a String cannot fail");
+    }
+
+    fn write_canonical_to(&self, out: &mut impl fmt::Write) -> fmt::Result {
         match self {
-            JsonValue::Null => out.push_str("null"),
-            JsonValue::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-            JsonValue::Num(n) => out.push_str(&n.to_string()),
+            JsonValue::Null => out.write_str("null"),
+            JsonValue::Bool(b) => out.write_str(if *b { "true" } else { "false" }),
+            JsonValue::Num(n) => write!(out, "{n}"),
             JsonValue::Str(s) => write_canonical_str(out, s),
+            JsonValue::CanonicalBodyRow(row) => out.write_str(row),
             JsonValue::Arr(items) => {
-                out.push('[');
-                for (i, v) in items.iter().enumerate() {
-                    if i > 0 {
-                        out.push(',');
+                out.write_char('[')?;
+                for (i, value) in items.iter().enumerate() {
+                    if i != 0 {
+                        out.write_char(',')?;
                     }
-                    v.write_canonical(out);
+                    value.write_canonical_to(out)?;
                 }
-                out.push(']');
+                out.write_char(']')
             }
             JsonValue::Obj(map) => {
-                out.push('{');
-                for (i, (k, v)) in map.iter().enumerate() {
-                    if i > 0 {
-                        out.push(',');
+                out.write_char('{')?;
+                for (i, (key, value)) in map.iter().enumerate() {
+                    if i != 0 {
+                        out.write_char(',')?;
                     }
-                    write_canonical_str(out, k);
-                    out.push(':');
-                    v.write_canonical(out);
+                    write_canonical_str(out, key)?;
+                    out.write_char(':')?;
+                    value.write_canonical_to(out)?;
                 }
-                out.push('}');
+                out.write_char('}')
             }
         }
     }
@@ -1842,28 +1877,47 @@ impl JsonValue {
     }
 }
 
-fn write_canonical_str(out: &mut String, s: &str) {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => {
-                let b = c as usize;
-                out.push_str("\\u00");
-                out.push(HEX[b >> 4] as char);
-                out.push(HEX[b & 0xf] as char);
-            }
-            c => out.push(c),
+fn write_canonical_str(out: &mut impl fmt::Write, value: &str) -> fmt::Result {
+    out.write_char('"')?;
+    let mut start = 0;
+    for (index, byte) in value.bytes().enumerate() {
+        let escape = match byte {
+            b'"' => "\\\"",
+            b'\\' => "\\\\",
+            b'\x08' => "\\b",
+            b'\x0c' => "\\f",
+            b'\n' => "\\n",
+            b'\r' => "\\r",
+            b'\t' => "\\t",
+            0..=31 => "",
+            _ => continue,
+        };
+        // Only ASCII bytes introduce escapes, so each split is a UTF-8
+        // boundary. Feed ordinary text to the sink as a single slice.
+        out.write_str(&value[start..index])?;
+        if escape.is_empty() {
+            write!(out, "\\u00{byte:02x}")?;
+        } else {
+            out.write_str(escape)?;
         }
+        start = index + 1;
     }
-    out.push('"');
+    out.write_str(&value[start..])?;
+    out.write_char('"')
+}
+
+struct CanonicalOutput<'a, W> {
+    writer: &'a mut W,
+    error: Option<std::io::Error>,
+}
+
+impl<W: std::io::Write> fmt::Write for CanonicalOutput<'_, W> {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        self.writer.write_all(value.as_bytes()).map_err(|error| {
+            self.error = Some(error);
+            fmt::Error
+        })
+    }
 }
 
 /// Parse one JSON document (shared with the schema introspection
