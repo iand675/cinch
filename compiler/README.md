@@ -7,7 +7,7 @@ interfaces. Run `tooling/bootstrap.sh check` to build the ladder and check
 the fixed point with the current pins. See [the cutover audit](evidence/current/current-schema10-family-and-cutover-results.json)
 and [the first schema 10 fixed point](evidence/current/current-schema10-bootstrap-results.json).
 
-The compiler can also consume [packed interfaces](package-interfaces.md) from a memory-mapped artifact.
+The compiler can also consume [packed interfaces](notes/package-interfaces.md) from a memory-mapped artifact.
 
 ## Layout
 

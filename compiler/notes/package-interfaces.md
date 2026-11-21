@@ -27,7 +27,7 @@ alongside their current execution metadata. For an installed package:
 ```sh
 python3 tooling/pack_interfaces.py "$installed/build/package.cinchif" \
   "$installed/build/package.cpk" --execution
-cinch check Main.cinch --package-object "$installed/package.o"
+cinch build Main.cinch --package-object "$installed/package.o"
 ```
 
 The Rust object admission path checks the typed contracts against the package

@@ -137,11 +137,14 @@ def rust(seed, work):
     execution = json.loads((installed / "build/package.cinchif").read_bytes())
     metadata = execution["interfaces"]
     rows = [(row["module"], row["iface_hash"], json.dumps(row["interface"]).encode()) for row in metadata]
-    command = [seed, "check", client, "--package-object", artifact]
+    executable = project / "client"
+    command = [seed, "build", client, "-o", executable, "--package-object", artifact]
     invoke(command, project)
+    invoke([executable], project, status=42)
     package = installed / "build/package.cpk"
     publish(package, pack(rows, execution))
     invoke(command, project)
+    invoke([executable], project, status=42)
     name, _, raw = rows[0]
     publish(package, pack([(name, "not-the-identity", raw), *rows[1:]]))
     result = invoke(command, project, status=1)
@@ -164,7 +167,7 @@ def main():
             print(json.dumps(native(args.native.resolve(), work, args.repeats), indent=2), flush=True)
         if args.seed:
             rust(args.seed.resolve(), work)
-            print("Rust package-object compiler check passed", flush=True)
+            print("Rust package-object build, execution and refusal passed", flush=True)
 
 
 if __name__ == "__main__":
