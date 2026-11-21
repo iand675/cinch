@@ -1,15 +1,22 @@
 -- Read a closed interface set before lexing the source's operator chains.
 module Bootstrap.Inputs where
 
-  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members)
+  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-ordered-documents, validated-interfaces-members)
+  import Bootstrap.Package (read-package-documents)
   import Data.Json
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
   import Text.Json (parse-json)
+  import Text.Scan (string-ends-with)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export read-interfaces, embedded-library-home
-  export read-interface-references, load-interface-references, read-validated-interfaces
+  export InterfaceInputs, read-interface-inputs, interface-input-files, load-interface-inputs
+  export read-validated-interfaces
+
+  data InterfaceInputs where
+    InterfaceFiles :: List (String, String, String) -> InterfaceInputs
+    InterfacePackage :: String -> InterfaceInputs
 
   -- Source replacement is reserved for defining homes in the pinned
   -- compiler-owned base package. Ordinary interface collisions still refuse.
@@ -74,10 +81,34 @@ module Bootstrap.Inputs where
     Err message -> Err message
     Ok files -> load-validated-interfaces files
 
+  read-interface-inputs :: forall r. using (io :: Io r) => String ->{IO r} Result String InterfaceInputs
+  read-interface-inputs path =
+    if string-ends-with ".cpk" path then Ok (InterfacePackage path)
+    else case read-interface-references path of
+      Err message -> Err message
+      Ok inputs -> Ok (InterfaceFiles inputs)
+
+  interface-input-files :: InterfaceInputs -> List String
+  interface-input-files inputs = case inputs of
+    InterfaceFiles rows -> file-paths rows
+    InterfacePackage path -> [path]
+
+  file-paths :: List (String, String, String) -> List String
+  file-paths inputs = case inputs of
+    Nil -> Nil
+    Cons (home, digest, path) rest -> Cons path (file-paths rest)
+
+  load-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs ->{IO r} Result String ValidatedInterfaces
+  load-interface-inputs inputs = case inputs of
+    InterfaceFiles rows -> load-interface-references rows
+    InterfacePackage path -> case read-package-documents path of
+      Err message -> Err message
+      Ok documents -> load-validated-ordered-documents documents
+
   read-validated-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String ValidatedInterfaces
-  read-validated-interfaces path = case read-interface-references path of
+  read-validated-interfaces path = case read-interface-inputs path of
     Err message -> Err message
-    Ok inputs -> load-interface-references inputs
+    Ok inputs -> load-interface-inputs inputs
 
   read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
   read-interfaces path = case read-validated-interfaces path of

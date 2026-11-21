@@ -68,6 +68,7 @@ name = "cinch"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "libc",
  "ratatui",
  "regex",
  "serde",

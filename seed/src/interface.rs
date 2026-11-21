@@ -1224,6 +1224,10 @@ impl Iface {
         if p.i != p.b.len() {
             return Err(ParseError(format!("trailing bytes at byte {}", p.i)));
         }
+        Self::from_document(&v)
+    }
+
+    pub(crate) fn from_document(v: &JsonValue) -> Result<Iface, ParseError> {
         let obj = v
             .as_object()
             .map_err(|_| ParseError("top level must be an object".into()))?;

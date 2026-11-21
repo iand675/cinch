@@ -1,0 +1,80 @@
+# Packed compiler interfaces
+
+A `.cpk` file carries a complete schema-10 interface set in a read-only
+package. It keeps one string table and one copy of each checked body
+definition, even when many exports reference the same definitions. The
+contract digest, total bodies, typed schemes, layouts, laws, and dependency
+identities have the same meaning as in the per-module JSON files.
+
+To generate a package from a native compiler's existing manifest:
+
+```sh
+python3 tooling/pack_interfaces.py "$stage/base-interfaces.json" base.cpk \
+  --objects "$stage/objects.json"
+"$stage/cinch" --check-types --interfaces base.cpk Hello.cinch hello
+"$stage/cinch" --emit-ir-only --interfaces base.cpk \
+  --objects "$stage/objects.json" Hello.cinch hello.ll
+```
+
+The `--objects` argument to the packer is optional. It carries the provider's
+ABI metadata in a separate section. The native object linker still verifies
+the configured metadata digest, binary digest, and target through
+`objects.json`. The metadata in the package does not grant link authority.
+
+The Rust compiler accepts a packed interface sidecar for package objects
+alongside their current execution metadata. For an installed package:
+
+```sh
+python3 tooling/pack_interfaces.py "$installed/build/package.cinchif" \
+  "$installed/build/package.cpk" --execution
+cinch check Main.cinch --package-object "$installed/package.o"
+```
+
+The Rust object admission path checks the typed contracts against the package
+execution metadata. The seed still checks its source closure. Existing
+per-module JSON files and native JSON manifests remain supported.
+
+The readers map the file and decode structured values directly from its
+sections. They verify the same interface identities and contracts as the
+JSON readers. The current checkers materialize their internal semantic trees,
+and native Cinch materializes each interned string once. The package carries
+complete contracts without a JSON compatibility payload. The writer replaces
+the file by rename so an existing mapping keeps seeing its original bytes.
+Keep published package files immutable while mapped.
+
+## File format
+
+All words are unsigned 32-bit little-endian. The 80-byte header holds the
+eight-byte `CINCHPK2` magic, total file length, format flag 2, and eight
+offset/length pairs. The section pairs are file-relative and define
+contiguous ranges in this order:
+
+| Section | Data |
+| --- | --- |
+| Strings | Entry count, one offset/length pair per ID, and packed UTF-8. String spans elsewhere are relative to the packed UTF-8. |
+| Modules | Sorted 36-byte rows. The words carry name and digest spans, value range, contract span, and an inverse index from original input rank to sorted row. |
+| Values | Sorted 32-byte rows within each module. The words carry name, symbol and scheme spans, arity, and root body ID. `0xffffffff` denotes an absent body. |
+| Bodies | Sorted 32-byte rows. The words carry identity, result sort and recipe spans, plus an edge range. |
+| Edges | Body IDs packed as words. |
+| Recipes | Typed definition records, with no definition references in a recipe. |
+| Contracts | Typed documents preserving the schema-10 field names and values. |
+| ABI | Optional JSON metadata. Public interface metadata references its packed contract by name and digest. Private ABI-only contracts appear in this section once. |
+
+Contract values begin with a tag word. Tags 0 through 2 are null, false,
+and true. Tags 3 and 8 carry unsigned and negative integers with a low and
+high magnitude word. Tag 4 carries a string ID. Tags 5 and 6 carry an item or
+field count and their values. Object keys are string IDs in strict byte
+order. Tag 7 carries a count of shared definition spans followed by
+`(first ID, count)` pairs that expand in the recorded order. A contract or
+recipe has a maximum nesting depth of 256 values.
+
+## Verification
+
+```sh
+python3 tooling/verify_package_interfaces.py --native "$stage" --seed "$seed"
+```
+
+The gate checks valid and invalid Hello World programs through both native
+input paths, compares emitted LLVM IR, requires a clean leak line, corrupts
+package sections and identities, and checks a real installed Rust package.
+Native timings use fresh processes with a warm filesystem cache.

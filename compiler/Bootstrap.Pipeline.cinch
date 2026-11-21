@@ -28,7 +28,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
-  import Bootstrap.Inputs (read-interfaces, read-validated-interfaces, embedded-library-home, read-interface-references, load-interface-references)
+  import Bootstrap.Inputs (read-interfaces, read-validated-interfaces, embedded-library-home, read-interface-inputs, interface-input-files, load-interface-inputs)
   import Bootstrap.Contracts (interface-headers, interface-fixity-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
@@ -214,7 +214,7 @@ module Bootstrap.Pipeline where
     let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output] in
     let direct = map normalize-name [manifest, object-config, source] in
     if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
-      let references = read-interface-references manifest in
+      let references = read-interface-inputs manifest in
       let configuration = read-runtime-object-config object-config in
       let interface-inputs = (case references of Err message -> Nil; Ok rows -> interface-input-files rows) in
       let object-inputs = (case configuration of Err message -> Nil; Ok config -> runtime-object-input-files config) in
@@ -223,7 +223,7 @@ module Bootstrap.Pipeline where
           Err error -> pipeline-write-failed
           Ok cleared -> case references of
             Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
-            Ok inputs -> case load-interface-references inputs of
+            Ok inputs -> case load-interface-inputs inputs of
               Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
               Ok checked -> case configuration of
                 Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
@@ -232,10 +232,6 @@ module Bootstrap.Pipeline where
                   Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
                     emit-object-client inlining debug reclaim profile EmitWithInterfaces checked provider source ir)
 
-  interface-input-files :: List (String, String, String) -> List String
-  interface-input-files references = case references of
-    Nil -> Nil
-    Cons (name, digest, path) rest -> Cons path (interface-input-files rest)
   object-input-overlaps :: List String -> List String -> Bool
   object-input-overlaps outputs inputs = case inputs of
     Nil -> False

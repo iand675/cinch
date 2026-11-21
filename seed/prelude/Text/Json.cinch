@@ -99,7 +99,7 @@ module Text.Json where
   -- `ParseOutcome`, so `render-bundle` renders the failures).
   export json-value, parse-json
   -- Printing, canonicalization, content identity.
-  export print-json, canonical-json, canonical-bytes, canonical-hash, digest-hex
+  export print-json, ordered-json-bytes, canonical-json, canonical-bytes, canonical-hash, digest-hex
   export json-eq
   -- Offsets over a document's bytes, for a reader that wants a span and
   -- not a value.
@@ -1194,6 +1194,11 @@ module Text.Json where
   print-json :: Json -> String
   print-json v = builder-run (emit-value False v builder-new)
 
+  -- Render in object spine order. This is canonical when the input order is
+  -- already checked, so a structured reader need not sort every object again.
+  ordered-json-bytes :: Json -> Bytes
+  ordered-json-bytes value = builder-bytes (emit-value False value builder-new)
+
   -- The canonical form (the header's rules): object keys sorted.
   canonical-json :: Json -> String
   canonical-json v = builder-run (emit-value True v builder-new)
@@ -1215,7 +1220,8 @@ module Text.Json where
     JFloat f -> builder-add-string (write-float f) b
     JStr s -> emit-string s b
     JArr h t -> emit-array-rest sorted t (emit-value sorted h (builder-add-string "[" b))
-    JObj k x t -> emit-entries sorted (sort-if sorted (entries-of v)) (builder-add-string "{" b)
+    JObj k x t -> if sorted then emit-entries True (sort-by compare-keys (entries-of v)) (builder-add-string "{" b)
+      else emit-spine v (builder-add-string "{" b)
     JArrEnd -> builder-add-string "[]" b
     JObjEnd -> builder-add-string "{}" b
 
@@ -1253,11 +1259,15 @@ module Text.Json where
   emit-entry sorted e b = case e of
     JEntry k v -> emit-value sorted v (builder-add-string ":" (emit-string k b))
 
-  -- The canonical form sorts by key (`string-compare`, byte order) with
-  -- Data.List's stable merge sort, so equal keys (a parsed document
-  -- never has them) keep their spine order.
-  sort-if :: Bool -> List JEntry -> List JEntry
-  sort-if sorted es = if sorted then sort-by compare-keys es else es
+  emit-spine :: Json -> Builder -> Builder
+  emit-spine v b = case v of
+    JObj key value tail ->
+      let field = emit-value False value (builder-add-string ":" (emit-string key b)) in
+      (case tail of
+        JObjEnd -> builder-add-string "}" field
+        other -> emit-spine tail (builder-add-string "," field))
+    JObjEnd -> builder-add-string "}" b
+    other -> builder-add-string "}" (emit-value False other (builder-add-string "\"\":" b))
 
   compare-keys :: JEntry -> JEntry -> Ordering
   compare-keys e f = case e of

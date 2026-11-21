@@ -20,6 +20,7 @@ pub mod core;
 pub mod driver;
 pub mod ifaceopt;
 pub mod interface;
+mod package_interfaces;
 pub mod intern;
 #[cfg(feature = "jit")]
 pub mod jit;

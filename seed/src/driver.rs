@@ -5464,43 +5464,57 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             path.display()
         )));
     }
+    let pack_path = abi_path.with_extension("cpk");
+    let packed = match std::fs::metadata(&pack_path) {
+        Ok(_) => Some(crate::package_interfaces::read_verified_identities(&pack_path)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(Error::plain(format!("{}: {e}", pack_path.display()))),
+    };
     if let Some(interfaces) = abi.get("interfaces").and_then(serde_json::Value::as_array) {
+        let mut packed = packed;
         let build = path.parent().map(|parent| parent.join("build"));
         for interface in interfaces {
-            let Some(module) = interface.get("module").and_then(serde_json::Value::as_str) else {
+            let row = interface.get("module").and_then(serde_json::Value::as_str)
+                .zip(interface.get("iface_hash").and_then(serde_json::Value::as_str));
+            let Some((module, expected_hash)) = row else {
+                if packed.is_some() {
+                    return Err(Error::plain("invalid interface row in package execution metadata"));
+                }
                 continue;
             };
-            let Some(expected_hash) = interface
-                .get("iface_hash")
-                .and_then(serde_json::Value::as_str)
-            else {
-                continue;
+            let (runtime_abi, actual_hash) = if let Some(packed) = packed.as_mut() {
+                packed.remove(module).ok_or_else(|| Error::plain(format!(
+                    "{}: no interface for object module {module}", pack_path.display())))?
+            } else {
+                let Some(path) = build.as_ref().map(|build| build.join(format!("{module}.cinchif"))) else {
+                    continue;
+                };
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let iface = crate::interface::Iface::from_json(&text)
+                    .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+                (iface.runtime_abi, iface.iface_hash())
             };
-            let Some(path) = build
-                .as_ref()
-                .map(|build| build.join(format!("{module}.cinchif")))
-            else {
-                continue;
-            };
-            let Ok(text) = std::fs::read_to_string(&path) else {
-                continue;
-            };
-            let iface = crate::interface::Iface::from_json(&text)
-                .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-            if iface.runtime_abi != expected_runtime_abi {
+            if runtime_abi != expected_runtime_abi {
                 return Err(Error::plain(format!(
                     "{}: package interface runtime ABI {} does not match this compiler's {expected_runtime_abi}",
                     path.display(),
-                    iface.runtime_abi
+                    runtime_abi
                 )));
             }
-            if iface.iface_hash() != expected_hash {
+            if actual_hash != expected_hash {
                 return Err(Error::plain(format!(
                     "{}: interface hash does not match the package execution interface",
                     path.display()
                 )));
             }
         }
+        if packed.is_some_and(|interface_set| !interface_set.is_empty()) {
+            return Err(Error::plain(format!("{}: object does not declare every packed interface", pack_path.display())));
+        }
+    } else if packed.is_some() {
+        return Err(Error::plain("package execution metadata is missing interfaces"));
     }
     let modules = abi
         .get("modules")
