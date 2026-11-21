@@ -4,8 +4,7 @@ module Bootstrap.TotalSemantics where
   import Bootstrap.Total
   import Bootstrap.Proof
   import Data.Json
-  import Data.Nat (nat-from-int, nat-to-int)
-  import Algebra.Semigroup
+  import Data.Nat (nat-from-int)
 
   export total-numeric-operation, total-numeric-comparison, total-boolean-negation
   export total-numeric-reading, total-bytes-reading, total-boolean-reading, arithmetic-constant
@@ -16,97 +15,126 @@ module Bootstrap.TotalSemantics where
   field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
   text :: Json -> String
   text doc = case doc of JStr value -> value; other -> ""
-  local :: Nat -> Json
-  local index = JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int index)) JObjEnd)
-  formals :: List String -> Nat -> List Json
-  formals sorts next = case sorts of Nil -> Nil; Cons sort rest -> Cons (local next) (formals rest (next + 1))
-  at :: Nat -> List Json -> Option Json
-  at index values = case values of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
-  values :: Json -> Option (List Json)
-  values rows = case rows of JArr first rest -> (case values rest of Some more -> Some (Cons first more); None -> None); JArrEnd -> Some Nil; other -> None
-  primitive :: String -> Json -> Json
-  primitive operation arguments = JObj "node" (JStr "primitive") (JObj "operation" (JStr operation) (JObj "arguments" arguments JObjEnd))
-  expand-arguments :: TotalGraph -> List Json -> Json -> Nat -> (Option Json, Nat)
-  expand-arguments graph scope arguments fuel = case arguments of
-    JArrEnd -> (Some JArrEnd, fuel)
-    JArr first rest -> (case expand graph scope first fuel of
-      (Some value, left) -> (case expand-arguments graph scope rest left of (Some more, remaining) -> (Some (JArr value more), remaining); other -> other)
+  -- Expansion has no calls or lets. Keep its small set of node shapes
+  -- typed so symbolic readers do not construct and scan field objects.
+  data ExpandedTerm where
+    ExpandedLocal :: Nat -> ExpandedTerm
+    ExpandedNumber :: String -> String -> ExpandedTerm
+    ExpandedBool :: Bool -> ExpandedTerm
+    ExpandedUnary :: String -> ExpandedTerm -> ExpandedTerm
+    ExpandedBinary :: String -> ExpandedTerm -> ExpandedTerm -> ExpandedTerm
+    ExpandedIf :: ExpandedTerm -> ExpandedTerm -> ExpandedTerm -> ExpandedTerm
+
+  data ExpansionScope where
+    ExpansionScope :: Nat -> List ExpandedTerm -> ExpansionScope
+  empty-expansion-scope :: ExpansionScope
+  empty-expansion-scope = ExpansionScope 0 Nil
+  bind-expansion :: ExpansionScope -> ExpandedTerm -> ExpansionScope
+  bind-expansion scope value = case scope of ExpansionScope count values -> ExpansionScope (count + 1) (Cons value values)
+  formals :: List String -> ExpansionScope -> ExpansionScope
+  formals sorts scope = case (sorts, scope) of
+    (Nil, other) -> scope
+    (Cons first rest, ExpansionScope count values) -> formals rest (bind-expansion scope (ExpandedLocal count))
+  at-from-top :: Nat -> List ExpandedTerm -> Option ExpandedTerm
+  at-from-top index values = case values of
+    Nil -> None
+    Cons value rest -> if index == 0 then Some value else at-from-top (index - 1) rest
+  at :: Nat -> ExpansionScope -> Option ExpandedTerm
+  at index scope = case scope of
+    ExpansionScope count values -> if index + 1 <= count then at-from-top (count - (index + 1)) values else None
+
+  expand-call-arguments :: TotalGraph -> ExpansionScope -> Json -> Nat -> ExpansionScope -> (Option ExpansionScope, Nat)
+  expand-call-arguments graph caller arguments fuel callee = case arguments of
+    JArrEnd -> (Some callee, fuel)
+    JArr first rest -> (case expand graph caller first fuel of
+      (Some value, left) -> expand-call-arguments graph caller rest left (bind-expansion callee value)
+      (None, left) -> (None, left))
+    other -> (None, fuel)
+
+  expand-primitive :: TotalGraph -> ExpansionScope -> String -> Json -> Nat -> (Option ExpandedTerm, Nat)
+  expand-primitive graph scope operation arguments fuel = case arguments of
+    JArr first JArrEnd -> (case expand graph scope first fuel of
+      (Some value, left) -> (Some (ExpandedUnary operation value), left)
+      other -> other)
+    JArr first (JArr second JArrEnd) -> (case expand graph scope first fuel of
+      (Some a, left) -> (case expand graph scope second left of
+        (Some b, remaining) -> (Some (ExpandedBinary operation a b), remaining)
+        other -> other)
       other -> other)
     other -> (None, fuel)
+
   -- Shared fuel bounds expansion through reused callees. Conditionals retain
   -- their checked branches; the arithmetic reader selects only known tests.
   -- Eliminated strict lets already have checked total, pure RHSs.
-  expand :: TotalGraph -> List Json -> Json -> Nat -> (Option Json, Nat)
+  expand :: TotalGraph -> ExpansionScope -> Json -> Nat -> (Option ExpandedTerm, Nat)
   expand graph scope term fuel = if fuel == 0 then (None, 0) else
     let left = fuel - 1 in let node = text (field "node" term) in
     if same node "local" then (case field "slot" term of JNum index -> if index >= 0 then (at (nat-from-int index) scope, left) else (None, left); other -> (None, left))
-    else if same node "number" || same node "bool" then (Some term, left)
-    else if same node "primitive" then (case expand-arguments graph scope (field "arguments" term) left of
-      (Some arguments, remaining) -> (Some (primitive (text (field "operation" term)) arguments), remaining)
-      other -> other)
-    else if same node "call" then (case total-function graph (text (field "target" term)) of
-      Some callee -> (case expand-arguments graph scope (field "arguments" term) left of
-        (Some arguments, remaining) -> (case values arguments of Some inputs -> expand graph inputs (total-body callee) remaining; None -> (None, remaining))
-        other -> other)
+    else if same node "number" then (Some (ExpandedNumber (text (field "sort" term)) (text (field "decimal" term))), left)
+    else if same node "bool" then (case field "value" term of JBool value -> (Some (ExpandedBool value), left); other -> (None, left))
+    else if same node "primitive" then expand-primitive graph scope (text (field "operation" term)) (field "arguments" term) left
+    else if same node "call" then (case total-graph-body graph (text (field "target" term)) of
+      Some callee -> (case expand-call-arguments graph scope (field "arguments" term) left empty-expansion-scope of
+        (Some inputs, remaining) -> expand graph inputs callee remaining
+        (None, remaining) -> (None, remaining))
       None -> (None, left))
     else if same node "if" then (case expand graph scope (field "condition" term) left of
       (Some condition, after-condition) -> (case expand graph scope (field "yes" term) after-condition of
         (Some yes, after-yes) -> (case expand graph scope (field "no" term) after-yes of
-          (Some no, remaining) -> (Some (JObj "node" (JStr "if") (JObj "condition" condition (JObj "yes" yes (JObj "no" no JObjEnd)))), remaining)
+          (Some no, remaining) -> (Some (ExpandedIf condition yes no), remaining)
           other -> other)
         other -> other)
       other -> other)
     else if same node "let" then (case expand graph scope (field "value" term) left of
-      (Some value, remaining) -> expand graph (scope <> [value]) (field "body" term) remaining
+      (Some value, remaining) -> expand graph (bind-expansion scope value) (field "body" term) remaining
       other -> other)
     else (None, left)
-  expanded :: TotalFunction -> Option Json
+  expanded :: TotalFunction -> Option ExpandedTerm
   expanded function = case total-function-graph function of
-    Some graph -> (case expand graph (formals (total-parameters function) 0) (total-body function) 4096 of (result, remaining) -> result)
+    Some graph -> (case expand graph (formals (total-parameters function) empty-expansion-scope) (total-body function) 4096 of (result, remaining) -> result)
     None -> None
-  is-local :: Nat -> Json -> Bool
-  is-local id term = same (text (field "node" term)) "local" && (case field "slot" term of JNum index -> index == nat-to-int id; other -> False)
-  binary-formals :: Json -> Bool
-  binary-formals arguments = case arguments of JArr first (JArr second JArrEnd) -> is-local 0 first && is-local 1 second; other -> False
+  is-local :: Nat -> ExpandedTerm -> Bool
+  is-local id term = case term of ExpandedLocal index -> index == id; other -> False
+  binary-formals :: ExpandedTerm -> ExpandedTerm -> Bool
+  binary-formals first second = is-local 0 first && is-local 1 second
   same-parameters :: String -> TotalFunction -> Bool
   same-parameters sort function = case total-parameters function of [first, second] -> same first sort && same second sort; other -> False
   total-numeric-operation :: TotalFunction -> Option String
   total-numeric-operation function = case expanded function of
-    Some body -> if not (same (text (field "node" body)) "primitive" && binary-formals (field "arguments" body)) then None else
-      let op = text (field "operation" body) in
+    Some (ExpandedBinary op first second) | binary-formals first second ->
       if same-parameters "Nat" function && same (total-result function) "Nat" then
         (if same op "NatAdd" then Some "+" else if same op "NatMul" then Some "*" else None)
       else if same-parameters "Int" function && same (total-result function) "Int" then
         (if same op "IntAdd" then Some "+" else if same op "IntMul" then Some "*" else if same op "IntSub" then Some "-" else None)
       else None
-    None -> None
+    other -> None
   relation :: String -> Option String
   relation op = if same op "I64Eq" then Some "==" else if same op "I64Ne" then Some "/=" else if same op "I64Lt" then Some "<"
     else if same op "I64Le" then Some "<=" else if same op "I64Gt" then Some ">" else if same op "I64Ge" then Some ">=" else None
   zeros :: List Char -> Bool
   zeros chars = case chars of Nil -> True; Cons char rest -> char-code char == 48 && zeros rest
-  i64-zero :: Json -> Bool
-  i64-zero term = same (text (field "node" term)) "number" && same (text (field "sort" term)) "I64" && (case unpack (text (field "decimal" term)) of
-    Nil -> False
-    Cons char rest -> if char-code char == 45 then (case rest of Nil -> False; other -> zeros rest) else zeros (Cons char rest))
-  comparison-inputs :: TotalFunction -> Json -> Bool
-  comparison-inputs function arguments = if same-parameters "I64" function then binary-formals arguments else case arguments of
-    JArr compared (JArr zero JArrEnd) -> same (text (field "node" compared)) "primitive" && i64-zero zero
-      && binary-formals (field "arguments" compared)
-      && ((same-parameters "Nat" function && same (text (field "operation" compared)) "NatCmp")
-       || (same-parameters "Int" function && same (text (field "operation" compared)) "IntCmp"))
+  i64-zero :: ExpandedTerm -> Bool
+  i64-zero term = case term of
+    ExpandedNumber sort decimal -> same sort "I64" && (case unpack decimal of
+      Nil -> False
+      Cons char rest -> if char-code char == 45 then (case rest of Nil -> False; other -> zeros rest) else zeros (Cons char rest))
+    other -> False
+  comparison-inputs :: TotalFunction -> ExpandedTerm -> ExpandedTerm -> Bool
+  comparison-inputs function first second = if same-parameters "I64" function then binary-formals first second else case first of
+    ExpandedBinary op a b -> i64-zero second && binary-formals a b
+      && ((same-parameters "Nat" function && same op "NatCmp")
+       || (same-parameters "Int" function && same op "IntCmp"))
     other -> False
   total-numeric-comparison :: TotalFunction -> Option String
   total-numeric-comparison function = if not (same (total-result function) "Bool") then None else case expanded function of
-    Some body -> if same (text (field "node" body)) "primitive" && comparison-inputs function (field "arguments" body) then relation (text (field "operation" body)) else None
-    None -> None
+    Some (ExpandedBinary op first second) | comparison-inputs function first second -> relation op
+    other -> None
 
   total-boolean-negation :: TotalFunction -> Bool
   total-boolean-negation function = case total-parameters function of
     [input] -> same input "Bool" && same (total-result function) "Bool" && (case expanded function of
-      Some body -> same (text (field "node" body)) "primitive" && same (text (field "operation" body)) "BoolNot"
-        && (case field "arguments" body of JArr argument JArrEnd -> is-local 0 argument; other -> False)
-      None -> False)
+      Some (ExpandedUnary op argument) -> same op "BoolNot" && is-local 0 argument
+      other -> False)
     other -> False
 
   -- This abstract evaluator reads only the already checked closed graph.
@@ -186,30 +214,31 @@ module Bootstrap.TotalSemantics where
     [ReadBool first, ReadBool second] -> if same operation "BoolEq" || same operation "BoolNe" || same operation "BoolAnd" || same operation "BoolOr" then Some (boolean-reading operation first second) else None
     [ReadBool value] -> if same operation "BoolNot" then Some (ReadBool (case value of Some flag -> Some (not flag); None -> None)) else None
     other -> None
-  read-arguments :: List BodyReading -> Json -> Nat -> (Option (List BodyReading), Nat)
-  read-arguments scope arguments fuel = case arguments of
-    JArrEnd -> (Some Nil, fuel)
-    JArr first rest -> (case read-body scope first fuel of
-      (Some value, left) -> (case read-arguments scope rest left of (Some more, remaining) -> (Some (Cons value more), remaining); (None, remaining) -> (None, remaining))
-      (None, remaining) -> (None, remaining))
-    other -> (None, fuel)
-  read-body :: List BodyReading -> Json -> Nat -> (Option BodyReading, Nat)
+  read-body :: List BodyReading -> ExpandedTerm -> Nat -> (Option BodyReading, Nat)
   read-body scope body fuel = if fuel == 0 then (None, 0) else
-    let remaining = fuel - 1 in let node = text (field "node" body) in
-    if same node "local" then (case field "slot" body of JNum slot -> if slot >= 0 then (reading-at (nat-from-int slot) scope, remaining) else (None, remaining); other -> (None, remaining))
-    else if same node "number" then (case total-decimal-value (text (field "decimal" body)) of Some value -> (Some (ReadNumber (text (field "sort" body)) (Some (AInteger value))), remaining); None -> (None, remaining))
-    else if same node "bool" then (case field "value" body of JBool value -> (Some (ReadBool (Some value)), remaining); other -> (None, remaining))
-    else if same node "primitive" then (case read-arguments scope (field "arguments" body) remaining of
-      (Some arguments, left) -> (primitive-reading (text (field "operation" body)) arguments, left)
-      (None, left) -> (None, left))
-    else if same node "if" then (case read-body scope (field "condition" body) remaining of
-      (Some (ReadBool (Some True)), left) -> read-body scope (field "yes" body) left
-      (Some (ReadBool (Some False)), left) -> read-body scope (field "no" body) left
-      (Some (ReadBool None), left) -> (case read-body scope (field "yes" body) left of
-        (Some yes, after-yes) -> (case read-body scope (field "no" body) after-yes of (Some no, after-no) -> (merge-reading yes no, after-no); (None, after-no) -> (None, after-no))
-        (None, after-yes) -> (None, after-yes))
-      (other, left) -> (None, left))
-    else (None, remaining)
+    let remaining = fuel - 1 in case body of
+      ExpandedLocal slot -> (reading-at slot scope, remaining)
+      ExpandedNumber sort decimal -> (case total-decimal-value decimal of
+        Some value -> (Some (ReadNumber sort (Some (AInteger value))), remaining)
+        None -> (None, remaining))
+      ExpandedBool value -> (Some (ReadBool (Some value)), remaining)
+      ExpandedUnary op argument -> (case read-body scope argument remaining of
+        (Some value, left) -> (primitive-reading op [value], left)
+        (None, left) -> (None, left))
+      ExpandedBinary op first second -> (case read-body scope first remaining of
+        (Some a, left) -> (case read-body scope second left of
+          (Some b, fuel-after) -> (primitive-reading op [a, b], fuel-after)
+          (None, fuel-after) -> (None, fuel-after))
+        (None, left) -> (None, left))
+      ExpandedIf condition yes no -> (case read-body scope condition remaining of
+        (Some (ReadBool (Some True)), left) -> read-body scope yes left
+        (Some (ReadBool (Some False)), left) -> read-body scope no left
+        (Some (ReadBool None), left) -> (case read-body scope yes left of
+          (Some first, after-yes) -> (case read-body scope no after-yes of
+            (Some second, after-no) -> (merge-reading first second, after-no)
+            (None, after-no) -> (None, after-no))
+          (None, after-yes) -> (None, after-yes))
+        (other, left) -> (None, left))
   function-reading :: TotalFunction -> Arithmetic -> Option BodyReading
   function-reading function arguments = case (input-readings (total-parameters function) arguments, expanded function) of
     (Some inputs, Some body) -> (case read-body inputs body 4096 of (Some reading, fuel) -> if same (reading-sort reading) (total-result function) then Some reading else None; other -> None)

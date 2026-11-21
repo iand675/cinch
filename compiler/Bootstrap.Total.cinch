@@ -9,7 +9,7 @@ module Bootstrap.Total where
   import Algebra.Semigroup
   import Text.Json (canonical-bytes, json-eq)
 
-  export TotalGraph, TotalFunction, check-total-graph, check-total-function, total-function, total-graph-for-roots
+  export TotalGraph, TotalFunction, check-total-graph, check-total-function, total-function, total-graph-for-roots, total-graph-body
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-graph, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
@@ -199,6 +199,11 @@ module Bootstrap.Total where
 
   total-function :: TotalGraph -> String -> Option TotalFunction
   total-function graph name = case graph of MkTotalGraph doc rows -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-graph-body :: TotalGraph -> String -> Option Json
+  total-graph-body graph name = case graph of
+    MkTotalGraph doc rows -> (case find-row name rows of
+      Some row -> Some (field "body" row)
+      None -> None)
   total-document :: TotalGraph -> Json
   total-document graph = case graph of MkTotalGraph doc rows -> doc
   -- Projections are reconstructed against the checked source constructors.
