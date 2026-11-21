@@ -17617,7 +17617,7 @@ impl Checker {
         module: &str,
         source_hash: &str,
         imports: &[(String, String)],
-        available: &std::collections::BTreeSet<String>,
+        built: &HashMap<String, String>,
     ) -> crate::interface::Iface {
         use crate::interface::*;
         let mut iface = Iface::new(module, source_hash);
@@ -17863,7 +17863,7 @@ impl Checker {
             let contract_name = format!("@instance:{}", i.name);
             let resolved = self.resolved_interface_scheme(&i.module, &contract_name)
                 .filter(|scheme| scheme.nominals.iter().all(|n| n.identity.rsplit_once('.')
-                    .is_some_and(|(owner, _)| owner == module || available.contains(owner))));
+                    .is_some_and(|(owner, _)| owner == module || built.contains_key(owner))));
             let header = resolved.as_ref().and_then(|_| self.interface_source_schemes
                 .get(&(i.module.clone(), contract_name)).and_then(|scheme| scheme.instance_header.clone()));
             let DefinitionInstanceHeader { class, target, context } = header.unwrap_or_else(|| DefinitionInstanceHeader {
@@ -18102,13 +18102,14 @@ fn interface_module_order<'a>(
 ) -> Result<Vec<(&'a ast::Module, Vec<String>)>> {
     let family_names: std::collections::BTreeSet<&str> =
         prelude.iter().map(|m| m.name.text.as_str()).collect();
+    let mut sources_by_name = HashMap::new();
+    for module in modules {
+        sources_by_name.entry(module.name.text.as_str()).or_insert(module);
+    }
     let mut preferred: Vec<&ast::Module> = prelude
         .iter()
         .map(|home| {
-            modules
-                .iter()
-                .find(|m| m.name.text == home.name.text)
-                .unwrap_or(home)
+            sources_by_name.get(home.name.text.as_str()).copied().unwrap_or(home)
         })
         .collect();
     preferred.extend(
@@ -18888,14 +18889,14 @@ fn check_program_multi_full_prepared_impl(
     c.interface_checked_bodies = Some(c.checked_total_bodies());
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
-    let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
+    let mut built: HashMap<String, String> = HashMap::new(); // module -> iface_hash
     let mut emit = |c: &Checker, module: &str, imports: &[String]| -> Result<()> {
         let mut refs: Vec<(String, String)> = Vec::new();
         for i in imports {
             if refs.iter().any(|(m, _)| m == i) {
                 continue;
             }
-            if let Some((_, h)) = built.iter().find(|(m, _)| m == i) {
+            if let Some(h) = built.get(i) {
                 refs.push((i.clone(), h.clone()));
             }
         }
@@ -18903,20 +18904,19 @@ fn check_program_multi_full_prepared_impl(
             .get(module)
             .cloned()
             .unwrap_or_default();
-        let available = built.iter().map(|(name, _)| name.clone()).collect();
-        let mut iface = c.module_iface(module, &source_hash, &refs, &available);
+        let mut iface = c.module_iface(module, &source_hash, &refs, &built);
         // The embedded family can see earlier kernel declarations even
         // without a source import. Their nominal contracts are consumed
         // dependencies too: publish the exact checked-against identities.
         let nominal_dependencies = interface_nominal_dependencies(&iface)?;
         for owner in nominal_dependencies {
             if iface.imports.iter().any(|r| r.module == owner) { continue }
-            let hash = built.iter().find(|(name, _)| name == &owner).map(|(_, hash)| hash.clone())
+            let hash = built.get(&owner).cloned()
                 .ok_or_else(|| Error::plain(format!("{module}: defining nominal interface {owner} must be built before its consumer")))?;
             iface.imports.push(crate::interface::IfaceRef { module: owner, iface_hash: hash });
         }
         let hash = iface.iface_hash();
-        built.push((module.to_string(), hash));
+        built.entry(module.to_string()).or_insert(hash);
         ifaces.push(iface);
         Ok(())
     };
