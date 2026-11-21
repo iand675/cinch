@@ -5,6 +5,7 @@ mod common;
 #[test]
 fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
     let dir = common::project("total_bodies", &[
+        ("Bootstrap.BodyScope.cinch", include_str!("../../compiler/Bootstrap.BodyScope.cinch")),
         ("Bootstrap.Total.cinch", include_str!("../../compiler/Bootstrap.Total.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Total.cinch")),
     ]);
@@ -46,6 +47,22 @@ fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
     let one = |body: &str, parameters: &str, result: &str| format!(r#"{{"version":1,"definitions":[{{"identity":"Main.width","parameters":{parameters},"result":"{result}","body":{body}}}]}}"#);
     run("noncanonical row and document key order",
         &one(r#"{"sort":"Nat","decimal":"9","node":"number"}"#, r#"["Nat"]"#, "Nat"), 0);
+    let deep = |slot: usize| {
+        let mut body = serde_json::json!({"node": "local", "slot": slot + 1});
+        for value in (0..96).rev() {
+            body = serde_json::json!({
+                "node": "let",
+                "value": {"node": "number", "sort": "Nat", "decimal": value.to_string()},
+                "body": body,
+            });
+        }
+        one(&body.to_string(), r#"["Nat"]"#, "Nat")
+    };
+    for slot in [0, 1, 2, 3, 6, 7, 14, 15, 30, 31, 62, 63, 95] {
+        run("deep lexical slot across scope blocks", &deep(slot), 0);
+        assert_eq!(common::read_output(&dir, "bounds.txt"), format!("{slot}:{slot}"));
+    }
+    run("deep lexical slot outside the scope", &deep(96), 4);
     for (name, data) in [
         ("wrong local", one(r#"{"node":"local","slot":1}"#, r#"["Nat"]"#, "Nat")),
         ("wrong result sort", one(r#"{"node":"local","slot":0}"#, r#"["Bool"]"#, "Nat")),

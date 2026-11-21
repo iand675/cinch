@@ -1,6 +1,7 @@
 -- Recognize arithmetic only from the actual checked executable body.
 -- A class name, a slot or a function's spelling supplies no equation.
 module Bootstrap.TotalSemantics where
+  import Bootstrap.BodyScope (BodyScope, empty-body-scope, push-body-slot, body-slot)
   import Bootstrap.Total
   import Bootstrap.Proof
   import Data.Json
@@ -25,33 +26,20 @@ module Bootstrap.TotalSemantics where
     ExpandedBinary :: String -> ExpandedTerm -> ExpandedTerm -> ExpandedTerm
     ExpandedIf :: ExpandedTerm -> ExpandedTerm -> ExpandedTerm -> ExpandedTerm
 
-  data ExpansionScope where
-    ExpansionScope :: Nat -> List ExpandedTerm -> ExpansionScope
-  empty-expansion-scope :: ExpansionScope
-  empty-expansion-scope = ExpansionScope 0 Nil
-  bind-expansion :: ExpansionScope -> ExpandedTerm -> ExpansionScope
-  bind-expansion scope value = case scope of ExpansionScope count values -> ExpansionScope (count + 1) (Cons value values)
-  formals :: List String -> ExpansionScope -> ExpansionScope
-  formals sorts scope = case (sorts, scope) of
-    (Nil, other) -> scope
-    (Cons first rest, ExpansionScope count values) -> formals rest (bind-expansion scope (ExpandedLocal count))
-  at-from-top :: Nat -> List ExpandedTerm -> Option ExpandedTerm
-  at-from-top index values = case values of
-    Nil -> None
-    Cons value rest -> if index == 0 then Some value else at-from-top (index - 1) rest
-  at :: Nat -> ExpansionScope -> Option ExpandedTerm
-  at index scope = case scope of
-    ExpansionScope count values -> if index + 1 <= count then at-from-top (count - (index + 1)) values else None
+  formals :: List String -> Nat -> BodyScope ExpandedTerm -> BodyScope ExpandedTerm
+  formals sorts index scope = case sorts of
+    Nil -> scope
+    Cons first rest -> formals rest (index + 1) (push-body-slot scope (ExpandedLocal index))
 
-  expand-call-arguments :: TotalGraph -> ExpansionScope -> Json -> Nat -> ExpansionScope -> (Option ExpansionScope, Nat)
+  expand-call-arguments :: TotalGraph -> BodyScope ExpandedTerm -> Json -> Nat -> BodyScope ExpandedTerm -> (Option (BodyScope ExpandedTerm), Nat)
   expand-call-arguments graph caller arguments fuel callee = case arguments of
     JArrEnd -> (Some callee, fuel)
     JArr first rest -> (case expand graph caller first fuel of
-      (Some value, left) -> expand-call-arguments graph caller rest left (bind-expansion callee value)
+      (Some value, left) -> expand-call-arguments graph caller rest left (push-body-slot callee value)
       (None, left) -> (None, left))
     other -> (None, fuel)
 
-  expand-primitive :: TotalGraph -> ExpansionScope -> String -> Json -> Nat -> (Option ExpandedTerm, Nat)
+  expand-primitive :: TotalGraph -> BodyScope ExpandedTerm -> String -> Json -> Nat -> (Option ExpandedTerm, Nat)
   expand-primitive graph scope operation arguments fuel = case arguments of
     JArr first JArrEnd -> (case expand graph scope first fuel of
       (Some value, left) -> (Some (ExpandedUnary operation value), left)
@@ -66,15 +54,15 @@ module Bootstrap.TotalSemantics where
   -- Shared fuel bounds expansion through reused callees. Conditionals retain
   -- their checked branches; the arithmetic reader selects only known tests.
   -- Eliminated strict lets already have checked total, pure RHSs.
-  expand :: TotalGraph -> ExpansionScope -> Json -> Nat -> (Option ExpandedTerm, Nat)
+  expand :: TotalGraph -> BodyScope ExpandedTerm -> Json -> Nat -> (Option ExpandedTerm, Nat)
   expand graph scope term fuel = if fuel == 0 then (None, 0) else
     let left = fuel - 1 in let node = text (field "node" term) in
-    if same node "local" then (case field "slot" term of JNum index -> if index >= 0 then (at (nat-from-int index) scope, left) else (None, left); other -> (None, left))
+    if same node "local" then (case field "slot" term of JNum index -> if index >= 0 then (body-slot (nat-from-int index) scope, left) else (None, left); other -> (None, left))
     else if same node "number" then (Some (ExpandedNumber (text (field "sort" term)) (text (field "decimal" term))), left)
     else if same node "bool" then (case field "value" term of JBool value -> (Some (ExpandedBool value), left); other -> (None, left))
     else if same node "primitive" then expand-primitive graph scope (text (field "operation" term)) (field "arguments" term) left
     else if same node "call" then (case total-graph-body graph (text (field "target" term)) of
-      Some callee -> (case expand-call-arguments graph scope (field "arguments" term) left empty-expansion-scope of
+      Some callee -> (case expand-call-arguments graph scope (field "arguments" term) left empty-body-scope of
         (Some inputs, remaining) -> expand graph inputs callee remaining
         (None, remaining) -> (None, remaining))
       None -> (None, left))
@@ -86,12 +74,12 @@ module Bootstrap.TotalSemantics where
         other -> other)
       other -> other)
     else if same node "let" then (case expand graph scope (field "value" term) left of
-      (Some value, remaining) -> expand graph (bind-expansion scope value) (field "body" term) remaining
+      (Some value, remaining) -> expand graph (push-body-slot scope value) (field "body" term) remaining
       other -> other)
     else (None, left)
   expanded :: TotalFunction -> Option ExpandedTerm
   expanded function = case total-function-graph function of
-    Some graph -> (case expand graph (formals (total-parameters function) empty-expansion-scope) (total-body function) 4096 of (result, remaining) -> result)
+    Some graph -> (case expand graph (formals (total-parameters function) 0 empty-body-scope) (total-body function) 4096 of (result, remaining) -> result)
     None -> None
   is-local :: Nat -> ExpandedTerm -> Bool
   is-local id term = case term of ExpandedLocal index -> index == id; other -> False
