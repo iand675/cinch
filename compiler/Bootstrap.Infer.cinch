@@ -24,7 +24,7 @@ module Bootstrap.Infer where
   import Bootstrap.Global
   import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
-  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, interface-set-body, interface-set-has-body, contract-nominals, nominal-owner)
+  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, interface-set-body, interface-set-has-body, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes, json-eq)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -74,7 +74,7 @@ module Bootstrap.Infer where
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
     -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
-    MkTypeContext :: Bool -> List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
+    MkTypeContext :: Bool -> List (String, Kind) -> (List Decl, HashMap String (String, Option TypeExpr)) -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
 
   -- | Remove authority when a source or imported header claims an existing primitive identity.
   revoke-payload :: String -> List PayloadCertificate -> List PayloadCertificate
@@ -120,12 +120,12 @@ module Bootstrap.Infer where
   context-add-kind name kind context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling (Cons (name, kind) kinds) aliases active observers effects source-classes (revoke-payload name payloads)
   -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> aliases
+  context-aliases context = case context of MkTypeContext handling kinds (rows, parsed) active observers effects source-classes payloads -> rows
   -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
   context-add-alias alias context = case context of
-    MkTypeContext handling kinds aliases active observers effects source-classes payloads ->
-      MkTypeContext handling kinds (Cons alias aliases) active observers effects source-classes (declaration-payloads alias payloads)
+    MkTypeContext handling kinds (aliases, parsed) active observers effects source-classes payloads ->
+      MkTypeContext handling kinds (Cons alias aliases, parsed) active observers effects source-classes (declaration-payloads alias payloads)
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
@@ -464,7 +464,7 @@ module Bootstrap.Infer where
     else primitive-type name
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) (Nil, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -1865,11 +1865,11 @@ module Bootstrap.Infer where
   -- | Propagate checked nominal Region positions to a fixed point before any constructor or scheme converts.
   -- Each round can only refine an unannotated phantom parameter once. Imported
   -- kinds remain fixed, and recollection starts from the original contract store.
-  refine-phantom-data-kinds :: HashMap String (List TypeExpr) -> List Decl -> TypeContext -> Store -> Store -> (List Decl, TypeContext, Store)
-  refine-phantom-data-kinds groups declarations kinds seed checked = case phantom-data-declarations kinds groups declarations of
+  refine-phantom-data-kinds :: HashMap String (List TypeExpr) -> List Decl -> TypeContext -> TypeContext -> Store -> Store -> (List Decl, TypeContext, Store)
+  refine-phantom-data-kinds groups declarations base-kinds kinds seed checked = case phantom-data-declarations kinds groups declarations of
     (refined, False) -> (declarations, kinds, checked)
-    (refined, True) -> case collect-kinds refined (imported-carrier-kinds refined primitive-kinds) seed of
-      (next-kinds, next-store) -> refine-phantom-data-kinds groups refined next-kinds seed next-store
+    (refined, True) -> case collect-kinds refined (imported-carrier-kinds refined base-kinds) seed of
+      (next-kinds, next-store) -> refine-phantom-data-kinds groups refined base-kinds next-kinds seed next-store
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
     TApp s (TName h name) (TArg a (TName r region) (TArg b carrier (TArgsEnd end))) ->
@@ -2283,7 +2283,7 @@ module Bootstrap.Infer where
       Some text -> if resolved-entry-valid metadata then
         (case collect-nominal-rows s (resolved-nominals metadata) kinds st of (ks, sk) -> collect-nominal-kinds rest ks sk)
         else collect-nominal-kinds rest kinds (add-error s "invalid resolved nominal contract" st)
-    Cons (DInterface sp name hash metadata) rest -> case collect-nominal-rows sp (usage-json-rows (contract-nominals metadata)) kinds st of
+    Cons (DInterface sp name hash metadata) rest -> case collect-nominal-rows sp (usage-json-rows (contract-usage-nominals metadata)) kinds st of
       (defined, prepared) -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) defined prepared of
         (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
           (closed, done) -> collect-nominal-kinds rest closed done
@@ -2481,14 +2481,40 @@ module Bootstrap.Infer where
     || imported-cell-effect-in-requirements (scheme-requirements scheme)
 
   -- | Retain genuine resolved contracts and refuse new MVar authority from an unresolved display.
+  -- Reading syntax is independent of the source kinds used to elaborate it.
+  -- Verify the exact text for a symbol before reusing its parsed result.
+  read-import-scheme :: String -> Option TypeExpr
+  read-import-scheme text = case parse-scheme "resolved-interface" (string-to-bytes text) of
+    Parsed ty Nil -> Some ty
+    other -> None
+  parsed-import-scheme :: TypeContext -> Json -> String -> Option TypeExpr
+  parsed-import-scheme kinds metadata text = case kinds of
+    MkTypeContext handling rows (aliases, parsed) active observers effects source-classes payloads -> case field "symbol" metadata of
+      JStr name -> (case hash-map-lookup name parsed of
+        Some (prior, syntax) | same prior text -> syntax
+        other -> read-import-scheme text)
+      other -> read-import-scheme text
+  prepare-import-syntax :: List Decl -> HashMap String (String, Option TypeExpr) -> HashMap String (String, Option TypeExpr)
+  prepare-import-syntax declarations parsed = case declarations of
+    Nil -> parsed
+    Cons (DExternal sp name category syntax metadata) rest -> case (field "symbol" metadata, resolved-text metadata) of
+      (JStr symbol, Some text) -> (case hash-map-lookup symbol parsed of
+        Some (prior, result) | same prior text -> prepare-import-syntax rest parsed
+        other -> prepare-import-syntax rest (hash-map-insert symbol (text, read-import-scheme text) parsed))
+      other -> prepare-import-syntax rest parsed
+    Cons other rest -> prepare-import-syntax rest parsed
+  context-with-import-syntax :: HashMap String (String, Option TypeExpr) -> TypeContext -> TypeContext
+  context-with-import-syntax parsed context = case context of
+    MkTypeContext handling kinds (aliases, prior) active observers effects source-classes payloads ->
+      MkTypeContext handling kinds (aliases, parsed) active observers effects source-classes payloads
   imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
   imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
     None -> (case make-scheme True classes kinds Nil fallback st of
       (scheme, checked) -> if imported-cell-effect-in-scheme scheme then
         (mono UError, add-error sp "imported MVar or STM effect needs a checked defining portable scheme" checked)
         else (scheme, checked))
-    Some text -> case parse-scheme "resolved-interface" (string-to-bytes text) of
-      Parsed ty Nil -> case qualify-resolved metadata ty of
+    Some text -> case parsed-import-scheme kinds metadata text of
+      Some ty -> case qualify-resolved metadata ty of
         (qualified, Nil) -> make-scheme False classes kinds Nil qualified st
         other -> (mono UError, add-error sp "invalid resolved imported scheme" st)
       other -> (mono UError, add-error sp "invalid resolved imported scheme syntax" st)
@@ -7313,14 +7339,7 @@ module Bootstrap.Infer where
   usage-json-rows :: List Json -> Json
   usage-json-rows rows = case rows of
     Nil -> JArrEnd
-    Cons first rest -> if has-json-field "usage" first then JArr first (usage-json-rows rest) else usage-json-rows rest
-  -- | Merge duplicate defining proofs only when their decoded fields and parameter roles agree.
-  insert-usage :: UsageShape -> List UsageShape -> Result String (List UsageShape)
-  insert-usage shape rows = case rows of
-    Nil -> Ok [shape]
-    Cons first rest -> if same (usage-name shape) (usage-name first) then
-      (if usage-equal shape first then Ok rows else Err "conflicting checked private-field proofs")
-      else (case insert-usage shape rest of Ok more -> Ok (Cons first more); Err error -> Err error)
+    Cons first rest -> JArr first (usage-json-rows rest)
   -- | Decode a defining row once per elaboration, whatever the number of copies.
   --
   -- An interface repeats a data type's ownership table in every entry whose
@@ -7328,9 +7347,8 @@ module Bootstrap.Infer where
   -- hundreds of times and lexed and parsed its field spellings each time.
   -- The decode is a function of the row and of this elaboration's kinds, so
   -- its outcome is kept under the row's identity and a later copy that is
-  -- structurally the same row takes that outcome, refusal included. Each
-  -- copy still goes through `insert-usage`, which is where two rows for one
-  -- owner are compared, so the shapes and the diagnostics are unchanged.
+  -- structurally the same row takes that outcome, refusal included. The
+  -- shape index still checks that decoded proofs for one owner agree.
   decode-usage-row :: List (String, Kind) -> Json -> HashMap String (List (Json, Result String UsageShape)) -> (Result String UsageShape, HashMap String (List (Json, Result String UsageShape)))
   decode-usage-row kinds row memo =
     let key = (case field "identity" row of JStr identity -> identity; other -> "") in
@@ -7342,32 +7360,38 @@ module Bootstrap.Infer where
   decoded-usage-row row seen = case seen of
     Nil -> None
     Cons (prior, outcome) rest -> if json-eq prior row then Some outcome else decoded-usage-row row rest
+  data UsageRows where
+    UsageRows :: HashMap String (List (Json, Result String UsageShape)) -> HashMap String UsageShape -> List UsageShape -> UsageRows
   -- | Decode optional fields only after the whole supplied interface set has passed ordinary admission.
-  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> HashMap String (List (Json, Result String UsageShape)) -> List UsageShape -> Store -> (HashMap String (List (Json, Result String UsageShape)), List UsageShape, Store)
-  collect-usage-rows sp kinds rows memo shapes st = case rows of
-    Nil -> (memo, shapes, st)
-    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest memo shapes st else
-      (case decode-usage-row kinds first memo of
-        (Err error, known) -> (known, shapes, add-error sp error st)
-        (Ok shape, known) -> (case insert-usage shape shapes of
-          Err error -> (known, shapes, add-error sp error st)
-          Ok more -> collect-usage-rows sp kinds rest known more st))
+  collect-usage-rows :: Span -> List (String, Kind) -> List Json -> UsageRows -> Store -> (UsageRows, Store)
+  collect-usage-rows sp kinds rows usage st = case rows of
+    Nil -> (usage, st)
+    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest usage st else
+      (case usage of
+        UsageRows memo index shapes -> case decode-usage-row kinds first memo of
+          (Err error, known) -> (UsageRows known index shapes, add-error sp error st)
+          (Ok shape, known) ->
+            let name = usage-name shape in
+            case hash-map-lookup name index of
+              Some prior -> if usage-equal shape prior then collect-usage-rows sp kinds rest (UsageRows known index shapes) st
+                else (UsageRows known index shapes, add-error sp "conflicting checked private-field proofs" st)
+              None -> collect-usage-rows sp kinds rest (UsageRows known (hash-map-insert name shape index) (Cons shape shapes)) st)
   -- | Recognize optional proof presence so malformed null rows cannot silently become absence.
   has-json-field :: String -> Json -> Bool
   has-json-field name row = case row of JObj key value rest -> same name key || has-json-field name rest; other -> False
-  -- | Retain header-only and resolved-use proofs independently of public method demand or declaration order.
-  collect-usage :: List Decl -> List (String, Kind) -> List UsageShape -> Store -> (List UsageShape, Store)
-  collect-usage declarations kinds shapes st = case collect-usage-from declarations kinds hash-map-empty shapes st of
-    (memo, more, checked) -> (more, checked)
-  collect-usage-from :: List Decl -> List (String, Kind) -> HashMap String (List (Json, Result String UsageShape)) -> List UsageShape -> Store -> (HashMap String (List (Json, Result String UsageShape)), List UsageShape, Store)
-  collect-usage-from declarations kinds memo shapes st = case declarations of
-    Nil -> (memo, shapes, st)
-    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-nominals metadata) memo shapes st of
-      (known, more, checked) -> collect-usage-from rest kinds known more checked)
+  -- | Retain header-only and resolved-use proofs in the order in which their owners first appear.
+  collect-usage :: List Decl -> List (String, Kind) -> Store -> (List UsageShape, Store)
+  collect-usage declarations kinds st = case collect-usage-from declarations kinds (UsageRows hash-map-empty hash-map-empty Nil) st of
+    (UsageRows memo index shapes, checked) -> (reverse shapes, checked)
+  collect-usage-from :: List Decl -> List (String, Kind) -> UsageRows -> Store -> (UsageRows, Store)
+  collect-usage-from declarations kinds usage st = case declarations of
+    Nil -> (usage, st)
+    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (contract-usage-nominals metadata) usage st of
+      (more, checked) -> collect-usage-from rest kinds more checked)
     Cons (DExternal sp name category syntax metadata) rest ->
       let rows = (if same category "type" && has-json-field "ownership" metadata then [field "ownership" metadata] else Nil) <> json-rows (resolved-nominals metadata) in
-      (case collect-usage-rows sp kinds rows memo shapes st of (known, more, checked) -> collect-usage-from rest kinds known more checked)
-    Cons other rest -> collect-usage-from rest kinds memo shapes st
+      (case collect-usage-rows sp kinds rows usage st of (more, checked) -> collect-usage-from rest kinds more checked)
+    Cons other rest -> collect-usage-from rest kinds usage st
   -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
@@ -8324,13 +8348,21 @@ module Bootstrap.Infer where
       register-source-proofs kinds declarations signatures rest env (add-error sp "invalid proof declaration" st)
     Cons other rest -> register-source-proofs kinds declarations signatures rest env st
 
+  -- The ordinary pass and every total-body retry see the same interface
+  -- headers. Only source declarations and their elaborated kinds differ.
+  data ElaborationImports where
+    ElaborationImports :: Result String InterfaceSet -> List Json -> HashMap String (String, Option TypeExpr) -> ElaborationImports
+
   elaborate-module :: List LoadedInterface -> String -> Module -> Elaboration
   elaborate-module known label m =
-    let interfaces = load-body-interfaces-with-known known (total-interface-inputs (module-decls m)) in
-    elaborate-module-with-source-bodies interfaces True label m
+    let declarations = module-decls m in
+    let interfaces = load-body-interfaces-with-known known (total-interface-inputs declarations) in
+    let imports = ElaborationImports interfaces (class-rows declarations) (prepare-import-syntax declarations hash-map-empty) in
+    elaborate-module-with-source-bodies imports True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
-  elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration
-  elaborate-module-with-source-bodies interfaces enable label m =
+  elaborate-module-with-source-bodies :: ElaborationImports -> Bool -> String -> Module -> Elaboration
+  elaborate-module-with-source-bodies imports enable label m =
+    let (interfaces, rows, parsed) = (case imports of ElaborationImports admitted signatures syntax -> (admitted, signatures, syntax)) in
     let original = module-decls m in
     let has-codata = codata-present original in
     let unmarked = if has-codata then unwrap-corec-declarations original else original in
@@ -8343,10 +8375,10 @@ module Bootstrap.Infer where
     -- (`collect-kinds`), so a data declaration may name one written later;
     -- `register` judges each declaration's strongly connected group
     -- (core specification section 2, mutual inductive groups).
-    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded (imported-carrier-kinds unkinded primitive-kinds) contracts in
+    let base-kinds = context-with-import-syntax parsed primitive-kinds in
+    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded (imported-carrier-kinds unkinded base-kinds) contracts in
     let groups = phantom-signature-groups unkinded hash-map-empty in
-    let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded preliminary-kinds contracts preliminary-store in
-    let rows = class-rows ds in
+    let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded base-kinds preliminary-kinds contracts preliminary-store in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
     let (runtime-kinds, runtime-store) = imported-runtime-class-kinds rows nominal-kinds sk in
@@ -8358,7 +8390,7 @@ module Bootstrap.Infer where
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
     let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
-    let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies interfaces label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
+    let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies imports label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
     let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
@@ -8380,7 +8412,7 @@ module Bootstrap.Infer where
     let (declared-data, declared-store) = case store-errors initialized of Nil -> checked-data classes linked-kinds env ds Nil initialized; other -> (Nil, initialized) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
-    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) Nil sd; other -> (Nil, sd) in
+    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage ds (declared-kind-rows linked-kinds) sd; other -> (Nil, sd) in
     let (datas, layout-store) = case store-errors usage-store of Nil -> check-unpacked-records ds (check-layouts ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
     let sampler = LawSampling (MkLawEnvironment instances (env-body-context env) core) (law-layouts datas) in
     let (source-laws, source-sampled) = case store-errors layout-store of
@@ -9146,13 +9178,13 @@ module Bootstrap.Infer where
   -- selection is a function of the name's own closure and never of the
   -- module: an attempt cannot see, and so cannot re-pay for, a declaration
   -- another name already resolved.
-  source-total-preliminary :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> Elaboration
-  source-total-preliminary interfaces label m indexed-decls names = let declarations = module-decls m in
+  source-total-preliminary :: ElaborationImports -> String -> Module -> SourceTotalDecls -> List String -> Elaboration
+  source-total-preliminary imports label m indexed-decls names = let declarations = module-decls m in
     let refs = source-total-selected-references names declarations in
     let (datas, data-refs) = source-total-data-closure indexed-decls (source-total-data-roots names declarations) Nil in
     let aliases = source-total-alias-closure indexed-decls (refs <> data-refs) Nil in
-    -- Source selection keeps the same complete DInterface set.
-    elaborate-module-with-source-bodies interfaces False (label <> " total bodies")
+    -- Source selection keeps all DInterface and DExternal declarations in order.
+    elaborate-module-with-source-bodies imports False (label <> " total bodies")
       (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
   -- The elaboration's own lists, whatever its diagnostics say.
   --
@@ -9205,12 +9237,12 @@ module Bootstrap.Infer where
   -- function of the module's size. The attempt keeps its result only when it
   -- reports no error, which is the rule this pass has always applied to a
   -- re-elaboration.
-  source-total-retry :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> List String -> List (String, Option BodyBinding)
-  source-total-retry interfaces label m indexed-decls all names = case names of
+  source-total-retry :: ElaborationImports -> String -> Module -> SourceTotalDecls -> List String -> List String -> List (String, Option BodyBinding)
+  source-total-retry imports label m indexed-decls all names = case names of
     Nil -> Nil
-    Cons name rest -> let more = source-total-retry interfaces label m indexed-decls all rest in
+    Cons name rest -> let more = source-total-retry imports label m indexed-decls all rest in
       let needed = source-total-closure all (module-decls m) [name] Nil in
-      let attempt = source-total-preliminary interfaces label m indexed-decls needed in
+      let attempt = source-total-preliminary imports label m indexed-decls needed in
       Cons (name, source-total-retry-body name attempt) more
   source-total-retry-body :: String -> Elaboration -> Option BodyBinding
   source-total-retry-body name attempt = case elaboration-errors attempt of
@@ -9236,26 +9268,26 @@ module Bootstrap.Infer where
   -- The module elaboration's bodies in name order, with a name's own
   -- elaboration standing in only for the names the module elaboration did
   -- not produce.
-  source-total-resolved :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> List (String, Option BodyBinding) -> List BodyBinding
-  source-total-resolved interfaces label m indexed-decls all entries =
-    source-total-emit entries (source-total-retry interfaces label m indexed-decls all (source-total-missing entries))
+  source-total-resolved :: ElaborationImports -> String -> Module -> SourceTotalDecls -> List String -> List (String, Option BodyBinding) -> List BodyBinding
+  source-total-resolved imports label m indexed-decls all entries =
+    source-total-emit entries (source-total-retry imports label m indexed-decls all (source-total-missing entries))
   -- A module elaboration that reports no error needs no retry at all: every
   -- name it resolved is emitted and every name it did not is dropped, which
   -- is what this pass has always done with a clean elaboration. The retry
   -- exists only for the errored case, where the elaboration stopped early
   -- and left names unresolved that a narrower elaboration can still settle,
   -- so the table that decides who is unresolved is built on that path alone.
-  source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
-  source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
+  source-total-bodies :: ElaborationImports -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
+  source-total-bodies imports label m classes kinds = let declarations = module-decls m in
     let indexed-decls = source-total-decls declarations hash-map-empty hash-map-empty in
     let names = source-total-names classes kinds indexed-decls (projection-candidates declarations hash-map-empty) declarations in
     case names of
       Nil -> Nil
-      other -> let preliminary = source-total-preliminary interfaces label m indexed-decls names in
+      other -> let preliminary = source-total-preliminary imports label m indexed-decls names in
         (case elaboration-errors preliminary of
           Nil -> source-total-from-checked names (source-total-surface preliminary)
           other -> let entries = source-total-entries names (source-total-surface preliminary) in
-            source-total-resolved interfaces label m indexed-decls names entries)
+            source-total-resolved imports label m indexed-decls names entries)
   add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)

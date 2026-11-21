@@ -37,7 +37,7 @@ module Bootstrap.Load where
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known
   export check-interface-set, interface-set-members
-  export contract-nominals
+  export contract-nominals, contract-usage-nominals
   export interface-set-body, interface-set-has-body
 
   data ImportedValue where
@@ -1196,42 +1196,62 @@ module Bootstrap.Load where
 
   json-rows :: Json -> List Json
   json-rows rows = case rows of JArr row rest -> Cons row (json-rows rest); other -> Nil
-  exported-nominals :: Json -> List Json
-  exported-nominals rows = case rows of
-    JArr row rest -> json-rows (resolved-nominals row) <> exported-nominals rest
-    other -> Nil
-  constructor-nominals :: Json -> List Json
-  constructor-nominals rows = case rows of
-    JArr row rest -> exported-nominals (field "ctors" row) <> constructor-nominals rest
-    other -> Nil
-  method-nominals :: Json -> List Json
-  method-nominals rows = case rows of
-    JArr row rest -> exported-nominals (field "methods" row) <> method-nominals rest
-    other -> Nil
-  conditional-method-nominals :: Json -> List Json
-  conditional-method-nominals rows = case rows of
-    JArr row rest -> let checked = field "checked" row in
-      json-rows (resolved-nominals (field "head" checked)) <> json-rows (resolved-nominals (field "implementation" checked)) <> conditional-method-nominals rest
-    other -> Nil
-  conditional-instance-nominals :: Json -> List Json
-  conditional-instance-nominals rows = case rows of
-    JArr row rest -> conditional-method-nominals (field "method_contracts" row) <> conditional-instance-nominals rest
-    other -> Nil
+  keep-nominal :: Bool -> Json -> List Json -> List Json
+  keep-nominal usage row tail = if not usage || has-field "usage" row then Cons row tail else tail
+  append-nominals :: Bool -> Json -> List Json -> List Json
+  append-nominals usage rows tail = case rows of
+    JArr row rest -> keep-nominal usage row (append-nominals usage rest tail)
+    other -> tail
+  exported-nominals :: Bool -> Json -> List Json -> List Json
+  exported-nominals usage rows tail = case rows of
+    JArr row rest -> append-nominals usage (resolved-nominals row) (exported-nominals usage rest tail)
+    other -> tail
+  constructor-nominals :: Bool -> Json -> List Json -> List Json
+  constructor-nominals usage rows tail = case rows of
+    JArr row rest -> exported-nominals usage (field "ctors" row) (constructor-nominals usage rest tail)
+    other -> tail
+  method-nominals :: Bool -> Json -> List Json -> List Json
+  method-nominals usage rows tail = case rows of
+    JArr row rest -> exported-nominals usage (field "methods" row) (method-nominals usage rest tail)
+    other -> tail
+  conditional-method-nominals :: Bool -> Json -> List Json -> List Json
+  conditional-method-nominals usage rows tail = case rows of
+    JArr row rest ->
+      let checked = field "checked" row in
+      let more = conditional-method-nominals usage rest tail in
+      append-nominals usage (resolved-nominals (field "head" checked))
+        (append-nominals usage (resolved-nominals (field "implementation" checked)) more)
+    other -> tail
+  conditional-instance-nominals :: Bool -> Json -> List Json -> List Json
+  conditional-instance-nominals usage rows tail = case rows of
+    JArr row rest -> conditional-method-nominals usage (field "method_contracts" row) (conditional-instance-nominals usage rest tail)
+    other -> tail
   interface-nominals :: LoadedInterface -> List Json
   interface-nominals i = contract-nominals (loaded-contract i)
   -- | Project only recognized contract positions, excluding arbitrary body, layout and diagnostic JSON.
   contract-nominals :: Json -> List Json
-  contract-nominals document = let exports = field "exports" document in
-    exported-nominals (field "values" exports) <> constructor-nominals (field "types" exports)
-      <> ownership-nominals (field "types" exports)
-      <> method-nominals (field "signatures" exports)
-      <> exported-nominals (field "instances" exports) <> conditional-instance-nominals (field "instances" exports)
+  contract-nominals document = contract-nominal-rows False document
+  -- | An explicit null usage field must still undergo ordinary usage checking.
+  contract-usage-nominals :: Json -> List Json
+  contract-usage-nominals document = contract-nominal-rows True document
+  contract-nominal-rows :: Bool -> Json -> List Json
+  contract-nominal-rows usage document =
+    let exports = field "exports" document in
+    let types = field "types" exports in
+    let instances = field "instances" exports in
+    let conditional = conditional-instance-nominals usage instances Nil in
+    let ordinary = exported-nominals usage instances conditional in
+    let methods = method-nominals usage (field "signatures" exports) ordinary in
+    let owners = ownership-nominals usage types methods in
+    let constructors = constructor-nominals usage types owners in
+    exported-nominals usage (field "values" exports) constructors
 
   -- | Include header-only ownership proofs in the same closed defining-contract comparison as all value uses.
-  ownership-nominals :: Json -> List Json
-  ownership-nominals rows = case rows of
-    JArr row rest -> (if has-field "ownership" row then [field "ownership" row] else Nil) <> ownership-nominals rest
-    other -> Nil
+  ownership-nominals :: Bool -> Json -> List Json -> List Json
+  ownership-nominals usage rows tail = case rows of
+    JArr row rest -> let more = ownership-nominals usage rest tail in
+      if has-field "ownership" row then keep-nominal usage (field "ownership" row) more else more
+    other -> tail
   data ModuleClosure where
     ModuleClosure :: Nat -> HashMap String () -> List String -> ModuleClosure
 
