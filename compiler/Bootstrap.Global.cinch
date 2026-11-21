@@ -16,6 +16,7 @@ module Bootstrap.Global where
 
   export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, GlobalIntrinsicViews, global-name, global-scheme, global-schemes
   export globals-body-context, globals-bodies, globals-guarded-bodies, GlobalGuardedBody
+  export GlobalDeclarations, empty-global-declarations, insert-global-declaration, ordered-global-declarations
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
   export close-globals-with-definitions, close-globals-with-source-data
   export globals-refusal
@@ -54,10 +55,10 @@ module Bootstrap.Global where
     Cons prior rest -> if scheme-equivalent sc prior then views else Cons prior (append-view sc rest)
   merge-views :: List Scheme -> List Scheme -> List Scheme
   merge-views incoming views = case incoming of Nil -> views; Cons sc rest -> merge-views rest (append-view sc views)
-  replace-intrinsic :: String -> List Scheme -> List CoreGlobal -> List CoreGlobal
-  replace-intrinsic name views declarations = case declarations of
-    Nil -> [GlobalIntrinsicViews name views]
-    Cons prior rest -> if same name (global-name prior) then Cons (GlobalIntrinsicViews name views) rest else Cons prior (replace-intrinsic name views rest)
+  replace-intrinsic :: String -> CoreGlobal -> List CoreGlobal -> List CoreGlobal
+  replace-intrinsic name declaration declarations = case declarations of
+    Nil -> [declaration]
+    Cons prior rest -> if same name (global-name prior) then Cons declaration rest else Cons prior (replace-intrinsic name declaration rest)
   intrinsic-carrier :: UType -> UType
   intrinsic-carrier ty = case refinement-view ty of
     URefine id name carrier predicate -> intrinsic-carrier carrier
@@ -116,15 +117,41 @@ module Bootstrap.Global where
     (GlobalValue a role sc, GlobalValue b other ty) -> same role other
     (GlobalMethod a owner slot sc, GlobalMethod b other number ty) -> same owner other && slot == number
     other -> False)
-  -- Several checked source aliases can name one runtime intrinsic. Keep a
-  -- conflicting duplicate so that context validation refuses it.
-  add-global :: CoreGlobal -> List CoreGlobal -> List CoreGlobal
-  add-global declaration declarations = case lookup-global (global-name declaration) declarations of
-    Some prior -> if same-global declaration prior then declarations else
+  data GlobalInsertion where
+    KeepGlobals :: GlobalInsertion
+    PrependGlobal :: GlobalInsertion
+    MergeIntrinsic :: CoreGlobal -> GlobalInsertion
+  -- Keep conflicting declarations in their original order so closure
+  -- validation can report which declaration failed first.
+  global-insertion :: CoreGlobal -> Option CoreGlobal -> GlobalInsertion
+  global-insertion declaration previous = case previous of
+    Some prior -> if same-global declaration prior then KeepGlobals else
       case (intrinsic-views declaration, intrinsic-views prior) of
-        (Some incoming, Some views) -> replace-intrinsic (global-name declaration) (merge-views incoming views) declarations
-        other -> Cons declaration declarations
-    None -> Cons declaration declarations
+        (Some incoming, Some views) -> MergeIntrinsic (GlobalIntrinsicViews (global-name declaration) (merge-views incoming views))
+        other -> PrependGlobal
+    None -> PrependGlobal
+  add-global :: CoreGlobal -> List CoreGlobal -> List CoreGlobal
+  add-global declaration declarations = let name = global-name declaration in
+    case global-insertion declaration (lookup-global name declarations) of
+      KeepGlobals -> declarations
+      PrependGlobal -> Cons declaration declarations
+      MergeIntrinsic merged -> replace-intrinsic name merged declarations
+
+  data GlobalDeclarations where
+    MkGlobalDeclarations :: List CoreGlobal -> HashMap String CoreGlobal -> GlobalDeclarations
+  empty-global-declarations :: GlobalDeclarations
+  empty-global-declarations = MkGlobalDeclarations Nil hash-map-empty
+  ordered-global-declarations :: GlobalDeclarations -> List CoreGlobal
+  ordered-global-declarations globals = case globals of MkGlobalDeclarations declarations index -> declarations
+  -- Index the first declaration with each name. The ordered list is still
+  -- needed for deterministic validation, including rejected duplicates.
+  insert-global-declaration :: CoreGlobal -> GlobalDeclarations -> GlobalDeclarations
+  insert-global-declaration declaration globals = case globals of
+    MkGlobalDeclarations declarations index -> let name = global-name declaration in
+      (case global-insertion declaration (hash-map-lookup name index) of
+        KeepGlobals -> globals
+        PrependGlobal -> MkGlobalDeclarations (Cons declaration declarations) (hash-map-insert name declaration index)
+        MergeIntrinsic merged -> MkGlobalDeclarations (replace-intrinsic name merged declarations) (hash-map-insert name merged index))
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
   role-valid :: String -> Bool
@@ -162,23 +189,23 @@ module Bootstrap.Global where
   -- proposition-valued scheme and an impure constructor are the same `False`
   -- and need different fixes.
   globals-refusal :: List CoreGlobal -> Option String
-  globals-refusal declarations = case first-unclosed-global declarations Nil of
+  globals-refusal declarations = case first-unclosed-global declarations hash-map-empty of
     Some reason -> Some reason
     None -> if not (guarded-bindings-closed (declaration-guarded-bodies declarations)) then Some "a guarded body is not closed"
       else if not (body-bindings-closed (declaration-bodies declarations)) then Some "a body binding is not closed"
       else if not (declarations-body-authorized (declaration-bodies declarations) declarations) then Some "a scheme names a body it is not authorized to"
       else None
-  first-unclosed-global :: List CoreGlobal -> List String -> Option String
+  first-unclosed-global :: List CoreGlobal -> HashMap String () -> Option String
   first-unclosed-global declarations names = case declarations of
     Nil -> None
     Cons declaration rest -> let name = global-name declaration in
       if string-length name == 0 then Some "a declaration has an empty name"
-      else if has-name name names then Some (string-concat name " is declared twice")
+      else if (case hash-map-lookup name names of Some present -> True; None -> False) then Some (string-concat name " is declared twice")
       else if not (schemes-closed (global-schemes declaration)) then Some (string-concat name (string-concat " (scheme is not a closed contract: " (string-concat (scheme-refusal-of (global-schemes declaration)) ")")))
       else if not (decision-global declaration) then Some (string-concat name " (decision constructor disagrees with its scheme)")
       else if not (body-declaration-valid declaration) then Some (string-concat name " (body declaration is invalid)")
       else if not (global-role-valid declaration) then Some (string-concat name " (role or method owner is invalid)")
-      else first-unclosed-global rest (Cons name names)
+      else first-unclosed-global rest (hash-map-insert name () names)
   -- The first scheme of a declaration that is not a closed contract, with the
   -- clause that refused it.
   scheme-refusal-of :: List Scheme -> String
@@ -211,7 +238,7 @@ module Bootstrap.Global where
       None -> None
       Some index -> if guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
         (case check-body-bindings bindings of
-          Some bodies -> if bodies-match bindings bindings definitions datas then
+          Some bodies -> if bodies-match bindings bindings definitions datas None then
             Some (ClosedGlobals declarations index definitions datas bodies guarded (body-dependents bindings hash-map-empty))
             else None
           None -> None)
@@ -228,18 +255,23 @@ module Bootstrap.Global where
     Nil -> table
     Cons name rest -> let prior = case hash-map-lookup name table of Some members -> members; None -> Nil in
       add-body-dependencies binding rest (hash-map-insert name (Cons binding prior) table)
-  bodies-match :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Bool
-  bodies-match all bindings definitions datas = case bindings of
+  bodies-match :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Option TotalCoreSources -> Bool
+  bodies-match all bindings definitions datas index = case bindings of
     Nil -> True
-    Cons binding rest -> (if not (same (binding-role binding) "value") then True else
-      case source-definition (binding-name binding) definitions of
+    Cons binding rest -> if not (same (binding-role binding) "value") then
+      bodies-match all rest definitions datas index
+      else case source-definition (binding-name binding) definitions of
         Some definition -> scheme-equivalent (binding-scheme binding) (core-scheme definition)
-          && (case core-source-function all definitions datas (binding-native binding) of Some actual -> total-function-equal actual (binding-function binding); None -> False)
-        None -> False) && bodies-match all rest definitions datas
+          && (let table = (case index of Some table -> table; None -> total-core-sources definitions) in
+              (case indexed-source-function all table datas (binding-native binding) of
+                Some actual -> total-function-equal actual (binding-function binding) && bodies-match all rest definitions datas (Some table)
+                None -> False))
+        None -> False
   changed-bodies-match :: HashMap String (List BodyBinding) -> List BodyBinding -> CoreDefinition -> List CoreDefinition -> List CoreData -> Bool
   changed-bodies-match dependents bindings definition definitions datas = case export-global (core-name definition) of
     Ok native -> (case hash-map-lookup native dependents of
-      Some uses -> bodies-match bindings uses (source-definition-replace definition definitions) datas
+      Some uses -> let replaced = source-definition-replace definition definitions in
+        bodies-match bindings uses replaced datas None
       None -> True)
     Err error -> True
   source-definition :: String -> List CoreDefinition -> Option CoreDefinition

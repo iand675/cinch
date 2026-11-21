@@ -59,6 +59,7 @@ module Bootstrap.Core where
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
+  export TotalCoreSources, total-core-sources, indexed-source-function
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEInstance
@@ -4057,9 +4058,24 @@ module Bootstrap.Core where
           (case projection-expression result datas [(id, input, Nil)] body of Some steps -> source-field-projection native domain result steps; None -> None)
       other -> None
   core-source-function :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option TotalFunction
-  core-source-function bindings definitions datas native = case core-total-function bindings definitions native of
+  core-source-function bindings definitions datas native = case total-core-native-definition native definitions of
+    Some definition -> source-function-for-definition bindings (total-core-index definitions) datas definition native
+    None -> None
+  -- Keep the ordered definitions and lookup index tied to the same source
+  -- snapshot. Native-name lookup still chooses the first matching definition.
+  data TotalCoreSources where
+    MkTotalCoreSources :: List CoreDefinition -> TotalCoreIndex -> TotalCoreSources
+  total-core-sources :: List CoreDefinition -> TotalCoreSources
+  total-core-sources definitions = MkTotalCoreSources definitions (total-core-index definitions)
+  indexed-source-function :: List BodyBinding -> TotalCoreSources -> List CoreData -> String -> Option TotalFunction
+  indexed-source-function bindings source datas native = case source of
+    MkTotalCoreSources definitions index -> (case total-core-native-definition native definitions of
+      Some definition -> source-function-for-definition bindings index datas definition native
+      None -> None)
+  source-function-for-definition :: List BodyBinding -> TotalCoreIndex -> List CoreData -> CoreDefinition -> String -> Option TotalFunction
+  source-function-for-definition bindings index datas definition native = case indexed-total-function bindings index definition native of
     Some function -> Some function
-    None -> (case total-core-native-definition native definitions of Some definition -> core-field-projection datas definition native; None -> None)
+    None -> core-field-projection datas definition native
   core-source-body :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option BodyBinding
   core-source-body bindings definitions datas native = case total-core-native-definition native definitions of
     Some definition -> (case core-source-function bindings definitions datas native of
@@ -4071,9 +4087,7 @@ module Bootstrap.Core where
   indexed-source-body :: List BodyBinding -> TotalCoreIndex -> List CoreData -> String -> Option BodyBinding
   indexed-source-body bindings index datas name = case total-core-indexed-definition name index of
     Some definition -> (case export-global name of
-      Ok native -> (case (case indexed-total-function bindings index definition native of
-        Some function -> Some function
-        None -> core-field-projection datas definition native) of
+      Ok native -> (case source-function-for-definition bindings index datas definition native of
           Some function -> check-source-body-binding name native (core-scheme definition) function
           None -> None)
       Err problem -> None)

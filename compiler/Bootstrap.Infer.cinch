@@ -7344,23 +7344,23 @@ module Bootstrap.Infer where
     MkForeignExport name plan -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context names index cache) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
-  global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
+  global-bindings :: List CheckedBinding -> GlobalDeclarations -> GlobalDeclarations
   global-bindings bindings globals = case bindings of
     Nil -> globals
     Cons binding rest -> global-bindings rest (case binding of
-      MkBodyBinding binding -> add-global (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
-      MkCheckedBinding name sc role -> if same role "closed-proof" then globals else add-global (GlobalValue name role sc) globals
-      MkForeignBinding name sc plan -> add-global (GlobalValue name "foreign" sc) globals
-      MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
-      MkConditionalBinding origin name owner slot dictionary head sc guarded -> add-global (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name (conditional-role origin) sc) globals
-      MkIntrinsicBinding name sc symbol -> add-global (GlobalValue symbol "intrinsic" sc) globals
+      MkBodyBinding binding -> insert-global-declaration (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
+      MkCheckedBinding name sc role -> if same role "closed-proof" then globals else insert-global-declaration (GlobalValue name role sc) globals
+      MkForeignBinding name sc plan -> insert-global-declaration (GlobalValue name "foreign" sc) globals
+      MkMethodBinding name sc owner slot -> insert-global-declaration (GlobalMethod name owner slot sc) globals
+      MkConditionalBinding origin name owner slot dictionary head sc guarded -> insert-global-declaration (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name (conditional-role origin) sc) globals
+      MkIntrinsicBinding name sc symbol -> insert-global-declaration (GlobalValue symbol "intrinsic" sc) globals
       other -> globals)
-  field-globals :: List CoreDictionaryField -> List CoreGlobal -> List CoreGlobal
+  field-globals :: List CoreDictionaryField -> GlobalDeclarations -> GlobalDeclarations
   field-globals fields globals = case fields of
     Nil -> globals
     Cons field rest -> let definition = dictionary-field-definition field in
-      field-globals rest (add-global (GlobalValue (core-name definition) "instance-method" (core-scheme definition)) globals)
-  instance-globals :: List CoreInstance -> List CoreGlobal -> List CoreGlobal
+      field-globals rest (insert-global-declaration (GlobalValue (core-name definition) "instance-method" (core-scheme definition)) globals)
+  instance-globals :: List CoreInstance -> GlobalDeclarations -> GlobalDeclarations
   instance-globals instances globals = case instances of Nil -> globals; Cons dictionary rest -> instance-globals rest (field-globals (instance-fields dictionary) globals)
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
@@ -7436,7 +7436,7 @@ module Bootstrap.Infer where
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
     let rows = declared-kind-rows kinds in
-    let globals = instance-globals instances (global-bindings (finish-bindings st bindings) Nil) in
+    let globals = ordered-global-declarations (instance-globals instances (global-bindings (finish-bindings st bindings) empty-global-declarations)) in
     case close-typing-context-with-usage rows globals (context-effects kinds) datas definitions usage of
       Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
       None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows globals (context-effects kinds) datas definitions)) st

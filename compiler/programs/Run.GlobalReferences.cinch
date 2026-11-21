@@ -3,6 +3,7 @@ module Main where
   import Bootstrap.Index
   import Bootstrap.Core
   import Bootstrap.Global
+  import Algebra.Semigroup
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -21,6 +22,23 @@ module Main where
   result body = definition "answer" (mono int) Nil Nil body
   accepted :: CoreGlobals -> CoreDefinition -> Bool
   accepted globals body = core-definition-closed body && global-definition-closed globals body
+  indexed-global-checks :: List Bool
+  indexed-global-checks =
+    let sc = mono (UFun int int) in
+    let intrinsic = GlobalValue "runtime.identity" "intrinsic" sc in
+    let initial = insert-global-declaration intrinsic empty-global-declarations in
+    let with-value = insert-global-declaration (GlobalValue "answer" "value" (mono int)) initial in
+    let merged = insert-global-declaration (GlobalIntrinsicViews "runtime.identity" [sc]) with-value in
+    let ordered = ordered-global-declarations merged in
+    let duplicate = insert-global-declaration (GlobalValue "answer" "external" (mono int)) merged in
+    [ (case ordered of
+        [GlobalValue name _ _, GlobalIntrinsicViews symbol [_]] -> string-compare name "answer" == 0 && string-compare symbol "runtime.identity" == 0
+        _ -> False)
+    , globals-closed ordered
+    , (case globals-refusal (ordered-global-declarations duplicate) of
+        Some reason -> string-compare reason "answer is declared twice" == 0
+        None -> False)
+    ]
   checks :: Nat -> List Bool
   checks nonce =
     let a = UBound nonce "a" KType in let q = MkQuant nonce "a" KType False in
@@ -118,4 +136,4 @@ module Main where
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
     Err error -> 90
-    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))
+    Ok input -> verdict 1 (indexed-global-checks <> checks (340282366920938463463374607431768211456 + bytes-len input))
