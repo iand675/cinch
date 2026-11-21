@@ -13,25 +13,23 @@ where the tail-apply path is disabled. The pin is a workaround; the real fix
 belongs in the seed's tailcc codegen.
 
 With the pin, stages 1 to 3 reach a fixed point and the audited 106 target
-Stage 3 grid verifies 104 targets (evidence `build/verify-stage3/run10`).
+Stage 3 grid verifies 105 targets (evidence `build/verify-stage3/run11`).
 The runtime IR target needed a fixture correction: its numeric probes compile
 against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
 class to resolve; the negative case now negates through binary subtraction.
-Remaining: `bootstrap_export_interfaces` and
-`interface_machine_contracts`. For the exporter, the alias spelling was
-attempted through the source signature (`binding-source-type` over the
-declaration reference index, then the interface type rows). That attempt
-missed for a naming reason: the exporter's value `symbol` is public
-(`Use.one`), while resolved declaration names and resolved type head names are
-internal (`m.Use.one`, `m.Dep.Pos`), so the signature index lookup finds
-nothing, and the interface type rows are keyed by public identity
-(`Dep.Pos`). A fix needs the internal-to-public mapping for both the
-signature lookup and the alias identity. An early attempt that emitted the
-internal name made the interface reader refuse with "resolved scheme contains
-an unbound type name: m.A.Positive". `interface_machine_contracts` is an
-index-form mismatch, not a
-missing promise certificate. A diagnostic refusal path through the character
-program prints both types at the refusing dependent application:
+The interface export target is fixed: the pipeline writer now names a
+refinement alias (`Dep.Pos`) for the display scheme, resolving the alias from
+the value's source signature. Resolved declaration names and resolved type
+heads are internal (`m.Use.one`, `m.Dep.Pos`) while exported symbols and
+interface type rows are public (`Use.one`, `Dep.Pos`), so the signature
+lookup accepts the `m.` form and imported aliases match a type row by its
+last name segment. Only the pipeline entries use `export-interfaces-aliased`;
+the exporter program keeps expanding, preserving the suite's expected
+divergence.
+
+Remaining: `interface_machine_contracts`. A diagnostic refusal path through
+the character program prints both types at the refusing dependent
+application:
 
 	- node type: `refine (cinch-result :: U32) with (... && cinch-result == #dependent-argument)`
 	- re-derived: `refine (cinch-result :: U32) with (... && cinch-result == char(955))`
@@ -41,9 +39,13 @@ local through `reify-local-index`, which yields a rigid local index; the
 validator's `scope-index` prefers the let-bound value. Forcing the validator to
 use the rigid index breaks the compiler's own build, because checker facts
 depend on values (`Bootstrap.Parse.cinch` precondition at 811), so the fix
-belongs in the checker: give `reify-local-index` the let value. The checker's
-environment cannot supply it today (`MkLocalBinding` carries no term and
-`MkValueBinding` carries only a type), which is the remaining design work.
+belongs in the checker: give `reify-local-index` the let value. Binding the
+materialized argument as `MkValueBinding` with its reified index does publish
+the value through `proof-values`, but the refusing application's node type
+still carries the rigid local index, so that application is built outside the
+binding's reach, through the nested `#argument-function` path. The remaining
+design work is to make the primary dependent-application path consult the
+materialized value, not to widen the validator.
 
 # Compiler checkpoint — 1 November 2026
 
