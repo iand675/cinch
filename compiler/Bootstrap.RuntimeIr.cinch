@@ -145,8 +145,10 @@ module Bootstrap.RuntimeIr where
 
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
+  -- An even key records the layout descriptor. The following odd key
+  -- records the nullary block with that same description.
   data GlobalOutput where
-    GlobalOutput :: Builder -> HashMap String Nat -> GlobalOutput
+    GlobalOutput :: Builder -> HashMap Nat Nat -> GlobalOutput
   data Writer where
     Writer :: Nat -> GlobalOutput -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
 
@@ -681,17 +683,17 @@ module Bootstrap.RuntimeIr where
   with-descriptor :: Writer -> Nat -> Writer
   with-descriptor w description = if description < 16777216 then w else case w of
     Writer next (GlobalOutput output defined) code errors layouts context ->
-      let name = descriptor-symbol description in
-      (case hash-map-lookup name defined of
+      let key = 2 * description in
+      (case hash-map-lookup key defined of
         Some written -> w
         None ->
           let content = description - 16777216 in
           let rest = content / 16777216 in
           let words = rest % 65536 in
           let mask-count = (words + 63) / 64 in
-          let declaration = cat [name, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
+          let declaration = cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
             nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"] in
-          Writer next (GlobalOutput (builder-add-line declaration output) (hash-map-insert name 1 defined)) code errors layouts context)
+          Writer next (GlobalOutput (builder-add-line declaration output) (hash-map-insert key 1 defined)) code errors layouts context)
   -- A description as one word, for a runtime entry that takes either form
   -- (the columnar zip's pair): field << 1 | 1, or the descriptor's address.
   description-word :: Writer -> Nat -> (Writer, String)
@@ -3753,10 +3755,11 @@ module Bootstrap.RuntimeIr where
   with-nullary-block :: Writer -> String -> Nat -> Writer
   with-nullary-block w storage descriptor = case w of
     Writer next (GlobalOutput output defined) code errors layouts context ->
-      (case hash-map-lookup storage defined of
+      let key = 2 * descriptor + 1 in
+      (case hash-map-lookup key defined of
         Some written -> w
         None ->
-          let claimed = GlobalOutput output (hash-map-insert storage 1 defined) in
+          let claimed = GlobalOutput output (hash-map-insert key 1 defined) in
           static-block (Writer next claimed code errors layouts context) storage descriptor 1 [StaticBits 0])
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
