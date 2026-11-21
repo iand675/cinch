@@ -138,7 +138,7 @@ module Bootstrap.Load where
   load-checked-body-interface-set-from-documents :: List (String, String, Json) -> Result String InterfaceSet
   load-checked-body-interface-set-from-documents inputs = load-body-interfaces-with-known Nil inputs
   load-body-interfaces-with-known :: List LoadedInterface -> List (String, String, Json) -> Result String InterfaceSet
-  load-body-interfaces-with-known known inputs = case read-document-set known inputs Nil of
+  load-body-interfaces-with-known known inputs = case read-interface-inputs (read-known-document (interface-table (reverse known) hash-map-empty)) inputs of
     Err error -> Err error
     Ok members -> check-interface-set (body-closed-interfaces members)
 
@@ -910,25 +910,22 @@ module Bootstrap.Load where
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
       (export-entries private exports) (export-rows exports) private)
 
-  find-interface :: String -> List LoadedInterface -> Option LoadedInterface
-  find-interface name loaded = case loaded of
-    Nil -> None
-    Cons i rest -> if same name (loaded-module i) then Some i else find-interface name rest
-
-  read-set :: List (String, String, Bytes) -> List LoadedInterface -> Result String (List LoadedInterface)
-  read-set inputs loaded = case inputs of
+  read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
+  read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
+  read-interface-rows :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> HashMap String () -> List LoadedInterface -> Result String (List LoadedInterface)
+  read-interface-rows load inputs seen loaded = case inputs of
     Nil -> Ok (reverse loaded)
-    Cons (name, hash, src) rest -> case find-interface name loaded of
+    Cons (name, hash, payload) rest -> case hash-map-lookup name seen of
       Some previous -> Err (string-concat "duplicate interface module: " name)
-      None -> case load-interface name hash src of
+      None -> case load name hash payload of
         Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> read-set rest (Cons i loaded)
+        Ok i -> read-interface-rows load rest (hash-map-insert name () seen) (Cons i loaded)
 
   -- A declared hash from a synthetic contract is insufficient. Only the
   -- byte/document loaders mark a hash verified, and a changed tree is checked
   -- independently before it can contribute any executable body.
-  read-known-document :: List LoadedInterface -> String -> String -> Json -> Result String LoadedInterface
-  read-known-document known name hash doc = case find-interface name known of
+  read-known-document :: HashMap String LoadedInterface -> String -> String -> Json -> Result String LoadedInterface
+  read-known-document known name hash doc = case hash-map-lookup name known of
     Some previous -> (case previous of
       MkLoadedInterface True owner identity original source values fixes refs entries exports methods
         | same hash identity && compare-documents False doc original -> Ok previous
@@ -941,44 +938,19 @@ module Bootstrap.Load where
   -- answer and the copy is not parsed. That is the reuse `read-known-document`
   -- makes by comparing the two trees, decided before the second tree exists.
   -- Any other copy is parsed and takes the document path unchanged.
-  read-known-source :: List LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
-  read-known-source known name hash src = case find-interface name known of
+  read-known-source :: HashMap String LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
+  read-known-source known name hash src = case hash-map-lookup name known of
     Some previous -> (case previous of
       MkLoadedInterface True owner identity original source values fixes refs entries exports methods
         | same hash identity && bytes-len source > 0 && bytes-compare source src == 0 -> Ok previous
       other -> read-parsed-source known name hash src)
     None -> read-parsed-source known name hash src
-  read-parsed-source :: List LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
+  read-parsed-source :: HashMap String LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
   read-parsed-source known name hash src = case parse-json name src of
     Parsed doc Nil -> (case doc of
       JObj key value rest -> read-known-document known name hash doc
       other -> Err "malformed object interface closure")
     other -> Err "runtime object manifest is not valid JSON"
-  read-source-set :: List LoadedInterface -> List (String, String, Bytes) -> List LoadedInterface -> Result String (List LoadedInterface)
-  read-source-set known inputs loaded = case inputs of
-    Nil -> Ok (reverse loaded)
-    Cons (name, hash, src) rest -> case find-interface name loaded of
-      Some previous -> Err (string-concat "duplicate interface module: " name)
-      None -> case read-known-source known name hash src of
-        Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> read-source-set known rest (Cons i loaded)
-  read-document-set :: List LoadedInterface -> List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
-  read-document-set known inputs loaded = case inputs of
-    Nil -> Ok (reverse loaded)
-    Cons (name, hash, doc) rest -> case find-interface name loaded of
-      Some previous -> Err (string-concat "duplicate interface module: " name)
-      None -> case read-known-document known name hash doc of
-        Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> read-document-set known rest (Cons i loaded)
-  read-contract-set :: List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
-  read-contract-set inputs loaded = case inputs of
-    Nil -> Ok (reverse loaded)
-    Cons (name, hash, doc) rest -> case find-interface name loaded of
-      Some previous -> Err (string-concat "duplicate interface module: " name)
-      None -> case load-interface-from-contract name hash doc of
-        Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> read-contract-set rest (Cons i loaded)
-
   -- The module index a set check asks its questions of. Built once per
   -- validated set, it answers the three questions the checks ask thousands
   -- of times: which interface a module name denotes, which module exports a
@@ -1006,10 +978,8 @@ module Bootstrap.Load where
   -- inserts the head interface last, so the first interface in the set's
   -- order wins a name, exactly as the scan it replaces answered.
   --
-  -- The closure membership tests (`name-in` over `reachable`, over the
-  -- ordering pass's `done`) still scan, deliberately: those sets hold tens
-  -- of short names, and the scan is measured level with a probe at that
-  -- size (design/compilation-speed.md 2.9).
+  -- The closure membership tests (`name-in` over `reachable`) still scan:
+  -- those sets usually hold tens of short names (design/compilation-speed.md 2.9).
   --
   -- No answer depends on iteration order: the ordered context a caller
   -- receives is still the list the ordering pass produced, and every other
@@ -1022,8 +992,8 @@ module Bootstrap.Load where
     MkInterfaceIndex loaded (interface-table loaded hash-map-empty)
       (global-table loaded hash-map-empty) (reverse (index-prefixes loaded Nil))
 
-  -- Module name to interface. The fold inserts the head last, so the first
-  -- interface in the set's order wins a repeated module name.
+  -- Module name to interface. Later entries replace earlier entries.
+  -- The known-interface readers reverse their input to keep the first row.
   interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
   interface-table loaded table = case loaded of
     Nil -> table
@@ -1078,21 +1048,62 @@ module Bootstrap.Load where
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
       Ok unit -> verify-set rest ix
 
-  refs-ready :: List (String, String) -> List String -> Bool
-  refs-ready refs done = case refs of Nil -> True; Cons (name, hash) rest -> name-in name done && refs-ready rest done
+  -- The earliest ready row in input order must win, including when a
+  -- dependency releases an earlier row. Heap entries keep that position.
+  data ReadyInterfaces where
+    NoReadyInterface :: ReadyInterfaces
+    ReadyInterface :: Nat -> LoadedInterface -> ReadyInterfaces -> ReadyInterfaces -> ReadyInterfaces
 
-  ready-interface :: List LoadedInterface -> List LoadedInterface -> List String -> Option (LoadedInterface, List LoadedInterface)
-  ready-interface remaining before done = case remaining of
+  merge-ready-interfaces :: ReadyInterfaces -> ReadyInterfaces -> ReadyInterfaces
+  merge-ready-interfaces first second = case (first, second) of
+    (NoReadyInterface, other) -> other
+    (other, NoReadyInterface) -> other
+    (ReadyInterface a i left right, ReadyInterface b j before after) ->
+      if a < b then ReadyInterface a i (merge-ready-interfaces right second) left
+      else ReadyInterface b j (merge-ready-interfaces after first) before
+
+  order-interfaces :: List LoadedInterface -> InterfaceIndex -> Result String (List LoadedInterface)
+  order-interfaces loaded ix =
+    let (counts, ready) = count-imports loaded 0 hash-map-empty NoReadyInterface in
+    order-ready-interfaces loaded ix (interface-users loaded hash-map-empty) counts ready Nil
+
+  count-imports :: List LoadedInterface -> Nat -> HashMap String (Nat, Nat) -> ReadyInterfaces -> (HashMap String (Nat, Nat), ReadyInterfaces)
+  count-imports loaded position counts ready = case loaded of
+    Nil -> (counts, ready)
+    Cons member rest ->
+      let count = list-length (loaded-imports member) in
+      let pending = hash-map-insert (loaded-module member) (position, count) counts in
+      let queued = if count == 0 then merge-ready-interfaces ready (ReadyInterface position member NoReadyInterface NoReadyInterface) else ready in
+      count-imports rest (position + 1) pending queued
+
+  order-ready-interfaces :: List LoadedInterface -> InterfaceIndex -> HashMap String (List String) -> HashMap String (Nat, Nat) -> ReadyInterfaces -> List LoadedInterface -> Result String (List LoadedInterface)
+  order-ready-interfaces loaded ix users counts ready ordered = case ready of
+    NoReadyInterface -> case blocked-interface loaded counts of
+      None -> Ok (reverse ordered)
+      Some name -> Err (string-concat "cyclic interface dependencies involving " name)
+    ReadyInterface position member left right ->
+      let importers = interface-users-of (loaded-module member) users in
+      let (remaining, queued) = release-interface-users importers ix counts (merge-ready-interfaces left right) in
+      order-ready-interfaces loaded ix users remaining queued (Cons member ordered)
+
+  release-interface-users :: List String -> InterfaceIndex -> HashMap String (Nat, Nat) -> ReadyInterfaces -> (HashMap String (Nat, Nat), ReadyInterfaces)
+  release-interface-users users ix counts ready = case users of
+    Nil -> (counts, ready)
+    Cons name rest -> case hash-map-lookup name counts of
+      Some (position, count) | count >= 1 ->
+        let remaining = hash-map-insert name (position, count - 1) counts in
+        let queued = if count == 1 then (case interface-by-name ix name of
+          Some member -> merge-ready-interfaces ready (ReadyInterface position member NoReadyInterface NoReadyInterface)
+          None -> ready) else ready in
+        release-interface-users rest ix remaining queued
+      other -> release-interface-users rest ix counts ready
+
+  blocked-interface :: List LoadedInterface -> HashMap String (Nat, Nat) -> Option String
+  blocked-interface loaded counts = case loaded of
     Nil -> None
-    Cons i rest -> if refs-ready (loaded-imports i) done then Some (i, reverse before <> rest)
-      else ready-interface rest (Cons i before) done
-
-  order-interfaces :: List LoadedInterface -> List LoadedInterface -> List String -> Result String (List LoadedInterface)
-  order-interfaces remaining ordered done = case remaining of
-    Nil -> Ok (reverse ordered)
-    Cons first rest -> case ready-interface remaining Nil done of
-      None -> Err (string-concat "cyclic interface dependencies involving " (loaded-module first))
-      Some (i, pending) -> order-interfaces pending (Cons i ordered) (name-set (loaded-module i) done)
+    Cons member rest -> let name = loaded-module member in case hash-map-lookup name counts of
+      Some (position, count) | count > 0 -> Some name
+      other -> blocked-interface rest counts
 
   load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
   load-interface-set inputs = case load-validated-interfaces inputs of
@@ -1105,7 +1116,7 @@ module Bootstrap.Load where
   validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
   validated-interfaces-members checked = case checked of MkValidatedInterfaces members -> members
   load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
-  load-validated-interfaces inputs = case read-set inputs Nil of
+  load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
     Ok loaded -> case validate-interface-set loaded of
       Err message -> Err message
@@ -1170,7 +1181,7 @@ module Bootstrap.Load where
     other -> False
 
   load-interface-set-from-contracts :: List (String, String, Json) -> Result String (List LoadedInterface)
-  load-interface-set-from-contracts inputs = case read-contract-set inputs Nil of
+  load-interface-set-from-contracts inputs = case read-interface-inputs load-interface-from-contract inputs of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
   load-interface-set-from-documents :: List (String, String, Json) -> Result String (List LoadedInterface)
@@ -1178,12 +1189,12 @@ module Bootstrap.Load where
   -- The object and the requested interface set often carry the same documents.
   -- Reuse exact verified rows, then validate every dependency of this object.
   load-object-interfaces-with-known :: List LoadedInterface -> List (String, String, Json) -> Result String (List LoadedInterface)
-  load-object-interfaces-with-known known inputs = case read-document-set known inputs Nil of
+  load-object-interfaces-with-known known inputs = case read-interface-inputs (read-known-document (interface-table (reverse known) hash-map-empty)) inputs of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
   -- The same load from each contract's bytes in the object's manifest.
   load-object-interface-sources :: List LoadedInterface -> List (String, String, Bytes) -> Result String (List LoadedInterface)
-  load-object-interface-sources known inputs = case read-source-set known inputs Nil of
+  load-object-interface-sources known inputs = case read-interface-inputs (read-known-source (interface-table (reverse known) hash-map-empty)) inputs of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
 
@@ -1478,8 +1489,8 @@ module Bootstrap.Load where
 
   validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
   validate-interface-set loaded = let ix = index-interfaces loaded in
-    if duplicate-module loaded Nil then Err "duplicate interface module in resolved context"
-    else case order-interfaces loaded Nil Nil of
+    if duplicate-module loaded hash-map-empty then Err "duplicate interface module in resolved context"
+    else case order-interfaces loaded ix of
       Err message -> case verify-set loaded ix of
         Err dependency -> if missing-dependency loaded ix then Err dependency else Err message
         Ok unit -> Err message
@@ -1487,11 +1498,12 @@ module Bootstrap.Load where
         Err message -> Err message
         Ok unit -> case verify-nominal-set loaded ix hash-map-empty of Err message -> Err message; Ok checked -> (case verify-body-set loaded ix hash-map-empty of Err message -> Err message; Ok unit -> Ok ordered)
 
-  duplicate-module :: List LoadedInterface -> List String -> Bool
+  duplicate-module :: List LoadedInterface -> HashMap String () -> Bool
   duplicate-module loaded seen = case loaded of
     Nil -> False
-    Cons i rest -> if name-in (loaded-module i) seen then True
-      else duplicate-module rest (name-set (loaded-module i) seen)
+    Cons i rest -> let name = loaded-module i in case hash-map-lookup name seen of
+      Some previous -> True
+      None -> duplicate-module rest (hash-map-insert name () seen)
 
   missing-ref :: List (String, String) -> InterfaceIndex -> Bool
   missing-ref refs ix = case refs of

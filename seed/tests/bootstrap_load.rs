@@ -267,7 +267,7 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
 }
 
 #[test]
-fn stale_body_contracts_drop_transitive_importers() {
+fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
     let root = Iface::new("Root", "");
     let mut stale = Iface::new("Stale", "");
     stale.imports.push(IfaceRef { module: root.module.clone(), iface_hash: "0000000000000000".into() });
@@ -276,9 +276,15 @@ fn stale_body_contracts_drop_transitive_importers() {
     let mut leaf = Iface::new("Leaf", "");
     leaf.imports.push(IfaceRef { module: middle.module.clone(), iface_hash: middle.iface_hash() });
     let independent = Iface::new("Independent", "");
-    let documents = [&leaf, &middle, &independent, &root, &stale].iter().map(|iface|
-        format!("({}, {}, {})", quote(&iface.module), quote(&iface.iface_hash()), quote(&iface.to_json()))
-    ).collect::<Vec<_>>().join(", ");
+    let mut child = Iface::new("Child", "");
+    child.imports.push(IfaceRef { module: root.module.clone(), iface_hash: root.iface_hash() });
+    let documents = |rows: &[&Iface]| -> String {
+        rows.iter().map(|iface|
+            format!("({}, {}, {})", quote(&iface.module), quote(&iface.iface_hash()), quote(&iface.to_json()))
+        ).collect::<Vec<_>>().join(", ")
+    };
+    let stale = documents(&[&leaf, &middle, &independent, &root, &stale]);
+    let ordered = documents(&[&child, &root, &independent]);
     let main = format!(r#"module Main where
   import Bootstrap.Interface (iface-parse)
   import Bootstrap.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
@@ -289,15 +295,19 @@ fn stale_body_contracts_drop_transitive_importers() {
     Cons (name, hash, source) rest -> case (iface-parse (string-to-bytes source), documents rest) of
       (Some doc, Some more) -> Some (Cons (name, hash, doc) more)
       other -> None
+  same-modules :: List String -> List String -> Bool
+  same-modules actual expected = case (actual, expected) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> string-compare a b == 0 && same-modules rest more
+    other -> False
+  admits :: List (String, String, String) -> List String -> Bool
+  admits rows expected = case documents rows of
+    None -> False
+    Some docs -> case load-checked-body-interface-set-from-documents docs of
+      Err error -> False
+      Ok checked -> same-modules (map loaded-module (interface-set-members checked)) expected
   main :: Int
-  main = case documents [{documents}] of
-    None -> 90
-    Some rows -> case load-checked-body-interface-set-from-documents rows of
-      Err error -> 91
-      Ok checked -> case interface-set-members checked of
-        [one, two] -> if string-compare (loaded-module one) "Independent" == 0
-          && string-compare (loaded-module two) "Root" == 0 then 0 else 92
-        other -> 93
+  main = if admits [{stale}] ["Independent", "Root"] && admits [{ordered}] ["Root", "Child", "Independent"] then 0 else 1
 "#);
     let dir = common::project("stale_body_closure", &[
         ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
