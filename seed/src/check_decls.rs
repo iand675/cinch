@@ -697,19 +697,7 @@ fn for_each_handler(h: &ast::HandlerExpr, f: &mut dyn FnMut(&ast::Term)) {
     }
 }
 
-/// Every unqualified variable reference and infix operator of `t` (the
-/// module call graph for the recursion groups).
-fn collect_calls(t: &ast::Term, out: &mut Vec<String>) {
-    for_each_subterm(t, &mut |x| match x {
-        ast::Term::Var(p) if p.quals.is_empty() => out.push(p.name.text.clone()),
-        ast::Term::Infix(_, ops, _) => {
-            for o in ops {
-                out.push(o.text.clone());
-            }
-        }
-        _ => {}
-    })
-}
+type RecursionGroups = HashMap<String, Arc<HashSet<String>>>;
 
 /// A subterm's position in the guardedness discipline (core language
 /// specification section 9; codata and guardedness design, section 3).
@@ -5415,6 +5403,7 @@ impl Checker {
             self.top_schemes.insert((module.clone(), name), scheme);
         }
         if !eqs.is_empty() {
+            self.top_recursion_groups.get_mut().remove(&module);
             let positions = self.top_eqs_by_name.entry(module.clone()).or_default();
             for (name, eq) in eqs {
                 positions.entry(name.clone()).or_default().push(self.top_eqs.len());
@@ -6903,49 +6892,36 @@ impl Checker {
     /// edges, which covers the eager call into a sibling's body exactly
     /// as the local rule's reachability does.
     fn check_top_value_cycles(&self) -> Result<()> {
-        /// Whether `to` is reachable from `from` over the edge graph.
-        fn reaches(adj: &[Vec<usize>], from: usize, to: usize) -> bool {
-            let mut seen = vec![false; adj.len()];
-            let mut stack = vec![from];
-            seen[from] = true;
-            while let Some(k) = stack.pop() {
-                if k == to {
-                    return true;
-                }
-                for &n in &adj[k] {
-                    if !seen[n] {
-                        seen[n] = true;
-                        stack.push(n);
-                    }
-                }
-            }
-            false
+        if self.top_edges.iter().all(|(_, _, guarded)| *guarded) {
+            return Ok(());
         }
-        let mut index: HashMap<&GlobalId, usize> = HashMap::new();
+        let mut index = HashMap::new();
         for (i, (id, _, _, _)) in self.top_binds.iter().enumerate() {
             index.entry(id).or_insert(i);
         }
-        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); self.top_binds.len()];
-        for (o, r, _) in &self.top_edges {
-            if let Some(&ri) = index.get(r) {
-                if !adj[*o].contains(&ri) {
-                    adj[*o].push(ri);
+        let mut adjacent = vec![Vec::new(); self.top_binds.len()];
+        let mut eager = Vec::new();
+        for (owner, target, guarded) in &self.top_edges {
+            if let Some(&target) = index.get(target) {
+                adjacent[*owner].push(target);
+                if !guarded {
+                    eager.push((*owner, target));
                 }
             }
         }
-        let mut flagged: HashSet<(usize, usize)> = HashSet::new();
-        for (o, r, guarded) in &self.top_edges {
-            if *guarded {
-                continue;
+        if eager.is_empty() {
+            return Ok(());
+        }
+        let mut component = vec![0; adjacent.len()];
+        for (id, members) in strongly_connected(&adjacent).into_iter().enumerate() {
+            for member in members {
+                component[member] = id;
             }
-            let (oi, Some(&ri)) = (o, index.get(r)) else {
-                continue;
-            };
-            if !flagged.insert((*oi, ri)) {
-                continue;
-            }
-            if *oi == ri || reaches(&adj, ri, *oi) {
-                let span = self.top_binds[*oi].2;
+        }
+        // Keep the original edge order for the first refusal.
+        for (oi, ri) in eager {
+            if component[oi] == component[ri] {
+                let span = self.top_binds[oi].2;
                 let name = &self.top_binds[ri].1;
                 return Err(Error::at(
                     span,
@@ -6960,56 +6936,56 @@ impl Checker {
 
     // ------------------------------------------------------------ productivity (P8)
 
-    /// The mutually recursive group of `name` among this module's
-    /// definitions: `name` plus every definition that can call back into
-    /// it. Recursive calls (to group members) are what the guardedness
-    /// discipline governs (core language specification section 9).
-    fn rec_group(&self, name: &str) -> Vec<String> {
-        let module = self.current_module.clone();
-        let mut names: Vec<String> = Vec::new();
-        for (m, n, _) in &self.top_eqs {
-            if *m == module && !names.contains(n) {
-                names.push(n.clone());
-            }
-        }
-        if !names.iter().any(|n| n == name) {
-            return vec![name.to_string()];
-        }
-        let mut edges: Vec<(String, Vec<String>)> = Vec::new();
-        for n in &names {
-            let mut calls: Vec<String> = Vec::new();
-            for (m, n2, e) in &self.top_eqs {
-                if *m == module && n2 == n {
-                    for term in e.terms() { collect_calls(term, &mut calls); }
-                }
-            }
-            calls.retain(|c| names.contains(c));
-            calls.sort();
-            calls.dedup();
-            edges.push((n.clone(), calls));
-        }
-        let reach = |from: &str, to: &str| -> bool {
-            let mut seen = vec![from.to_string()];
-            let mut stack = vec![from.to_string()];
-            while let Some(k) = stack.pop() {
-                if let Some((_, cs)) = edges.iter().find(|(n, _)| *n == k) {
-                    for c in cs {
-                        if c == to {
-                            return true;
-                        }
-                        if !seen.contains(c) {
-                            seen.push(c.clone());
-                            stack.push(c.clone());
-                        }
-                    }
-                }
-            }
-            false
+    /// Build the syntactic call graph once per module. The guard walk still
+    /// checks lexical binders and reports references in source order.
+    fn build_recursion_groups(&self, module: &str) -> RecursionGroups {
+        let Some(positions) = self.top_eqs_by_name.get(module) else {
+            return HashMap::new();
         };
-        names
-            .into_iter()
-            .filter(|b| reach(name, b) && reach(b, name))
-            .collect()
+        let names: Vec<&str> = positions.keys().map(String::as_str).collect();
+        let index: HashMap<_, _> = names.iter().copied().enumerate().map(|(i, name)| (name, i)).collect();
+        let mut adjacent = vec![Vec::new(); names.len()];
+        for (node, name) in names.iter().copied().enumerate() {
+            for &position in &positions[name] {
+                for term in self.top_eqs[position].2.terms() {
+                    for_each_subterm(term, &mut |term| match term {
+                        ast::Term::Var(path) if path.quals.is_empty() => {
+                            adjacent[node].extend(index.get(path.name.text.as_str()).copied());
+                        }
+                        ast::Term::Infix(_, operators, _) => {
+                            adjacent[node].extend(operators.iter().filter_map(|op| index.get(op.text.as_str()).copied()));
+                        }
+                        _ => {}
+                    });
+                }
+            }
+        }
+        let acyclic = Arc::new(HashSet::new());
+        let mut groups = HashMap::with_capacity(names.len());
+        for component in strongly_connected(&adjacent) {
+            let first = component[0];
+            let group = if component.len() > 1 || adjacent[first].contains(&first) {
+                Arc::new(component.iter().map(|&i| names[i].to_owned()).collect())
+            } else {
+                acyclic.clone()
+            };
+            for i in component {
+                groups.insert(names[i].to_owned(), group.clone());
+            }
+        }
+        groups
+    }
+
+    fn rec_group(&self, name: &str) -> Arc<HashSet<String>> {
+        let mut cache = self.top_recursion_groups.borrow_mut();
+        if !cache.contains_key(&self.current_module) {
+            let groups = self.build_recursion_groups(&self.current_module);
+            cache.insert(self.current_module.clone(), groups);
+        }
+        cache[&self.current_module]
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| Arc::new(HashSet::from([name.to_owned()])))
     }
 
     /// Is this a codata type?
@@ -7171,12 +7147,12 @@ impl Checker {
         &self,
         t: &ast::Term,
         pos: GuardPos,
-        group: &[String],
+        group: &HashSet<String>,
         mode: &GuardMode,
         bound: &mut Vec<String>,
     ) -> Result<()> {
         let call = |p: &ast::Name, pos: GuardPos| -> Result<()> {
-            if group.iter().all(|g| g != &p.text) {
+            if !group.contains(&p.text) {
                 return Ok(());
             }
             match mode {
@@ -7435,7 +7411,7 @@ impl Checker {
         &self,
         h: &ast::HandlerExpr,
         pos: GuardPos,
-        group: &[String],
+        group: &HashSet<String>,
         mode: &GuardMode,
         bound: &mut Vec<String>,
     ) -> Result<()> {
@@ -20692,6 +20668,7 @@ impl Checker {
                     }
                 }
             }
+            self.top_recursion_groups.get_mut().remove(&module);
             let mut i = 0;
             for slot in self.top_eqs.iter_mut() {
                 if slot.0 == module && slot.1 == name {

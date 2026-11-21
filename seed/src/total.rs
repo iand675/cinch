@@ -101,23 +101,54 @@ impl CheckedGraph {
     /// missing/invalid/cyclic bodies lose authority instead of keeping stale
     /// transitive contracts. Conflicting duplicate identities are discarded.
     pub fn closed_subset(definitions: Vec<Definition>) -> Self {
+        use std::collections::btree_map::Entry;
+
         let mut pending = BTreeMap::new();
         let mut conflicts = BTreeSet::new();
         for definition in definitions {
-            if let Some(prior) = pending.insert(definition.identity.clone(), definition.clone()) {
-                if prior != definition { conflicts.insert(definition.identity); }
+            match pending.entry(definition.identity.clone()) {
+                Entry::Vacant(entry) => {
+                    entry.insert((definition, 0));
+                }
+                Entry::Occupied(entry) if entry.get().0 != definition => {
+                    conflicts.insert(definition.identity);
+                }
+                Entry::Occupied(_) => {}
             }
         }
-        for name in conflicts { pending.remove(&name); }
+        for name in conflicts {
+            pending.remove(&name);
+        }
+
+        // Admit a definition only after every dependency was admitted.
+        // Missing or invalid dependencies and cycles never reach the queue.
+        let mut users = BTreeMap::<_, Vec<String>>::new();
+        let mut ready = Vec::new();
+        for (name, (definition, waiting)) in &mut pending {
+            let mut calls = BTreeSet::new();
+            dependencies(&definition.body, &mut calls);
+            *waiting = calls.len();
+            if calls.is_empty() {
+                ready.push(name.clone());
+            }
+            for callee in calls {
+                users.entry(callee).or_default().push(name.clone());
+            }
+        }
         let mut graph = Self::empty();
-        loop {
-            let ready = pending.iter().filter_map(|(name, definition)| {
-                (graph.infer(&definition.body, &definition.parameters).ok() == Some(definition.result)).then_some(name.clone())
-            }).collect::<Vec<_>>();
-            if ready.is_empty() { break }
-            for name in ready {
-                let definition = pending.remove(&name).unwrap();
-                graph.definitions.insert(name, definition);
+        while let Some(name) = ready.pop() {
+            let (definition, _) = pending.remove(&name).expect("ready definition is pending");
+            if graph.infer(&definition.body, &definition.parameters).ok() != Some(definition.result) {
+                continue;
+            }
+            let dependents = users.remove(&name).unwrap_or_default();
+            graph.definitions.insert(name, definition);
+            for dependent in dependents {
+                let (_, waiting) = pending.get_mut(&dependent).expect("dependent is pending");
+                *waiting -= 1;
+                if *waiting == 0 {
+                    ready.push(dependent);
+                }
             }
         }
         graph
@@ -238,3 +269,42 @@ pub(crate) enum PendingExpr {
 }
 
 include!("total_codec.rs");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn closed_subset_retains_only_acyclic_well_sorted_dependency_closures() {
+        let define = |identity: &str, body| Definition {
+            identity: identity.into(),
+            parameters: Vec::new(),
+            result: Sort::Nat,
+            body,
+        };
+        let call = |target: &str| Expr::Call {
+            target: target.into(),
+            arguments: Vec::new(),
+        };
+        let zero = || Expr::Number { sort: Sort::Nat, decimal: "0".into() };
+
+        let graph = CheckedGraph::closed_subset(vec![
+            define("end", Expr::Primitive(Op::NatAdd, vec![call("middle"), call("middle")])),
+            define("missing-user", call("missing")),
+            define("ill-sorted-user", call("ill-sorted")),
+            define("middle", call("start")),
+            define("start", zero()),
+            define("start", zero()),
+            define("cycle-a", call("cycle-b")),
+            define("cycle-b", call("cycle-a")),
+            define("cycle-user", call("cycle-a")),
+            define("recursive", call("recursive")),
+            define("ill-sorted", Expr::Bool(true)),
+            define("conflict-user", call("conflict")),
+            define("conflict", zero()),
+            define("conflict", Expr::Bool(false)),
+        ]);
+        let names: Vec<_> = graph.definitions().map(|definition| definition.identity.as_str()).collect();
+        assert_eq!(names, ["end", "middle", "start"]);
+    }
+}
