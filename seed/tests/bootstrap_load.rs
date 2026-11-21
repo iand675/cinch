@@ -154,6 +154,38 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let mut outside = Iface::new("Outside", "");
     outside.exports.values.push(nominal_value("value", "Missing.Token", vec![]));
     let outside = vec![row(&dir, "outside.cinchif", &outside)];
+
+    // The root can mention a nominal through either arm of a reversed diamond,
+    // but a nominal in an unrelated interface is still outside its closure.
+    let left_type = Iface::new("LeftType", "");
+    let right_type = Iface::new("RightType", "");
+    let mut left = Iface::new("Left", "");
+    left.imports.push(IfaceRef { module: left_type.module.clone(), iface_hash: left_type.iface_hash() });
+    let mut right = Iface::new("Right", "");
+    right.imports = vec![
+        IfaceRef { module: left_type.module.clone(), iface_hash: left_type.iface_hash() },
+        IfaceRef { module: right_type.module.clone(), iface_hash: right_type.iface_hash() },
+    ];
+    let mut root = Iface::new("Origin", "");
+    root.imports = vec![
+        IfaceRef { module: left.module.clone(), iface_hash: left.iface_hash() },
+        IfaceRef { module: right.module.clone(), iface_hash: right.iface_hash() },
+    ];
+    root.exports.values = vec![
+        nominal_value("first", "LeftType.Token", vec![]),
+        nominal_value("second", "RightType.Token", vec![]),
+    ];
+    let diamond = [&root, &left, &right, &left_type, &right_type].into_iter()
+        .map(|i| row(&dir, &format!("diamond-{}.cinchif", i.module), i))
+        .collect::<Vec<_>>();
+    right.imports.pop();
+    root.imports[1].iface_hash = right.iface_hash();
+    let disconnected = vec![
+        row(&dir, "disconnected-origin.cinchif", &root),
+        row(&dir, "disconnected-right.cinchif", &right),
+        diamond[1].clone(), diamond[3].clone(), diamond[4].clone(),
+    ];
+
     let mut conflict = Iface::new("Origin", "");
     conflict.exports.values.push(nominal_value("first", "Origin.Hidden", vec![]));
     conflict.exports.values.push(nominal_value("second", "Origin.Hidden", vec!["Origin.Ctor".into()]));
@@ -190,6 +222,8 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
         (duplicate, "duplicate interface module: Lib"),
         (cycle, "cyclic interface dependencies involving CycleA"),
         (outside, "Outside: nominal identity is outside the checked dependency closure: Missing.Token"),
+        (diamond, ""),
+        (disconnected, "Origin: nominal identity is outside the checked dependency closure: RightType.Token"),
         (conflict, "Origin: conflicting defining nominal contracts: Origin.Hidden"),
         (override_set, "conflicting defining signature contract: Lib.Hidden"),
         (wrong_parameters_set, "Facade: signature identity has no matching defining contract: Lib.Secret"),

@@ -978,9 +978,6 @@ module Bootstrap.Load where
   -- inserts the head interface last, so the first interface in the set's
   -- order wins a name, exactly as the scan it replaces answered.
   --
-  -- The closure membership tests (`name-in` over `reachable`) still scan:
-  -- those sets usually hold tens of short names (design/compilation-speed.md 2.9).
-  --
   -- No answer depends on iteration order: the ordered context a caller
   -- receives is still the list the ordering pass produced, and every other
   -- use is a membership test or a probe.
@@ -1017,12 +1014,6 @@ module Bootstrap.Load where
     Cons i rest -> let name = loaded-module i in
       let prefix = string-to-bytes (string-concat name ".") in
       index-prefixes rest (Cons (name, bytes-len (string-to-bytes name), prefix) acc)
-
-  name-set :: String -> List String -> List String
-  name-set name set = Cons name set
-
-  name-in :: String -> List String -> Bool
-  name-in name set = member name set
 
   interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
   interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals prefixes -> hash-map-lookup name by-name
@@ -1112,30 +1103,28 @@ module Bootstrap.Load where
 
   -- Only a successful set check can supply this handle to the object loader.
   data ValidatedInterfaces where
-    MkValidatedInterfaces :: List LoadedInterface -> ValidatedInterfaces
+    MkValidatedInterfaces :: List LoadedInterface -> HashMap String ModuleClosure -> ValidatedInterfaces
   validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
-  validated-interfaces-members checked = case checked of MkValidatedInterfaces members -> members
+  validated-interfaces-members checked = case checked of MkValidatedInterfaces members closures -> members
   load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
   load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
-    Ok loaded -> case validate-interface-set loaded of
-      Err message -> Err message
-      Ok ordered -> Ok (MkValidatedInterfaces ordered)
+    Ok loaded -> validate-interfaces loaded
   validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
-  validated-interface-sources-match checked inputs =
-    let members = validated-interfaces-members checked in
-    let by-name = interface-table members hash-map-empty in
-    let count = list-length members in
-    let input-count = list-length inputs in
-    let extra = input-count == count + 1 in
-    if not (extra || input-count == count) then False else
-      (case match-interface-sources inputs by-name hash-map-empty extra of
-        None -> False
-        Some matched ->
-          -- Class laws consult the first exporter of a global. Replay
-          -- that check against the object's original row order.
-          let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) Nil in
-          interface-laws-valid matched index)
+  validated-interface-sources-match checked inputs = case checked of
+    MkValidatedInterfaces members closures ->
+      let by-name = interface-table members hash-map-empty in
+      let count = list-length members in
+      let input-count = list-length inputs in
+      let extra = input-count == count + 1 in
+      if not (extra || input-count == count) then False else
+        (case match-interface-sources inputs by-name hash-map-empty extra of
+          None -> False
+          Some matched ->
+            -- Class laws consult the first exporter of a global. Replay
+            -- that check against the object's original row order.
+            let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) Nil in
+            interface-laws-valid matched index closures)
   match-interface-sources :: List (String, String, Bytes) -> HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
   match-interface-sources inputs indexed seen extra = case inputs of
     Nil -> Some Nil
@@ -1236,15 +1225,57 @@ module Bootstrap.Load where
   ownership-nominals rows = case rows of
     JArr row rest -> (if has-field "ownership" row then [field "ownership" row] else Nil) <> ownership-nominals rest
     other -> Nil
-  dependency-names :: List (String, String) -> List String
-  dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
-  reachable-modules :: List String -> InterfaceIndex -> List String -> List String
-  reachable-modules pending ix seen = case pending of
-    Nil -> seen
-    Cons name rest -> if name-in name seen then reachable-modules rest ix seen else
-      case interface-by-name ix name of
-        None -> reachable-modules rest ix (name-set name seen)
-        Some i -> reachable-modules (dependency-names (loaded-imports i) <> rest) ix (name-set name seen)
+  data ModuleClosure where
+    ModuleClosure :: Nat -> HashMap String () -> List String -> ModuleClosure
+
+  name-in :: String -> ModuleClosure -> Bool
+  name-in name reachable = case reachable of
+    ModuleClosure size members names -> case hash-map-lookup name members of Some present -> True; None -> False
+
+  closure-of :: String -> HashMap String ModuleClosure -> ModuleClosure
+  closure-of home closures = case hash-map-lookup home closures of
+    Some reachable -> reachable
+    None -> ModuleClosure 0 hash-map-empty Nil
+
+  closure-insert :: String -> ModuleClosure -> ModuleClosure
+  closure-insert name reachable = case reachable of
+    ModuleClosure size members names -> case hash-map-lookup name members of
+      Some present -> reachable
+      None -> ModuleClosure (size + 1) (hash-map-insert name () members) (Cons name names)
+
+  -- Dependencies precede importers in this pass. A single import shares
+  -- its closure's map with only one insertion. Start with the largest
+  -- dependency so a direct edge to an ancestor needs no merge.
+  largest-dependency :: List (String, String) -> HashMap String ModuleClosure -> ModuleClosure -> ModuleClosure
+  largest-dependency refs closures largest = case refs of
+    Nil -> largest
+    Cons (name, hash) rest -> case (closure-of name closures, largest) of
+      (ModuleClosure size members names, ModuleClosure bound prior prior-names) ->
+        if size > bound then largest-dependency rest closures (ModuleClosure size members names)
+        else largest-dependency rest closures largest
+
+  include-dependencies :: List (String, String) -> HashMap String ModuleClosure -> ModuleClosure -> ModuleClosure
+  include-dependencies refs closures reachable = case refs of
+    Nil -> reachable
+    Cons (name, hash) rest -> if name-in name reachable then include-dependencies rest closures reachable
+      else case closure-of name closures of
+        ModuleClosure size members names -> include-dependencies rest closures (include-closure names reachable)
+
+  include-closure :: List String -> ModuleClosure -> ModuleClosure
+  include-closure names reachable = case names of
+    Nil -> reachable
+    Cons name rest -> include-closure rest (closure-insert name reachable)
+
+  index-closures :: List LoadedInterface -> HashMap String ModuleClosure -> HashMap String ModuleClosure
+  index-closures ordered closures = case ordered of
+    Nil -> closures
+    Cons i rest ->
+      let home = loaded-module i in
+      let refs = loaded-imports i in
+      let largest = largest-dependency refs closures (ModuleClosure 0 hash-map-empty Nil) in
+      let reachable = closure-insert home (include-dependencies refs closures largest) in
+      index-closures rest (hash-map-insert home reachable closures)
+
   nominal-owner-reversed :: List Char -> Bool -> String
   nominal-owner-reversed chars has-name = case chars of
     Nil -> ""
@@ -1267,13 +1298,13 @@ module Bootstrap.Load where
   -- that module is in it. The walk this replaces rescanned every interface's
   -- exported identities per reference (queries x interfaces x rows); the
   -- table is built once per set, one digest per exported identity.
-  law-global-present :: String -> List String -> InterfaceIndex -> Bool
+  law-global-present :: String -> ModuleClosure -> InterfaceIndex -> Bool
   law-global-present name reachable ix = case ix of
     MkInterfaceIndex all by-name globals prefixes -> case hash-map-lookup name globals of
       None -> False
       Some owner -> name-in owner reachable
 
-  law-global :: List String -> InterfaceIndex -> String -> Option String
+  law-global :: ModuleClosure -> InterfaceIndex -> String -> Option String
   law-global reachable ix name = if law-kernel-name name || member name ["True", "False"]
     || law-global-present name reachable ix then Some name else None
   law-kernel-name :: String -> Bool
@@ -1281,7 +1312,7 @@ module Bootstrap.Load where
     Cons prefix (Cons dot rest) -> char-code prefix == 98 && char-code dot == 46
     other -> False
 
-  class-law-references-owned :: Json -> List String -> InterfaceIndex -> Bool
+  class-law-references-owned :: Json -> ModuleClosure -> InterfaceIndex -> Bool
   class-law-references-owned rows reachable ix = case rows of
     JArr row rest -> (case field "syntax" row of
       JNull -> True
@@ -1296,8 +1327,8 @@ module Bootstrap.Load where
   -- so the projection comparison below cannot fail and both canonical forms
   -- are skipped: `canonical-bytes` is deterministic, so a value agrees with
   -- itself. An identity another interface owns is compared as before.
-  verify-signature-contracts :: String -> Json -> List String -> InterfaceIndex -> Result String Unit
-  verify-signature-contracts home rows reachable ix = case rows of
+  verify-signature-contracts :: String -> Json -> ModuleClosure -> InterfaceIndex -> HashMap String ModuleClosure -> Result String Unit
+  verify-signature-contracts home rows reachable ix closures = case rows of
     JArr row rest ->
       let identity = text (field "identity" row) in
       let owner-name = nominal-owner identity in
@@ -1307,32 +1338,32 @@ module Bootstrap.Load where
         Some owner -> case loaded-entry owner "signature" identity of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
           Some definition -> if same owner-name home || same-contract (signature-contract row) (signature-contract definition)
-            then if defining-laws-valid definition owner-name ix then verify-signature-contracts home rest reachable ix
+            then if defining-laws-valid definition owner-name ix closures then verify-signature-contracts home rest reachable ix closures
               else Err (string-concat "class law references are outside the defining dependency closure: " identity)
             else Err (string-concat "conflicting defining signature contract: " identity)
     JArrEnd -> Ok ()
     other -> Err "invalid signature contract table"
-  defining-laws-valid :: Json -> String -> InterfaceIndex -> Bool
-  defining-laws-valid definition owner ix = case field "laws" definition of
-    JArr first more -> class-law-references-owned (JArr first more) (reachable-modules [owner] ix Nil) ix
+  defining-laws-valid :: Json -> String -> InterfaceIndex -> HashMap String ModuleClosure -> Bool
+  defining-laws-valid definition owner ix closures = case field "laws" definition of
+    JArr first more -> class-law-references-owned (JArr first more) (closure-of owner closures) ix
     other -> True
-  signature-laws-valid :: Json -> InterfaceIndex -> Bool
-  signature-laws-valid rows ix = case rows of
+  signature-laws-valid :: Json -> InterfaceIndex -> HashMap String ModuleClosure -> Bool
+  signature-laws-valid rows ix closures = case rows of
     JArr row rest ->
       let identity = text (field "identity" row) in
       let owner = nominal-owner identity in
       case interface-by-name ix owner of
         Some home -> (case loaded-entry home "signature" identity of
-          Some definition -> defining-laws-valid definition owner ix && signature-laws-valid rest ix
+          Some definition -> defining-laws-valid definition owner ix closures && signature-laws-valid rest ix closures
           None -> False)
         None -> False
     JArrEnd -> True
     other -> False
-  interface-laws-valid :: List LoadedInterface -> InterfaceIndex -> Bool
-  interface-laws-valid interfaces ix = case interfaces of
+  interface-laws-valid :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> Bool
+  interface-laws-valid interfaces ix closures = case interfaces of
     Nil -> True
-    Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (loaded-contract first))) ix
-      && interface-laws-valid rest ix
+    Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (loaded-contract first))) ix closures
+      && interface-laws-valid rest ix closures
   signature-owner-valid :: String -> String -> Json -> InterfaceIndex -> Bool
   signature-owner-valid home owner-name row ix =
     let identity = text (field "identity" row) in
@@ -1345,7 +1376,7 @@ module Bootstrap.Load where
             || same-contract (field "parameters" row) (field "parameters" definition))
   -- Keep the parsed defining contract by identity so repeated mentions
   -- can be compared without allocating an encoded copy of each row.
-  verify-nominal-rows :: String -> List Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+  verify-nominal-rows :: String -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-nominal-rows home rows reachable ix seen = case rows of
     Nil -> Ok seen
     Cons row rest ->
@@ -1357,16 +1388,16 @@ module Bootstrap.Load where
         None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity row seen)
         Some prior -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
-  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String Json -> Result String Unit
-  verify-nominal-set remaining ix seen = case remaining of
+  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String Json -> Result String Unit
+  verify-nominal-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest -> let home = loaded-module i in
-      let reachable = reachable-modules [home] ix Nil in
+      let reachable = closure-of home closures in
       case verify-nominal-rows home (interface-nominals i) reachable ix seen of
         Err message -> Err (string-concat-all [home, ": ", message])
-        Ok checked -> case verify-signature-contracts home (field "signatures" (field "exports" (loaded-contract i))) reachable ix of
+        Ok checked -> case verify-signature-contracts home (field "signatures" (field "exports" (loaded-contract i))) reachable ix closures of
           Err message -> Err message
-          Ok unit -> verify-nominal-set rest ix checked
+          Ok unit -> verify-nominal-set rest ix closures checked
 
   body-declaration :: String -> Json -> Json
   body-declaration identity row = JObj "identity" (JStr identity) (JObj "resolved" (field "resolved" row) (JObj "total_body" (field "total_body" row) JObjEnd))
@@ -1409,7 +1440,7 @@ module Bootstrap.Load where
         if size > width && body-owner-prefix prefix identity 0 then
           body-node-owner-bytes identity rest name size
         else body-node-owner-bytes identity rest best width
-  verify-body-nodes :: Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+  verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-body-nodes rows reachable ix seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
       let owner = body-node-owner (prefixes-of ix) identity "" in
@@ -1421,7 +1452,7 @@ module Bootstrap.Load where
           else Err (string-concat "conflicting actual total body dependency: " identity))
     JArrEnd -> Ok seen
     other -> Err "invalid total body definition table"
-  verify-body-declarations :: List Json -> List String -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+  verify-body-declarations :: List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-body-declarations declarations reachable ix seen = case declarations of
     Nil -> Ok seen
     Cons row rest -> let identity = text (field "identity" row) in
@@ -1434,7 +1465,7 @@ module Bootstrap.Load where
           Some definition -> if same-contract declared (body-declaration identity definition) then verify-body-consistency row rest reachable ix seen declared
             else Err (string-concat "total body disagrees with its declaring module: " identity)
           None -> verify-body-consistency row rest reachable ix seen declared))
-  verify-body-consistency :: Json -> List Json -> List String -> InterfaceIndex -> HashMap String Json -> Json -> Result String (HashMap String Json)
+  verify-body-consistency :: Json -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Json -> Result String (HashMap String Json)
   verify-body-consistency row rest reachable ix seen declared = let identity = text (field "identity" row) in
     case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix seen of
       Err message -> Err message
@@ -1458,7 +1489,7 @@ module Bootstrap.Load where
   ordering-slot-present slot rows = case rows of
     JArr row rest -> number (field "slot" row) == slot || ordering-slot-present slot rest
     other -> False
-  ordering-owner-valid :: String -> Json -> List String -> InterfaceIndex -> Bool
+  ordering-owner-valid :: String -> Json -> ModuleClosure -> InterfaceIndex -> Bool
   ordering-owner-valid identity row reachable ix =
     let owner = body-node-owner (prefixes-of ix) identity "" in
     name-in owner reachable && name-in "Relation.Ord" reachable &&
@@ -1470,25 +1501,30 @@ module Bootstrap.Load where
           && ordering-slot-present less (field "methods" declaration) && ordering-slot-present greater (field "methods" declaration)
         other -> False)
       other -> False)
-  ordering-owners-valid :: Json -> List String -> InterfaceIndex -> Bool
+  ordering-owners-valid :: Json -> ModuleClosure -> InterfaceIndex -> Bool
   ordering-owners-valid rows reachable ix = case rows of
     JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable ix)
       && ordering-owners-valid rest reachable ix
     other -> True
-  verify-body-set :: List LoadedInterface -> InterfaceIndex -> HashMap String Json -> Result String Unit
-  verify-body-set remaining ix seen = case remaining of
+  verify-body-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String Json -> Result String Unit
+  verify-body-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest ->
       let exports = field "exports" (loaded-contract i) in
-      let reachable = reachable-modules [loaded-module i] ix Nil in
+      let reachable = closure-of (loaded-module i) closures in
       if not (instance-body-owners-valid (field "instances" exports) (loaded-module i) ix) then Err "method body is not owned by its declaring dictionary module"
       else if not (ordering-owners-valid (field "values" exports) reachable ix) then Err "keyed ordering body disagrees with its defining value or dictionary contract"
       else (case verify-body-declarations (interface-body-declarations i) reachable ix seen of
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
-      Ok checked -> verify-body-set rest ix checked)
+      Ok checked -> verify-body-set rest ix closures checked)
 
   validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
-  validate-interface-set loaded = let ix = index-interfaces loaded in
+  validate-interface-set loaded = case validate-interfaces loaded of
+    Err message -> Err message
+    Ok checked -> Ok (validated-interfaces-members checked)
+
+  validate-interfaces :: List LoadedInterface -> Result String ValidatedInterfaces
+  validate-interfaces loaded = let ix = index-interfaces loaded in
     if duplicate-module loaded hash-map-empty then Err "duplicate interface module in resolved context"
     else case order-interfaces loaded ix of
       Err message -> case verify-set loaded ix of
@@ -1496,7 +1532,12 @@ module Bootstrap.Load where
         Ok unit -> Err message
       Ok ordered -> case verify-set loaded ix of
         Err message -> Err message
-        Ok unit -> case verify-nominal-set loaded ix hash-map-empty of Err message -> Err message; Ok checked -> (case verify-body-set loaded ix hash-map-empty of Err message -> Err message; Ok unit -> Ok ordered)
+        Ok unit -> let closures = index-closures ordered hash-map-empty in
+          case verify-nominal-set loaded ix closures hash-map-empty of
+            Err message -> Err message
+            Ok checked -> case verify-body-set loaded ix closures hash-map-empty of
+              Err message -> Err message
+              Ok unit -> Ok (MkValidatedInterfaces ordered closures)
 
   duplicate-module :: List LoadedInterface -> HashMap String () -> Bool
   duplicate-module loaded seen = case loaded of
