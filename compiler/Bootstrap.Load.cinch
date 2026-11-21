@@ -81,26 +81,31 @@ module Bootstrap.Load where
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
   data InterfaceSet where
-    CheckedInterfaceSet :: List LoadedInterface -> List (String, TotalGraph) -> InterfaceSet
+    CheckedInterfaceSet :: List LoadedInterface -> HashMap String (List TotalGraph) -> InterfaceSet
   interface-set-members :: InterfaceSet -> List LoadedInterface
   interface-set-members set = case set of CheckedInterfaceSet members bodies -> members
   interface-set-body :: String -> InterfaceSet -> Option TotalFunction
-  interface-set-body native set = case set of CheckedInterfaceSet members bodies -> set-body native bodies
+  interface-set-body native set = case set of CheckedInterfaceSet members bodies -> set-body native (body-graphs native bodies)
   interface-set-has-body :: String -> InterfaceSet -> Bool
-  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies -> known-body native bodies
-  known-body :: String -> List (String, TotalGraph) -> Bool
-  known-body native bodies = case bodies of
-    Nil -> False
-    Cons (identity, graph) rest -> same native identity || known-body native rest
-  set-body :: String -> List (String, TotalGraph) -> Option TotalFunction
-  set-body native bodies = case bodies of
+  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies -> (case hash-map-lookup native bodies of Some graphs -> True; None -> False)
+  body-graphs :: String -> HashMap String (List TotalGraph) -> List TotalGraph
+  body-graphs native bodies = case hash-map-lookup native bodies of Some graphs -> graphs; None -> Nil
+  set-body :: String -> List TotalGraph -> Option TotalFunction
+  set-body native graphs = case graphs of
     Nil -> None
-    Cons (identity, graph) rest -> if not (same native identity) then set-body native rest else
-      (case total-function-closure graph native of Some actual -> Some actual; None -> set-body native rest)
-  index-graph-bodies :: List TotalGraph -> List (String, TotalGraph)
-  index-graph-bodies graphs = case graphs of
-    Nil -> Nil
-    Cons graph rest -> map (\name -> (name, graph)) (total-graph-symbols graph) <> index-graph-bodies rest
+    Cons graph rest -> (case total-function-closure graph native of Some actual -> Some actual; None -> set-body native rest)
+  -- Keep candidate graphs in their original order when a definition
+  -- occurs in several exported bodies.
+  index-graph-bodies :: List TotalGraph -> HashMap String (List TotalGraph)
+  index-graph-bodies graphs = index-graph-bodies-from (reverse graphs) hash-map-empty
+  index-graph-bodies-from :: List TotalGraph -> HashMap String (List TotalGraph) -> HashMap String (List TotalGraph)
+  index-graph-bodies-from graphs indexed = case graphs of
+    Nil -> indexed
+    Cons graph rest -> index-graph-bodies-from rest (index-body-symbols (total-graph-symbols graph) graph indexed)
+  index-body-symbols :: List String -> TotalGraph -> HashMap String (List TotalGraph) -> HashMap String (List TotalGraph)
+  index-body-symbols names graph indexed = case names of
+    Nil -> indexed
+    Cons name rest -> index-body-symbols rest graph (hash-map-insert name (Cons graph (body-graphs name indexed)) indexed)
   set-value-bodies :: Json -> List TotalGraph
   set-value-bodies rows = case rows of
     JArr row rest -> (case check-total-graph (field "total_body" row) of Some graph -> Cons graph (set-value-bodies rest); None -> set-value-bodies rest)
@@ -137,23 +142,49 @@ module Bootstrap.Load where
     Err error -> Err error
     Ok members -> check-interface-set (body-closed-interfaces members)
 
-  -- | Remove whole interfaces until every retained declared dependency has its
-  -- exact original identity. The final strict set check validates all retained
-  -- nominal, signature and executable-body contracts without editing their rows.
+  -- Every missing or stale direct edge invalidates its importer. Follow
+  -- reverse edges once to discard the whole affected closure, keeping
+  -- original order for the strict set check. A closed set needs no queue.
   body-closed-interfaces :: List LoadedInterface -> List LoadedInterface
   body-closed-interfaces members =
-    let retained = retain-body-closed-interfaces members (index-interfaces members) in
-    if list-length retained == list-length members then retained
-    else body-closed-interfaces retained
+    let index = MkInterfaceIndex members (interface-table members hash-map-empty) hash-map-empty Nil in
+    case incomplete-interfaces members index Nil of
+      Nil -> members
+      pending ->
+        let users = interface-users members hash-map-empty in
+        retain-body-closed-interfaces members (unclosed-interfaces pending users hash-map-empty)
 
-  -- | Preserve an interface only when all of its declared imports are present
-  -- with matching hashes in this iteration's complete candidate set.
-  retain-body-closed-interfaces :: List LoadedInterface -> InterfaceIndex -> List LoadedInterface
-  retain-body-closed-interfaces members index = case members of
-    Nil -> Nil
+  incomplete-interfaces :: List LoadedInterface -> InterfaceIndex -> List String -> List String
+  incomplete-interfaces members index pending = case members of
+    Nil -> pending
     Cons member rest -> case verify-refs (loaded-imports member) index of
-      Err error -> retain-body-closed-interfaces rest index
-      Ok unit -> Cons member (retain-body-closed-interfaces rest index)
+      Err problem -> incomplete-interfaces rest index (Cons (loaded-module member) pending)
+      Ok unit -> incomplete-interfaces rest index pending
+
+  interface-users :: List LoadedInterface -> HashMap String (List String) -> HashMap String (List String)
+  interface-users members users = case members of
+    Nil -> users
+    Cons member rest -> interface-users rest (interface-user-edges (loaded-module member) (loaded-imports member) users)
+  interface-user-edges :: String -> List (String, String) -> HashMap String (List String) -> HashMap String (List String)
+  interface-user-edges importer refs users = case refs of
+    Nil -> users
+    Cons (name, hash) rest -> interface-user-edges importer rest (hash-map-insert name (Cons importer (interface-users-of name users)) users)
+  interface-users-of :: String -> HashMap String (List String) -> List String
+  interface-users-of name users = case hash-map-lookup name users of Some importers -> importers; None -> Nil
+
+  unclosed-interfaces :: List String -> HashMap String (List String) -> HashMap String () -> HashMap String ()
+  unclosed-interfaces pending users removed = case pending of
+    Nil -> removed
+    Cons name rest -> case hash-map-lookup name removed of
+      Some checked -> unclosed-interfaces rest users removed
+      None -> unclosed-interfaces (interface-users-of name users <> rest) users (hash-map-insert name () removed)
+
+  retain-body-closed-interfaces :: List LoadedInterface -> HashMap String () -> List LoadedInterface
+  retain-body-closed-interfaces members removed = case members of
+    Nil -> Nil
+    Cons member rest -> case hash-map-lookup (loaded-module member) removed of
+      Some checked -> retain-body-closed-interfaces rest removed
+      None -> Cons member (retain-body-closed-interfaces rest removed)
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> name

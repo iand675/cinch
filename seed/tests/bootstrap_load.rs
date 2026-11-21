@@ -265,3 +265,50 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
     }
     common::cleanup(&dir);
 }
+
+#[test]
+fn stale_body_contracts_drop_transitive_importers() {
+    let root = Iface::new("Root", "");
+    let mut stale = Iface::new("Stale", "");
+    stale.imports.push(IfaceRef { module: root.module.clone(), iface_hash: "0000000000000000".into() });
+    let mut middle = Iface::new("Middle", "");
+    middle.imports.push(IfaceRef { module: stale.module.clone(), iface_hash: stale.iface_hash() });
+    let mut leaf = Iface::new("Leaf", "");
+    leaf.imports.push(IfaceRef { module: middle.module.clone(), iface_hash: middle.iface_hash() });
+    let independent = Iface::new("Independent", "");
+    let documents = [&leaf, &middle, &independent, &root, &stale].iter().map(|iface|
+        format!("({}, {}, {})", quote(&iface.module), quote(&iface.iface_hash()), quote(&iface.to_json()))
+    ).collect::<Vec<_>>().join(", ");
+    let main = format!(r#"module Main where
+  import Bootstrap.Interface (iface-parse)
+  import Bootstrap.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
+  import Data.Json (Json)
+  documents :: List (String, String, String) -> Option (List (String, String, Json))
+  documents rows = case rows of
+    Nil -> Some Nil
+    Cons (name, hash, source) rest -> case (iface-parse (string-to-bytes source), documents rest) of
+      (Some doc, Some more) -> Some (Cons (name, hash, doc) more)
+      other -> None
+  main :: Int
+  main = case documents [{documents}] of
+    None -> 90
+    Some rows -> case load-checked-body-interface-set-from-documents rows of
+      Err error -> 91
+      Ok checked -> case interface-set-members checked of
+        [one, two] -> if string-compare (loaded-module one) "Independent" == 0
+          && string-compare (loaded-module two) "Root" == 0 then 0 else 92
+        other -> 93
+"#);
+    let dir = common::project("stale_body_closure", &[
+        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
+        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
+        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
+        ("Main.cinch", &main),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "stale-body-closure").expect("build body closure checks");
+    let output = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "body closure check failed in {}", dir.display());
+    common::cleanup(&dir);
+}
