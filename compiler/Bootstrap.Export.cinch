@@ -486,18 +486,18 @@ module Bootstrap.Export where
   public-names symbol rows = case rows of
     JArr row rest -> if same symbol (text (field "symbol" row)) then insert-string (text (field "name" row)) (public-names symbol rest) else public-names symbol rest
     other -> JArrEnd
-  method-names :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> Json
-  method-names typed description member surface = case class-method-equation member of
+  method-names :: ExportIndex -> CoreClass -> CoreClassMethod -> Json -> Json
+  method-names index description member surface = case class-method-equation member of
     Some (symbol, equation) -> public-names symbol surface
-    None -> runtime-method-names typed description member surface
-  runtime-method-names :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> Json
-  runtime-method-names typed description member surface = case surface of
+    None -> runtime-method-names index description member surface
+  runtime-method-names :: ExportIndex -> CoreClass -> CoreClassMethod -> Json -> Json
+  runtime-method-names index description member surface = case surface of
     JArr row rest -> let symbol = text (field "symbol" row) in
-      (case find-binding symbol (elaboration-bindings typed) of
+      (case indexed-binding symbol index of
         Some binding -> if checked-method-matches binding symbol (class-name description) (class-method-slot member) then
-          insert-string (text (field "name" row)) (runtime-method-names typed description member rest)
-          else runtime-method-names typed description member rest
-        None -> runtime-method-names typed description member rest)
+          insert-string (text (field "name" row)) (runtime-method-names index description member rest)
+          else runtime-method-names index description member rest
+        None -> runtime-method-names index description member rest)
     other -> JArrEnd
   defining-method-symbol :: List CheckedBinding -> String -> Nat -> Option String
   defining-method-symbol bindings owner slot = case bindings of
@@ -516,31 +516,31 @@ module Bootstrap.Export where
     Ok owner -> case defining-signature owner interfaces of
       None -> None
       Some original -> defining-method (class-method-name member) (field "methods" original)
-  method-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> CoreClass -> Json -> List CoreClassMethod -> Result String Json
-  method-rows typed interfaces references description surface methods = case methods of
+  method-rows :: Elaboration -> List LoadedInterface -> ExportIndex -> CoreClass -> Json -> List CoreClassMethod -> Result String Json
+  method-rows typed interfaces index description surface methods = case methods of
     Nil -> Ok JArrEnd
     Cons member rest -> let slot = class-method-slot member in
-      case method-rows typed interfaces references description surface rest of
+      case method-rows typed interfaces index description surface rest of
         Err error -> Err error
         Ok more -> case admitted-method description member interfaces of
           Some original -> if (case field "slot" original of JNum actual -> actual == nat-to-int slot; other -> False) then
-            Ok (JArr (set-field "exports" (method-names typed description member surface) original) more)
+            Ok (JArr (set-field "exports" (method-names index description member surface) original) more)
             else Err "admitted class method disagrees with its checked slot"
           None -> case class-method-equation member of
             Some (symbol, equation) -> case export-equation-display (class-method-scheme member) equation of
-              Ok display -> Ok (JArr (method-row typed description member surface display JNull) more)
+              Ok display -> Ok (JArr (method-row index description member surface display JNull) more)
               Err error -> Err error
-            None -> case resolved-method-scheme typed interfaces references description member of
+            None -> case resolved-method-scheme typed interfaces (indexed-references index) description member of
               Err error -> Err error
               Ok resolved -> case method-default typed description member interfaces
-                  (method-row typed description member surface (text (field "scheme" resolved)) resolved) of
+                  (method-row index description member surface (text (field "scheme" resolved)) resolved) of
                 Err error -> Err error
                 Ok row -> Ok (JArr row more)
-  method-row :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> String -> Json -> Json
-  method-row typed description member surface display resolved =
+  method-row :: ExportIndex -> CoreClass -> CoreClassMethod -> Json -> String -> Json -> Json
+  method-row index description member surface display resolved =
     JObj "name" (JStr (class-method-name member))
       (JObj "slot" (JNum (nat-to-int (class-method-slot member)))
-        (JObj "exports" (method-names typed description member surface)
+        (JObj "exports" (method-names index description member surface)
           (JObj "scheme" (JStr display) (JObj "resolved" resolved JObjEnd))))
   methods-public :: Json -> Bool
   methods-public rows = case rows of
@@ -573,21 +573,27 @@ module Bootstrap.Export where
           Some original -> case field "default" original of
             JArr first rest -> Ok (set-field "default" (JArr first rest) row)
             other -> Ok row)
-  nominal-mentioned :: String -> Json -> Bool
-  nominal-mentioned identity doc = case doc of
-    JObj key value rest -> (same identity (text (field "identity" doc)) && same "signature" (text (field "kind" doc)))
-      || nominal-mentioned identity value || nominal-mentioned identity rest
-    JArr row rest -> nominal-mentioned identity row || nominal-mentioned identity rest
-    other -> False
-  has-public-method :: Elaboration -> CoreClass -> Json -> List CoreClassMethod -> Bool
-  has-public-method typed description surface methods = case methods of
+  -- Record referenced signatures once for each published contract.
+  nominal-signatures :: Json -> HashMap String () -> HashMap String ()
+  nominal-signatures doc found = case doc of
+    JObj key value rest ->
+      let nested = nominal-signatures value found in
+      let is-signature = (same key "identity" || same key "kind") && same "signature" (text (field "kind" doc)) in
+      let more = if is-signature then hash-map-insert (text (field "identity" doc)) () nested else nested in
+      nominal-signatures rest more
+    JArr row rest -> nominal-signatures rest (nominal-signatures row found)
+    other -> found
+  has-signature-identity :: String -> HashMap String () -> Bool
+  has-signature-identity identity rows = case hash-map-lookup identity rows of Some present -> True; None -> False
+  has-public-method :: ExportIndex -> CoreClass -> Json -> List CoreClassMethod -> Bool
+  has-public-method index description surface methods = case methods of
     Nil -> False
-    Cons member rest -> (case method-names typed description member surface of JArr name more -> True; other -> False) || has-public-method typed description surface rest
-  signature-needed :: Elaboration -> CoreClass -> Json -> Json -> Json -> Bool
-  signature-needed typed description surface values types =
-    (case public-names (class-name description) surface of JArr name more -> True; other -> False)
-    || has-public-method typed description surface (class-methods description)
-    || (case export-global (class-name description) of Ok identity -> nominal-mentioned identity values || nominal-mentioned identity types; Err error -> False)
+    Cons member rest -> (case method-names index description member surface of JArr name more -> True; other -> False) || has-public-method index description surface rest
+  signature-needed :: ExportIndex -> CoreClass -> String -> Json -> HashMap String () -> Bool
+  signature-needed index description identity surface needed =
+    has-signature-identity identity needed
+    || (case public-names (class-name description) surface of JArr name more -> True; other -> False)
+    || has-public-method index description surface (class-methods description)
   source-class-laws :: (String -> Option String) -> String -> List Decl -> Json
   source-class-laws globals owner declarations = case declarations of
     Nil -> JArrEnd
@@ -608,22 +614,21 @@ module Bootstrap.Export where
   admitted-signature-header identity names interfaces row = case defining-signature identity interfaces of
     None -> row
     Some original -> set-field "exports" names (set-field "methods" (field "methods" row) original)
-  signature-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> Json -> Json -> List CoreClass -> Result String Json
-  signature-rows typed interfaces references surface values types classes = signature-closure typed interfaces references surface values types classes classes JArrEnd
+  data SignatureRows where
+    MkSignatureRows :: Json -> HashMap String () -> HashMap String () -> SignatureRows
+  signature-rows :: Elaboration -> List LoadedInterface -> ExportIndex -> Json -> Json -> Json -> List CoreClass -> Result String Json
+  signature-rows typed interfaces index surface values types classes =
+    let needed = nominal-signatures values (nominal-signatures types hash-map-empty) in
+    signature-closure typed interfaces index surface classes classes (MkSignatureRows JArrEnd needed hash-map-empty)
   -- A retained private class can itself require another private class in a
-  -- method contract. Close over those contracts without publishing their
-  -- names. Each growing pass adds at least one defining identity, so the
-  -- complete class list also bounds the number of passes, including cycles.
-  signature-closure :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> Json -> Json -> List CoreClass -> List CoreClass -> Json -> Result String Json
-  signature-closure typed interfaces references surface values types fuel classes rows = case fuel of
-    Nil -> Ok rows
-    Cons first rest -> case signature-pass typed interfaces references surface values types classes rows of
+  -- method contract. Keep the pass order that selects the first diagnostic.
+  signature-closure :: Elaboration -> List LoadedInterface -> ExportIndex -> Json -> List CoreClass -> List CoreClass -> SignatureRows -> Result String Json
+  signature-closure typed interfaces index surface fuel classes rows = case fuel of
+    Nil -> case rows of MkSignatureRows contracts needed retained -> Ok contracts
+    Cons first rest -> case signature-pass typed interfaces index surface classes rows of
       Err error -> Err error
-      Ok (more, grew) -> if grew then signature-closure typed interfaces references surface values types rest classes more else Ok more
-  signature-retained :: String -> Json -> Bool
-  signature-retained identity rows = case rows of
-    JArr row rest -> same identity (text (field "identity" row)) || signature-retained identity rest
-    other -> False
+      Ok (more, grew) -> if grew then signature-closure typed interfaces index surface rest classes more
+        else (case more of MkSignatureRows contracts needed retained -> Ok contracts)
   -- Native's canonical signature order compares the display name first,
   -- then the defining identity. Dependency closure is keyed by identity,
   -- independently of this serialization order.
@@ -633,25 +638,27 @@ module Bootstrap.Export where
       if order < 0 || (order == 0 && string-compare (text (field "identity" row)) (text (field "identity" first)) < 0) then JArr row rows
       else JArr first (insert-signature row rest)
     other -> JArr row JArrEnd
-  signature-pass :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> Json -> Json -> List CoreClass -> Json -> Result String (Json, Bool)
-  signature-pass typed interfaces references surface values types classes rows = case classes of
+  signature-pass :: Elaboration -> List LoadedInterface -> ExportIndex -> Json -> List CoreClass -> SignatureRows -> Result String (SignatureRows, Bool)
+  signature-pass typed interfaces index surface classes rows = case classes of
     Nil -> Ok (rows, False)
-    Cons description rest -> case export-global (class-name description) of
-      Err error -> Err error
-      Ok identity -> if signature-retained identity rows || not (signature-needed typed description surface (JArr values (JArr rows JArrEnd)) types) then
-          signature-pass typed interfaces references surface values types rest rows
-        else case (method-rows typed interfaces references description surface (class-methods description), export-parameters (class-params description)) of
-          (Err error, other) -> Err error
-          (other, Err error) -> Err error
-          (Ok methods, Ok parameters) -> let names = public-names (class-name description) surface in
-            let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
-            let laws = source-class-laws globals (class-name description) (elaboration-declarations typed) in
-            let row = admitted-signature-header identity names interfaces (JObj "name" (JStr (last-name (unpack identity) Nil))
-              (JObj "identity" (JStr identity) (JObj "exports" names (JObj "params" (parameter-names parameters)
-                (JObj "parameters" (parameter-json parameters) (JObj "methods" methods (JObj "laws" laws JObjEnd))))))) in
-            case signature-pass typed interfaces references surface values types rest (insert-signature row rows) of
-              Err error -> Err error
-              Ok (more, grew) -> Ok (more, True)
+    Cons description rest -> case rows of
+      MkSignatureRows contracts needed retained -> case export-global (class-name description) of
+          Err error -> Err error
+          Ok identity -> if has-signature-identity identity retained || not (signature-needed index description identity surface needed) then
+              signature-pass typed interfaces index surface rest rows
+            else case (method-rows typed interfaces index description surface (class-methods description), export-parameters (class-params description)) of
+              (Err error, other) -> Err error
+              (other, Err error) -> Err error
+              (Ok methods, Ok parameters) -> let names = public-names (class-name description) surface in
+                let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
+                let laws = source-class-laws globals (class-name description) (elaboration-declarations typed) in
+                let row = admitted-signature-header identity names interfaces (JObj "name" (JStr (last-name (unpack identity) Nil))
+                  (JObj "identity" (JStr identity) (JObj "exports" names (JObj "params" (parameter-names parameters)
+                    (JObj "parameters" (parameter-json parameters) (JObj "methods" methods (JObj "laws" laws JObjEnd))))))) in
+                let more-rows = MkSignatureRows (insert-signature row contracts) (nominal-signatures row needed) (hash-map-insert identity () retained) in
+                case signature-pass typed interfaces index surface rest more-rows of
+                  Err error -> Err error
+                  Ok (more, grew) -> Ok (more, True)
 
   class-head :: UType -> Option String
   class-head ty = case ty of UCon name kind -> Some name; UApp f x -> class-head f; other -> None
@@ -1205,7 +1212,7 @@ module Bootstrap.Export where
           (Ok (values, types), Ok hash) ->
             (case instance-rows typed interfaces (indexed-references index) context (indexed-guarded index) (elaboration-instances typed) of
               Err error -> Err error
-              Ok instances -> case signature-rows typed interfaces (indexed-references index) (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
+              Ok instances -> case signature-rows typed interfaces index (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
                 Err error -> Err error
                 Ok signatures -> case (imports (checked-imports name (field "imports" context) values types signatures instances) produced interfaces,
                   source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),

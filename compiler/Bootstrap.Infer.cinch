@@ -9008,16 +9008,16 @@ module Bootstrap.Infer where
     Cons (DFun sp name [([PVar at binder], ECase site (EVar use subject) arms)]) rest ->
       projection-candidates rest (if same binder subject && projection-branch arms then hash-map-insert name True found else found)
     Cons other rest -> projection-candidates rest found
-  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> HashMap String Bool -> String -> TypeExpr -> Bool
-  source-total-candidate classes kinds declarations projections symbol syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+  source-total-candidate :: List (String, Kind) -> TypeContext -> SourceTotalDecls -> HashMap String Bool -> String -> TypeExpr -> Bool
+  source-total-candidate classes kinds indexed-decls projections symbol syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
     (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
       (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case hash-map-lookup symbol projections of
         Some True -> (case source-projection-domain (scheme-body sc) of
-          Some name -> (case source-total-find-data name declarations of Some decl -> True; None -> False)
+          Some name -> (case source-total-find-data name indexed-decls of Some decl -> True; None -> False)
           None -> False)
         other -> False)
       other -> False
-  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> HashMap String Bool -> List Decl -> List String
+  source-total-names :: List (String, Kind) -> TypeContext -> SourceTotalDecls -> HashMap String Bool -> List Decl -> List String
   source-total-names classes kinds all projections declarations = case declarations of
     Nil -> Nil
     Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all projections name syntax then Cons name (source-total-names classes kinds all projections rest) else source-total-names classes kinds all projections rest
@@ -9045,19 +9045,26 @@ module Bootstrap.Infer where
         DSig sp name syntax -> if has name names then declaration-references [declaration] <> more else more
         DFun sp name clauses -> if has name names then declaration-references [declaration] <> more else more
         other -> more
-  source-total-find-alias :: String -> List Decl -> Option Decl
-  source-total-find-alias name declarations = case declarations of
-    Nil -> None
+  -- Each retry selects from the same declarations. Keep the first
+  -- monomorphic data definition and the first refinement for each name.
+  data SourceTotalDecls where
+    MkSourceTotalDecls :: HashMap String Decl -> HashMap String Decl -> SourceTotalDecls
+  source-total-decls :: List Decl -> HashMap String Decl -> HashMap String Decl -> SourceTotalDecls
+  source-total-decls declarations aliases datas = case declarations of
+    Nil -> MkSourceTotalDecls aliases datas
     Cons declaration rest -> case declaration of
-      DRefine sp symbol parameters binder predicate -> if same symbol name then Some declaration else source-total-find-alias name rest
-      other -> source-total-find-alias name rest
-  source-total-find-data :: String -> List Decl -> Option Decl
-  source-total-find-data name declarations = case declarations of
-    Nil -> None
-    Cons declaration rest -> case declaration of
-      DData sp symbol Nil constructors -> if same symbol name then Some declaration else source-total-find-data name rest
-      other -> source-total-find-data name rest
-  source-total-data-closure :: List Decl -> List String -> List String -> (List String, List String)
+      DRefine sp name parameters binder predicate -> source-total-decls rest (keep-total-decl name declaration aliases) datas
+      DData sp name Nil constructors -> source-total-decls rest aliases (keep-total-decl name declaration datas)
+      other -> source-total-decls rest aliases datas
+  keep-total-decl :: String -> Decl -> HashMap String Decl -> HashMap String Decl
+  keep-total-decl name declaration index = case hash-map-lookup name index of
+    Some first -> index
+    None -> hash-map-insert name declaration index
+  source-total-find-alias :: String -> SourceTotalDecls -> Option Decl
+  source-total-find-alias name indexed-decls = case indexed-decls of MkSourceTotalDecls aliases datas -> hash-map-lookup name aliases
+  source-total-find-data :: String -> SourceTotalDecls -> Option Decl
+  source-total-find-data name indexed-decls = case indexed-decls of MkSourceTotalDecls aliases datas -> hash-map-lookup name datas
+  source-total-data-closure :: SourceTotalDecls -> List String -> List String -> (List String, List String)
   source-total-data-closure declarations pending seen = case pending of
     Nil -> (seen, Nil)
     Cons name rest -> if has name seen then source-total-data-closure declarations rest seen else
@@ -9081,7 +9088,7 @@ module Bootstrap.Infer where
   source-total-alias-references declaration = case declaration of
     DRefine sp name parameters binder predicate -> source-total-parameter-references (Cons binder parameters) <> declaration-references [DSig sp "#predicate" predicate]
     other -> Nil
-  source-total-alias-closure :: List Decl -> List String -> List String -> List String
+  source-total-alias-closure :: SourceTotalDecls -> List String -> List String -> List String
   source-total-alias-closure declarations pending seen = case pending of
     Nil -> seen
     Cons name rest -> if has name seen then source-total-alias-closure declarations rest seen else
@@ -9106,11 +9113,11 @@ module Bootstrap.Infer where
   -- selection is a function of the name's own closure and never of the
   -- module: an attempt cannot see, and so cannot re-pay for, a declaration
   -- another name already resolved.
-  source-total-preliminary :: Result String InterfaceSet -> String -> Module -> List String -> Elaboration
-  source-total-preliminary interfaces label m names = let declarations = module-decls m in
+  source-total-preliminary :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> Elaboration
+  source-total-preliminary interfaces label m indexed-decls names = let declarations = module-decls m in
     let refs = source-total-selected-references names declarations in
-    let (datas, data-refs) = source-total-data-closure declarations (source-total-data-roots names declarations) Nil in
-    let aliases = source-total-alias-closure declarations (refs <> data-refs) Nil in
+    let (datas, data-refs) = source-total-data-closure indexed-decls (source-total-data-roots names declarations) Nil in
+    let aliases = source-total-alias-closure indexed-decls (refs <> data-refs) Nil in
     -- Source selection keeps the same complete DInterface set.
     elaborate-module-with-source-bodies interfaces False (label <> " total bodies")
       (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
@@ -9165,12 +9172,12 @@ module Bootstrap.Infer where
   -- function of the module's size. The attempt keeps its result only when it
   -- reports no error, which is the rule this pass has always applied to a
   -- re-elaboration.
-  source-total-retry :: Result String InterfaceSet -> String -> Module -> List String -> List String -> List (String, Option BodyBinding)
-  source-total-retry interfaces label m all names = case names of
+  source-total-retry :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> List String -> List (String, Option BodyBinding)
+  source-total-retry interfaces label m indexed-decls all names = case names of
     Nil -> Nil
-    Cons name rest -> let more = source-total-retry interfaces label m all rest in
+    Cons name rest -> let more = source-total-retry interfaces label m indexed-decls all rest in
       let needed = source-total-closure all (module-decls m) [name] Nil in
-      let attempt = source-total-preliminary interfaces label m needed in
+      let attempt = source-total-preliminary interfaces label m indexed-decls needed in
       Cons (name, source-total-retry-body name attempt) more
   source-total-retry-body :: String -> Elaboration -> Option BodyBinding
   source-total-retry-body name attempt = case elaboration-errors attempt of
@@ -9196,9 +9203,9 @@ module Bootstrap.Infer where
   -- The module elaboration's bodies in name order, with a name's own
   -- elaboration standing in only for the names the module elaboration did
   -- not produce.
-  source-total-resolved :: Result String InterfaceSet -> String -> Module -> List String -> List (String, Option BodyBinding) -> List BodyBinding
-  source-total-resolved interfaces label m all entries =
-    source-total-emit entries (source-total-retry interfaces label m all (source-total-missing entries))
+  source-total-resolved :: Result String InterfaceSet -> String -> Module -> SourceTotalDecls -> List String -> List (String, Option BodyBinding) -> List BodyBinding
+  source-total-resolved interfaces label m indexed-decls all entries =
+    source-total-emit entries (source-total-retry interfaces label m indexed-decls all (source-total-missing entries))
   -- A module elaboration that reports no error needs no retry at all: every
   -- name it resolved is emitted and every name it did not is dropped, which
   -- is what this pass has always done with a clean elaboration. The retry
@@ -9207,14 +9214,15 @@ module Bootstrap.Infer where
   -- so the table that decides who is unresolved is built on that path alone.
   source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
   source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
-    let names = source-total-names classes kinds declarations (projection-candidates declarations hash-map-empty) declarations in
+    let indexed-decls = source-total-decls declarations hash-map-empty hash-map-empty in
+    let names = source-total-names classes kinds indexed-decls (projection-candidates declarations hash-map-empty) declarations in
     case names of
       Nil -> Nil
-      other -> let preliminary = source-total-preliminary interfaces label m names in
+      other -> let preliminary = source-total-preliminary interfaces label m indexed-decls names in
         (case elaboration-errors preliminary of
           Nil -> source-total-from-checked names (source-total-surface preliminary)
           other -> let entries = source-total-entries names (source-total-surface preliminary) in
-            source-total-resolved interfaces label m names entries)
+            source-total-resolved interfaces label m indexed-decls names entries)
   add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)
