@@ -9,6 +9,14 @@ module Main where
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
+  closure-round-trips :: TotalFunction -> Bytes -> Bool
+  closure-round-trips closure bytes = case parse-json "canonical-closure" bytes of
+    Parsed doc Nil -> (case read-total-function doc (total-identity closure) of
+      Some canonical -> total-function-equal closure canonical && (case extend-total-compatibility closure empty-total-compatibility of
+        Some context -> (case extend-total-compatibility canonical context of Some shared -> True; None -> False)
+        None -> False)
+      None -> False)
+    other -> False
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "bodies.json") of
     Err error -> 90
@@ -17,9 +25,12 @@ module Main where
         Some graph -> (case (total-function graph "Main.width", total-function-closure graph "Main.width") of
           (Some function, Some closure) -> if same (total-identity function) "Main.width" && same (total-result function) "Nat" && list-length (total-parameters function) == 1 then
             (let bounds = case total-bounds function of Some (low, high) -> string-concat-all [int-to-string low, ":", int-to-string high]; None -> "unknown" in
-             case fs-write (path-from-string "bounds.txt") (string-to-bytes bounds) of
-               Ok _ -> (case fs-write (path-from-string "closure.json") (canonical-bytes (total-function-document closure)) of Ok _ -> 0; Err error -> 96)
-               Err error -> 96)
+             let bytes = canonical-bytes (total-function-document closure) in
+             if closure-round-trips closure bytes then
+               (case fs-write (path-from-string "bounds.txt") (string-to-bytes bounds) of
+                 Ok _ -> (case fs-write (path-from-string "closure.json") bytes of Ok _ -> 0; Err error -> 96)
+                 Err error -> 96)
+             else 97)
             else 94
           other -> 95)
         None -> 4)

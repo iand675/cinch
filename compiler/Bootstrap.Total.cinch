@@ -7,7 +7,7 @@ module Bootstrap.Total where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
-  import Text.Json (canonical-bytes)
+  import Text.Json (canonical-bytes, json-eq)
 
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
@@ -261,9 +261,14 @@ module Bootstrap.Total where
       let closed = JObj "version" (JNum 1) (JObj "definitions" definitions JObjEnd) in
       Some (MkTotalFunction (MkTotalGraph closed (IndexedRows reachable)) name)
     None -> None)
+  -- Checked total documents contain no floating-point JSON values.
+  -- Matching structure can skip serialization. Canonical bytes still
+  -- compare documents that encode the same fields in different orders.
+  total-documents-equal :: Json -> Json -> Bool
+  total-documents-equal first second = json-eq first second || bytes-compare (canonical-bytes first) (canonical-bytes second) == 0
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
   total-function-equal first second = same (total-identity first) (total-identity second)
-    && bytes-compare (canonical-bytes (total-function-document first)) (canonical-bytes (total-function-document second)) == 0
+    && total-documents-equal (total-function-document first) (total-function-document second)
   total-body :: TotalFunction -> Json
   total-body function = field "body" (function-row function)
 
@@ -334,7 +339,7 @@ module Bootstrap.Total where
   compatible-rows :: Json -> TotalRows -> Bool
   compatible-rows first table = case first of
     JArr row rest -> (case find-row (text (field "identity" row)) table of
-      Some prior -> bytes-compare (canonical-bytes row) (canonical-bytes prior) == 0
+      Some prior -> total-documents-equal row prior
       None -> True) && compatible-rows rest table
     JArrEnd -> True
     other -> False
@@ -362,7 +367,7 @@ module Bootstrap.Total where
   -- projection or keyed ordering excludes a graph row with its identity.
   -- Projection and ordering descriptors only compare within their own kind.
   data TotalCompatibility where
-    CheckedTotalCompatibility :: HashMap String Bytes -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
+    CheckedTotalCompatibility :: HashMap String Json -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
   empty-total-compatibility :: TotalCompatibility
   empty-total-compatibility = CheckedTotalCompatibility hash-map-empty hash-map-empty hash-map-empty
   remember-descriptor :: TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalFunction)
@@ -370,16 +375,15 @@ module Bootstrap.Total where
     case hash-map-lookup name descriptors of
       None -> Some (hash-map-insert name function descriptors)
       Some old -> if total-function-equal old function then Some descriptors else None
-  remember-graph-rows :: Json -> HashMap String Bytes -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String Bytes)
+  remember-graph-rows :: Json -> HashMap String Json -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String Json)
   remember-graph-rows rows known projections orderings = case rows of
     JArr row rest ->
       let name = text (field "identity" row) in
       case (hash-map-lookup name projections, hash-map-lookup name orderings) of
         (None, None) ->
-          let bytes = canonical-bytes row in
           case hash-map-lookup name known of
-            None -> remember-graph-rows rest (hash-map-insert name bytes known) projections orderings
-            Some prior -> if bytes-compare bytes prior == 0 then remember-graph-rows rest known projections orderings else None
+            None -> remember-graph-rows rest (hash-map-insert name row known) projections orderings
+            Some prior -> if total-documents-equal row prior then remember-graph-rows rest known projections orderings else None
         other -> None
     JArrEnd -> Some known
     other -> None

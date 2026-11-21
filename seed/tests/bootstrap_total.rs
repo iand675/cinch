@@ -44,6 +44,8 @@ fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
         assert_eq!(common::read_output(&dir, "bounds.txt"), expected_bounds, "{name}");
     }
     let one = |body: &str, parameters: &str, result: &str| format!(r#"{{"version":1,"definitions":[{{"identity":"Main.width","parameters":{parameters},"result":"{result}","body":{body}}}]}}"#);
+    run("noncanonical row and document key order",
+        &one(r#"{"sort":"Nat","decimal":"9","node":"number"}"#, r#"["Nat"]"#, "Nat"), 0);
     for (name, data) in [
         ("wrong local", one(r#"{"node":"local","slot":1}"#, r#"["Nat"]"#, "Nat")),
         ("wrong result sort", one(r#"{"node":"local","slot":0}"#, r#"["Bool"]"#, "Nat")),
