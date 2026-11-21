@@ -66,11 +66,16 @@ impl CheckedGraph {
         ])))])
     }
     pub fn from_json(text: &str) -> Result<Self, Invalid> {
-        let data=parse_json(text).map_err(|e| Invalid(e.to_string()))?;
-        let root=object(&data,&["version","definitions"])?;
+        let data = parse_json(text).map_err(|e| Invalid(e.to_string()))?;
+        Self::from_json_value(&data)
+    }
+
+    pub(crate) fn from_json_value(data: &J) -> Result<Self, Invalid> {
+        let root=object(data,&["version","definitions"])?;
         if root["version"].as_num().map_err(|e| Invalid(e.to_string()))? != 1 { return Err(Invalid("unknown total-body version".into())) }
-        let mut definitions=Vec::new();
-        for row in array(&root["definitions"])? {
+        let rows = array(&root["definitions"])?;
+        let mut definitions = Vec::with_capacity(rows.len());
+        for row in rows {
             let o=object(row,&["identity","parameters","result","body"])?;
             definitions.push(Definition {
                 identity:string(&o["identity"])?.into(),

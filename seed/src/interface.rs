@@ -1260,15 +1260,14 @@ impl Iface {
         let mut values = Vec::new();
         for item in ex_get("values")?.as_array()? {
             let o = item.as_object().map_err(|_| ParseError("value entry".into()))?;
-            let value = ValueExport {
-                name: field_str(o, "name")?,
-                scheme: field_str(o, "scheme")?,
-                resolved: field_resolved_scheme(o)?,
-                symbol: field_str(o, "symbol")?,
-                arity: field_num(o, "arity")?,
-                total_body: field_total_body(o)?,
-                keyed_ordering: field_keyed_ordering(o)?,
-            };
+            let name = field_str(o, "name")?;
+            let scheme = field_str(o, "scheme")?;
+            let resolved = field_resolved_scheme(o)?;
+            let symbol = field_str(o, "symbol")?;
+            let arity = field_num(o, "arity")?;
+            let total_body = field_total_body(o, resolved.is_some(), &symbol, arity)?;
+            let keyed_ordering = field_keyed_ordering(o, resolved.is_some(), arity)?;
+            let value = ValueExport { name, scheme, resolved, symbol, arity, total_body, keyed_ordering };
             values.push(value);
         }
         let mut types = Vec::new();
@@ -1921,10 +1920,10 @@ fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<V
         let implementation = field_str(row, "implementation")?;
         let resolved = field_resolved_scheme(row)?.ok_or_else(|| ParseError("method body has no resolved declaration".into()))?;
         let graph = row.get("total_body").ok_or_else(|| ParseError("method has no total body".into()))?;
-        let total_body = crate::total::CheckedGraph::from_json(&graph.to_canonical_string()).map_err(|error| ParseError(error.0))?;
+        let total_body = crate::total::CheckedGraph::from_json_value(graph).map_err(|error| ParseError(error.0))?;
         let definition = total_body.get(&implementation).ok_or_else(|| ParseError("method body has no actual implementation root".into()))?;
         if implementation.is_empty() || bodies.iter().any(|body| body.slot == slot || body.implementation == implementation)
-            || total_body.closure([implementation.as_str()]).map_err(|error| ParseError(error.0))? != total_body {
+            || !total_body.closure_is_whole(&implementation).map_err(|error| ParseError(error.0))? {
             return Err(ParseError("method body requires a distinct slot and exact implementation closure".into()));
         }
         if !resolved.nominals.is_empty() || !resolved.measures.is_empty() || resolved.scheme != total_declaration(definition) {
@@ -1935,32 +1934,31 @@ fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<V
     Ok(bodies)
 }
 
-fn field_keyed_ordering(o: &BTreeMap<String, JsonValue>) -> Result<Option<KeyedOrderingBody>, ParseError> {
+fn field_keyed_ordering(o: &BTreeMap<String, JsonValue>, resolved: bool, arity: u64) -> Result<Option<KeyedOrderingBody>, ParseError> {
     let Some(body) = o.get("keyed_ordering") else { return Ok(None) };
     let body = body.as_object()?;
     let less_slot = field_num(body, "less_slot")?;
     let greater_slot = field_num(body, "greater_slot")?;
-    if body.len() != 2 || less_slot == greater_slot || field_num(o, "arity")? != 4
+    if body.len() != 2 || less_slot == greater_slot || arity != 4
         || !matches!(o.get("total_body"), Some(JsonValue::Null))
-        || field_resolved_scheme(o)?.is_none()
+        || !resolved
     {
         return Err(ParseError("invalid keyed ordering value body".into()));
     }
     Ok(Some(KeyedOrderingBody { less_slot, greater_slot }))
 }
 
-fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
+fn field_total_body(o: &BTreeMap<String, JsonValue>, resolved: bool, symbol: &str, arity: u64) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
     let value = o.get("total_body").ok_or_else(|| ParseError("missing value total_body".into()))?;
     if matches!(value, JsonValue::Null) { return Ok(None) }
-    if field_resolved_scheme(o)?.is_none() { return Err(ParseError("total body requires a resolved declaration".into())) }
-    let graph = crate::total::CheckedGraph::from_json(&value.to_canonical_string())
+    if !resolved { return Err(ParseError("total body requires a resolved declaration".into())) }
+    let graph = crate::total::CheckedGraph::from_json_value(value)
         .map_err(|error| ParseError(format!("invalid total body: {}", error.0)))?;
-    let symbol = field_str(o, "symbol")?;
-    let root = graph.get(&symbol).ok_or_else(|| ParseError("total body has no matching value symbol".into()))?;
-    if root.parameters.len() as u64 != field_num(o, "arity")? {
+    let root = graph.get(symbol).ok_or_else(|| ParseError("total body has no matching value symbol".into()))?;
+    if root.parameters.len() as u64 != arity {
         return Err(ParseError("total body arity disagrees with its value declaration".into()))
     }
-    if graph.closure([symbol.as_str()]).map_err(|error| ParseError(error.0))? != graph {
+    if !graph.closure_is_whole(symbol).map_err(|error| ParseError(error.0))? {
         return Err(ParseError("total body includes unrelated definitions".into()))
     }
     Ok(Some(graph))
@@ -2033,7 +2031,7 @@ fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
         ("measures", JsonValue::arr(&scheme.measures, |m| JsonValue::obj([
             ("identity", (&m.identity).into()),
             ("resolved", resolved_scheme_json(Some(&m.resolved))),
-            ("total_body", parse_json(&m.total_body.to_json()).expect("checked measure graph JSON")),
+            ("total_body", m.total_body.to_json_value()),
         ]))),
         ("nominals", JsonValue::arr(&nominals, nominal_contract_json)),
     ])
@@ -2146,8 +2144,8 @@ fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) ->
             }
             let resolved = field_resolved_scheme_depth(row, depth + 1)?.ok_or_else(|| ParseError("measure has no defining scheme".into()))?;
             let graph = row.get("total_body").ok_or_else(|| ParseError("measure has no total body".into()))?;
-            let graph = crate::total::CheckedGraph::from_json(&graph.to_canonical_string()).map_err(|e| ParseError(e.0))?;
-            if graph.get(&identity).is_none() || graph.closure([identity.as_str()]).map_err(|e| ParseError(e.0))? != graph {
+            let graph = crate::total::CheckedGraph::from_json_value(graph).map_err(|e| ParseError(e.0))?;
+            if graph.get(&identity).is_none() || !graph.closure_is_whole(&identity).map_err(|e| ParseError(e.0))? {
                 return Err(ParseError("measure body must contain exactly its defining root closure".into()))
             }
             measures.push(MeasureContract { identity, resolved: Box::new(resolved), total_body: graph });

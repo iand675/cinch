@@ -132,7 +132,7 @@ impl CheckedGraph {
                 ready.push(name.clone());
             }
             for callee in calls {
-                users.entry(callee).or_default().push(name.clone());
+                users.entry(callee.to_owned()).or_default().push(name.clone());
             }
         }
         let mut graph = Self::empty();
@@ -173,12 +173,29 @@ impl CheckedGraph {
                 .ok_or_else(|| Invalid(format!("missing total-body root: {identity}")))?;
             let mut calls = BTreeSet::new();
             dependencies(&definition.body, &mut calls);
-            pending.extend(calls);
+            pending.extend(calls.into_iter().map(str::to_owned));
             selected.insert(identity, definition.clone());
         }
         // A subgraph of an already checked DAG remains checked when every
         // referenced callee is retained. It cannot introduce new semantics.
         Ok(Self { definitions: selected })
+    }
+    /// Check whether every definition belongs to this root's closure.
+    /// This walks an already checked graph without copying any of its bodies.
+    pub(crate) fn closure_is_whole(&self, identity: &str) -> Result<bool, Invalid> {
+        let mut pending = vec![identity];
+        let mut seen = BTreeSet::new();
+        while let Some(name) = pending.pop() {
+            if !seen.insert(name) {
+                continue;
+            }
+            let definition = self.get(name)
+                .ok_or_else(|| Invalid(format!("missing total-body root: {name}")))?;
+            let mut calls = BTreeSet::new();
+            dependencies(&definition.body, &mut calls);
+            pending.extend(calls);
+        }
+        Ok(seen.len() == self.definitions.len())
     }
     pub fn definitions(&self) -> impl Iterator<Item=&Definition> { self.definitions.values() }
     pub fn get(&self, identity: &str) -> Option<&Definition> { self.definitions.get(identity) }
@@ -216,22 +233,22 @@ impl CheckedGraph {
         }
         Ok(())
     }
-    fn acyclic(&self, identity: &str, visiting: &mut BTreeSet<String>, done: &mut BTreeSet<String>) -> Result<(), Invalid> {
+    fn acyclic<'a>(&'a self, identity: &'a str, visiting: &mut BTreeSet<&'a str>, done: &mut BTreeSet<&'a str>) -> Result<(), Invalid> {
         if done.contains(identity) { return Ok(()) }
-        if !visiting.insert(identity.to_string()) { return Err(Invalid(format!("cyclic total-body dependency: {identity}"))) }
+        if !visiting.insert(identity) { return Err(Invalid(format!("cyclic total-body dependency: {identity}"))) }
         let mut calls = BTreeSet::new(); dependencies(&self.definitions[identity].body, &mut calls);
-        for target in calls { self.acyclic(&target, visiting, done)?; }
-        visiting.remove(identity); done.insert(identity.to_string()); Ok(())
+        for target in calls { self.acyclic(target, visiting, done)?; }
+        visiting.remove(identity); done.insert(identity); Ok(())
     }
     /// Stable structural content, including the exact transitive bodies.
     /// This is the preimage for the interface's eventual versioned digest,
     /// not a cryptographic or semantic-equivalence claim.
     pub fn content(&self, identity: &str) -> Option<String> {
-        fn visit(graph: &CheckedGraph, identity: &str, seen: &mut BTreeSet<String>, out: &mut String) {
-            if !seen.insert(identity.to_string()) { return }
+        fn visit<'a>(graph: &'a CheckedGraph, identity: &'a str, seen: &mut BTreeSet<&'a str>, out: &mut String) {
+            if !seen.insert(identity) { return }
             let definition = &graph.definitions[identity];
             let mut calls = BTreeSet::new(); dependencies(&definition.body, &mut calls);
-            for target in calls { visit(graph, &target, seen, out); }
+            for target in calls { visit(graph, target, seen, out); }
             out.push_str(&format!("total-body-v1:{definition:?}\n"));
         }
         self.get(identity)?;
@@ -239,9 +256,9 @@ impl CheckedGraph {
     }
 }
 
-fn dependencies(expression: &Expr, out: &mut BTreeSet<String>) {
+fn dependencies<'a>(expression: &'a Expr, out: &mut BTreeSet<&'a str>) {
     match expression {
-        Expr::Call { target, arguments } => { out.insert(target.clone()); for arg in arguments { dependencies(arg, out) } }
+        Expr::Call { target, arguments } => { out.insert(target); for arg in arguments { dependencies(arg, out) } }
         Expr::Primitive(_, arguments) => for arg in arguments { dependencies(arg, out) },
         Expr::Let { value, body } => { dependencies(value, out); dependencies(body, out); }
         Expr::If { condition, yes, no } => { dependencies(condition, out); dependencies(yes, out); dependencies(no, out); }
@@ -306,5 +323,8 @@ mod tests {
         ]);
         let names: Vec<_> = graph.definitions().map(|definition| definition.identity.as_str()).collect();
         assert_eq!(names, ["end", "middle", "start"]);
+        assert!(graph.closure_is_whole("end").unwrap());
+        assert!(!graph.closure_is_whole("middle").unwrap());
+        assert_eq!(graph.closure_is_whole("missing").unwrap_err().0, "missing total-body root: missing");
     }
 }
