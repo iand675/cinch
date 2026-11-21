@@ -755,7 +755,7 @@ module Bootstrap.Export where
   guarded-expression interfaces patterns depth term = if depth > 64 then None else case term of
     CLocal sp ty id name Nil -> guarded-argument id 0 patterns
     CRequire sp ty body -> guarded-expression interfaces patterns depth body
-    CDischarge sp ty evidence body -> guarded-expression interfaces patterns depth body
+    CDischarge sp ty evidence _ body -> guarded-expression interfaces patterns depth body
     CApply sp ty inner second -> guarded-application interfaces patterns depth inner second
     CApplyEff sp ty row inner second -> guarded-application interfaces patterns depth inner second
     other -> None

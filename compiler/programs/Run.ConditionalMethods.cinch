@@ -68,8 +68,8 @@ module Main where
     Some evidence ->
       let actual = signature-type id in
       let application = call id 3 1 in
-      let good = CDischarge sp nat evidence application in
-      let wrong = CDischarge sp nat evidence (call id 0 1) in
+      let good = CDischarge sp nat evidence False application in
+      let wrong = CDischarge sp nat evidence False (call id 0 1) in
       let unconditional = UFun nat (UFun nat nat) in
       let forged = CApply sp nat (CApply sp (UFun nat nat) (CUse sp unconditional "actual-conditional" "external" Nil) (CInt sp nat "0")) (CInt sp nat "1") in
       let stronger = UPi id "x" nat (URow UEnd) (UPi (id + 1) "y" nat (URow UEnd)
@@ -77,7 +77,7 @@ module Main where
       typed actual good
       && not (typed actual wrong)
       && not (typed actual forged)
-      && not (typed actual (CDischarge sp nat Nil application))
+      && not (typed actual (CDischarge sp nat Nil False application))
       && not (typed actual application)
       && not (typed stronger good)
       && (case core-let-fact Nil Nil (id + 20) (mono nat) good of None -> True; Some invented -> False)

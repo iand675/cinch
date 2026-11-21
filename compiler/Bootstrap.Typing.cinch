@@ -534,7 +534,7 @@ module Bootstrap.Typing where
       (UTuple fields, UTuple requested) -> forgotten-tuple-fields fields requested
       other -> False) && checked-term context scope gamma facts body
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
-    CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
+    CDischarge sp ty certificates _ body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body
     -- Reflexive evidence is the one proof term an ordinary body may be, and
     -- its carrier is the goal it discharges. `reflexive-equality` is the whole
@@ -919,7 +919,7 @@ module Bootstrap.Typing where
     CLet sp ty key name sc rhs value -> use-count-after interrupted rhs (use-count interrupted id rhs) (use-count-row interrupted id value rest)
     CMemoScope sp ty region value -> use-count-row interrupted id value rest
     CRequire sp ty value -> use-count-row interrupted id value rest
-    CDischarge sp ty evidence value -> use-count-row interrupted id value rest
+    CDischarge sp ty evidence _ value -> use-count-row interrupted id value rest
     CProved sp ty evidence value -> use-count-row interrupted id value rest
     CRefine sp ty evidence value -> use-count-row interrupted id value rest
     CRefineProof sp ty witness value -> use-count-row interrupted id value rest
@@ -1079,7 +1079,7 @@ module Bootstrap.Typing where
     CGuard sp ty guard value -> not (core-alternative-covers body)
     CLet sp ty id name sc rhs value -> guard-falls-through value
     CRequire sp ty value -> guard-falls-through value
-    CDischarge sp ty evidence value -> guard-falls-through value
+    CDischarge sp ty evidence _ value -> guard-falls-through value
     CProved sp ty evidence value -> guard-falls-through value
     CRefine sp ty evidence value -> guard-falls-through value
     CRefineProof sp ty witness value -> guard-falls-through value
@@ -1090,7 +1090,7 @@ module Bootstrap.Typing where
     CGuard sp ty guard value -> use-count MayInterrupt id guard
     CLet sp ty key name sc rhs value -> use-count-after MayInterrupt rhs (use-count MayInterrupt id rhs) (guard-uses id value)
     CRequire sp ty value -> guard-uses id value
-    CDischarge sp ty evidence value -> guard-uses id value
+    CDischarge sp ty evidence _ value -> guard-uses id value
     CProved sp ty evidence value -> guard-uses id value
     CRefine sp ty evidence value -> guard-uses id value
     CRefineProof sp ty witness value -> guard-uses id value

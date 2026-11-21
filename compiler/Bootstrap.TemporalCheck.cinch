@@ -741,7 +741,7 @@ module Bootstrap.TemporalCheck where
     -- The checking forms wrap a body without changing the sites it
     -- contains: a discharged requirement, a refinement certificate, an
     -- erased proof arrow, and a lambda (a `withScope` callback is one).
-    CDischarge sp ty evidence body -> temporal-scope-sites body
+    CDischarge sp ty evidence _ body -> temporal-scope-sites body
     CRequire sp ty body -> temporal-scope-sites body
     CForget sp ty body -> temporal-scope-sites body
     CRefine sp ty evidence body -> temporal-scope-sites body

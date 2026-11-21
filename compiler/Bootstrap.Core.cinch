@@ -380,7 +380,9 @@ module Bootstrap.Core where
     CRefineProof :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CForget :: Span -> UType -> CoreTerm -> CoreTerm
     CRequire :: Span -> UType -> CoreTerm -> CoreTerm
-    CDischarge :: Span -> UType -> List Proof -> CoreTerm -> CoreTerm
+    -- True only on an inference-created call whose subtree contains
+    -- no dictionary work. Never used as proof evidence or serialized.
+    CDischarge :: Span -> UType -> List Proof -> Bool -> CoreTerm -> CoreTerm
     CGuard :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CArgument :: Span -> CoreTerm -> CoreTerm -> CoreTerm
     CArgumentsEnd :: Span -> CoreTerm
@@ -525,7 +527,7 @@ module Bootstrap.Core where
     CUse sp ty name role actuals -> string-compare role "operation" == 0 && effect-operation-seen name names
     CApply sp ty f x -> handler-direct-operation names f
     CApplyEff sp ty row f x -> handler-direct-operation names f
-    CDischarge sp ty evidence f -> handler-direct-operation names f
+    CDischarge sp ty evidence _ f -> handler-direct-operation names f
     other -> False
   -- D23: dispatch is lexical to this computation. An ordinary call cannot
   -- smuggle the discharged label in from a different function's body.
@@ -551,7 +553,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> handler-body-direct label names witness && handler-body-direct label names body
     CForget sp ty body -> handler-body-direct label names body
     CRequire sp ty body -> handler-body-direct label names body
-    CDischarge sp ty evidence body -> handler-body-direct label names body
+    CDischarge sp ty evidence _ body -> handler-body-direct label names body
     CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
     CScope sp ty region evidence callback -> handler-row-absent label (core-effects term) && handler-body-direct label names callback
     CMemoScope sp ty region body -> handler-row-absent label (core-effects term) && handler-body-direct label names body
@@ -594,7 +596,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> resume-uses choose id witness + resume-uses choose id body
     CForget sp ty body -> resume-uses choose id body
     CRequire sp ty body -> resume-uses choose id body
-    CDischarge sp ty evidence body -> resume-uses choose id body
+    CDischarge sp ty evidence _ body -> resume-uses choose id body
     CGuard sp ty condition body -> resume-uses choose id condition + resume-uses choose id body
     CScope sp ty region evidence callback -> resume-uses choose id callback
     CMemoScope sp ty region body -> resume-uses choose id body
@@ -628,7 +630,7 @@ module Bootstrap.Core where
     CRecursiveFunctions sp ty members value -> recursive-resume-uses choose id members + resume-alternative-uses choose id value later
     CRefineProof sp ty witness value -> resume-uses choose id witness + resume-alternative-uses choose id value later
     CRequire sp ty value -> resume-alternative-uses choose id value later
-    CDischarge sp ty evidence value -> resume-alternative-uses choose id value later
+    CDischarge sp ty evidence _ value -> resume-alternative-uses choose id value later
     CProved sp ty evidence value -> resume-alternative-uses choose id value later
     CRefine sp ty evidence value -> resume-alternative-uses choose id value later
     CForget sp ty value -> resume-alternative-uses choose id value later
@@ -714,7 +716,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> [witness, body]
     CForget sp ty body -> [body]
     CRequire sp ty body -> [body]
-    CDischarge sp ty proofs body -> [body]
+    CDischarge sp ty proofs _ body -> [body]
     CGuard sp ty guard body -> [guard, body]
     CArgument sp first rest -> [first, rest]
     CAlternative sp p body rest -> [body, rest]
@@ -878,7 +880,7 @@ module Bootstrap.Core where
     CRefineProof s ty witness body -> ty
     CForget s ty body -> ty
     CRequire s ty body -> ty
-    CDischarge s ty evidence body -> ty
+    CDischarge s ty evidence _ body -> ty
     CGuard s ty guard rhs -> ty
     other -> UError
 
@@ -1031,7 +1033,7 @@ module Bootstrap.Core where
     CRefineProof s ty witness body -> core-effects body
     CForget s ty body -> core-effects body
     CRequire s ty body -> core-effects body
-    CDischarge s ty evidence body -> core-effects body
+    CDischarge s ty evidence _ body -> core-effects body
     CGuard s ty condition body -> union-effects (core-effects condition) (core-effects body)
     CArgument s value rest -> union-effects (core-effects value) (core-effects rest)
     CAlternative s pattern body rest -> union-effects (core-effects body) (core-effects rest)
@@ -1147,7 +1149,7 @@ module Bootstrap.Core where
     CApply at ty f x -> opaque-call-writes sp f
     CApplyEff at ty row f x -> opaque-call-writes sp f
     CErasedApply at ty row f witness -> opaque-call-writes sp f
-    CDischarge at ty evidence body -> opaque-call-writes sp body
+    CDischarge at ty evidence _ body -> opaque-call-writes sp body
     CLocal at ty id name actuals -> [(sp, None)]
     other -> Nil
   opaque-symbol-writes :: Span -> String -> String -> List (Span, Option UType)
@@ -1241,7 +1243,7 @@ module Bootstrap.Core where
     CRefineProof s ty witness body -> CRefineProof s (f ty) (map-term-types f witness) (map-term-types f body)
     CForget s ty body -> CForget s (f ty) (map-term-types f body)
     CRequire s ty body -> CRequire s (f ty) (map-term-types f body)
-    CDischarge s ty evidence body -> CDischarge s (f ty) evidence (map-term-types f body)
+    CDischarge s ty evidence dictionary-free body -> CDischarge s (f ty) evidence dictionary-free (map-term-types f body)
     CGuard s ty guard rhs -> CGuard s (f ty) (map-term-types f guard) (map-term-types f rhs)
     CArgument s x rest -> CArgument s (map-term-types f x) (map-term-types f rest)
     CArgumentsEnd s -> term
@@ -1423,7 +1425,7 @@ module Bootstrap.Core where
     CRefineProof s ty witness body -> type-metas st ty <> term-metas st witness <> term-metas st body
     CForget s ty body -> type-metas st ty <> term-metas st body
     CRequire s ty body -> type-metas st ty <> term-metas st body
-    CDischarge s ty evidence body -> type-metas st ty <> term-metas st body
+    CDischarge s ty evidence _ body -> type-metas st ty <> term-metas st body
     CGuard s ty guard rhs -> type-metas st ty <> term-metas st guard <> term-metas st rhs
     CArgument s x rest -> term-metas st x <> term-metas st rest
     CAlternative s p body rest -> pattern-metas st p <> term-metas st body <> term-metas st rest
@@ -1633,7 +1635,7 @@ module Bootstrap.Core where
     CRefineProof s ty witness body -> closed-runtime-type ty && valid-proof-reference witness && valid-term body
     CForget s ty body -> closed-runtime-type ty && valid-term body
     CRequire s ty body -> closed-type ty && valid-term body
-    CDischarge s ty evidence body -> closed-runtime-type ty && valid-required-call body
+    CDischarge s ty evidence _ body -> closed-runtime-type ty && valid-required-call body
     CGuard s ty guard rhs -> closed-runtime-type ty && valid-term guard && valid-term rhs
     CArgument s x rest -> valid-term x && valid-term rest
     CArgumentsEnd s -> True
@@ -1846,7 +1848,7 @@ module Bootstrap.Core where
       CRefineProof s ty witness body -> scoped-term-with universals values scope witness && scoped-term-with universals values scope body
       CForget s ty body -> scoped-term-with universals values scope body
       CRequire s ty body -> scoped-term-with universals values scope body
-      CDischarge s ty evidence body -> scoped-term-with universals values scope body
+      CDischarge s ty evidence _ body -> scoped-term-with universals values scope body
       CGuard s ty condition body -> scoped-term-with universals values scope condition && scoped-term-with universals values scope body
       CArgument s value rest -> scoped-term-with universals values scope value && scoped-term-with universals values scope rest
       CAlternative s pattern body rest -> (case pattern-scope-with universals values pattern scope of Some bound -> scoped-term-with universals values bound body; None -> False) && scoped-term-with universals values scope rest
@@ -1958,7 +1960,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
     CProved sp ty certificate body -> stable-index-source body
-    CDischarge sp ty certificates body -> (case core-mutable-writes body of Nil -> True; other -> False)
+    CDischarge sp ty certificates _ body -> (case core-mutable-writes body of Nil -> True; other -> False)
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
     CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
@@ -2384,7 +2386,7 @@ module Bootstrap.Core where
     other -> None
   ordinary-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   ordinary-arithmetic gamma facts term = case term of
-    CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
+    CDischarge sp ty certificates _ body -> scoped-guarded-call-reading gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
         (case actual-index gamma facts input of Some value -> byte-observation-reading gamma value; None -> None)
@@ -2776,7 +2778,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CInt s ty text -> valid-number-literal ty text
     CRequire s ty body -> False
-    CDischarge s ty evidence body -> discharged gamma facts ty evidence body
+    CDischarge s ty evidence _ body -> discharged gamma facts ty evidence body
     CProved s ty evidence body -> certified-operation gamma facts ty evidence body
     CPrimitive s ty op args -> string-compare op "/" /= 0 && not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
     CApply s ty f x -> proof-application gamma facts ty (URow UEnd) f x
@@ -2972,7 +2974,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CApply s ty f x -> checked-proof-application gamma facts ty (URow UEnd) f x
     CApplyEff s ty row f x -> checked-proof-application gamma facts ty row f x
-    CDischarge s ty evidence body -> discharged gamma facts ty evidence body
+    CDischarge s ty evidence _ body -> discharged gamma facts ty evidence body
     CLet s ty id name sc rhs body -> let writes = core-mutable-writes rhs in
       let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
       proof-expected gamma facts (scheme-body sc) rhs &&
@@ -3034,10 +3036,10 @@ module Bootstrap.Core where
     CRequire s ty body -> case ty of
       URequire predicates result -> case scoped-core-predicates gamma predicates of Some ps -> CRequire s ty (refresh-certificates gamma (ps <> facts) body); None -> CError s
       other -> CError s
-    CDischarge s ty evidence body -> let call = refresh-certificates gamma facts body in
+    CDischarge s ty evidence _ body -> let call = refresh-certificates gamma facts body in
       let (scope, live) = discharge-scope gamma facts call in
       case scoped-prove-predicates scope live (core-type call) of
-        Some fresh -> CDischarge s ty fresh call
+        Some fresh -> CDischarge s ty fresh False call
         None -> CError s
     CProved s ty evidence body -> let out = refresh-certificates gamma facts body in
       if certified-operation gamma facts ty evidence out then CProved s ty evidence out
@@ -3322,7 +3324,7 @@ module Bootstrap.Core where
     None -> None
   ordinary-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   ordinary-index gamma facts term = case term of
-    CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term
+    CDischarge sp ty certificates _ body -> scoped-guarded-call-index gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
         (case actual-index gamma facts input of Some value -> (case byte-observation-reading gamma value of Some reading -> Some (UIndexByteLength value); None -> None); None -> None)
@@ -3669,7 +3671,7 @@ module Bootstrap.Core where
       other -> None)
   scoped-guarded-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-guarded-call-index gamma facts term = case term of
-    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+    CDischarge sp ty evidence _ body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
       Some (binding, arguments) -> (case guarded-actuals gamma facts arguments of Some values -> guarded-index binding values; None -> None)
       None -> None)
     other -> None
@@ -3682,7 +3684,7 @@ module Bootstrap.Core where
       other -> None)
   scoped-guarded-call-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   scoped-guarded-call-reading gamma facts term = case term of
-    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+    CDischarge sp ty evidence _ body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
       Some (binding, arguments) -> (case guarded-actual-readings gamma facts arguments of Some values -> guarded-reading binding values; None -> None)
       None -> None)
     other -> None

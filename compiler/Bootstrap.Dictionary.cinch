@@ -214,7 +214,9 @@ module Bootstrap.Dictionary where
     CRefineProof sp ty witness body -> case resolve-term context scope body st of (out, checked) -> (CRefineProof sp ty witness out, checked)
     CForget sp ty body -> case resolve-term context scope body st of (out, checked) -> (CForget sp ty out, checked)
     CRequire sp ty body -> case resolve-term context scope body st of (out, checked) -> (CRequire sp ty out, checked)
-    CDischarge sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CDischarge sp ty evidence out, checked)
+    CDischarge sp ty evidence dictionary-free body ->
+      if dictionary-free && resolution-deferred context then (term, st)
+      else case resolve-term context scope body st of (out, checked) -> (CDischarge sp ty evidence False out, checked)
     CGuard sp ty guard rhs -> case resolve-term context scope guard st of
       (condition, sg) -> case resolve-term context scope rhs sg of (out, sr) -> (CGuard sp ty condition out, sr)
     CArgument sp arg rest -> case resolve-term context scope arg st of

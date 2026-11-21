@@ -494,7 +494,7 @@ module Bootstrap.CoreBody where
       let (doc, t1) = dense-type-doc dense ty table in
       let (b, t2) = dense-term dense body t1 in
       (dense-node "require" [doc, b], t2)
-    CDischarge s ty proofs body ->
+    CDischarge s ty proofs _ body ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (b, t2) = dense-term dense body t1 in
       (dense-node "discharge" [doc, dense-proofs proofs, b], t2)
@@ -1148,7 +1148,7 @@ module Bootstrap.CoreBody where
     else if dense-same tag "discharge" then (case rest of
       JArr typeDoc (JArr proofsDoc (JArr bodyDoc JArrEnd)) ->
         (case (dense-type-of types typeDoc, dense-proofs-of proofsDoc, dense-term-of types bodyDoc) of
-          (Some ty, Some proofs, Some body) -> Some (CDischarge dense-zero ty proofs body)
+          (Some ty, Some proofs, Some body) -> Some (CDischarge dense-zero ty proofs False body)
           other -> None)
       other -> None)
     else if dense-same tag "guard" then (case rest of

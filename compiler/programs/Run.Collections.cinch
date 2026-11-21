@@ -45,7 +45,7 @@ module Main where
     CApplyEff sp ty row function input -> selected-term element function || selected-term element input
     CLet sp ty id name sc rhs body -> selected-term element rhs || selected-term element body
     CRequire sp ty body -> selected-term element body
-    CDischarge sp ty evidence body -> selected-term element body
+    CDischarge sp ty evidence _ body -> selected-term element body
     CWith sp ty given value body -> selected-term element value || selected-term element body
     CLambda sp ty pattern body -> selected-term element body
     other -> False

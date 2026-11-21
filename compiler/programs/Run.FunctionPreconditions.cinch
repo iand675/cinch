@@ -39,12 +39,12 @@ module Main where
       Some fact -> case prove-predicates gamma [fact] obligation of
         None -> False
         Some evidence ->
-          let good = CDischarge s nat evidence call in
+          let good = CDischarge s nat evidence False call in
           let accepted = core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition good zero)) in
           let outside = not (core-definition-closed (definition (UFun nat nat) [parameter] good)) in
           let wrong-branch = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition zero good))) in
-          let wrong-actual = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat evidence (CApply s obligation callee zero)) zero))) in
-          let missing-proof = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat Nil call) zero))) in
+          let wrong-actual = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat evidence False (CApply s obligation callee zero)) zero))) in
+          let missing-proof = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat Nil False call) zero))) in
           let missing-discharge = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition call zero))) in
           let forged-introduction = not (core-definition-closed (definition (UFun nat nat) [parameter] (CRequire s obligation zero))) in
           case prove-subtraction gamma [fact] value one of
@@ -76,7 +76,7 @@ module Main where
       None -> False
       Some evidence ->
         let sc = MkScheme [MkQuant q "a" KType False] (UFun (UBound q "a" KType) (UBound q "a" KType)) in
-        core-definition-closed (MkCoreDefinition s "generic-contract-caller" sc [(q, a)] Nil Nil [MkCoreClause s [CPVar s a value-id "value"] (CDischarge s a evidence call)])
+        core-definition-closed (MkCoreDefinition s "generic-contract-caller" sc [(q, a)] Nil Nil [MkCoreClause s [CPVar s a value-id "value"] (CDischarge s a evidence False call)])
   closed :: List CoreDefinition -> Bool
   closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
   run :: Bytes -> (Int, String)

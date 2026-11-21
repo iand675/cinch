@@ -1253,7 +1253,7 @@ module Bootstrap.Infer where
           other -> case reify-argument sp env body st of
             (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked)
       other -> bad sp "refinement projection needs an actual refined operand" st
-    CDischarge source ty evidence body -> (case scoped-guarded-call-index (proof-context env st) (proof-facts env) (map-term-types (normalize st) term) of
+    CDischarge source ty evidence _ body -> (case scoped-guarded-call-index (proof-context env st) (proof-facts env) (map-term-types (normalize st) term) of
       Some index -> checked-typed-source-index sp index st
       None -> bad sp "conditional argument needs checked defining body authority" st)
     CProved source ty evidence (CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end)))) ->
@@ -4788,7 +4788,7 @@ module Bootstrap.Infer where
     -- A conditional Nat result may have a checked mathematical equation
     -- while remaining unavailable as an unconditional type-level index.
     -- Bind it once; the independent CLet rule reconstructs that equation.
-    CDischarge at ty evidence body -> materialize-refinement env sp expected carrier term st
+    CDischarge at ty evidence _ body -> materialize-refinement env sp expected carrier term st
     CLet at ty id name sc rhs body ->
       let binding = MkLocalBinding name sc id (store-level st) in
       let bound = proof-let-env env binding id sc rhs st in
@@ -4815,7 +4815,7 @@ module Bootstrap.Infer where
     CProved s ty evidence body -> True
     -- A discharged source subtraction carries the checked `b <= a`
     -- obligation, so its value is arithmetic the let equation states.
-    CDischarge s ty evidence body -> True
+    CDischarge s ty evidence _ body -> True
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) -> certified-arithmetic-operand first || certified-arithmetic-operand second
     CApply s ty (CApply partial function method first) second -> certified-arithmetic-operand first || certified-arithmetic-operand second
     other -> False
@@ -9475,6 +9475,25 @@ module Bootstrap.Infer where
   discharge-call :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
   discharge-call classes sp env input before = case resolve-inventory-term True classes (env-inventory env) (env-givens env) input before of
     (term, st) -> discharge-checked-call sp env term st
+  -- The deferred resolver would return these leaves unchanged. Keep the
+  -- property across discharges so each parent need not revisit the child's
+  -- whole subtree. Unknown forms still take the resolver.
+  dictionary-free-operand :: CoreTerm -> Bool
+  dictionary-free-operand term = case term of
+    CUse sp ty name role actuals -> True
+    CLocal sp ty id name actuals -> True
+    CInt sp ty text -> True
+    CChar sp ty text -> True
+    CString sp ty text -> True
+    CSymbol sp ty text -> True
+    CUnit sp ty -> True
+    CDischarge sp ty evidence dictionary-free body -> dictionary-free
+    other -> False
+  dictionary-free-call :: CoreTerm -> Bool
+  dictionary-free-call term = case term of
+    CApply sp ty f x -> dictionary-free-operand f && dictionary-free-operand x
+    CApplyEff sp ty row f x -> dictionary-free-operand f && dictionary-free-operand x
+    other -> dictionary-free-operand term
   discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
   discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
     case ty of
@@ -9482,7 +9501,7 @@ module Bootstrap.Infer where
         Nil -> let evaluated = if proof-env-invalidatable env then proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st else env in
           let gamma = proof-context evaluated st in
           (case scoped-prove-predicates gamma (proof-facts evaluated) ty of
-            Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
+            Some evidence -> (CDischarge sp (required-body ty) evidence (dictionary-free-call term) term, st)
             None -> case stale-proof-message evaluated st (\prior ->
               case scoped-prove-predicates gamma prior ty of Some evidence -> True; None -> False) of
                 Some message -> term-error sp message st
@@ -9536,7 +9555,7 @@ module Bootstrap.Infer where
       (Some function, Some argument) -> Some ("(" <> function <> " " <> argument <> ")")
       other -> None)
     CApplyEff at ty row f x -> diagnostic-argument depth env (CApply at ty f x)
-    CDischarge at ty evidence x -> diagnostic-argument (depth - 1) env x
+    CDischarge at ty evidence _ x -> diagnostic-argument (depth - 1) env x
     CRefine at ty evidence x -> diagnostic-argument (depth - 1) env x
     CForget at ty x -> diagnostic-argument (depth - 1) env x
     other -> None
@@ -9554,7 +9573,7 @@ module Bootstrap.Infer where
         CRefine source ty evidence body -> materialize-dependent classes sp env fun value st
         CRefineProof source ty witness body -> materialize-dependent classes sp env fun value st
         CErasedApply source ty row callee witness -> materialize-dependent classes sp env fun value st
-        CDischarge source ty evidence body -> materialize-dependent classes sp env fun value st
+        CDischarge source ty evidence _ body -> materialize-dependent classes sp env fun value st
         -- The carrier projection retains a checked runtime result, even
         -- when that result has no executable symbolic body contract. Keep
         -- its original refinement on the strict binding, then project only

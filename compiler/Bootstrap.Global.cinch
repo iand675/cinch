@@ -417,7 +417,7 @@ module Bootstrap.Global where
     CRefineProof sp ty witness body -> term-references globals locals givens witness && term-references globals locals givens body
     CForget sp ty body -> term-references globals locals givens body
     CRequire sp ty body -> term-references globals locals givens body
-    CDischarge sp ty proofs body -> term-references globals locals givens body
+    CDischarge sp ty proofs _ body -> term-references globals locals givens body
     CGuard sp ty condition body -> term-references globals locals givens condition && term-references globals locals givens body
     CArgument sp first rest -> term-references globals locals givens first && term-references globals locals givens rest
     CAlternative sp pattern body rest -> (case pattern-locals globals locals pattern of Some bound -> term-references globals bound givens body; None -> False) && term-references globals locals givens rest

@@ -1039,7 +1039,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty evidence body -> scoped-call-saturated id remaining body
     CRefine sp ty evidence body -> scoped-call-saturated id remaining body
     CRefineProof sp ty witness body -> not (term-uses id witness) && scoped-call-saturated id remaining body
-    CDischarge sp ty evidence body -> scoped-call-saturated id remaining body
+    CDischarge sp ty evidence _ body -> scoped-call-saturated id remaining body
     CForget sp ty body -> scoped-call-saturated id remaining body
     other -> case head term of
       CLocal sp ty key name Nil -> key == id && list-length (arguments term Nil) == remaining && not (scoped-argument-uses id (arguments term Nil))
@@ -1190,7 +1190,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> CRefineProof sp ty (specialize-local id scheme value witness) (specialize-local id scheme value body)
     CForget sp ty body -> CForget sp ty (specialize-local id scheme value body)
     CRequire sp ty body -> CRequire sp ty (specialize-local id scheme value body)
-    CDischarge sp ty evidence body -> CDischarge sp ty evidence (specialize-local id scheme value body)
+    CDischarge sp ty evidence _ body -> CDischarge sp ty evidence False (specialize-local id scheme value body)
     CGuard sp ty condition body -> CGuard sp ty (specialize-local id scheme value condition) (specialize-local id scheme value body)
     CArgument sp first rest -> CArgument sp (specialize-local id scheme value first) (specialize-local id scheme value rest)
     CAlternative sp pattern body rest -> CAlternative sp pattern (if pattern-binds id pattern then body else specialize-local id scheme value body) (specialize-local id scheme value rest)
@@ -1340,7 +1340,7 @@ module Bootstrap.RuntimeIr where
         CRefineProof sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefineProof sp ty evidence value) fresh) cursor
         CForget sp ty body -> handler-cps context sp body (\value fresh -> next (CForget sp ty value) fresh) cursor
         CRequire sp ty body -> handler-cps context sp body (\value fresh -> next (CRequire sp ty value) fresh) cursor
-        CDischarge sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CDischarge sp ty evidence value) fresh) cursor
+        CDischarge sp ty evidence _ body -> handler-cps context sp body (\value fresh -> next (CDischarge sp ty evidence False value) fresh) cursor
         other -> Err "handled operation occurs in a Core form without continuation lowering"
   handler-cps-apply :: HandlerLowering -> Span -> UType -> CoreTerm -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
   handler-cps-apply context sp ty fun arg next cursor =
@@ -1440,7 +1440,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> expression definitions locals w body
     CForget sp ty body -> expression definitions locals w body
     CRequire sp ty body -> expression definitions locals w body
-    CDischarge sp ty evidence body -> expression definitions locals w body
+    CDischarge sp ty evidence _ body -> expression definitions locals w body
     CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
     CErasedApply sp ty row f witness -> case f of
       CUse at function name role actuals ->
@@ -2937,7 +2937,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> term-value-dependencies w owner key seen body
     CForget sp ty body -> term-value-dependencies w owner key seen body
     CRequire sp ty body -> term-value-dependencies w owner key seen body
-    CDischarge sp ty evidence body -> term-value-dependencies w owner key seen body
+    CDischarge sp ty evidence _ body -> term-value-dependencies w owner key seen body
     CGuard sp ty guard body -> merge-value-fields (term-value-dependencies w owner key seen guard) (term-value-dependencies w owner key seen body)
     CArgument sp first rest -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen rest)
     CAlternative sp pattern body rest -> merge-value-fields (term-value-dependencies w owner key seen body) (term-value-dependencies w owner key seen rest)
@@ -3320,7 +3320,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> term-uses id body
     CForget sp ty body -> term-uses id body
     CRequire sp ty body -> term-uses id body
-    CDischarge sp ty evidence body -> term-uses id body
+    CDischarge sp ty evidence _ body -> term-uses id body
     CGuard sp ty guard body -> term-uses id guard || term-uses id body
     CArgument sp first rest -> term-uses id first || term-uses id rest
     CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
@@ -3370,7 +3370,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> given-uses name body
     CForget sp ty body -> given-uses name body
     CRequire sp ty body -> given-uses name body
-    CDischarge sp ty evidence body -> given-uses name body
+    CDischarge sp ty evidence _ body -> given-uses name body
     CGuard sp ty guard body -> given-uses name guard || given-uses name body
     CArgument sp first rest -> given-uses name first || given-uses name rest
     CAlternative sp pattern body rest -> given-uses name body || given-uses name rest
@@ -4299,7 +4299,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty warrant body -> unfold-shape body
     CRefine sp ty warrant body -> unfold-shape body
     CRefineProof sp ty warrant body -> unfold-merge (unfold-shape warrant) (unfold-shape body)
-    CDischarge sp ty warrants body -> unfold-shape body
+    CDischarge sp ty warrants _ body -> unfold-shape body
     CForget sp ty body -> unfold-shape body
     CIf sp ty test yes no -> unfold-merge (unfold-merge (unfold-shape test) (unfold-shape yes)) (unfold-shape no)
     CArgument sp first rest -> unfold-merge (unfold-shape first) (unfold-shape rest)
@@ -5485,7 +5485,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty evidence body -> tail-result definitions locals roots context w failed body
     CRefine sp ty evidence body -> tail-result definitions locals roots context w failed body
     CRefineProof sp ty witness body -> tail-result definitions locals roots context w failed body
-    CDischarge sp ty evidence body -> tail-result definitions locals roots context w failed body
+    CDischarge sp ty evidence _ body -> tail-result definitions locals roots context w failed body
     CForget sp ty body -> case parameter-value locals roots term of
       Some (word, remaining) -> line (drop-locals remaining w) (cat ["  ret i64 ", word])
       None -> tail-result definitions locals roots context w failed body
@@ -5923,7 +5923,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> source-tail-edges arities body next
     CRefineProof sp ty evidence body -> source-tail-edges arities body next
     CForget sp ty body -> source-tail-edges arities body next
-    CDischarge sp ty evidence body -> source-tail-edges arities body next
+    CDischarge sp ty evidence _ body -> source-tail-edges arities body next
     other -> case head term of
       CUse sp ty name role actuals | not (same role "foreign") -> source-tail-edge arities name 0 (arguments term Nil) next
       CQualifiedUse sp ty name role actuals evidence -> source-tail-edge arities name (list-length evidence) (arguments term Nil) next

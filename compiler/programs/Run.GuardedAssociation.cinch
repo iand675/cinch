@@ -48,7 +48,7 @@ module Main where
   checks id native doc = case (check-guarded-binding (interface-global native) native (mono (header id)) doc, check-guarded-binding (interface-global native) native (mono (header id)) changed-body, prove-predicates Nil Nil (required (literal 10) (literal 3))) of
     (Some original, Some changed, Some evidence) ->
       let scope = with-guarded-bindings [original] (make-proof-scope Nil Nil) in
-      let good = CDischarge sp nat evidence (call id native 10 3) in
+      let good = CDischarge sp nat evidence False (call id native 10 3) in
       let expected = result-type id in
       (case scoped-prove-refinement scope Nil expected good of
         None -> [("actual body must prove actual result", False)]
@@ -56,7 +56,7 @@ module Main where
           let value = definition expected (CRefine sp expected certificate good) in
           let actual-globals = globals id native expected (Some original) in
           let changed-globals = globals id native expected (Some changed) in
-          let wrong-call = CDischarge sp nat evidence (call id native 0 3) in
+          let wrong-call = CDischarge sp nat evidence False (call id native 0 3) in
           let alias = id + 100 in
           let local = CLocal sp nat alias "alias" Nil in
           let bound = scope-let scope Nil alias (mono nat) good in
@@ -73,7 +73,7 @@ module Main where
           , ("missing body authority", not (typed (globals id native expected None) value))
           , ("changed body rejects stale result", not (typed changed-globals value))
           , ("wrong actual arguments", not (typed (globals id native nat (Some original)) (definition nat wrong-call)))
-          , ("missing call evidence", not (typed (globals id native nat (Some original)) (definition nat (CDischarge sp nat Nil (call id native 10 3)))))
+          , ("missing call evidence", not (typed (globals id native nat (Some original)) (definition nat (CDischarge sp nat Nil False (call id native 10 3)))))
           , ("wrong actual declaration", not (typed [GlobalGuardedBody (GlobalValue (interface-global native) "external" (mono (UFun nat (UFun nat nat)))) original, GlobalValue "caller" "value" (mono expected)] value))
           , ("refresh cannot repair changed body", not (typed changed-globals (seal-definition-with-contracts Nil [changed] (empty-store "changed guarded body") value)))
           ] <> alias-checks)

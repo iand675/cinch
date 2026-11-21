@@ -372,7 +372,7 @@ module Bootstrap.StageEval where
       CProved at ty certificate body -> evaluate-term definitions locals at body remaining
       CRefine at ty certificate body -> evaluate-term definitions locals at body remaining
       CForget at ty body -> evaluate-term definitions locals at body remaining
-      CDischarge at ty proofs body -> evaluate-discharged definitions locals at body remaining
+      CDischarge at ty proofs _ body -> evaluate-discharged definitions locals at body remaining
       CPrimitive at ty operation arguments -> case evaluate-terms definitions locals at (primitive-arguments arguments) remaining of
         Err errors -> Err errors
         Ok (values, next) -> evaluate-primitive at operation values next

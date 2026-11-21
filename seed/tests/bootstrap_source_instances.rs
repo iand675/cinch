@@ -82,6 +82,8 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
         ("dictionary kind contradicts application", "probe :: forall f. using (given :: Mapper f) => f Int Bool -> f Int Bool\n  probe x = x", 4),
         ("higher kind imported class without instance", "probe :: forall (f :: Type -> Type). using (given :: Mapper f) => Int -> f Int\n  probe x = make-one x", 0),
         ("monomorphic dictionary and method call", "implicit instance EchoInt :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = echo 1", 0),
+        ("nested preconditions retain an instance", "implicit instance EchoInt :: Echo Int where\n    echo x = x\n  keep :: using (True) => Int -> Int\n  keep n = n\n  answer :: Int\n  answer = keep (keep (echo (keep (keep 42))))", 0),
+        ("nested preconditions reject a missing instance", "keep :: using (True) => Int -> Int\n  keep n = n\n  answer :: Int\n  answer = keep (keep (echo (keep (keep 42))))", 4),
         ("machine carrier specialization", "implicit instance EchoI64 :: Echo I64 where\n    echo x = x\n  answer :: I64\n  answer = echo (-1 :: I64)", 0),
         ("plain instance explicit value", "instance Explicit :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = with (chosen = Explicit) in echo 1", 0),
         ("ordinary value cannot supply a dictionary", "implicit instance EchoInt :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = with (chosen = 1) in echo 1", 4),
@@ -108,6 +110,9 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
         let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "source-instance-report.txt");
         assert_eq!(result.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
+        if name == "nested preconditions reject a missing instance" {
+            assert!(report.contains("no instance for Echo Int"), "{name}: {report}");
+        }
         println!("source dictionary case passed: {name}");
     }
     let actual_json = "module Text.Json where\n  import Text.Codec (JsonCodec)\n  import Data.Json (Json)\n  import Data.Result (Ok)\n  implicit instance JsonCodec_Json :: JsonCodec Json where\n    encode-json j = j\n    decode-json j = Ok j\nmodule Main where\n  main :: Int\n  main = 0\n";
