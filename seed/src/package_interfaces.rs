@@ -108,6 +108,23 @@ enum Definitions<'a> {
     },
 }
 
+/// The decoder projects the checked graph from this exact wire root.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct PackedBody {
+    root: Box<str>,
+    graph: CheckedGraph,
+}
+
+impl PackedBody {
+    pub(crate) fn root(&self) -> &str {
+        &self.root
+    }
+
+    pub(crate) fn graph(&self) -> &CheckedGraph {
+        &self.graph
+    }
+}
+
 impl<'a> Package<'a> {
     fn open(file: &'a [u8]) -> Decode<Self> {
         let (version, header) = match file.get(..8) {
@@ -313,10 +330,11 @@ impl<'a> Document<'a> {
                     return Err(invalid("unexpected packed body root"));
                 };
                 let [root] = self.take()?;
+                let root = table.definition_name(root)?;
                 let graph = checked
-                    .closure([table.definition_name(root)?])
+                    .closure([root])
                     .map_err(|error| ParseError::from(error.0))?;
-                JsonValue::PackedBody(graph)
+                JsonValue::PackedBody(PackedBody { root: root.into(), graph })
             }
             _ => return Err(invalid("unknown or unsupported structured contract tag")),
         })

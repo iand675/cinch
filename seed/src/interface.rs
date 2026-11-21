@@ -1713,7 +1713,7 @@ pub(crate) enum JsonValue {
     /// Output-only canonical JSON for a checked definition shared by several export closures.
     CanonicalBodyRow(Arc<str>),
     /// A packed contract's checked body closure, resolved from one root index.
-    PackedBody(crate::total::CheckedGraph),
+    PackedBody(crate::package_interfaces::PackedBody),
 }
 
 impl From<&str> for JsonValue {
@@ -1857,7 +1857,7 @@ impl JsonValue {
                 }
                 out.write_char(']')
             }
-            JsonValue::PackedBody(graph) => graph.to_json_value().write_canonical_to(out),
+            JsonValue::PackedBody(body) => body.graph().to_json_value().write_canonical_to(out),
             JsonValue::Obj(map) => {
                 out.write_char('{')?;
                 for (i, (key, value)) in map.iter().enumerate() {
@@ -1984,7 +1984,7 @@ fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<V
         let total_body = crate::total::CheckedGraph::from_json_value(graph).map_err(|error| ParseError(error.0))?;
         let definition = total_body.get(&implementation).ok_or_else(|| ParseError("method body has no actual implementation root".into()))?;
         if implementation.is_empty() || bodies.iter().any(|body| body.slot == slot || body.implementation == implementation)
-            || !total_body.closure_is_whole(&implementation).map_err(|error| ParseError(error.0))? {
+            || !exact_body_root(graph, &total_body, &implementation)? {
             return Err(ParseError("method body requires a distinct slot and exact implementation closure".into()));
         }
         if !resolved.nominals.is_empty() || !resolved.measures.is_empty() || resolved.scheme != total_declaration(definition) {
@@ -2009,6 +2009,17 @@ fn field_keyed_ordering(o: &BTreeMap<String, JsonValue>, resolved: bool, arity: 
     Ok(Some(KeyedOrderingBody { less_slot, greater_slot }))
 }
 
+fn exact_body_root(
+    value: &JsonValue,
+    graph: &crate::total::CheckedGraph,
+    name: &str,
+) -> Result<bool, ParseError> {
+    match value {
+        JsonValue::PackedBody(body) => Ok(body.root() == name),
+        _ => graph.closure_is_whole(name).map_err(|error| ParseError(error.0)),
+    }
+}
+
 fn field_total_body(o: &BTreeMap<String, JsonValue>, resolved: bool, symbol: &str, arity: u64) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
     let value = o.get("total_body").ok_or_else(|| ParseError("missing value total_body".into()))?;
     if matches!(value, JsonValue::Null) { return Ok(None) }
@@ -2019,7 +2030,7 @@ fn field_total_body(o: &BTreeMap<String, JsonValue>, resolved: bool, symbol: &st
     if root.parameters.len() as u64 != arity {
         return Err(ParseError("total body arity disagrees with its value declaration".into()))
     }
-    if !graph.closure_is_whole(symbol).map_err(|error| ParseError(error.0))? {
+    if !exact_body_root(value, &graph, symbol)? {
         return Err(ParseError("total body includes unrelated definitions".into()))
     }
     Ok(Some(graph))
@@ -2204,9 +2215,9 @@ fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) ->
                 return Err(ParseError("duplicate or empty defining measure identity".into()))
             }
             let resolved = field_resolved_scheme_depth(row, depth + 1)?.ok_or_else(|| ParseError("measure has no defining scheme".into()))?;
-            let graph = row.get("total_body").ok_or_else(|| ParseError("measure has no total body".into()))?;
-            let graph = crate::total::CheckedGraph::from_json_value(graph).map_err(|e| ParseError(e.0))?;
-            if graph.get(&identity).is_none() || !graph.closure_is_whole(&identity).map_err(|e| ParseError(e.0))? {
+            let value = row.get("total_body").ok_or_else(|| ParseError("measure has no total body".into()))?;
+            let graph = crate::total::CheckedGraph::from_json_value(value).map_err(|e| ParseError(e.0))?;
+            if graph.get(&identity).is_none() || !exact_body_root(value, &graph, &identity)? {
                 return Err(ParseError("measure body must contain exactly its defining root closure".into()))
             }
             measures.push(MeasureContract { identity, resolved: Box::new(resolved), total_body: graph });

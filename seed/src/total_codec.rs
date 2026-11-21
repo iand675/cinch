@@ -92,8 +92,8 @@ impl CheckedGraph {
     }
 
     pub(crate) fn from_json_value(data: &J) -> Result<Self, Invalid> {
-        if let J::PackedBody(graph) = data {
-            return Ok(graph.clone());
+        if let J::PackedBody(body) = data {
+            return Ok(body.graph().clone());
         }
         let root=object(data,&["version","definitions"])?;
         if root["version"].as_num().map_err(|e| Invalid(e.to_string()))? != 1 { return Err(Invalid("unknown total-body version".into())) }

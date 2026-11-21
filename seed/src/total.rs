@@ -67,9 +67,24 @@ pub struct Invalid(pub String);
 /// acyclic; recursively calling a pure-typed function cannot manufacture it.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct CheckedGraph {
-    // Each exported closure owns its membership index. The checked bodies
-    // and keys are shared between closures of the same source graph.
-    definitions: BTreeMap<Arc<str>, Arc<Definition>>,
+    // A clone shares its membership index. Distinct closures share their
+    // checked definitions, including the direct edges discovered once here.
+    definitions: Arc<BTreeMap<Arc<str>, Arc<CheckedDefinition>>>,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct CheckedDefinition {
+    definition: Definition,
+    calls: Vec<Box<str>>,
+}
+
+impl CheckedDefinition {
+    fn new(definition: Definition) -> Self {
+        let mut calls = BTreeSet::new();
+        dependencies(&definition.body, &mut calls);
+        let calls = calls.into_iter().map(Box::from).collect();
+        Self { definition, calls }
+    }
 }
 
 struct BodyScope<'a> {
@@ -101,19 +116,23 @@ impl CheckedGraph {
     pub fn check(definitions: Vec<Definition>) -> Result<Self, Invalid> {
         let mut by_name = BTreeMap::new();
         for definition in definitions {
-            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), Arc::new(definition)).is_some() {
+            if definition.identity.is_empty() {
+                return Err(Invalid("empty or duplicate total-body identity".into()));
+            }
+            let name = Arc::from(definition.identity.as_str());
+            if by_name.insert(name, Arc::new(CheckedDefinition::new(definition))).is_some() {
                 return Err(Invalid("empty or duplicate total-body identity".into()));
             }
         }
-        let graph = Self { definitions: by_name };
-        for definition in graph.definitions.values() {
+        let graph = Self { definitions: Arc::new(by_name) };
+        for definition in graph.definitions() {
             let inferred = graph.infer(&definition.body, &definition.parameters)?;
             if inferred != definition.result { return Err(Invalid(format!("{}: body result sort disagrees with its declaration", definition.identity))) }
         }
         graph.check_acyclic()?;
         Ok(graph)
     }
-    pub fn empty() -> Self { Self { definitions: BTreeMap::new() } }
+    pub fn empty() -> Self { Self::default() }
     /// Incremental sessions can retain ordinary callers when a callee body
     /// changes. Rebuild their semantic closure from the current definitions;
     /// missing/invalid/cyclic bodies lose authority instead of keeping stale
@@ -126,9 +145,9 @@ impl CheckedGraph {
         for definition in definitions {
             match pending.entry(definition.identity.clone()) {
                 Entry::Vacant(entry) => {
-                    entry.insert((definition, 0));
+                    entry.insert((CheckedDefinition::new(definition), 0));
                 }
-                Entry::Occupied(entry) if entry.get().0 != definition => {
+                Entry::Occupied(entry) if entry.get().0.definition != definition => {
                     conflicts.insert(definition.identity);
                 }
                 Entry::Occupied(_) => {}
@@ -142,25 +161,24 @@ impl CheckedGraph {
         // Missing or invalid dependencies and cycles never reach the queue.
         let mut users = BTreeMap::<_, Vec<String>>::new();
         let mut ready = Vec::new();
-        for (name, (definition, waiting)) in &mut pending {
-            let mut calls = BTreeSet::new();
-            dependencies(&definition.body, &mut calls);
-            *waiting = calls.len();
-            if calls.is_empty() {
+        for (name, (entry, waiting)) in &mut pending {
+            *waiting = entry.calls.len();
+            if entry.calls.is_empty() {
                 ready.push(name.clone());
             }
-            for callee in calls {
-                users.entry(callee.to_owned()).or_default().push(name.clone());
+            for callee in &entry.calls {
+                users.entry(callee.as_ref().to_owned()).or_default().push(name.clone());
             }
         }
         let mut graph = Self::empty();
         while let Some(name) = ready.pop() {
-            let (definition, _) = pending.remove(&name).expect("ready definition is pending");
+            let (entry, _) = pending.remove(&name).expect("ready definition is pending");
+            let definition = &entry.definition;
             if graph.infer(&definition.body, &definition.parameters).ok() != Some(definition.result) {
                 continue;
             }
             let dependents = users.remove(&name).unwrap_or_default();
-            graph.definitions.insert(Arc::from(name), Arc::new(definition));
+            Arc::make_mut(&mut graph.definitions).insert(Arc::from(name), Arc::new(entry));
             for dependent in dependents {
                 let (_, waiting) = pending.get_mut(&dependent).expect("dependent is pending");
                 *waiting -= 1;
@@ -176,9 +194,9 @@ impl CheckedGraph {
     pub fn define(&mut self, identity: String, parameters: Vec<Sort>, body: Expr) -> Result<(), Invalid> {
         if identity.is_empty() || self.definitions.contains_key(identity.as_str()) { return Err(Invalid("empty or duplicate total-body identity".into())) }
         let result = self.infer(&body, &parameters)?;
-        self.definitions.insert(
+        Arc::make_mut(&mut self.definitions).insert(
             Arc::from(identity.as_str()),
-            Arc::new(Definition { identity, parameters, result, body }),
+            Arc::new(CheckedDefinition::new(Definition { identity, parameters, result, body })),
         );
         Ok(())
     }
@@ -192,16 +210,14 @@ impl CheckedGraph {
             if selected.contains_key(identity) {
                 continue;
             }
-            let (key, definition) = self.definitions.get_key_value(identity)
+            let (key, entry) = self.definitions.get_key_value(identity)
                 .ok_or_else(|| Invalid(format!("missing total-body root: {identity}")))?;
-            let mut calls = BTreeSet::new();
-            dependencies(&definition.body, &mut calls);
-            pending.extend(calls);
-            selected.insert(Arc::clone(key), Arc::clone(definition));
+            pending.extend(entry.calls.iter().map(Box::as_ref));
+            selected.insert(Arc::clone(key), Arc::clone(entry));
         }
         // A subgraph of an already checked DAG remains checked when every
         // referenced callee is retained. It cannot introduce new semantics.
-        Ok(Self { definitions: selected })
+        Ok(Self { definitions: Arc::new(selected) })
     }
     /// Check whether every definition belongs to this root's closure.
     /// This walks an already checked graph without copying any of its bodies.
@@ -212,16 +228,18 @@ impl CheckedGraph {
             if !seen.insert(name) {
                 continue;
             }
-            let definition = self.get(name)
+            let entry = self.definitions.get(name)
                 .ok_or_else(|| Invalid(format!("missing total-body root: {name}")))?;
-            let mut calls = BTreeSet::new();
-            dependencies(&definition.body, &mut calls);
-            pending.extend(calls);
+            pending.extend(entry.calls.iter().map(Box::as_ref));
         }
         Ok(seen.len() == self.definitions.len())
     }
-    pub fn definitions(&self) -> impl Iterator<Item = &Definition> { self.definitions.values().map(Arc::as_ref) }
-    pub fn get(&self, identity: &str) -> Option<&Definition> { self.definitions.get(identity).map(Arc::as_ref) }
+    pub fn definitions(&self) -> impl Iterator<Item = &Definition> {
+        self.definitions.values().map(|entry| &entry.definition)
+    }
+    pub fn get(&self, identity: &str) -> Option<&Definition> {
+        self.definitions.get(identity).map(|entry| &entry.definition)
+    }
     pub fn infer(&self, expression: &Expr, parameters: &[Sort]) -> Result<Sort, Invalid> {
         self.infer_in(expression, &mut BodyScope { parameters, locals: Vec::new() })
     }
@@ -279,10 +297,11 @@ impl CheckedGraph {
                         if !visiting.insert(identity) {
                             return Err(Invalid(format!("cyclic total-body dependency: {identity}")));
                         }
-                        let mut calls = BTreeSet::new();
-                        dependencies(&self.definitions[identity].body, &mut calls);
                         pending.push(Visit::Leave(identity));
-                        pending.extend(calls.into_iter().rev().map(Visit::Enter));
+                        pending.extend(
+                            self.definitions[identity].calls.iter().rev()
+                                .map(|callee| Visit::Enter(callee)),
+                        );
                     }
                     Visit::Leave(identity) => {
                         visiting.remove(identity);
@@ -297,15 +316,32 @@ impl CheckedGraph {
     /// This is the preimage for the interface's eventual versioned digest,
     /// not a cryptographic or semantic-equivalence claim.
     pub fn content(&self, identity: &str) -> Option<String> {
-        fn visit<'a>(graph: &'a CheckedGraph, identity: &'a str, seen: &mut BTreeSet<&'a str>, out: &mut String) {
-            if !seen.insert(identity) { return }
-            let definition = &graph.definitions[identity];
-            let mut calls = BTreeSet::new(); dependencies(&definition.body, &mut calls);
-            for target in calls { visit(graph, target, seen, out); }
-            out.push_str(&format!("total-body-v1:{definition:?}\n"));
+        use std::fmt::Write;
+
+        enum Visit<'a> {
+            Enter(&'a str),
+            Leave(&'a Definition),
         }
+
         self.get(identity)?;
-        let mut out = String::new(); visit(self, identity, &mut BTreeSet::new(), &mut out); Some(out)
+        let mut pending = vec![Visit::Enter(identity)];
+        let mut seen = BTreeSet::new();
+        let mut output = String::new();
+        while let Some(visit) = pending.pop() {
+            match visit {
+                Visit::Enter(name) if seen.insert(name) => {
+                    let entry = &self.definitions[name];
+                    pending.push(Visit::Leave(&entry.definition));
+                    pending.extend(entry.calls.iter().rev().map(|callee| Visit::Enter(callee)));
+                }
+                Visit::Enter(_) => (),
+                Visit::Leave(definition) => {
+                    writeln!(output, "total-body-v1:{definition:?}")
+                        .expect("writing to a String cannot fail");
+                }
+            }
+        }
+        Some(output)
     }
 }
 
@@ -367,6 +403,10 @@ mod tests {
         let closure = graph.closure(["leaf"]).unwrap();
         assert!(std::ptr::eq(graph.get("leaf").unwrap(), closure.get("leaf").unwrap()));
         assert_eq!(closure.to_json(), graph.to_json());
+        let previous = graph.clone();
+        graph.define("new".into(), vec![], Expr::Bool(false)).unwrap();
+        assert!(previous.get("new").is_none());
+        assert_eq!(previous.to_json(), closure.to_json());
     }
 
     #[test]
@@ -387,6 +427,10 @@ mod tests {
             .collect();
         let graph = CheckedGraph::check(definitions).unwrap();
         assert_eq!(graph.closure([name(0).as_str()]).unwrap().definitions().count(), count);
+        let content = graph.content(&name(0)).unwrap();
+        let mut rows = content.lines();
+        assert!(rows.next().unwrap().contains(&name(count - 1)));
+        assert!(rows.last().unwrap().contains(&name(0)));
     }
 
     #[test]
