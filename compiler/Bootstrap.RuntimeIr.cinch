@@ -23,7 +23,7 @@ module Bootstrap.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
-  import Text.Scan (string-split-on, string-lines, string-unlines, string-index-of, string-take, string-drop, string-starts-with)
+  import Text.Scan (string-split-on, string-starts-with)
   import Text.Lex (Span)
   import Data.Json
   import Data.List (split-at)
@@ -145,8 +145,10 @@ module Bootstrap.RuntimeIr where
 
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
+  data GlobalOutput where
+    GlobalOutput :: Builder -> HashMap String Nat -> GlobalOutput
   data Writer where
-    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
+    Writer :: Nat -> GlobalOutput -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
 
   cat :: List String -> String
   cat xs = string-concat-all xs
@@ -157,7 +159,11 @@ module Bootstrap.RuntimeIr where
   emit-lines :: Writer -> List String -> Writer
   emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
   global :: Writer -> String -> Writer
-  global w text = case w of Writer next globals code errors layouts datas -> Writer next (builder-add-line text globals) code errors layouts datas
+  global w text = case w of
+    Writer next (GlobalOutput output defined) code errors layouts context ->
+      Writer next (GlobalOutput (builder-add-line text output) defined) code errors layouts context
+  render-globals :: GlobalOutput -> String
+  render-globals globals = case globals of GlobalOutput output defined -> builder-run output
   -- Names come from three places, by what a name has to be unique in.
   --
   -- A local or a label is unique in its function. `fresh` numbers those
@@ -671,17 +677,21 @@ module Bootstrap.RuntimeIr where
   descriptor-mask-words :: Nat -> Nat -> String
   descriptor-mask-words mask count = if count == 0 then "" else
     cat [", i64 ", nat-to-string (mask % 18446744073709551616), descriptor-mask-words (mask / 18446744073709551616) (count - 1)]
-  -- An escaped description's static descriptor, emitted beside its use;
-  -- `dedupe-globals` keeps one definition per name.
+  -- Emit an escaped description's static descriptor at its first use.
   with-descriptor :: Writer -> Nat -> Writer
-  with-descriptor w description = if 16777216 <= description then
-    (let content = description - 16777216 in
-    let rest = content / 16777216 in
-    let words = rest % 65536 in
-    let mask-count = (words + 63) / 64 in
-    global w (cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
-      nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"]))
-    else w
+  with-descriptor w description = if description < 16777216 then w else case w of
+    Writer next (GlobalOutput output defined) code errors layouts context ->
+      let name = descriptor-symbol description in
+      (case hash-map-lookup name defined of
+        Some written -> w
+        None ->
+          let content = description - 16777216 in
+          let rest = content / 16777216 in
+          let words = rest % 65536 in
+          let mask-count = (words + 63) / 64 in
+          let declaration = cat [name, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
+            nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"] in
+          Writer next (GlobalOutput (builder-add-line declaration output) (hash-map-insert name 1 defined)) code errors layouts context)
   -- A description as one word, for a runtime entry that takes either form
   -- (the columnar zip's pair): field << 1 | 1, or the descriptor's address.
   description-word :: Writer -> Nat -> (Writer, String)
@@ -3738,56 +3748,25 @@ module Bootstrap.RuntimeIr where
   -- descriptor's address before the header, so the payload address still
   -- has the header at -8.
   --
-  -- The name is the description, not a fresh counter, because a nullary
-  -- block's bytes are a pure function of its description: same
-  -- description, same two or three words. Naming by description makes
-  -- symbol identity mean block identity, which is the rule the Rust seed
-  -- already uses (`dedupe_static_blocks` keeps the first line per symbol,
-  -- and its symbols are one per constructor unit). A per-site name made
-  -- every construction site its own definition: 7,126 definitions for 96
-  -- distinct blocks in the compiler's own module. `dedupe-globals` below
-  -- then drops the repeats, so each block is defined once per module and
-  -- every site references that one definition.
+  -- A nullary block's bytes are a pure function of its description.
+  -- Emit one definition on its first use and let every site share it.
+  with-nullary-block :: Writer -> String -> Nat -> Writer
+  with-nullary-block w storage descriptor = case w of
+    Writer next (GlobalOutput output defined) code errors layouts context ->
+      (case hash-map-lookup storage defined of
+        Some written -> w
+        None ->
+          let claimed = GlobalOutput output (hash-map-insert storage 1 defined) in
+          static-block (Writer next claimed code errors layouts context) storage descriptor 1 [StaticBits 0])
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
     let skip = static-prefix-words descriptor in
     let storage = cat ["@empty-ctor", nat-to-string descriptor] in
     let block = cat ["[", nat-to-string (2 + skip), " x i64]"] in
-    let declared = static-block w storage descriptor 1 [StaticBits 0] in
+    let declared = with-nullary-block w storage descriptor in
     let (ready, result) = fresh declared "%v" in
     (line ready (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block,
       ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ") to i64"]), result)
-  -- Drop repeated global definitions, keeping the first line per symbol.
-  -- `static-constructor` names a nullary block by its descriptor, so two
-  -- construction sites emit the same line and this keeps one of them.
-  -- This is the rule the Rust seed's `dedupe_static_blocks` applies, and
-  -- it is safe for the same reason: the line's text is the whole
-  -- definition, so two lines with one name are the same constant. A name
-  -- that appears once (every non-nullary global) is passed through
-  -- unchanged.
-  dedupe-globals :: String -> String
-  dedupe-globals text = string-unlines (dedupe-lines (string-lines text) hash-map-empty)
-  dedupe-lines :: List String -> HashMap String Nat -> List String
-  dedupe-lines lines seen = case lines of
-    Nil -> Nil
-    Cons text rest -> case global-name text of
-      None -> Cons text (dedupe-lines rest seen)
-      Some name -> case hash-map-lookup name seen of
-        Some _ -> dedupe-lines rest seen
-        None -> Cons text (dedupe-lines rest (hash-map-insert name 1 seen))
-  -- The symbol of a nullary static block or static descriptor definition
-  -- line, which is the text from the `@` to the first space
-  -- (`@empty-ctor<N> = ...`, `@cinch.desc.<N> = ...`). Both are named by
-  -- their content. Every other global returns `None` and is passed
-  -- through, so the filter can only ever remove a repeated content-named
-  -- constant: the seed's `dedupe_static_blocks` is scoped the same way, to
-  -- `.blk#h` lines.
-  global-name :: String -> Option String
-  global-name text = if string-starts-with "@empty-ctor" text || string-starts-with "@cinch.desc." text
-    then case string-index-of " " text of
-      None -> None
-      Some stop -> Some (string-take stop text)
-    else None
   allocate :: Writer -> Nat -> List String -> (Writer, String)
   allocate w descriptor values = allocate-typed w descriptor (typed-words values)
   typed-words :: List String -> List (String, String)
@@ -5851,7 +5830,8 @@ module Bootstrap.RuntimeIr where
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
-  empty-writer-with-plan info plan = Writer 0 builder-new builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil empty-queue plan)
+  empty-writer-with-plan info plan =
+    Writer 0 (GlobalOutput builder-new hash-map-empty) builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil empty-queue plan)
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
@@ -6005,7 +5985,7 @@ module Bootstrap.RuntimeIr where
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage False "internal ", builder-run code])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, par-preamble info definitions, render-globals globals, apply-entry-with-linkage False "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -6287,7 +6267,7 @@ module Bootstrap.RuntimeIr where
     case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "internal ", builder-run code] in
+          let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "internal ", builder-run code] in
           Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
@@ -6317,7 +6297,7 @@ module Bootstrap.RuntimeIr where
     let roots = foreign-export-roots exports in
     let plan = inline-plan inlining definitions info in
     let finish = \writer suffix -> case workers definitions (foreign-export-bridges exports writer) of
-          Writer next globals code Nil layouts context -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, dedupe-globals (builder-run globals), apply-entry-with-linkage wasm32 "", builder-run code, suffix])
+          Writer next globals code Nil layouts context -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "", builder-run code, suffix])
           Writer next globals code errors layouts context -> Err errors in
     case runtime-entry (elaboration-core typed) None of
       Err errors -> Err errors
