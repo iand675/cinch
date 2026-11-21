@@ -13,7 +13,8 @@ where the tail-apply path is disabled. The pin is a workaround; the real fix
 belongs in the seed's tailcc codegen.
 
 With the pin, stages 1 to 3 reach a fixed point and the audited 106 target
-Stage 3 grid verifies 105 targets (evidence `build/verify-stage3/run11`).
+Stage 3 grid verifies 106 targets (evidence `build/verify-stage3/run12`,
+compiler `dbde87d8`).
 The runtime IR target needed a fixture correction: its numeric probes compile
 against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
 class to resolve; the negative case now negates through binary subtraction.
@@ -27,9 +28,15 @@ last name segment. Only the pipeline entries use `export-interfaces-aliased`;
 the exporter program keeps expanding, preserving the suite's expected
 divergence.
 
-Remaining: `interface_machine_contracts`. A diagnostic refusal path through
-the character program prints both types at the refusing dependent
-application:
+`interface_machine_contracts` is fixed: the argument reifier had no
+character-literal path, so a dependent application with a character argument
+could only carry the rigid local index in its node type while the validator
+re-derived the character index. The reifier now produces
+`UIndex Char (ICharacter c)` through `checked-source-index`, and the
+materialized dependent application takes its `open-pi` index from a literal
+argument term, which the validator re-derives from the let's scope value. The
+diagnostic refusal path that localized this (through the character program)
+printed both types at the refusing dependent application:
 
 	- node type: `refine (cinch-result :: U32) with (... && cinch-result == #dependent-argument)`
 	- re-derived: `refine (cinch-result :: U32) with (... && cinch-result == char(955))`
