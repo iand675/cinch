@@ -1005,6 +1005,34 @@ module Text.Json where
       else JFastNo
     else JFastNo
 
+  -- Integers need only an offset and the accumulated magnitude. Decimal
+  -- fractions and exponents still use the number scanner's exact spelling.
+  fast-number :: Bytes -> Nat -> Bool -> JFast
+  fast-number src origin negative =
+    let start = if negative then origin + 1 else origin in
+    if start < bytes-len src then
+      let byte = bytes-get src start in
+      if byte == 48 then fast-integer-end src origin (start + 1) negative 0
+      else if 49 <= byte && byte <= 57 then fast-digits src origin (start + 1) negative (byte - 48)
+      else JFastNo
+    else JFastNo
+
+  fast-digits :: Bytes -> Nat -> Nat -> Bool -> Nat -> JFast
+  fast-digits src origin i negative magnitude =
+    if i < bytes-len src then
+      let byte = bytes-get src i in
+      if 48 <= byte && byte <= 57 then fast-digits src origin (i + 1) negative (magnitude * 10 + (byte - 48))
+      else fast-integer-end src origin i negative magnitude
+    else fast-integer-end src origin i negative magnitude
+
+  fast-integer-end :: Bytes -> Nat -> Nat -> Bool -> Nat -> JFast
+  fast-integer-end src origin i negative magnitude =
+    if i < bytes-len src && (let byte = bytes-get src i in byte == 46 || byte == 101 || byte == 69)
+      then fast-reply (scan-number (JState src origin 1 1))
+    else
+      let number = nat-to-int magnitude in
+      JFastOk (JNum (if negative then int-neg number else number)) i
+
   -- The value starting at `i`, which is not whitespace.
   fast-value :: Bytes -> Nat -> JFast
   fast-value src i =
@@ -1016,8 +1044,8 @@ module Text.Json where
           JFastTextNo -> JFastNo
       else if nat-cmp b 123 == 0 then fast-object src (fast-skip-ws src (i + 1))
       else if nat-cmp b 91 == 0 then fast-array src (fast-skip-ws src (i + 1))
-      else if nat-cmp b 45 == 0 then fast-reply (scan-number (JState src i 1 1))
-      else if is-digit b then fast-reply (scan-number (JState src i 1 1))
+      else if nat-cmp b 45 == 0 then fast-number src i True
+      else if is-digit b then fast-number src i False
       else if nat-cmp b 116 == 0 || nat-cmp b 102 == 0 || nat-cmp b 110 == 0 then fast-keyword src i
       else JFastNo
     else JFastNo

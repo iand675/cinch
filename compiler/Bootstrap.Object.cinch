@@ -2,7 +2,7 @@
 -- from the independently loaded interface set, never from this unit inventory.
 module Bootstrap.Object where
   import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
-  import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match)
+  import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, known-contract-end)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -451,42 +451,53 @@ module Bootstrap.Object where
     else 0
   -- From an element's first byte to the offset after the table's closing
   -- bracket, or 0.
-  carve-rows :: Bytes -> Nat -> Nat -> Bytes -> Carved -> (Nat, Carved)
-  carve-rows src at ordinal word carved =
-    case (if byte-at src at == 123 then carve-row src (json-space-end src (at + 1)) ordinal word carved else (json-value-end src at, carved)) of
+  carve-rows :: Bytes -> Nat -> Nat -> Bytes -> (String -> Bytes -> Nat -> Option Nat) -> Carved -> (Nat, Carved)
+  carve-rows src at ordinal word known carved =
+    case (if byte-at src at == 123 then carve-row src (json-space-end src (at + 1)) ordinal word known "" carved else (json-value-end src at, carved)) of
       (after, next) -> if after == 0 then (0, next) else
         let close = json-space-end src after in
-        if byte-at src close == 44 then carve-rows src (json-space-end src (close + 1)) (ordinal + 1) word next
+        if byte-at src close == 44 then carve-rows src (json-space-end src (close + 1)) (ordinal + 1) word known next
         else if byte-at src close == 93 then (close + 1, next)
         else (0, next)
   -- From a member's opening quotation mark to the offset after the row's
   -- closing brace, or 0.
-  carve-row :: Bytes -> Nat -> Nat -> Bytes -> Carved -> (Nat, Carved)
-  carve-row src at ordinal word carved =
+  carve-row :: Bytes -> Nat -> Nat -> Bytes -> (String -> Bytes -> Nat -> Option Nat) -> String -> Carved -> (Nat, Carved)
+  carve-row src at ordinal word known hint carved =
     if byte-at src at == 125 then (at + 1, carved)
     else if byte-at src at == 34 then
       let key-end = json-value-end src at in
       let colon = json-space-end src key-end in
       if key-end == 0 || byte-at src colon /= 58 then (0, carved) else
         let value = json-space-end src (colon + 1) in
-        let after = json-value-end src value in
+        let is-contract = key-spells src at key-end word && byte-at src value == 123 in
+        let after = if is-contract then (case known hint src value of Some end -> end; None -> json-value-end src value) else json-value-end src value in
         if after == 0 then (0, carved) else
-          let next = (if key-spells src at key-end word && byte-at src value == 123 then carve-span src value after ordinal carved else carved) in
+          let next = if is-contract then carve-span src value after ordinal carved else carved in
           let close = json-space-end src after in
-          if byte-at src close == 44 then carve-row src (json-space-end src (close + 1)) ordinal word next
+          if byte-at src close == 44 then
+            let hash = if key-spells src at key-end (string-to-bytes "\"iface_hash\"") then literal-contract-hash src value after else hint in
+            carve-row src (json-space-end src (close + 1)) ordinal word known hash next
           else if byte-at src close == 125 then (close + 1, next)
           else (0, next)
     else (0, carved)
+  -- An escaped or otherwise unusual spelling simply misses the index.
+  -- The reduced manifest parser still checks the complete row.
+  literal-contract-hash :: Bytes -> Nat -> Nat -> String
+  literal-contract-hash src start end =
+    if end <= bytes-len src && start + 1 < end && byte-at src start == 34 && byte-at src (end - 1) == 34 then
+      case string-from-bytes (bytes-slice src (start + 1) (end - 1)) of Some hash -> hash; None -> ""
+    else ""
+
   carve-span :: Bytes -> Nat -> Nat -> Nat -> Carved -> Carved
   carve-span src value after ordinal carved = case carved of
     MkCarved pieces copied spans ->
       if value <= bytes-len src then
         MkCarved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after (Cons (ordinal, value, after) spans)
       else carved
-  carve-contracts :: Bytes -> Option (Bytes, List (Nat, Nat, Nat))
-  carve-contracts src = let table = contract-table src in
+  carve-contracts :: ValidatedInterfaces -> Bytes -> Option (Bytes, List (Nat, Nat, Nat))
+  carve-contracts validated src = let table = contract-table src in
     if table == 0 then None else
-      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (MkCarved builder-new 0 Nil) of
+      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (known-contract-end validated) (MkCarved builder-new 0 Nil) of
         (after, MkCarved pieces copied spans) -> if after == 0 then None else
           (case spans of
             Nil -> None
@@ -541,13 +552,17 @@ module Bootstrap.Object where
     MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
         (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-          (case parse-json metadata-file metadata of
-            Parsed artifact Nil -> (case parse-runtime-object-mode reclaim expected-triple interfaces code artifact of
-              Err message -> Err message
-              Ok provider -> Ok (provider, artifact, object-file, code))
-            other -> Err "runtime object manifest is not valid JSON")
+          parse-runtime-object-bytes reclaim expected-triple interfaces object-file metadata-file code metadata
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
+
+  parse-runtime-object-bytes :: Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-object-bytes reclaim expected-triple interfaces object-file metadata-file code metadata =
+    case parse-json metadata-file metadata of
+      Parsed artifact Nil -> (case parse-runtime-object-mode reclaim expected-triple interfaces code artifact of
+        Err message -> Err message
+        Ok provider -> Ok (provider, artifact, object-file, code))
+      other -> Err "runtime object manifest is not valid JSON"
 
   admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-client-mode reclaim validated configuration =
@@ -558,12 +573,12 @@ module Bootstrap.Object where
           (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
             (case admit-carved reclaim expected-triple validated code metadata-file metadata of
               Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
-              None -> admit-runtime-object-mode reclaim interfaces configuration)
-            else admit-runtime-object-mode reclaim interfaces configuration
-          other -> admit-runtime-object-mode reclaim interfaces configuration)
+              None -> parse-runtime-object-bytes reclaim expected-triple interfaces object-file metadata-file code metadata)
+            else Err "runtime object artifact digest mismatch"
+          other -> Err "cannot read runtime object artifacts")
   -- The carved read, or `None` for the whole one.
   admit-carved :: Bool -> String -> ValidatedInterfaces -> Bytes -> String -> Bytes -> Option (RuntimeObject, Json)
-  admit-carved reclaim expected-triple validated code metadata-file metadata = case carve-contracts metadata of
+  admit-carved reclaim expected-triple validated code metadata-file metadata = case carve-contracts validated metadata of
     None -> None
     Some (reduced, spans) -> (case parse-json metadata-file reduced of
       Parsed artifact Nil -> (case parse-runtime-object-carved reclaim expected-triple (validated-interfaces-members validated) code artifact (Some (validated, metadata, spans)) of

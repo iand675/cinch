@@ -30,7 +30,7 @@ module Bootstrap.Load where
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
-  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match
+  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, known-contract-end
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
   export loaded-entry, loaded-private-methods, contract-intrinsic
@@ -1099,6 +1099,24 @@ module Bootstrap.Load where
   load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
     Ok loaded -> validate-interfaces loaded
+  -- A digest can locate a candidate, but only equality of the whole
+  -- admitted source establishes the end of an embedded contract.
+  known-contract-end :: ValidatedInterfaces -> (String -> Bytes -> Nat -> Option Nat)
+  known-contract-end checked =
+    let sources = index-contract-sources (validated-interfaces-members checked) hash-map-empty in
+    \hash src start -> case hash-map-lookup hash sources of
+      None -> None
+      Some original ->
+        let end = start + bytes-len original in
+        if end <= bytes-len src && bytes-compare original (bytes-slice src start end) == 0 then Some end else None
+
+  index-contract-sources :: List LoadedInterface -> HashMap String Bytes -> HashMap String Bytes
+  index-contract-sources members sources = case members of
+    Nil -> sources
+    Cons (MkLoadedInterface True name hash doc original values fixes refs entries exports methods) rest ->
+      index-contract-sources rest (if bytes-len original > 0 then hash-map-insert hash original sources else sources)
+    Cons other rest -> index-contract-sources rest sources
+
   validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
   validated-interface-sources-match checked inputs = case checked of
     MkValidatedInterfaces members closures ->
