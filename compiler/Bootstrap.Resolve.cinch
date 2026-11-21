@@ -8,7 +8,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
   import Bootstrap.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (embedded-library-home)
   import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
@@ -20,7 +20,7 @@ module Bootstrap.Resolve where
 
   export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle
   export source-import-closure
-  export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces
+  export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
   data Binding where
@@ -1433,8 +1433,17 @@ module Bootstrap.Resolve where
   resolve-signature-overlays :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-signature-overlays p interfaces checked = case validate-interface-set interfaces of
     Err message -> (p, fail (program-span p) message)
-    Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
-      resolve-context p (interface-scopes available) (interface-fixity-headers available) Nil checked
+    Ok ordered -> resolve-ordered-interfaces p ordered checked
+  resolve-admitted-signature-overlays :: Program -> Result String ValidatedInterfaces -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-admitted-signature-overlays p admitted checked = case admitted of
+    Err message -> (p, fail (program-span p) message)
+    Ok ready -> case canonical-interface-validation ready of
+      Err message -> (p, fail (program-span p) message)
+      Ok ordered -> resolve-ordered-interfaces p (validated-interfaces-members ordered) checked
+  resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-ordered-interfaces p ordered checked =
+    let available = unshadowed-interfaces (program-modules p) ordered in
+    resolve-context p (interface-scopes available) (interface-fixity-headers available) Nil checked
 
   -- A source module beside the entry shadows the base-package copy of the
   -- same name: the explicit source is the program's version of that module,

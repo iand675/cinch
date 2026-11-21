@@ -17,7 +17,7 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, Decl, DClass)
-  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration, checked-generated, with-generated)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
@@ -27,10 +27,10 @@ module Bootstrap.Pipeline where
   import Bootstrap.Object (RuntimeObject, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-mode)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, validated-interfaces-members)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (read-interfaces, read-validated-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers, interface-fixity-headers)
-  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
@@ -205,7 +205,7 @@ module Bootstrap.Pipeline where
     Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
     Ok checked -> case read-runtime-object-client-mode reclaim checked object-config of
       Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
-      Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client inlining debug reclaim profile mode (validated-interfaces-members checked) provider source ir
+      Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client inlining debug reclaim profile mode checked provider source ir
 
   publish-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
   publish-object-client inlining debug reclaim profile manifest object-config source ir =
@@ -230,7 +230,7 @@ module Bootstrap.Pipeline where
                 Ok config -> case admit-runtime-object-client-mode reclaim checked config of
                   Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
                   Ok (provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-                    emit-object-client inlining debug reclaim profile EmitWithInterfaces (validated-interfaces-members checked) provider source ir)
+                    emit-object-client inlining debug reclaim profile EmitWithInterfaces checked provider source ir)
 
   interface-input-files :: List (String, String, String) -> List String
   interface-input-files references = case references of
@@ -243,23 +243,24 @@ module Bootstrap.Pipeline where
 
   build-manifest-path :: Path -> Path
   build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
-  emit-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
-  emit-object-client inlining debug reclaim profile mode interfaces provider source ir = case fs-read (path-from-string source) of
-    Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-    Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
-      Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-      Parsed program Nil -> case target-view-program profile program of
-        Err message -> write-failure ir message pipeline-check-refused
-        Ok view -> case check-object-client profile src view interfaces of
+  emit-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client inlining debug reclaim profile mode admitted provider source ir =
+    let interfaces = validated-interfaces-members admitted in case fs-read (path-from-string source) of
+      Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+      Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
+        Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+        Parsed program Nil -> case target-view-program profile program of
           Err message -> write-failure ir message pipeline-check-refused
-          Ok checked -> case mode of
-            IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
-            other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
-              let entry = path-stem (path-from-string source) in
-              let exported = export-interfaces-aliased checked admitted src in
-              case serialize-exported checked profile entry admitted Nil exported of
-                done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
-      Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+          Ok view -> case check-object-client profile src view admitted of
+            Err message -> write-failure ir message pipeline-check-refused
+            Ok checked -> case mode of
+              IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
+              other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
+                let entry = path-stem (path-from-string source) in
+                let exported = export-interfaces-aliased checked admitted src in
+                case serialize-exported checked profile entry admitted Nil exported of
+                  done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
+        Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   -- Interface publication and ordinary compilation share the same checked rows.
   after-object-client :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
@@ -294,7 +295,7 @@ module Bootstrap.Pipeline where
         Ok (provider, metadata, object-path, object-bytes) ->
           if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
           else if object-path-member (normalize-path object-path) paths then pipeline-bad-args
-          else case emit-object-client inlining debug reclaim profile EmitOnly (validated-interfaces-members checked) provider source ir of
+          else case emit-object-client inlining debug reclaim profile EmitOnly checked provider source ir of
             0 -> (case fs-write (path-from-string object-copy) object-bytes of
               Err error -> pipeline-write-failed
               Ok written -> link-object-client ir executable object-copy runtime metadata words)
@@ -319,14 +320,17 @@ module Bootstrap.Pipeline where
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = check-source-phase profile interfaces (\input -> resolve-program-with input interfaces) program
   check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
-  check-source-phase profile interfaces resolve program = case expand-stages-with-report resolve (\unit -> interface-headers interfaces) program of
+  check-source-phase profile interfaces resolve program =
+    check-source-using profile interfaces (check-and-retain-with-interfaces interfaces) resolve program
+  check-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-source-using profile interfaces check resolve program = case expand-stages-with-report resolve (\unit -> interface-headers interfaces) program of
     Err errors -> Err errors
-    Ok (expanded, generated) -> case retain-resolved-source profile interfaces (resolve expanded) of
+    Ok (expanded, generated) -> case retain-resolved-source profile check (resolve expanded) of
       Err errors -> Err (explain-expansion-errors expanded errors)
       Ok checked -> Ok (with-generated generated checked)
-  retain-resolved-source :: TargetProfile -> List LoadedInterface -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
-  retain-resolved-source profile interfaces result = case result of
-    (resolved, Nil) -> case check-and-retain-with-interfaces interfaces resolved of
+  retain-resolved-source :: TargetProfile -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
+  retain-resolved-source profile check result = case result of
+    (resolved, Nil) -> case check resolved of
       Ok checked -> (case target-literal-errors (profile-word-size profile) (checked-elaboration checked) of
         Nil -> check-runtime-entry checked
         errors -> Err errors)
@@ -426,21 +430,27 @@ module Bootstrap.Pipeline where
       Some previous | bytes-compare (overlay-contract-bytes fresh) (overlay-contract-bytes (loaded-contract previous)) == 0 ->
         (case matched-object-overlays rest interfaces of Some more -> Some (Cons previous more); None -> None)
       other -> None
-  check-object-source :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
-  check-object-source profile source program interfaces =
-    if not (has-signature-overlay (program-modules program)) then checked-source profile program interfaces else
+  check-object-source :: TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result (List Diagnostic) CheckedProgram
+  check-object-source profile source program checked =
+    let interfaces = validated-interfaces-members checked in
+    let admitted = canonical-interface-validation checked in
+    let check = \resolved -> case admitted of
+          Ok canonical -> check-and-retain-with-admitted-interfaces canonical resolved
+          Err message -> check-and-retain-with-interfaces interfaces resolved in
+    let run-check = \overlays -> check-source-using profile interfaces check (\input -> resolve-admitted-signature-overlays input admitted overlays) program in
+    if not (has-signature-overlay (program-modules program)) then run-check Nil else
       case recheck-source-overlays profile source program interfaces interfaces Nil of
         Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
-          Some (Cons first rest) -> check-source-phase profile interfaces (\input -> resolve-signature-overlays input interfaces (Cons first rest)) program
-          other -> checked-source profile program interfaces)
-        Err message -> checked-source profile program interfaces
+          Some (Cons first rest) -> run-check (Cons first rest)
+          other -> run-check Nil)
+        Err message -> run-check Nil
 
-  check-object-client :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> Result String CheckedProgram
-  check-object-client profile source program interfaces = case object-source-conflict (program-modules program) interfaces of
+  check-object-client :: TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result String CheckedProgram
+  check-object-client profile source program checked = case object-source-conflict (program-modules program) (validated-interfaces-members checked) of
     Some name -> Err ("bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it")
-    None -> case check-object-source profile source program interfaces of
+    None -> case check-object-source profile source program checked of
       Err errors -> Err (render-source-diagnostics source errors)
-      Ok checked -> Ok checked
+      Ok result -> Ok result
 
   compile-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   compile-source-interfaces profile interfaces source prefix = case fs-read (path-from-string source) of
@@ -854,7 +864,7 @@ module Bootstrap.Pipeline where
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
                     Parsed program Nil -> case target-view-program profile program of
                       Err message -> write-failure ir message pipeline-check-refused
-                      Ok view -> (case check-object-client profile bytes view interfaces of
+                      Ok view -> (case check-object-client profile bytes view admitted of
                         Err message -> write-failure ir message pipeline-check-refused
                         Ok checked -> prepare-library-object profile inlining requested checked interfaces bytes provider document provider-code ir object abi prefix)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed

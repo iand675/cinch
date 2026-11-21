@@ -15,13 +15,14 @@ module Bootstrap.Load where
   import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
+  import Bootstrap.Nominal (interface-global, decode-identity, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span, bytes-slice)
+  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
@@ -30,12 +31,12 @@ module Bootstrap.Load where
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
-  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, known-contract-end
+  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, known-contract-end, canonical-interface-validation
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
   export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
-  export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known
+  export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known, load-body-interfaces-with-admission
   export check-interface-set, interface-set-members
   export contract-nominals, contract-usage-nominals
   export interface-set-body, interface-set-has-body
@@ -66,7 +67,7 @@ module Bootstrap.Load where
     MkExportEntries ::
       HashMap String Json -> HashMap String Json -> HashMap String Json
       -> HashMap String Json -> HashMap String Json -> HashMap String Json
-      -> (HashMap String (List (String, String, String)), List String) -> List String
+      -> (HashMap String (List (String, String, String)), List String)
       -> ExportEntries
 
   -- `exports` and `private-methods` are the two row sets every consumer asks
@@ -142,6 +143,22 @@ module Bootstrap.Load where
     Err error -> Err error
     Ok members -> check-interface-set (body-closed-interfaces members)
 
+  -- Resolution retains the admitted documents in order when there are no
+  -- source replacements. Reuse the proof only for that exact sequence.
+  load-body-interfaces-with-admission :: ValidatedInterfaces -> List (String, String, Json) -> Result String InterfaceSet
+  load-body-interfaces-with-admission checked inputs = case checked of
+    MkValidatedInterfaces members closures ordered ->
+      if ordered && admitted-body-documents members inputs then Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+      else load-body-interfaces-with-known members inputs
+
+  admitted-body-documents :: List LoadedInterface -> List (String, String, Json) -> Bool
+  admitted-body-documents members inputs = case (members, inputs) of
+    (Nil, Nil) -> True
+    (Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods) rest,
+      Cons (name, hash, doc) more) -> same owner name && same digest hash
+        && compare-documents False doc original && admitted-body-documents rest more
+    other -> False
+
   -- Every missing or stale direct edge invalidates its importer. Follow
   -- reverse edges once to discard the whole affected closure, keeping
   -- original order for the strict set check. A closed set needs no queue.
@@ -211,14 +228,6 @@ module Bootstrap.Load where
   -- them per ask cost names x rows allocations per interface.
   loaded-exports :: LoadedInterface -> List (String, String, String)
   loaded-exports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> exports
-
-  -- Every global name this interface exports: `interface-global` of every
-  -- exported identity and of every private method identity, encoded once
-  -- when the interface was loaded. The global table of `InterfaceIndex` is
-  -- built from these.
-  loaded-globals :: LoadedInterface -> List String
-  loaded-globals i = case i of
-    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods -> global-entries entries
 
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
@@ -296,12 +305,12 @@ module Bootstrap.Load where
 
   name-entries :: ExportEntries -> HashMap String (List (String, String, String))
   name-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances (table, ordered) globals -> table
+    MkExportEntries values types signatures constructors methods instances (table, ordered) -> table
   -- Keep first-occurrence order as the name table is built. Scoping and
   -- overload declarations both need one binding per public spelling.
   loaded-names :: LoadedInterface -> List String
   loaded-names i = case i of
-    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered) globals) exports private-methods -> ordered
+    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered)) exports private-methods -> ordered
   -- The globals this interface exports, `interface-global` of every export
   -- identity and of every private method identity: the two lists the law
   -- closure compares a name against. Both are encoded once here instead of
@@ -309,27 +318,24 @@ module Bootstrap.Load where
   -- table: `Hash String` folds `nat-mul` over the bytes, so probing with it
   -- costs more than the short `string-compare` scan it would replace
   -- (design/compilation-speed.md 2.5 measured that).
-  global-entries :: ExportEntries -> List String
-  global-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> globals
   value-entries :: ExportEntries -> HashMap String Json
   value-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> values
+    MkExportEntries values types signatures constructors methods instances names -> values
   type-entries :: ExportEntries -> HashMap String Json
   type-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> types
+    MkExportEntries values types signatures constructors methods instances names -> types
   signature-entries :: ExportEntries -> HashMap String Json
   signature-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> signatures
+    MkExportEntries values types signatures constructors methods instances names -> signatures
   constructor-entries :: ExportEntries -> HashMap String Json
   constructor-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> constructors
+    MkExportEntries values types signatures constructors methods instances names -> constructors
   method-entries :: ExportEntries -> HashMap String Json
   method-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> methods
+    MkExportEntries values types signatures constructors methods instances names -> methods
   instance-entries :: ExportEntries -> HashMap String Json
   instance-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names globals -> instances
+    MkExportEntries values types signatures constructors methods instances names -> instances
   entry-in :: (ExportEntries -> HashMap String Json) -> String -> ExportEntries -> Option Json
   entry-in table identity entries = hash-map-lookup identity (table entries)
 
@@ -337,10 +343,8 @@ module Bootstrap.Load where
   -- a repeated identity is the row that survives, as the scan's first match
   -- was. `constructors` skips codata rows: a codata type exports no
   -- constructor, and its own identity carries the row.
-  -- `private-methods` is passed in because the load derives it for the
-  -- interface itself; the globals table needs the same rows.
-  export-entries :: List (String, String, String) -> List (String, String, String) -> Json -> ExportEntries
-  export-entries rows private-methods exports =
+  export-entries :: List (String, String, String) -> Json -> ExportEntries
+  export-entries rows exports =
     MkExportEntries
       (row-table "symbol" (field "values" exports))
       (row-table "identity" (field "types" exports))
@@ -349,13 +353,6 @@ module Bootstrap.Load where
       (method-table (field "signatures" exports))
       (row-table "id" (field "instances" exports))
       (name-rows-table rows)
-      (global-rows (rows <> private-methods) Nil)
-
-  global-rows :: List (String, String, String) -> List String -> List String
-  global-rows rows globals = case rows of
-    Nil -> globals
-    Cons row rest -> case row of
-      (local, kind, identity) -> global-rows rest (Cons (interface-global identity) globals)
 
   -- Every exported name, its namespace category and its defining identity.
   export-rows :: Json -> List (String, String, String)
@@ -909,7 +906,7 @@ module Bootstrap.Load where
     let rows = export-rows exports in
     Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries rows private exports) rows private)
+      (export-entries rows exports) rows private)
 
   read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
   read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
@@ -966,27 +963,16 @@ module Bootstrap.Load where
   -- microseconds, more than the whole scan it would have replaced, so the
   -- index lost and the scans stayed. With the word fold a digest is about
   -- two microseconds and a probe beats the scan on every set here: the
-  -- module table holds every loaded module and the global table holds every
-  -- exported identity of every module (thousands of names in the compiler's
-  -- own set), and the law closure used to rescan all of that per law
-  -- reference.
-  --
-  -- INVARIANT: a global name is exported by at most one module, because
-  -- `interface-global` prefixes the identity with the exporting module's
-  -- name. The global table therefore records one owner per name; the fold
-  -- inserts the head interface last, so the first interface in the set's
-  -- order wins a name, exactly as the scan it replaces answered.
-  --
-  -- No answer depends on iteration order: the ordered context a caller
-  -- receives is still the list the ordering pass produced, and every other
-  -- use is a membership test or a probe.
+  -- module table holds every loaded module. The law table holds only names
+  -- mentioned by law syntax. Several interfaces can re-export the same
+  -- identity; the first in input order supplies its owner for law checks.
   data InterfaceIndex where
     MkInterfaceIndex :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String String -> InterfaceIndex
 
   index-interfaces :: List LoadedInterface -> InterfaceIndex
   index-interfaces loaded =
     MkInterfaceIndex loaded (interface-table loaded hash-map-empty)
-      (global-table loaded hash-map-empty)
+      (law-exporters loaded)
 
   -- Module name to interface. Later entries replace earlier entries.
   -- The known-interface readers reverse their input to keep the first row.
@@ -995,17 +981,50 @@ module Bootstrap.Load where
     Nil -> table
     Cons i rest -> interface-table rest (hash-map-insert (loaded-module i) i table)
 
-  -- Global name to exporting module. The head is folded in last, so the
-  -- first interface in the set's order wins a repeated name.
-  global-table :: List LoadedInterface -> HashMap String String -> HashMap String String
-  global-table loaded table = case loaded of
-    Nil -> table
-    Cons i rest -> global-name-table (loaded-globals i) (loaded-module i) (global-table rest table)
-
-  global-name-table :: List String -> String -> HashMap String String -> HashMap String String
-  global-name-table globals module-name table = case globals of
-    Nil -> table
-    Cons name rest -> global-name-table rest module-name (hash-map-insert name module-name table)
+  -- Law syntax passes the literal spelling of each reference to its
+  -- decoder's lookup. Collect those spellings before visiting exports, so
+  -- unrelated identities need no encoding or insertion in the owner table.
+  law-exporters :: List LoadedInterface -> HashMap String String
+  law-exporters loaded =
+    let requested = law-names loaded hash-map-empty in
+    index-law-exporters loaded requested hash-map-empty
+  law-names :: List LoadedInterface -> HashMap String String -> HashMap String String
+  law-names loaded requested = case loaded of
+    Nil -> requested
+    Cons first rest -> law-names rest (class-law-names (field "signatures" (field "exports" (loaded-contract first))) requested)
+  class-law-names :: Json -> HashMap String String -> HashMap String String
+  class-law-names rows requested = case rows of
+    JArr first rest -> class-law-names rest (syntax-law-names (field "laws" first) requested)
+    other -> requested
+  syntax-law-names :: Json -> HashMap String String -> HashMap String String
+  syntax-law-names rows requested = case rows of
+    JArr first rest -> syntax-law-names rest (law-string-names (field "syntax" first) requested)
+    other -> requested
+  law-string-names :: Json -> HashMap String String -> HashMap String String
+  law-string-names node requested = case node of
+    JArr first rest -> law-string-names rest (law-string-names first requested)
+    JStr spelling -> if string-starts-with "i." spelling then
+      (case unpack spelling of
+        Cons prefix (Cons dot rest) -> case decode-identity rest of
+          Some (identity, Nil) | same spelling (interface-global identity) -> hash-map-insert identity spelling requested
+          other -> requested
+        other -> requested)
+      else requested
+    other -> requested
+  index-law-exporters :: List LoadedInterface -> HashMap String String -> HashMap String String -> HashMap String String
+  index-law-exporters loaded requested owners = case loaded of
+    Nil -> owners
+    Cons first rest ->
+      let home = loaded-module first in
+      let later = index-law-exporters rest requested owners in
+      index-law-export-rows (loaded-exports first) home requested
+        (index-law-export-rows (loaded-private-methods first) home requested later)
+  index-law-export-rows :: List (String, String, String) -> String -> HashMap String String -> HashMap String String -> HashMap String String
+  index-law-export-rows rows home requested owners = case rows of
+    Nil -> owners
+    Cons (name, kind, identity) rest -> case hash-map-lookup identity requested of
+      None -> index-law-export-rows rest home requested owners
+      Some spelling -> index-law-export-rows rest home requested (hash-map-insert spelling home owners)
 
   interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
   interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals -> hash-map-lookup name by-name
@@ -1092,9 +1111,9 @@ module Bootstrap.Load where
 
   -- Only a successful set check can supply this handle to the object loader.
   data ValidatedInterfaces where
-    MkValidatedInterfaces :: List LoadedInterface -> HashMap String ModuleClosure -> ValidatedInterfaces
+    MkValidatedInterfaces :: List LoadedInterface -> HashMap String ModuleClosure -> Bool -> ValidatedInterfaces
   validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
-  validated-interfaces-members checked = case checked of MkValidatedInterfaces members closures -> members
+  validated-interfaces-members checked = case checked of MkValidatedInterfaces members closures ordered -> members
   load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
   load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
@@ -1119,7 +1138,7 @@ module Bootstrap.Load where
 
   validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
   validated-interface-sources-match checked inputs = case checked of
-    MkValidatedInterfaces members closures ->
+    MkValidatedInterfaces members closures ordered ->
       let by-name = interface-table members hash-map-empty in
       let count = list-length members in
       let input-count = list-length inputs in
@@ -1130,7 +1149,7 @@ module Bootstrap.Load where
           Some matched ->
             -- Class laws consult the first exporter of a global. Replay
             -- that check against the object's original row order.
-            let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) in
+            let index = MkInterfaceIndex matched by-name (law-exporters matched) in
             interface-laws-valid matched index closures)
   match-interface-sources :: List (String, String, Bytes) -> HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
   match-interface-sources inputs indexed seen extra = case inputs of
@@ -1324,7 +1343,7 @@ module Bootstrap.Load where
   -- table says which module exports the name, and the closure says whether
   -- that module is in it. The walk this replaces rescanned every interface's
   -- exported identities per reference (queries x interfaces x rows); the
-  -- table is built once per set, one digest per exported identity.
+  -- table holds only exported identities that law syntax names.
   law-global-present :: String -> ModuleClosure -> InterfaceIndex -> Bool
   law-global-present name reachable ix = case ix of
     MkInterfaceIndex all by-name globals -> case hash-map-lookup name globals of
@@ -1561,11 +1580,30 @@ module Bootstrap.Load where
       Ok ordered -> case verify-set loaded ix of
         Err message -> Err message
         Ok unit -> let closures = index-closures ordered hash-map-empty in
-          case verify-nominal-set loaded ix closures hash-map-empty of
+          case verify-interface-contracts loaded ix closures of
             Err message -> Err message
-            Ok checked -> case verify-body-set loaded ix closures hash-map-empty of
-              Err message -> Err message
-              Ok unit -> Ok (MkValidatedInterfaces ordered closures)
+            Ok unit -> Ok (MkValidatedInterfaces ordered closures (same-interface-order loaded ordered))
+
+  same-interface-order :: List LoadedInterface -> List LoadedInterface -> Bool
+  same-interface-order before after = case (before, after) of
+    (Nil, Nil) -> True
+    (Cons first rest, Cons second more) -> same (loaded-module first) (loaded-module second) && same-interface-order rest more
+    other -> False
+
+  verify-interface-contracts :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> Result String Unit
+  verify-interface-contracts members index closures = case verify-nominal-set members index closures hash-map-empty of
+    Err message -> Err message
+    Ok unit -> verify-body-set members index closures hash-map-empty
+
+  -- Ordering cannot change the dependency graph or matching digests. A
+  -- reordered set must still check contract comparisons and first exporters
+  -- in its new order before resolution or inference can reuse the evidence.
+  canonical-interface-validation :: ValidatedInterfaces -> Result String ValidatedInterfaces
+  canonical-interface-validation checked = case checked of
+    MkValidatedInterfaces members closures ordered ->
+      if ordered then Ok checked else case verify-interface-contracts members (index-interfaces members) closures of
+        Err message -> Err message
+        Ok unit -> Ok (MkValidatedInterfaces members closures True)
 
   duplicate-module :: List LoadedInterface -> HashMap String () -> Bool
   duplicate-module loaded seen = case loaded of

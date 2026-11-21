@@ -45,10 +45,10 @@ module Bootstrap.Check where
   import Bootstrap.Ast
   import Bootstrap.Report
   import Data.Json
-  import Bootstrap.Load (LoadedInterface)
-  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaboration-errors, needs-inference, infer-program)
+  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces)
+  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaboration-errors, needs-inference, infer-program)
 
-  export check-program, CheckedProgram, checked-generated, with-generated, check-and-retain, check-and-retain-with-interfaces, checked-surface, checked-elaboration
+  export check-program, CheckedProgram, checked-generated, with-generated, check-and-retain, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration
 
   -- The constructor stays private. A backend receives the resolved source
   -- and retained typed declarations only after the current independent
@@ -70,11 +70,15 @@ module Bootstrap.Check where
   check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain program = check-and-retain-with-interfaces Nil program
   check-and-retain-with-interfaces :: List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
-  check-and-retain-with-interfaces known program =
+  check-and-retain-with-interfaces known program = check-and-retain-using (elaborate-with-interfaces known rung) program
+  check-and-retain-with-admitted-interfaces :: ValidatedInterfaces -> Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain-with-admitted-interfaces admitted program = check-and-retain-using (elaborate-with-admitted-interfaces admitted rung) program
+  check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain-using elaborate program =
     let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
     case legacy of
       Cons first rest -> Err legacy
-      Nil -> let typed = elaborate-with-interfaces known rung program in
+      Nil -> let typed = elaborate program in
         case elaboration-errors typed of
           Nil -> Ok (MkCheckedProgram program typed Nil)
           found -> Err found

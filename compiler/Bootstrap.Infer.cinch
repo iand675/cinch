@@ -24,7 +24,7 @@ module Bootstrap.Infer where
   import Bootstrap.Global
   import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
-  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, interface-set-body, interface-set-has-body, contract-usage-nominals, nominal-owner)
+  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, ValidatedInterfaces, interface-set-body, interface-set-has-body, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes, json-eq)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -43,7 +43,7 @@ module Bootstrap.Infer where
   import Bootstrap.Temporal (ContractKind, Safety, Liveness, Recurrence, Stability, contract-kind-keyword, contract-kind-operator, check-contract-shape, contract-assumption-rows, contract-formula-row, contract-formula-clause, contract-kind)
   import Bootstrap.TemporalCheck (Parameter, parameter-name, parameter-id, parameter-type, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
 
-  export needs-inference, infer-program, elaborate-program, elaborate-with-interfaces
+  export needs-inference, infer-program, elaborate-program, elaborate-with-interfaces, elaborate-with-admitted-interfaces
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-method-scope, elaboration-contexts, elaboration-core, elaboration-law-observations
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export guarded-members, source-method-symbol, source-conditional-head
@@ -8393,10 +8393,10 @@ module Bootstrap.Infer where
   data ElaborationImports where
     ElaborationImports :: Result String InterfaceSet -> List Json -> HashMap String (String, Option TypeExpr) -> ElaborationImports
 
-  elaborate-module :: List LoadedInterface -> String -> Module -> Elaboration
-  elaborate-module known label m =
+  elaborate-module :: (List (String, String, Json) -> Result String InterfaceSet) -> String -> Module -> Elaboration
+  elaborate-module load label m =
     let declarations = module-decls m in
-    let interfaces = load-body-interfaces-with-known known (total-interface-inputs declarations) in
+    let interfaces = load (total-interface-inputs declarations) in
     let imports = ElaborationImports interfaces (class-rows declarations) (prepare-import-syntax declarations hash-map-empty) in
     elaborate-module-with-source-bodies imports True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
@@ -9332,15 +9332,17 @@ module Bootstrap.Infer where
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)
     Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
-  elaborate-modules :: List LoadedInterface -> String -> List Module -> Elaboration
-  elaborate-modules known label ms = case ms of
+  elaborate-modules :: (List (String, String, Json) -> Result String InterfaceSet) -> String -> List Module -> Elaboration
+  elaborate-modules load label ms = case ms of
     Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil Nil Nil
-    Cons m rest -> case (elaborate-module known label m, elaborate-modules known label rest) of
+    Cons m rest -> case (elaborate-module load label m, elaborate-modules load label rest) of
       (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations rewrites temporal, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations other-rewrites other-temporal) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations) (rewrites <> other-rewrites) (temporal <> other-temporal)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-with-interfaces Nil label p
   elaborate-with-interfaces :: List LoadedInterface -> String -> Program -> Elaboration
-  elaborate-with-interfaces known label p = elaborate-modules known label (program-modules p)
+  elaborate-with-interfaces known label p = elaborate-modules (load-body-interfaces-with-known known) label (program-modules p)
+  elaborate-with-admitted-interfaces :: ValidatedInterfaces -> String -> Program -> Elaboration
+  elaborate-with-admitted-interfaces admitted label p = elaborate-modules (load-body-interfaces-with-admission admitted) label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic
   infer-program label p = elaboration-errors (elaborate-program label p)
 

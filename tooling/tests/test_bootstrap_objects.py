@@ -153,6 +153,20 @@ class LibraryProviderContract(unittest.TestCase):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap_objects.admitted_interfaces(bootstrap, metadata, {"modules": [{"name": "Data.Core"}]}, directory)
 
+    def test_base_manifest_order_preserves_the_earliest_ready_input(self):
+        rows = [[name, "hash", name + ".cinchif"] for name in ("A", "B", "C", "D")]
+        manifest = {"schema": 1, "interfaces": rows}
+        graph = {"A": ["C"], "B": ["D"], "C": [], "D": []}
+        metadata = {"interfaces": [
+            {"module": name, "interface": {"imports": [{"module": dep} for dep in deps]}}
+            for name, deps in graph.items()
+        ]}
+        ordered = bootstrap_objects.ordered_base_manifest(manifest, metadata)
+        self.assertEqual(ordered["interfaces"], [rows[i] for i in (2, 0, 3, 1)])
+        self.assertEqual(manifest["interfaces"], rows)
+        metadata["interfaces"][2]["interface"]["imports"] = [{"module": "A"}]
+        self.assertEqual(bootstrap_objects.ordered_base_manifest(manifest, metadata), manifest)
+
     def test_source_pin_is_checked_even_for_an_existing_snapshot(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

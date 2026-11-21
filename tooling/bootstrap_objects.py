@@ -1,6 +1,7 @@
 """Build the pinned library dependency bundle, never compiler implementations."""
 from pathlib import Path
 import fcntl
+import heapq
 import json
 import os
 import re
@@ -139,6 +140,42 @@ def admitted_interfaces(driver, metadata, package, directory):
         if not generated and not any(symbol.startswith(name + ".") for name in closure):
             raise driver.BootstrapError("library object contains a compiler or unknown implementation unit: " + symbol)
     return {"schema": 1, "interfaces": sorted(rows)}
+
+
+def ordered_base_manifest(manifest, metadata):
+    """Present the base in the same dependency order its native loader uses."""
+    rows = manifest["interfaces"]
+    positions = {row[0]: pos for pos, row in enumerate(rows)}
+    if len(positions) != len(rows):
+        return manifest
+    counts = {}
+    users = {name: [] for name in positions}
+    for row in metadata.get("interfaces", []):
+        name = row["module"]
+        if name not in positions:
+            continue
+        imports = row["interface"].get("imports", [])
+        counts[name] = len(imports)
+        for dep in imports:
+            home = dep["module"]
+            if home not in users:
+                return manifest
+            users[home].append(name)
+    if counts.keys() != positions.keys():
+        return manifest
+    ready = [positions[name] for name, count in counts.items() if not count]
+    heapq.heapify(ready)
+    ordered = []
+    while ready:
+        row = rows[heapq.heappop(ready)]
+        ordered.append(row)
+        for name in users[row[0]]:
+            counts[name] -= 1
+            if not counts[name]:
+                heapq.heappush(ready, positions[name])
+    if len(ordered) != len(rows):
+        return manifest
+    return {**manifest, "interfaces": ordered}
 
 
 def cached(driver, directory, inputs):
@@ -366,6 +403,8 @@ def provider_artifacts(driver, directory, inputs):
                      "object_sha256": artifacts["library.o"],
                      "metadata_sha256": artifacts["library.abi.json"]}
     identity = {**inputs, "artifacts": artifacts}
+    # Leave the pinned artifact and its receipt unchanged on disk.
+    manifest = driver.read_json(directory / "interfaces.json")
     return {"runtime": directory / "libcinchruntime.a", "object": directory / "library.o",
-            "interfaces": driver.read_json(directory / "interfaces.json"),
+            "interfaces": ordered_base_manifest(manifest, metadata),
             "configuration": configuration, "identity": identity}
