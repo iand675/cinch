@@ -76,9 +76,11 @@ module Text.Json where
   import Text.Show
   import Data.Bool
   import Data.Bytes
+  import Data.Bytes.Word (bytes-read-le32, bytes-read-le64)
   import Data.Char
   import Data.Int
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Machine
   import Data.Nat
   import Data.Option
@@ -477,7 +479,7 @@ module Text.Json where
       let s2 = skip-ws s1 in
       case peek-byte s2 of
         Some b ->
-          if nat-cmp b 125 == 0 then scan-object-close (reverse (Cons entry acc)) s2
+          if nat-cmp b 125 == 0 then scan-object-close (Cons entry acc) s2
           else if nat-cmp b 44 == 0 then scan-object-rest (skip-ws (advance1 s2)) (Cons entry acc)
           else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "}")))
         None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "}")))
@@ -485,9 +487,9 @@ module Text.Json where
   -- The closing brace: the spine (a duplicate key is refused first,
   -- at the brace's position).
   scan-object-close :: List JEntry -> JState -> JReply Json
-  scan-object-close es s = case duplicate-key es of
-    Some k -> JErr True (EFail (pos-span s) (string-concat "duplicate object key " k))
-    None -> JOk True (build-obj es) (advance1 s) Nil
+  scan-object-close es s = case build-object es of
+    Err key -> JErr True (EFail (pos-span s) (string-concat "duplicate object key " key))
+    Ok object -> JOk True object (advance1 s) Nil
 
   scan-entry :: JState -> JReply JEntry
   scan-entry s0 = case peek-byte s0 of
@@ -513,20 +515,6 @@ module Text.Json where
     JErr c e -> JErr c e
     JOk c v s1 e -> JOk c (JEntry key v) s1 e
 
-  -- The first key with a later equal one (canonical identity needs
-  -- unique names; RFC 8785), or `None`.
-  duplicate-key :: List JEntry -> Option String
-  duplicate-key es = case es of
-    Nil -> None
-    Cons e rest -> case e of
-      JEntry k v -> if has-key rest k then Some k else duplicate-key rest
-
-  has-key :: List JEntry -> String -> Bool
-  has-key es k = case es of
-    Nil -> False
-    Cons e rest -> case e of
-      JEntry k2 v2 -> if string-compare k k2 == 0 then True else has-key rest k2
-
   -- Arrays: `array = "[" [value *("," value)] "]"`, built as the
   -- `JArr` spine ended by `JArrEnd`.
   scan-array :: JState -> JReply Json
@@ -544,22 +532,40 @@ module Text.Json where
       let s2 = skip-ws s1 in
       case peek-byte s2 of
         Some b ->
-          if nat-cmp b 93 == 0 then JOk True (build-arr (reverse (Cons v acc))) (advance1 s2) Nil
+          if nat-cmp b 93 == 0 then JOk True (build-array (Cons v acc) JArrEnd) (advance1 s2) Nil
           else if nat-cmp b 44 == 0 then scan-array-rest (skip-ws (advance1 s2)) (Cons v acc)
           else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "]")))
         None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "]")))
 
-  -- The `Json` family's spines (decision D148's cons shapes).
-  build-obj :: List JEntry -> Json
-  build-obj es = case es of
-    Nil -> JObjEnd
-    Cons e rest -> case e of
-      JEntry k v -> JObj k v (build-obj rest)
+  -- The scanners collect entries backwards. Prepend into the final spine
+  -- while checking canonical key order. That path needs no key table.
+  build-object :: List JEntry -> Result String Json
+  build-object entries = case entries of
+    Nil -> Ok JObjEnd
+    Cons (JEntry key value) rest -> case ordered-object rest key (JObj key value JObjEnd) of
+      Some object -> Ok object
+      None -> indexed-object entries hash-map-empty JObjEnd (Ok ())
 
-  build-arr :: List Json -> Json
-  build-arr vs = case vs of
-    Nil -> JArrEnd
-    Cons v rest -> JArr v (build-arr rest)
+  ordered-object :: List JEntry -> String -> Json -> Option Json
+  ordered-object rest following object = case rest of
+    Nil -> Some object
+    Cons (JEntry key value) more ->
+      if string-compare key following < 0 then ordered-object more key (JObj key value object)
+      else None
+
+  -- Unordered input is also valid JSON. Traverse backwards so the last
+  -- duplicate found here names the first offending key in source order.
+  indexed-object :: List JEntry -> HashMap String () -> Json -> Result String Unit -> Result String Json
+  indexed-object entries seen object unique = case entries of
+    Nil -> (case unique of Ok unit -> Ok object; Err key -> Err key)
+    Cons (JEntry key value) rest -> case hash-map-lookup key seen of
+      Some duplicate -> indexed-object rest seen object (Err key)
+      None -> indexed-object rest (hash-map-insert key () seen) (JObj key value object) unique
+
+  build-array :: List Json -> Json -> Json
+  build-array reversed array = case reversed of
+    Nil -> array
+    Cons value rest -> build-array rest (JArr value array)
 
   -- Keywords: the dispatch matched the first byte, so any mismatch is
   -- a consumed failure naming the whole word.
@@ -909,11 +915,9 @@ module Text.Json where
   -- cautious. So a refusal is byte for byte what it was, and the two
   -- scanners can only differ by this one declining.
   --
-  -- It builds values with the combinator scanner's own pieces wherever the
-  -- piece is not the hot path: an escaped or non-ASCII string goes to
-  -- `scan-string-at`, a number to `scan-number`, a keyword to
-  -- `scan-literal`, a duplicate key to `duplicate-key`. What it owns is the
-  -- plain ASCII string, the punctuation and the spines.
+  -- Escaped and non-ASCII strings still use `scan-string-at`, and numbers
+  -- use `scan-number`. The fast path owns plain ASCII, punctuation,
+  -- complete keyword spellings and the spines.
   -- ---------------------------------------------------------------------------
 
   data JFast where
@@ -929,18 +933,42 @@ module Text.Json where
     if i < bytes-len src then (if is-ws (bytes-get src i) then fast-skip-ws src (i + 1) else i)
     else i
 
+  -- Eight printable ASCII bytes that cannot end or escape a JSON string.
+  -- The predicate is independent of byte order. The buffer read itself
+  -- requires a proved eight-byte range.
+  prim plain-string-word :: U64 -> Bool where
+    llvm {
+      %bytes = bitcast i64 %0 to <8 x i8>
+      %printable = icmp uge <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %ascii = icmp ult <8 x i8> %bytes, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
+      %unquoted = icmp ne <8 x i8> %bytes, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %unescaped = icmp ne <8 x i8> %bytes, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %text = and <8 x i1> %printable, %ascii
+      %ordinary = and <8 x i1> %unquoted, %unescaped
+      %lanes = and <8 x i1> %text, %ordinary
+      %mask = bitcast <8 x i1> %lanes to i8
+      %all = icmp eq i8 %mask, -1
+      %result = zext i1 %all to i8
+      ret i8 %result
+    }
+
   -- The offset of the quotation mark that closes the plain ASCII body
   -- starting at `i`, or 0 when the body is not plain (an escape, a control
   -- byte, a byte above ASCII, or the end of input). A body starts after its
   -- opening mark, so a closing mark is never at offset 0.
   fast-string-end :: Bytes -> Nat -> Nat
   fast-string-end src i =
+    if i + 8 <= bytes-len src && plain-string-word (bytes-read-le64 src i) then fast-string-end src (i + 8)
+    else fast-string-end-scalar src i
+
+  fast-string-end-scalar :: Bytes -> Nat -> Nat
+  fast-string-end-scalar src i =
     if i < bytes-len src then
       let b = bytes-get src i in
       if nat-cmp b 34 == 0 then i
       else if nat-cmp b 92 == 0 then 0
       else if nat-cmp b 32 < 0 then 0
-      else if nat-cmp b 128 < 0 then fast-string-end src (i + 1)
+      else if nat-cmp b 128 < 0 then fast-string-end-scalar src (i + 1)
       else 0
     else 0
 
@@ -964,6 +992,19 @@ module Text.Json where
     JOk c v after e -> JFastOk v (state-off after)
     JErr c e -> JFastNo
 
+  -- Read exact keyword bytes without allocating a literal buffer or a
+  -- diagnostic cursor. Parent or end-of-input checks still require the
+  -- delimiter. Any mismatch goes through the detailed parser.
+  fast-keyword :: Bytes -> Nat -> JFast
+  fast-keyword src i =
+    if i + 4 <= bytes-len src then
+      let word = bytes-read-le32 src i in
+      if eq-u32 word 0x65757274 then JFastOk (JBool True) (i + 4)
+      else if eq-u32 word 0x6c6c756e then JFastOk JNull (i + 4)
+      else if eq-u32 word 0x736c6166 && i + 5 <= bytes-len src && nat-cmp (bytes-get src (i + 4)) 101 == 0 then JFastOk (JBool False) (i + 5)
+      else JFastNo
+    else JFastNo
+
   -- The value starting at `i`, which is not whitespace.
   fast-value :: Bytes -> Nat -> JFast
   fast-value src i =
@@ -977,9 +1018,7 @@ module Text.Json where
       else if nat-cmp b 91 == 0 then fast-array src (fast-skip-ws src (i + 1))
       else if nat-cmp b 45 == 0 then fast-reply (scan-number (JState src i 1 1))
       else if is-digit b then fast-reply (scan-number (JState src i 1 1))
-      else if nat-cmp b 116 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "true") (JBool True))
-      else if nat-cmp b 102 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "false") (JBool False))
-      else if nat-cmp b 110 == 0 then fast-reply (scan-literal (JState src i 1 1) (string-to-bytes "null") JNull)
+      else if nat-cmp b 116 == 0 || nat-cmp b 102 == 0 || nat-cmp b 110 == 0 then fast-keyword src i
       else JFastNo
     else JFastNo
 
@@ -1017,10 +1056,9 @@ module Text.Json where
       let b = bytes-get src close in
       if nat-cmp b 44 == 0 then fast-entries src (fast-skip-ws src (close + 1)) acc
       else if nat-cmp b 125 == 0 then
-        (let es = reverse acc in
-         case duplicate-key es of
-           Some k -> JFastNo
-           None -> JFastOk (build-obj es) (close + 1))
+        (case build-object acc of
+          Err key -> JFastNo
+          Ok object -> JFastOk object (close + 1))
       else JFastNo
     else JFastNo
 
@@ -1061,11 +1099,16 @@ module Text.Json where
   -- After the closing quotation mark of the body at `i`.
   skip-string-end :: Bytes -> Nat -> Nat
   skip-string-end src i =
+    if i + 8 <= bytes-len src && plain-string-word (bytes-read-le64 src i) then skip-string-end src (i + 8)
+    else skip-string-end-scalar src i
+
+  skip-string-end-scalar :: Bytes -> Nat -> Nat
+  skip-string-end-scalar src i =
     if i < bytes-len src then
       let b = bytes-get src i in
       if nat-cmp b 34 == 0 then i + 1
       else if nat-cmp b 92 == 0 then skip-string-end src (i + 2)
-      else skip-string-end src (i + 1)
+      else skip-string-end-scalar src (i + 1)
     else 0
 
   -- After the bracket that closes the group `i` is inside; `inner` counts
@@ -1101,7 +1144,7 @@ module Text.Json where
     if close < bytes-len src then
       let b = bytes-get src close in
       if nat-cmp b 44 == 0 then fast-elements src (fast-skip-ws src (close + 1)) acc
-      else if nat-cmp b 93 == 0 then JFastOk (build-arr (reverse acc)) (close + 1)
+      else if nat-cmp b 93 == 0 then JFastOk (build-array acc JArrEnd) (close + 1)
       else JFastNo
     else JFastNo
 

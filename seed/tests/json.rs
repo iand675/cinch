@@ -48,6 +48,8 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     std::fs::write(dir.join("Text.Parse.cinch"), PARSE_SRC).expect("write Text.Parse");
     std::fs::write(dir.join("Text.Json.cinch"), JSON_SRC).expect("write Text.Json");
+    std::fs::write(dir.join("Data.Bytes.Word.cinch"), include_str!("../prelude/Data/Bytes/Word.cinch"))
+        .expect("write Data.Bytes.Word");
     std::fs::write(dir.join("Text.Builder.cinch"), BUILDER_SRC).expect("write Text.Builder");
     std::fs::write(dir.join("Text.Args.cinch"), ARGS_SRC).expect("write Text.Args");
     for (name, src) in files {
@@ -256,6 +258,12 @@ fn json_parser_covers_the_grammar_end_to_end() {
         assert_eq!(code, 0, "{input}: parse failed: {out}");
         assert_eq!(out, *expected, "{input}: canonical rendering");
     }
+    for prefix in [7, 8, 9, 15, 16, 17] {
+        let input = serde_json::to_string(&format!(r#"{}\"é"#, "a".repeat(prefix))).unwrap();
+        let (code, out) = run_exe(&exe, input.as_bytes());
+        assert_eq!(code, 0, "{input}: parse failed: {out}");
+        assert_eq!(out, input, "escape and UTF-8 after {prefix} ASCII bytes");
+    }
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -291,6 +299,8 @@ fn json_parser_reports_unexpected_and_expecting() {
         ("01", "leading zero in a JSON number"),
         (r#"{"a": 01}"#, "leading zero in a JSON number"),
         (r#"{"a":1,"a":2}"#, "duplicate object key"),
+        (r#"{"z":1,"a":2,"z":3,"a":4}"#, "duplicate object key z"),
+        (r#"{"inner":{"outer":1,"other":2,"outer":3}}"#, "duplicate object key outer"),
         (r#""\udc00""#, "unpaired low surrogate in a string escape"),
         (r#""\ud834x""#, "expected"),
     ];
