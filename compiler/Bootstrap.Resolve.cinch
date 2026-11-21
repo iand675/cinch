@@ -10,7 +10,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set)
   import Bootstrap.Inputs (embedded-library-home)
-  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
+  import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
@@ -1429,7 +1429,7 @@ module Bootstrap.Resolve where
   resolve-signature-overlays p interfaces checked = case validate-interface-set interfaces of
     Err message -> (p, fail (program-span p) message)
     Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
-      resolve-context p (interface-scopes available) (interface-headers available) Nil checked
+      resolve-context p (interface-scopes available) (interface-fixity-headers available) Nil checked
 
   -- A source module beside the entry shadows the base-package copy of the
   -- same name: the explicit source is the program's version of that module,
@@ -1453,7 +1453,7 @@ module Bootstrap.Resolve where
     Err message -> (p, fail (program-span p) message)
     Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
       let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
-      resolve-context p (interface-scopes available) (interface-headers available) base Nil
+      resolve-context p (interface-scopes available) (interface-fixity-headers available) base Nil
 
   overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
   overlay-base-bindings facade exports dependencies found = case exports of

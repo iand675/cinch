@@ -100,6 +100,25 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let mut duplicate_value = lib.clone();
     duplicate_value.exports.values.push(duplicate_value.exports.values[0].clone());
     cases.push((row(&dir, "duplicate-value.cinchif", &duplicate_value), "malformed interface contract envelope".into()));
+    // Check the raw table order as well as the producer's sorted output.
+    let mut unordered: serde_json::Value = serde_json::from_str(&lib.to_json()).unwrap();
+    unordered["exports"]["values"].as_array_mut().unwrap().reverse();
+    let path = dir.join("unordered-values.cinchif");
+    std::fs::write(&path, unordered.to_string()).unwrap();
+    unordered["compiler"] = "".into();
+    unordered["source_hash"] = "".into();
+    unordered["units"] = serde_json::json!([]);
+    let hash = cinch::interface::content_hash_bytes(unordered.to_string().as_bytes());
+    cases.push((vec![lib.module.clone(), hash, path.display().to_string()], String::new()));
+
+    let values = unordered["exports"]["values"].as_array_mut().unwrap();
+    assert!(values.len() > 2);
+    values.push(values[0].clone());
+    let path = dir.join("unordered-duplicate-value.cinchif");
+    std::fs::write(&path, unordered.to_string()).unwrap();
+    let hash = cinch::interface::content_hash_bytes(unordered.to_string().as_bytes());
+    cases.push((vec![lib.module.clone(), hash, path.display().to_string()],
+                "malformed interface contract envelope".into()));
     let mut bad_slot = lib.clone();
     bad_slot.exports.signatures[0].methods[0].slot = 7;
     cases.push((row(&dir, "bad-method-slot.cinchif", &bad_slot), "malformed interface contract envelope".into()));
@@ -257,7 +276,7 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
         ("Ö.深.Nested.value", "Ö.深.Nested"), ("Ö.深x.value", "Ö"),
     ];
     let checks = cases.iter().map(|(identity, owner)| format!(
-        "same (body-node-owner prefixes (string-concat {} suffix) \"\") {} && same (body-node-owner reversed (string-concat {} suffix) \"\") {}",
+        "same (body-node-owner index (string-concat {} suffix)) {} && same (body-node-owner reversed (string-concat {} suffix)) {}",
         quote(identity), quote(owner), quote(identity), quote(owner),
     )).collect::<Vec<_>>().join(" &&\n          ");
     let program = format!(r#"module Main where
@@ -271,8 +290,8 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
     Err error -> 90
     Ok input -> case load-interface-set [{interfaces}] of
       Err error -> 91
-      Ok loaded -> let prefixes = prefixes-of (index-interfaces loaded) in
-        let reversed = prefixes-of (index-interfaces (reverse loaded)) in
+      Ok loaded -> let index = index-interfaces loaded in
+        let reversed = index-interfaces (reverse loaded) in
         let suffix = string-repeat (bytes-len input) "λ" in
         if {checks} then 0 else 1
 "#);
@@ -281,7 +300,7 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
     // retain their existing boundary.
     let loader = include_str!("../../compiler/Bootstrap.Load.cinch").replacen(
         "  export ImportedValue",
-        "  export body-node-owner\n  export index-interfaces\n  export prefixes-of\n  export ImportedValue",
+        "  export body-node-owner\n  export index-interfaces\n  export ImportedValue",
         1,
     );
     let dir = common::project("owner_prefixes", &[

@@ -29,7 +29,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, validated-interfaces-members)
   import Bootstrap.Inputs (read-interfaces, read-validated-interfaces, embedded-library-home, read-interface-references, load-interface-references)
-  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Contracts (interface-headers, interface-fixity-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
@@ -175,7 +175,7 @@ module Bootstrap.Pipeline where
         EmitWithInterfaces -> pipeline-bad-args
         other -> case fs-read (path-from-string source) of
           Err error -> pipeline-read-failed
-          Ok src -> after-parse-with inlining reclaim profile mode interfaces source src (parse-program-with source src (interface-headers interfaces)) ir exe report
+          Ok src -> after-parse-with inlining reclaim profile mode interfaces source src (parse-program-with source src (interface-fixity-headers interfaces)) ir exe report
 
   -- `debug` selects debug counting (`--rc-debug`): the emitted program's
   -- count operations call the runtime's checked out-of-line entries.
@@ -246,7 +246,7 @@ module Bootstrap.Pipeline where
   emit-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
   emit-object-client inlining debug reclaim profile mode interfaces provider source ir = case fs-read (path-from-string source) of
     Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-    Ok src -> case parse-program-with source src (interface-headers interfaces) of
+    Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
       Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
       Parsed program Nil -> case target-view-program profile program of
         Err message -> write-failure ir message pipeline-check-refused
@@ -445,7 +445,7 @@ module Bootstrap.Pipeline where
   compile-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   compile-source-interfaces profile interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
-    Ok src -> case parse-program-with source src (interface-headers interfaces) of
+    Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
       Parsed program Nil -> case target-view-program profile program of
         Err message -> write-failure prefix message pipeline-check-refused
@@ -850,7 +850,7 @@ module Bootstrap.Pipeline where
               if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
                 case fs-read (path-from-string source) of
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-                  Ok bytes -> case parse-program-with source bytes (interface-headers interfaces) of
+                  Ok bytes -> case parse-program-with source bytes (interface-fixity-headers interfaces) of
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
                     Parsed program Nil -> case target-view-program profile program of
                       Err message -> write-failure ir message pipeline-check-refused

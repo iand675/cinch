@@ -15,7 +15,7 @@ module Bootstrap.Contracts where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
 
-  export interface-headers, interface-declarations, public-global
+  export interface-headers, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, referenced, declaration-references, expr-references, imported-class-references, kernel-references
 
   same :: String -> String -> Bool
@@ -48,6 +48,25 @@ module Bootstrap.Contracts where
     Nil -> Nil
     Cons i rest -> Cons (MkModule zero (loaded-module i) (decl-spine zero
       (entries i (loaded-exports i) <> fixities (loaded-fixities i)))) (interface-headers rest)
+
+  -- Parsing and exported fixities use just the operators, including
+  -- those without a declared fixity that shadow an inherited spelling.
+  -- Staged name resolution separately asks for the complete headers.
+  interface-fixity-headers :: List LoadedInterface -> List Module
+  interface-fixity-headers interfaces = case interfaces of
+    Nil -> Nil
+    Cons i rest -> Cons (MkModule zero (loaded-module i) (decl-spine zero
+      (operator-entries i (loaded-exports i) <> fixities (loaded-fixities i)))) (interface-fixity-headers rest)
+
+  operator-entries :: LoadedInterface -> List (String, String, String) -> List Decl
+  operator-entries i names = case names of
+    Nil -> Nil
+    Cons (name, kind, identity) rest ->
+      if is-operator-name name then
+        (case loaded-entry i kind identity of
+          Some metadata -> Cons (DExternal zero name kind None metadata) (operator-entries i rest)
+          None -> operator-entries i rest)
+      else operator-entries i rest
 
   declarations :: LoadedInterface -> List (String, String, String) -> List Decl
   declarations i exports = case exports of

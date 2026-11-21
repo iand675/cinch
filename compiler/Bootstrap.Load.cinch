@@ -21,7 +21,7 @@ module Bootstrap.Load where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Text.Lex (Span)
+  import Text.Lex (Span, bytes-slice)
   import Algebra.Semigroup
 
   export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
@@ -147,7 +147,7 @@ module Bootstrap.Load where
   -- original order for the strict set check. A closed set needs no queue.
   body-closed-interfaces :: List LoadedInterface -> List LoadedInterface
   body-closed-interfaces members =
-    let index = MkInterfaceIndex members (interface-table members hash-map-empty) hash-map-empty Nil in
+    let index = MkInterfaceIndex members (interface-table members hash-map-empty) hash-map-empty in
     case incomplete-interfaces members index Nil of
       Nil -> members
       pending ->
@@ -339,9 +339,8 @@ module Bootstrap.Load where
   -- constructor, and its own identity carries the row.
   -- `private-methods` is passed in because the load derives it for the
   -- interface itself; the globals table needs the same rows.
-  export-entries :: List (String, String, String) -> Json -> ExportEntries
-  export-entries private-methods exports =
-    let rows = export-rows exports in
+  export-entries :: List (String, String, String) -> List (String, String, String) -> Json -> ExportEntries
+  export-entries rows private-methods exports =
     MkExportEntries
       (row-table "symbol" (field "values" exports))
       (row-table "identity" (field "types" exports))
@@ -525,29 +524,23 @@ module Bootstrap.Load where
         && (case field "tag" constructor of JNum tag -> tag == 0; other -> False)
         && array-length labels == array-length (field "fields" constructor)
       other -> False)
-  types-valid :: Json -> List String -> Bool
-  types-valid rows seen = case rows of
-    JArr row rest ->
-      let name = text (field "name" row) in
-      let kind = text (field "kind" row) in
-      string-length name > 0 && not (member name seen)
-      && string-length (text (field "identity" row)) > 0
-      && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
-      && parameters-valid (field "parameters" row) (field "params" row) Nil
-      && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
-      && ownership-header-valid row
-      && (if same kind "codata" then
-        (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
-        else not (same kind "record") || record-contract-valid row)
-      && (if same kind "refinement" then
-        let definition = field "refinement" row in
-        string-length (text (field "binder" definition)) > 0
-        && string-length (text (field "carrier" definition)) > 0
-        && string-length (text (field "predicate" definition)) > 0
-        else case field "refinement" row of JNull -> True; other -> False)
-      && types-valid rest (Cons name seen)
-    JArrEnd -> True
-    other -> False
+  type-row-valid :: Json -> Bool
+  type-row-valid row =
+    let kind = text (field "kind" row) in
+    string-length (text (field "identity" row)) > 0
+    && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
+    && parameters-valid (field "parameters" row) (field "params" row) Nil
+    && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
+    && ownership-header-valid row
+    && (if same kind "codata" then
+      (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
+      else not (same kind "record") || record-contract-valid row)
+    && (if same kind "refinement" then
+      let definition = field "refinement" row in
+      string-length (text (field "binder" definition)) > 0
+      && string-length (text (field "carrier" definition)) > 0
+      && string-length (text (field "predicate" definition)) > 0
+      else case field "refinement" row of JNull -> True; other -> False)
 
   -- Parsed interface rows usually share their key order. Compare that
   -- representation directly. Reordered objects and mixed numeric forms
@@ -657,17 +650,12 @@ module Bootstrap.Load where
     JArrEnd -> True
     other -> False
 
-  signatures-valid :: Json -> List String -> Bool
-  signatures-valid rows seen = case rows of
-    JArr row rest ->
-      let identity = text (field "identity" row) in
-      string-length identity > 0 && not (member identity seen) && string-length (text (field "name" row)) > 0
-      && strings-p (field "exports" row)
-      && parameters-valid (field "parameters" row) (field "params" row) Nil
-      && methods-valid (field "methods" row) Nil && class-laws-valid (field "laws" row) Nil
-      && signatures-valid rest (Cons identity seen)
-    JArrEnd -> True
-    other -> False
+  signature-row-valid :: Json -> Bool
+  signature-row-valid row =
+    string-length (text (field "name" row)) > 0
+    && strings-p (field "exports" row)
+    && parameters-valid (field "parameters" row) (field "params" row) Nil
+    && methods-valid (field "methods" row) Nil && class-laws-valid (field "laws" row) Nil
 
   conditional-slot :: Nat -> Json -> Option String
   conditional-slot slot rows = case rows of
@@ -721,20 +709,14 @@ module Bootstrap.Load where
     other -> False
   member-slot :: Nat -> List Nat -> Bool
   member-slot slot slots = case slots of Nil -> False; Cons first rest -> slot == first || member-slot slot rest
-  instances-valid :: Json -> List String -> Bool
-  instances-valid rows seen = case rows of
-    JArr row rest ->
-      let identity = text (field "id" row) in
-      string-length identity > 0 && not (member identity seen)
-      && string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
-      && strings-p (field "ctx" row) && strings-p (field "methods" row)
-      && (case field "implicit" row of JBool value -> True; other -> False)
-      && optional-method-bodies-valid row
-      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) (field "methods" row) Nil Nil
-      && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
-      && instances-valid rest (Cons identity seen)
-    JArrEnd -> True
-    other -> False
+  instance-row-valid :: Json -> Bool
+  instance-row-valid row =
+    string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
+    && strings-p (field "ctx" row) && strings-p (field "methods" row)
+    && (case field "implicit" row of JBool value -> True; other -> False)
+    && optional-method-bodies-valid row
+    && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) (field "methods" row) Nil Nil
+    && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
 
   has-field :: String -> Json -> Bool
   has-field name doc = case doc of JObj key value rest -> same name key || has-field name rest; other -> False
@@ -758,38 +740,56 @@ module Bootstrap.Load where
     case (field "total_body" row, field "resolved" row, field "arity" row) of
       (JNull, JObj key value rest, JNum 4) -> (case read-keyed-ordering (text (field "symbol" row)) (field "keyed_ordering" row) of Some function -> True; None -> False)
       other -> False
-  values-valid :: Json -> List String -> Bool
-  values-valid values seen = case values of
-    JArr v rest ->
-      let name = text (field "name" v) in
-      string-length name > 0 && not (member name seen)
-      && string-length (text (field "symbol" v)) > 0
-      && string-length (text (field "scheme" v)) > 0
-      && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v && keyed-ordering-valid v
-      && nat-p (field "arity" v) && values-valid rest (Cons name seen)
+  value-row-valid :: Json -> Bool
+  value-row-valid v =
+    string-length (text (field "symbol" v)) > 0
+    && string-length (text (field "scheme" v)) > 0
+    && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v && keyed-ordering-valid v
+    && nat-p (field "arity" v)
+
+  ref-row-valid :: Json -> Bool
+  ref-row-valid r =
+    string-length (text (field "iface_hash" r)) > 0
+
+  fixity-row-valid :: Json -> Bool
+  fixity-row-valid f =
+    let assoc = text (field "assoc" f) in
+    (same assoc "left" || same assoc "right" || same assoc "none")
+    && nat-p (field "prec" f) && number (field "prec" f) <= 9
+
+  -- Canonical producers usually emit rows in key order. Validate these
+  -- with the previous key as the only state. Descending keys are allowed:
+  -- check uniqueness over the original rows with an index in that case.
+  validate-named-rows :: String -> (Json -> Bool) -> Json -> Bool
+  validate-named-rows key valid rows = validate-ordered-rows key valid rows rows ""
+
+  validate-ordered-rows :: String -> (Json -> Bool) -> Json -> Json -> String -> Bool
+  validate-ordered-rows key valid all rows previous = case rows of
+    JArr row rest ->
+      let name = text (field key row) in
+      let order = string-compare previous name in
+      if order < 0 then valid row && validate-ordered-rows key valid all rest name
+      else order > 0 && distinct-row-names key all hash-map-empty && valid row && validate-rows valid rest
     JArrEnd -> True
     other -> False
 
-  refs-valid :: Json -> List String -> Bool
-  refs-valid refs seen = case refs of
-    JArr r rest ->
-      let name = text (field "module" r) in
-      string-length name > 0 && not (member name seen)
-      && string-length (text (field "iface_hash" r)) > 0 && refs-valid rest (Cons name seen)
+  validate-rows :: (Json -> Bool) -> Json -> Bool
+  validate-rows valid rows = case rows of
+    JArr row rest -> valid row && validate-rows valid rest
     JArrEnd -> True
     other -> False
 
-  fixes-valid :: Json -> List String -> Bool
-  fixes-valid fixes seen = case fixes of
-    JArr f rest ->
-      let op = text (field "op" f) in
-      let assoc = text (field "assoc" f) in
-      string-length op > 0 && not (member op seen)
-      && (same assoc "left" || same assoc "right" || same assoc "none")
-      && nat-p (field "prec" f) && number (field "prec" f) <= 9
-      && fixes-valid rest (Cons op seen)
+  distinct-row-names :: String -> Json -> HashMap String () -> Bool
+  distinct-row-names key rows seen = case rows of
+    JArr row rest ->
+      let name = text (field key row) in
+      not (same name "") && not (name-recorded name seen)
+      && distinct-row-names key rest (hash-map-insert name () seen)
     JArrEnd -> True
     other -> False
+
+  name-recorded :: String -> HashMap String () -> Bool
+  name-recorded name seen = case hash-map-lookup name seen of Some present -> True; None -> False
 
   member :: String -> List String -> Bool
   member name names = case names of Nil -> False; Cons n rest -> same name n || member name rest
@@ -812,10 +812,10 @@ module Bootstrap.Load where
       && same (text (field "convention" abi)) "uniform-word, curried apply stub"
       && strings-p (field "symbols" abi) && objects-p (field "layouts" abi))
     && (let exports = field "exports" doc in object-p exports
-      && values-valid (field "values" exports) Nil && fixes-valid (field "fixities" exports) Nil
-      && types-valid (field "types" exports) Nil && signatures-valid (field "signatures" exports) Nil
-      && instances-valid (field "instances" exports) Nil && objects-p (field "foreign" exports))
-    && refs-valid (field "imports" doc) Nil
+      && validate-named-rows "name" value-row-valid (field "values" exports) && validate-named-rows "op" fixity-row-valid (field "fixities" exports)
+      && validate-named-rows "name" type-row-valid (field "types" exports) && validate-named-rows "identity" signature-row-valid (field "signatures" exports)
+      && validate-named-rows "id" instance-row-valid (field "instances" exports) && objects-p (field "foreign" exports))
+    && validate-named-rows "module" ref-row-valid (field "imports" doc)
 
   -- Project root fields structurally. A nested field named `compiler`
   -- or `units` is part of the contract and must never be blanked.
@@ -906,9 +906,10 @@ module Bootstrap.Load where
   accepted-interface verified name hash doc source =
     let exports = field "exports" doc in
     let private = private-signature-methods name (field "signatures" exports) in
+    let rows = export-rows exports in
     Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries private exports) (export-rows exports) private)
+      (export-entries rows private exports) rows private)
 
   read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
   read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
@@ -955,10 +956,8 @@ module Bootstrap.Load where
   -- validated set, it answers the three questions the checks ask thousands
   -- of times: which interface a module name denotes, which module exports a
   -- global name (and so whether that name is in a checked closure at all),
-  -- and whether a module is in a checked closure. It also carries each
-  -- module's name, its width and its `Name.` bytes, so a body node's owner
-  -- is decided by comparing bytes that already exist instead of encoding a
-  -- fresh prefix per module per node.
+  -- and whether a module is in a checked closure. The same module
+  -- table resolves body owners by dotted prefix.
   --
   -- The two name lookups are `HashMap` probes. They were list scans until
   -- the `Hash String` instance became FNV-1a over the UTF-8 bytes in a
@@ -982,12 +981,12 @@ module Bootstrap.Load where
   -- receives is still the list the ordering pass produced, and every other
   -- use is a membership test or a probe.
   data InterfaceIndex where
-    MkInterfaceIndex :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String String -> List (String, Nat, Bytes) -> InterfaceIndex
+    MkInterfaceIndex :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String String -> InterfaceIndex
 
   index-interfaces :: List LoadedInterface -> InterfaceIndex
   index-interfaces loaded =
     MkInterfaceIndex loaded (interface-table loaded hash-map-empty)
-      (global-table loaded hash-map-empty) (reverse (index-prefixes loaded Nil))
+      (global-table loaded hash-map-empty)
 
   -- Module name to interface. Later entries replace earlier entries.
   -- The known-interface readers reverse their input to keep the first row.
@@ -1008,21 +1007,11 @@ module Bootstrap.Load where
     Nil -> table
     Cons name rest -> global-name-table rest module-name (hash-map-insert name module-name table)
 
-  index-prefixes :: List LoadedInterface -> List (String, Nat, Bytes) -> List (String, Nat, Bytes)
-  index-prefixes loaded acc = case loaded of
-    Nil -> acc
-    Cons i rest -> let name = loaded-module i in
-      let prefix = string-to-bytes (string-concat name ".") in
-      index-prefixes rest (Cons (name, bytes-len (string-to-bytes name), prefix) acc)
-
   interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
-  interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals prefixes -> hash-map-lookup name by-name
+  interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals -> hash-map-lookup name by-name
 
   interfaces-of :: InterfaceIndex -> List LoadedInterface
-  interfaces-of ix = case ix of MkInterfaceIndex all by-name globals prefixes -> all
-
-  prefixes-of :: InterfaceIndex -> List (String, Nat, Bytes)
-  prefixes-of ix = case ix of MkInterfaceIndex all by-name globals prefixes -> prefixes
+  interfaces-of ix = case ix of MkInterfaceIndex all by-name globals -> all
 
   verify-refs :: List (String, String) -> InterfaceIndex -> Result String Unit
   verify-refs refs ix = case refs of
@@ -1123,7 +1112,7 @@ module Bootstrap.Load where
           Some matched ->
             -- Class laws consult the first exporter of a global. Replay
             -- that check against the object's original row order.
-            let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) Nil in
+            let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) in
             interface-laws-valid matched index closures)
   match-interface-sources :: List (String, String, Bytes) -> HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
   match-interface-sources inputs indexed seen extra = case inputs of
@@ -1156,7 +1145,7 @@ module Bootstrap.Load where
     case (field "types" exports, field "signatures" exports, field "instances" exports,
           interface-nominals member, interface-body-declarations member) of
       (JArrEnd, JArrEnd, JArrEnd, Nil, Nil) -> undotted-name (unpack name)
-        && (case verify-refs (loaded-imports member) (MkInterfaceIndex Nil indexed hash-map-empty Nil) of Ok unit -> True; Err message -> False)
+        && (case verify-refs (loaded-imports member) (MkInterfaceIndex Nil indexed hash-map-empty) of Ok unit -> True; Err message -> False)
         && plain-object-values (field "values" exports)
       other -> False
   undotted-name :: List Char -> Bool
@@ -1300,7 +1289,7 @@ module Bootstrap.Load where
   -- table is built once per set, one digest per exported identity.
   law-global-present :: String -> ModuleClosure -> InterfaceIndex -> Bool
   law-global-present name reachable ix = case ix of
-    MkInterfaceIndex all by-name globals prefixes -> case hash-map-lookup name globals of
+    MkInterfaceIndex all by-name globals -> case hash-map-lookup name globals of
       None -> False
       Some owner -> name-in owner reachable
 
@@ -1422,28 +1411,29 @@ module Bootstrap.Load where
   interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
     value-body-declarations (field "values" exports) <> signature-body-declarations (field "signatures" exports)
       <> value-body-declarations (field "instances" exports) <> instance-body-declarations (field "instances" exports) <> conditional-instance-body-declarations (field "instances" exports)
-  -- Identity ownership is the longest module prefix followed by a dot.
-  -- Compare UTF-8 bytes directly: repeatedly unpacking the whole identity
-  -- rescans it for every module and every body graph node.
-  body-owner-prefix :: Bytes -> Bytes -> Nat -> Bool
-  body-owner-prefix prefix identity offset =
-    if offset >= bytes-len prefix then True
-    else if offset >= bytes-len identity then False
-    else bytes-get prefix offset == bytes-get identity offset && body-owner-prefix prefix identity (offset + 1)
-  body-node-owner :: List (String, Nat, Bytes) -> String -> String -> String
-  body-node-owner prefixes identity best = body-node-owner-bytes (string-to-bytes identity) prefixes best (bytes-len (string-to-bytes best))
-  body-node-owner-bytes :: Bytes -> List (String, Nat, Bytes) -> String -> Nat -> String
-  body-node-owner-bytes identity prefixes best width = case prefixes of
-    Nil -> best
-    Cons entry rest -> case entry of
-      (name, size, prefix) ->
-        if size > width && body-owner-prefix prefix identity 0 then
-          body-node-owner-bytes identity rest name size
-        else body-node-owner-bytes identity rest best width
+  -- Only dots can end the defining module prefix. Try them from right
+  -- to left and probe the same exact name table as ordinary imports.
+  body-node-owner :: InterfaceIndex -> String -> String
+  body-node-owner ix name =
+    let identity = string-to-bytes name in
+    body-node-owner-at ix identity (bytes-len identity)
+
+  body-node-owner-at :: InterfaceIndex -> Bytes -> Nat -> String
+  body-node-owner-at ix identity cursor =
+    if cursor > 0 && cursor <= bytes-len identity then
+      let at = cursor - 1 in
+      if bytes-get identity at == 46 then
+        (case string-from-bytes (bytes-slice identity 0 at) of
+          Some prefix -> (case interface-by-name ix prefix of
+            Some owner -> prefix
+            None -> body-node-owner-at ix identity at)
+          None -> body-node-owner-at ix identity at)
+      else body-node-owner-at ix identity at
+    else ""
   verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
   verify-body-nodes rows reachable ix seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      let owner = body-node-owner (prefixes-of ix) identity "" in
+      let owner = body-node-owner ix identity in
       let key = string-concat "#total-definition:" identity in
       if string-length owner == 0 || not (name-in owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
       else (case hash-map-lookup key seen of
@@ -1457,7 +1447,7 @@ module Bootstrap.Load where
     Nil -> Ok seen
     Cons row rest -> let identity = text (field "identity" row) in
       let declared = body-declaration identity row in
-      let owner-name = body-node-owner (prefixes-of ix) identity "" in
+      let owner-name = body-node-owner ix identity in
       if not (name-in owner-name reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
       else (case interface-by-name ix owner-name of
         None -> Err (string-concat "missing defining total body interface: " identity)
@@ -1475,13 +1465,13 @@ module Bootstrap.Load where
           else Err (string-concat "conflicting defining total body declarations: " identity))
   method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   method-body-owners-valid rows owner ix = case rows of
-    JArr row rest -> same (body-node-owner (prefixes-of ix) (text (field "implementation" row)) "") owner && method-body-owners-valid rest owner ix
+    JArr row rest -> same (body-node-owner ix (text (field "implementation" row))) owner && method-body-owners-valid rest owner ix
     JArrEnd -> True
     other -> False
   instance-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   instance-body-owners-valid rows owner ix = case rows of
     JArr row rest -> (case field "method_bodies" row of
-      JArr first more -> same (body-node-owner (prefixes-of ix) (text (field "id" row)) "") owner && method-body-owners-valid (field "method_bodies" row) owner ix
+      JArr first more -> same (body-node-owner ix (text (field "id" row))) owner && method-body-owners-valid (field "method_bodies" row) owner ix
       other -> True) && instance-body-owners-valid rest owner ix
     JArrEnd -> True
     other -> False
@@ -1491,7 +1481,7 @@ module Bootstrap.Load where
     other -> False
   ordering-owner-valid :: String -> Json -> ModuleClosure -> InterfaceIndex -> Bool
   ordering-owner-valid identity row reachable ix =
-    let owner = body-node-owner (prefixes-of ix) identity "" in
+    let owner = body-node-owner ix identity in
     name-in owner reachable && name-in "Relation.Ord" reachable &&
     (case (interface-by-name ix owner, interface-by-name ix "Relation.Ord", read-keyed-ordering identity (field "keyed_ordering" row)) of
       (Some provider, Some classes, Some body) -> (case (loaded-entry provider "value" identity, loaded-entry classes "signature" "Relation.Ord.Ord", keyed-ordering-slots body) of
