@@ -174,6 +174,26 @@ fn open(dir: &Path) -> (Session, cinch::driver::incremental::SessionReport) {
     Session::open(&entry(dir)).unwrap_or_else(|e| panic!("open: {e}"))
 }
 
+#[test]
+fn effectful_entry_can_open_and_rebuild() {
+    let source = r#"module Main where
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-write)
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case fs-write (path-from-string "/dev/stdout") (string-to-bytes "Hello, world!\n") of
+      Ok _ -> 0
+      Err error -> 1
+"#;
+    let dir = write_project(&[("Main.cinch", source)]);
+    let (mut session, cold) = open(&dir);
+    assert!(cold.chain_ok && cold.link.verified, "{cold:?}");
+    session.set_source(&key(&dir, "Main.cinch"), &source.replace("Hello", "Goodbye"));
+    let edit = session.rebuild_edits().expect("effectful entry rebuild");
+    assert!(edit.chain_ok && edit.link.verified, "{edit:?}");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 fn after_symbols(rows: &[cinch::driver::incremental::CacheRow]) -> BTreeSet<String> {
     rows.iter().map(|r| r.symbol.clone()).collect()
 }

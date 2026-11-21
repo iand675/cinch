@@ -731,14 +731,26 @@ impl<'a> Subject<Value> for QueryState<'a> {
                 // imports. That is what makes a change reach an importer
                 // that names none of the changed declarations itself, which
                 // is the `.cinchif` chain's own rule.
-                if crate::driver::incremental::kind_of_id(item)
-                    == crate::driver::incremental::ItemKind::Module
-                {
+                let module_signature = crate::driver::incremental::kind_of_id(item)
+                    == crate::driver::incremental::ItemKind::Module;
+                if module_signature {
                     for own in self.items.get(&module).cloned().unwrap_or_default() {
                         if &own != item {
                             get(engine, self, &Query::Signature(own))?;
                         }
                     }
+                }
+                let surface = self
+                    .deps
+                    .get(item)
+                    .map(|d| d.surface.clone())
+                    .unwrap_or_default();
+                // Unindexed effects conservatively reference the owning
+                // module. Its source is already an input above. Depend on
+                // the same imported contracts directly, without a cycle
+                // through the aggregate signature that contains this item.
+                let module_item = format!("m:{module}.");
+                if module_signature || surface.contains(&module_item) {
                     for import in &iface.imports {
                         if self.modules.contains_key(&import.module) {
                             get(
@@ -749,13 +761,8 @@ impl<'a> Subject<Value> for QueryState<'a> {
                         }
                     }
                 }
-                let surface = self
-                    .deps
-                    .get(item)
-                    .map(|d| d.surface.clone())
-                    .unwrap_or_default();
                 for dep in &surface {
-                    if dep != item {
+                    if dep != item && dep != &module_item {
                         get(engine, self, &Query::Signature(dep.clone()))?;
                     }
                 }
