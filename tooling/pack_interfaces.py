@@ -9,6 +9,7 @@ import tempfile
 
 MAGIC = b"CINCHPK2"
 FLAT_MAGIC = b"CINCHPK3"
+STRUCTURED_ABI_MAGIC = b"CINCHPK4"
 # Value tags in a structured contract. Integers take two little-endian
 # words after the tag. Text and object keys use common string-table IDs.
 NULL, FALSE, TRUE, NAT, TEXT, ARRAY, OBJECT, DEFINITIONS, NEGATIVE = range(9)
@@ -224,7 +225,7 @@ def encode_value(out, value, strings, body_index, *, definitions=False, graph=Fa
                 out.extend(flat.reference(root, child))
                 continue
             # Only the schema-10 body envelope owns a definition table.
-            body_table = (graph and key == "definitions" and value.keys() == {"version", "definitions"}
+            body_table = (body_index is not None and graph and key == "definitions" and value.keys() == {"version", "definitions"}
                           and value["version"] == 1 and isinstance(child, list)
                           and all(isinstance(row, dict) and row.get("identity") in body_index for row in child))
             encode_value(out, child, strings, body_index, definitions=body_table, graph=key == "total_body", flat=flat)
@@ -232,7 +233,9 @@ def encode_value(out, value, strings, body_index, *, definitions=False, graph=Fa
         raise ValueError(f"unsupported structured contract value {type(value).__name__}")
 
 
-def pack(rows, objects=None, *, flat_bodies=False):
+def pack(rows, objects=None, *, flat_bodies=False, structured_abi=False):
+    if structured_abi and not flat_bodies:
+        raise ValueError("structured ABI requires indexed bodies")
     strings, recipes, contracts = StringArena(), Arena(), Arena()
     modules, exports, bodies, edges = (bytearray() for _ in range(4))
     definitions = {}
@@ -299,12 +302,19 @@ def pack(rows, objects=None, *, flat_bodies=False):
                                       for row in embedded]
         if private:
             metadata["private_interfaces"] = private
-        abi = canonical(metadata)
+        if structured_abi:
+            # ABI-only IDs follow all the contract IDs. An interface-only
+            # reader can leave that string table suffix untouched.
+            abi = bytearray(words(len(strings.ids)))
+            encode_value(abi, metadata, strings, None)
+        else:
+            abi = canonical(metadata)
 
     prefix = (strings.encoded(), modules, exports, bodies, edges)
     suffix = (contracts.data, abi)
     if nodes is not None:
-        magic, version, offset = FLAT_MAGIC, 3, FLAT_HEADER_SIZE
+        magic, version = (STRUCTURED_ABI_MAGIC, 4) if structured_abi else (FLAT_MAGIC, 3)
+        offset = FLAT_HEADER_SIZE
         payloads = prefix + (nodes.nodes, nodes.operands) + suffix
     else:
         magic, version, offset = MAGIC, 2, HEADER_SIZE
@@ -347,8 +357,11 @@ def main():
     parser.add_argument("output", type=Path, help="the .cpk file to publish")
     parser.add_argument("--objects", type=Path, help="native objects.json for the same interface set")
     parser.add_argument("--execution", action="store_true", help="read the Rust package execution interface")
-    parser.add_argument("--legacy-recipes", action="store_true",
-                        help="write version 2 for older compilers")
+    formats = parser.add_mutually_exclusive_group()
+    formats.add_argument("--legacy-recipes", action="store_true",
+                         help="write version 2 for older compilers")
+    formats.add_argument("--legacy-json-abi", action="store_true",
+                         help="write version 3 for compilers expecting JSON ABI metadata")
     args = parser.parse_args()
     if args.execution:
         if args.objects:
@@ -362,7 +375,8 @@ def main():
     else:
         rows = read_manifest(args.inputs)
         metadata = read_abi(args.objects)[1] if args.objects else None
-    publish(args.output, pack(rows, metadata, flat_bodies=not args.legacy_recipes))
+    publish(args.output, pack(rows, metadata, flat_bodies=not args.legacy_recipes,
+                              structured_abi=not (args.legacy_recipes or args.legacy_json_abi)))
 
 
 if __name__ == "__main__":

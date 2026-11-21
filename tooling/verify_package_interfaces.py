@@ -98,10 +98,12 @@ module Main where
     assert "packed body child is not in postorder" in output.with_suffix(".diagnostics").read_text()
 
 
-def verify_native_object_references(stage, work, package, source, ir, expected):
+def verify_native_object_references(stage, work, package, legacy_package, source, ir, expected):
     data = package.read_bytes()
     start, count = words(data, 80, 2)
-    metadata = json.loads(data[start:start + count])
+    legacy_data = legacy_package.read_bytes()
+    legacy_start, legacy_count = words(legacy_data, 80, 2)
+    metadata = json.loads(legacy_data[legacy_start:legacy_start + legacy_count])
     assert metadata["interface_refs"]
     original = json.loads((stage / "objects.json").read_bytes())
     metadata_path = work / "compact-abi.json"
@@ -125,19 +127,29 @@ def verify_native_object_references(stage, work, package, source, ir, expected):
     invoke(command, work, status=7, leak=True)
     assert "runtime object checked interface identity mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
 
-    publish(configuration, canonical({**original, "metadata": str(package),
-                                      "metadata_sha256": sha256(data).hexdigest()}).encode())
-    invoke(command, work, leak=True)
-    assert ir.read_bytes() == expected
-
-    broken = bytearray(data)
-    struct.pack_into("<I", broken, 84, count + 1)
     broken_path = work / "bad-embedded-abi.cpk"
-    publish(broken_path, broken)
-    publish(configuration, canonical({**original, "metadata": str(broken_path),
-                                      "metadata_sha256": sha256(broken).hexdigest()}).encode())
-    invoke(command, work, status=7, leak=True)
-    assert "invalid interface package section directory" in ir.with_suffix(".ll.diagnostics").read_text()
+
+    def use_embedded_abi(path, contents):
+        publish(configuration, canonical({**original, "metadata": str(path),
+                                          "metadata_sha256": sha256(contents).hexdigest()}).encode())
+
+    for path, contents in ((legacy_package, legacy_data), (package, data)):
+        use_embedded_abi(path, contents)
+        invoke(command, work, leak=True)
+        assert ir.read_bytes() == expected
+
+    for at, value, diagnostic in (
+        (84, count + 1, "invalid interface package section directory"),
+        (start, 0xffffffff, "invalid structured ABI string boundary"),
+        (start + 4, 255, "unknown structured contract tag"),
+        (start + 12, 0xffffffff, "field key outside package string table"),
+    ):
+        broken = bytearray(data)
+        struct.pack_into("<I", broken, at, value)
+        publish(broken_path, broken)
+        use_embedded_abi(broken_path, broken)
+        invoke(command, work, status=7, leak=True)
+        assert diagnostic in ir.with_suffix(".ll.diagnostics").read_text()
 
 
 def native(stage, work, repeats):
@@ -151,7 +163,11 @@ def native(stage, work, repeats):
     invoke([sys.executable, Path(__file__).with_name("pack_interfaces.py"), manifest,
             indexed, "--objects", stage / "objects.json"], work)
     indexed_contents = indexed.read_bytes()
-    assert indexed_contents.startswith(b"CINCHPK3")
+    assert indexed_contents.startswith(b"CINCHPK4")
+    legacy_indexed = work / "base-json-abi.cpk"
+    invoke([sys.executable, Path(__file__).with_name("pack_interfaces.py"), manifest,
+            legacy_indexed, "--objects", stage / "objects.json", "--legacy-json-abi"], work)
+    assert legacy_indexed.read_bytes().startswith(b"CINCHPK3")
     hello = work / "Hello.cinch"
     hello.write_text(HELLO)
     output = work / "hello"
@@ -226,7 +242,7 @@ def native(stage, work, repeats):
             assert ir.read_bytes() == legacy_ir
 
     native_indexed_body_nodes(stage, work, manifest, rows)
-    verify_native_object_references(stage, work, indexed, hello, ir, legacy_ir)
+    verify_native_object_references(stage, work, indexed, legacy_indexed, hello, ir, legacy_ir)
 
     times = {name: [] for name in cases}
     order = list(cases)
@@ -270,13 +286,14 @@ def rust(seed, work):
     invoke([executable], project, status=42)
     package = installed / "build/package.cpk"
     name, _, raw = rows[0]
-    for flat in (False, True):
-        contents = pack(rows, execution, flat_bodies=flat)
+    for flat, structured in ((False, False), (True, False), (True, True)):
+        contents = pack(rows, execution, flat_bodies=flat, structured_abi=structured)
         publish(package, contents)
         invoke(command, project)
         invoke([executable], project, status=42)
 
-        publish(package, pack([(name, "not-the-identity", raw), *rows[1:]], flat_bodies=flat))
+        publish(package, pack([(name, "not-the-identity", raw), *rows[1:]],
+                              flat_bodies=flat, structured_abi=structured))
         result = invoke(command, project, status=1)
         assert "package interface identity mismatch" in result.stderr
 
@@ -296,10 +313,12 @@ def rust(seed, work):
     reference = contents.find(struct.pack("<III", key, BODY_ROOT, 0),
                               documents, documents + document_size)
     assert reference >= 0, "fixture must use an indexed body root"
+    abi, _ = words(contents, 80, 2)
     for offset, value, error in (
         (body_rows + 16, node_size // 16, "packed body node outside its section"),
         (nodes, 255, "invalid packed body node"),
         (reference + 8, body_size // 32, "packed body definition outside its section"),
+        (abi, 0xffffffff, "invalid structured ABI string boundary"),
     ):
         altered = bytearray(contents)
         struct.pack_into("<I", altered, offset, value)

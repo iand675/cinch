@@ -589,22 +589,29 @@ module Bootstrap.Object where
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
 
-  parse-runtime-object-bytes :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-object-bytes :: forall r. Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   parse-runtime-object-bytes validated reclaim expected-triple interfaces object-file metadata-file code metadata =
-    case packaged-abi metadata of
+    case packaged-abi metadata-file metadata of
       Err message -> Err message
-      Ok embedded -> (case embedded of
-        None -> parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code metadata
-        Some abi -> parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code abi)
+      Ok (Some artifact) -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
+      Ok None -> (case validated of
+        Some checked -> (case admit-carved reclaim expected-triple checked code metadata-file metadata of
+          Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
+          None -> parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code metadata)
+        None -> parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code metadata)
 
-  parse-runtime-abi :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
-  parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code abi =
+  parse-runtime-abi-json :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code abi =
     case parse-json metadata-file abi of
-      Parsed artifact Nil -> (case (field "interface_refs" artifact, validated) of
-        (JNull, other) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact EmbeddedContracts
-        (refs, Some checked) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact (ReferencedContracts checked)
-        other -> Err "runtime object interface references require a checked interface set")
+      Parsed artifact Nil -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
       other -> Err "runtime object manifest is not valid JSON"
+
+  parse-runtime-abi :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> Bytes -> Json -> Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact =
+    case (field "interface_refs" artifact, validated) of
+      (JNull, other) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact EmbeddedContracts
+      (refs, Some checked) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact (ReferencedContracts checked)
+      other -> Err "runtime object interface references require a checked interface set"
 
   parsed-runtime-interface :: Bool -> String -> List LoadedInterface -> String -> Bytes -> Json -> ObjectContracts -> Result String (RuntimeObject, Json, String, Bytes)
   parsed-runtime-interface reclaim triple interfaces object-file code artifact contracts =
@@ -619,9 +626,7 @@ module Bootstrap.Object where
       MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
         (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
           (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-            (case admit-carved reclaim expected-triple validated code metadata-file metadata of
-              Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
-              None -> parse-runtime-object-bytes (Some validated) reclaim expected-triple interfaces object-file metadata-file code metadata)
+            parse-runtime-object-bytes (Some validated) reclaim expected-triple interfaces object-file metadata-file code metadata
             else Err "runtime object artifact digest mismatch"
           other -> Err "cannot read runtime object artifacts")
   -- The carved read, or `None` for the whole one.

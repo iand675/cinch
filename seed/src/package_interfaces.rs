@@ -78,6 +78,14 @@ impl<'a> Strings<'a> {
         let [start, len] = words(self.spans, row)?;
         text(self.data, start, len)
     }
+
+    fn prefix(self, count: u32) -> Decode<Self> {
+        let bytes = (count as usize)
+            .checked_mul(8)
+            .and_then(|length| self.spans.get(..length))
+            .ok_or_else(|| invalid("invalid structured ABI string boundary"))?;
+        Ok(Self { spans: bytes, ..self })
+    }
 }
 
 struct Package<'a> {
@@ -105,6 +113,7 @@ impl<'a> Package<'a> {
         let (version, header) = match file.get(..8) {
             Some(b"CINCHPK2") => (2, HEADER),
             Some(b"CINCHPK3") => (3, FLAT_HEADER),
+            Some(b"CINCHPK4") => (4, FLAT_HEADER),
             _ => return Err(invalid("invalid interface package header")),
         };
         let [length, format] = words(file, 8)?;
@@ -121,7 +130,7 @@ impl<'a> Package<'a> {
             *section = span(file, start, length)?;
             next += section.len();
         }
-        let [strings, modules, values, bodies, edges, payload, operands_or_documents, documents_or_abi, _] =
+        let [strings, modules, values, bodies, edges, payload, operands_or_documents, documents_or_abi, abi] =
             sections;
         if next != file.len()
             || modules.len() % MODULE_ROW != 0
@@ -132,7 +141,13 @@ impl<'a> Package<'a> {
             return Err(invalid("mis-sized interface package section"));
         }
         let strings = Strings::open(strings)?;
-        let (bodies, documents) = if version == 3 {
+        let strings = if version == 4 && !abi.is_empty() {
+            let [contract_count] = words(abi, 0)?;
+            strings.prefix(contract_count)?
+        } else {
+            strings
+        };
+        let (bodies, documents) = if version >= 3 {
             (
                 BodyTable::Flat(FlatBodies::open(
                     strings,

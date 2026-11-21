@@ -454,7 +454,7 @@ class BootstrapContract(unittest.TestCase):
                     self.assertEqual(args[1:3], ["--emit-ir-with-interfaces", "--interfaces"])
                     self.assertEqual(len(args), 8)
                     self.assertEqual(args[3], directory / "base.cpk")
-                    self.assertTrue(args[3].read_bytes().startswith(b"CINCHPK3"))
+                    self.assertTrue(args[3].read_bytes().startswith(b"CINCHPK4"))
                     self.assertEqual(args[4:6], ["--objects", directory / "base-objects.json"])
                     compact = bootstrap.read_json(args[5])
                     self.assertEqual(compact["metadata"], str(args[3].resolve()))

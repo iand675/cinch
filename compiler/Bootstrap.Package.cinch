@@ -11,7 +11,9 @@ module Bootstrap.Package where
   import Data.Machine (u32-to-nat, saturating-i64-to-i32)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end)
+  import Text.Json (parse-json)
   import Text.Lex (bytes-slice)
+  import Text.Parse (ParseOutcome, Parsed)
 
   export read-package-documents, packaged-abi
 
@@ -43,8 +45,11 @@ module Bootstrap.Package where
   data BodyFormat where
     Recipes :: Region -> Region -> BodyFormat
     Indexed :: FlatBodies -> BodyFormat
+  data AbiSection where
+    JsonAbi :: Region -> AbiSection
+    StructuredAbi :: Region -> AbiSection
   data Package where
-    Package :: Region -> Region -> BodyFormat -> Region -> Region -> Package
+    Package :: Region -> Region -> BodyFormat -> Region -> AbiSection -> Package
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
@@ -92,17 +97,18 @@ module Bootstrap.Package where
       if magic == 843796552 && version == 2 then
         (case sections address size 80 16 80 of
           Some [strings, modules, values, bodies, edges, recipes, documents, abi] ->
-            checked-sections strings modules values bodies edges (Recipes bodies recipes) documents abi
+            checked-sections strings modules values bodies edges (Recipes bodies recipes) documents (JsonAbi abi)
           other -> Err "invalid interface package section directory")
-      else if magic == 860573768 && version == 3 && size >= 88 then
+      else if ((magic == 860573768 && version == 3) || (magic == 877350984 && version == 4)) && size >= 88 then
         (case sections address size 88 16 88 of
           Some [strings, modules, values, bodies, edges, nodes, operands, documents, abi] ->
             if region-size nodes % 16 /= 0 || region-size operands % 4 /= 0 then Err "mis-sized packed body node or operand section"
-            else checked-sections strings modules values bodies edges (Indexed (FlatBodies bodies edges nodes operands)) documents abi
+            else checked-sections strings modules values bodies edges (Indexed (FlatBodies bodies edges nodes operands)) documents
+              (if version == 4 then StructuredAbi abi else JsonAbi abi)
           other -> Err "invalid interface package section directory")
       else Err "invalid interface package header"
 
-  checked-sections :: Region -> Region -> Region -> Region -> Region -> BodyFormat -> Region -> Region -> Result String Package
+  checked-sections :: Region -> Region -> Region -> Region -> Region -> BodyFormat -> Region -> AbiSection -> Result String Package
   checked-sections strings modules values bodies edges format documents abi =
     if region-size modules % 36 /= 0 || region-size bodies % 32 /= 0 ||
        region-size values % 32 /= 0 || region-size edges % 4 /= 0 then Err "mis-sized interface package section"
@@ -110,19 +116,39 @@ module Bootstrap.Package where
 
   -- The caller has authenticated these bytes as the object's metadata.
   -- Reuse the package directory check before exposing the ABI section.
-  packaged-abi :: Bytes -> Result String (Option Bytes)
-  packaged-abi source =
+  packaged-abi :: forall r. String -> Bytes ->{IO r} Result String (Option Json)
+  packaged-abi path source =
     let size = bytes-len source in
-    if size < 8 then Ok None else
-      let address = bytes-data source in
-      let magic = word address 4 in
-      if word address 0 /= 1129204035 || (magic /= 843796552 && magic /= 860573768) then Ok None else
-        (case package-header address size of
-          Err message -> Err message
-          Ok (Package strings modules format documents (Region start length)) ->
+    if size < 8 then Ok None else hold-package-source source (decode-packaged-abi path source (bytes-data source) size)
+
+  -- Keep the owner live until the decoder has finished its raw reads.
+  hold-package-source :: forall a. Bytes -> a -> a
+  hold-package-source source result = case bytes-len source of _ -> result
+
+  decode-packaged-abi :: forall r. String -> Bytes -> I64 -> Nat ->{IO r} Result String (Option Json)
+  decode-packaged-abi path source address size =
+    let magic = word address 4 in
+    if word address 0 /= 1129204035 || (magic /= 843796552 && magic /= 860573768 && magic /= 877350984) then Ok None else
+      (case package-header address size of
+        Err message -> Err message
+        Ok (Package strings modules format documents abi) -> (case abi of
+          JsonAbi (Region start length) ->
             if length == 0 then Err "interface package has no object ABI"
-            else if start + length <= bytes-len source then Ok (Some (bytes-slice source start (start + length)))
-            else Err "invalid interface package ABI span")
+            else if start + length <= bytes-len source then
+              (case parse-json path (bytes-slice source start (start + length)) of
+                Parsed artifact Nil -> Ok (Some artifact)
+                other -> Err "runtime object manifest is not valid JSON")
+            else Err "invalid interface package ABI span"
+          StructuredAbi (Region start length) ->
+            if length == 0 then Err "interface package has no object ABI"
+            else if length < 4 then Err "truncated structured ABI header"
+            else if region-size strings < 4 || word address start > word address (region-start strings) then
+              Err "invalid structured ABI string boundary"
+            else (case read-string-table address strings None of
+              Err message -> Err message
+              Ok (raw, texts) -> (case read-document address texts NoDefinitions (Region (start + 4) (length - 4)) of
+                Err message -> Err message
+                Ok artifact -> Ok (Some artifact)))))
 
   read-text :: forall r. I64 -> Region ->{IO r} Result String String
   read-text address region = case region of
@@ -417,6 +443,24 @@ module Bootstrap.Package where
         Err message -> Err message
         Ok value -> read-strings address raw (at + 8) limit (Cons value items))
 
+  read-string-table :: forall r. I64 -> Region -> Option Nat ->{IO r} Result String (Region, Array String)
+  read-string-table address (Region base length) count-limit =
+    if length < 4 then Err "truncated package string table" else
+      let count = word address base in
+      let table-size = 4 + count * 8 in
+      let needed = (case count-limit of Some limit -> limit; None -> count) in
+      if table-size > length then Err "invalid package string table length" else
+        if needed > count then Err "invalid structured ABI string boundary" else
+          let raw = Region (base + table-size) (length - table-size) in
+          (case read-strings address raw (base + 4) (base + 4 + needed * 8) Nil of
+            Err message -> Err message
+            Ok texts -> Ok (raw, texts))
+
+  contract-string-count :: I64 -> AbiSection -> Option Nat
+  contract-string-count address abi = case abi of
+    StructuredAbi (Region start length) | length >= 4 -> Some (word address start)
+    other -> None
+
   read-rows :: forall r. I64 -> Region -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List (String, String, Json) ->{IO r} Result String (List (String, String, Json))
   read-rows address raw strings documents definitions base count index items =
     if index == count then Ok (reverse items) else
@@ -437,17 +481,11 @@ module Bootstrap.Package where
   decode-package address size = case package-header address size of
     Err message -> Err message
     Ok (Package strings (Region modules module-size) format documents abi) ->
-      case strings of
-        Region base length ->
-          if length < 4 then Err "truncated package string table" else
-            let table-size = 4 + word address base * 8 in
-            if table-size > length then Err "invalid package string table length" else
-              let raw = Region (base + table-size) (length - table-size) in
-              (case read-strings address raw (base + 4) (base + table-size) Nil of
-                Err message -> Err message
-                Ok texts -> case read-package-definitions address texts format of
-                  Err message -> Err message
-                  Ok definitions -> read-rows address raw texts documents definitions modules (module-size / 36) 0 Nil)
+      case read-string-table address strings (contract-string-count address abi) of
+        Err message -> Err message
+        Ok (raw, texts) -> case read-package-definitions address texts format of
+          Err message -> Err message
+          Ok definitions -> read-rows address raw texts documents definitions modules (module-size / 36) 0 Nil
 
   read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, Json))
   read-package-documents path = case sys-open-read path of

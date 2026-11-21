@@ -17,7 +17,7 @@ python3 tooling/pack_interfaces.py "$stage/base-interfaces.json" base.cpk \
 ```
 
 The `--objects` argument to the packer is optional. It carries the provider's
-ABI metadata in a separate section. The native object linker still verifies
+ABI metadata in a separate binary section. The native object linker still verifies
 the configured metadata digest, binary digest, and target through
 `objects.json`. The metadata in the package does not grant link authority.
 
@@ -98,10 +98,9 @@ References between definitions use Call nodes. A contract's entire checked
 body graph is tag 9 followed by one body ID. Its member definitions follow
 from the call edges and are ordered by identity for the schema-10 digest.
 
-The packer CLI writes version 3 by default. Pass `--legacy-recipes` for
-version 2. The readers consume the mapped records and materialize one
-shared tree per definition. Native Cinch uses the contract document shape
-for its checker and canonical contract digests.
+The readers consume the mapped records and materialize one shared tree per
+definition. Native Cinch uses the contract document shape for its checker
+and canonical contract digests.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.
@@ -111,11 +110,22 @@ ABI metadata containing `interface_refs` and an optional single
 `private_interfaces` entry. The public rows resolve against the checked
 contract set in the recorded order. The private entry carries its document
 and must satisfy the existing standalone object interface checks.
-The packer's ABI section already carries metadata in this form.
+### Structured ABI format
+
+The packer writes version 4 by default. `CINCHPK4` keeps the version-3
+directory and indexed bodies. The optional ABI section starts with the
+number of string IDs used by the interface contracts, followed by a
+structured value. It shares the contract string table and appends ABI-only
+IDs after the contract strings. Interface readers skip that suffix.
+Private ABI-only contracts are encoded as ordinary values. The ABI section
+never uses the shared definition or body root tags.
+
 An object configuration can name the package itself as its metadata
 artifact. Its SHA-256 then authenticates the entire package before the
 compiler reads the ABI section. The bootstrap emits this configuration as
 `base-objects.json` and uses it with `base.cpk` for native self-builds.
+Pass `--legacy-json-abi` to write version 3 with a JSON ABI section, or
+`--legacy-recipes` to write version 2.
 
 ## Verification
 
