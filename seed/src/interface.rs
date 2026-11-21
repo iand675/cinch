@@ -885,24 +885,28 @@ impl Iface {
     /// canonical JSON form (keys in byte order, no whitespace; see
     /// [`JsonValue::write_canonical`]).
     pub fn to_json(&self) -> String {
-        let mut imports = self.imports.clone();
-        imports.sort();
-        let mut values = self.exports.values.clone();
-        values.sort(); // derived Ord gives the canonical order
-        let mut types = self.exports.types.clone();
-        types.sort();
-        let mut sigs = self.exports.signatures.clone();
-        sigs.sort();
-        let mut insts = self.exports.instances.clone();
-        insts.sort();
-        let mut fixes = self.exports.fixities.clone();
-        fixes.sort();
-        let mut foreign = self.exports.foreign.clone();
-        foreign.sort();
-        let mut ups = self.upgrades.clone();
+        self.json_document(false).to_canonical_string()
+    }
+
+    fn json_document(&self, contract: bool) -> JsonValue {
+        // Sort references: moving an exported value into order should not
+        // make a second copy of its checked total-body dependency closure.
+        fn ordered<T: Ord>(rows: &[T]) -> Vec<&T> {
+            let mut rows: Vec<_> = rows.iter().collect();
+            rows.sort();
+            rows
+        }
+
+        let imports = ordered(&self.imports);
+        let values = ordered(&self.exports.values);
+        let types = ordered(&self.exports.types);
+        let sigs = ordered(&self.exports.signatures);
+        let insts = ordered(&self.exports.instances);
+        let fixes = ordered(&self.exports.fixities);
+        let foreign = ordered(&self.exports.foreign);
+        let mut ups: Vec<_> = self.upgrades.iter().collect();
         ups.sort_by(|a, b| (&a.old, &a.new).cmp(&(&b.old, &b.new)));
-        let mut units = self.units.clone();
-        units.sort();
+        let units = if contract { Vec::new() } else { ordered(&self.units) };
         let mut symbols: Vec<String> = self
             .exports
             .values
@@ -910,14 +914,10 @@ impl Iface {
             .map(|v| format!("{}={}", v.name, v.symbol))
             .collect();
         symbols.sort();
-        let mut layouts = self.layouts.clone();
-        layouts.sort();
-        let mut assertions = self.assertions.clone();
-        assertions.sort();
-        let mut contracts = self.contracts.clone();
-        contracts.sort();
-        let mut laws = self.laws.clone();
-        laws.sort();
+        let layouts = ordered(&self.layouts);
+        let assertions = ordered(&self.assertions);
+        let contracts = ordered(&self.contracts);
+        let laws = ordered(&self.laws);
 
         let exports = JsonValue::obj([
             (
@@ -929,7 +929,7 @@ impl Iface {
                         ("resolved".to_string(), resolved_scheme_json(v.resolved.as_ref())),
                         ("symbol".to_string(), (&v.symbol).into()),
                         ("arity".to_string(), v.arity.into()),
-                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| parse_json(&graph.to_json()).expect("checked total graph JSON"))),
+                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| graph.to_json_value())),
                     ]);
                     if let Some(ordering) = v.keyed_ordering {
                         row.insert("keyed_ordering".into(), JsonValue::obj([
@@ -1010,8 +1010,7 @@ impl Iface {
             (
                 "instances",
                 JsonValue::arr(&insts, |inst| {
-                    let mut method_contracts = inst.method_contracts.clone();
-                    method_contracts.sort();
+                    let method_contracts = ordered(&inst.method_contracts);
                     let mut row = JsonValue::obj([
                         ("id", (&inst.id).into()),
                         ("class", (&inst.class).into()),
@@ -1043,13 +1042,13 @@ impl Iface {
                     ]);
                     // Omit the field when the instance supplies no body authority.
                     if !inst.method_bodies.is_empty() {
-                        let mut bodies = inst.method_bodies.clone(); bodies.sort();
+                        let bodies = ordered(&inst.method_bodies);
                         if let JsonValue::Obj(fields) = &mut row {
                             fields.insert("method_bodies".into(), JsonValue::arr(&bodies, |body| JsonValue::obj([
                                 ("slot", body.slot.into()),
                                 ("implementation", (&body.implementation).into()),
                                 ("resolved", resolved_scheme_json(Some(&body.resolved))),
-                                ("total_body", parse_json(&body.total_body.to_json()).expect("checked method body JSON")),
+                                ("total_body", body.total_body.to_json_value()),
                             ])));
                         }
                     }
@@ -1085,13 +1084,13 @@ impl Iface {
             ),
         ]);
 
-        let doc = JsonValue::obj([
+        JsonValue::obj([
             ("schema", self.schema.into()),
             ("language", (&self.language).into()),
             ("runtime_abi", self.runtime_abi.into()),
-            ("compiler", (&self.compiler).into()),
+            ("compiler", if contract { "" } else { &self.compiler }.into()),
             ("module", (&self.module).into()),
-            ("source_hash", (&self.source_hash).into()),
+            ("source_hash", if contract { "" } else { &self.source_hash }.into()),
             (
                 "imports",
                 JsonValue::arr(&imports, |r| {
@@ -1156,7 +1155,7 @@ impl Iface {
                     // Computed layout facts (attribute annotations
                     // specification section 4.3): semantic attributes'
                     // compiled form, part of the contract projection.
-                    ("layouts", JsonValue::arr(&layouts, layout_json)),
+                    ("layouts", JsonValue::arr(layouts, layout_json)),
                 ]),
             ),
             // Satisfied safety assertions (attribute annotations
@@ -1203,8 +1202,7 @@ impl Iface {
                     ])
                 }),
             ),
-        ]);
-        doc.to_canonical_string()
+        ])
     }
 
     /// Interface identity: stable across rebuilds with the same contract.
@@ -1215,11 +1213,7 @@ impl Iface {
     /// instantiating a module never changes the contract hash of the
     /// parameterized module (or of its instantiator).
     pub fn iface_hash(&self) -> String {
-        let mut contract = self.clone();
-        contract.source_hash = String::new();
-        contract.compiler = String::new();
-        contract.units.clear();
-        fnv1a64(contract.to_json().as_bytes()).to_string()
+        fnv1a64(self.json_document(true).to_canonical_string().as_bytes()).to_string()
     }
 
     /// Parse a canonical (or at least schema-shaped) interface document.

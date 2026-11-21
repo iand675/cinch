@@ -55,11 +55,15 @@ fn decode_expr(value: &J) -> Result<Expr, Invalid> {
 }
 impl CheckedGraph {
     pub fn to_json(&self) -> String {
+        self.to_json_value().to_canonical_string()
+    }
+
+    pub(crate) fn to_json_value(&self) -> J {
         J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), |d| J::obj([
             ("identity", d.identity.as_str().into()),
             ("parameters", J::arr(&d.parameters, |s| s.name().into())),
             ("result", d.result.name().into()), ("body", expr_json(&d.body)),
-        ])))]).to_canonical_string()
+        ])))])
     }
     pub fn from_json(text: &str) -> Result<Self, Invalid> {
         let data=parse_json(text).map_err(|e| Invalid(e.to_string()))?;
