@@ -23,7 +23,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         """Retain a small genuine interface shape with independent current-source bytes."""
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        base = Path(self.temporary.name)
+        base = Path(self.temporary.name).resolve()
         self.root, self.directory = base / "checkout", base / "artifact"
         (self.root / "compiler").mkdir(parents=True)
         (self.root / "seed/prelude/Data").mkdir(parents=True)
