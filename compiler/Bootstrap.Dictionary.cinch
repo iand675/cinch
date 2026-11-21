@@ -38,7 +38,7 @@ module Bootstrap.Dictionary where
   find-given :: String -> List CoreGiven -> Option CoreGiven
   find-given name givens = case givens of Nil -> None; Cons given rest -> if same name (given-symbol given) then Some given else find-given name rest
   clean :: Store -> Bool
-  clean st = case store-errors st of Nil -> True; other -> False
+  clean st = store-error-count st == 0
   fail-evidence :: Span -> UType -> String -> Store -> (CoreEvidence, Store)
   fail-evidence sp ty message st = (CENeeded sp ty Nil, add-error sp message st)
 

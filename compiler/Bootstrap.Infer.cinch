@@ -9497,8 +9497,8 @@ module Bootstrap.Infer where
   discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
   discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
     case ty of
-      URequire predicates result -> case store-errors st of
-        Nil -> let evaluated = if proof-env-invalidatable env then proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st else env in
+      URequire predicates result -> case store-error-count st of
+        0 -> let evaluated = if proof-env-invalidatable env then proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st else env in
           let gamma = proof-context evaluated st in
           (case scoped-prove-predicates gamma (proof-facts evaluated) ty of
             Some evidence -> (CDischarge sp (required-body ty) evidence (dictionary-free-call term) term, st)
@@ -9820,8 +9820,8 @@ module Bootstrap.Infer where
       else (call, st)
     other -> (call, st)
   apply-runtime-argument :: Bool -> List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-runtime-argument handling classes sp env fun value st = case store-errors st of
-    Nil -> (case conditional-prefix classes sp env fun st of
+  apply-runtime-argument handling classes sp env fun value st = case store-error-count st of
+    0 -> (case conditional-prefix classes sp env fun st of
       (selected, checked) -> let callee = case selected of Some implementation -> implementation; None -> fun in
         let interrupted = handling && (performs-operation fun || performs-operation value) in
         case (if interrupted then conditional-callee env callee else None) of
