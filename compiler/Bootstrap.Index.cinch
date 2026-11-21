@@ -5,6 +5,7 @@
 module Bootstrap.Index where
 
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-from-int, nat-to-int)
 
   export IndexTerm, ICharacter, IInteger, IBound, IRigid, IGlobal, IMeta, IApply, ILambda
@@ -12,6 +13,7 @@ module Bootstrap.Index where
   export index-tree, index-from-tree
   export index-equal, index-free-bound, index-free-metas, index-occurs
   export index-scoped, index-escapes, substitute-index, substitute-index-metas
+  export graph-neighbors, reverse-graph-edges, graph-finish-order
 
   data IndexTerm where
     IInteger :: Int -> IndexTerm
@@ -200,3 +202,21 @@ module Bootstrap.Index where
         else if same-index-tag tag "rigid" then (case index-natural c of Some level -> Some (IRigid id name level); None -> None) else None
       other -> None
     other -> None
+
+  graph-neighbors :: HashMap String (List String) -> String -> List String
+  graph-neighbors graph name = case hash-map-lookup name graph of Some edges -> edges; None -> Nil
+
+  reverse-graph-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
+  reverse-graph-edges name edges reversed = case edges of
+    Nil -> reversed
+    Cons callee rest -> reverse-graph-edges name rest (hash-map-insert callee (Cons name (graph-neighbors reversed callee)) reversed)
+
+  -- Visit the transpose in decreasing forward finish order. Each walk
+  -- then reaches exactly the members of one strongly connected component.
+  graph-finish-order :: HashMap String (List String) -> List String -> HashMap String (List String) -> List String -> (HashMap String (List String), List String)
+  graph-finish-order graph vertices seen order = case vertices of
+    Nil -> (seen, order)
+    Cons name rest -> case hash-map-lookup name seen of
+      Some ignored -> graph-finish-order graph rest seen order
+      None -> case graph-finish-order graph (graph-neighbors graph name) (hash-map-insert name Nil seen) order of
+        (visited, children) -> graph-finish-order graph rest visited (Cons name children)

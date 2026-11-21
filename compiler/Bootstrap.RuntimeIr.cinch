@@ -5945,14 +5945,6 @@ module Bootstrap.RuntimeIr where
     Nil -> Nil
     Cons (MkCoreClause sp patterns body) rest -> source-tail-edges arities body (source-tail-clauses arities rest)
 
-  tail-neighbors :: HashMap String (List String) -> String -> List String
-  tail-neighbors graph name = case hash-map-lookup name graph of Some edges -> edges; None -> Nil
-
-  reverse-tail-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
-  reverse-tail-edges name edges reversed = case edges of
-    Nil -> reversed
-    Cons callee rest -> reverse-tail-edges name rest (hash-map-insert callee (Cons name (tail-neighbors reversed callee)) reversed)
-
   source-tail-graphs :: List CoreDefinition -> HashMap String Nat -> HashMap String (List String) -> HashMap String (List String) -> List String -> (HashMap String (List String), HashMap String (List String), List String)
   source-tail-graphs definitions arities graph reversed vertices = case definitions of
     Nil -> (graph, reversed, vertices)
@@ -5961,18 +5953,8 @@ module Bootstrap.RuntimeIr where
       case hash-map-lookup name arities of
         Some arity ->
           let edges = source-tail-clauses arities (core-clauses d) in
-          source-tail-graphs rest arities (hash-map-insert name edges graph) (reverse-tail-edges name edges reversed) (Cons name vertices)
+          source-tail-graphs rest arities (hash-map-insert name edges graph) (reverse-graph-edges name edges reversed) (Cons name vertices)
         None -> source-tail-graphs rest arities graph reversed vertices
-
-  -- Visit the transpose in decreasing forward finish order. Each walk
-  -- then reaches exactly the members of one strongly connected component.
-  tail-finish-order :: HashMap String (List String) -> List String -> HashMap String (List String) -> List String -> (HashMap String (List String), List String)
-  tail-finish-order graph vertices seen order = case vertices of
-    Nil -> (seen, order)
-    Cons name rest -> case hash-map-lookup name seen of
-      Some ignored -> tail-finish-order graph rest seen order
-      None -> case tail-finish-order graph (tail-neighbors graph name) (hash-map-insert name Nil seen) order of
-        (visited, children) -> tail-finish-order graph rest visited (Cons name children)
 
   tail-group-width :: HashMap String Nat -> List String -> Nat
   tail-group-width arities members = case members of
@@ -5991,9 +5973,9 @@ module Bootstrap.RuntimeIr where
     Nil -> groups
     Cons name rest -> case hash-map-lookup name seen of
       Some ignored -> source-tail-groups arities graph reversed rest seen group groups
-      None -> case tail-finish-order reversed [name] seen Nil of
+      None -> case graph-finish-order reversed [name] seen Nil of
         (visited, members) ->
-          let cyclic = case members of [member] -> exposed-worker member (tail-neighbors graph member); other -> True in
+          let cyclic = case members of [member] -> exposed-worker member (graph-neighbors graph member); other -> True in
           let planned = if cyclic then record-tail-group members group (tail-group-width arities members) groups else groups in
           source-tail-groups arities graph reversed rest visited (group + 1) planned
 
@@ -6001,7 +5983,7 @@ module Bootstrap.RuntimeIr where
   plan-tail-groups definitions info =
     let arities = source-tail-arities definitions (empty-writer info) in
     case source-tail-graphs definitions arities hash-map-empty hash-map-empty Nil of
-      (graph, reversed, vertices) -> case tail-finish-order graph vertices hash-map-empty Nil of
+      (graph, reversed, vertices) -> case graph-finish-order graph vertices hash-map-empty Nil of
         (seen, order) -> with-tail-groups (source-tail-groups arities graph reversed order hash-map-empty 0 hash-map-empty) info
 
   -- The caller selects checked definitions and explicit Raw/Obj/TObj

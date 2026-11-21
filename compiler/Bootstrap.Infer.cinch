@@ -8337,7 +8337,7 @@ module Bootstrap.Infer where
     let (specs, declarations) = split-specifications (specification-names unmarked) unmarked in
     let unkinded = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
     let initial = empty-store label in
-    let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
+    let guarded = if has-codata then check-codata-bodies (codata-headers original) (codata-cycle-index original) original initial else initial in
     let contracts = check-imported-refinements unkinded Nil guarded in
     -- Every data head registers before any constructor type converts
     -- (`collect-kinds`), so a data declaration may name one written later;
@@ -8412,19 +8412,15 @@ module Bootstrap.Infer where
   check-logical-declarations classes kinds families env rows instances datas usage ordinary specs st =
     let (logical, registered) = register (data-graph specs) rows classes kinds specs env st in
     let (definitions, checked) = check-bodies classes kinds families logical Nil specs specs registered in
-    let graph = codata-call-graph specs in
+    let graph = codata-cycle-index specs in
     let total = check-logical-definitions graph definitions checked in
     case store-errors total of Nil -> check-global-core kinds logical instances datas (ordinary <> definitions) usage total; other -> total
-  other-logical-name :: String -> List String -> Bool
-  other-logical-name name names = case names of
-    Nil -> False
-    Cons first rest -> not (same name first) || other-logical-name name rest
-  check-logical-definitions :: List (String, List String) -> List CoreDefinition -> Store -> Store
+  check-logical-definitions :: HashMap String (Nat, Bool) -> List CoreDefinition -> Store -> Store
   check-logical-definitions graph definitions st = case definitions of
     Nil -> st
     Cons definition rest -> case definition of
       MkCoreDefinition sp name sc openings givens private clauses ->
-        let mutual = other-logical-name name (codata-component name graph graph) in
+        let mutual = codata-mutual graph name in
         let checked = if mutual then add-error sp "mutually recursive logical definitions must terminate" st else check-specification definition st in
         check-logical-definitions graph rest checked
 
@@ -8484,11 +8480,6 @@ module Bootstrap.Infer where
     Cons (DExternal sp name category syntax metadata) rest ->
       (same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False)) || codata-present rest
     Cons other rest -> codata-present rest
-  corec-marked :: String -> List Decl -> Bool
-  corec-marked name ds = case ds of
-    Nil -> False
-    Cons (DCorec sp body) rest -> (case decl-name body of Some marked -> same marked name; None -> False) || corec-marked name rest
-    Cons other rest -> corec-marked name rest
   codata-return :: TypeExpr -> Bool -> (Option String, Bool)
   codata-return syntax diverges = case syntax of
     TForall sp params body -> codata-return body diverges
@@ -8499,33 +8490,70 @@ module Bootstrap.Infer where
     TName sp name -> (Some name, diverges)
     TApp sp head arguments -> codata-return head diverges
     other -> (None, diverges)
-  declared-codata-return :: String -> List Decl -> (Option String, Bool)
-  declared-codata-return name ds = case ds of
-    Nil -> (None, False)
+  data CodataHeaders where
+    CodataHeaders :: HashMap String TypeExpr -> HashMap String Bool -> HashMap String RecordShape -> CodataHeaders
+  codata-headers :: List Decl -> CodataHeaders
+  codata-headers ds = case ds of
+    Nil -> CodataHeaders hash-map-empty hash-map-empty hash-map-empty
+    Cons declaration rest -> case codata-headers rest of
+      CodataHeaders signatures marked records ->
+        let flags = case declaration of
+              DCorec sp body -> (case decl-name body of Some name -> hash-map-insert name True marked; None -> marked)
+              other -> marked in
+        case unwrap-corec declaration of
+          DSig sp name syntax -> CodataHeaders (hash-map-insert name syntax signatures) flags records
+          other -> CodataHeaders signatures flags (codata-record-header declaration records)
+  codata-record-header :: Decl -> HashMap String RecordShape -> HashMap String RecordShape
+  codata-record-header declaration records = case declaration of
+    DRecord sp name params fields -> hash-map-insert name (RecordShape name (record-labels fields) None) records
+    DCodata sp name params fields -> hash-map-insert name (RecordShape name (record-labels fields) (Some fields)) records
+    DExternal sp name category syntax metadata | same category "type" ->
+      (case record-definition name [declaration] of
+        Some shape -> hash-map-insert name shape records
+        None -> records)
+    other -> records
+
+  codata-call-graphs :: List Decl -> HashMap String (List String) -> HashMap String (List String) -> List String -> (HashMap String (List String), HashMap String (List String), List String)
+  codata-call-graphs ds forward backward vertices = case ds of
+    Nil -> (forward, backward, vertices)
     Cons declaration rest -> case unwrap-corec declaration of
-      DSig sp symbol ty -> if same symbol name then codata-return ty False else declared-codata-return name rest
-      other -> declared-codata-return name rest
-  codata-call-graph :: List Decl -> List (String, List String)
-  codata-call-graph ds = case ds of
-    Nil -> Nil
-    Cons declaration rest -> case unwrap-corec declaration of
-      DFun sp name clauses -> Cons (name, declaration-references [declaration]) (codata-call-graph rest)
-      other -> codata-call-graph rest
-  codata-calls :: String -> List (String, List String) -> List String
-  codata-calls name graph = case graph of
-    Nil -> Nil
-    Cons (symbol, refs) rest -> if same symbol name then refs <> codata-calls name rest else codata-calls name rest
-  codata-reaches :: String -> List String -> List String -> List (String, List String) -> Bool
-  codata-reaches destination pending seen graph = case pending of
-    Nil -> False
-    Cons name rest -> same name destination ||
-      (if has name seen then codata-reaches destination rest seen graph
-       else codata-reaches destination (codata-calls name graph <> rest) (Cons name seen) graph)
-  codata-component :: String -> List (String, List String) -> List (String, List String) -> List String
-  codata-component name graph candidates = case candidates of
-    Nil -> Nil
-    Cons (other, refs) rest -> let more = codata-component name graph rest in
-      if codata-reaches name refs [other] graph && codata-reaches other (codata-calls name graph) [name] graph then Cons other more else more
+      DFun sp name clauses ->
+        let references = declaration-references [declaration] in
+        codata-call-graphs rest (hash-map-insert name (references <> graph-neighbors forward name) forward)
+          (reverse-graph-edges name references backward) (Cons name vertices)
+      other -> codata-call-graphs rest forward backward vertices
+
+  -- A singleton is recursive only when it has an edge to itself.
+  codata-cycle-index :: List Decl -> HashMap String (Nat, Bool)
+  codata-cycle-index ds = case codata-call-graphs ds hash-map-empty hash-map-empty Nil of
+    (forward, backward, vertices) -> case graph-finish-order forward vertices hash-map-empty Nil of
+      (seen, order) -> index-codata-cycles forward backward order hash-map-empty 0 hash-map-empty
+  index-codata-cycles :: HashMap String (List String) -> HashMap String (List String) -> List String -> HashMap String (List String) -> Nat -> HashMap String (Nat, Bool) -> HashMap String (Nat, Bool)
+  index-codata-cycles forward backward order seen cycle-id index = case order of
+    Nil -> index
+    Cons name rest -> case hash-map-lookup name seen of
+      Some visited -> index-codata-cycles forward backward rest seen cycle-id index
+      None -> case graph-finish-order backward [name] seen Nil of
+        (visited, members) ->
+          index-codata-cycles forward backward rest visited (cycle-id + 1) (record-codata-component forward members cycle-id index)
+  record-codata-component :: HashMap String (List String) -> List String -> Nat -> HashMap String (Nat, Bool) -> HashMap String (Nat, Bool)
+  record-codata-component graph members cycle-id index = case members of
+    [member] -> if has member (graph-neighbors graph member) then hash-map-insert member (cycle-id, False) index else index
+    more -> record-codata-cycle members cycle-id index
+  record-codata-cycle :: List String -> Nat -> HashMap String (Nat, Bool) -> HashMap String (Nat, Bool)
+  record-codata-cycle members cycle-id index = case members of
+    Nil -> index
+    Cons name rest -> record-codata-cycle rest cycle-id (hash-map-insert name (cycle-id, True) index)
+  codata-mutual :: HashMap String (Nat, Bool) -> String -> Bool
+  codata-mutual graph name = case hash-map-lookup name graph of
+    Some (cycle-id, is-mutual) -> is-mutual
+    None -> False
+  codata-cycle-member :: HashMap String (Nat, Bool) -> String -> (String -> Bool)
+  codata-cycle-member graph name = case hash-map-lookup name graph of
+    None -> \callee -> False
+    Some (cycle-id, is-mutual) -> \callee -> case hash-map-lookup callee graph of
+      Some (candidate, mutual) -> candidate == cycle-id
+      None -> False
   constructs-observations :: String -> Expr -> Bool
   constructs-observations owner expression = case expression of
     ERecord sp name fields -> same owner name
@@ -8563,10 +8591,10 @@ module Bootstrap.Infer where
     DeferredObservation -> not productive
     ObservationBody -> False
     StrictObservationPosition -> not productive && diverges
-  first-recursive-reference :: List String -> List String -> Option String
+  first-recursive-reference :: (String -> Bool) -> List String -> Option String
   first-recursive-reference group refs = case refs of
     Nil -> None
-    Cons name rest -> if has name group then Some name else first-recursive-reference group rest
+    Cons name rest -> if group name then Some name else first-recursive-reference group rest
   later-observation :: String -> List (String, TypeExpr) -> Bool
   later-observation label fields = case fields of
     Nil -> False
@@ -8576,20 +8604,20 @@ module Bootstrap.Infer where
   -- Only the result path of an observation can supply its Later guard.
   -- Scrutinees, strict bindings, and arguments of arbitrary calls evaluate
   -- before the guard is returned.
-  guarded-recursive-reference :: List Decl -> List String -> Bool -> Bool -> ObservationPosition -> GuardFlow -> Expr -> Option (Span, String)
-  guarded-recursive-reference declarations group productive diverges position flow expression =
-    let nested = guarded-recursive-reference declarations group productive diverges position in
+  guarded-recursive-reference :: HashMap String RecordShape -> (String -> Bool) -> Bool -> Bool -> ObservationPosition -> GuardFlow -> Expr -> Option (Span, String)
+  guarded-recursive-reference records group productive diverges position flow expression =
+    let nested = guarded-recursive-reference records group productive diverges position in
     let eager = nested NoGuardFlow in
     case expression of
       ERecord sp name values -> (case position of
         GuardedObservation -> None
-        other -> (case record-definition name declarations of
-          Some (RecordShape owner labels (Some fields)) -> guarded-observation-fields declarations group productive diverges (is-codata-flow owner flow) fields values
+        other -> (case hash-map-lookup name records of
+          Some (RecordShape owner labels (Some fields)) -> guarded-observation-fields records group productive diverges (is-codata-flow owner flow) fields values
           other -> eager values))
       ERecordField sp name value rest -> first-guard-error (eager value) (eager rest)
       EApp sp (EVar at name) (ELam site patterns body) | same name "b.delay" -> (case position of
         GuardedObservation -> None
-        other -> guarded-recursive-reference declarations group productive diverges
+        other -> guarded-recursive-reference records group productive diverges
           (if is-later-flow flow then GuardedObservation else DeferredObservation) NoGuardFlow body)
       EApp sp first second -> first-guard-error (eager first) (eager second)
       EForget sp atoms body -> nested flow body
@@ -8634,35 +8662,40 @@ module Bootstrap.Infer where
         None -> None
   first-guard-error :: Option (Span, String) -> Option (Span, String) -> Option (Span, String)
   first-guard-error first second = case first of Some error -> first; None -> second
-  guarded-observation-fields :: List Decl -> List String -> Bool -> Bool -> Bool -> List (String, TypeExpr) -> Expr -> Option (Span, String)
-  guarded-observation-fields declarations group productive diverges result fields values = case values of
+  guarded-observation-fields :: HashMap String RecordShape -> (String -> Bool) -> Bool -> Bool -> Bool -> List (String, TypeExpr) -> Expr -> Option (Span, String)
+  guarded-observation-fields records group productive diverges result fields values = case values of
     ERecordField sp label value rest -> first-guard-error
-      (guarded-recursive-reference declarations group productive diverges ObservationBody
+      (guarded-recursive-reference records group productive diverges ObservationBody
         (if result && later-observation label fields then LaterResultFlow else NoGuardFlow) value)
-      (guarded-observation-fields declarations group productive diverges result fields rest)
+      (guarded-observation-fields records group productive diverges result fields rest)
     other -> None
-  checked-codata-clauses :: List Decl -> List String -> Bool -> Bool -> String -> List (List Pat, Expr) -> Store -> Store
-  checked-codata-clauses declarations group productive diverges owner clauses st = case clauses of
+  checked-codata-clauses :: HashMap String RecordShape -> (String -> Bool) -> Bool -> Bool -> String -> List (List Pat, Expr) -> Store -> Store
+  checked-codata-clauses records group productive diverges owner clauses st = case clauses of
     Nil -> st
-    Cons (patterns, body) rest -> let checked = (case guarded-recursive-reference declarations group productive diverges StrictObservationPosition (CodataResultFlow owner) body of
+    Cons (patterns, body) rest -> let checked = (case guarded-recursive-reference records group productive diverges StrictObservationPosition (CodataResultFlow owner) body of
         Some (sp, name) -> add-error sp ("unguarded recursive call to `" <> diagnostic-member-name name <>
           (if productive then "`: a corec definition must use delay in a Later observation"
            else "`: declare Diverge to reflect the loss of productivity or delay the recursive observation")) st
         None -> if productive && not (constructs-observations owner body) then
           add-error (expr-span body) "a corec body must build its codata type at every step" st else st) in
-      checked-codata-clauses declarations group productive diverges owner rest checked
-  check-codata-bodies :: List Decl -> List (String, List String) -> List Decl -> Store -> Store
-  check-codata-bodies declarations graph pending st = case pending of
+      checked-codata-clauses records group productive diverges owner rest checked
+  check-codata-bodies :: CodataHeaders -> HashMap String (Nat, Bool) -> List Decl -> Store -> Store
+  check-codata-bodies headers graph pending st = case pending of
     Nil -> st
-    Cons declaration rest -> let checked = (case unwrap-corec declaration of
-        DFun sp name clauses -> let productive = corec-marked name declarations in
-          (case declared-codata-return name declarations of
-            (Some owner, diverges) -> if codata-name owner declarations then
-              checked-codata-clauses declarations (codata-component name graph graph) productive diverges owner clauses st
-              else if productive then add-error sp "a corec definition must return codata" st else st
-            (None, diverges) -> if productive then add-error sp "a corec definition needs a codata result signature" st else st)
-        other -> st) in
-      check-codata-bodies declarations graph rest checked
+    Cons declaration rest -> case headers of
+      CodataHeaders signatures marked records ->
+        let checked = case unwrap-corec declaration of
+              DFun sp name clauses ->
+                let productive = case hash-map-lookup name marked of Some present -> True; None -> False in
+                let result = case hash-map-lookup name signatures of Some syntax -> codata-return syntax False; None -> (None, False) in
+                (case result of
+                  (Some owner, diverges) -> case hash-map-lookup owner records of
+                    Some (RecordShape actual fields (Some observations)) ->
+                      checked-codata-clauses records (codata-cycle-member graph name) productive diverges owner clauses st
+                    other -> if productive then add-error sp "a corec definition must return codata" st else st
+                  (None, diverges) -> if productive then add-error sp "a corec definition needs a codata result signature" st else st)
+              other -> st in
+        check-codata-bodies headers graph rest checked
   record-storage-name :: Bool -> String -> String
   record-storage-name observed owner = if observed then "#codata:" <> owner else owner
   observation-storage-fields :: Span -> List (String, TypeExpr) -> List (String, TypeExpr)

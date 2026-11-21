@@ -140,6 +140,34 @@ module Main where
 }
 
 #[test]
+fn corec_mutual_group_requires_a_guard_on_each_recursive_call() {
+    let source = format!(
+        r#"
+module Main where
+{STREAM}
+  corec first :: Nat -> Stream Nat
+  corec first n = Stream {{ head = n, tail = delay (\() -> second (n + 1)) }}
+  corec second :: Nat -> Stream Nat
+  corec second n = Stream {{ head = n, tail = delay (\() -> third (n + 1)) }}
+  corec third :: Nat -> Stream Nat
+  corec third n = Stream {{ head = n, tail = delay (\() -> first (n + 1)) }}
+
+  main :: Int
+  main = 0
+"#
+    );
+    expect_check_ok("guarded-cycle", &source);
+    expect_err(
+        "unguarded-cycle",
+        &source.replace(
+            "third n = Stream { head = n, tail = delay (\\() -> first (n + 1)) }",
+            "third n = first (n + 1)",
+        ),
+        "unguarded recursive call to `first`",
+    );
+}
+
+#[test]
 fn corec_needs_an_observation_layer_per_step() {
     expect_err(
         "corec-no-construction",
