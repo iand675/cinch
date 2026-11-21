@@ -466,17 +466,31 @@ fn a_compiled_structure_drops_back_to_the_immortal_baseline() {
     if let Some(frontend) = common::external_frontend::configured().expect("frontend selection") {
         build_external_drop_probe(&frontend, &dir, &o, &exe, &clang);
     } else {
+        use cinch::driver::{driver_opts, DriverOptions, Mode};
+        // The fixture is a checked object whose exported `build` the C probe
+        // calls by symbol. Compiling both modules as one source would prune
+        // that export as unreferenced, so give the fixture its own object
+        // build, exactly as the external frontend path does, and link it
+        // into the entry.
+        let library = dir.join("AllocationFixture.o");
+        let fixture = dir.join("AllocationFixture.cinch");
+        let entry = dir.join("Main.cinch");
+        let probe = o.clone();
         let out_path = exe.clone();
         std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let source = format!("{DROP_LIBRARY}{DROP_ENTRY}");
-                cinch::driver::build_source_objects(&source, &[o.to_str().unwrap()], &out_path)
+                driver_opts(Mode::EmitObject, &fixture, Some(&library), &DriverOptions::default())
+                    .expect("emit the allocation fixture object");
+                let mut opts = DriverOptions::default();
+                opts.native_objects.push(library);
+                opts.native_objects.push(probe);
+                driver_opts(Mode::Build, &entry, Some(&out_path), &opts)
+                    .expect("build the drop probe");
             })
             .expect("spawn build")
             .join()
-            .expect("build thread")
-            .unwrap_or_else(|e| panic!("build: {e}"));
+            .expect("build thread");
     }
 
     // Kept: the structure is what is live. Two `Cons` and two `Node`
