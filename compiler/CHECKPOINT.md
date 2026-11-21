@@ -13,12 +13,14 @@ where the tail-apply path is disabled. The pin is a workaround; the real fix
 belongs in the seed's tailcc codegen.
 
 With the pin, stages 1 to 3 reach a fixed point and the audited 106 target
-Stage 3 grid verifies 103 targets (evidence `build/verify-stage3/run9`).
+Stage 3 grid verifies 104 targets (evidence `build/verify-stage3/run10`).
+The runtime IR target needed a fixture correction: its numeric probes compile
+against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
+class to resolve; the negative case now negates through binary subtraction.
 Remaining: `bootstrap_export_interfaces` (the pipeline writer expands a named
-refinement where the native writer prints the alias), `bootstrap_runtime_ir`
-(the checker cannot resolve `negate` when the program supplies no class
-interfaces), and `interface_machine_contracts` (the core prover has no
-certificate for an intrinsic's declared refined result).
+refinement where the native writer prints the alias) and
+`interface_machine_contracts` (the core prover has no certificate for an
+intrinsic's declared refined result).
 
 # Compiler checkpoint — 1 November 2026
 
