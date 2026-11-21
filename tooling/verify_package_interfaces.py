@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise packed interfaces through the native and Rust compiler CLIs."""
 import argparse
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -97,6 +98,34 @@ module Main where
     assert "packed body child is not in postorder" in output.with_suffix(".diagnostics").read_text()
 
 
+def verify_native_object_references(stage, work, package, source, ir, expected):
+    data = package.read_bytes()
+    start, count = words(data, 80, 2)
+    metadata = json.loads(data[start:start + count])
+    assert metadata["interface_refs"]
+    original = json.loads((stage / "objects.json").read_bytes())
+    metadata_path = work / "compact-abi.json"
+    configuration = work / "compact-objects.json"
+    command = [stage / "cinch", "--emit-ir-only", "--interfaces", package, "--objects",
+               configuration, source, ir]
+
+    def publish_config():
+        contents = canonical(metadata).encode()
+        publish(metadata_path, contents)
+        publish(configuration, canonical({**original, "metadata": str(metadata_path),
+                                          "metadata_sha256": sha256(contents).hexdigest()}).encode())
+
+    publish_config()
+    invoke(command, work, leak=True)
+    assert ir.read_bytes() == expected
+    public = next(row for row in metadata["interface_refs"]
+                  if row["module"] not in {private["module"] for private in metadata.get("private_interfaces", [])})
+    public["iface_hash"] = "wrong-interface-identity"
+    publish_config()
+    invoke(command, work, status=7, leak=True)
+    assert "runtime object checked interface identity mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
+
+
 def native(stage, work, repeats):
     manifest = stage / "base-interfaces.json"
     rows = read_manifest(manifest)
@@ -183,6 +212,7 @@ def native(stage, work, repeats):
             assert ir.read_bytes() == legacy_ir
 
     native_indexed_body_nodes(stage, work, manifest, rows)
+    verify_native_object_references(stage, work, indexed, hello, ir, legacy_ir)
 
     times = {name: [] for name in cases}
     order = list(cases)

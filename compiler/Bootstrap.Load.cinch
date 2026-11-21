@@ -31,7 +31,7 @@ module Bootstrap.Load where
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
-  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, known-contract-end, canonical-interface-validation
+  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, known-contract-end, canonical-interface-validation
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-validated-ordered-documents
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
@@ -1141,35 +1141,56 @@ module Bootstrap.Load where
     Cons other rest -> index-contract-sources rest sources
 
   validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
-  validated-interface-sources-match checked inputs = case checked of
+  validated-interface-sources-match = validated-object-contracts-match source-agrees load-interface
+  source-agrees :: LoadedInterface -> Bytes -> Bool
+  source-agrees member bytes = case member of
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports methods ->
+      bytes-len source > 0 && bytes-compare source bytes == 0
+
+  -- Public reference rows resolve only to contracts already verified by the
+  -- loader. A private entry still supplies its independently checked document.
+  validated-interface-references-match :: ValidatedInterfaces -> List (String, String, Option Json) -> Bool
+  validated-interface-references-match = validated-object-contracts-match public-reference private-reference
+  public-reference :: LoadedInterface -> Option Json -> Bool
+  public-reference member payload = case payload of None -> True; Some doc -> False
+  private-reference :: String -> String -> Option Json -> Result String LoadedInterface
+  private-reference name hash payload = case payload of
+    None -> Err "object references an unavailable interface"
+    Some doc -> load-interface-from-document name hash doc
+
+  validated-object-contracts-match :: forall a. (LoadedInterface -> a -> Bool) ->
+    (String -> String -> a -> Result String LoadedInterface) -> ValidatedInterfaces -> List (String, String, a) -> Bool
+  validated-object-contracts-match agrees load checked inputs = case checked of
     MkValidatedInterfaces members closures ordered ->
       let by-name = interface-table members hash-map-empty in
       let count = list-length members in
       let input-count = list-length inputs in
       let extra = input-count == count + 1 in
       if not (extra || input-count == count) then False else
-        (case match-interface-sources inputs by-name hash-map-empty extra of
+        (case match-object-contracts agrees load inputs by-name hash-map-empty extra of
           None -> False
           Some matched ->
             -- Class laws consult the first exporter of a global. Replay
             -- that check against the object's original row order.
             let index = MkInterfaceIndex matched by-name (law-exporters matched) in
             interface-laws-valid matched index closures)
-  match-interface-sources :: List (String, String, Bytes) -> HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
-  match-interface-sources inputs indexed seen extra = case inputs of
+  match-object-contracts :: forall a. (LoadedInterface -> a -> Bool) ->
+    (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) ->
+    HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
+  match-object-contracts agrees load inputs indexed seen extra = case inputs of
     Nil -> Some Nil
-    Cons (name, hash, bytes) rest -> case (hash-map-lookup name indexed, hash-map-lookup name seen) of
+    Cons (name, hash, payload) rest -> case (hash-map-lookup name indexed, hash-map-lookup name seen) of
       (Some member, None) -> (case member of
         MkLoadedInterface True owner identity doc source values fixes refs entries exports methods ->
-          if same hash identity && bytes-len source > 0 && bytes-compare source bytes == 0 then
-            (case match-interface-sources rest indexed (hash-map-insert name () seen) extra of
+          if same hash identity && agrees member payload then
+            (case match-object-contracts agrees load rest indexed (hash-map-insert name () seen) extra of
               Some matched -> Some (Cons member matched)
               None -> None)
           else None
         other -> None)
-      (None, None) -> if extra then (case load-interface name hash bytes of
+      (None, None) -> if extra then (case load name hash payload of
         Ok member -> if standalone-object-interface member indexed then
-          (case match-interface-sources rest indexed (hash-map-insert name () seen) False of
+          (case match-object-contracts agrees load rest indexed (hash-map-insert name () seen) False of
             Some matched -> Some (Cons member matched)
             None -> None)
           else None

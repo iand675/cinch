@@ -106,6 +106,13 @@ An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.
 
+For native client compilation the object configuration can authenticate
+ABI metadata containing `interface_refs` and an optional single
+`private_interfaces` entry. The public rows resolve against the checked
+contract set in the recorded order. The private entry carries its document
+and must satisfy the existing standalone object interface checks.
+The packer's ABI section already carries metadata in this form.
+
 ## Verification
 
 ```sh
