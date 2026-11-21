@@ -99,9 +99,13 @@ fn number(sort: Sort, decimal: &str) -> bool {
 
 impl CheckedGraph {
     pub fn check(definitions: Vec<Definition>) -> Result<Self, Invalid> {
+        Self::check_shared(definitions.into_iter().map(Arc::new))
+    }
+
+    pub(crate) fn check_shared(definitions: impl IntoIterator<Item = Arc<Definition>>) -> Result<Self, Invalid> {
         let mut by_name = BTreeMap::new();
         for definition in definitions {
-            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), Arc::new(definition)).is_some() {
+            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), definition).is_some() {
                 return Err(Invalid("empty or duplicate total-body identity".into()));
             }
         }

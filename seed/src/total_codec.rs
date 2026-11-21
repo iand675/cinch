@@ -6,10 +6,10 @@ use std::collections::HashMap;
 
 impl Sort {
     pub fn name(self) -> &'static str { match self { Self::Nat => "Nat", Self::Int => "Int", Self::Bool => "Bool", Self::Bytes => "Bytes", Self::I64 => "I64" } }
-    fn parse(name: &str) -> Option<Self> { Some(match name { "Nat" => Self::Nat, "Int" => Self::Int, "Bool" => Self::Bool, "Bytes" => Self::Bytes, "I64" => Self::I64, _ => return None }) }
+    pub(crate) fn parse(name: &str) -> Option<Self> { Some(match name { "Nat" => Self::Nat, "Int" => Self::Int, "Bool" => Self::Bool, "Bytes" => Self::Bytes, "I64" => Self::I64, _ => return None }) }
 }
 impl Op {
-    fn parse(name: &str) -> Option<Self> {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "NatAdd" => Self::NatAdd, "NatMul" => Self::NatMul, "NatCmp" => Self::NatCmp,
             "IntAdd" => Self::IntAdd, "IntSub" => Self::IntSub, "IntMul" => Self::IntMul,
@@ -33,14 +33,6 @@ fn expr_json(expression: &Expr) -> J {
         Expr::If { condition, yes, no } => J::obj([("node", "if".into()), ("condition", expr_json(condition)), ("yes", expr_json(yes)), ("no", expr_json(no))]),
     }
 }
-fn definition_json(definition: &Definition) -> J {
-    J::obj([
-        ("identity", definition.identity.as_str().into()),
-        ("parameters", J::arr(&definition.parameters, |sort| sort.name().into())),
-        ("result", definition.result.name().into()),
-        ("body", expr_json(&definition.body)),
-    ])
-}
 fn object<'a>(value: &'a J, fields: &[&str]) -> Result<&'a BTreeMap<String, J>, Invalid> {
     let o = value.as_object().map_err(|e| Invalid(e.to_string()))?;
     if o.len() != fields.len() || !fields.iter().all(|key| o.contains_key(*key)) { return Err(Invalid("unexpected total-body fields".into())) }
@@ -62,13 +54,23 @@ fn decode_expr(value: &J) -> Result<Expr, Invalid> {
         _ => return Err(Invalid("unknown total-body node".into())),
     })
 }
+impl Definition {
+    pub(crate) fn to_json_value(&self) -> J {
+        J::obj([
+            ("identity", self.identity.as_str().into()),
+            ("parameters", J::arr(&self.parameters, |sort| sort.name().into())),
+            ("result", self.result.name().into()),
+            ("body", expr_json(&self.body)),
+        ])
+    }
+}
 impl CheckedGraph {
     pub fn to_json(&self) -> String {
         self.to_json_value().to_canonical_string()
     }
 
     pub(crate) fn to_json_value(&self) -> J {
-        J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), definition_json))])
+        J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), Definition::to_json_value))])
     }
 
     /// Several exports can reference the same checked definition. A document's
@@ -81,7 +83,7 @@ impl CheckedGraph {
         let definitions = J::arr(self.definitions(), |definition| {
             let canonical = rows
                 .entry(std::ptr::from_ref(definition))
-                .or_insert_with(|| Arc::from(definition_json(definition).to_canonical_string()));
+                .or_insert_with(|| Arc::from(definition.to_json_value().to_canonical_string()));
             J::CanonicalBodyRow(Arc::clone(canonical))
         });
         J::obj([("version", J::Num(1)), ("definitions", definitions)])
@@ -94,6 +96,9 @@ impl CheckedGraph {
     pub(crate) fn from_json_value(data: &J) -> Result<Self, Invalid> {
         let root=object(data,&["version","definitions"])?;
         if root["version"].as_num().map_err(|e| Invalid(e.to_string()))? != 1 { return Err(Invalid("unknown total-body version".into())) }
+        if let J::PackedDefinitions(definitions) = &root["definitions"] {
+            return Self::check_shared(definitions.iter().cloned());
+        }
         let rows = array(&root["definitions"])?;
         let mut definitions = Vec::with_capacity(rows.len());
         for row in rows {

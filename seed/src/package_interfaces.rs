@@ -1,10 +1,16 @@
 //! Binary interface packages borrowed from an immutable package artifact.
 
 use crate::interface::{Iface, JsonValue, ParseError};
+use crate::total::Definition;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
+
+mod flat;
+use flat::FlatBodies;
 
 const HEADER: usize = 80;
+const FLAT_HEADER: usize = 88;
 const MODULE_ROW: usize = 36;
 const BODY_ROW: usize = 32;
 const MAX_DEPTH: usize = 256;
@@ -78,19 +84,34 @@ impl<'a> Strings<'a> {
 struct Package<'a> {
     strings: Strings<'a>,
     modules: &'a [u8],
-    bodies: &'a [u8],
-    recipes: &'a [u8],
+    bodies: BodyTable<'a>,
     documents: &'a [u8],
+}
+
+enum BodyTable<'a> {
+    Recipes { rows: &'a [u8], payload: &'a [u8] },
+    Flat(FlatBodies<'a>),
+}
+
+enum Definitions {
+    Recipes(Vec<JsonValue>),
+    Flat(Vec<Arc<Definition>>),
 }
 
 impl<'a> Package<'a> {
     fn open(file: &'a [u8]) -> Decode<Self> {
-        if file.get(..8) != Some(b"CINCHPK2") || words::<2>(file, 8)? != [file.len() as u32, 2] {
+        let [length, version] = words(file, 8)?;
+        if length as usize != file.len() {
             return Err(invalid("invalid interface package header"));
         }
-        let mut sections = [file.get(..0).unwrap(); 8];
-        let mut next = HEADER;
-        for (i, section) in sections.iter_mut().enumerate() {
+        let header = match (file.get(..8), version) {
+            (Some(b"CINCHPK2"), 2) => HEADER,
+            (Some(b"CINCHPK3"), 3) => FLAT_HEADER,
+            _ => return Err(invalid("invalid interface package header")),
+        };
+        let mut sections = [&file[..0]; 9];
+        let mut next = header;
+        for (i, section) in sections[..(header - 16) / 8].iter_mut().enumerate() {
             let [start, length] = words(file, 16 + 8 * i)?;
             if start as usize != next {
                 return Err(invalid("invalid interface package section directory"));
@@ -98,7 +119,7 @@ impl<'a> Package<'a> {
             *section = span(file, start, length)?;
             next += section.len();
         }
-        let [strings, modules, values, bodies, edges, recipes, documents, _abi] = sections;
+        let [strings, modules, values, bodies, edges, payload, sixth, seventh, _eighth] = sections;
         if next != file.len()
             || modules.len() % MODULE_ROW != 0
             || values.len() % 32 != 0
@@ -107,22 +128,27 @@ impl<'a> Package<'a> {
         {
             return Err(invalid("mis-sized interface package section"));
         }
-        Ok(Self {
-            strings: Strings::open(strings)?,
-            modules,
-            bodies,
-            recipes,
-            documents,
-        })
+        let strings = Strings::open(strings)?;
+        let (bodies, documents) = if version == 3 {
+            (BodyTable::Flat(FlatBodies::open(strings, bodies, edges, payload, sixth)?), seventh)
+        } else {
+            (BodyTable::Recipes { rows: bodies, payload }, sixth)
+        };
+        Ok(Self { strings, modules, bodies, documents })
     }
 
     fn identities(&self) -> Decode<Identities> {
-        let mut definitions = Vec::with_capacity(self.bodies.len() / BODY_ROW);
-        for row in self.bodies.chunks_exact(BODY_ROW) {
-            let [offset, length] = words(row, 16)?;
-            let input = span(self.recipes, offset, length)?;
-            definitions.push(Document::decode(self.strings, input, None)?);
-        }
+        let definitions = match &self.bodies {
+            BodyTable::Recipes { rows, payload } => Definitions::Recipes(
+                rows.chunks_exact(BODY_ROW)
+                    .map(|row| {
+                        let [offset, length] = words(row, 16)?;
+                        Document::decode(self.strings, span(payload, offset, length)?, None)
+                    })
+                    .collect::<Decode<_>>()?,
+            ),
+            BodyTable::Flat(bodies) => Definitions::Flat(bodies.definitions()?),
+        };
         let count = self.modules.len() / MODULE_ROW;
         let mut seen = vec![false; count];
         let mut interfaces = BTreeMap::new();
@@ -159,7 +185,7 @@ impl<'a> Package<'a> {
 struct Document<'a> {
     strings: Strings<'a>,
     source: &'a [u8],
-    definitions: Option<&'a [JsonValue]>,
+    definitions: Option<&'a Definitions>,
     at: usize,
 }
 
@@ -167,7 +193,7 @@ impl<'a> Document<'a> {
     fn decode(
         strings: Strings<'a>,
         source: &'a [u8],
-        definitions: Option<&'a [JsonValue]>,
+        definitions: Option<&'a Definitions>,
     ) -> Decode<JsonValue> {
         let mut state = Document {
             strings,
@@ -239,15 +265,20 @@ impl<'a> Document<'a> {
                 }
                 JsonValue::Obj(fields)
             }
-            7 => JsonValue::Arr(self.definition_rows()?),
+            7 => self.definition_rows()?,
             _ => return Err(invalid("unknown or unsupported structured contract tag")),
         })
     }
 
-    fn definition_rows(&mut self) -> Decode<Vec<JsonValue>> {
-        let definitions = self
-            .definitions
-            .ok_or_else(|| invalid("nested shared definition table"))?;
+    fn definition_rows(&mut self) -> Decode<JsonValue> {
+        match self.definitions {
+            Some(Definitions::Recipes(rows)) => Ok(JsonValue::Arr(self.copy_rows(rows)?)),
+            Some(Definitions::Flat(rows)) => Ok(JsonValue::PackedDefinitions(self.copy_rows(rows)?)),
+            None => Err(invalid("nested shared definition table")),
+        }
+    }
+
+    fn copy_rows<T: Clone>(&mut self, definitions: &[T]) -> Decode<Vec<T>> {
         let count = self.count(8)?;
         let mut rows = Vec::new();
         for _ in 0..count {

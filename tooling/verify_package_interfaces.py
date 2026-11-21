@@ -142,13 +142,29 @@ def rust(seed, work):
     invoke(command, project)
     invoke([executable], project, status=42)
     package = installed / "build/package.cpk"
-    publish(package, pack(rows, execution))
-    invoke(command, project)
-    invoke([executable], project, status=42)
     name, _, raw = rows[0]
-    publish(package, pack([(name, "not-the-identity", raw), *rows[1:]]))
-    result = invoke(command, project, status=1)
-    assert "package interface identity mismatch" in result.stderr
+    for flat in (False, True):
+        contents = pack(rows, execution, flat_bodies=flat)
+        publish(package, contents)
+        invoke(command, project)
+        invoke([executable], project, status=42)
+
+        publish(package, pack([(name, "not-the-identity", raw), *rows[1:]], flat_bodies=flat))
+        result = invoke(command, project, status=1)
+        assert "package interface identity mismatch" in result.stderr
+
+    body_rows, body_size = words(contents, 40, 2)
+    nodes, node_size = words(contents, 56, 2)
+    assert body_size >= 32 and node_size >= 16, "fixture must include a checked body"
+    for offset, value, error in (
+        (body_rows + 16, node_size // 16, "packed body node outside its section"),
+        (nodes, 255, "invalid packed body node"),
+    ):
+        altered = bytearray(contents)
+        struct.pack_into("<I", altered, offset, value)
+        publish(package, altered)
+        result = invoke(command, project, status=1)
+        assert error in result.stderr, result.stderr
 
 
 def main():
