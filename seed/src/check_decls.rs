@@ -5391,9 +5391,10 @@ impl Checker {
                 ));
             }
         }
+        let equation_names: HashSet<&str> = eqs.iter().map(|(name, _)| name.as_str()).collect();
         for ((home, name), (declaration, _)) in &self.deferred_headers {
-            if home == &module && name != "main" && !eqs.iter().any(|(n, _)| n == name)
-                && !self.top_eqs.iter().any(|(m, n, _)| m == home && n == name) {
+            if home == &module && name != "main" && !equation_names.contains(name.as_str())
+                && self.top_equation_indices(home, name).is_empty() {
                 return Err(Error::at(match declaration { ast::Decl::ValueSig { span, .. } => *span, _ => unreachable!() },
                     format!("missing defining equation for {name}")));
             }
@@ -5406,15 +5407,19 @@ impl Checker {
                 .get(&module)
                 .map(|ds| ds.iter().any(|d| &d.name.text == name))
                 .unwrap_or(false);
-            if name != "main" && !bound_by_import && !eqs.iter().any(|(n, _)| n == name) {
+            if name != "main" && !bound_by_import && !equation_names.contains(name.as_str()) {
                 return Err(Error::plain(format!("missing defining equation for {name}")));
             }
         }
         for (name, scheme) in schemes {
             self.top_schemes.insert((module.clone(), name), scheme);
         }
-        for (name, eq) in eqs {
-            self.top_eqs.push((module.clone(), name, eq));
+        if !eqs.is_empty() {
+            let positions = self.top_eqs_by_name.entry(module.clone()).or_default();
+            for (name, eq) in eqs {
+                positions.entry(name.clone()).or_default().push(self.top_eqs.len());
+                self.top_eqs.push((module.clone(), name, eq));
+            }
         }
         // A module parameter is an ordinary binding of the module scope:
         // it must not collide with a declaration of the same name (module
@@ -5750,6 +5755,14 @@ impl Checker {
         Ok(())
     }
 
+    fn top_equation_indices(&self, module: &str, name: &str) -> &[usize] {
+        self.top_eqs_by_name
+            .get(module)
+            .and_then(|names| names.get(name))
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
     fn prepare_task_forwarders(&mut self) {
         let candidates: Vec<_> = self.top_eqs.iter().filter_map(|(module, name, eq)| {
             let [ast::Pat::Var(token, _), ast::Pat::Var(callback, _)] = eq.pats.as_slice() else {
@@ -5769,7 +5782,7 @@ impl Checker {
             };
             if eq.guard.is_some() || !eq.locals.is_empty() || callee.name.text == token.text || callee.name.text == callback.text
                 || !bound(scope, token) || !bound(body, callback)
-                || self.top_eqs.iter().filter(|(m, n, _)| m == module && n == name).count() != 1
+                || self.top_equation_indices(module, name).len() != 1
             {
                 return None;
             }
@@ -5814,14 +5827,12 @@ impl Checker {
         self.cur_mod_params.clear();
         self.process_units(module)?;
 
-        // Group this module's equations by name, preserving order.
-        let mut names: Vec<String> = Vec::new();
-        for (m, name, _) in &self.top_eqs {
-            if m == module && !names.contains(name) {
-                names.push(name.clone());
-            }
-        }
-        for name in names {
+        // Check bindings in the order of their first equation.
+        let mut names: Vec<_> = self.top_eqs_by_name.get(module).into_iter().flat_map(|positions| {
+            positions.iter().map(|(name, equations)| (equations[0], name.clone()))
+        }).collect();
+        names.sort_unstable_by_key(|(first, _)| *first);
+        for (_, name) in names {
             // Staging (P9): `stage`/`macro` definitions are compile-time
             // only, and code compiled on demand for compile-time evaluation
             // is checked already.
@@ -5832,12 +5843,8 @@ impl Checker {
             {
                 continue;
             }
-            let eqs: Vec<ast::Equation> = self
-                .top_eqs
-                .iter()
-                .filter(|(m, n, _)| m == module && n == &name)
-                .map(|(_, _, e)| e.clone())
-                .collect();
+            let eqs: Vec<ast::Equation> = self.top_equation_indices(module, &name)
+                .iter().map(|&position| self.top_eqs[position].2.clone()).collect();
             let scheme = self
                 .top_schemes
                 .get(&(module.to_string(), name.clone()))

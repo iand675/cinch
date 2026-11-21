@@ -3142,8 +3142,9 @@ struct Checker {
     /// Macro captures and equation checking must share their lexical handles.
     syntax_implicit_values: HashMap<(String, String), Vec<ast::Name>>,
     syntax_context_values: HashMap<(String, String), Vec<ast::Name>>,
-    /// Top-level equations, keyed by module and name.
+    /// Top-level equations in declaration order, with positions stable across macro expansion.
     top_eqs: Vec<(String, String, ast::Equation)>,
+    top_eqs_by_name: HashMap<String, HashMap<String, Vec<usize>>>,
     /// Finished instance dictionaries.
     instance_defs: Vec<InstanceDef>,
     /// Instances awaiting body checking, keyed by module.
@@ -3954,6 +3955,7 @@ impl Checker {
             syntax_implicit_values: HashMap::new(),
             syntax_context_values: HashMap::new(),
             top_eqs: Vec::new(),
+            top_eqs_by_name: HashMap::new(),
             instance_defs: Vec::new(),
             instance_defs_pending: Vec::new(),
             pending_instance_heads: Vec::new(),
