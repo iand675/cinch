@@ -75,7 +75,7 @@ module Bootstrap.Interface where
 
   import Data.Bool
   import Data.Bytes
-  import Text.Fnv (fnv64a)
+  import Text.Fnv (fnv64a, fnv64a-update)
   import Data.Int
   import Data.Json
   import Data.List
@@ -84,8 +84,8 @@ module Bootstrap.Interface where
   import Data.Option
   import Data.String
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Text.Show (nat-to-string)
-  import Text.Json (parse-json, digest-hex)
+  import Text.Show (int-to-string, nat-to-string)
+  import Text.Json (parse-json, digest-hex, ordered-json-bytes)
 
   export iface-schema-version
   export iface-parse, iface-module, iface-schema, iface-source-hash
@@ -93,7 +93,7 @@ module Bootstrap.Interface where
   export iface-hash, iface-contract, iface-report
   export iface-schemes-non-empty, iface-schemes-stable
   export iface-import-names-match, iface-value-names-match, iface-fixity-rows-match
-  export fnv-source-hash, sha256-hex
+  export fnv-source-hash, fnv-ordered-json, sha256-hex
 
   -- The interface schema version this reader understands
   -- (`interface::SCHEMA_VERSION`). A later schema is answered as a mismatch
@@ -303,6 +303,84 @@ module Bootstrap.Interface where
   -- source bytes (`interface::content_hash`).
   fnv-source-hash :: Bytes -> String
   fnv-source-hash src = u64-decimal (fnv64a src)
+
+  -- Hash the same byte stream as ordered-json-bytes without assembling the
+  -- complete document. The package decoder checks object key order.
+  fnv-ordered-json :: Json -> String
+  fnv-ordered-json value = u64-decimal (fnv-json-value 0xCBF29CE484222325 value)
+
+  fnv-byte :: U64 -> U64 -> U64
+  fnv-byte hash byte = wrapping-mul-u64 (bit-xor-u64 hash byte) 0x00000100000001B3
+
+  fnv-json-value :: U64 -> Json -> U64
+  fnv-json-value hash value = case value of
+    JNull -> fnv-byte (fnv-byte (fnv-byte (fnv-byte hash 110) 117) 108) 108
+    JBool yes -> if yes
+      then fnv-byte (fnv-byte (fnv-byte (fnv-byte hash 116) 114) 117) 101
+      else fnv-byte (fnv-byte (fnv-byte (fnv-byte (fnv-byte hash 102) 97) 108) 115) 101
+    JNum number -> fnv64a-update hash (string-to-bytes (int-to-string number))
+    JFloat number -> fnv64a-update hash (ordered-json-bytes value)
+    JStr text -> fnv-json-string hash text
+    JArr first rest -> fnv-json-array (fnv-json-value (fnv-byte hash 91) first) rest
+    JArrEnd -> fnv-byte (fnv-byte hash 91) 93
+    JObj key entry rest -> fnv-json-fields (fnv-byte hash 123) value
+    JObjEnd -> fnv-byte (fnv-byte hash 123) 125
+
+  fnv-json-array :: U64 -> Json -> U64
+  fnv-json-array hash rest = case rest of
+    JArr value tail -> fnv-json-array (fnv-json-value (fnv-byte hash 44) value) tail
+    JArrEnd -> fnv-byte hash 93
+    other -> fnv-byte (fnv-json-value (fnv-byte hash 44) other) 93
+
+  fnv-json-fields :: U64 -> Json -> U64
+  fnv-json-fields hash object = case object of
+    JObj key value rest ->
+      let field = fnv-json-value (fnv-byte (fnv-json-string hash key) 58) value in
+      (case rest of
+        JObjEnd -> fnv-byte field 125
+        other -> fnv-json-fields (fnv-byte field 44) rest)
+    JObjEnd -> fnv-byte hash 125
+    other ->
+      let prefix = fnv-byte (fnv-byte (fnv-byte hash 34) 34) 58 in
+      fnv-byte (fnv-json-value prefix other) 125
+
+  fnv-json-string :: U64 -> String -> U64
+  fnv-json-string hash text =
+    let raw = string-to-bytes text in
+    let unescaped = hold-json-scan raw (json-string-unescaped (bytes-data raw) raw 0) in
+    if unescaped then fnv-byte (fnv64a-update (fnv-byte hash 34) raw) 34
+    else fnv64a-update hash (ordered-json-bytes (JStr text))
+
+  hold-json-scan :: Bytes -> Bool -> Bool
+  hold-json-scan raw result = case bytes-len raw of _ -> result
+
+  json-string-unescaped :: I64 -> (raw :: Bytes) -> (at :: Nat) -> Bool
+  json-string-unescaped address raw at =
+    let length = bytes-len raw in
+    if at + 8 <= length then
+      json-word-unescaped address (nat-to-i64 at) && json-string-unescaped address raw (at + 8)
+    else if at < bytes-len raw then
+      let byte = bytes-get raw at in
+      byte >= 32 && byte /= 34 && byte /= 92 && json-string-unescaped address raw (at + 1)
+    else True
+
+  -- The caller retains the backing Bytes and bounds the eight loads.
+  -- The comparisons work bytewise in either target endianness.
+  prim json-word-unescaped :: I64 -> I64 -> Bool where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %bytes = load <8 x i8>, ptr %at, align 1
+      %control = icmp ult <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %quote = icmp eq <8 x i8> %bytes, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %backslash = icmp eq <8 x i8> %bytes, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %escape-a = or <8 x i1> %control, %quote
+      %escape = or <8 x i1> %escape-a, %backslash
+      %mask = bitcast <8 x i1> %escape to i8
+      %clear = icmp eq i8 %mask, 0
+      %result = zext i1 %clear to i8
+      ret i8 %result
+    }
 
   -- The SHA-256 of these bytes, lowercase hex. Not the interface's rule (see
   -- the header): this is the digest the package identity uses, exposed where a

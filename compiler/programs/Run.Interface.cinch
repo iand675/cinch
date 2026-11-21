@@ -51,6 +51,7 @@ module Main where
   import Data.String
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
+  import Text.Json (ordered-json-bytes)
 
   -- The answers the harness read from the compiler's own model of the
   -- artifact, so every claim here is checked against an independent reader
@@ -138,7 +139,10 @@ module Main where
   verdict :: Bytes -> Bytes -> Bytes -> Bytes -> Int
   verdict src copy source digest = case iface-parse src of
     None -> 1
-    Some doc -> first-failure (checks src copy source digest doc)
+    Some doc ->
+      if string-compare (fnv-ordered-json doc) (fnv-source-hash (ordered-json-bytes doc)) == 0
+      then first-failure (checks src copy source digest doc)
+      else 20
 
   main :: Unit ->{IO r, Diverge} Int
   main u = with (io = newIO ()) in
