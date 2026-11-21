@@ -1303,7 +1303,7 @@ pub struct PreludeSources {
 /// declares inside the facade and joins its export list).
 pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
     let facade_src = prelude_source_with(adapters);
-    let mut headers = Vec::new();
+    let mut files = Vec::new();
     let facade_at = base_package().facade_index();
     for (i, (path, source)) in prelude_sources().into_iter().enumerate() {
         let source = if i == facade_at {
@@ -1312,45 +1312,44 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
             source
         };
         let toks = layout::layout(lexer::lex(source)?)?;
-        headers.extend(
-            crate::parser::fixity_headers(&toks)
-                .map_err(|e| Error::plain(format!("{path}: {e}")))?,
-        );
+        let headers = crate::parser::fixity_headers(&toks)
+            .map_err(|e| Error::plain(format!("{path}: {e}")))?;
+        files.push((path, headers));
     }
-    let mut exported_fixities = crate::parser::export_fixity_headers(&headers, &HashMap::new())?;
+    let mut exported_fixities = crate::parser::export_fixity_headers(
+        files.iter().flat_map(|(_, headers)| headers),
+        &HashMap::new(),
+    )?;
     let base = exported_fixities
         .get("Prelude")
         .cloned()
         .unwrap_or_default();
-    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &base, &exported_fixities)?;
+    let facade = std::mem::take(&mut files[facade_at].1);
+    let facade_parsed = crate::parser::resolve_fixity_headers(facade, &base, &exported_fixities)
+        .map_err(|e| Error::plain(format!("Prelude.cinch: {e}")))?;
     let mut fixities = facade_parsed.fixities.clone();
     let mut early: Vec<crate::ast::Module> = Vec::new();
     let mut late: Vec<crate::ast::Module> = Vec::new();
     let mut tables = exported_fixities.clone();
-    let mut parse_into = |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
-        let parsed = parse_source(src, path, &base, &tables)?;
-        for (m, f) in &parsed.fixities {
-            fixities.insert(m.clone(), f.clone());
-        }
-        for (m, f) in &parsed.exported_fixities {
-            tables.insert(m.clone(), f.clone());
-            exported_fixities.insert(m.clone(), f.clone());
-        }
-        out.extend(parsed.modules);
-        Ok(())
-    };
     // The manifest's order decides everything. Every module listed
     // before the facade is an early home (checked before it, so the
     // facade's `export` items can read its surface); the facade itself
     // is parsed above, because ITS fixity table is the base table every
     // module parses against; every module after the facade is a late
     // home (checked after it, resolving old-surface names through it).
-    for (i, (path, src)) in prelude_sources().into_iter().enumerate() {
+    for (i, (path, headers)) in files.into_iter().enumerate() {
         if i == facade_at {
             continue;
         }
         let out = if i < facade_at { &mut early } else { &mut late };
-        parse_into(src, path, out)?;
+        let parsed = crate::parser::resolve_fixity_headers(headers, &base, &tables)
+            .map_err(|e| Error::plain(format!("{path}: {e}")))?;
+        fixities.extend(parsed.fixities);
+        for (module, table) in parsed.exported_fixities {
+            tables.insert(module.clone(), table.clone());
+            exported_fixities.insert(module, table);
+        }
+        out.extend(parsed.modules);
     }
     // Check order: the facade's export targets first (the facade reads
     // their surfaces), the facade (the implicit base layer the late
@@ -5652,51 +5651,44 @@ pub fn driver_with_profile_opts(
     let prelude_fixities = prelude.base.clone();
     let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
     let mut exported_fixities = prelude.exported_fixities.clone();
-    let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
+    let files_using_prelude: HashSet<String> = project
+        .module_file
+        .iter()
+        .filter(|(name, _)| !project.module_preludes.get(*name).is_some_and(String::is_empty))
+        .map(|(_, path)| path.display().to_string())
+        .collect();
+    let mut parsed_by_file: HashMap<String, HashMap<String, crate::ast::Module>> = HashMap::new();
+    let empty_fixities = FixityTable::default();
     let mut modules: Vec<crate::ast::Module> = Vec::new();
     // Each file parses once, at the position of its last module in
     // dependency order: every module of the file has its dependencies'
     // fixity tables by then.
     for name in &project.order {
-        let file = project.module_file[name].clone();
+        let file = &project.module_file[name];
         let key = file.display().to_string();
-        if !parsed_by_file.contains_key(&key) {
-            let src = &project.sources[&key];
-            // A package that sets `prelude: none` parses its modules
-            // without the prelude's operator table, so `1 + 2` is refused
-            // instead of resolving through a fixity the module never
-            // imported (design/base-as-a-package.md section 3).
-            let no_prelude = project
-                .module_file
-                .iter()
-                .filter(|(_, owner)| owner.display().to_string() == key)
-                .all(|(module, _)| {
-                    project
-                        .module_preludes
-                        .get(module)
-                        .is_some_and(|prelude| prelude.is_empty())
-                })
-                && project
-                    .module_file
-                    .iter()
-                    .any(|(_, owner)| owner.display().to_string() == key);
-            let empty = FixityTable::default();
-            let base = if no_prelude { &empty } else { &prelude_fixities };
-            let parsed = parse_source(src, &key, base, &exported_fixities)?;
-            for (m, f) in &parsed.fixities {
-                module_fixities.insert(m.clone(), f.clone());
+        let parsed = match parsed_by_file.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let key = entry.key();
+                // A `prelude: none` file sees only imported and local fixities.
+                let base = if files_using_prelude.contains(key) {
+                    &prelude_fixities
+                } else {
+                    &empty_fixities
+                };
+                let parsed = parse_source(&project.sources[key], key, base, &exported_fixities)?;
+                module_fixities.extend(parsed.fixities);
+                exported_fixities.extend(parsed.exported_fixities);
+                let mut by_name = HashMap::new();
+                for module in parsed.modules {
+                    by_name.entry(module.name.text.clone()).or_insert(module);
+                }
+                entry.insert(by_name)
             }
-            for (m, f) in &parsed.exported_fixities {
-                exported_fixities.insert(m.clone(), f.clone());
-            }
-            parsed_by_file.insert(key, parsed);
-        }
-        let parsed = &parsed_by_file[&file.display().to_string()];
+        };
+        // The dependency order visits each module name once.
         let m = parsed
-            .modules
-            .iter()
-            .find(|m| m.name.text == *name)
-            .cloned()
+            .remove(name)
             .ok_or_else(|| Error::plain(format!("{file:?}: no module {name}")))?;
         modules.push(m);
     }
@@ -5718,12 +5710,13 @@ pub fn driver_with_profile_opts(
     };
     let mut hashes: HashMap<String, String> = HashMap::new();
     let mut files: HashMap<String, String> = HashMap::new();
+    let mut source_hashes = HashMap::new();
     for name in &project.order {
         let key = project.module_file[name].display().to_string();
-        hashes.insert(
-            name.clone(),
-            crate::interface::content_hash(&project.sources[&key]),
-        );
+        let digest = source_hashes
+            .entry(key.clone())
+            .or_insert_with(|| crate::interface::content_hash(&project.sources[&key]));
+        hashes.insert(name.clone(), digest.clone());
         files.insert(name.clone(), key);
     }
     // The embedded family is hashed too, so its interfaces witness their

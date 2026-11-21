@@ -135,13 +135,19 @@ pub fn parse_modules(
     base: &FixityTable,
     tables: &std::collections::HashMap<String, FixityTable>,
 ) -> Result<ParsedModules> {
-    let modules = fixity_headers(tokens)?;
+    resolve_fixity_headers(fixity_headers(tokens)?, base, tables)
+}
+
+pub(crate) fn resolve_fixity_headers(
+    modules: Vec<(Module, FixityTable)>,
+    base: &FixityTable,
+    tables: &std::collections::HashMap<String, FixityTable>,
+) -> Result<ParsedModules> {
     let exported_fixities = export_fixity_headers(&modules, tables)?;
     let implicit = exported_fixities.get("Prelude").unwrap_or(base);
     let mut out = Vec::new();
     let mut fixities = std::collections::HashMap::new();
-    for (module, own) in &modules {
-        let mut module = module.clone();
+    for (mut module, own) in modules {
         let mut table = implicit.clone();
         for imp in &module.imports {
             let name = imp.path.parts().join(".");
@@ -149,7 +155,7 @@ pub fn parse_modules(
                 table = table.merge(&import_fixities(imp, t, false));
             }
         }
-        table = table.merge(own);
+        table = table.merge(&own);
         resolve_module(&mut module, &table)?;
         fixities.insert(module.name.text.clone(), table);
         out.push(module);
@@ -236,17 +242,17 @@ fn import_fixities(imp: &Import, source: &FixityTable, qualified: bool) -> Fixit
     selected
 }
 
-pub fn export_fixity_headers(
-    modules: &[(Module, FixityTable)],
+pub fn export_fixity_headers<'a>(
+    modules: impl IntoIterator<Item = &'a (Module, FixityTable)>,
     external: &std::collections::HashMap<String, FixityTable>,
 ) -> Result<std::collections::HashMap<String, FixityTable>> {
     fn publish(
-        name: &str, modules: &[(Module, FixityTable)],
+        name: &str, modules: &std::collections::HashMap<&str, &(Module, FixityTable)>,
         external: &std::collections::HashMap<String, FixityTable>,
         done: &mut std::collections::HashMap<String, FixityTable>, active: &mut Vec<String>,
     ) -> Result<FixityTable> {
         if let Some(table) = done.get(name) { return Ok(table.clone()); }
-        let Some((module, own)) = modules.iter().find(|(m, _)| m.name.text == name) else {
+        let Some((module, own)) = modules.get(name).copied() else {
             return Ok(external.get(name).cloned().unwrap_or_default());
         };
         if active.iter().any(|n| n == name) {
@@ -306,9 +312,18 @@ pub fn export_fixity_headers(
         done.insert(name.to_string(), surface.clone());
         Ok(surface)
     }
+    let mut by_name = std::collections::HashMap::new();
+    let mut order = Vec::new();
+    for pair in modules {
+        let name = pair.0.name.text.as_str();
+        if let std::collections::hash_map::Entry::Vacant(entry) = by_name.entry(name) {
+            entry.insert(pair);
+            order.push(name);
+        }
+    }
     let mut done = std::collections::HashMap::new();
-    for (module, _) in modules {
-        publish(&module.name.text, modules, external, &mut done, &mut Vec::new())?;
+    for name in order {
+        publish(name, &by_name, external, &mut done, &mut Vec::new())?;
     }
     Ok(done)
 }
