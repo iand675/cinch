@@ -215,12 +215,13 @@ impl Checker {
             &ty, &scheme, &binders, None, true);
     }
 
-    fn checked_conditional_method(&self, info: &InstanceInfo, slot: usize) -> Option<crate::interface::CheckedInstanceMethod> {
+    fn checked_conditional_method(
+        &self, info: &InstanceInfo, definition: &InstanceDef, slot: usize, functions: &HashSet<&GlobalId>,
+    ) -> Option<crate::interface::CheckedInstanceMethod> {
         if info.base || !info.params.is_empty() || !info.ctx.is_empty() { return None }
-        let definition = self.instance_defs.iter().find(|definition| definition.id == info.base_id)?;
         if definition.tparams != 0 || definition.subdict_count != 0 { return None }
         let implementation = definition.methods.get(slot)?;
-        if !self.fns.iter().any(|function| function.id == *implementation) { return None }
+        if !functions.contains(implementation) { return None }
         Some(crate::interface::CheckedInstanceMethod {
             head: self.resolved_interface_scheme(&info.module, &format!("@conditional-head:{}", info.name))?,
             implementation: implementation.0.clone(),

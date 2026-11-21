@@ -17578,10 +17578,10 @@ impl Checker {
         }).collect()
     }
 
-    fn interface_signature(&self, s: &SigInfo, surface: &[(String, SurfaceName)]) -> crate::interface::SigExport {
+    fn interface_signature(&self, s: &SigInfo, aliases: &InterfaceAliases<'_>) -> crate::interface::SigExport {
         let public = |name: &str| -> Vec<String> {
-            surface.iter().filter(|(_, target)| target.module == s.module && target.name == name)
-                .map(|(name, _)| name.clone()).collect()
+            aliases.get(&(s.module.as_str(), name)).into_iter().flatten()
+                .map(|name| (*name).to_owned()).collect()
         };
         let exports = public(&s.name);
         crate::interface::SigExport {
@@ -17619,9 +17619,13 @@ impl Checker {
     }
 }
 
+type InterfaceAliases<'a> = HashMap<(&'a str, &'a str), Vec<&'a str>>;
+
 struct InterfaceMembers<'a> {
     instances: HashMap<&'a str, Vec<&'a InstanceInfo>>,
     definitions: HashMap<&'a GlobalId, &'a InstanceDef>,
+    functions: HashSet<&'a GlobalId>,
+    signatures: HashMap<(&'a str, &'a str), Vec<(usize, &'a SigInfo)>>,
     fixities: HashMap<(&'a str, &'a str), &'a crate::interface::FixityExport>,
 }
 
@@ -17639,7 +17643,15 @@ impl<'a> InterfaceMembers<'a> {
         for (owner, fixity) in &checker.module_fixities {
             fixities.entry((owner.as_str(), fixity.op.as_str())).or_insert(fixity);
         }
-        Self { instances, definitions, fixities }
+        let functions = checker.fns.iter().map(|function| &function.id).collect();
+        let mut signatures = HashMap::<_, Vec<_>>::new();
+        for (position, signature) in checker.qualified_sigs.values().enumerate() {
+            let owner = signature.module.as_str();
+            for name in std::iter::once(&signature.name).chain(signature.methods.iter().map(|(name, _)| name)) {
+                signatures.entry((owner, name.as_str())).or_default().push((position, signature));
+            }
+        }
+        Self { instances, definitions, functions, signatures, fixities }
     }
 }
 
@@ -17685,6 +17697,10 @@ impl Checker {
                 .collect(),
         };
         surface.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut aliases = InterfaceAliases::new();
+        for (name, target) in &surface {
+            aliases.entry((target.module.as_str(), target.name.as_str())).or_default().push(name);
+        }
         for (local, d) in &surface {
             // Until the interface carries checked transfer obligations, a
             // direct forwarding helper is callable only from source.
@@ -17797,11 +17813,9 @@ impl Checker {
                             // (module-private like `StrBuf`, D298)
                             // must not leak through the export table
                             // to importing modules.
-                            for (ctor_local, _) in surface.iter().filter(|(_, s)| {
-                                s.module == d.module && s.name == *cname
-                            }) {
+                            for &ctor_local in aliases.get(&(d.module.as_str(), cname.as_str())).into_iter().flatten() {
                                 ctors.push(CtorExport {
-                                    name: ctor_local.clone(),
+                                    name: ctor_local.to_owned(),
                                     symbol: format!("{}.{}", d.module, cname),
                                     scheme: render_scheme(&v.scheme),
                                     resolved: self.resolved_interface_scheme(&d.module, cname),
@@ -17876,12 +17890,14 @@ impl Checker {
         // A public method carries its class contract even when the class
         // name itself is private. Only explicit export spellings become
         // surface names; contract closure does not publish private names.
+        let mut public_signatures = std::collections::BTreeMap::new();
+        for target in aliases.keys() {
+            public_signatures.extend(members.signatures.get(target).into_iter().flatten().copied());
+        }
         let mut signature_identities = std::collections::BTreeSet::new();
-        for signature in self.qualified_sigs.values() {
-            if surface.iter().any(|(_, target)| target.module == signature.module
-                && (target.name == signature.name || signature.methods.iter().any(|(name, _)| *name == target.name)))
-                && signature_identities.insert((signature.module.clone(), signature.name.clone())) {
-                iface.exports.signatures.push(self.interface_signature(signature, &surface));
+        for signature in public_signatures.into_values() {
+            if signature_identities.insert((&signature.module, &signature.name)) {
+                iface.exports.signatures.push(self.interface_signature(signature, &aliases));
             }
         }
         for i in members.instances.get(module).into_iter().flatten() {
@@ -17904,21 +17920,26 @@ impl Checker {
                     InstCtx::Oblig(PropOblig::Preserves { method, pred }) => format!("Preserves ({method}) {pred}"),
                 }).collect(),
             });
+            let definition = members.definitions.get(&i.base_id).copied();
             iface.exports.instances.push(InstanceExport {
                 id: i.base_id.0.clone(),
                 class,
                 target,
-                method_bodies: if resolved.is_some() { self.interface_method_bodies(i) } else { Vec::new() },
+                method_bodies: if resolved.is_some() {
+                    definition.map(|definition| self.interface_method_bodies(i, definition)).unwrap_or_default()
+                } else {
+                    Vec::new()
+                },
                 resolved,
                 method_contracts: i.method_contracts.iter().filter_map(|(slot, name, scheme)| {
-                    let checked = self.checked_conditional_method(i, *slot)?;
+                    let checked = self.checked_conditional_method(i, definition?, *slot, &members.functions)?;
                     Some(InstanceMethodContract {
                         slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme), checked,
                     })
                 }).collect(),
                 ctx: context,
-                methods: members.definitions.get(&i.base_id)
-                    .map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect()).unwrap_or_default(),
+                methods: definition.map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect())
+                    .unwrap_or_default(),
                 implicit: i.implicit,
             });
         }
@@ -17941,7 +17962,7 @@ impl Checker {
             if !known.insert(identity.clone()) { continue }
             let Some((owner, name)) = identity.rsplit_once('.') else { continue };
             if let Some(signature) = self.qualified_sigs.get(&(owner.to_string(), name.to_string())) {
-                let contract = self.interface_signature(signature, &surface);
+                let contract = self.interface_signature(signature, &aliases);
                 for method in &contract.methods {
                     if let Some(scheme) = &method.resolved { pending.extend(class_refs(scheme)); }
                 }
@@ -18171,11 +18192,10 @@ fn interface_module_order<'a>(
             // contracts still determine their complete defining dependencies.
             let contract = checker.module_iface(&module.name.text, members, &HashMap::new());
             let nominal_dependencies = interface_nominal_dependencies(&contract)?;
-            for dependency in &nominal_dependencies {
-                if !imports.contains(dependency) {
-                    imports.push(dependency.clone());
-                }
-            }
+            let immediate: HashSet<&str> = imports.iter().map(String::as_str).collect();
+            let implicit = nominal_dependencies.iter().filter(|dependency| !immediate.contains(dependency.as_str()))
+                .cloned().collect::<Vec<_>>();
+            imports.extend(implicit);
             // Only locally owned instance heads depend on which interfaces
             // have already been published. Reuse the probe everywhere else.
             let draft = if members.instances.contains_key(module.name.text.as_str()) {
@@ -18936,22 +18956,20 @@ fn check_program_multi_full_prepared_impl(
             }
         };
         iface.source_hash = source_hashes.get(module).cloned().unwrap_or_default();
-        for i in plan.imports {
-            if iface.imports.iter().any(|r| r.module == i) {
-                continue;
-            }
-            if let Some(h) = built.get(&i) {
-                iface.imports.push(crate::interface::IfaceRef { module: i, iface_hash: h.clone() });
+        let mut published = HashSet::new();
+        for i in &plan.imports {
+            if let Some(h) = built.get(i).filter(|_| published.insert(i.as_str())) {
+                iface.imports.push(crate::interface::IfaceRef { module: i.clone(), iface_hash: h.clone() });
             }
         }
         // The embedded family can see earlier kernel declarations even
         // without a source import. Their nominal contracts are consumed
         // dependencies too: publish the exact checked-against identities.
-        for owner in nominal_dependencies {
-            if iface.imports.iter().any(|r| r.module == owner) { continue }
-            let hash = built.get(&owner).cloned()
+        for owner in &nominal_dependencies {
+            if !published.insert(owner.as_str()) { continue }
+            let hash = built.get(owner).cloned()
                 .ok_or_else(|| Error::plain(format!("{module}: defining nominal interface {owner} must be built before its consumer")))?;
-            iface.imports.push(crate::interface::IfaceRef { module: owner, iface_hash: hash });
+            iface.imports.push(crate::interface::IfaceRef { module: owner.clone(), iface_hash: hash });
         }
         let hash = iface.iface_hash();
         built.entry(module.to_string()).or_insert(hash);

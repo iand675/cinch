@@ -601,9 +601,8 @@ impl TotalProducer<'_> {
 }
 
 impl Checker {
-    fn interface_method_bodies(&self, instance: &InstanceInfo) -> Vec<crate::interface::InstanceMethodBody> {
+    fn interface_method_bodies(&self, instance: &InstanceInfo, definition: &InstanceDef) -> Vec<crate::interface::InstanceMethodBody> {
         if instance.base || !instance.params.is_empty() || !instance.ctx.is_empty() || !instance.method_contracts.is_empty() { return Vec::new(); }
-        let Some(definition) = self.instance_defs.iter().find(|definition| definition.id == instance.base_id) else { return Vec::new() };
         if definition.tparams != 0 || definition.subdict_count != 0 { return Vec::new(); }
         definition.methods.iter().enumerate().filter_map(|(slot, implementation)| {
             if *definition.own.get(slot)? != 0 { return None; }
