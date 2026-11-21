@@ -19,14 +19,21 @@ against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
 class to resolve; the negative case now negates through binary subtraction.
 Remaining: `bootstrap_export_interfaces` (the pipeline writer expands a named
 refinement where the native writer prints the alias) and
-`interface_machine_contracts`. The latter is narrower than a missing promise
-certificate: a diagnostic build that reports the refusing clause path shows
-the failure is the checker's `#argument-function` local (created by
-`apply-ordinary-scoped-argument` when a function is applied to a scoped
-refined argument) inside the `&&` condition chain. Bypassing the refined-term
-checker entirely does not change the outcome, so the validator loses or
-mismatches that let-bound function type in the proof scope rather than
-refusing the intrinsic's result refinement.
+`interface_machine_contracts`. The latter is an index-form mismatch, not a
+missing promise certificate. A diagnostic refusal path through the character
+program prints both types at the refusing dependent application:
+
+	- node type: `refine (cinch-result :: U32) with (... && cinch-result == #dependent-argument)`
+	- re-derived: `refine (cinch-result :: U32) with (... && cinch-result == char(955))`
+
+The checker's `materialize-dependent-view` binds the argument and reifies that
+local through `reify-local-index`, which yields a rigid local index; the
+validator's `scope-index` prefers the let-bound value. Forcing the validator to
+use the rigid index breaks the compiler's own build, because checker facts
+depend on values (`Bootstrap.Parse.cinch` precondition at 811), so the fix
+belongs in the checker: give `reify-local-index` the let value. The checker's
+environment cannot supply it today (`MkLocalBinding` carries no term and
+`MkValueBinding` carries only a type), which is the remaining design work.
 
 # Compiler checkpoint — 1 November 2026
 
