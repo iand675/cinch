@@ -47,6 +47,15 @@ binding's reach, through the nested `#argument-function` path. The remaining
 design work is to make the primary dependent-application path consult the
 materialized value, not to widen the validator.
 
+Measured while narrowing that path: taking the application index from the
+argument term instead of the local breaks a non-literal dependent argument
+(`Text.Builder.cinch:129`, "invalid dependent application input"); restricting
+that to character and integer literals compiles the algorithm but the checker
+then refuses the character literal with "argument index needs checked pure
+total reification" (`Main.cinch`, the character program's application). The
+argument reifier has no character-literal path, so that route needs one before
+the materialized node type can carry `char(955)`.
+
 # Compiler checkpoint — 1 November 2026
 
 Byte observations and strict-let proof identities are installed and validated.
