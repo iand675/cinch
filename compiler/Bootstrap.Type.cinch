@@ -573,6 +573,17 @@ module Bootstrap.Type where
 
   data Cell where
     MkCell :: Nat -> Nat -> Kind -> Option UType -> Cell
+  -- Trees store cells from newest to oldest: root, left, right. Each fork
+  -- caches the oldest ID and greatest binding level in that tree.
+  data CellTree where
+    CellLeaf :: Cell -> CellTree
+    CellFork :: Nat -> Nat -> Cell -> CellTree -> CellTree -> CellTree
+  -- Runs are in increasing size except that the first two may be equal.
+  -- Inserting merges only those first two, so even an old snapshot can
+  -- insert in constant time. Lookups use real IDs, which can have gaps.
+  data CellStore where
+    EmptyCells :: CellStore
+    CellRun :: Nat -> CellTree -> CellStore -> CellStore
   data PendingNumber where
     PendingNumber :: Span -> UType -> Int -> PendingNumber
     PendingComparison :: Span -> UType -> List String -> PendingNumber
@@ -581,10 +592,10 @@ module Bootstrap.Type where
   data ErrorLog where
     MkErrorLog :: Nat -> List Diagnostic -> ErrorLog
   data Store where
-    MkStore :: String -> Nat -> Nat -> List Cell -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
+    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 Nil (MkErrorLog 0 Nil) Nil False 0
+  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0
   store-let-depth :: Store -> Nat
   store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth -> depth
   with-let-depth :: Nat -> Store -> Store
@@ -632,25 +643,62 @@ module Bootstrap.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        MkStore label next level lowered errors numbers in-law depth -> (UMeta next kind, MkStore label (next + 1) level (Cons (MkCell next level kind None) lowered) errors numbers in-law depth)
+        MkStore label next level lowered errors numbers in-law depth -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
   fresh-id st = case st of MkStore label next level cells errors numbers in-law depth -> (next, MkStore label (next + 1) level cells errors numbers in-law depth)
 
-  cell :: Nat -> List Cell -> Option Cell
+  cell-tree-first :: CellTree -> Nat
+  cell-tree-first tree = case tree of
+    CellLeaf (MkCell id level kind solution) -> id
+    CellFork first highest current left right -> first
+  cell-tree-level :: CellTree -> Nat
+  cell-tree-level tree = case tree of
+    CellLeaf (MkCell id level kind solution) -> level
+    CellFork first highest current left right -> highest
+  max-cell-level :: Nat -> Nat -> Nat
+  max-cell-level a b = if a > b then a else b
+  cell-fork :: Cell -> CellTree -> CellTree -> CellTree
+  cell-fork current left right = case current of
+    MkCell id level kind solution ->
+      CellFork (cell-tree-first right) (max-cell-level level (max-cell-level (cell-tree-level left) (cell-tree-level right))) current left right
+  push-cell :: Cell -> CellStore -> CellStore
+  push-cell current cells = case cells of
+    CellRun n left (CellRun m right rest) | n == m -> CellRun (n + m + 1) (cell-fork current left right) rest
+    other -> CellRun 1 (CellLeaf current) cells
+  cell-in-tree :: Nat -> CellTree -> Option Cell
+  cell-in-tree id tree = case tree of
+    CellLeaf current -> case current of MkCell key level kind solution -> if id == key then Some current else None
+    CellFork first highest current left right -> case current of
+      MkCell key level kind solution ->
+        if id == key then Some current else if id > key then None
+        else if id < cell-tree-first left then cell-in-tree id right else cell-in-tree id left
+  cell :: Nat -> CellStore -> Option Cell
   cell id cells = case cells of
-    Nil -> None
-    Cons c rest -> case c of MkCell n lev k solution -> if n == id then Some c else cell id rest
+    EmptyCells -> None
+    CellRun size tree rest -> if id < cell-tree-first tree then cell id rest else cell-in-tree id tree
   find-cell :: Nat -> Store -> Option Cell
   find-cell id st = case st of MkStore label next level cells errors numbers in-law depth -> cell id cells
-  replace-cell :: Cell -> List Cell -> List Cell
-  replace-cell replacement cells = case replacement of
-    MkCell id lev k solution -> case cells of
-      Nil -> Cons replacement Nil
-      Cons c rest -> case c of MkCell n l kind old -> if id == n then Cons replacement rest else Cons c (replace-cell replacement rest)
+  replace-cell-in-tree :: Nat -> Cell -> CellTree -> CellTree
+  replace-cell-in-tree id replacement tree = case tree of
+    CellLeaf current -> CellLeaf replacement
+    CellFork first highest current left right -> case current of
+      MkCell key level kind solution ->
+        if id == key then cell-fork replacement left right
+        else if id < cell-tree-first left then cell-fork current left (replace-cell-in-tree id replacement right)
+        else cell-fork current (replace-cell-in-tree id replacement left) right
+  replace-cell :: Nat -> Cell -> CellStore -> CellStore
+  replace-cell id replacement cells = case cells of
+    EmptyCells -> EmptyCells
+    CellRun size tree rest -> if id < cell-tree-first tree then CellRun size tree (replace-cell id replacement rest)
+      else CellRun size (replace-cell-in-tree id replacement tree) rest
+  -- Both callers found this ID in the same store before lowering or solving
+  -- it. Only fresh-meta inserts, and its new ID exceeds all existing IDs.
   put-cell :: Cell -> Store -> Store
-  put-cell c st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level (replace-cell c cells) errors numbers in-law depth
+  put-cell c st = case (c, st) of
+    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth) ->
+      MkStore label next level (replace-cell id c cells) errors numbers in-law depth
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -2369,8 +2417,10 @@ module Bootstrap.Type where
     MkStore label next level cells errors numbers in-law depth ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
       MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth
-  cells-level :: List Cell -> Nat
-  cells-level cells = case cells of Nil -> 0; Cons (MkCell id level kind solution) rest -> let more = cells-level rest in if level > more then level else more
+  cells-level :: CellStore -> Nat
+  cells-level cells = case cells of
+    EmptyCells -> 0
+    CellRun size tree rest -> max-cell-level (cell-tree-level tree) (cells-level rest)
   pi-level :: Store -> Nat
   pi-level st = case st of MkStore label next level cells errors numbers in-law depth -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   -- Two polytypes are equal when their binders agree in number and kind

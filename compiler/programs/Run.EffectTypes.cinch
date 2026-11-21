@@ -49,6 +49,35 @@ module Main where
     (unknown, start) ->
       let rejected = unify sp (row [io unknown, async unknown]) (row [io r, async s]) start in
       not (clean rejected) && (case normalize rejected unknown of UMeta id KRegion -> True; other -> False)
+  sparse-cells :: Nat -> Store -> (List UType, Store)
+  sparse-cells remaining st = if remaining == 0 then (Nil, st) else
+    let (gap, skipped) = fresh-id st in
+    let (meta, next) = fresh-meta KType skipped in
+    let (others, done) = sparse-cells (remaining - 1) next in
+    (Cons meta others, done)
+  solve-cells :: UType -> List UType -> Store -> Store
+  solve-cells ty metas st = case metas of
+    Nil -> st
+    Cons meta rest -> solve-cells ty rest (unify sp meta ty st)
+  cells-match :: Store -> Store -> UType -> List UType -> Bool
+  cells-match original solved ty metas = case metas of
+    Nil -> True
+    Cons meta rest -> same-shape (normalize original meta) meta && same-shape (normalize solved meta) ty
+      && cells-match original solved ty rest
+  cell-snapshots :: Nat -> Bool
+  cell-snapshots n =
+    let (oldest, first) = fresh-meta KType (empty-store "cell snapshots") in
+    let (gap, skipped) = fresh-id first in
+    let (more, original) = sparse-cells n skipped in
+    let metas = Cons oldest more in
+    let nat = UCon "Nat" KType in
+    let int = UCon "Int" KType in
+    let left = solve-cells nat metas original in
+    let right = solve-cells int (reverse metas) original in
+    clean left && clean right && cells-match original left nat metas && cells-match original right int metas
+      && not (clean (unify sp (UMeta gap KType) nat original))
+      && not (clean (unify sp (UMeta gap KType) nat left))
+      && not (clean (unify sp (UMeta gap KType) int right))
   coalescing :: UType -> UType -> Bool
   coalescing r s = case fresh-meta KRegion (empty-store "effect-types") of
     (a, first) -> case fresh-meta KRegion first of
@@ -177,6 +206,7 @@ module Main where
     let s = URigid (id + 1) "s" 0 KRegion in
     basic r s && transactional r s && coalescing r s && extend-rows r s && scope-check id && opening r && generalization
       && core-check r && joined-meta r && arrow-application False r && arrow-application True r && open-rows id r s
+      && cell-snapshots (15 + id) && cell-snapshots (64 + id)
 
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
