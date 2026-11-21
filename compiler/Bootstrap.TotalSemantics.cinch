@@ -61,7 +61,7 @@ module Bootstrap.TotalSemantics where
       other -> other)
     else (None, left)
   expanded :: TotalFunction -> Option Json
-  expanded function = case check-total-graph (total-function-document function) of
+  expanded function = case total-function-graph function of
     Some graph -> (case expand graph (formals (total-parameters function) 0) (total-body function) 4096 of (result, remaining) -> result)
     None -> None
   is-local :: Nat -> Json -> Bool

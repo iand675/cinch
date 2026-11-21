@@ -11,7 +11,7 @@ module Bootstrap.Total where
 
   export TotalGraph, TotalFunction, check-total-graph, check-total-function, total-function, total-graph-for-roots
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
-  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-graph, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
@@ -253,6 +253,12 @@ module Bootstrap.Total where
     other -> (case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil)
   total-result :: TotalFunction -> String
   total-result function = case function of MkSourceProjection name domain result steps -> result; other -> text (field "result" (function-row function))
+  -- Only an admitted closed function carries an executable graph.
+  total-function-graph :: TotalFunction -> Option TotalGraph
+  total-function-graph function = case function of
+    MkTotalFunction graph name -> Some graph
+    other -> None
+
   total-function-document :: TotalFunction -> Json
   total-function-document function = case function of
     MkTotalFunction graph name -> total-document graph
