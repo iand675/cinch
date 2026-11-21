@@ -17610,23 +17610,48 @@ impl Checker {
             }).collect(),
         }
     }
+}
 
+struct InterfaceMembers<'a> {
+    instances: HashMap<&'a str, Vec<&'a InstanceInfo>>,
+    definitions: HashMap<&'a GlobalId, &'a InstanceDef>,
+    fixities: HashMap<(&'a str, &'a str), &'a crate::interface::FixityExport>,
+}
+
+impl<'a> InterfaceMembers<'a> {
+    fn new(checker: &'a Checker) -> Self {
+        let mut instances = HashMap::<&str, Vec<_>>::new();
+        for instance in &checker.instance_list {
+            instances.entry(&instance.module).or_default().push(instance);
+        }
+        let mut definitions = HashMap::new();
+        for definition in &checker.instance_defs {
+            definitions.entry(&definition.id).or_insert(definition);
+        }
+        let mut fixities = HashMap::new();
+        for (owner, fixity) in &checker.module_fixities {
+            fixities.entry((owner.as_str(), fixity.op.as_str())).or_insert(fixity);
+        }
+        Self { instances, definitions, fixities }
+    }
+}
+
+struct InterfacePlan<'a> {
+    module: &'a ast::Module,
+    imports: Vec<String>,
+    draft: Option<(crate::interface::Iface, std::collections::BTreeSet<String>)>,
+}
+
+impl Checker {
     /// Build one module's `.cinchif` content (design note, section 2).
     fn module_iface(
         &self,
         module: &str,
-        source_hash: &str,
-        imports: &[(String, String)],
+        members: &InterfaceMembers<'_>,
         built: &HashMap<String, String>,
     ) -> crate::interface::Iface {
         use crate::interface::*;
-        let mut iface = Iface::new(module, source_hash);
-        for (m, h) in imports {
-            iface.imports.push(IfaceRef {
-                module: m.clone(),
-                iface_hash: h.clone(),
-            });
-        }
+        let mut iface = Iface::new(module, "");
         // The export surface (surface grammar local amendments section
         // 11): with `export` declarations exactly the names their items
         // resolve to, re-exports included; the declared names as before
@@ -17852,10 +17877,7 @@ impl Checker {
                 iface.exports.signatures.push(self.interface_signature(signature, &surface));
             }
         }
-        for i in &self.instance_list {
-            if i.module != module {
-                continue;
-            }
+        for i in members.instances.get(module).into_iter().flatten() {
             // Family heads may refer forward to class homes, including
             // cycles through the shared family. The current per-module
             // hash protocol cannot publish those forward dependencies;
@@ -17888,7 +17910,7 @@ impl Checker {
                     })
                 }).collect(),
                 ctx: context,
-                methods: self.instance_defs.iter().find(|definition| definition.id == i.base_id)
+                methods: members.definitions.get(&i.base_id)
                     .map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect()).unwrap_or_default(),
                 implicit: i.implicit,
             });
@@ -17950,9 +17972,7 @@ impl Checker {
             }
         }
         for (local, definition) in &surface {
-            if let Some((_, fixity)) = self.module_fixities.iter().find(|(owner, fixity)| {
-                owner == &definition.module && fixity.op == definition.name
-            }) {
+            if let Some(&fixity) = members.fixities.get(&(definition.module.as_str(), definition.name.as_str())) {
                 let mut exported = fixity.clone();
                 exported.op = local.clone();
                 iface.exports.fixities.push(exported);
@@ -18096,10 +18116,11 @@ fn interface_nominal_dependencies(
 // on their own Prelude facade merely because their source is on disk.
 fn interface_module_order<'a>(
     checker: &Checker,
+    members: &InterfaceMembers<'_>,
     prelude: &'a [ast::Module],
     modules: &'a [ast::Module],
     facade: &str,
-) -> Result<Vec<(&'a ast::Module, Vec<String>)>> {
+) -> Result<Vec<InterfacePlan<'a>>> {
     let family_names: std::collections::BTreeSet<&str> =
         prelude.iter().map(|m| m.name.text.as_str()).collect();
     let mut sources_by_name = HashMap::new();
@@ -18117,7 +18138,7 @@ fn interface_module_order<'a>(
             .iter()
             .filter(|m| !family_names.contains(m.name.text.as_str())),
     );
-    let plans: Vec<(&ast::Module, Vec<String>)> = preferred
+    let plans: Vec<InterfacePlan<'_>> = preferred
         .into_iter()
         .map(|module| -> Result<_> {
             let mut imports = imports_of(module);
@@ -18141,23 +18162,31 @@ fn interface_module_order<'a>(
             // Probe with no prior homes: cyclic/forward instance heads remain
             // explicitly nonportable. Required value, constructor and class
             // contracts still determine their complete defining dependencies.
-            let contract = checker.module_iface(&module.name.text, "", &[], &Default::default());
-            for dependency in interface_nominal_dependencies(&contract)? {
-                if !imports.contains(&dependency) {
-                    imports.push(dependency);
+            let contract = checker.module_iface(&module.name.text, members, &HashMap::new());
+            let nominal_dependencies = interface_nominal_dependencies(&contract)?;
+            for dependency in &nominal_dependencies {
+                if !imports.contains(dependency) {
+                    imports.push(dependency.clone());
                 }
             }
-            Ok((module, imports))
+            // Only locally owned instance heads depend on which interfaces
+            // have already been published. Reuse the probe everywhere else.
+            let draft = if members.instances.contains_key(module.name.text.as_str()) {
+                None
+            } else {
+                Some((contract, nominal_dependencies))
+            };
+            Ok(InterfacePlan { module, imports, draft })
         })
         .collect::<Result<_>>()?;
     let positions: HashMap<String, usize> = plans
         .iter()
         .enumerate()
-        .map(|(index, (module, _))| (module.name.text.clone(), index))
+        .map(|(index, plan)| (plan.module.name.text.clone(), index))
         .collect();
     fn visit(
         index: usize,
-        plans: &[(&ast::Module, Vec<String>)],
+        plans: &[InterfacePlan<'_>],
         positions: &HashMap<String, usize>,
         state: &mut [u8],
         ordered: &mut Vec<usize>,
@@ -18167,14 +18196,14 @@ fn interface_module_order<'a>(
             1 => {
                 return Err(Error::plain(format!(
                     "interface import cycle through {}",
-                    plans[index].0.name.text
+                    plans[index].module.name.text
                 )))
             }
             _ => {}
         }
         state[index] = 1;
-        for dependency in &plans[index].1 {
-            if dependency == &plans[index].0.name.text {
+        for dependency in &plans[index].imports {
+            if dependency == &plans[index].module.name.text {
                 continue;
             }
             if let Some(&next) = positions.get(dependency) {
@@ -18190,10 +18219,8 @@ fn interface_module_order<'a>(
     for index in 0..plans.len() {
         visit(index, &plans, &positions, &mut state, &mut ordered)?;
     }
-    Ok(ordered
-        .into_iter()
-        .map(|index| plans[index].clone())
-        .collect())
+    let mut plans: Vec<_> = plans.into_iter().map(Some).collect();
+    Ok(ordered.into_iter().map(|index| plans[index].take().unwrap()).collect())
 }
 
 /// Check a program of one or more modules and elaborate it. `modules` is in
@@ -18890,25 +18917,29 @@ fn check_program_multi_full_prepared_impl(
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
     let mut built: HashMap<String, String> = HashMap::new(); // module -> iface_hash
-    let mut emit = |c: &Checker, module: &str, imports: &[String]| -> Result<()> {
-        let mut refs: Vec<(String, String)> = Vec::new();
-        for i in imports {
-            if refs.iter().any(|(m, _)| m == i) {
+    let members = InterfaceMembers::new(&c);
+    for plan in interface_module_order(&c, &members, prelude, modules, &prelude_name)? {
+        let module = plan.module.name.text.as_str();
+        let (mut iface, nominal_dependencies) = match plan.draft {
+            Some(draft) => draft,
+            None => {
+                let iface = c.module_iface(module, &members, &built);
+                let deps = interface_nominal_dependencies(&iface)?;
+                (iface, deps)
+            }
+        };
+        iface.source_hash = source_hashes.get(module).cloned().unwrap_or_default();
+        for i in plan.imports {
+            if iface.imports.iter().any(|r| r.module == i) {
                 continue;
             }
-            if let Some(h) = built.get(i) {
-                refs.push((i.clone(), h.clone()));
+            if let Some(h) = built.get(&i) {
+                iface.imports.push(crate::interface::IfaceRef { module: i, iface_hash: h.clone() });
             }
         }
-        let source_hash = source_hashes
-            .get(module)
-            .cloned()
-            .unwrap_or_default();
-        let mut iface = c.module_iface(module, &source_hash, &refs, &built);
         // The embedded family can see earlier kernel declarations even
         // without a source import. Their nominal contracts are consumed
         // dependencies too: publish the exact checked-against identities.
-        let nominal_dependencies = interface_nominal_dependencies(&iface)?;
         for owner in nominal_dependencies {
             if iface.imports.iter().any(|r| r.module == owner) { continue }
             let hash = built.get(&owner).cloned()
@@ -18918,10 +18949,6 @@ fn check_program_multi_full_prepared_impl(
         let hash = iface.iface_hash();
         built.entry(module.to_string()).or_insert(hash);
         ifaces.push(iface);
-        Ok(())
-    };
-    for (module, imports) in interface_module_order(&c, prelude, modules, &prelude_name)? {
-        emit(&c, &module.name.text, &imports)?;
     }
     trace_checker_phase(phase_trace, "prepare", "interfaces.end", None);
     let diags = std::mem::take(&mut c.diags);
