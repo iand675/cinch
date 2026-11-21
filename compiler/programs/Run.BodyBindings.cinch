@@ -6,6 +6,7 @@ module Main where
   import Bootstrap.Typing
   import Bootstrap.BodyContract
   import Bootstrap.Total
+  import Data.Json
   import Text.Lex (Span)
   import Text.Json (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -95,6 +96,46 @@ module Main where
             && not (core-definition-contracts-closed [binding, conflict] Nil plain)
             && body-type-authorized (body-bindings-members context) observed
           None -> False)
+  compatible-index :: List TotalFunction -> TotalCompatibility -> Bool
+  compatible-index functions context = case functions of
+    Nil -> True
+    Cons first rest -> case extend-total-compatibility first context of
+      Some next -> compatible-index rest next
+      None -> False
+  compare-with :: TotalFunction -> List TotalFunction -> Bool
+  compare-with first rest = case rest of
+    Nil -> True
+    Cons next more -> total-functions-compatible first next && compare-with first more
+  compare-pairs :: List TotalFunction -> Bool
+  compare-pairs functions = case functions of
+    Nil -> True
+    Cons first rest -> compare-with first rest && compare-pairs rest
+  compare-index-tail :: TotalFunction -> TotalFunction -> List TotalFunction -> Bool
+  compare-index-tail first second candidates = case candidates of
+    Nil -> True
+    Cons third more -> let test = [first, second, third] in
+      compatible-index test empty-total-compatibility == compare-pairs test
+        && compare-index-tail first second more
+  compare-index-middle :: TotalFunction -> List TotalFunction -> List TotalFunction -> Bool
+  compare-index-middle first all remaining = case remaining of
+    Nil -> True
+    Cons second rest -> compare-index-tail first second all && compare-index-middle first all rest
+  compare-index :: List TotalFunction -> List TotalFunction -> Bool
+  compare-index all remaining = case remaining of
+    Nil -> True
+    Cons first rest -> compare-index-middle first all all && compare-index all rest
+  compatibility-matrix :: TotalFunction -> TotalFunction -> Bool
+  compatibility-matrix graph changed =
+    let name = total-identity graph in
+    case (source-field-projection name "Wrapped" "Nat" [("Wrap", 0)],
+          source-field-projection name "Wrapped" "Nat" [("Wrap", 1)],
+          read-keyed-ordering name (JObj "less_slot" (JNum 0) (JObj "greater_slot" (JNum 1) JObjEnd)),
+          read-keyed-ordering name (JObj "less_slot" (JNum 1) (JObj "greater_slot" (JNum 0) JObjEnd)),
+          source-field-projection "otherview" "Wrapped" "Nat" [("Wrap", 0)]) of
+      (Some projection, Some otherfield, Some ordering, Some reversed, Some disjoint) ->
+        let cases = [graph, changed, projection, otherfield, ordering, reversed, disjoint] in
+        compare-index cases cases
+      other -> False
   checks :: Nat -> TotalFunction -> TotalFunction -> List Bool
   checks id function changed =
     let original = mono (UFun nat (bounded (id + 10) 1 4)) in
@@ -108,6 +149,7 @@ module Main where
         , hypothesis-bounds id binding next
         , argument-identity id binding
         , checked-context-authority id binding next
+        , compatibility-matrix function changed
         , missing (check-body-binding "width" "Main.other" "external" original function)
         , missing (check-body-binding "width" "Main.width" "external" original changed)
         , missing (check-body-binding "width" "Main.width" "external" (mono (UFun int nat)) function)

@@ -14,6 +14,7 @@ module Bootstrap.Total where
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
+  export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
@@ -326,6 +327,48 @@ module Bootstrap.Total where
   projection-compatible projection graph = case find (total-identity projection) (field "definitions" (total-function-document graph)) of
     None -> True
     Some row -> False
+
+  -- Checked graph rows sharing an identity must agree byte for byte. A
+  -- projection or keyed ordering excludes a graph row with its identity.
+  -- Projection and ordering descriptors only compare within their own kind.
+  data TotalCompatibility where
+    CheckedTotalCompatibility :: HashMap String Bytes -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
+  empty-total-compatibility :: TotalCompatibility
+  empty-total-compatibility = CheckedTotalCompatibility hash-map-empty hash-map-empty hash-map-empty
+  remember-descriptor :: TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalFunction)
+  remember-descriptor function descriptors = let name = total-identity function in
+    case hash-map-lookup name descriptors of
+      None -> Some (hash-map-insert name function descriptors)
+      Some old -> if total-function-equal old function then Some descriptors else None
+  remember-graph-rows :: Json -> HashMap String Bytes -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String Bytes)
+  remember-graph-rows rows known projections orderings = case rows of
+    JArr row rest ->
+      let name = text (field "identity" row) in
+      case (hash-map-lookup name projections, hash-map-lookup name orderings) of
+        (None, None) ->
+          let bytes = canonical-bytes row in
+          case hash-map-lookup name known of
+            None -> remember-graph-rows rest (hash-map-insert name bytes known) projections orderings
+            Some prior -> if bytes-compare bytes prior == 0 then remember-graph-rows rest known projections orderings else None
+        other -> None
+    JArrEnd -> Some known
+    other -> None
+  extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
+  extend-total-compatibility function context = case context of
+    CheckedTotalCompatibility rows projections orderings -> case function of
+      MkTotalFunction (MkTotalGraph doc) name -> (case remember-graph-rows (field "definitions" doc) rows projections orderings of
+        Some known -> Some (CheckedTotalCompatibility known projections orderings)
+        None -> None)
+      MkSourceProjection name domain result steps -> (case hash-map-lookup name rows of
+        Some row -> None
+        None -> (case remember-descriptor function projections of
+          Some known -> Some (CheckedTotalCompatibility rows known orderings)
+          None -> None))
+      MkKeyedOrdering name less greater -> (case hash-map-lookup name rows of
+        Some row -> None
+        None -> (case remember-descriptor function orderings of
+          Some known -> Some (CheckedTotalCompatibility rows projections known)
+          None -> None))
 
   total-decimal-value :: String -> Option Int
   total-decimal-value text = decimal-value text

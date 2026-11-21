@@ -12,6 +12,7 @@ module Bootstrap.BodyContract where
   import Bootstrap.Load (LoadedInterface, InterfaceSet, loaded-contract, interface-set-members, interface-set-body, loaded-entry)
   import Bootstrap.Nominal (interface-global, kernel-type-name, resolved-text, global-data-ordering-ordering, global-relation-ord-ord)
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -233,30 +234,45 @@ module Bootstrap.BodyContract where
   body-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (binding-name first) then Some first else body-binding name rest
   body-function :: TotalFunction -> List BodyBinding -> Option BodyBinding
   body-function function bindings = case bindings of Nil -> None; Cons first rest -> if total-function-equal function (binding-function first) then Some first else body-function function rest
-  -- A closed context is immutable and cannot be forged by clients. Check
-  -- compatibility once, then carry this handle through proof/typing scopes.
+  -- The member order feeds proof lookup and export. The indexes check
+  -- names and graph rows during construction without changing that order.
   data BodyBindings where
-    CheckedBodyBindings :: List BodyBinding -> BodyBindings
+    CheckedBodyBindings :: List BodyBinding -> HashMap String BodyBinding -> HashMap String TotalFunction -> TotalCompatibility -> BodyBindings
   empty-body-bindings :: BodyBindings
-  empty-body-bindings = CheckedBodyBindings Nil
+  empty-body-bindings = CheckedBodyBindings Nil hash-map-empty hash-map-empty empty-total-compatibility
   body-bindings-members :: BodyBindings -> List BodyBinding
-  body-bindings-members context = case context of CheckedBodyBindings members -> members
+  body-bindings-members context = case context of CheckedBodyBindings members names natives total -> members
   check-body-bindings :: List BodyBinding -> Option BodyBindings
-  check-body-bindings members = if body-bindings-closed members then Some (CheckedBodyBindings members) else None
+  check-body-bindings members =
+    case check-body-bindings-into members empty-body-bindings of
+      Some (CheckedBodyBindings reversed names natives total) -> Some (CheckedBodyBindings members names natives total)
+      None -> None
+  check-body-bindings-into :: List BodyBinding -> BodyBindings -> Option BodyBindings
+  check-body-bindings-into remaining context = case remaining of
+    Nil -> Some context
+    Cons first rest -> case context of
+      CheckedBodyBindings members names natives total -> (case hash-map-lookup (binding-name first) names of
+        Some prior -> None
+        None -> (case insert-body-binding first context of
+          Some checked -> check-body-bindings-into rest checked
+          None -> None))
   extend-body-bindings :: BodyBinding -> BodyBindings -> Option BodyBindings
-  extend-body-bindings binding context = case body-binding (binding-name binding) (body-bindings-members context) of
-    Some prior -> if binding-equal prior binding then Some context else None
-    None -> if compatible binding (body-bindings-members context) then Some (CheckedBodyBindings (Cons binding (body-bindings-members context))) else None
-
-  compatible :: BodyBinding -> List BodyBinding -> Bool
-  compatible binding bindings = case bindings of
-    Nil -> True
-    Cons first rest -> not (same (binding-name first) (binding-name binding))
-      && total-functions-compatible (binding-function first) (binding-function binding)
-      && (not (same (binding-native first) (binding-native binding)) || total-function-equal (binding-function first) (binding-function binding))
-      && compatible binding rest
+  extend-body-bindings binding context = case context of
+    CheckedBodyBindings members names natives total -> case hash-map-lookup (binding-name binding) names of
+      Some prior -> if binding-equal prior binding then Some context else None
+      None -> insert-body-binding binding context
+  insert-body-binding :: BodyBinding -> BodyBindings -> Option BodyBindings
+  insert-body-binding binding context = case context of
+    CheckedBodyBindings members names natives total ->
+      let native = binding-native binding in
+      let function = binding-function binding in
+      let matches = case hash-map-lookup native natives of None -> True; Some prior -> total-function-equal prior function in
+      if not matches then None else (case extend-total-compatibility function total of
+        None -> None
+        Some checked -> Some (CheckedBodyBindings (Cons binding members) (hash-map-insert (binding-name binding) binding names)
+          (hash-map-insert native function natives) checked))
   body-bindings-closed :: List BodyBinding -> Bool
-  body-bindings-closed bindings = case bindings of Nil -> True; Cons first rest -> compatible first rest && body-bindings-closed rest
+  body-bindings-closed bindings = case check-body-bindings bindings of Some checked -> True; None -> False
 
   -- Carrier trees may contain calls too. Every claim is compared with the
   -- actual context's function, not merely a body graph supplied by the type.
