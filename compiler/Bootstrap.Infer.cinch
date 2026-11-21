@@ -665,7 +665,7 @@ module Bootstrap.Infer where
         (qs, prepared) -> case abstract-refinement-ids qs of
           Some ids -> case instantiate-refinement sp kinds (quant-locals qs) binder predicate prepared of
             (body, checked) -> let former = URefineFormer name ids body in
-              if list-length (store-errors checked) == list-length (store-errors st) && valid-type former then (Some former, checked)
+              if store-error-count checked == store-error-count st && valid-type former then (Some former, checked)
               else (None, st)
           None -> (None, st)
   abstract-refinement-ids :: List Quant -> Option (List Nat)
@@ -1005,7 +1005,7 @@ module Bootstrap.Infer where
   reject-byte-application :: List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
   reject-byte-application locals sp argument st = case known-observation-input-type locals argument of
     Some carrier -> let checked = unify sp (predicate-base-carrier carrier) (primitive-type "Bytes") st in
-      if list-length (store-errors checked) > list-length (store-errors st) then (UError, checked)
+      if store-error-count checked > store-error-count st then (UError, checked)
       else bad sp "byte observation input needs checked pure total reification" checked
     None -> bad sp "byte observation input needs checked pure total reification" st
   convert-byte-length :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
@@ -2007,7 +2007,7 @@ module Bootstrap.Infer where
             (wanted, ready) -> case make-scheme False classes context Nil (kernel-canonical-type cached) ready of
               (foreign-scheme, checked) ->
                 let matched = check-mvar-kernel-scheme sp actual wanted (check-mvar-kernel-scheme sp foreign-scheme wanted checked) in
-                if list-length (store-errors matched) > list-length (store-errors checked) then (env, matched) else case lookup-binding name env of
+                if store-error-count matched > store-error-count checked then (env, matched) else case lookup-binding name env of
                   Some prior -> (env, add-error sp "duplicate imported MVar binding" matched)
                   None -> (Cons (MkIntrinsicBinding name actual symbol) env, matched))
           other -> (env, add-error sp "invalid imported MVar scheme cache" st))
@@ -3457,7 +3457,7 @@ module Bootstrap.Infer where
           else case lookup-binding name env of
             Some prior -> (env, add-error sp "duplicate intrinsic binding" ready)
             None -> let matched = unify sp (scheme-body actual) (scheme-body wanted) ready in
-              if list-length (store-errors matched) > list-length (store-errors ready) then
+              if store-error-count matched > store-error-count ready then
                 (env, add-error sp "array intrinsic does not match its checked polymorphic kernel scheme" matched)
               else (Cons (MkIntrinsicBinding name actual symbol) env, matched))
       other -> (env, add-error sp "invalid array kernel intrinsic contract" checked)
@@ -3467,7 +3467,7 @@ module Bootstrap.Infer where
     (actual, checked) -> case parse-scheme symbol (string-to-bytes canonical) of
       Parsed expected Nil -> (case make-scheme False classes kinds Nil (kernel-canonical-type expected) checked of
         (wanted, ready) -> let matched = check-mvar-kernel-scheme sp actual wanted ready in
-          if list-length (store-errors matched) > list-length (store-errors ready) then (env, matched)
+          if store-error-count matched > store-error-count ready then (env, matched)
           else case lookup-binding name env of
             Some prior -> (env, add-error sp "duplicate MVar intrinsic binding" matched)
             None -> (Cons (MkIntrinsicBinding name actual symbol) env, matched))
@@ -3586,7 +3586,7 @@ module Bootstrap.Infer where
     (row, opened) -> case check classes kinds families env locals input (UFunEff (primitive-type "Unit") row carrier) opened of
       (callback, checked) ->
         let pure = unify sp row (URow UEnd) checked in
-        if list-length (store-errors pure) > list-length (store-errors checked) then
+        if store-error-count pure > store-error-count checked then
           term-error sp "a `delay` building a `Later` must be pure" checked
         else (CPrimitive sp (later-type carrier) "thunk-delay" (CArgument sp callback (CArgumentsEnd sp)), pure)
   task-syntax-name :: String -> Bool
@@ -4377,7 +4377,7 @@ module Bootstrap.Infer where
             (body, checked) ->
               let restored = restore-level outer checked in
               let pure = include-effects sp (core-effects body) (URow UEnd) restored in
-              if list-length (store-errors pure) > list-length (store-errors restored) then
+              if store-error-count pure > store-error-count restored then
                 (CPolyIntro sp expected (rigid-ids pairs) body, add-error sp "a polymorphic value must be pure to build: it is built once per representation its uses reach" restored)
               else (CPolyIntro sp expected (rigid-ids pairs) body, pure)
     other -> check classes kinds families env locals expr expected st
@@ -4596,10 +4596,10 @@ module Bootstrap.Infer where
     Nil -> let actual = normalize st ty in if result-mentions-binder binders actual then st else (case normalize st expected of
       UMeta id kind -> st
       other -> let hinted = hint-result-types sp actual other st in
-        if list-length (store-errors hinted) == list-length (store-errors st) then hinted
+        if store-error-count hinted == store-error-count st then hinted
         else (case refinement-view actual of
           URefine id name carrier predicate -> let base = unify sp carrier expected st in
-            if list-length (store-errors base) == list-length (store-errors st) then base else st
+            if store-error-count base == store-error-count st then base else st
           other -> st))
     Cons argument rest -> case arrow-shape (normalize st ty) of
       UPi id name domain row result -> hint-independent-result (Cons id binders) sp result rest expected st
@@ -4799,13 +4799,13 @@ module Bootstrap.Infer where
       else introduce-refinement env sp expected term (unify sp (core-type term) carrier st)
     other -> case refinement-view (normalize st (core-type term)) of
       URefine id name domain predicate -> let direct = unify sp (core-type term) expected st in
-        if list-length (store-errors direct) == list-length (store-errors st) then (term, direct)
+        if store-error-count direct == store-error-count st then (term, direct)
         else (case term of
           CLocal at ty local display Nil -> introduce-refinement env sp expected (CForget sp domain term) (unify sp domain carrier st)
           other -> materialize-refinement env sp expected carrier term st)
       other -> let unified = unify sp (core-type term) carrier st in
         case introduce-refinement env sp expected term unified of
-          (result, done) -> if list-length (store-errors done) == list-length (store-errors unified) || not (certified-arithmetic-operand term) then (result, done)
+          (result, done) -> if store-error-count done == store-error-count unified || not (certified-arithmetic-operand term) then (result, done)
             -- Arithmetic over a certified Nat subtraction has no type-level
             -- index (truncating subtraction is not one), but bound once its
             -- value has the checked let equation that states it exactly.
@@ -5375,7 +5375,7 @@ module Bootstrap.Infer where
     UArg first rest ->
       let next = case (source-effect-head label, source-effect-head first) of
             (Some wanted, Some actual) -> if same wanted actual then
-              (let trial = unify sp label first st in if list-length (store-errors trial) == list-length (store-errors st) then trial else st)
+              (let trial = unify sp label first st in if store-error-count trial == store-error-count st then trial else st)
               else st
             other -> st in
       align-handler-labels sp label rest next
@@ -6276,7 +6276,7 @@ module Bootstrap.Infer where
       (result, ready) ->
         let expected = UFunEff (scope-type owner region) row result in
         (case check classes kinds families env locals callback expected ready of
-          (checked, done) -> list-length (store-errors done) == list-length (store-errors st)
+          (checked, done) -> store-error-count done == store-error-count st
             && not (scope-region-closed region (normalize done result)))
   infer-task-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-task-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
@@ -6290,7 +6290,7 @@ module Bootstrap.Infer where
                   let expected = UFunEff (scope-type owner region) row result in
                   case check classes kinds families env locals body expected inner of
                     (callback, done) ->
-                      let failed = list-length (store-errors done) > list-length (store-errors inner) in
+                      let failed = store-error-count done > store-error-count inner in
                       let escapes = (not (scope-region-closed region (normalize done result))
                         || (failed && inferred-scope-result-escapes classes kinds families env locals body owner region row inner)) in
                       if escapes then term-error sp "region escape: a value leaves its `withScope`" (restore-level level inner)
@@ -6565,7 +6565,7 @@ module Bootstrap.Infer where
       None -> (Err (string-concat-all ["the prelude's ", home, ".", name, " is unavailable (parMap lowers through it)"]), st)
       Some binding -> case lookup-value sp (source-global home name) env st of
         (function, one) -> (case apply-checked-runtime classes sp env function argument one of
-          (applied, two) -> if list-length (store-errors two) > list-length (store-errors one)
+          (applied, two) -> if store-error-count two > store-error-count one
             then (Err (string-concat-all ["parMap could not apply the prelude's ", home, ".", name]), two)
             else (Ok applied, two))
 
@@ -7058,7 +7058,7 @@ module Bootstrap.Infer where
             other -> ss) in
           let checked = include-effects site performed allowed ready in
           let finished = (case reversed of
-            Nil -> if list-length (store-errors checked) > list-length (store-errors ss) then
+            Nil -> if store-error-count checked > store-error-count ss then
               add-error site "a nullary definition must be pure" checked else checked
             other -> checked) in
           (patterns, rhs, finished))
@@ -7917,7 +7917,7 @@ module Bootstrap.Infer where
   check-class-law classes kinds families env description sp name syntax st =
     let parameters = class-params description in
     case make-scheme False classes kinds parameters (law-input-type sp syntax) st of
-      (sc, header) -> if list-length (store-errors header) /= list-length (store-errors st) then header else
+      (sc, header) -> if store-error-count header /= store-error-count st then header else
         let self = applied-family (class-name description) (class-kind description) parameters in
         let scheme = qualified (scheme-params sc) [MkRequirement "#self" self] (scheme-body sc) in
         let level = store-level header in
@@ -7975,17 +7975,17 @@ module Bootstrap.Infer where
     let specialized = MkScheme law-parameters (substitute-bound (law-class-arguments parameters types) (scheme-body header)) in
     let (inputs, law-requirements, law-actuals, opened) = open-qualified True specialized declared in
     let locals = opened-locals law-parameters law-actuals <> law-type-locals parameters types in
-    if list-length (store-errors opened) /= list-length (store-errors st) then ("", restore-level level opened) else
+    if store-error-count opened /= store-error-count st then ("", restore-level level opened) else
       (case unsampled-law-binder families env (normalize opened inputs) opened of
         Some reason -> (unchecked-law reason, restore-level level opened)
         None -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
           (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
-            (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
+            (patterns, Some (first, second), checked) -> if store-error-count checked /= store-error-count st then ("", restore-level level checked) else
               (case resolve-inventory-term False classes (env-inventory env) givens first checked of
                 (left, checked-left) -> case resolve-inventory-term False classes (env-inventory env) givens second checked-left of
                   (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
                     let done = restore-level level checked-right in
-                    if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
+                    if store-error-count done /= store-error-count st then ("", done) else
                       report-finite-law-samples sp (law-diagnostic-owner kinds description) name families env sampler dictionary givens
                         (normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
             (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked))
@@ -8230,7 +8230,7 @@ module Bootstrap.Infer where
           None -> (Nil, add-error sp (string-concat "imported law has unsupported or unscoped syntax: " name) st)
           Some syntax ->
             let checked = check-class-law classes kinds families env description sp name syntax st in
-            if list-length (store-errors checked) /= list-length (store-errors st) then (Nil, checked)
+            if store-error-count checked /= store-error-count st then (Nil, checked)
             else check-law-subjects classes kinds families env description sp name syntax sampler [subject] checked)
     other -> (Nil, st)
 
@@ -9289,7 +9289,7 @@ module Bootstrap.Infer where
     Some actual -> (case refinement-view actual of
       URefine id name base predicate -> predicate-index-value sp carrier (UIndexForget value) st
       other -> let checked = unify sp actual (normalize st carrier) st in
-        if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
+        if store-error-count checked == store-error-count st then checked-typed-source-index sp value checked
         else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
         else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st)
     None -> bad sp "a type cannot be used as a predicate value" st
@@ -9567,7 +9567,7 @@ module Bootstrap.Infer where
         -- scope and only accept the application if all remaining checks
         -- succeed. On failure keep the original reification diagnostic.
         other -> case materialize-dependent classes sp env fun value st of
-          (call, trial) -> if list-length (store-errors trial) == list-length (store-errors st) then (call, trial)
+          (call, trial) -> if store-error-count trial == store-error-count st then (call, trial)
             else (case (normalize st (core-type fun), store-errors st, store-errors trial) of
               (UPi id name domain row (URequire predicates result), Nil, [reason]) ->
                 (CError sp, add-error (diagnostic-span reason) (diagnostic-message reason) checked)
@@ -9734,7 +9734,7 @@ module Bootstrap.Infer where
     Cons (MkConditionalBinding origin name actual-owner actual-slot dictionary head sc guarded) rest ->
       if implicit-method origin && same owner actual-owner && slot == actual-slot then
         let trial = unify sp wanted head st in
-        if list-length (store-errors trial) == list-length (store-errors st)
+        if store-error-count trial == store-error-count st
           && scheme-equivalent (mono (normalize trial member)) (mono (conditional-erasure (scheme-body sc))) then
           (Some (CUse sp (scheme-body sc) name (conditional-role origin) Nil), trial)
         else conditional-function sp owner slot wanted member rest st
@@ -9744,7 +9744,7 @@ module Bootstrap.Infer where
   conditional-prefix classes sp env term st = case term of
     CMethod source ty name owner slot actuals evidence ->
       let (ordinary, trial) = resolve-inventory-term True classes (env-inventory env) (env-givens env) term st in
-      if list-length (store-errors trial) == list-length (store-errors st) then (Some ordinary, trial)
+      if store-error-count trial == store-error-count st then (Some ordinary, trial)
       else (case evidence of
         Cons (CENeeded at wanted candidates) rest -> if list-length (free-metas st wanted) == 0 then conditional-function sp owner slot (normalize st wanted) (normalize st ty) env st else (None, st)
         other -> (None, st))

@@ -37,7 +37,7 @@ module Bootstrap.Type where
   export map-scheme-types, open-qualified
   export instantiate-params, map-quant-kinds, has-forall, quant-id-list, quant-names-text, same-quant-kinds, rename-quants, remove-ids
   export pending-number, pending-comparison, default-numbers-for, finish-numbers
-  export Store, empty-store, store-errors, store-level, enter-level, restore-level
+  export Store, empty-store, store-errors, store-error-count, store-level, enter-level, restore-level
   export store-law-scope, with-law-scope
   export store-let-depth, with-let-depth
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
@@ -576,11 +576,15 @@ module Bootstrap.Type where
   data PendingNumber where
     PendingNumber :: Span -> UType -> Int -> PendingNumber
     PendingComparison :: Span -> UType -> List String -> PendingNumber
+  -- Trial unification compares the sizes of immutable diagnostic snapshots.
+  -- Retain the count with the reversed list so trial checks need no traversal.
+  data ErrorLog where
+    MkErrorLog :: Nat -> List Diagnostic -> ErrorLog
   data Store where
-    MkStore :: String -> Nat -> Nat -> List Cell -> List Diagnostic -> List PendingNumber -> Bool -> Nat -> Store
+    MkStore :: String -> Nat -> Nat -> List Cell -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 Nil Nil Nil False 0
+  empty-store label = MkStore label 0 0 Nil (MkErrorLog 0 Nil) Nil False 0
   store-let-depth :: Store -> Nat
   store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth -> depth
   with-let-depth :: Nat -> Store -> Store
@@ -592,7 +596,11 @@ module Bootstrap.Type where
   with-law-scope active st = case st of
     MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors numbers active depth
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells errors numbers in-law depth -> reverse errors
+  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> reverse errors
+  store-error-count :: Store -> Nat
+  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> count
+  prepend-error :: Diagnostic -> ErrorLog -> ErrorLog
+  prepend-error diagnostic log = case log of MkErrorLog count errors -> MkErrorLog (count + 1) (Cons diagnostic errors)
   store-level :: Store -> Nat
   store-level st = case st of MkStore label next level cells errors numbers in-law depth -> level
   enter-level :: Store -> Store
@@ -601,18 +609,18 @@ module Bootstrap.Type where
   restore-level level st = case st of MkStore label next old cells errors numbers in-law depth -> MkStore label next level cells errors numbers in-law depth
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (Cons (MkDiagnostic label sp message) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDiagnostic label sp message) errors) numbers in-law depth
   -- A named diagnostic whose text is built when the report is read. A failed
   -- trial unification discards its whole error list, so a mismatch that is
   -- rolled back pays one closure instead of a rendering.
   add-deferred-error :: Span -> (Unit -> String) -> Store -> Store
   add-deferred-error sp render st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (Cons (MkDeferredDiagnostic label sp render) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDeferredDiagnostic label sp render) errors) numbers in-law depth
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
     let checked = validate-kind-indices (Span 0 0 1 1) k original in
-    if list-length (store-errors checked) > list-length (store-errors original) then (UError, checked)
+    if store-error-count checked > store-error-count original then (UError, checked)
     else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
@@ -1138,7 +1146,7 @@ module Bootstrap.Type where
     Some (MkCell n lev kind solution) ->
       let checked = unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
       let solution-type = normalize checked ty in
-      if list-length (store-errors checked) > list-length (store-errors st) then checked
+      if store-error-count checked > store-error-count st then checked
       else if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
       else if contains-id id (free-metas checked solution-type) then add-error sp "infinite type: inference variable occurs in its own solution" checked
       else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
@@ -1160,7 +1168,7 @@ module Bootstrap.Type where
     let checked = validate-type-indices sp second (validate-type-indices sp first st) in
     let a = normalize checked first in
     let b = normalize checked second in
-    if list-length (store-errors checked) > list-length (store-errors st) then checked
+    if store-error-count checked > store-error-count st then checked
     else case a of
       UError -> checked
       UMeta id k -> bind-meta sp id k b checked
@@ -1240,7 +1248,7 @@ module Bootstrap.Type where
   unify-pure-arrow-application :: Span -> UType -> UType -> UType -> Store -> Store
   unify-pure-arrow-application sp application arrow effects st =
     let pure = unify sp effects (URow UEnd) st in
-    if list-length (store-errors pure) > list-length (store-errors st) then pure
+    if store-error-count pure > store-error-count st then pure
     else unify sp application arrow pure
   -- An unannotated closed decision defaults to Int. The same two numerals
   -- can witness a Nat comparison when both lie in its domain. Keep the
@@ -1297,7 +1305,7 @@ module Bootstrap.Type where
     UPi id name domain row result -> unify-pi sp a (function-pi b) st
     UIndex carrier value -> case b of
       UIndex other right -> let checked = unify sp carrier other st in
-        if list-length (store-errors checked) > list-length (store-errors st) then checked
+        if store-error-count checked > store-error-count st then checked
         else unify-index sp (normalize checked carrier) (resolve-index checked value) (resolve-index checked right) checked
       UIndexConstructor name arrow input -> add-error sp (string-concat (mismatch-message a b) " (index mismatch)") st
       other -> mismatch sp a b st
@@ -1466,7 +1474,7 @@ module Bootstrap.Type where
   match-effect-candidates sp reverse-pass label rest remaining all original-left original-right st = case normalize st remaining of
     UArg candidate more ->
       let trial = unify sp label candidate st in
-      let result = if list-length (store-errors trial) == list-length (store-errors st) then
+      let result = if store-error-count trial == store-error-count st then
             match-effects sp reverse-pass rest all original-left original-right trial else None in
       case result of
         Some solved -> Some solved
@@ -1511,7 +1519,7 @@ module Bootstrap.Type where
     (URowJoin first second, other) -> include-effects sp second allowed (include-effects sp first allowed st)
     (other, URowJoin first second) ->
       let trial = include-effects sp actual first st in
-      if list-length (store-errors trial) == list-length (store-errors st) then trial
+      if store-error-count trial == store-error-count st then trial
       else include-effects sp actual second st
     other -> add-error sp "effect inclusion needs resolved rows" st
 
@@ -2390,7 +2398,7 @@ module Bootstrap.Type where
     (UPi id name domain row result, UPi key other input effects output) ->
       if not (valid-type first && valid-type second) then add-error sp "ill-formed dependent function type" st
       else let checked = unify sp domain input st in
-        if list-length (store-errors checked) > list-length (store-errors st) then checked
+        if store-error-count checked > store-error-count st then checked
         else if not (valid-type (normalize checked first) && valid-type (normalize checked second)) then
           add-error sp "dependent domain inference captures a binder" checked
         else let outer-level = store-level checked in
@@ -2416,7 +2424,7 @@ module Bootstrap.Type where
   open-pi :: Span -> UType -> UType -> Store -> (UType, UType, Store)
   open-pi sp function argument st =
     let checked = validate-type-indices sp argument (validate-type-indices sp function st) in
-    if list-length (store-errors checked) > list-length (store-errors st) then (UError, UError, checked)
+    if store-error-count checked > store-error-count st then (UError, UError, checked)
     else if not (valid-type function && valid-type argument) then (UError, UError, add-error sp "invalid dependent application input" checked)
     else if escapes (store-level checked) (normalize checked function) || escapes (store-level checked) (normalize checked argument) then
       (UError, UError, add-error sp "dependent application escapes its scope" checked)
@@ -2427,7 +2435,7 @@ module Bootstrap.Type where
       let checked = validate-type-indices sp argument st in
       let sorted = if valid-type argument then unify-kind sp (type-kind (normalize checked argument)) (value-kind domain) checked
             else add-error sp "invalid dependent argument index" checked in
-      if list-length (store-errors sorted) > list-length (store-errors st) then (UError, UError, sorted)
+      if store-error-count sorted > store-error-count st then (UError, UError, sorted)
       else if not (valid-type (normalize sorted function)) then
         (UError, UError, add-error sp "dependent domain inference captures a binder" sorted)
       else let pairs = [(id, normalize sorted argument)] in
