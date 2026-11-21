@@ -2,6 +2,7 @@
 -- from the independently loaded interface set, never from this unit inventory.
 module Bootstrap.Object where
   import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
+  import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -362,7 +363,7 @@ module Bootstrap.Object where
   -- `carved` is the manifest's bytes and the spans of its embedded contracts
   -- when `doc` was parsed without them (`carve-contracts`), and `None` when
   -- `doc` holds them.
-  parse-runtime-object-carved :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> Option (Bytes, List (Nat, Nat, Nat)) -> Result String RuntimeObject
+  parse-runtime-object-carved :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> Option (ValidatedInterfaces, Bytes, List (Nat, Nat, Nat)) -> Result String RuntimeObject
   parse-runtime-object-carved reclaim expected-triple interfaces code doc carved =
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
       (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && same expected-triple actual
@@ -372,22 +373,27 @@ module Bootstrap.Object where
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
         JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
-          (case (units (field "units" doc) hash-map-empty, object-contracts interfaces (field "interfaces" doc) carved) of
-            (Ok functions, Ok checked) -> if matching-interfaces interfaces checked then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch"
+          (case (units (field "units" doc) hash-map-empty, object-contracts-match interfaces (field "interfaces" doc) carved) of
+            (Ok functions, Ok matches) -> if matches then Ok (RuntimeObject functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch"
             (Err message, other-files) -> Err message
             (other-units, Err message) -> Err message)
         other -> Err "runtime object has no code identity")
 
-  -- The object's checked interface closure, from the documents the manifest
-  -- holds or from the spans a carved manifest left behind.
-  object-contracts :: List LoadedInterface -> Json -> Option (Bytes, List (Nat, Nat, Nat)) -> Result String (List LoadedInterface)
-  object-contracts interfaces rows carved = case carved of
+  -- Exact membership and bytes give the same closed interface set, including
+  -- its dependency, nominal and body checks, regardless of the row order.
+  object-contracts-match :: List LoadedInterface -> Json -> Option (ValidatedInterfaces, Bytes, List (Nat, Nat, Nat)) -> Result String Bool
+  object-contracts-match interfaces rows carved = case carved of
     None -> (case interface-files rows of
       Err message -> Err message
-      Ok files -> load-object-interfaces-with-known interfaces files)
-    Some (src, spans) -> (case interface-sources src rows 0 spans of
+      Ok files -> (case load-object-interfaces-with-known interfaces files of
+        Err message -> Err message
+        Ok checked -> Ok (matching-interfaces interfaces checked)))
+    Some (validated, src, spans) -> (case interface-sources src rows 0 spans of
       Err message -> Err message
-      Ok sources -> load-object-interface-sources interfaces sources)
+      Ok sources -> if validated-interface-sources-match validated sources then Ok True
+        else (case load-object-interface-sources interfaces sources of
+          Err message -> Err message
+          Ok checked -> Ok (matching-interfaces interfaces checked)))
   -- Each row of a carved manifest with the bytes of the contract it held.
   -- A row and a span belong together by the row's position, so a row whose
   -- contract was not carved (it was not an object) is a mismatch here and
@@ -512,7 +518,7 @@ module Bootstrap.Object where
   -- embedded contract when the read was carved, which is all a client asks
   -- of it (its target). A library build, which writes the closure back out,
   -- uses `read-runtime-object-document`.
-  read-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   read-runtime-object-client-mode reclaim interfaces path = case read-runtime-object-config path of
     Err message -> Err message
     Ok configuration -> admit-runtime-object-client-mode reclaim interfaces configuration
@@ -547,22 +553,24 @@ module Bootstrap.Object where
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
 
-  admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  admit-runtime-object-client-mode reclaim interfaces configuration = case configuration of
-    MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
-      (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
-        (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-          (case admit-carved reclaim expected-triple interfaces code metadata-file metadata of
-            Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
-            None -> admit-runtime-object-mode reclaim interfaces configuration)
-          else admit-runtime-object-mode reclaim interfaces configuration
-        other -> admit-runtime-object-mode reclaim interfaces configuration)
+  admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  admit-runtime-object-client-mode reclaim validated configuration =
+    let interfaces = validated-interfaces-members validated in
+    case configuration of
+      MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
+        (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
+          (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
+            (case admit-carved reclaim expected-triple validated code metadata-file metadata of
+              Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
+              None -> admit-runtime-object-mode reclaim interfaces configuration)
+            else admit-runtime-object-mode reclaim interfaces configuration
+          other -> admit-runtime-object-mode reclaim interfaces configuration)
   -- The carved read, or `None` for the whole one.
-  admit-carved :: Bool -> String -> List LoadedInterface -> Bytes -> String -> Bytes -> Option (RuntimeObject, Json)
-  admit-carved reclaim expected-triple interfaces code metadata-file metadata = case carve-contracts metadata of
+  admit-carved :: Bool -> String -> ValidatedInterfaces -> Bytes -> String -> Bytes -> Option (RuntimeObject, Json)
+  admit-carved reclaim expected-triple validated code metadata-file metadata = case carve-contracts metadata of
     None -> None
     Some (reduced, spans) -> (case parse-json metadata-file reduced of
-      Parsed artifact Nil -> (case parse-runtime-object-carved reclaim expected-triple interfaces code artifact (Some (metadata, spans)) of
+      Parsed artifact Nil -> (case parse-runtime-object-carved reclaim expected-triple (validated-interfaces-members validated) code artifact (Some (validated, metadata, spans)) of
         Ok provider -> Some (provider, artifact)
         Err message -> None)
       other -> None)

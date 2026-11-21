@@ -1,7 +1,7 @@
 -- Read a closed interface set before lexing the source's operator chains.
 module Bootstrap.Inputs where
 
-  import Bootstrap.Load (LoadedInterface, load-interface-set)
+  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members)
   import Data.Json
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -9,7 +9,7 @@ module Bootstrap.Inputs where
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export read-interfaces, embedded-library-home
-  export read-interface-references, load-interface-references
+  export read-interface-references, load-interface-references, read-validated-interfaces
 
   -- Source replacement is reserved for defining homes in the pinned
   -- compiler-owned base package. Ordinary interface collisions still refuse.
@@ -69,12 +69,17 @@ module Bootstrap.Inputs where
         other -> Err "missing interface manifest schema"
       other -> Err "interface manifest is not valid JSON"
 
-  load-interface-references :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List LoadedInterface)
+  load-interface-references :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String ValidatedInterfaces
   load-interface-references inputs = case read-files inputs of
     Err message -> Err message
-    Ok files -> load-interface-set files
+    Ok files -> load-validated-interfaces files
 
-  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
-  read-interfaces path = case read-interface-references path of
+  read-validated-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String ValidatedInterfaces
+  read-validated-interfaces path = case read-interface-references path of
     Err message -> Err message
     Ok inputs -> load-interface-references inputs
+
+  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
+  read-interfaces path = case read-validated-interfaces path of
+    Err message -> Err message
+    Ok checked -> Ok (validated-interfaces-members checked)

@@ -478,6 +478,20 @@ module GuardedNumbers where
     assert_eq!(ran.status.code(), Some(0), "{}", String::from_utf8_lossy(&ran.stderr));
     assert!(String::from_utf8_lossy(&ran.stderr).contains("live=0 immortal=0 leaked=0"));
     println!("closed object client: {}", String::from_utf8_lossy(&ran.stderr).trim());
+
+    // Replacing a contract with an exact copy of another keeps the count
+    // and every remaining hash valid, but does not represent the same set.
+    let mut repeated: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let interfaces = repeated["interfaces"].as_array_mut().unwrap();
+    interfaces[1] = interfaces[0].clone();
+    let repeated_abi = dir.join("repeated-interface.abi.json");
+    let repeated_objects = dir.join("repeated-interface.objects.json");
+    std::fs::write(&repeated_abi, serde_json::to_vec(&repeated).unwrap()).unwrap();
+    configuration(&repeated_objects, &out, &repeated_abi);
+    let rejected = run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &repeated_objects);
+    assert_eq!(rejected.status.code(), Some(7));
+    assert!(common::read_output(&dir, "client.ll.diagnostics").contains("duplicate interface module"));
+
     // A matching file digest authenticates the bytes. The object reader
     // must still reject two physical entries claiming the same symbol.
     let mut duplicate: serde_json::Value = serde_json::from_str(&text).unwrap();

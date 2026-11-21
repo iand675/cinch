@@ -30,6 +30,7 @@ module Bootstrap.Load where
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports, loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
+  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
   export loaded-entry, loaded-private-methods, contract-intrinsic
@@ -1063,9 +1064,79 @@ module Bootstrap.Load where
       Some (i, pending) -> order-interfaces pending (Cons i ordered) (name-set (loaded-module i) done)
 
   load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
-  load-interface-set inputs = case read-set inputs Nil of
+  load-interface-set inputs = case load-validated-interfaces inputs of
     Err message -> Err message
-    Ok loaded -> validate-interface-set loaded
+    Ok checked -> Ok (validated-interfaces-members checked)
+
+  -- Only a successful set check can supply this handle to the object loader.
+  data ValidatedInterfaces where
+    MkValidatedInterfaces :: List LoadedInterface -> ValidatedInterfaces
+  validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
+  validated-interfaces-members checked = case checked of MkValidatedInterfaces members -> members
+  load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
+  load-validated-interfaces inputs = case read-set inputs Nil of
+    Err message -> Err message
+    Ok loaded -> case validate-interface-set loaded of
+      Err message -> Err message
+      Ok ordered -> Ok (MkValidatedInterfaces ordered)
+  validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
+  validated-interface-sources-match checked inputs =
+    let members = validated-interfaces-members checked in
+    let by-name = interface-table members hash-map-empty in
+    let count = list-length members in
+    let input-count = list-length inputs in
+    let extra = input-count == count + 1 in
+    if not (extra || input-count == count) then False else
+      (case match-interface-sources inputs by-name hash-map-empty extra of
+        None -> False
+        Some matched ->
+          -- Class laws consult the first exporter of a global. Replay
+          -- that check against the object's original row order.
+          let index = MkInterfaceIndex matched by-name (global-table matched hash-map-empty) Nil in
+          interface-laws-valid matched index)
+  match-interface-sources :: List (String, String, Bytes) -> HashMap String LoadedInterface -> HashMap String () -> Bool -> Option (List LoadedInterface)
+  match-interface-sources inputs indexed seen extra = case inputs of
+    Nil -> Some Nil
+    Cons (name, hash, bytes) rest -> case (hash-map-lookup name indexed, hash-map-lookup name seen) of
+      (Some member, None) -> (case member of
+        MkLoadedInterface True owner identity doc source values fixes refs entries exports methods ->
+          if same hash identity && bytes-len source > 0 && bytes-compare source bytes == 0 then
+            (case match-interface-sources rest indexed (hash-map-insert name () seen) extra of
+              Some matched -> Some (Cons member matched)
+              None -> None)
+          else None
+        other -> None)
+      (None, None) -> if extra then (case load-interface name hash bytes of
+        Ok member -> if standalone-object-interface member indexed then
+          (case match-interface-sources rest indexed (hash-map-insert name () seen) False of
+            Some matched -> Some (Cons member matched)
+            None -> None)
+          else None
+        Err message -> None)
+        else None
+      other -> None
+  -- The object's private entry may have plain values, but it must add
+  -- no nominal, instance or body authority. A new top-level name cannot
+  -- take over the longest module prefix of an already-owned identity.
+  standalone-object-interface :: LoadedInterface -> HashMap String LoadedInterface -> Bool
+  standalone-object-interface member indexed =
+    let name = loaded-module member in
+    let exports = field "exports" (loaded-contract member) in
+    case (field "types" exports, field "signatures" exports, field "instances" exports,
+          interface-nominals member, interface-body-declarations member) of
+      (JArrEnd, JArrEnd, JArrEnd, Nil, Nil) -> undotted-name (unpack name)
+        && (case verify-refs (loaded-imports member) (MkInterfaceIndex Nil indexed hash-map-empty Nil) of Ok unit -> True; Err message -> False)
+        && plain-object-values (field "values" exports)
+      other -> False
+  undotted-name :: List Char -> Bool
+  undotted-name chars = case chars of
+    Nil -> True
+    Cons first rest -> char-code first /= 46 && undotted-name rest
+  plain-object-values :: Json -> Bool
+  plain-object-values rows = case rows of
+    JArr row rest -> not (has-field "keyed_ordering" row) && plain-object-values rest
+    JArrEnd -> True
+    other -> False
 
   load-interface-set-from-contracts :: List (String, String, Json) -> Result String (List LoadedInterface)
   load-interface-set-from-contracts inputs = case read-contract-set inputs Nil of
@@ -1194,15 +1265,32 @@ module Bootstrap.Load where
         Some owner -> case loaded-entry owner "signature" identity of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
           Some definition -> if same owner-name home || same-contract (signature-contract row) (signature-contract definition)
-            then (case field "laws" definition of
-              JArr first more ->
-                if class-law-references-owned (JArr first more) (reachable-modules [owner-name] ix Nil) ix
-                then verify-signature-contracts home rest reachable ix
-                else Err (string-concat "class law references are outside the defining dependency closure: " identity)
-              other -> verify-signature-contracts home rest reachable ix)
+            then if defining-laws-valid definition owner-name ix then verify-signature-contracts home rest reachable ix
+              else Err (string-concat "class law references are outside the defining dependency closure: " identity)
             else Err (string-concat "conflicting defining signature contract: " identity)
     JArrEnd -> Ok ()
     other -> Err "invalid signature contract table"
+  defining-laws-valid :: Json -> String -> InterfaceIndex -> Bool
+  defining-laws-valid definition owner ix = case field "laws" definition of
+    JArr first more -> class-law-references-owned (JArr first more) (reachable-modules [owner] ix Nil) ix
+    other -> True
+  signature-laws-valid :: Json -> InterfaceIndex -> Bool
+  signature-laws-valid rows ix = case rows of
+    JArr row rest ->
+      let identity = text (field "identity" row) in
+      let owner = nominal-owner identity in
+      case interface-by-name ix owner of
+        Some home -> (case loaded-entry home "signature" identity of
+          Some definition -> defining-laws-valid definition owner ix && signature-laws-valid rest ix
+          None -> False)
+        None -> False
+    JArrEnd -> True
+    other -> False
+  interface-laws-valid :: List LoadedInterface -> InterfaceIndex -> Bool
+  interface-laws-valid interfaces ix = case interfaces of
+    Nil -> True
+    Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (loaded-contract first))) ix
+      && interface-laws-valid rest ix
   signature-owner-valid :: String -> String -> Json -> InterfaceIndex -> Bool
   signature-owner-valid home owner-name row ix =
     let identity = text (field "identity" row) in
