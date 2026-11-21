@@ -4,9 +4,10 @@ module Main where
   import Bootstrap.Core
   import Bootstrap.Global
   import Bootstrap.BodyContract
-  import Bootstrap.Total (total-body)
+  import Bootstrap.Total (total-body, total-function-document)
   import Data.Json
   import Text.Lex (Span)
+  import Text.Show (nat-to-string)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
   sp :: Span
@@ -54,6 +55,20 @@ module Main where
         ]
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  branch-name :: Nat -> String
+  branch-name level = "branch" <> nat-to-string level
+  shared-branches :: Nat -> Nat -> List CoreDefinition
+  shared-branches id level = if level == 0 then [definition (branch-name 0) id (local id)] else
+    let previous = level - 1 in
+    let call = CApply sp nat (CUse sp arrow (branch-name previous) "value" Nil) (local id) in
+    let sum = CPrimitive sp nat "+" (CArgument sp call (CArgument sp call (CArgumentsEnd sp))) in
+    Cons (definition (branch-name level) id sum) (shared-branches (id + 1) previous)
+  row-count :: Json -> Nat
+  row-count rows = case rows of JArr row rest -> 1 + row-count rest; other -> 0
+  shared-dependency-check :: Nat -> Bool
+  shared-dependency-check id = case core-source-body Nil (shared-branches id 16) Nil (branch-name 16) of
+    Some body -> row-count (field "definitions" (total-function-document (binding-function body))) == 17
+    None -> False
   second-slot :: BodyBinding -> Bool
   second-slot body = case (field "node" (total-body (binding-function body)), field "slot" (total-body (binding-function body))) of
     (JStr node, JNum slot) -> string-compare node "local" == 0 && slot == 1
@@ -69,5 +84,5 @@ module Main where
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
     Ok nonce -> let id = bytes-len nonce + 340282366920938463463374607431768211456 in
-      verdict (identity-checks id <> dependency-checks id <> [wildcard-check id]) 1
+      verdict (identity-checks id <> dependency-checks id <> [wildcard-check id, shared-dependency-check id]) 1
     Err error -> 90

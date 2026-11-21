@@ -3960,33 +3960,37 @@ module Bootstrap.Core where
   total-core-table :: List Json -> Option (List Json)
   total-core-table rows = total-core-collapse (total-core-ordered rows)
 
-  -- The gather, accumulating the reversed table so the walk stays linear.
-  --
-  -- The rows come back reversed and are flipped once, because the duplicate
-  -- rule keeps the FIRST gathered row of an identity group: reversing the
-  -- accumulator before the stable sort is what makes "first gathered" mean
-  -- what it meant when each row was inserted in turn.
+  -- Visit each resolved name once per closure. The active path still
+  -- detects cycles, and completed names can be reused by later branches.
+  -- Keep the first visit's row order so the stable sort and collapse still
+  -- compare distinct rows that carry the same native identity.
   total-core-gather :: List BodyBinding -> TotalCoreIndex -> String -> Option (List Json)
-  total-core-gather bindings index name = case total-core-gather-into bindings index Nil Nil name of
-    Some backwards -> Some (reverse backwards)
+  total-core-gather bindings index name = case total-core-gather-into bindings index hash-map-empty hash-map-empty Nil name of
+    Some (backwards, seen) -> Some (reverse backwards)
     None -> None
-  total-core-gather-into :: List BodyBinding -> TotalCoreIndex -> List String -> List Json -> String -> Option (List Json)
-  total-core-gather-into bindings index visiting tail name = if total-core-has name visiting then None else case total-core-indexed-definition name index of
-    Some definition -> (case total-core-row bindings index definition of
-      Some (row, references) -> (case total-core-gather-list-into bindings index (Cons name visiting) tail references of
-        Some rows -> Some (Cons row rows)
-        None -> None)
-      None -> None)
-    None -> (case body-binding name bindings of Some binding -> Some (total-core-document-into (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) tail); None -> None)
+  total-core-gather-into :: List BodyBinding -> TotalCoreIndex -> HashMap String () -> HashMap String () -> List Json -> String -> Option (List Json, HashMap String ())
+  total-core-gather-into bindings index visiting seen tail name =
+    case (hash-map-lookup name visiting, hash-map-lookup name seen) of
+      (Some active, other) -> None
+      (None, Some done) -> Some (tail, seen)
+      (None, None) -> (case total-core-indexed-definition name index of
+        Some definition -> (case total-core-row bindings index definition of
+          Some (row, references) -> (case total-core-gather-list-into bindings index (hash-map-insert name () visiting) seen tail references of
+            Some (rows, checked) -> Some (Cons row rows, hash-map-insert name () checked)
+            None -> None)
+          None -> None)
+        None -> (case body-binding name bindings of
+          Some binding -> Some (total-core-document-into (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) tail, hash-map-insert name () seen)
+          None -> None))
   total-core-document-into :: List Json -> List Json -> List Json
   total-core-document-into rows tail = case rows of
     Nil -> tail
     Cons first rest -> total-core-document-into rest (Cons first tail)
-  total-core-gather-list-into :: List BodyBinding -> TotalCoreIndex -> List String -> List Json -> List String -> Option (List Json)
-  total-core-gather-list-into bindings index visiting tail references = case references of
-    Nil -> Some tail
-    Cons first rest -> (case total-core-gather-into bindings index visiting tail first of
-      Some rows -> total-core-gather-list-into bindings index visiting rows rest
+  total-core-gather-list-into :: List BodyBinding -> TotalCoreIndex -> HashMap String () -> HashMap String () -> List Json -> List String -> Option (List Json, HashMap String ())
+  total-core-gather-list-into bindings index visiting seen tail references = case references of
+    Nil -> Some (tail, seen)
+    Cons first rest -> (case total-core-gather-into bindings index visiting seen tail first of
+      Some (rows, checked) -> total-core-gather-list-into bindings index visiting checked rows rest
       None -> None)
   core-total-function :: List BodyBinding -> List CoreDefinition -> String -> Option TotalFunction
   core-total-function bindings definitions native = case total-core-native-definition native definitions of
