@@ -184,6 +184,10 @@ module Bootstrap.Infer where
     -- lives only under a cache entry and is never an element of an
     -- environment.
     MkBindingIndex :: Nat -> CheckedBinding -> CheckedBinding -> CheckedBinding
+    -- Temporary lookup boundary used only while adding a declaration's
+    -- bindings. The function captures the index of the existing environment.
+    MkRegistrationLookup :: (String -> CheckedBinding) -> CheckedBinding
+    MkRegistrationMissing :: CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
     MkConditionalBinding :: ConditionalOrigin -> String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
@@ -198,11 +202,11 @@ module Bootstrap.Infer where
     MkOverloadBinding :: String -> List String -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkRegistrationLookup get -> ""; MkRegistrationMissing -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkRegistrationLookup get -> mono UError; MkRegistrationMissing -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkRegistrationLookup get -> "registration-lookup"; MkRegistrationMissing -> "registration-missing"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -2161,6 +2165,9 @@ module Bootstrap.Infer where
   lookup-binding :: String -> List CheckedBinding -> Option CheckedBinding
   lookup-binding name env = case env of
     Nil -> None
+    Cons (MkRegistrationLookup get) rest -> case get name of
+      MkRegistrationMissing -> None
+      found -> Some found
     Cons b rest -> if same name (checked-name b) then Some b else case b of
       MkBodyContext context names index cache -> (case hash-map-lookup name names of
         None -> None
@@ -3064,68 +3071,99 @@ module Bootstrap.Infer where
   -- declaration's group is a property of the module, so it cannot be read
   -- from the tail being walked.
   register :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register all rows classes kinds ds env st = case ds of
+  register all rows classes kinds ds env st =
+    -- Small scopes cost less to scan than to index. Limit the size probe to
+    -- the cutoff so a wide declaration list is not traversed twice.
+    if registration-wide ds 512 then register-indexed all rows classes kinds ds env (registration-index env) st
+    else register-linear all rows classes kinds ds env st
+  registration-wide :: List Decl -> Nat -> Bool
+  registration-wide ds remaining = if remaining == 0 then True else case ds of
+    Nil -> False
+    Cons first rest -> registration-wide rest (remaining - 1)
+  register-linear :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-linear all rows classes kinds ds env st = case ds of
     Nil -> (env, st)
-    Cons d rest -> case d of
-      DSig s name ty -> case make-scheme False classes kinds Nil ty st of
-        (sc, ss) -> case register-source-value s name sc kinds env ss of (e, se) -> register all rows classes kinds rest e se
-      DClass s name ps members -> case find-class name (context-source-classes kinds) of
-        Some description -> case register-source-methods description (decls-of members) env st of
-          (more, checked) -> register all rows classes kinds rest more checked
-        None -> register all rows classes kinds rest env (add-error s "source signature has no checked defining contract" st)
-      DInstance sp flag name ps head-type members -> case source-instance-scheme sp classes kinds ps head-type st of
-        (sc, checked) -> let declarations = decls-of members in
-          if guarded-members declarations then
-            (case register-source-conditional rows classes kinds sp flag name sc declarations env checked of
-              (more, final) -> register all rows classes kinds rest more final)
-          else (case add-binding sp name sc (if flag then "implicit-instance" else "instance") env checked of
-            (more, final) -> register all rows classes kinds rest more final)
-      DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
-        (e, se) -> register all rows classes kinds rest e se
-      DData s owner ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
-        (qs, sq) -> case register-ctors kinds owner (data-group all owner) qs cs env sq of (e, se) -> register all rows classes kinds rest e se
-      DRecord s owner ps fields -> register all rows classes kinds rest env st
-      DCodata s owner ps observations -> register all rows classes kinds rest env st
-      DForeign s direction abi symbol name ty | same direction "export" -> register all rows classes kinds rest env st
-      DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
-        (e, se) -> register all rows classes kinds rest e se
-      DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
-        (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-          (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity (data-graph-declarations all) name)) of
-            (Some prior, result) -> register all rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
-            (None, Err error) -> register all rows classes kinds rest env (add-error s error checked)
-            (None, Ok plan) -> register all rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
-      DExternal s name category (Some ty) metadata ->
-        case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register all rows classes kinds rest e se
-      DExternal s name category None metadata -> if same category "builtin" then
-        (case register-kernel s name metadata classes kinds env st of (e, se) -> register all rows classes kinds rest e se)
-        else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register all rows classes kinds rest e se)
-        else if same category "builtin-syntax" then (case register-decision-syntax s name metadata env st of (e, se) -> register all rows classes kinds rest e se)
-        else if same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
-          (case register-imported-codata s name classes kinds metadata env st of
-            (more, checked) -> register all rows classes kinds rest more checked)
-        else if same category "overload" then register all rows classes kinds rest (Cons (MkOverloadBinding name (overload-candidates metadata)) env) st
-        else if same category "type" || same category "signature" || same category "instance" then register all rows classes kinds rest env st
-        else register all rows classes kinds rest env (add-error s (unsupported-import category name) st)
-      DSource s name metadata -> register all rows classes kinds rest env st
-      DInterface s name hash metadata -> register all rows classes kinds rest env st
-      DFun s name clauses -> register all rows classes kinds rest env st
-      DProof s body -> register all rows classes kinds rest env st
-      DRewrite s name syntax -> register all rows classes kinds rest env st
-      -- Its kind was checked above. An opaque type introduces no value
-      -- binding, constructor, field or closed data family.
-      DOpaque s name params kind -> register all rows classes kinds rest env st
-      DRefine s name params binder predicate -> register all rows classes kinds rest env st
-      DExport s text items -> register all rows classes kinds rest env st
-      -- A temporal contract binds no value: it is verified after the
-      -- definition it names has been elaborated (its write log and its
-      -- recursion), which is the pass `temporal-contracts` runs.
-      DWrapperLayout s name repr label -> register all rows classes kinds rest env st
-      DUnpackFields s name fields -> register all rows classes kinds rest env st
-      DInlineHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
-      DUnrollHint s name hint -> register all rows classes kinds rest env (case hint of Ok value -> st; Err message -> add-error s message st)
-      DContract s keyword name subject clauses -> register all rows classes kinds rest env st
-      other -> register all rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
+    Cons d rest -> case register-declaration all rows classes kinds d env st of
+      (more, checked) -> register-linear all rows classes kinds rest more checked
+
+  registration-index :: List CheckedBinding -> HashMap String CheckedBinding
+  registration-index env = case env of
+    Nil -> hash-map-empty
+    Cons binding rest -> hash-map-insert (checked-name binding) binding (registration-index rest)
+  registration-lookup :: HashMap String CheckedBinding -> String -> CheckedBinding
+  registration-lookup index name = case hash-map-lookup name index of
+    Some binding -> binding
+    None -> MkRegistrationMissing
+  -- The registration routines prepend their new bindings. Move only this
+  -- prefix into the index and return the list in its original order.
+  index-new-bindings :: List CheckedBinding -> HashMap String CheckedBinding -> (List CheckedBinding, HashMap String CheckedBinding)
+  index-new-bindings env index = case env of
+    Nil -> (Nil, hash-map-empty)
+    Cons (MkRegistrationLookup get) rest -> (rest, index)
+    Cons binding rest -> case index-new-bindings rest index of
+      (more, previous) -> (Cons binding more, hash-map-insert (checked-name binding) binding previous)
+  register-indexed :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> HashMap String CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-indexed all rows classes kinds ds env index st = case ds of
+    Nil -> (env, st)
+    Cons (DFun sp name clauses) rest -> register-indexed all rows classes kinds rest env index st
+    Cons (DClass sp name parameters members) rest ->
+      -- Defining methods may replace kernel placeholders anywhere in the
+      -- environment, so give this operation the actual list and reindex it.
+      (case register-declaration all rows classes kinds (DClass sp name parameters members) env st of
+        (more, checked) -> register-indexed all rows classes kinds rest more (registration-index more) checked)
+    Cons d rest -> case register-declaration all rows classes kinds d (Cons (MkRegistrationLookup (registration-lookup index)) env) st of
+      (added, checked) -> case index-new-bindings added index of
+        (more, updated) -> register-indexed all rows classes kinds rest more updated checked
+
+  register-declaration :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-declaration all rows classes kinds d env st = case d of
+    DSig s name ty -> case make-scheme False classes kinds Nil ty st of
+      (sc, ss) -> register-source-value s name sc kinds env ss
+    DClass s name ps members -> case find-class name (context-source-classes kinds) of
+      Some description -> register-source-methods description (decls-of members) env st
+      None -> (env, add-error s "source signature has no checked defining contract" st)
+    DInstance sp flag name ps head-type members -> case source-instance-scheme sp classes kinds ps head-type st of
+      (sc, checked) -> let declarations = decls-of members in
+        if guarded-members declarations then register-source-conditional rows classes kinds sp flag name sc declarations env checked
+        else add-binding sp name sc (if flag then "implicit-instance" else "instance") env checked
+    DEffect s owner ps ops -> register-operations classes kinds ps ops env st
+    DData s owner ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
+      (qs, sq) -> register-ctors kinds owner (data-group all owner) qs cs env sq
+    DRecord s owner ps fields -> (env, st)
+    DCodata s owner ps observations -> (env, st)
+    DForeign s direction abi symbol name ty | same direction "export" -> (env, st)
+    DForeign s direction abi symbol name ty -> register-intrinsic s direction abi symbol name ty classes kinds env st
+    DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
+      (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
+        (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity (data-graph-declarations all) name)) of
+          (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked)
+          (None, Err error) -> (env, add-error s error checked)
+          (None, Ok plan) -> (Cons (MkForeignBinding name actual plan) env, checked))
+    DExternal s name category (Some ty) metadata -> register-external s name category ty metadata rows classes kinds env st
+    DExternal s name category None metadata -> if same category "builtin" then register-kernel s name metadata classes kinds env st
+      else if same category "builtin-constructor" then register-decision-constructor s name metadata env st
+      else if same category "builtin-syntax" then register-decision-syntax s name metadata env st
+      else if same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
+        register-imported-codata s name classes kinds metadata env st
+      else if same category "overload" then (Cons (MkOverloadBinding name (overload-candidates metadata)) env, st)
+      else if same category "type" || same category "signature" || same category "instance" then (env, st)
+      else (env, add-error s (unsupported-import category name) st)
+    DSource s name metadata -> (env, st)
+    DInterface s name hash metadata -> (env, st)
+    DFun s name clauses -> (env, st)
+    DProof s body -> (env, st)
+    DRewrite s name syntax -> (env, st)
+    -- An opaque type introduces no value binding or closed family.
+    DOpaque s name params kind -> (env, st)
+    DRefine s name params binder predicate -> (env, st)
+    DExport s text items -> (env, st)
+    DWrapperLayout s name repr label -> (env, st)
+    DUnpackFields s name labels -> (env, st)
+    DInlineHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
+    DUnrollHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
+    -- Temporal contracts bind no value and run after the definition checks.
+    DContract s keyword name subject clauses -> (env, st)
+    other -> (env, add-error (decl-span d) (unsupported-decl d) st)
   storage-observation-body :: Nat -> UType -> Option UType
   storage-observation-body remaining ty = if remaining == 0 then Some ty else
     (case ty of
@@ -7288,6 +7326,8 @@ module Bootstrap.Infer where
     MkBodyBinding binding -> b
     MkBodyContext context names index cache -> b
     MkBindingIndex half left right -> b
+    MkRegistrationLookup get -> b
+    MkRegistrationMissing -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkForeignBinding n sc plan -> MkForeignBinding n sc plan
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot

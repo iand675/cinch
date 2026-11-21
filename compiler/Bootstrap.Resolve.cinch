@@ -70,7 +70,7 @@ module Bootstrap.Resolve where
   binding-index :: List Binding -> HashMap String Binding
   binding-index entries = case entries of
     Nil -> hash-map-empty
-    Cons (MkBinding name owner symbol) rest -> hash-map-insert name (MkBinding name owner symbol) (binding-index rest)
+    Cons binding rest -> hash-map-insert (binding-name binding) binding (binding-index rest)
 
   visible-lookup :: String -> Visible -> Option Binding
   visible-lookup name entries = case entries of
@@ -134,27 +134,37 @@ module Bootstrap.Resolve where
 
   -- A module's signature and equations name the same binding. Duplicate
   -- declarations stay in the body for the checker to diagnose.
+  data OwnBindings where
+    OwnBindings :: List Binding -> HashMap String Binding -> OwnBindings
   own-bindings :: String -> List Decl -> List Binding -> List Binding
-  own-bindings home ds acc = case ds of
-    Nil -> reverse acc
+  own-bindings home ds initial = case collect-own-bindings home ds (OwnBindings initial (binding-index initial)) of
+    OwnBindings rows index -> rows
+  collect-own-bindings :: String -> List Decl -> OwnBindings -> OwnBindings
+  collect-own-bindings home ds acc = case ds of
+    Nil -> case acc of OwnBindings reversed index -> OwnBindings (reverse reversed) index
     Cons d rest -> case d of
-      DImport s path mods alias members hidden args -> own-bindings home rest acc
-      DExport s text items -> own-bindings home rest acc
-      DGeneratedGroup s owner macro-name template -> own-bindings home rest (own-bindings home (decls-of template) acc)
-      DMacroBinding s name -> own-bindings home rest (add-macro home name acc)
-      DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
-      DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
-      DData s name params ctors -> own-bindings home rest (own-ctors home ctors (add-own home name acc))
-      DEffect s name params ops -> own-bindings home rest (own-ctors home ops (add-own-effect home name acc))
-      DForeign s direction abi symbol name ty -> own-bindings home rest (if same direction "import" then add-own home name acc else acc)
+      DImport s path mods alias members hidden args -> collect-own-bindings home rest acc
+      DExport s text items -> collect-own-bindings home rest acc
+      DGeneratedGroup s owner macro-name template -> collect-own-bindings home rest (collect-own-bindings home (decls-of template) acc)
+      DMacroBinding s name -> collect-own-bindings home rest (add-macro home name acc)
+      DInstance s only name params class-app members -> collect-own-bindings home rest (add-own home name acc)
+      DClass s name params members -> collect-own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
+      DData s name params ctors -> collect-own-bindings home rest (own-ctors home ctors (add-own home name acc))
+      DEffect s name params ops -> collect-own-bindings home rest (own-ctors home ops (add-own-effect home name acc))
+      DForeign s direction abi symbol name ty -> collect-own-bindings home rest (if same direction "import" then add-own home name acc else acc)
       other -> case decl-name other of
-        None -> own-bindings home rest acc
-        Some name -> own-bindings home rest (add-own home name acc)
+        None -> collect-own-bindings home rest acc
+        Some name -> collect-own-bindings home rest (add-own home name acc)
 
-  add-macro :: String -> String -> List Binding -> List Binding
-  add-macro home name entries = case lookup-binding name entries of
-    Some binding -> entries
-    None -> Cons (MkBinding name home ("#macro." <> name)) entries
+  add-declared :: String -> String -> (() -> String) -> OwnBindings -> OwnBindings
+  add-declared label owner symbol entries = case entries of
+    OwnBindings rows index -> case hash-map-lookup label index of
+      Some binding -> entries
+      None ->
+        let binding = MkBinding label owner (symbol ()) in
+        OwnBindings (Cons binding rows) (hash-map-insert label binding index)
+  add-macro :: String -> String -> OwnBindings -> OwnBindings
+  add-macro home name entries = add-declared name home (\unit -> "#macro." <> name) entries
   macro-binding :: Binding -> Bool
   macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
   -- Global symbols include their module. Stage symbols carry it in the owner.
@@ -175,14 +185,10 @@ module Bootstrap.Resolve where
 
   -- A resolved method already names its binding; re-deriving the symbol from
   -- the home would rebind it to a name the checker never registered.
-  add-own-symbol :: String -> String -> List Binding -> List Binding
-  add-own-symbol label symbol entries = case lookup-binding label entries of
-    Some b -> entries
-    None -> Cons (MkBinding label "<builtin>" symbol) entries
-  add-own :: String -> String -> List Binding -> List Binding
-  add-own home name entries = case lookup-binding name entries of
-    Some b -> entries
-    None -> Cons (MkBinding name home (global-name home name)) entries
+  add-own-symbol :: String -> String -> OwnBindings -> OwnBindings
+  add-own-symbol label symbol entries = add-declared label "<builtin>" (\unit -> symbol) entries
+  add-own :: String -> String -> OwnBindings -> OwnBindings
+  add-own home name entries = add-declared name home (\unit -> global-name home name) entries
   -- Source declarations with a kernel spelling have a separate, module-owned
   -- identity. Other source effects preserve the language's global namespace.
   source-effect-name :: String -> String -> String
@@ -190,23 +196,21 @@ module Bootstrap.Resolve where
     if has-name name ["MVar", "STM", "IO", "Mut", "Async", "Cancel", "Eval", "Foreign", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"] then
       "#effect." <> global-name home name
     else name
-  add-own-effect :: String -> String -> List Binding -> List Binding
-  add-own-effect home name entries = case lookup-binding name entries of
-    Some b -> entries
-    None -> Cons (MkBinding name home (source-effect-name home name)) entries
+  add-own-effect :: String -> String -> OwnBindings -> OwnBindings
+  add-own-effect home name entries = add-declared name home (\unit -> source-effect-name home name) entries
 
   -- A class member is visible under its label whether it is still in source
   -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
   -- already resolved. The kernel's classes are declared after renaming, so
   -- they arrive as `DMethod` and would otherwise contribute no name.
-  own-class-methods :: String -> List Decl -> List Binding -> List Binding
+  own-class-methods :: String -> List Decl -> OwnBindings -> OwnBindings
   own-class-methods home ds acc = case ds of
     Nil -> acc
     Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
     Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own-symbol label symbol acc)
     Cons other rest -> own-class-methods home rest acc
 
-  own-ctors :: String -> List (String, TypeExpr) -> List Binding -> List Binding
+  own-ctors :: String -> List (String, TypeExpr) -> OwnBindings -> OwnBindings
   own-ctors home ctors acc = case ctors of
     Nil -> acc
     Cons (name, ty) rest -> own-ctors home rest (add-own home name acc)
@@ -330,11 +334,11 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (MkView s path qualifier only selected) rest -> qualify qualifier selected <> qualified-imports rest
 
-  qualified-duplicates :: Span -> List Binding -> List Binding -> List Diagnostic
+  qualified-duplicates :: Span -> List Binding -> HashMap String Binding -> List Diagnostic
   qualified-duplicates sp incoming seen = case incoming of
     Nil -> Nil
-    Cons b rest -> case lookup-binding (binding-name b) seen of
-      None -> qualified-duplicates sp rest (Cons b seen)
+    Cons b rest -> case hash-map-lookup (binding-name b) seen of
+      None -> qualified-duplicates sp rest (hash-map-insert (binding-name b) b seen)
       Some old -> (if same-declaration old b then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
         <> qualified-duplicates sp rest seen
 
@@ -432,7 +436,7 @@ module Bootstrap.Resolve where
     let qualified = qualified-imports views in
     let prelude-bindings = case lookup-scoped "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
-    (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
+    (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified hash-map-empty)
 
   build-scope :: Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
   build-scope m done base earlier checked =
@@ -1092,21 +1096,27 @@ module Bootstrap.Resolve where
     TForall sp binders body -> bound-names binders <> instance-head-names body
     TUsing sp bounds body -> bound-names bounds <> instance-head-names body
     other -> Nil
-  instance-method-names :: String -> List Decl -> List String
-  instance-method-names name declarations = case declarations of
-    Nil -> Nil
-    Cons (DSig sp member ty) rest -> if same member name then instance-head-names ty else instance-method-names name rest
-    Cons other rest -> instance-method-names name rest
+  -- A signature's binders scope its equations. An earlier signature wins
+  -- even if it binds no names, as in the declaration-order lookup.
+  method-scopes :: List Decl -> HashMap String (List String)
+  method-scopes declarations = case declarations of
+    Nil -> hash-map-empty
+    Cons (DSig sp member ty) rest -> hash-map-insert member (instance-head-names ty) (method-scopes rest)
+    Cons other rest -> method-scopes rest
+  method-locals :: String -> HashMap String (List String) -> List String
+  method-locals name scopes = case hash-map-lookup name scopes of
+    Some names -> names
+    None -> Nil
   rename-instance-members :: Visible -> List String -> Decl -> (Decl, List Diagnostic)
-  rename-instance-members visible locals members = rename-instance-members-with visible locals (decls-of members) members
-  rename-instance-members-with :: Visible -> List String -> List Decl -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members visible locals members = rename-instance-members-with visible locals (method-scopes (decls-of members)) members
+  rename-instance-members-with :: Visible -> List String -> HashMap String (List String) -> Decl -> (Decl, List Diagnostic)
   rename-instance-members-with visible locals all members = case members of
     DDecl s member rest -> case rename-instance-members-with visible locals all member of
       (renamed, errors) -> case rename-instance-members-with visible locals all rest of
         (others, more) -> (DDecl s renamed others, errors <> more)
     DDeclsEnd s -> (members, Nil)
     DSig s name ty -> (DSig s name (rename-type visible locals ty), Nil)
-    DFun s name clauses -> case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
+    DFun s name clauses -> case rename-member-clauses visible (method-locals name all <> locals) clauses of
       (renamed, errors) -> (DFun s name renamed, errors)
     other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
 
@@ -1144,12 +1154,12 @@ module Bootstrap.Resolve where
     Nil -> index
     Cons entry rest -> hash-map-insert (binding-name entry) entry (extend-generated rest index)
 
-  rename-decl :: String -> Visible -> List Decl -> Decl -> (List Decl, List Diagnostic)
-  rename-decl home visible declarations d = case d of
+  rename-decl :: String -> Visible -> List Decl -> HashMap String (List String) -> Decl -> (List Decl, List Diagnostic)
+  rename-decl home visible declarations methods d = case d of
     DExternal s name category (Some ty) metadata | same home stage-quotation-module && same category "stage-primitive" ->
       ([DExternal s (global-name home name) category (Some (rename-type visible Nil ty)) metadata], Nil)
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
-    DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
+    DFun s name clauses -> case rename-member-clauses visible (method-locals name methods) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
     DData s name params ctors | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
     DRecord s name params fields | reserved-scalar-name name -> (Nil, fail s (reserved-primitive-message name))
@@ -1201,13 +1211,13 @@ module Bootstrap.Resolve where
     DFixity s assoc prec ops -> (Nil, Nil)
     DRewrite s name syntax -> case rename-rewrite visible syntax of
       (renamed, errors) -> ([DRewrite s (global-name home name) renamed], errors)
-    DProof s body -> case rename-decl home visible declarations body of
+    DProof s body -> case rename-decl home visible declarations methods body of
       ([checked], errors) -> ([DProof s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
-    DSpec s body -> case rename-decl home visible declarations body of
+    DSpec s body -> case rename-decl home visible declarations methods body of
       ([checked], errors) -> ([DSpec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a spec requires one signature or equation")
-    DCorec s body -> case rename-decl home visible declarations body of
+    DCorec s body -> case rename-decl home visible declarations methods body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
     DNamedDeclaration s hole body -> (Nil, fail s "a name splice is only meaningful inside a `quoteDecls` template")
@@ -1361,13 +1371,8 @@ module Bootstrap.Resolve where
        duplicates <> left-errors <> right-errors <> guard-errors <> proof-errors)
 
   rename-class-members :: String -> String -> Visible -> List String -> List Decl -> (List Decl, List Diagnostic)
-  rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
-  declared-class-method :: String -> List Decl -> Bool
-  declared-class-method name ds = case ds of
-    Nil -> False
-    Cons (DSig sp member ty) rest -> same name member || declared-class-method name rest
-    Cons other rest -> declared-class-method name rest
-  rename-class-members-with :: String -> String -> Visible -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals (method-scopes ds) ds
+  rename-class-members-with :: String -> String -> Visible -> List String -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
   rename-class-members-with home owner visible locals all ds = case ds of
     Nil -> (Nil, Nil)
     Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
@@ -1376,10 +1381,10 @@ module Bootstrap.Resolve where
       (checked, failures) -> case rename-class-members-with home owner visible locals all rest of
         (more, errors) -> (Cons (DLaw s name checked) more, failures <> errors)
     Cons (DFun s name clauses) rest -> case rename-class-members-with home owner visible locals all rest of
-      (more, errors) -> if declared-class-method name all then
-        (case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
-          (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors))
-        else (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
+      (more, errors) -> case hash-map-lookup name all of
+        Some binders -> case rename-member-clauses visible (binders <> locals) clauses of
+          (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors)
+        None -> (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
     Cons other rest -> case rename-class-members-with home owner visible locals all rest of
       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
 
@@ -1395,12 +1400,12 @@ module Bootstrap.Resolve where
     LawProposition ty -> (LawProposition (rename-type visible locals ty), Nil)
 
   rename-decls :: String -> Visible -> List Decl -> (List Decl, List Diagnostic)
-  rename-decls home visible ds = rename-decls-with home visible ds ds
-  rename-decls-with :: String -> Visible -> List Decl -> List Decl -> (List Decl, List Diagnostic)
-  rename-decls-with home visible all ds = case ds of
+  rename-decls home visible ds = rename-decls-with home visible ds (method-scopes ds) ds
+  rename-decls-with :: String -> Visible -> List Decl -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls-with home visible all methods ds = case ds of
     Nil -> (Nil, Nil)
-    Cons d rest -> case rename-decl home visible all d of
-      (body, errors) -> case rename-decls-with home visible all rest of
+    Cons d rest -> case rename-decl home visible all methods d of
+      (body, errors) -> case rename-decls-with home visible all methods rest of
         (others, more) -> (body <> others, errors <> more)
 
   resolve-program :: Program -> (Program, List Diagnostic)
