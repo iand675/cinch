@@ -19,8 +19,14 @@ against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
 class to resolve; the negative case now negates through binary subtraction.
 Remaining: `bootstrap_export_interfaces` (the pipeline writer expands a named
 refinement where the native writer prints the alias) and
-`interface_machine_contracts` (the core prover has no certificate for an
-intrinsic's declared refined result).
+`interface_machine_contracts`. The latter is narrower than a missing promise
+certificate: a diagnostic build that reports the refusing clause path shows
+the failure is the checker's `#argument-function` local (created by
+`apply-ordinary-scoped-argument` when a function is applied to a scoped
+refined argument) inside the `&&` condition chain. Bypassing the refined-term
+checker entirely does not change the outcome, so the validator loses or
+mismatches that let-bound function type in the proof scope rather than
+refusing the intrinsic's result refinement.
 
 # Compiler checkpoint — 1 November 2026
 
