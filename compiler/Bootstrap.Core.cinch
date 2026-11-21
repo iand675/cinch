@@ -2826,16 +2826,19 @@ module Bootstrap.Core where
       proof-term gamma facts value && recursive-proofs gamma facts rest
     other -> False
   proof-after-term :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
-  proof-after-term gamma facts first rest = let writes = core-mutable-writes first in
-    proof-term (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) rest
+  proof-after-term gamma facts first rest = let (scope, live) = term-scope gamma facts first in
+    proof-term scope live rest
   proof-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   proof-application gamma facts ty row f x = proof-term gamma facts f && proof-after-term gamma facts f x
-    && (if contains-required (core-type f) then let writes = child-writes [f, x] in
-      application-type (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty row f x else True)
+    && (if contains-required (core-type f) then proof-application-type gamma facts ty row f x else True)
   checked-proof-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
-  checked-proof-application gamma facts ty row f x = let writes = child-writes [f, x] in
-    proof-term gamma facts f && proof-after-term gamma facts f x
-      && application-type (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty row f x
+  checked-proof-application gamma facts ty row f x = proof-term gamma facts f && proof-after-term gamma facts f x
+    && proof-application-type gamma facts ty row f x
+  proof-application-type :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  proof-application-type gamma facts ty row f x =
+    if writes-move-nothing gamma facts then application-type gamma facts ty row f x
+    else let writes = child-writes [f, x] in
+      application-type (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty row f x
   proof-case-alternatives :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
   proof-case-alternatives gamma facts value alternatives = case alternatives of
     CAlternativesEnd sp -> True
@@ -3388,12 +3391,12 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> application-type gamma facts ty row f x
     other -> True
   discharged :: ProofScope -> List Proposition -> UType -> List Proof -> CoreTerm -> Bool
-  discharged gamma facts ty evidence body = let writes = call-operand-writes body in
-    let after = proof-after-writes gamma writes in
+  discharged gamma facts ty evidence body =
     closed-runtime-type ty && required-call gamma facts body && contract-equal ty (required-body (core-type body))
-      && (case required-predicates after (core-type body) of
-        Some goals -> check-goals (goal-assumptions after (facts-after-writes gamma facts writes) goals) goals evidence
-        None -> False)
+      && (let (after, live) = discharge-scope gamma facts body in
+        case required-predicates after (core-type body) of
+          Some goals -> check-goals (goal-assumptions after live goals) goals evidence
+          None -> False)
   valid-required-call :: CoreTerm -> Bool
   valid-required-call term = closed-type (core-type term) && (case term of
     CUse s ty name role actuals -> closed-types actuals
