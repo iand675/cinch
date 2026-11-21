@@ -45,6 +45,7 @@ module Bootstrap.Check where
   import Bootstrap.Ast
   import Bootstrap.Report
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Bootstrap.Load (LoadedInterface, ValidatedInterfaces)
   import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaboration-errors, needs-inference, infer-program)
 
@@ -124,9 +125,11 @@ module Bootstrap.Check where
   -- collected before any body is checked so top-level functions may be
   -- mutually recursive.
 
-  data Top where
-    TopSig :: String -> Ty -> Top
-    TopCtor :: String -> String -> Ty -> Top
+  data Registry where
+    MkRegistry :: HashMap String Ty -> HashMap String () -> HashMap String Ty -> Registry
+
+  data Environment where
+    MkEnvironment :: List (String, Ty) -> HashMap String Ty -> Environment
 
   -- ----------------------------------------------------------- type display
 
@@ -368,62 +371,30 @@ module Bootstrap.Check where
 
   -- ------------------------------------------------------------- the registry
 
-  sig-lookup :: String -> List Top -> Option Ty
-  sig-lookup name tops = case tops of
-    Nil -> None
-    Cons t rest -> case t of
-      TopSig n ty -> if string-compare n name == 0 then Some ty else sig-lookup name rest
-      TopCtor c owner args -> sig-lookup name rest
+  -- Signatures and constructors have separate duplicate rules. A body
+  -- lookup sees the most recent entry in either category, after locals
+  -- and the two built-in Bool constructors.
+  base-env :: Registry -> Environment
+  base-env registry = case registry of
+    MkRegistry signatures constructors globals ->
+      MkEnvironment Nil (hash-map-insert "True" TyBool (hash-map-insert "False" TyBool globals))
 
-  has-sig :: String -> List Top -> Bool
-  has-sig name tops = case sig-lookup name tops of
-    None -> False
-    Some ty -> True
+  extend-env :: String -> Ty -> Environment -> Environment
+  extend-env name ty env = case env of
+    MkEnvironment locals globals -> MkEnvironment (Cons (name, ty) locals) globals
 
-  ctor-lookup :: String -> List Top -> Option Top
-  ctor-lookup name tops = case tops of
-    Nil -> None
-    Cons t rest -> case t of
-      TopCtor c owner args -> if string-compare c name == 0 then Some t else ctor-lookup name rest
-      TopSig n ty -> ctor-lookup name rest
-
-  has-ctor :: String -> List Top -> Bool
-  has-ctor name tops = case ctor-lookup name tops of
-    None -> False
-    Some t -> True
-
-  -- The value environment: every signature, and every constructor as its
-  -- own function value (so a constructor named without arguments still
-  -- resolves, and `ECon` is checked against exactly this type).
-  tops-env :: List Top -> List (String, Ty)
-  tops-env tops = case tops of
-    Nil -> Nil
-    Cons t rest -> case t of
-      TopSig n ty -> Cons (n, ty) (tops-env rest)
-      TopCtor c owner args -> Cons (c, ctor-ty owner args) (tops-env rest)
-
-  -- The language's own `Bool` constructors. The fragment has `Bool` and
-  -- `if`, so its two values are in the initial environment, written exactly
-  -- as the parser writes them (a constructor with an empty argument
-  -- spine). Every other prelude constructor belongs to a type outside this
-  -- rung's fragment and is reported as an unknown constructor.
-  builtin-env :: List (String, Ty)
-  builtin-env = Cons ("True", TyBool) (Cons ("False", TyBool) Nil)
-
-  -- The environment every body starts from: the builtins, then the
-  -- program's own top-level names.
-  base-env :: List Top -> List (String, Ty)
-  base-env tops = (builtin-env) <> (tops-env tops)
-
-  env-lookup :: String -> List (String, Ty) -> Option Ty
+  env-lookup :: String -> Environment -> Option Ty
   env-lookup name env = case env of
-    Nil -> None
-    Cons b rest -> case b of
-      (n, t) -> if string-compare n name == 0 then Some t else env-lookup name rest
+    MkEnvironment locals globals -> lookup-local-or-global name locals globals
+
+  lookup-local-or-global :: String -> List (String, Ty) -> HashMap String Ty -> Option Ty
+  lookup-local-or-global name locals globals = case locals of
+    Nil -> hash-map-lookup name globals
+    Cons (key, ty) rest -> if string-compare key name == 0 then Some ty else lookup-local-or-global name rest globals
 
   -- ------------------------------------------------------------- expressions
 
-  check-expr :: List (String, Ty) -> Expr -> Ty -> List Diagnostic
+  check-expr :: Environment -> Expr -> Ty -> List Diagnostic
   check-expr env e expected = case e of
     ELam s ps body -> check-lam env s ps body expected
     EIf s c t f -> check-if env s c t f expected
@@ -435,7 +406,7 @@ module Bootstrap.Check where
     other -> case infer-expr env other of
       (t, ds) -> ds <> (ty-compare (expr-span other) t expected)
 
-  infer-expr :: List (String, Ty) -> Expr -> (Ty, List Diagnostic)
+  infer-expr :: Environment -> Expr -> (Ty, List Diagnostic)
   infer-expr env e = case e of
     EVar s n -> case env-lookup n env of
       None -> (TyHole, fail s (string-concat "unbound variable: " n))
@@ -504,7 +475,7 @@ module Bootstrap.Check where
     EForget s atoms x -> (TyHole, fail s "named conjunct weakening needs the refinement checker")
     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
 
-  infer-tuple-fields :: List (String, Ty) -> List Expr -> (Ty, List Diagnostic)
+  infer-tuple-fields :: Environment -> List Expr -> (Ty, List Diagnostic)
   infer-tuple-fields env xs = case xs of
     Nil -> (TyArgsEnd zero-span, Nil)
     Cons x rest -> case infer-expr env x of
@@ -513,7 +484,7 @@ module Bootstrap.Check where
 
   -- `f a`: the domain is the argument's expected type, the codomain the
   -- result. A head whose type is unknown does not add a failure.
-  infer-app :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-app :: Environment -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-app env s f a = case infer-expr env f of
     (tf, df) -> case tf of
       TyFun d c -> (c, df <> (check-expr env a d))
@@ -524,7 +495,7 @@ module Bootstrap.Check where
   -- Check supplied arguments and return the remaining function type;
   -- over-application remains an arity error. Patterns still require every
   -- declared argument and use the exact ctor-arity-diag below.
-  infer-con :: List (String, Ty) -> Span -> String -> Expr -> (Ty, List Diagnostic)
+  infer-con :: Environment -> Span -> String -> Expr -> (Ty, List Diagnostic)
   infer-con env s n args = case env-lookup n env of
     None -> (TyHole, fail s (string-concat "unknown constructor: " n))
     Some ty -> case spine-ok-exprs args of
@@ -539,7 +510,7 @@ module Bootstrap.Check where
   ctor-arity-diag s n given ty =
     if given == ty-arity ty then Nil else fail s (ctor-arity-message n given (ty-arity ty))
 
-  check-args :: List (String, Ty) -> List Ty -> List Expr -> Ty -> (Ty, List Diagnostic)
+  check-args :: Environment -> List Ty -> List Expr -> Ty -> (Ty, List Diagnostic)
   check-args env tys es result = case tys of
     Nil -> check-extra-args env es result
     Cons t trest -> case es of
@@ -551,7 +522,7 @@ module Bootstrap.Check where
   -- Arguments past the declared arity are still checked, against the error
   -- type: the arity failure is the report, and a form outside the fragment
   -- inside one of them is still named.
-  check-extra-args :: List (String, Ty) -> List Expr -> Ty -> (Ty, List Diagnostic)
+  check-extra-args :: Environment -> List Expr -> Ty -> (Ty, List Diagnostic)
   check-extra-args env es result = case es of
     Nil -> (result, Nil)
     Cons e rest -> case check-expr env e TyHole of
@@ -581,14 +552,14 @@ module Bootstrap.Check where
 
   -- The natural frames: `Int -> Int -> Int` for arithmetic, `Int -> Int ->
   -- Bool` for the ordering comparisons, and same-type comparison for `==`.
-  infer-bin :: List (String, Ty) -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-bin :: Environment -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-bin env s op l r =
     if is-arith-op op then (TyInt, (check-expr env l TyInt) <> (check-expr env r TyInt))
     else if is-rel-op op then (TyBool, (check-expr env l TyInt) <> (check-expr env r TyInt))
     else if is-eq-op op then infer-equality env s op l r
     else (TyHole, fail s (string-concat "unsupported operator: " op))
 
-  infer-equality :: List (String, Ty) -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-equality :: Environment -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-equality env s op l r = case infer-expr env l of
     (tl, dl) -> case infer-expr env r of
       (tr, dr) -> case ty-equal tl tr of
@@ -603,11 +574,11 @@ module Bootstrap.Check where
 
   -- --------------------------------------------------------------- branches
 
-  check-if :: List (String, Ty) -> Span -> Expr -> Expr -> Expr -> Ty -> List Diagnostic
+  check-if :: Environment -> Span -> Expr -> Expr -> Expr -> Ty -> List Diagnostic
   check-if env s c t f expected =
     (check-expr env c TyBool) <> ((check-expr env t expected) <> (check-expr env f expected))
 
-  infer-if :: List (String, Ty) -> Span -> Expr -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-if :: Environment -> Span -> Expr -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-if env s c t f = case infer-expr env t of
     (tt, dt) -> case infer-expr env f of
       (tf, df) -> case ty-equal tt tf of
@@ -624,31 +595,31 @@ module Bootstrap.Check where
   -- admits one is the elaborator's decision: this fragment's `Ty` has no
   -- constructor sets, while `Bootstrap.Infer`'s coverage check accepts an
   -- empty match exactly on an empty data family.
-  check-case :: List (String, Ty) -> Span -> Expr -> Expr -> Ty -> List Diagnostic
+  check-case :: Environment -> Span -> Expr -> Expr -> Ty -> List Diagnostic
   check-case env s scrut alts expected = case infer-expr env scrut of
     (ts, ds) -> case alts-of alts of
       Nil -> ds
       Cons a rest -> ds <> (check-alts env ts (Cons a rest) expected)
 
-  check-alts :: List (String, Ty) -> Ty -> List (Pat, Expr) -> Ty -> List Diagnostic
+  check-alts :: Environment -> Ty -> List (Pat, Expr) -> Ty -> List Diagnostic
   check-alts env ts alts expected = case alts of
     Nil -> Nil
     Cons a rest -> case a of
       (p, body) -> case check-pat env p ts of
         (env2, dp) -> (dp <> (check-alt-body env2 body expected)) <> (check-alts env ts rest expected)
 
-  check-alt-body :: List (String, Ty) -> Expr -> Ty -> List Diagnostic
+  check-alt-body :: Environment -> Expr -> Ty -> List Diagnostic
   check-alt-body env body expected = case body of
     EGuarded s guard rhs -> check-expr env guard TyBool <> check-expr env rhs expected
     other -> check-expr env other expected
 
-  infer-alt-body :: List (String, Ty) -> Expr -> (Ty, List Diagnostic)
+  infer-alt-body :: Environment -> Expr -> (Ty, List Diagnostic)
   infer-alt-body env body = case body of
     EGuarded s guard rhs -> case infer-expr env rhs of
       (ty, ds) -> (ty, check-expr env guard TyBool <> ds)
     other -> infer-expr env other
 
-  infer-case :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-case :: Environment -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-case env s scrut alts = case infer-expr env scrut of
     (ts, ds) -> case alts-of alts of
       Nil -> (TyHole, ds)
@@ -659,13 +630,13 @@ module Bootstrap.Check where
 
   -- --------------------------------------------------------------- let binding
 
-  bind-let :: List (String, Ty) -> Expr -> (List (String, Ty), List Diagnostic)
+  bind-let :: Environment -> Expr -> (Environment, List Diagnostic)
   bind-let env bs = case bs of
     EBindingsEnd s -> (env, Nil)
     EBinding s n rhs rest -> case spine-ok-bindings rest of
       False -> (env, fail s "malformed let binding spine")
       True -> case infer-expr env rhs of
-        (t, d) -> case bind-let (Cons (n, t) env) rest of
+        (t, d) -> case bind-let (extend-env n t env) rest of
           (env2, d2) -> (env2, d <> d2)
     other -> (env, fail (expr-span other) "malformed let binding spine")
 
@@ -675,11 +646,11 @@ module Bootstrap.Check where
     EBinding s n rhs rest -> spine-ok-bindings rest
     other -> False
 
-  check-let :: List (String, Ty) -> Span -> Expr -> Expr -> Ty -> List Diagnostic
+  check-let :: Environment -> Span -> Expr -> Expr -> Ty -> List Diagnostic
   check-let env s bs body expected = case bind-let env bs of
     (env2, ds) -> ds <> (check-expr env2 body expected)
 
-  infer-let :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-let :: Environment -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-let env s bs body = case bind-let env bs of
     (env2, ds) -> case infer-expr env2 body of
       (t, d) -> (t, ds <> d)
@@ -687,11 +658,11 @@ module Bootstrap.Check where
   -- ----------------------------------------------------------- annotations
 
   -- An annotation is checked against the expression and fixes its type.
-  check-ann :: List (String, Ty) -> Span -> Expr -> TypeExpr -> (Ty, List Diagnostic)
+  check-ann :: Environment -> Span -> Expr -> TypeExpr -> (Ty, List Diagnostic)
   check-ann env s x t = case type-to-ty t of
     (ty, dt) -> (ty, dt <> (check-expr env x ty))
 
-  check-ann-against :: List (String, Ty) -> Span -> Expr -> TypeExpr -> Ty -> List Diagnostic
+  check-ann-against :: Environment -> Span -> Expr -> TypeExpr -> Ty -> List Diagnostic
   check-ann-against env s x t expected = case type-to-ty t of
     (ty, dt) -> dt <> ((check-expr env x ty) <> (ty-compare s ty expected))
 
@@ -701,14 +672,14 @@ module Bootstrap.Check where
   -- parameter's type has to come from somewhere, and this rung has no
   -- unifier to invent it. Once the parameters are bound (one arrow each),
   -- the body is checked against what is left of the type.
-  check-lam :: List (String, Ty) -> Span -> List Pat -> Expr -> Ty -> List Diagnostic
+  check-lam :: Environment -> Span -> List Pat -> Expr -> Ty -> List Diagnostic
   check-lam env s ps body expected = case expected of
     TyHole -> fail s "cannot infer the type of this lambda: give it a type annotation"
     other -> case bind-lam env s ps expected of
       (env2, ds) -> ds <> (check-expr env2 body (lam-result ps expected))
 
   -- The lambda's parameters, bound against the arrows of its type.
-  bind-lam :: List (String, Ty) -> Span -> List Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  bind-lam :: Environment -> Span -> List Pat -> Ty -> (Environment, List Diagnostic)
   bind-lam env s ps expected = case ps of
     Nil -> (env, Nil)
     Cons p rest -> case expected of
@@ -727,10 +698,10 @@ module Bootstrap.Check where
 
   -- --------------------------------------------------------------- patterns
 
-  check-pat :: List (String, Ty) -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-pat :: Environment -> Pat -> Ty -> (Environment, List Diagnostic)
   check-pat env p expected = case p of
     PWild s -> (env, Nil)
-    PVar s n -> (Cons (n, expected) env, Nil)
+    PVar s n -> (extend-env n expected env, Nil)
     PLitInt s text -> (env, ty-compare s TyInt expected)
     PLitStr s text -> (env, ty-compare s TyStr expected)
     PLitSym s text -> (env, ty-compare s (TyCon "Sym" (TyArgsEnd s)) expected)
@@ -752,7 +723,7 @@ module Bootstrap.Check where
     TyArg s x rest -> Cons x (tuple-field-types rest)
     other -> Nil
 
-  check-tuple-pat :: List (String, Ty) -> Span -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-tuple-pat :: Environment -> Span -> Pat -> Ty -> (Environment, List Diagnostic)
   check-tuple-pat env s xs expected = case spine-ok-pats xs of
     False -> (env, fail s "malformed tuple pattern spine")
     True -> case expected of
@@ -770,7 +741,7 @@ module Bootstrap.Check where
 
   -- The pattern's arguments are bound even when the count is wrong, so the
   -- arity failure does not drag an unbound variable along with it.
-  check-con-pat :: List (String, Ty) -> Span -> String -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-con-pat :: Environment -> Span -> String -> Pat -> Ty -> (Environment, List Diagnostic)
   check-con-pat env s n args expected = case env-lookup n env of
     None -> (env, fail s (string-concat "unknown constructor: " n))
     Some ty ->
@@ -790,7 +761,7 @@ module Bootstrap.Check where
       None -> Nil
       Some eo -> if string-compare owner eo == 0 then Nil else ty-compare s (TyCon owner (TyArgsEnd zero-span)) expected
 
-  bind-pats :: List (String, Ty) -> List Ty -> List Pat -> (List (String, Ty), List Diagnostic)
+  bind-pats :: Environment -> List Ty -> List Pat -> (Environment, List Diagnostic)
   bind-pats env tys pats = case tys of
     Nil -> bind-extra-pats env pats
     Cons t trest -> case pats of
@@ -801,7 +772,7 @@ module Bootstrap.Check where
 
   -- Patterns past the declared arity are still bound (against the error
   -- type), so the arity failure is the only report.
-  bind-extra-pats :: List (String, Ty) -> List Pat -> (List (String, Ty), List Diagnostic)
+  bind-extra-pats :: Environment -> List Pat -> (Environment, List Diagnostic)
   bind-extra-pats env pats = case pats of
     Nil -> (env, Nil)
     Cons p rest -> case check-pat env p TyHole of
@@ -871,24 +842,24 @@ module Bootstrap.Check where
 
   -- --------------------------------------------------------------- functions
 
-  check-fun :: List Top -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
-  check-fun tops s name clauses = case sig-lookup name tops of
+  check-fun :: HashMap String Ty -> Environment -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
+  check-fun signatures env s name clauses = case hash-map-lookup name signatures of
     None -> fail s (string-concat "no signature for " name)
     Some ty -> case clauses of
       Nil -> fail s (string-concat "a function declaration with no clauses: " name)
-      Cons c rest -> check-clauses name (base-env tops) ty (ty-arity ty) clauses
+      Cons c rest -> check-clauses name env ty (ty-arity ty) clauses
 
-  check-clauses :: String -> List (String, Ty) -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
+  check-clauses :: String -> Environment -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
   check-clauses name env ty arity clauses =
     (check-clause-list name env ty arity clauses) <> (check-overlap clauses Nil)
 
-  check-clause-list :: String -> List (String, Ty) -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
+  check-clause-list :: String -> Environment -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
   check-clause-list name env ty arity clauses = case clauses of
     Nil -> Nil
     Cons c rest -> case c of
       (pats, body) -> (check-clause name env ty arity pats body) <> (check-clause-list name env ty arity rest)
 
-  check-clause :: String -> List (String, Ty) -> Ty -> Nat -> List Pat -> Expr -> List Diagnostic
+  check-clause :: String -> Environment -> Ty -> Nat -> List Pat -> Expr -> List Diagnostic
   check-clause name env ty arity pats body = case list-length pats <= arity of
     False -> fail (clause-span pats) (arity-mismatch-message name (list-length pats) arity)
     True -> case bind-pats env (ty-arg-types ty) pats of
@@ -911,24 +882,35 @@ module Bootstrap.Check where
   -- Pass one: register every signature and constructor, and report the
   -- duplicates. Declaration order within a module is not required for the
   -- registry, so top-level functions may be mutually recursive.
-  scan-decl :: Decl -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
-  scan-decl d tops acc = case d of
+  push-diagnostics :: List Diagnostic -> List Diagnostic -> List Diagnostic
+  push-diagnostics diagnostics acc = case diagnostics of
+    Nil -> acc
+    Cons first rest -> push-diagnostics rest (Cons first acc)
+
+  scan-signature :: Span -> String -> Ty -> List Diagnostic -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
+  scan-signature at name ty diagnostics registry acc = case registry of
+    MkRegistry signatures constructors globals -> case hash-map-lookup name signatures of
+      Some prior -> (registry, push-diagnostics (fail at (string-concat "duplicate signature for " name)) acc)
+      None -> (MkRegistry (hash-map-insert name ty signatures) constructors (hash-map-insert name ty globals), push-diagnostics diagnostics acc)
+
+  scan-decl :: Decl -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
+  scan-decl d registry acc = case d of
     DExternal s name kind (Some t) metadata ->
-      if string-compare kind "value" == 0 then case scan-decl (DSig s name t) tops acc of
-        (entries, errors) -> case type-to-ty t of
-          (ty, more) -> (entries, errors <> (if external-word-type t then Nil else fail s "imported value needs quantified, nominal or effect-aware checking")
-            <> (case external-field "arity" metadata of
-              JNum arity -> let count = ty-arity ty in if arity == nat-to-int count then Nil else fail s "imported value arity disagrees with its checked scheme"
-              other -> fail s "imported value has no arity metadata"))
-      else (tops, acc)
-    DSig s n t -> case has-sig n tops of
-      True -> (tops, acc <> (fail s (string-concat "duplicate signature for " n)))
-      False -> case type-to-ty t of
-        (ty, ds) -> (Cons (TopSig n ty) tops, acc <> ds)
-    DData s n params ctors -> scan-ctors n ctors tops acc
-    DDecl s x rest -> case scan-decl x tops acc of
-      (t2, a2) -> scan-decl rest t2 a2
-    other -> (tops, acc)
+      if string-compare kind "value" == 0 then case type-to-ty t of
+        (ty, diagnostics) -> case scan-signature s name ty diagnostics registry acc of
+          (entries, errors) ->
+            let word-errors = if external-word-type t then Nil else fail s "imported value needs quantified, nominal or effect-aware checking" in
+            let arity-errors = (case external-field "arity" metadata of
+              JNum arity -> if arity == nat-to-int (ty-arity ty) then Nil else fail s "imported value arity disagrees with its checked scheme"
+              other -> fail s "imported value has no arity metadata") in
+            (entries, push-diagnostics arity-errors (push-diagnostics word-errors errors))
+      else (registry, acc)
+    DSig s name t -> case type-to-ty t of
+      (ty, diagnostics) -> scan-signature s name ty diagnostics registry acc
+    DData s n params ctors -> scan-ctors n ctors registry acc
+    DDecl s x rest -> case scan-decl x registry acc of
+      (next, errors) -> scan-decl rest next errors
+    other -> (registry, acc)
 
   external-field :: String -> Json -> Json
   external-field name metadata = case metadata of
@@ -941,31 +923,34 @@ module Bootstrap.Check where
     TFun s a b -> external-word-type a && external-word-type b
     other -> False
 
-  scan-ctors :: String -> List (String, TypeExpr) -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
-  scan-ctors owner ctors tops acc = case ctors of
-    Nil -> (tops, acc)
-    Cons c rest -> case c of
-      (name, texpr) -> case has-ctor name tops of
-        True -> scan-ctors owner rest tops (acc <> (fail (type-expr-span texpr) (string-concat "duplicate constructor: " name)))
-        False -> case ctor-to-top name owner texpr of
-          (entry, ds) -> scan-ctors owner rest (Cons entry tops) (acc <> ds)
+  scan-ctors :: String -> List (String, TypeExpr) -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
+  scan-ctors owner ctors registry acc = case ctors of
+    Nil -> (registry, acc)
+    Cons (name, texpr) rest -> case registry of
+      MkRegistry signatures constructors globals -> case hash-map-lookup name constructors of
+        Some prior -> scan-ctors owner rest registry (push-diagnostics (fail (type-expr-span texpr) (string-concat "duplicate constructor: " name)) acc)
+        None -> case constructor-type name owner texpr of
+          (ty, diagnostics) -> scan-ctors owner rest
+            (MkRegistry signatures (hash-map-insert name () constructors) (hash-map-insert name ty globals))
+            (push-diagnostics diagnostics acc)
 
-  ctor-to-top :: String -> String -> TypeExpr -> (Top, List Diagnostic)
-  ctor-to-top name owner texpr = case type-to-ty texpr of
-    (ty, ds) -> case ty-result ty of
-      TyCon n sp -> if string-compare n owner == 0 then (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds) else (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds <> (fail (type-expr-span texpr) (ctor-return-message name owner)))
-      other -> (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds <> (fail (type-expr-span texpr) (ctor-return-message name owner)))
+  constructor-type :: String -> String -> TypeExpr -> (Ty, List Diagnostic)
+  constructor-type name owner texpr = case type-to-ty texpr of
+    (ty, diagnostics) ->
+      let value = ctor-ty owner (ty-spine-of-list (ty-arg-types ty)) in
+      let valid = (case ty-result ty of TyCon n spine -> string-compare n owner == 0; other -> False) in
+      (value, if valid then diagnostics else diagnostics <> fail (type-expr-span texpr) (ctor-return-message name owner))
 
-  scan-decls :: List Decl -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
-  scan-decls ds tops acc = case ds of
-    Nil -> (tops, acc)
-    Cons d rest -> case scan-decl d tops acc of
-      (t2, a2) -> scan-decls rest t2 a2
+  scan-decls :: List Decl -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
+  scan-decls ds registry acc = case ds of
+    Nil -> (registry, reverse acc)
+    Cons d rest -> case scan-decl d registry acc of
+      (next, errors) -> scan-decls rest next errors
 
   -- ------------------------------------------------------- pass two: checking
 
-  check-decl :: List Top -> Decl -> List Diagnostic
-  check-decl tops d = case d of
+  check-decl :: HashMap String Ty -> Environment -> Decl -> List Diagnostic
+  check-decl signatures env d = case d of
     DSource s name metadata -> Nil
     DInterface s name hash metadata -> Nil
     DExternal s name kind scheme metadata ->
@@ -980,7 +965,7 @@ module Bootstrap.Check where
     DLaw s name syntax -> fail s "class laws require checked proposition elaboration"
     DRewrite s name syntax -> fail s "a rewrite needs a checked equation and justification"
     DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
-    DFun s n clauses -> check-fun tops s n clauses
+    DFun s n clauses -> check-fun signatures env s n clauses
     DData s n params ctors -> case params of
       Nil -> Nil
       Cons p rest -> fail s "parameterized data declarations are not supported in this rung"
@@ -1018,8 +1003,8 @@ module Bootstrap.Check where
     -- A target-selected declaration is checked as the declaration it wraps.
     -- Pruning against the active profile happens before this rung sees it,
     -- so a clause that survived here is one the build satisfies.
-    DConditional s clauses inner -> check-decl tops inner
-    DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
+    DConditional s clauses inner -> check-decl signatures env inner
+    DDecl s x rest -> (check-decl signatures env x) <> (check-decl signatures env rest)
     DDeclsEnd s -> Nil
     DWrapperLayout s name repr label -> Nil
     DUnpackFields s name fields -> Nil
@@ -1027,16 +1012,18 @@ module Bootstrap.Check where
     DUnrollHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 
-  check-decls :: List Top -> List Decl -> List Diagnostic
-  check-decls tops ds = case ds of
+  check-decls :: HashMap String Ty -> Environment -> List Decl -> List Diagnostic
+  check-decls signatures env ds = case ds of
     Nil -> Nil
-    Cons d rest -> (check-decl tops d) <> (check-decls tops rest)
+    Cons d rest -> (check-decl signatures env d) <> (check-decls signatures env rest)
 
   check-modules :: List Module -> List Diagnostic
   check-modules ms = case ms of
     Nil -> Nil
-    Cons m rest -> case scan-decls (module-decls m) Nil Nil of
-      (tops, registry-diags) -> registry-diags <> check-decls tops (module-decls m) <> check-modules rest
+    Cons m rest -> case scan-decls (module-decls m) (MkRegistry hash-map-empty hash-map-empty hash-map-empty) Nil of
+      (registry, registry-diags) -> case registry of
+        MkRegistry signatures constructors globals ->
+          registry-diags <> check-decls signatures (base-env registry) (module-decls m) <> check-modules rest
 
   -- Each module owns its registry. Private names from another module
   -- cannot satisfy a reference or collide with a local declaration.

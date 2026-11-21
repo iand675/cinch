@@ -40,6 +40,11 @@ arity:
 bootstrap.check:5:7: arity mismatch: fib: signature arity 1, clause arity 2
 dup-sig:
 bootstrap.check:4:3: duplicate signature for fib
+registry-errors:
+bootstrap.check:5:10: constructor Pz must return Peano
+bootstrap.check:6:10: duplicate constructor: Pz
+bootstrap.check:7:3: duplicate signature for fib
+bootstrap.check:8:3: no signature for extra
 no-sig:
 bootstrap.check:5:3: no signature for fib
 bootstrap.check:8:13: unbound variable: fib

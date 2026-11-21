@@ -158,6 +158,15 @@ module Main where
   dup-sig-program =
     program-of ((one-decl fib-sig) <> (one-decl fib-sig) <> (one-decl fib-fun) <> (one-decl main-sig) <> (one-decl main-fun))
 
+  registry-errors-program :: Program
+  registry-errors-program =
+    program-of
+      [ fib-sig
+      , DData (at 5 3) "Peano" Nil [ctor-decl "Pz" (TName (at 5 10) "Bool"), ctor-decl "Pz" (TName (at 6 10) "Peano")]
+      , DSig (at 7 3) "fib" (TName (at 7 10) "Int")
+      , DFun (at 8 3) "extra" [clause-of Nil (ELitInt (at 8 12) "1")]
+      ]
+
   -- no signature at all, so `main`'s call cannot resolve `fib` either.
   no-sig-program :: Program
   no-sig-program = program-of ((one-decl fib-fun) <> (one-decl main-sig) <> (one-decl main-fun))
@@ -475,6 +484,7 @@ module Main where
     <> (one (MkCheck "type" type-program "bootstrap.check:5:11: type mismatch: expected Int, found Bool\n"))
     <> (one (MkCheck "arity" arity-program "bootstrap.check:5:7: arity mismatch: fib: signature arity 1, clause arity 2\n"))
     <> (one (MkCheck "dup-sig" dup-sig-program "bootstrap.check:4:3: duplicate signature for fib\n"))
+    <> (one (MkCheck "registry-errors" registry-errors-program "bootstrap.check:5:10: constructor Pz must return Peano\nbootstrap.check:6:10: duplicate constructor: Pz\nbootstrap.check:7:3: duplicate signature for fib\nbootstrap.check:8:3: no signature for extra\n"))
     <> (one (MkCheck "no-sig" no-sig-program "bootstrap.check:5:3: no signature for fib\nbootstrap.check:8:13: unbound variable: fib\n"))
     <> (one (MkCheck "unmodeled-expr" unmodeled-expr-program "bootstrap.check:5:11: unmodeled expression: let x = 1 in x\n"))
     <> (one (MkCheck "unmodeled-decl" unmodeled-decl-program "bootstrap.check:4:3: unmodeled declaration: type Alias = Int\n"))
