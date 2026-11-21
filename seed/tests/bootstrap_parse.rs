@@ -103,6 +103,8 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Text.Parse", 0),
     ("Text.Json", 0),
     ("Text.Builder", 0),
+    ("Data.Bytes.Word", 0),
+    ("Text.Fnv", 0),
     ("Data.Core", 0),
     ("Data.Ordering", 0),
     ("Relation.Eq", 0),
