@@ -17,9 +17,19 @@ Stage 3 grid verifies 104 targets (evidence `build/verify-stage3/run10`).
 The runtime IR target needed a fixture correction: its numeric probes compile
 against an empty Prelude, so unary negation had no `Algebra.Arithmetic.Neg`
 class to resolve; the negative case now negates through binary subtraction.
-Remaining: `bootstrap_export_interfaces` (the pipeline writer expands a named
-refinement where the native writer prints the alias) and
-`interface_machine_contracts`. The latter is an index-form mismatch, not a
+Remaining: `bootstrap_export_interfaces` and
+`interface_machine_contracts`. For the exporter, the alias spelling was
+attempted through the source signature (`binding-source-type` over the
+declaration reference index, then the interface type rows). That attempt
+missed for a naming reason: the exporter's value `symbol` is public
+(`Use.one`), while resolved declaration names and resolved type head names are
+internal (`m.Use.one`, `m.Dep.Pos`), so the signature index lookup finds
+nothing, and the interface type rows are keyed by public identity
+(`Dep.Pos`). A fix needs the internal-to-public mapping for both the
+signature lookup and the alias identity. An early attempt that emitted the
+internal name made the interface reader refuse with "resolved scheme contains
+an unbound type name: m.A.Positive". `interface_machine_contracts` is an
+index-form mismatch, not a
 missing promise certificate. A diagnostic refusal path through the character
 program prints both types at the refusing dependent application:
 
