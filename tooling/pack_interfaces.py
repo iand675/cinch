@@ -8,11 +8,24 @@ import struct
 import tempfile
 
 MAGIC = b"CINCHPK2"
+FLAT_MAGIC = b"CINCHPK3"
 # Value tags in a structured contract. Integers take two little-endian
 # words after the tag. Text and object keys use common string-table IDs.
 NULL, FALSE, TRUE, NAT, TEXT, ARRAY, OBJECT, DEFINITIONS, NEGATIVE = range(9)
 HEADER_SIZE = 80
+FLAT_HEADER_SIZE = 88
 MISSING = 0xFFFFFFFF
+
+LOCAL, NUMBER, BOOL, PRIMITIVE, CALL, LET, IF = range(7)
+BODY_FIELDS = {
+    "local": {"node", "slot"},
+    "number": {"node", "sort", "decimal"},
+    "bool": {"node", "value"},
+    "primitive": {"node", "operation", "arguments"},
+    "call": {"node", "target", "arguments"},
+    "let": {"node", "value", "body"},
+    "if": {"node", "condition", "yes", "no"},
+}
 
 
 def canonical(value):
@@ -81,6 +94,67 @@ def calls(expression):
             yield from calls(child)
 
 
+class BodyNodes:
+    """Four little-endian words per node, with postorder child indices."""
+
+    def __init__(self, strings, definitions):
+        self.strings = strings
+        self.definitions = definitions
+        self.nodes = bytearray()
+        self.operands = bytearray()
+
+    def append_operands(self, entries):
+        first = len(self.operands) // 4
+        self.operands.extend(words(*entries))
+        return first, len(entries)
+
+    def append_node(self, tag, first, second=0, third=0):
+        index = len(self.nodes) // 16
+        self.nodes.extend(words(tag, first, second, third))
+        return index
+
+    def expression(self, expression, targets):
+        kind = expression.get("node")
+        if expression.keys() != BODY_FIELDS.get(kind):
+            raise ValueError(f"unsupported total-body fields for {kind!r}")
+        if kind == "local":
+            return self.append_node(LOCAL, expression["slot"])
+        if kind == "number":
+            return self.append_node(NUMBER, self.strings.id(expression["sort"]),
+                                    self.strings.id(expression["decimal"]))
+        if kind == "bool":
+            if not isinstance(expression["value"], bool):
+                raise ValueError("total-body bool requires a boolean value")
+            return self.append_node(BOOL, int(expression["value"]))
+        if kind in ("primitive", "call"):
+            operands = [self.expression(arg, targets) for arg in expression["arguments"]]
+            start, count = self.append_operands(operands)
+            if kind == "call":
+                target = self.definitions[expression["target"]]
+                targets.add(target)
+                return self.append_node(CALL, target, start, count)
+            return self.append_node(PRIMITIVE, self.strings.id(expression["operation"]), start, count)
+        if kind == "let":
+            value = self.expression(expression["value"], targets)
+            body = self.expression(expression["body"], targets)
+            return self.append_node(LET, value, body)
+        if kind == "if":
+            condition = self.expression(expression["condition"], targets)
+            yes = self.expression(expression["yes"], targets)
+            no = self.expression(expression["no"], targets)
+            return self.append_node(IF, condition, yes, no)
+        raise AssertionError(f"missing packed encoder for {kind!r}")
+
+    def definition(self, definition, edges):
+        start, count = self.append_operands([self.strings.id(sort) for sort in definition["parameters"]])
+        targets = set()
+        root = self.expression(definition["body"], targets)
+        first_target = len(edges) // 4
+        edges.extend(words(*sorted(targets)))
+        return words(self.strings.id(definition["identity"]), self.strings.id(definition["result"]),
+                     start, count, root, first_target, len(targets), 0)
+
+
 def encode_value(out, value, strings, body_index, *, definitions=False, graph=False):
     if value is None:
         out.extend(words(NULL))
@@ -125,7 +199,7 @@ def encode_value(out, value, strings, body_index, *, definitions=False, graph=Fa
         raise ValueError(f"unsupported structured contract value {type(value).__name__}")
 
 
-def pack(rows, objects=None):
+def pack(rows, objects=None, *, flat_bodies=False):
     strings, recipes, contracts = StringArena(), Arena(), Arena()
     modules, exports, bodies, edges = (bytearray() for _ in range(4))
     definitions = {}
@@ -143,11 +217,15 @@ def pack(rows, objects=None):
 
     order = sorted(definitions)
     body_index = {name: i for i, name in enumerate(order)}
+    nodes = BodyNodes(strings, body_index) if flat_bodies else None
     for name in order:
         row = definitions[name]
-        targets = sorted({body_index[target] for target in calls(row["body"])})
         if row.keys() != {"identity", "parameters", "result", "body"}:
             raise ValueError(f"unsupported body fields for {name}")
+        if nodes is not None:
+            bodies.extend(nodes.definition(row, edges))
+            continue
+        targets = sorted({body_index[target] for target in calls(row["body"])})
         encoded = bytearray()
         encode_value(encoded, row, strings, {})
         bodies.extend(words(*strings.add(name), *strings.add(row["result"]),
@@ -190,13 +268,19 @@ def pack(rows, objects=None):
             metadata["private_interfaces"] = private
         abi = canonical(metadata)
 
-    payloads = (strings.encoded(), modules, exports, bodies, edges, recipes.data, contracts.data, abi)
-    offset = HEADER_SIZE
+    prefix = (strings.encoded(), modules, exports, bodies, edges)
+    suffix = (contracts.data, abi)
+    if nodes is not None:
+        magic, version, offset = FLAT_MAGIC, 3, FLAT_HEADER_SIZE
+        payloads = prefix + (nodes.nodes, nodes.operands) + suffix
+    else:
+        magic, version, offset = MAGIC, 2, HEADER_SIZE
+        payloads = prefix + (recipes.data,) + suffix
     sections = bytearray()
     for payload in payloads:
         sections.extend(words(offset, len(payload)))
         offset += len(payload)
-    return b"".join((MAGIC, words(offset, 2), sections, *payloads))
+    return b"".join((magic, words(offset, version), sections, *payloads))
 
 
 def read_manifest(path):
