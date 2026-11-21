@@ -9,7 +9,7 @@ module Bootstrap.Total where
   import Algebra.Semigroup
   import Text.Json (canonical-bytes, json-eq)
 
-  export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
+  export TotalGraph, TotalFunction, check-total-graph, check-total-function, total-function, total-graph-for-roots
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
@@ -164,22 +164,39 @@ module Bootstrap.Total where
     JArrEnd -> True
     other -> False
   check-total-graph :: Json -> Option TotalGraph
-  check-total-graph doc = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
+  check-total-graph doc = check-graph doc None
+
+  -- Interface declarations require one root and its exact closure. Walking
+  -- from that root proves acyclicity and membership in the same traversal.
+  check-total-function :: Json -> String -> Option TotalFunction
+  check-total-function doc name = case check-graph doc (Some name) of
+    Some graph -> Some (MkTotalFunction graph name)
+    None -> None
+
+  check-graph :: Json -> Option String -> Option TotalGraph
+  check-graph doc root = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
     let definitions = field "definitions" doc in
     case definitions of
       -- The only possible internal call would recurse back to this row.
       JArr row JArrEnd -> (case definition-name row of
-        Some name -> if valid-definition (IndexedRows hash-map-empty) row then Some (MkTotalGraph doc (SingleRow name row)) else None
+        Some name ->
+          if (case root of Some required -> same name required; None -> True) && valid-definition (IndexedRows hash-map-empty) row
+          then Some (MkTotalGraph doc (SingleRow name row)) else None
         None -> None)
       other -> case index-definitions definitions hash-map-empty of
         Some table -> let rows = IndexedRows table in
-          if valid-definitions rows definitions then
-            (case acyclic-calls rows hash-map-empty hash-map-empty (total-row-symbols definitions) of
-              Some checked -> Some (MkTotalGraph doc rows)
-              None -> None)
+          if valid-definitions rows definitions && check-graph-roots rows definitions root then Some (MkTotalGraph doc rows)
           else None
         None -> None
     else None
+
+  check-graph-roots :: TotalRows -> Json -> Option String -> Bool
+  check-graph-roots rows definitions root = case root of
+    None -> case acyclic-calls rows hash-map-empty hash-map-empty (total-row-symbols definitions) of
+      Some checked -> True
+      None -> False
+    Some name -> exact-roots rows definitions [name]
+
   total-function :: TotalGraph -> String -> Option TotalFunction
   total-function graph name = case graph of MkTotalGraph doc rows -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
   total-document :: TotalGraph -> Json
@@ -329,10 +346,14 @@ module Bootstrap.Total where
       None -> False
     JArrEnd -> True
     other -> False
+
+  exact-roots :: TotalRows -> Json -> List String -> Bool
+  exact-roots rows definitions roots = case acyclic-calls rows hash-map-empty hash-map-empty roots of
+    Some reachable -> total-owned-rows definitions reachable
+    None -> False
+
   total-graph-for-roots :: TotalGraph -> List String -> Bool
-  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows -> (case acyclic-calls rows hash-map-empty hash-map-empty roots of
-    Some reachable -> total-owned-rows (field "definitions" doc) reachable
-    None -> False)
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows -> exact-roots rows (field "definitions" doc) roots
 
   -- Every row of `first` must be byte-identical to the row of `second` that
   -- carries the same identity, and a row `second` does not have is compatible.

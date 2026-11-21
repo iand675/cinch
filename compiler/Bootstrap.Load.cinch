@@ -689,11 +689,8 @@ module Bootstrap.Load where
       nat-p (field "slot" row) && not (member-slot slot slots) && string-length identity > 0 && not (member identity names)
       && (case conditional-slot slot methods of Some actual -> same actual identity; None -> False)
       && resolved-entry-valid row && (case (field "nominals" (field "resolved" row), field "measures" (field "resolved" row)) of (JArrEnd, JArrEnd) -> True; other -> False)
-      && (case check-total-graph (field "total_body" row) of
-        Some graph -> (case total-function graph identity of
-          Some function -> total-graph-for-roots graph [identity]
-            && same (text (field "scheme" (field "resolved" row))) (method-body-declaration (total-parameters function) (total-result function))
-          None -> False)
+      && (case check-total-function (field "total_body" row) identity of
+        Some function -> same (text (field "scheme" (field "resolved" row))) (method-body-declaration (total-parameters function) (total-result function))
         None -> False)
       && method-bodies-valid rest methods (Cons slot slots) (Cons identity names)
     JArrEnd -> True
@@ -720,18 +717,16 @@ module Bootstrap.Load where
   has-field name doc = case doc of JObj key value rest -> same name key || has-field name rest; other -> False
   measure-bodies-valid :: Json -> Bool
   measure-bodies-valid rows = case rows of
-    JArr row rest -> (case check-total-graph (field "total_body" row) of
-      Some graph -> total-graph-for-roots graph [text (field "identity" row)] && (case total-function graph (text (field "identity" row)) of Some function -> True; None -> False)
+    JArr row rest -> (case check-total-function (field "total_body" row) (text (field "identity" row)) of
+      Some function -> True
       None -> False) && measure-bodies-valid rest
     JArrEnd -> True
     other -> False
   value-body-valid :: Json -> Bool
   value-body-valid row = has-field "total_body" row && (case field "total_body" row of
     JNull -> True
-    doc -> (case field "resolved" row of JNull -> False; other -> (case check-total-graph doc of
-      Some graph -> (case total-function graph (text (field "symbol" row)) of
-        Some function -> list-length (total-parameters function) == number (field "arity" row) && total-graph-for-roots graph [text (field "symbol" row)]
-        None -> False)
+    doc -> (case field "resolved" row of JNull -> False; other -> (case check-total-function doc (text (field "symbol" row)) of
+      Some function -> list-length (total-parameters function) == number (field "arity" row)
       None -> False)))
   keyed-ordering-valid :: Json -> Bool
   keyed-ordering-valid row = if not (has-field "keyed_ordering" row) then True else
@@ -1496,19 +1491,28 @@ module Bootstrap.Load where
           None -> body-node-owner-at ix identity at)
       else body-node-owner-at ix identity at
     else ""
-  verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+  data BodyAdmissions where
+    MkBodyAdmissions :: HashMap String (String, Json) -> HashMap String Json -> BodyAdmissions
+
+  verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String (String, Json) -> Result String (HashMap String (String, Json))
   verify-body-nodes rows reachable ix seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      let owner = body-node-owner ix identity in
-      let key = string-concat "#total-definition:" identity in
-      if string-length owner == 0 || not (name-in owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
-      else (case hash-map-lookup key seen of
-        None -> verify-body-nodes rest reachable ix (hash-map-insert key row seen)
-        Some prior -> if same-contract prior row then verify-body-nodes rest reachable ix seen
+      (case hash-map-lookup identity seen of
+        None ->
+          let owner = body-node-owner ix identity in
+          if string-length owner == 0 || not (name-in owner reachable) then bad-body-owner identity
+          else verify-body-nodes rest reachable ix (hash-map-insert identity (owner, row) seen)
+        Some (owner, prior) ->
+          if not (name-in owner reachable) then bad-body-owner identity
+          else if same-contract prior row then verify-body-nodes rest reachable ix seen
           else Err (string-concat "conflicting actual total body dependency: " identity))
     JArrEnd -> Ok seen
     other -> Err "invalid total body definition table"
-  verify-body-declarations :: List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+
+  bad-body-owner :: forall a. String -> Result String a
+  bad-body-owner identity = Err (string-concat "total body dependency is outside the checked module closure: " identity)
+
+  verify-body-declarations :: List Json -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Result String BodyAdmissions
   verify-body-declarations declarations reachable ix seen = case declarations of
     Nil -> Ok seen
     Cons row rest -> let identity = text (field "identity" row) in
@@ -1521,14 +1525,17 @@ module Bootstrap.Load where
           Some definition -> if same-contract declared (body-declaration identity definition) then verify-body-consistency row rest reachable ix seen declared
             else Err (string-concat "total body disagrees with its declaring module: " identity)
           None -> verify-body-consistency row rest reachable ix seen declared))
-  verify-body-consistency :: Json -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Json -> Result String (HashMap String Json)
-  verify-body-consistency row rest reachable ix seen declared = let identity = text (field "identity" row) in
-    case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix seen of
-      Err message -> Err message
-      Ok checked -> (case hash-map-lookup identity checked of
-        None -> verify-body-declarations rest reachable ix (hash-map-insert identity declared checked)
-        Some prior -> if same-contract prior declared then verify-body-declarations rest reachable ix checked
-          else Err (string-concat "conflicting defining total body declarations: " identity))
+  verify-body-consistency :: Json -> List Json -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Json -> Result String BodyAdmissions
+  verify-body-consistency row rest reachable ix seen declared = case seen of
+    MkBodyAdmissions nodes declarations ->
+      let identity = text (field "identity" row) in
+      (case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix nodes of
+        Err message -> Err message
+        Ok checked -> (case hash-map-lookup identity declarations of
+          None -> verify-body-declarations rest reachable ix (MkBodyAdmissions checked (hash-map-insert identity declared declarations))
+          Some prior -> if same-contract prior declared then verify-body-declarations rest reachable ix (MkBodyAdmissions checked declarations)
+            else Err (string-concat "conflicting defining total body declarations: " identity)))
+
   method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   method-body-owners-valid rows owner ix = case rows of
     JArr row rest -> same (body-node-owner ix (text (field "implementation" row))) owner && method-body-owners-valid rest owner ix
@@ -1562,7 +1569,7 @@ module Bootstrap.Load where
     JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable ix)
       && ordering-owners-valid rest reachable ix
     other -> True
-  verify-body-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String Json -> Result String Unit
+  verify-body-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> BodyAdmissions -> Result String Unit
   verify-body-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest ->
@@ -1602,7 +1609,7 @@ module Bootstrap.Load where
   verify-interface-contracts :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> Result String Unit
   verify-interface-contracts members index closures = case verify-nominal-set members index closures hash-map-empty of
     Err message -> Err message
-    Ok unit -> verify-body-set members index closures hash-map-empty
+    Ok unit -> verify-body-set members index closures (MkBodyAdmissions hash-map-empty hash-map-empty)
 
   -- Ordering cannot change the dependency graph or matching digests. A
   -- reordered set must still check contract comparisons and first exporters

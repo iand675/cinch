@@ -5,6 +5,7 @@
 //! Consumers must validate the whole dependency graph before using a call as
 //! an index. No schema-7 interface admits these bodies yet.
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Sort { Nat, Int, Bool, Bytes, I64 }
@@ -65,7 +66,25 @@ pub struct Invalid(pub String);
 /// The constructor is private. A valid graph is closed, well typed and
 /// acyclic; recursively calling a pure-typed function cannot manufacture it.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct CheckedGraph { definitions: BTreeMap<String, Definition> }
+pub struct CheckedGraph {
+    // Each exported closure owns its membership index. The checked bodies
+    // and keys are shared between closures of the same source graph.
+    definitions: BTreeMap<Arc<str>, Arc<Definition>>,
+}
+
+struct BodyScope<'a> {
+    parameters: &'a [Sort],
+    locals: Vec<Sort>,
+}
+
+impl BodyScope<'_> {
+    fn get(&self, slot: usize) -> Option<Sort> {
+        match slot.checked_sub(self.parameters.len()) {
+            Some(local) => self.locals.get(local).copied(),
+            None => self.parameters.get(slot).copied(),
+        }
+    }
+}
 
 fn number(sort: Sort, decimal: &str) -> bool {
     let digits = decimal.strip_prefix('-').unwrap_or(decimal);
@@ -82,7 +101,7 @@ impl CheckedGraph {
     pub fn check(definitions: Vec<Definition>) -> Result<Self, Invalid> {
         let mut by_name = BTreeMap::new();
         for definition in definitions {
-            if definition.identity.is_empty() || by_name.insert(definition.identity.clone(), definition).is_some() {
+            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), Arc::new(definition)).is_some() {
                 return Err(Invalid("empty or duplicate total-body identity".into()));
             }
         }
@@ -92,7 +111,7 @@ impl CheckedGraph {
             if inferred != definition.result { return Err(Invalid(format!("{}: body result sort disagrees with its declaration", definition.identity))) }
         }
         let mut done = BTreeSet::new();
-        for identity in graph.definitions.keys() { graph.acyclic(identity, &mut BTreeSet::new(), &mut done)?; }
+        for identity in graph.definitions.keys() { graph.acyclic(identity.as_ref(), &mut BTreeSet::new(), &mut done)?; }
         Ok(graph)
     }
     pub fn empty() -> Self { Self { definitions: BTreeMap::new() } }
@@ -142,7 +161,7 @@ impl CheckedGraph {
                 continue;
             }
             let dependents = users.remove(&name).unwrap_or_default();
-            graph.definitions.insert(name, definition);
+            graph.definitions.insert(Arc::from(name), Arc::new(definition));
             for dependent in dependents {
                 let (_, waiting) = pending.get_mut(&dependent).expect("dependent is pending");
                 *waiting -= 1;
@@ -156,25 +175,30 @@ impl CheckedGraph {
     /// Add a body only after all its callees. Inference uses checked existing
     /// definitions; a self/forward reference has no authority in this graph.
     pub fn define(&mut self, identity: String, parameters: Vec<Sort>, body: Expr) -> Result<(), Invalid> {
-        if identity.is_empty() || self.definitions.contains_key(&identity) { return Err(Invalid("empty or duplicate total-body identity".into())) }
+        if identity.is_empty() || self.definitions.contains_key(identity.as_str()) { return Err(Invalid("empty or duplicate total-body identity".into())) }
         let result = self.infer(&body, &parameters)?;
-        self.definitions.insert(identity.clone(), Definition { identity, parameters, result, body });
+        self.definitions.insert(
+            Arc::from(identity.as_str()),
+            Arc::new(Definition { identity, parameters, result, body }),
+        );
         Ok(())
     }
     /// Project only the requested definitions and their complete dependencies.
     /// The caller must choose roots from the owning package's checked exports;
     /// this operation proves closure, not ownership or a declared refinement.
-    pub fn closure<'a>(&self, roots: impl IntoIterator<Item=&'a str>) -> Result<Self, Invalid> {
-        let mut pending = roots.into_iter().map(str::to_string).collect::<Vec<_>>();
+    pub fn closure<'a>(&'a self, roots: impl IntoIterator<Item = &'a str>) -> Result<Self, Invalid> {
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
         let mut selected = BTreeMap::new();
         while let Some(identity) = pending.pop() {
-            if selected.contains_key(&identity) { continue }
-            let definition = self.get(&identity)
+            if selected.contains_key(identity) {
+                continue;
+            }
+            let (key, definition) = self.definitions.get_key_value(identity)
                 .ok_or_else(|| Invalid(format!("missing total-body root: {identity}")))?;
             let mut calls = BTreeSet::new();
             dependencies(&definition.body, &mut calls);
-            pending.extend(calls.into_iter().map(str::to_owned));
-            selected.insert(identity, definition.clone());
+            pending.extend(calls);
+            selected.insert(Arc::clone(key), Arc::clone(definition));
         }
         // A subgraph of an already checked DAG remains checked when every
         // referenced callee is retained. It cannot introduce new semantics.
@@ -197,12 +221,16 @@ impl CheckedGraph {
         }
         Ok(seen.len() == self.definitions.len())
     }
-    pub fn definitions(&self) -> impl Iterator<Item=&Definition> { self.definitions.values() }
-    pub fn get(&self, identity: &str) -> Option<&Definition> { self.definitions.get(identity) }
-    pub fn infer(&self, expression: &Expr, scope: &[Sort]) -> Result<Sort, Invalid> {
+    pub fn definitions(&self) -> impl Iterator<Item = &Definition> { self.definitions.values().map(Arc::as_ref) }
+    pub fn get(&self, identity: &str) -> Option<&Definition> { self.definitions.get(identity).map(Arc::as_ref) }
+    pub fn infer(&self, expression: &Expr, parameters: &[Sort]) -> Result<Sort, Invalid> {
+        self.infer_in(expression, &mut BodyScope { parameters, locals: Vec::new() })
+    }
+
+    fn infer_in(&self, expression: &Expr, scope: &mut BodyScope<'_>) -> Result<Sort, Invalid> {
         let fail = || Invalid("ill-scoped or ill-sorted total body".into());
         match expression {
-            Expr::Local(slot) => scope.get(*slot).copied().ok_or_else(fail),
+            Expr::Local(slot) => scope.get(*slot).ok_or_else(fail),
             Expr::Number { sort, decimal } => if number(*sort, decimal) { Ok(*sort) } else { Err(fail()) },
             Expr::Bool(_) => Ok(Sort::Bool),
             Expr::Primitive(operation, arguments) => {
@@ -214,22 +242,24 @@ impl CheckedGraph {
                 self.arguments(arguments, &callee.parameters, scope)?; Ok(callee.result)
             }
             Expr::Let { value, body } => {
-                let sort = self.infer(value, scope)?;
-                let mut nested = scope.to_vec(); nested.push(sort);
-                self.infer(body, &nested)
+                let sort = self.infer_in(value, scope)?;
+                scope.locals.push(sort);
+                let result = self.infer_in(body, scope);
+                scope.locals.pop();
+                result
             }
             Expr::If { condition, yes, no } => {
-                if self.infer(condition, scope)? != Sort::Bool { return Err(fail()) }
-                let yes = self.infer(yes, scope)?;
-                if yes != self.infer(no, scope)? { return Err(fail()) }
+                if self.infer_in(condition, scope)? != Sort::Bool { return Err(fail()) }
+                let yes = self.infer_in(yes, scope)?;
+                if yes != self.infer_in(no, scope)? { return Err(fail()) }
                 Ok(yes)
             }
         }
     }
-    fn arguments(&self, arguments: &[Expr], parameters: &[Sort], scope: &[Sort]) -> Result<(), Invalid> {
+    fn arguments(&self, arguments: &[Expr], parameters: &[Sort], scope: &mut BodyScope<'_>) -> Result<(), Invalid> {
         if arguments.len() != parameters.len() { return Err(Invalid("total call/primitive arity mismatch".into())) }
         for (argument, expected) in arguments.iter().zip(parameters) {
-            if self.infer(argument, scope)? != *expected { return Err(Invalid("total call/primitive argument sort mismatch".into())) }
+            if self.infer_in(argument, scope)? != *expected { return Err(Invalid("total call/primitive argument sort mismatch".into())) }
         }
         Ok(())
     }
@@ -290,6 +320,31 @@ include!("total_codec.rs");
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checked_closures_share_bodies_and_let_scopes_restore_their_slots() {
+        let mut graph = CheckedGraph::empty();
+        graph.define("leaf".into(), vec![Sort::Bool], Expr::If {
+            condition: Box::new(Expr::Local(0)),
+            yes: Box::new(Expr::Let {
+                value: Box::new(Expr::Bool(true)),
+                body: Box::new(Expr::Local(1)),
+            }),
+            no: Box::new(Expr::Local(0)),
+        }).unwrap();
+        assert!(graph.infer(&Expr::If {
+            condition: Box::new(Expr::Bool(false)),
+            yes: Box::new(Expr::Let {
+                value: Box::new(Expr::Bool(true)),
+                body: Box::new(Expr::Local(0)),
+            }),
+            no: Box::new(Expr::Local(0)),
+        }, &[]).is_err());
+
+        let closure = graph.closure(["leaf"]).unwrap();
+        assert!(std::ptr::eq(graph.get("leaf").unwrap(), closure.get("leaf").unwrap()));
+        assert_eq!(closure.to_json(), graph.to_json());
+    }
 
     #[test]
     fn closed_subset_retains_only_acyclic_well_sorted_dependency_closures() {

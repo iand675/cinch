@@ -3,6 +3,7 @@
 mod common;
 
 use cinch::interface::{Iface, IfaceRef, ValueExport, ResolvedScheme, NominalContract};
+use cinch::total::{CheckedGraph, Definition, Expr, Sort};
 use std::path::Path;
 
 fn quote(text: &str) -> String {
@@ -233,6 +234,51 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     cases.push((old_abi_row.clone(), "interface runtime ABI mismatch".into()));
     let mixed_abi_set: Vec<_> = full.iter().map(|r|
         if r[0] == "Lib" { old_abi_row.clone() } else { r.clone() }).collect();
+    // The first client can admit a private body from a dependency. Seeing
+    // that exact body earlier must not grant it to an unrelated client.
+    let definitions = |module: &str, value: &str| vec![
+        Definition {
+            identity: "BodyOwner.private".into(), parameters: Vec::new(), result: Sort::Int,
+            body: Expr::Number { sort: Sort::Int, decimal: value.into() },
+        },
+        Definition {
+            identity: format!("{module}.read"), parameters: Vec::new(), result: Sort::Int,
+            body: Expr::Call { target: "BodyOwner.private".into(), arguments: Vec::new() },
+        },
+    ];
+    let reader = |module: &str, dependency: Option<&Iface>, literal: &str| {
+        let mut iface = Iface::new(module, "");
+        if let Some(dependency) = dependency {
+            iface.imports.push(IfaceRef { module: dependency.module.clone(), iface_hash: dependency.iface_hash() });
+        }
+        iface.exports.values.push(ValueExport {
+            name: "read".into(), symbol: format!("{module}.read"), scheme: "Int".into(), arity: 0,
+            resolved: Some(ResolvedScheme { scheme: "Int".into(), nominals: Vec::new(), measures: Vec::new() }),
+            total_body: Some(CheckedGraph::check(definitions(module, literal)).unwrap()),
+            keyed_ordering: None,
+        });
+        iface
+    };
+    let body_owner = Iface::new("BodyOwner", "");
+    let first = reader("FirstReader", Some(&body_owner), "0");
+    let both = reader("SecondReader", Some(&body_owner), "0");
+    let no_body_import = reader("SecondReader", None, "0");
+    let changed_definition = reader("SecondReader", Some(&body_owner), "1");
+    let body_owner_row = row(&dir, "body-owner.cinchif", &body_owner);
+    let first_reader_row = row(&dir, "first-reader.cinchif", &first);
+    let body_set = |file: &str, iface: &Iface| vec![
+        body_owner_row.clone(), first_reader_row.clone(), row(&dir, file, iface),
+    ];
+
+    let mut unrelated = first.clone();
+    let mut extra = definitions("FirstReader", "0");
+    extra.push(Definition {
+        identity: "FirstReader.unrelated".into(), parameters: Vec::new(), result: Sort::Int,
+        body: Expr::Number { sort: Sort::Int, decimal: "9".into() },
+    });
+    unrelated.exports.values[0].total_body = Some(CheckedGraph::check(extra).unwrap());
+    cases.push((row(&dir, "unrelated-body.cinchif", &unrelated), "malformed interface contract envelope".into()));
+
     let sets = [
         (full, ""),
         (mixed_abi_set, "Lib: interface runtime ABI mismatch"),
@@ -246,6 +292,9 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
         (conflict, "Origin: conflicting defining nominal contracts: Origin.Hidden"),
         (override_set, "conflicting defining signature contract: Lib.Hidden"),
         (wrong_parameters_set, "Facade: signature identity has no matching defining contract: Lib.Secret"),
+        (body_set("second-reader.cinchif", &both), ""),
+        (body_set("missing-body-edge.cinchif", &no_body_import), "SecondReader: total body dependency is outside the checked module closure: BodyOwner.private"),
+        (body_set("conflicting-shared-body.cinchif", &changed_definition), "SecondReader: conflicting actual total body dependency: BodyOwner.private"),
     ];
     let case_json = array(cases.iter().map(|(r, expected)| { let mut r = r.clone(); r.push(expected.clone()); strings(&r) }));
     let set_json = array(sets.iter().map(|(rows, expected)| array([array(rows.iter().map(|r| strings(r))), quote(expected)])));
