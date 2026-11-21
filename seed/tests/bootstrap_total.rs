@@ -57,5 +57,37 @@ fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
         ("strict let cannot reference its own RHS binder", one(r#"{"node":"let","value":{"node":"local","slot":1},"body":{"node":"local","slot":1}}"#, r#"["Nat"]"#, "Nat")),
         ("untyped condition", one(r#"{"node":"if","condition":{"node":"local","slot":0},"yes":{"node":"local","slot":0},"no":{"node":"local","slot":0}}"#, r#"["Nat"]"#, "Nat")),
     ] { run(name, &data, 4); }
+
+    let call = |target: &str| serde_json::json!({
+        "node": "call", "target": target, "arguments": [{"node": "local", "slot": 0}]
+    });
+    let row = |name: &str, body: serde_json::Value| serde_json::json!({
+        "identity": name, "parameters": ["Nat"], "result": "Nat", "body": body
+    });
+    let leaf = serde_json::json!({"node": "number", "sort": "Nat", "decimal": "7"});
+    let mut wide = serde_json::json!({"version": 1, "definitions": [
+        row("Main.width", serde_json::json!({
+            "node": "if", "condition": {"node": "bool", "value": true},
+            "yes": call("right"), "no": call("left")
+        })),
+        row("unused", leaf.clone()),
+        row("right", call("shared")),
+        row("shared", leaf),
+        row("left", call("shared")),
+    ]});
+    run("forward edges and shared descendants", &wide.to_string(), 0);
+    assert_eq!(common::read_output(&dir, "bounds.txt"), "7:7");
+    let closure: serde_json::Value = serde_json::from_str(&common::read_output(&dir, "closure.json")).unwrap();
+    let definitions = wide["definitions"].as_array_mut().unwrap();
+    let expected: Vec<_> = definitions.iter().filter(|row| row["identity"] != "unused").cloned().collect();
+    assert_eq!(closure["definitions"], serde_json::json!(expected));
+
+    definitions.push(definitions[3].clone());
+    run("duplicate row in a multi-row graph", &wide.to_string(), 4);
+    wide["definitions"].as_array_mut().unwrap().pop();
+    wide["definitions"][3]["body"] = call("Main.width");
+    run("multi-row cycle", &wide.to_string(), 4);
+    wide["definitions"][3]["body"] = call("missing");
+    run("missing dependency in a multi-row graph", &wide.to_string(), 4);
     common::cleanup(&dir);
 }

@@ -1,6 +1,6 @@
 module Main where
   import Bootstrap.Total
-  import Text.Json (parse-json)
+  import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Json
   import Data.Path (path-from-string)
@@ -14,11 +14,13 @@ module Main where
     Err error -> 90
     Ok source -> case parse-json "total-body-artifact" source of
       Parsed doc Nil -> (case check-total-graph doc of
-        Some graph -> (case total-function graph "Main.width" of
-          Some function -> if same (total-identity function) "Main.width" && same (total-result function) "Nat" && list-length (total-parameters function) == 1 then
+        Some graph -> (case (total-function graph "Main.width", total-function-closure graph "Main.width") of
+          (Some function, Some closure) -> if same (total-identity function) "Main.width" && same (total-result function) "Nat" && list-length (total-parameters function) == 1 then
             (let bounds = case total-bounds function of Some (low, high) -> string-concat-all [int-to-string low, ":", int-to-string high]; None -> "unknown" in
-             case fs-write (path-from-string "bounds.txt") (string-to-bytes bounds) of Ok _ -> 0; Err error -> 96)
+             case fs-write (path-from-string "bounds.txt") (string-to-bytes bounds) of
+               Ok _ -> (case fs-write (path-from-string "closure.json") (canonical-bytes (total-function-document closure)) of Ok _ -> 0; Err error -> 96)
+               Err error -> 96)
             else 94
-          None -> 95)
+          other -> 95)
         None -> 4)
       other -> 2

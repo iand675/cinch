@@ -16,8 +16,11 @@ module Bootstrap.Total where
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
 
+  data TotalRows where
+    SingleRow :: String -> Json -> TotalRows
+    IndexedRows :: HashMap String Json -> TotalRows
   data TotalGraph where
-    MkTotalGraph :: Json -> TotalGraph
+    MkTotalGraph :: Json -> TotalRows -> TotalGraph
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
     MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
@@ -47,10 +50,10 @@ module Bootstrap.Total where
     other -> None
   at :: Nat -> List String -> Option String
   at index scope = case scope of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
-  find :: String -> Json -> Option Json
-  find name rows = case rows of
-    JArr row rest -> if same name (text (field "identity" row)) then Some row else find name rest
-    other -> None
+  find-row :: String -> TotalRows -> Option Json
+  find-row name rows = case rows of
+    SingleRow identity row -> if same name identity then Some row else None
+    IndexedRows table -> hash-map-lookup name table
 
   decimal-digits :: List Char -> Bool
   decimal-digits chars = case chars of Nil -> True; Cons char rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
@@ -80,16 +83,16 @@ module Bootstrap.Total where
     else if same name "BoolNot" then Some (["Bool"], "Bool")
     else if same name "BytesLen" then Some (["Bytes"], "Nat")
     else None
-  arguments-fit :: Json -> List String -> Json -> List String -> Bool
+  arguments-fit :: TotalRows -> List String -> Json -> List String -> Bool
   arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
     (JArr argument rest, Cons expected more) -> (case infer definitions scope argument of Some actual -> same expected actual; None -> False) && arguments-fit definitions scope rest more
     (JArrEnd, Nil) -> True
     other -> False
-  call-type :: Json -> List String -> Json -> Json -> Option String
+  call-type :: TotalRows -> List String -> Json -> Json -> Option String
   call-type definitions scope arguments declaration = case sorts (field "parameters" declaration) of
     Some parameters -> if valid-sort (text (field "result" declaration)) && arguments-fit definitions scope arguments parameters then Some (text (field "result" declaration)) else None
     None -> None
-  infer :: Json -> List String -> Json -> Option String
+  infer :: TotalRows -> List String -> Json -> Option String
   infer definitions scope term = let node = text (field "node" term) in
     if same node "local" then
       (if fields ["node", "slot"] term then (case field "slot" term of JNum index -> if index >= 0 then at (nat-from-int index) scope else None; other -> None) else None)
@@ -102,7 +105,7 @@ module Bootstrap.Total where
         Some (parameters, result) -> if arguments-fit definitions scope (field "arguments" term) parameters then Some result else None
         None -> None) else None)
     else if same node "call" then
-      (if fields ["node", "target", "arguments"] term then (case find (text (field "target" term)) definitions of
+      (if fields ["node", "target", "arguments"] term then (case find-row (text (field "target" term)) definitions of
         Some declaration -> call-type definitions scope (field "arguments" term) declaration
         None -> None) else None)
     else if same node "let" then
@@ -115,43 +118,72 @@ module Bootstrap.Total where
         other -> None) else None)
     else None
 
-  calls-arguments :: Json -> List String
-  calls-arguments rows = case rows of JArr first rest -> calls first <> calls-arguments rest; other -> Nil
-  calls :: Json -> List String
-  calls term = let node = text (field "node" term) in
-    if same node "call" then Cons (text (field "target" term)) (calls-arguments (field "arguments" term))
-    else if same node "primitive" then calls-arguments (field "arguments" term)
-    else if same node "let" then calls (field "value" term) <> calls (field "body" term)
-    else if same node "if" then calls (field "condition" term) <> calls (field "yes" term) <> calls (field "no" term)
-    else Nil
-  acyclic-calls :: Json -> List String -> List String -> List String -> Option (List String)
+  calls-arguments :: Json -> List String -> List String
+  calls-arguments rows tail = case rows of
+    JArr first rest -> calls-into first (calls-arguments rest tail)
+    other -> tail
+  calls-into :: Json -> List String -> List String
+  calls-into term tail = let node = text (field "node" term) in
+    if same node "call" then Cons (text (field "target" term)) (calls-arguments (field "arguments" term) tail)
+    else if same node "primitive" then calls-arguments (field "arguments" term) tail
+    else if same node "let" then calls-into (field "value" term) (calls-into (field "body" term) tail)
+    else if same node "if" then calls-into (field "condition" term) (calls-into (field "yes" term) (calls-into (field "no" term) tail))
+    else tail
+  -- Completed rows double as the index of the reachable subgraph.
+  acyclic-calls :: TotalRows -> HashMap String () -> HashMap String Json -> List String -> Option (HashMap String Json)
   acyclic-calls definitions path done targets = case targets of
     Nil -> Some done
-    Cons name rest -> if has name done then acyclic-calls definitions path done rest
-      else if has name path then None else case find name definitions of
-        Some declaration -> (case acyclic-calls definitions (Cons name path) done (calls (field "body" declaration)) of
-          Some checked -> acyclic-calls definitions path (Cons name checked) rest
+    Cons name rest -> case hash-map-lookup name done of
+      Some prior -> acyclic-calls definitions path done rest
+      None -> case (hash-map-lookup name path, find-row name definitions) of
+        (None, Some declaration) -> (case acyclic-calls definitions (hash-map-insert name () path) done (calls-into (field "body" declaration) Nil) of
+          Some checked -> acyclic-calls definitions path (hash-map-insert name declaration checked) rest
           None -> None)
-        None -> None
-  acyclic-roots :: Json -> Json -> List String -> Bool
-  acyclic-roots all rows done = case rows of
-    JArr declaration rest -> (case acyclic-calls all Nil done [text (field "identity" declaration)] of Some checked -> acyclic-roots all rest checked; None -> False)
-    JArrEnd -> True
-    other -> False
-  valid-definitions :: Json -> Json -> List String -> Bool
-  valid-definitions all rows seen = case rows of
-    JArr declaration rest -> let name = text (field "identity" declaration) in
-      fields ["identity", "parameters", "result", "body"] declaration && string-length name > 0 && not (has name seen)
-      && (case sorts (field "parameters" declaration) of Some parameters -> (case infer all parameters (field "body" declaration) of Some result -> valid-sort (text (field "result" declaration)) && same result (text (field "result" declaration)); None -> False); None -> False)
-      && valid-definitions all rest (Cons name seen)
+        other -> None
+  definition-name :: Json -> Option String
+  definition-name declaration = let name = text (field "identity" declaration) in
+    if string-length name > 0 && fields ["identity", "parameters", "result", "body"] declaration then Some name else None
+  index-definitions :: Json -> HashMap String Json -> Option (HashMap String Json)
+  index-definitions rows table = case rows of
+    JArr declaration rest -> case definition-name declaration of
+      Some name -> (case hash-map-lookup name table of
+        None -> index-definitions rest (hash-map-insert name declaration table)
+        Some duplicate -> None)
+      None -> None
+    JArrEnd -> Some table
+    other -> None
+  valid-definition :: TotalRows -> Json -> Bool
+  valid-definition all declaration = case sorts (field "parameters" declaration) of
+    Some parameters -> (case infer all parameters (field "body" declaration) of
+      Some result -> valid-sort (text (field "result" declaration)) && same result (text (field "result" declaration))
+      None -> False)
+    None -> False
+  valid-definitions :: TotalRows -> Json -> Bool
+  valid-definitions all rows = case rows of
+    JArr declaration rest -> valid-definition all declaration && valid-definitions all rest
     JArrEnd -> True
     other -> False
   check-total-graph :: Json -> Option TotalGraph
-  check-total-graph doc = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) && valid-definitions (field "definitions" doc) (field "definitions" doc) Nil && acyclic-roots (field "definitions" doc) (field "definitions" doc) Nil then Some (MkTotalGraph doc) else None
+  check-total-graph doc = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
+    let definitions = field "definitions" doc in
+    case definitions of
+      -- The only possible internal call would recurse back to this row.
+      JArr row JArrEnd -> (case definition-name row of
+        Some name -> if valid-definition (IndexedRows hash-map-empty) row then Some (MkTotalGraph doc (SingleRow name row)) else None
+        None -> None)
+      other -> case index-definitions definitions hash-map-empty of
+        Some table -> let rows = IndexedRows table in
+          if valid-definitions rows definitions then
+            (case acyclic-calls rows hash-map-empty hash-map-empty (total-row-symbols definitions) of
+              Some checked -> Some (MkTotalGraph doc rows)
+              None -> None)
+          else None
+        None -> None
+    else None
   total-function :: TotalGraph -> String -> Option TotalFunction
-  total-function graph name = case graph of MkTotalGraph doc -> (case find name (field "definitions" doc) of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-function graph name = case graph of MkTotalGraph doc rows -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
   total-document :: TotalGraph -> Json
-  total-document graph = case graph of MkTotalGraph doc -> doc
+  total-document graph = case graph of MkTotalGraph doc rows -> doc
   -- Projections are reconstructed against the checked source constructors.
   -- Their carrier-tree representation carries no imported body authority.
   source-total-projection :: String -> String -> List (String, Nat) -> Option TotalFunction
@@ -196,7 +228,7 @@ module Bootstrap.Total where
   total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain result steps -> name; MkKeyedOrdering name less greater -> name
   function-row :: TotalFunction -> Json
   function-row function = case function of
-    MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
+    MkTotalFunction (MkTotalGraph doc rows) name -> (case find-row name rows of Some row -> row; None -> JNull)
     other -> JNull
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
@@ -209,21 +241,25 @@ module Bootstrap.Total where
     MkTotalFunction graph name -> total-document graph
     MkSourceProjection name domain result steps -> JObj "source_projection" (projection-document domain result steps) JObjEnd
     MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
-  closure-rows :: List String -> Json -> Json
+  closure-rows :: HashMap String Json -> Json -> Json
   closure-rows names rows = case rows of
-    JArr row rest -> if has (text (field "identity" row)) names then JArr row (closure-rows names rest) else closure-rows names rest
+    JArr row rest -> case hash-map-lookup (text (field "identity" row)) names of
+      Some reachable -> JArr row (closure-rows names rest)
+      None -> closure-rows names rest
     other -> JArrEnd
   total-graph-symbols :: TotalGraph -> List String
-  total-graph-symbols graph = case graph of MkTotalGraph doc -> total-row-symbols (field "definitions" doc)
+  total-graph-symbols graph = case graph of MkTotalGraph doc rows -> total-row-symbols (field "definitions" doc)
   total-row-symbols :: Json -> List String
   total-row-symbols rows = case rows of
     JArr row rest -> Cons (text (field "identity" row)) (total-row-symbols rest)
     other -> Nil
   total-function-closure :: TotalGraph -> String -> Option TotalFunction
-  total-function-closure graph name = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil [name] of
-    Some reachable -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (closure-rows reachable (field "definitions" doc)) JObjEnd)) of
-      Some closed -> total-function closed name
-      None -> None)
+  total-function-closure graph name = case graph of MkTotalGraph doc rows -> (case acyclic-calls rows hash-map-empty hash-map-empty [name] of
+    -- The walk keeps all the dependencies of these already checked rows.
+    Some reachable ->
+      let definitions = closure-rows reachable (field "definitions" doc) in
+      let closed = JObj "version" (JNum 1) (JObj "definitions" definitions JObjEnd) in
+      Some (MkTotalFunction (MkTotalGraph closed (IndexedRows reachable)) name)
     None -> None)
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
   total-function-equal first second = same (total-identity first) (total-identity second)
@@ -249,13 +285,13 @@ module Bootstrap.Total where
   unknown-domains parameters = case parameters of Nil -> Nil; Cons parameter rest -> Cons None (unknown-domains rest)
   domain-at :: Nat -> List (Option (List Int)) -> Option (List Int)
   domain-at slot scope = case scope of Nil -> None; Cons first rest -> if slot == 0 then first else domain-at (slot - 1) rest
-  argument-domains :: Json -> List (Option (List Int)) -> Json -> Nat -> (List (Option (List Int)), Nat)
+  argument-domains :: TotalRows -> List (Option (List Int)) -> Json -> Nat -> (List (Option (List Int)), Nat)
   argument-domains definitions scope arguments fuel = if fuel == 0 then (Nil, 0) else case arguments of
     JArr argument rest -> (case literal-results definitions scope argument fuel of
       (value, left) -> case argument-domains definitions scope rest left of
         (others, remaining) -> (Cons value others, remaining))
     other -> (Nil, fuel)
-  literal-results :: Json -> List (Option (List Int)) -> Json -> Nat -> (Option (List Int), Nat)
+  literal-results :: TotalRows -> List (Option (List Int)) -> Json -> Nat -> (Option (List Int), Nat)
   literal-results definitions scope term fuel = if fuel == 0 then (None, 0) else
     let remaining = fuel - 1 in let node = text (field "node" term) in
     if same node "number" then (case decimal-value (text (field "decimal" term)) of Some value -> (Some [value], remaining); None -> (None, remaining))
@@ -267,7 +303,7 @@ module Bootstrap.Total where
       other -> other)
     else if same node "let" then (case literal-results definitions scope (field "value" term) remaining of
       (value, left) -> literal-results definitions (scope <> [value]) (field "body" term) left)
-    else if same node "call" then (case find (text (field "target" term)) definitions of
+    else if same node "call" then (case find-row (text (field "target" term)) definitions of
       Some declaration -> (case argument-domains definitions scope (field "arguments" term) remaining of
         (values, left) -> literal-results definitions values (field "body" declaration) left)
       None -> (None, remaining))
@@ -276,37 +312,28 @@ module Bootstrap.Total where
   result-envelope values low high = case values of Nil -> (low, high); Cons value rest -> result-envelope rest (if value < low then value else low) (if value > high then value else high)
   total-bounds :: TotalFunction -> Option (Int, Int)
   total-bounds function = if not (has (total-result function) ["Nat", "Int", "I64"]) then None else case function of
-    MkTotalFunction (MkTotalGraph doc) name -> (case literal-results (field "definitions" doc) (unknown-domains (total-parameters function)) (total-body function) 4096 of
+    MkTotalFunction (MkTotalGraph doc rows) name -> (case literal-results rows (unknown-domains (total-parameters function)) (total-body function) 4096 of
       (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
       other -> None)
     other -> None
 
-  total-owned-rows :: Json -> List String -> Bool
+  total-owned-rows :: Json -> HashMap String Json -> Bool
   total-owned-rows rows reachable = case rows of
-    JArr row rest -> has (text (field "identity" row)) reachable && total-owned-rows rest reachable
+    JArr row rest -> case hash-map-lookup (text (field "identity" row)) reachable of
+      Some checked -> total-owned-rows rest reachable
+      None -> False
     JArrEnd -> True
     other -> False
   total-graph-for-roots :: TotalGraph -> List String -> Bool
-  total-graph-for-roots graph roots = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil roots of
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows -> (case acyclic-calls rows hash-map-empty hash-map-empty roots of
     Some reachable -> total-owned-rows (field "definitions" doc) reachable
     None -> False)
 
   -- Every row of `first` must be byte-identical to the row of `second` that
   -- carries the same identity, and a row `second` does not have is compatible.
-  -- The scan for that row used to restart at the head of `second` for every
-  -- row of `first`, re-extracting each identity it passed: `bodies-match`
-  -- runs this for every pair of body bindings, so the restart is what made
-  -- the body-context check quadratic. The table is built once per call and
-  -- probed per row, which is the same lookup with the same answer.
-  definition-table :: Json -> HashMap String Json
-  definition-table rows = case rows of
-    JArr row rest -> hash-map-insert (text (field "identity" row)) row (definition-table rest)
-    other -> hash-map-empty
-  compatible-definitions :: Json -> Json -> Bool
-  compatible-definitions first second = compatible-rows first (definition-table second)
-  compatible-rows :: Json -> HashMap String Json -> Bool
+  compatible-rows :: Json -> TotalRows -> Bool
   compatible-rows first table = case first of
-    JArr row rest -> (case hash-map-lookup (text (field "identity" row)) table of
+    JArr row rest -> (case find-row (text (field "identity" row)) table of
       Some prior -> bytes-compare (canonical-bytes row) (canonical-bytes prior) == 0
       None -> True) && compatible-rows rest table
     JArrEnd -> True
@@ -319,14 +346,17 @@ module Bootstrap.Total where
     other -> graph-views-compatible first second
   graph-views-compatible :: TotalFunction -> TotalFunction -> Bool
   graph-views-compatible first second = case (total-source-projection first, total-source-projection second) of
-    (False, False) -> compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))
+    (False, False) -> case second of
+      MkTotalFunction (MkTotalGraph doc rows) name -> compatible-rows (field "definitions" (total-function-document first)) rows
+      other -> True
     (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
     (True, False) -> projection-compatible first second
     (False, True) -> projection-compatible second first
   projection-compatible :: TotalFunction -> TotalFunction -> Bool
-  projection-compatible projection graph = case find (total-identity projection) (field "definitions" (total-function-document graph)) of
-    None -> True
-    Some row -> False
+  projection-compatible projection graph = case graph of
+    MkTotalFunction (MkTotalGraph doc rows) name ->
+      (case find-row (total-identity projection) rows of None -> True; Some row -> False)
+    other -> True
 
   -- Checked graph rows sharing an identity must agree byte for byte. A
   -- projection or keyed ordering excludes a graph row with its identity.
@@ -356,7 +386,7 @@ module Bootstrap.Total where
   extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
   extend-total-compatibility function context = case context of
     CheckedTotalCompatibility rows projections orderings -> case function of
-      MkTotalFunction (MkTotalGraph doc) name -> (case remember-graph-rows (field "definitions" doc) rows projections orderings of
+      MkTotalFunction (MkTotalGraph doc table) name -> (case remember-graph-rows (field "definitions" doc) rows projections orderings of
         Some known -> Some (CheckedTotalCompatibility known projections orderings)
         None -> None)
       MkSourceProjection name domain result steps -> (case hash-map-lookup name rows of
