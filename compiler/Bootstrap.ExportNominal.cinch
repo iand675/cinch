@@ -15,7 +15,7 @@ module Bootstrap.ExportNominal where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Json (json-eq)
 
-  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names
+  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names, binding-source-type
   export sorted, declaration-reference-index, source-effect-contract
 
   same :: String -> String -> Bool
@@ -381,5 +381,16 @@ module Bootstrap.ExportNominal where
   reference-names-of name index = case hash-map-lookup name index of Some refs -> refs; None -> Nil
   binding-reference-names :: String -> HashMap String (List String) -> List String
   binding-reference-names name index = reference-names-of name index
+  binding-source-type :: List Decl -> HashMap String (List String) -> String -> Option TypeExpr
+  binding-source-type declarations index name = source-signature-of declarations name (binding-reference-names name index)
+  source-signature-of :: List Decl -> String -> List String -> Option TypeExpr
+  source-signature-of declarations symbol names = case declarations of
+    Nil -> None
+    Cons (DSig s name ty) rest -> if same name symbol || same name (string-concat "m." symbol) || name-in-names name names then Some ty else source-signature-of rest symbol names
+    Cons other rest -> source-signature-of rest symbol names
+  name-in-names :: String -> List String -> Bool
+  name-in-names name names = case names of
+    Nil -> False
+    Cons first rest -> if same name first then True else name-in-names name rest
   binding-refinements :: List Decl -> HashMap String (List String) -> String -> Result String Json
   binding-refinements declarations index name = referenced-refinements declarations (binding-reference-names name index) Nil

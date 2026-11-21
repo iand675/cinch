@@ -33,7 +33,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Bootstrap.Export (export-interfaces, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
+  import Bootstrap.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.TargetLiterals (target-literal-errors)
   import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-required, profile-features, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
@@ -256,7 +256,7 @@ module Bootstrap.Pipeline where
             IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
             other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
               let entry = path-stem (path-from-string source) in
-              let exported = export-interfaces checked admitted src in
+              let exported = export-interfaces-aliased checked admitted src in
               case serialize-exported checked profile entry admitted Nil exported of
                 done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
       Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
@@ -361,7 +361,7 @@ module Bootstrap.Pipeline where
   rebuild-source-interface :: TargetProfile -> Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
   rebuild-source-interface profile source program name dependencies facade = case checked-overlay-source profile program dependencies facade of
     Err errors -> Err (render-source-diagnostics source errors)
-    Ok checked -> case export-interfaces checked dependencies source of
+    Ok checked -> case export-interfaces-aliased checked dependencies source of
       Err message -> Err (string-concat "bootstrap.export: " message)
       Ok (Cons (owner, doc) Nil) -> if string-compare owner name == 0 then
         (case load-interface owner (interface-hash doc) (canonical-bytes doc) of
@@ -455,7 +455,7 @@ module Bootstrap.Pipeline where
             (Nil, Cons first rest) -> write-interface-output prefix (Ok replaced)
             other -> case checked-source profile remaining effective of
               Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
-              Ok checked -> case export-interfaces checked effective src of
+              Ok checked -> case export-interfaces-aliased checked effective src of
                 Err message -> write-interface-output prefix (Err message)
                 Ok rows -> write-interface-output prefix (Ok (replaced <> rows)))
       Parsed program errors -> write-failure prefix (render-bundle (Bundle source src errors)) pipeline-parse-failed
@@ -535,7 +535,7 @@ module Bootstrap.Pipeline where
     (BodiesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Err found) -> after-check profile inlining reclaim mode src result ir exe report
     (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
-      case serialize-exported checked profile (path-stem (path-from-string name)) admitted replaced (export-interfaces checked admitted src) of
+      case serialize-exported checked profile (path-stem (path-from-string name)) admitted replaced (export-interfaces-aliased checked admitted src) of
         done -> after-check profile inlining reclaim mode src result ir exe report
 
   -- The artifact set is best effort: the frontend's own refusal codes stay
