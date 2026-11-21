@@ -158,7 +158,9 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     }
     let bootstrap_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../compiler");
     while let Some(module) = pending.pop() {
-        if !module.starts_with("Bootstrap.") || !provided.insert(module.clone()) {
+        if !(module.starts_with("Bootstrap.") || module == "Data.Array")
+            || !provided.insert(module.clone())
+        {
             continue;
         }
         let name = format!("{module}.cinch");
@@ -167,6 +169,9 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         }
         let source = if module == "Bootstrap.Host" {
             host_module()
+        } else if module == "Data.Array" {
+            // The pinned provider omits this compiler toolkit dependency.
+            include_str!("../../prelude/Data/Array.cinch").to_owned()
         } else {
             match std::fs::read_to_string(bootstrap_dir.join(&name)) {
                 Ok(source) => source,
