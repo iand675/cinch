@@ -37,6 +37,7 @@ module Bootstrap.Core where
   export thunk-function-parts
   export core-mutable-writes, scoped-branch-writes, guard-fallthrough-writes
   export mutable-fact-write, mutable-predicate-write, facts-after-writes, proof-after-writes, volatile-borrow-index
+  export writes-move-nothing, term-scope
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-resumption-count, handler-body-direct, handler-performs

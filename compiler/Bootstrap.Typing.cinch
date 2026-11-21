@@ -330,8 +330,10 @@ module Bootstrap.Typing where
           None -> None)
       other -> None)
   checked-application :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
-  checked-application context scope gamma facts ty row f x = let before-argument = core-mutable-writes f in
-    let before-call = before-argument <> core-mutable-writes x in
+  checked-application context scope gamma facts ty row f x =
+    let invalidate = not (writes-move-nothing gamma facts) in
+    let before-argument = if invalidate then core-mutable-writes f else Nil in
+    let before-call = if invalidate then before-argument <> core-mutable-writes x else Nil in
     not (erased-value-arrow (core-type f))
       && (case core-type f of UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (core-type x); other -> True)
       && checked-term context scope gamma facts f
@@ -342,7 +344,9 @@ module Bootstrap.Typing where
   tuple-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   tuple-terms context scope gamma facts types terms = case (types, terms) of
     (UEnd, CArgumentsEnd sp) -> True
-    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first) && checked-term context scope gamma facts first && tuple-terms context scope (proof-after-writes gamma (core-mutable-writes first)) (facts-after-writes gamma facts (core-mutable-writes first)) rest more
+    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first)
+      && checked-term context scope gamma facts first
+      && (let (next, live) = term-scope gamma facts first in tuple-terms context scope next live rest more)
     other -> False
   mathematical :: UType -> Bool
   mathematical ty = type-is "Int" ty || type-is "Nat" ty
@@ -411,7 +415,11 @@ module Bootstrap.Typing where
     (UCon name kind, args) -> (case args of Cons element Nil -> Some element; other -> None)
     other -> None
   argument-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
-  argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope (proof-after-writes gamma (core-mutable-writes first)) (facts-after-writes gamma facts (core-mutable-writes first)) rest; other -> False
+  argument-terms context scope gamma facts terms = case terms of
+    CArgumentsEnd sp -> True
+    CArgument sp first rest -> checked-term context scope gamma facts first
+      && (let (next, live) = term-scope gamma facts first in argument-terms context scope next live rest)
+    other -> False
   alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
   alternatives-typed context scope gamma facts scrutinee expected alternatives = case alternatives of
     CAlternativesEnd sp -> True
