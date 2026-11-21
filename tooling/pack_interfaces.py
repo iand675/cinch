@@ -347,6 +347,8 @@ def main():
     parser.add_argument("output", type=Path, help="the .cpk file to publish")
     parser.add_argument("--objects", type=Path, help="native objects.json for the same interface set")
     parser.add_argument("--execution", action="store_true", help="read the Rust package execution interface")
+    parser.add_argument("--legacy-recipes", action="store_true",
+                        help="write version 2 for older compilers")
     args = parser.parse_args()
     if args.execution:
         if args.objects:
@@ -360,7 +362,7 @@ def main():
     else:
         rows = read_manifest(args.inputs)
         metadata = read_abi(args.objects)[1] if args.objects else None
-    publish(args.output, pack(rows, metadata))
+    publish(args.output, pack(rows, metadata, flat_bodies=not args.legacy_recipes))
 
 
 if __name__ == "__main__":

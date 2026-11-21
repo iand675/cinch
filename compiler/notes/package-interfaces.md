@@ -91,15 +91,17 @@ Each node consists of a tag and three unsigned words.
 | 5 | Let | Value node ID | Body node ID | 0 |
 | 6 | If | Condition node ID | True node ID | False node ID |
 
-Argument ranges index node IDs in Operands. Children precede their
-parents in Nodes and each node belongs to exactly one definition tree.
+Argument ranges index node IDs in Operands. Each definition occupies a
+contiguous interval in Nodes. Its subtrees appear in source operand order
+before their parent, and each node belongs to exactly one definition tree.
 References between definitions use Call nodes. A contract's entire checked
 body graph is tag 9 followed by one body ID. Its member definitions follow
 from the call edges and are ordered by identity for the schema-10 digest.
 
-The Rust package reader uses the mapped records to build one shared typed
-tree per definition. The packer's Python API exposes this format through
-`flat_bodies=True`. The CLI publishes version 2 during reader integration.
+The packer CLI writes version 3 by default. Pass `--legacy-recipes` for
+version 2. The readers consume the mapped records and materialize one
+shared tree per definition. Native Cinch uses the contract document shape
+for its checker and canonical contract digests.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.
@@ -114,3 +116,6 @@ The gate checks valid and invalid Hello World programs through both native
 input paths, compares emitted LLVM IR, requires a clean leak line, corrupts
 package sections and identities, and checks a real installed Rust package.
 Native timings use fresh processes with a warm filesystem cache.
+The native bootstrap writes `base.cpk` and uses it as the base contract
+input for self-compilation. Stage3 verification records its digest and
+passes it to the compiler for tests that use the standard base library.

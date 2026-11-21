@@ -14,6 +14,17 @@ import verify_stage3
 
 
 class FrozenVerification(unittest.TestCase):
+    def test_stage3_wrapper_uses_the_indexed_base_and_preserves_fixture_manifests(self):
+        with patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
+            for manifest, selected in (("stage/base-interfaces.json", "stage/base.cpk"),
+                                       ("fixture/custom.json", "fixture/custom.json")):
+                args = ["--check-types", "--interfaces", manifest, "Main.cinch", "out"]
+                code = verify_stage3.compile_client("cinch", "objects.json", "runtime.a", args,
+                                                   indexed_base=("stage/base-interfaces.json", "stage/base.cpk"))
+                self.assertEqual(code, 0)
+                self.assertEqual(run.call_args.args[0], ["cinch", "--check-types", "--interfaces",
+                                                        selected, "Main.cinch", "out"])
+
     def fixture(self, root):
         for part in verify.PARTS:
             (root / part).mkdir(parents=True)

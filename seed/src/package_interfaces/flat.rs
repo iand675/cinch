@@ -22,6 +22,12 @@ enum Node<'a> {
     If(u32, u32, u32),
 }
 
+struct Tree {
+    first: u32,
+    next: u32,
+    calls: Vec<u32>,
+}
+
 fn row_offset(id: u32, width: usize) -> Decode<usize> {
     (id as usize)
         .checked_mul(width)
@@ -37,7 +43,7 @@ fn word_range(data: &[u8], start: u32, count: u32) -> Decode<&[u8]> {
         .ok_or_else(|| invalid("packed body span outside its section"))
 }
 
-fn indices(data: &[u8]) -> impl Iterator<Item = u32> + '_ {
+fn indices(data: &[u8]) -> impl DoubleEndedIterator<Item = u32> + '_ {
     data.chunks_exact(4)
         .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
 }
@@ -94,7 +100,7 @@ impl<'a> FlatBodies<'a> {
 
     pub(super) fn definitions(&self) -> Decode<Vec<Definition>> {
         let mut definitions = Vec::with_capacity(self.bodies.len() / BODY_ROW);
-        let mut seen = vec![false; self.nodes.len() / NODE_ROW];
+        let mut first_node = 0;
         let mut previous = None;
         for row in self.bodies.chunks_exact(BODY_ROW) {
             let [name, result, first, count, root, edge, edges, reserved] = words(row, 0)?;
@@ -109,11 +115,22 @@ impl<'a> FlatBodies<'a> {
             let parameters = indices(word_range(self.operands, first, count)?)
                 .map(|sort| self.sort(sort))
                 .collect::<Decode<_>>()?;
-            let mut targets = Vec::new();
-            let body = self.materialize(root, MAX_DEPTH, &mut seen, &mut targets)?;
-            targets.sort_unstable();
-            targets.dedup();
-            if !indices(word_range(self.edges, edge, edges)?).eq(targets) {
+            let next = root
+                .checked_add(1)
+                .ok_or_else(|| invalid("packed body node outside its section"))?;
+            let mut tree = Tree {
+                first: first_node,
+                next,
+                calls: Vec::new(),
+            };
+            let body = self.materialize(root, MAX_DEPTH, &mut tree)?;
+            if tree.next != first_node {
+                return Err(invalid("unreferenced packed body node"));
+            }
+            first_node = next;
+            tree.calls.sort_unstable();
+            tree.calls.dedup();
+            if !indices(word_range(self.edges, edge, edges)?).eq(tree.calls) {
                 return Err(invalid(
                     "packed body dependencies disagree with its expression",
                 ));
@@ -125,37 +142,25 @@ impl<'a> FlatBodies<'a> {
                 body,
             });
         }
-        if seen.contains(&false) {
+        if first_node as usize != self.nodes.len() / NODE_ROW {
             return Err(invalid("unreferenced packed body node"));
         }
         Ok(definitions)
     }
 
-    fn materialize(
-        &self,
-        id: u32,
-        depth: usize,
-        seen: &mut [bool],
-        targets: &mut Vec<u32>,
-    ) -> Decode<Expr> {
+    fn materialize(&self, id: u32, depth: usize, tree: &mut Tree) -> Decode<Expr> {
         if depth == 0 {
             return Err(invalid("over-nested packed body"));
         }
-        let Some(slot) = seen.get_mut(id as usize) else {
+        if id as usize >= self.nodes.len() / NODE_ROW {
             return Err(invalid("packed body node outside its section"));
-        };
-        // The producer writes each expression once in postorder. Checking
-        // ownership here bounds allocation by the node table, even for a
-        // crafted table whose children repeatedly reference the same row.
-        if std::mem::replace(slot, true) {
-            return Err(invalid("reused packed body node"));
         }
-        let mut child = |node| {
-            if node >= id {
-                return Err(invalid("packed body child is not in postorder"));
-            }
-            self.materialize(node, depth - 1, seen, targets)
-        };
+        // Each reverse step must consume the next record of this tree.
+        if id < tree.first || id + 1 != tree.next {
+            return Err(invalid("packed body child is not in postorder"));
+        }
+        tree.next = id;
+        let mut child = |node| self.materialize(node, depth - 1, tree);
         Ok(match self.node(id)? {
             Node::Local(slot) => Expr::Local(slot as usize),
             Node::Number(sort, decimal) => Expr::Number {
@@ -164,25 +169,41 @@ impl<'a> FlatBodies<'a> {
             },
             Node::Bool(value) => Expr::Bool(value),
             Node::Primitive(op, args) => {
-                Expr::Primitive(op, indices(args).map(&mut child).collect::<Decode<_>>()?)
+                let mut arguments = indices(args)
+                    .rev()
+                    .map(&mut child)
+                    .collect::<Decode<Vec<_>>>()?;
+                arguments.reverse();
+                Expr::Primitive(op, arguments)
             }
             Node::Call(target, args) => {
-                let arguments = indices(args).map(&mut child).collect::<Decode<_>>()?;
-                targets.push(target);
+                let mut arguments = indices(args)
+                    .rev()
+                    .map(&mut child)
+                    .collect::<Decode<Vec<_>>>()?;
+                arguments.reverse();
+                tree.calls.push(target);
                 Expr::Call {
                     target: self.definition_name(target)?.into(),
                     arguments,
                 }
             }
-            Node::Let(value, body) => Expr::Let {
-                value: Box::new(child(value)?),
-                body: Box::new(child(body)?),
-            },
-            Node::If(condition, yes, no) => Expr::If {
-                condition: Box::new(child(condition)?),
-                yes: Box::new(child(yes)?),
-                no: Box::new(child(no)?),
-            },
+            Node::Let(value, body) => {
+                let body = Box::new(child(body)?);
+                Expr::Let {
+                    value: Box::new(child(value)?),
+                    body,
+                }
+            }
+            Node::If(condition, yes, no) => {
+                let no = Box::new(child(no)?);
+                let yes = Box::new(child(yes)?);
+                Expr::If {
+                    condition: Box::new(child(condition)?),
+                    yes,
+                    no,
+                }
+            }
         })
     }
 }

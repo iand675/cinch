@@ -34,14 +34,26 @@ def publish_interfaces(manifest, source, prefix):
 PROFILE_FLAGS = ("--clear-features", "--rc-debug", "--no-reclaim", "--portable-isa")
 
 
-def compile_client(compiler, objects, runtime, args, *, ir_only=False):
+def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_base=None):
     """Adapt the shared Rust test harness to the staged frontend and linker."""
     env = bootstrap.environment()
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
     emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
+
+    def frontend(options):
+        # Test fixtures can supply their own manifests. Select the packed
+        # artifact for the receipt's base interfaces and preserve each
+        # fixture's chosen inputs and the API's JSON publication manifest.
+        if indexed_base and "--interfaces" in options:
+            manifest, package = indexed_base
+            at = options.index("--interfaces") + 1
+            if at < len(options) and Path(options[at]) == Path(manifest):
+                options = [*options[:at], package, *options[at + 1:]]
+        return subprocess.call([compiler, *options], env=env)
+
     if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", "--check-platform", *PROFILE_FLAGS):
-        return subprocess.call([compiler, *args], env=env)
+        return frontend(args)
     profile = []
     end = 1
     while end < len(args):
@@ -57,12 +69,12 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
         end += width
     args = args[:1] + args[end:]
     if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"], ["--check-types"]):
-        return subprocess.call([compiler, *profile, *args], env=env)
+        return frontend([*profile, *args])
     if args[0:1] == ["--emit-object"]:
-        return subprocess.call([compiler, args[0], *profile, *args[1:]], env=env)
+        return frontend([args[0], *profile, *args[1:]])
     if args[0:1] == ["--emit-ir"]:
         flags = [] if "--objects" in args else ["--objects", objects]
-        return subprocess.call([compiler, emit, *profile, *flags, *args[1:]], env=env)
+        return frontend([emit, *profile, *flags, *args[1:]])
     if args[:2] == ["--compile-only", "--interfaces"] and args[3:4] == ["--objects"]:
         objects = args[4]
         args = args[:3] + args[5:]
@@ -70,7 +82,7 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
         return 1
     manifest, source, ir, exe, report = map(Path, args[2:])
     mode = "--emit-ir-with-interfaces" if api else emit
-    code = subprocess.call([compiler, mode, *profile, "--interfaces", manifest, "--objects", objects, source, ir], env=env)
+    code = frontend([mode, *profile, "--interfaces", manifest, "--objects", objects, source, ir])
     if code:
         return code
     if api:
@@ -121,6 +133,8 @@ def stage3_artifacts():
         Path(configuration["metadata"]): configuration["metadata_sha256"],
         runtime: inputs["runtime_archive_sha256"],
     })
+    if "interface_package_sha256" in inputs:
+        hashes[stage / "base.cpk"] = inputs["interface_package_sha256"]
     if (inputs["builder_sha256"] != receipt["executable_sha256"]
             or any(bootstrap.file_hash(path) != digest for path, digest in hashes.items())):
         raise bootstrap.BootstrapError("Stage3 frontend test artifacts changed")
@@ -247,7 +261,11 @@ def standalone_inputs(directory, compiler, manifest, objects, runtime):
 def write_wrapper(wrapper, compiler, objects, runtime):
     ir_only = supports_source_mode(compiler, "--emit-ir-only")
     receipt = Path(compiler).parent / "stage.json"
-    stage_receipt = str(receipt.resolve()) if receipt.is_file() and "library_provider" in bootstrap.read_json(receipt).get("inputs", {}) else None
+    inputs = bootstrap.read_json(receipt).get("inputs", {}) if receipt.is_file() else {}
+    stage_receipt = str(receipt.resolve()) if "library_provider" in inputs else None
+    indexed_base = None
+    if "interface_package_sha256" in inputs:
+        indexed_base = (str(receipt.with_name("base-interfaces.json")), str(receipt.with_name("base.cpk")))
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
@@ -255,7 +273,8 @@ def write_wrapper(wrapper, compiler, objects, runtime):
         f"compiler={str(compiler)!r}\n"
         "if sys.argv[1:2] == ['--test-target-inputs'] and len(sys.argv) >= 3 and sys.argv[3:] in ([], ['--no-reclaim']):\n"
         f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3, stage_receipt={stage_receipt!r}))\n"
-        f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], ir_only={ir_only!r}))\n"
+        f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], "
+        f"ir_only={ir_only!r}, indexed_base={indexed_base!r}))\n"
     )
     wrapper.chmod(0o755)
 
@@ -313,6 +332,9 @@ def verify(evidence, cargo_target, jobs=1):
     report = {
         "stage": 3, "compiler_sha256": hashes[compiler], "interfaces_sha256": hashes[manifest],
         "scope_sha256": bootstrap.file_hash(scope_path), "total_targets": len(targets), "rows": [], "status": "running"}
+    package = compiler.with_name("base.cpk")
+    if package in hashes:
+        report["interface_package_sha256"] = hashes[package]
     report_path = evidence / "results.json"
     bootstrap.write_json(report_path, report)
     completed = {}

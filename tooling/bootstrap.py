@@ -430,9 +430,12 @@ def shard_identity() -> dict:
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
     if inputs.get("built_by_stage", 0) > 0:
-        return (("compiler.ll", "link-report.txt", "base-interfaces.json", "objects.json")
-                if inputs.get("frontend_mode") == "typed-ir-objects" else
-                ("compiler.ll", "link-report.txt", "base-interfaces.json"))
+        outputs = ("compiler.ll", "link-report.txt", "base-interfaces.json")
+        if inputs.get("frontend_mode") == "typed-ir-objects":
+            outputs += ("objects.json",)
+        if "interface_package_sha256" in inputs:
+            outputs += ("base.cpk",)
+        return outputs
     if "source_sha256" in inputs:
         return ("compiler.cinch", "sources/build/Main.manifest.json")
     return ()
@@ -902,9 +905,16 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None,
                pgo_enabled: bool | None = None, opt_level: int = 2,
                publish_interfaces: bool = True) -> Path:
+    from pack_interfaces import pack, publish
+
     provider = runtime_provider()
     base = provider["interfaces"]
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
+    try:
+        packed = pack([(name, identity, Path(path).read_bytes())
+                       for name, identity, path in base["interfaces"]], flat_bodies=True)
+    except (KeyError, TypeError, ValueError) as error:
+        raise BootstrapError(f"cannot pack the base interfaces: {error}") from error
     configuration = json.dumps(provider["configuration"], sort_keys=True, separators=(",", ":")).encode()
     runtime = provider["runtime"]
     sources = source_hash(files)
@@ -912,6 +922,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "shard_count": SHARDS, **shard_identity(),
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
+              "interface_package_sha256": digest(packed),
               "interface_output": "checked-schema10" if publish_interfaces else "none",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
@@ -929,6 +940,8 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     prepare_outputs(directory)
     manifest = directory / "base-interfaces.json"
     manifest.write_bytes(base_bytes)
+    package = directory / "base.cpk"
+    publish(package, packed)
     objects = directory / "objects.json"
     objects.write_bytes(configuration)
     if source is None:
@@ -941,7 +954,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     # generated library root and its base closure, never Bootstrap sources.
     ir, exe = directory / "compiler.ll", directory / "cinch"
     mode = "--emit-ir-with-interfaces" if publish_interfaces else "--emit-ir-only"
-    code = run([builder, mode, "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
+    code = run([builder, mode, "--interfaces", package, "--objects", objects, source, ir], directory, log)
     if code:
         from bootstrap_objects import requested_roots
         diagnostics = directory / "compiler.ll.diagnostics"

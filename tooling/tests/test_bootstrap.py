@@ -453,6 +453,8 @@ class BootstrapContract(unittest.TestCase):
                 if args[0] == builder:
                     self.assertEqual(args[1:3], ["--emit-ir-with-interfaces", "--interfaces"])
                     self.assertEqual(len(args), 8)
+                    self.assertEqual(args[3], directory / "base.cpk")
+                    self.assertTrue(args[3].read_bytes().startswith(b"CINCHPK3"))
                     self.assertEqual(args[4:6], ["--objects", directory / "objects.json"])
                     Path(args[-1]).write_text("typed IR")
                     return 0
@@ -484,6 +486,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual(inputs["frontend_mode"], "typed-ir-objects")
                 self.assertEqual(inputs["interface_output"], "checked-schema10")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
+                self.assertEqual(inputs["interface_package_sha256"], bootstrap.file_hash(directory / "base.cpk"))
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")
                 runtime.write_bytes(b"different runtime object")
@@ -495,6 +498,9 @@ class BootstrapContract(unittest.TestCase):
                 (directory / "objects.json").write_text("corrupted stage configuration")
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 12, "a changed admission configuration must invalidate the cache")
+                (directory / "base.cpk").write_text("corrupted stage package")
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 15, "a changed interface package must invalidate the cache")
 
     def test_typed_refusal_never_calls_a_linker_or_falls_back_to_native(self):
         with tempfile.TemporaryDirectory() as temp:

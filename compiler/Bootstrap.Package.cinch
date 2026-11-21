@@ -2,9 +2,12 @@
 -- the returned contracts retain only ordinary managed Cinch values.
 module Bootstrap.Package where
 
+  import Bootstrap.Total (check-total-graph)
   import Data.Array (array-from-list, array-get, array-length)
   import Data.Bytes (bytes-data, bytes-len, bytes-new)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
+  import Data.List (sort)
   import Data.Machine (u32-to-nat, saturating-i64-to-i32)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end)
@@ -34,11 +37,22 @@ module Bootstrap.Package where
 
   data Region where
     Region :: Nat -> Nat -> Region
+  data FlatBodies where
+    FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
+  data BodyFormat where
+    Recipes :: Region -> Region -> BodyFormat
+    Indexed :: FlatBodies -> BodyFormat
   data Package where
-    Package :: Region -> Region -> Region -> Region -> Region -> Package
+    Package :: Region -> Region -> BodyFormat -> Region -> Package
+  data Definitions where
+    NoDefinitions :: Definitions
+    RecipeDefinitions :: Array Json -> Definitions
+    IndexedDefinitions :: FlatBodies -> Array Json -> Definitions
 
   region-size :: Region -> Nat
   region-size region = case region of Region start length -> length
+  region-start :: Region -> Nat
+  region-start region = case region of Region start length -> start
 
   word :: I64 -> Nat -> Nat
   word address at = u32-to-nat (load-word address (machine-offset at))
@@ -58,27 +72,40 @@ module Bootstrap.Package where
   row-span :: I64 -> Region -> Nat -> Result String Region
   row-span address region at = subregion region (word address at) (word address (at + 4))
 
-  sections :: I64 -> Nat -> Nat -> Nat -> Option (List Region)
-  sections address size at previous =
-    if at == 80 then (if previous == size then Some Nil else None) else
+  sections :: I64 -> Nat -> Nat -> Nat -> Nat -> Option (List Region)
+  sections address size end at previous =
+    if at == end then (if previous == size then Some Nil else None) else
       let start = word address at in
       let length = word address (at + 4) in
       let limit = start + length in
       if start /= previous || limit > size then None else
-        (case sections address size (at + 8) limit of
+        (case sections address size end (at + 8) limit of
           None -> None
           Some rest -> Some (Cons (Region start length) rest))
 
   package-header :: I64 -> Nat -> Result String Package
   package-header address size =
-    if size < 80 || word address 0 /= 1129204035 || word address 4 /= 843796552 ||
-       word address 8 /= size || word address 12 /= 2 then Err "invalid interface package header" else
-      (case sections address size 16 80 of
-        Some [strings, modules, values, bodies, edges, recipes, documents, abi] ->
-          if region-size modules % 36 /= 0 || region-size bodies % 32 /= 0 ||
-             region-size values % 32 /= 0 || region-size edges % 4 /= 0 then Err "mis-sized interface package section"
-          else Ok (Package strings modules bodies recipes documents)
-        other -> Err "invalid interface package section directory")
+    if size < 80 || word address 0 /= 1129204035 || word address 8 /= size then Err "invalid interface package header" else
+      let magic = word address 4 in
+      let version = word address 12 in
+      if magic == 843796552 && version == 2 then
+        (case sections address size 80 16 80 of
+          Some [strings, modules, values, bodies, edges, recipes, documents, abi] ->
+            checked-sections strings modules values bodies edges (Recipes bodies recipes) documents
+          other -> Err "invalid interface package section directory")
+      else if magic == 860573768 && version == 3 && size >= 88 then
+        (case sections address size 88 16 88 of
+          Some [strings, modules, values, bodies, edges, nodes, operands, documents, abi] ->
+            if region-size nodes % 16 /= 0 || region-size operands % 4 /= 0 then Err "mis-sized packed body node or operand section"
+            else checked-sections strings modules values bodies edges (Indexed (FlatBodies bodies edges nodes operands)) documents
+          other -> Err "invalid interface package section directory")
+      else Err "invalid interface package header"
+
+  checked-sections :: Region -> Region -> Region -> Region -> Region -> BodyFormat -> Region -> Result String Package
+  checked-sections strings modules values bodies edges format documents =
+    if region-size modules % 36 /= 0 || region-size bodies % 32 /= 0 ||
+       region-size values % 32 /= 0 || region-size edges % 4 /= 0 then Err "mis-sized interface package section"
+    else Ok (Package strings modules format documents)
 
   read-text :: forall r. I64 -> Region ->{IO r} Result String String
   read-text address region = case region of
@@ -97,16 +124,16 @@ module Bootstrap.Package where
     Err message -> Err message
     Ok region -> read-text address region
 
-  read-document :: forall r. I64 -> Array String -> Array Json -> Bool -> Region ->{IO r} Result String Json
-  read-document address strings definitions allow-refs region = case region of
+  read-document :: forall r. I64 -> Array String -> Definitions -> Region ->{IO r} Result String Json
+  read-document address strings definitions region = case region of
     Region start size ->
       let limit = start + size in
-      case read-value address strings definitions allow-refs start limit 256 of
+      case read-value address strings definitions start limit 256 of
         Err message -> Err message
         Ok (value, end) -> if end == limit then Ok value else Err "trailing bytes in structured contract"
 
-  read-value :: forall r. I64 -> Array String -> Array Json -> Bool -> Nat -> Nat -> Nat ->{IO r} Result String (Json, Nat)
-  read-value address strings definitions allow-refs at limit depth =
+  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat ->{IO r} Result String (Json, Nat)
+  read-value address strings definitions at limit depth =
     if depth == 0 || at + 4 > limit then Err "truncated or over-nested structured contract" else
       let cursor = at + 4 in
       case word address at of
@@ -119,12 +146,18 @@ module Bootstrap.Package where
             None -> Err "text outside package string table"
             Some value -> Ok (JStr value, cursor + 4))
         5 -> if cursor + 4 > limit then Err "truncated array header" else
-          read-array address strings definitions allow-refs (word address cursor) (cursor + 4) limit (depth - 1) Nil
+          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil
         6 -> if cursor + 4 > limit then Err "truncated object header" else
-          read-object address strings definitions allow-refs (word address cursor) (cursor + 4) limit (depth - 1) None Nil
-        7 -> if not allow-refs || cursor + 4 > limit then Err "invalid shared definition table" else
-          read-definitions address definitions (word address cursor) (cursor + 4) limit 0 Nil
+          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None Nil
+        7 -> (case definitions of
+          RecipeDefinitions rows | cursor + 4 <= limit -> read-definitions address rows (word address cursor) (cursor + 4) limit 0 Nil
+          other -> Err "invalid shared definition table")
         8 -> read-number address cursor limit True
+        9 -> (case definitions of
+          IndexedDefinitions flat rows | cursor + 4 <= limit -> (case read-body-closure address strings flat rows (word address cursor) of
+            Err message -> Err message
+            Ok body -> Ok (body, cursor + 4))
+          other -> Err "unexpected packed body root")
         other -> Err "unknown structured contract tag"
 
   read-number :: I64 -> Nat -> Nat -> Bool -> Result String (Json, Nat)
@@ -143,28 +176,28 @@ module Bootstrap.Package where
     Nil -> out
     Cons (name, item) rest -> object-from-reverse rest (JObj name item out)
 
-  read-array :: forall r. I64 -> Array String -> Array Json -> Bool -> Nat -> Nat -> Nat -> Nat -> List Json ->{IO r} Result String (Json, Nat)
-  read-array address strings definitions allow-refs left at limit depth items =
+  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json ->{IO r} Result String (Json, Nat)
+  read-array address strings definitions left at limit depth items =
     if left == 0 then Ok (array-from-reverse items JArrEnd, at) else
-      (case read-value address strings definitions allow-refs at limit depth of
+      (case read-value address strings definitions at limit depth of
         Err message -> Err message
-        Ok (item, end) -> read-array address strings definitions allow-refs (left - 1) end limit depth (Cons item items))
+        Ok (item, end) -> read-array address strings definitions (left - 1) end limit depth (Cons item items))
 
   out-of-order :: Option String -> String -> Bool
   out-of-order previous name = case previous of
     None -> False
     Some earlier -> string-compare earlier name >= 0
 
-  read-object :: forall r. I64 -> Array String -> Array Json -> Bool -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) ->{IO r} Result String (Json, Nat)
-  read-object address strings definitions allow-refs left at limit depth previous items =
+  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) ->{IO r} Result String (Json, Nat)
+  read-object address strings definitions left at limit depth previous items =
     if left == 0 then Ok (object-from-reverse items JObjEnd, at)
     else if at + 4 > limit then Err "truncated field key" else
       (case array-get strings (word address at) of
         None -> Err "field key outside package string table"
         Some name -> if out-of-order previous name then Err "unordered or duplicate structured contract field" else
-          (case read-value address strings definitions allow-refs (at + 4) limit depth of
+          (case read-value address strings definitions (at + 4) limit depth of
             Err message -> Err message
-            Ok (item, end) -> read-object address strings definitions allow-refs (left - 1) end limit depth (Some name) (Cons (name, item) items)))
+            Ok (item, end) -> read-object address strings definitions (left - 1) end limit depth (Some name) (Cons (name, item) items)))
 
   read-definitions :: I64 -> Array Json -> Nat -> Nat -> Nat -> Nat -> List Json -> Result String (Json, Nat)
   read-definitions address definitions left at limit count items =
@@ -190,9 +223,175 @@ module Bootstrap.Package where
     if at == limit then Ok (array-from-list (reverse items)) else
       (case row-span address recipes (at + 16) of
         Err message -> Err message
-        Ok region -> case read-document address strings (array-from-list Nil) False region of
+        Ok region -> case read-document address strings NoDefinitions region of
           Err message -> Err message
           Ok item -> read-recipes address strings recipes (at + 32) limit (Cons item items))
+
+  operand-region :: Region -> Nat -> Nat -> Result String Region
+  operand-region region first count = subregion region (first * 4) (count * 4)
+
+  reversed-words :: I64 -> Nat -> Nat -> List Nat -> List Nat
+  reversed-words address at end tail =
+    if at == end then tail else reversed-words address (at + 4) end (Cons (word address at) tail)
+
+  read-parameters :: I64 -> Array String -> Nat -> Nat -> Json -> Result String Json
+  read-parameters address strings start end tail =
+    if start == end then Ok tail
+    else if end < 4 then Err "truncated packed body parameter" else
+      let previous = end - 4 in
+      (case array-get strings (word address previous) of
+        Some sort -> read-parameters address strings start previous (JArr (JStr sort) tail)
+        None -> Err "packed body parameter outside package string table")
+
+  -- The writer emits each definition contiguously in postorder. A reverse
+  -- walk must consume its exact interval, once per node, before any
+  -- node becomes part of a managed term or escapes the mapping.
+  read-flat-term :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> Nat -> List Nat -> Result String (Json, Nat, List Nat)
+  read-flat-term address strings flat first cursor id depth targets =
+    case flat of
+      FlatBodies bodies edges nodes operands ->
+        if depth == 0 then Err "over-nested packed body"
+        else if id >= region-size nodes / 16 then Err "packed body node outside its section"
+        else if id < first || id + 1 /= cursor then Err "packed body child is not in postorder"
+        else
+          let at = region-start nodes + id * 16 in
+          let a = word address (at + 4) in
+          let b = word address (at + 8) in
+          let c = word address (at + 12) in
+          let left = depth - 1 in
+          (case word address at of
+            0 | b == 0 && c == 0 ->
+              Ok (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int a)) JObjEnd), id, targets)
+            1 | c == 0 -> (case (array-get strings a, array-get strings b) of
+              (Some sort, Some decimal) ->
+                Ok (JObj "decimal" (JStr decimal) (JObj "node" (JStr "number") (JObj "sort" (JStr sort) JObjEnd)), id, targets)
+              other -> Err "packed body number outside package string table")
+            2 | a <= 1 && b == 0 && c == 0 ->
+              Ok (JObj "node" (JStr "bool") (JObj "value" (JBool (a == 1)) JObjEnd), id, targets)
+            3 -> (case array-get strings a of
+              Some operation -> read-flat-application address strings flat first id left "primitive" "operation" operation b c targets
+              None -> Err "packed body primitive outside package string table")
+            4 -> if a >= region-size bodies / 32 then Err "packed body definition outside its section" else
+              (case array-get strings (word address (region-start bodies + a * 32)) of
+                Some callee -> read-flat-application address strings flat first id left "call" "target" callee b c (Cons a targets)
+                None -> Err "packed body target outside package string table")
+            5 | c == 0 -> (case read-flat-children address strings flat first id left [b, a] JArrEnd targets of
+              Ok (JArr value (JArr body JArrEnd), next, calls) ->
+                Ok (JObj "body" body (JObj "node" (JStr "let") (JObj "value" value JObjEnd)), next, calls)
+              Err message -> Err message
+              other -> Err "invalid packed let")
+            6 -> (case read-flat-children address strings flat first id left [c, b, a] JArrEnd targets of
+              Ok (JArr condition (JArr yes (JArr no JArrEnd)), next, calls) ->
+                Ok (JObj "condition" condition (JObj "no" no (JObj "node" (JStr "if") (JObj "yes" yes JObjEnd))), next, calls)
+              Err message -> Err message
+              other -> Err "invalid packed conditional")
+            other -> Err "invalid packed body node")
+
+  read-flat-children :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> List Nat -> Json -> List Nat -> Result String (Json, Nat, List Nat)
+  read-flat-children address strings flat first cursor depth children tail targets = case children of
+    Nil -> Ok (tail, cursor, targets)
+    Cons id rest -> (case read-flat-term address strings flat first cursor id depth targets of
+      Err message -> Err message
+      Ok (node, next, calls) -> read-flat-children address strings flat first next depth rest (JArr node tail) calls)
+
+  read-flat-application :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> String -> String -> String -> Nat -> Nat -> List Nat -> Result String (Json, Nat, List Nat)
+  read-flat-application address strings flat first cursor depth kind key name start count targets =
+    case flat of
+      FlatBodies bodies edges nodes operands ->
+        (case operand-region operands start count of
+          Err message -> Err message
+          Ok (Region at length) ->
+            let children = reversed-words address at (at + length) Nil in
+            case read-flat-children address strings flat first cursor depth children JArrEnd targets of
+              Err message -> Err message
+              Ok (arguments, next, calls) ->
+                Ok (JObj "arguments" arguments (JObj "node" (JStr kind) (JObj key (JStr name) JObjEnd)), next, calls))
+
+  skip-target :: Nat -> List Nat -> List Nat
+  skip-target callee calls = case calls of
+    Cons first rest | first == callee -> skip-target callee rest
+    other -> calls
+
+  edges-agree :: I64 -> Nat -> Nat -> List Nat -> Bool
+  edges-agree address at end calls = case calls of
+    Nil -> at == end
+    Cons first rest -> at < end && word address at == first &&
+      edges-agree address (at + 4) end (skip-target first rest)
+
+  read-flat-rows :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Option String -> List Json -> Result String Definitions
+  read-flat-rows address strings flat index first previous rows =
+    case flat of
+      FlatBodies bodies edges nodes operands ->
+        if index == region-size bodies / 32 then
+          (if first /= region-size nodes / 16 then Err "unreferenced packed body node" else
+            case check-total-graph (body-document (array-from-reverse rows JArrEnd)) of
+              Some graph -> Ok (IndexedDefinitions flat (array-from-list (reverse rows)))
+              None -> Err "invalid packed total-body graph")
+        else
+          let at = region-start bodies + index * 32 in
+          let root = word address (at + 16) in
+          (case (array-get strings (word address at), array-get strings (word address (at + 4))) of
+            (Some identity, Some result) ->
+              if string-length identity == 0 || out-of-order previous identity || word address (at + 28) /= 0 then Err "invalid packed body definition row" else
+                (case (operand-region operands (word address (at + 8)) (word address (at + 12)),
+                       operand-region edges (word address (at + 20)) (word address (at + 24))) of
+                  (Ok (Region parameter-start parameter-size), Ok (Region edge-start edge-size)) ->
+                    (case read-parameters address strings parameter-start (parameter-start + parameter-size) JArrEnd of
+                      Err message -> Err message
+                      Ok parameters -> (case read-flat-term address strings flat first (root + 1) root 256 Nil of
+                        Err message -> Err message
+                        Ok (body, next, calls) ->
+                          if next /= first then Err "unreferenced packed body node"
+                          else if not (edges-agree address edge-start (edge-start + edge-size) (sort calls)) then Err "packed body dependencies disagree with its expression"
+                          else
+                            let row = JObj "body" body (JObj "identity" (JStr identity) (JObj "parameters" parameters (JObj "result" (JStr result) JObjEnd))) in
+                            read-flat-rows address strings flat (index + 1) (root + 1) (Some identity) (Cons row rows)))
+                  other -> Err "packed body span outside its section")
+            other -> Err "packed body definition outside package string table")
+
+  body-document :: Json -> Json
+  body-document definitions = JObj "definitions" definitions (JObj "version" (JNum 1) JObjEnd)
+
+  -- The indexed table has already been checked. Walk only the reachable
+  -- body IDs, even when the package has many independent exports.
+  reachable-bodies :: I64 -> Array String -> Region -> Region -> List Nat -> HashMap String () -> List Nat -> Result String (List Nat)
+  reachable-bodies address strings bodies edges pending seen selected = case pending of
+    Nil -> Ok selected
+    Cons first rest ->
+      if first >= region-size bodies / 32 then Err "packed body definition outside its section" else
+        let at = region-start bodies + first * 32 in
+        (case array-get strings (word address at) of
+          None -> Err "packed body identity outside package string table"
+          Some identity -> (case hash-map-lookup identity seen of
+            Some known -> reachable-bodies address strings bodies edges rest seen selected
+            None -> (case operand-region edges (word address (at + 20)) (word address (at + 24)) of
+              Err message -> Err message
+              Ok (Region start length) ->
+                reachable-bodies address strings bodies edges (reversed-words address start (start + length) rest)
+                  (hash-map-insert identity () seen) (Cons first selected))))
+
+  body-rows :: Array Json -> List Nat -> Json -> Result String Json
+  body-rows rows indices tail = case indices of
+    Nil -> Ok (body-document tail)
+    Cons first rest -> (case array-get rows first of
+      Some row -> body-rows rows rest (JArr row tail)
+      None -> Err "packed body definition outside its section")
+
+  read-body-closure :: I64 -> Array String -> FlatBodies -> Array Json -> Nat -> Result String Json
+  read-body-closure address strings flat rows root = case flat of
+    FlatBodies bodies edges nodes operands ->
+      if root >= region-size bodies / 32 then Err "packed body definition outside its section"
+      else if word address (region-start bodies + root * 32 + 24) == 0 then body-rows rows [root] JArrEnd
+      else (case reachable-bodies address strings bodies edges [root] hash-map-empty Nil of
+          Err message -> Err message
+          Ok selected -> body-rows rows (reverse (sort selected)) JArrEnd)
+
+  read-package-definitions :: forall r. I64 -> Array String -> BodyFormat ->{IO r} Result String Definitions
+  read-package-definitions address strings format = case format of
+    Recipes (Region bodies size) recipes -> (case read-recipes address strings recipes bodies (bodies + size) Nil of
+      Err message -> Err message
+      Ok rows -> Ok (RecipeDefinitions rows))
+    Indexed flat -> read-flat-rows address strings flat 0 0 None Nil
 
   read-strings :: forall r. I64 -> Region -> Nat -> Nat -> List String ->{IO r} Result String (Array String)
   read-strings address raw at limit items =
@@ -201,7 +400,7 @@ module Bootstrap.Package where
         Err message -> Err message
         Ok value -> read-strings address raw (at + 8) limit (Cons value items))
 
-  read-rows :: forall r. I64 -> Region -> Array String -> Region -> Array Json -> Nat -> Nat -> Nat -> List (String, String, Json) ->{IO r} Result String (List (String, String, Json))
+  read-rows :: forall r. I64 -> Region -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List (String, String, Json) ->{IO r} Result String (List (String, String, Json))
   read-rows address raw strings documents definitions base count index items =
     if index == count then Ok (reverse items) else
       let id = word address (base + index * 36 + 32) in
@@ -213,14 +412,14 @@ module Bootstrap.Package where
             Err message -> Err message
             Ok digest -> case row-span address documents (row + 24) of
               Err message -> Err message
-              Ok region -> case read-document address strings definitions True region of
+              Ok region -> case read-document address strings definitions region of
                 Err message -> Err message
                 Ok document -> read-rows address raw strings documents definitions base count (index + 1) (Cons (name, digest, document) items))
 
   decode-package :: forall r. I64 -> Nat ->{IO r} Result String (List (String, String, Json))
   decode-package address size = case package-header address size of
     Err message -> Err message
-    Ok (Package strings (Region modules module-size) (Region bodies body-size) recipes documents) ->
+    Ok (Package strings (Region modules module-size) format documents) ->
       case strings of
         Region base length ->
           if length < 4 then Err "truncated package string table" else
@@ -229,7 +428,7 @@ module Bootstrap.Package where
               let raw = Region (base + table-size) (length - table-size) in
               (case read-strings address raw (base + 4) (base + table-size) Nil of
                 Err message -> Err message
-                Ok texts -> case read-recipes address texts recipes bodies (bodies + body-size) Nil of
+                Ok texts -> case read-package-definitions address texts format of
                   Err message -> Err message
                   Ok definitions -> read-rows address raw texts documents definitions modules (module-size / 36) 0 Nil)
 
