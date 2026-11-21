@@ -1,3 +1,25 @@
+# Compiler checkpoint: 21 November 2026
+
+The bootstrap seed is pinned to `cd04d7a2` (source `aea3e6d0...`), the last
+revision before `03506d96` "Guarantee tail calls under tailcc and return small
+products in registers". Seeds from `60c286cf` onward build a stage 1 that emits
+IR and then dies with an instruction-fetch SIGBUS (`EXC_BAD_ACCESS`,
+`KERN_PROTECTION_FAILURE`, PC and FAR outside the image) as soon as it runs
+`--emit-ir-only` or `--compile-only`; `--check` and `--emit-bodies` still pass.
+Bisect: `ab294c68` and `cd04d7a2` are good; `7c843640`, `60c286cf`, and
+`37682818` are bad, and the first bad merge adds only the tailcc commit, whose
+apply-stub twins and register tail arguments are the prime suspect on Darwin,
+where the tail-apply path is disabled. The pin is a workaround; the real fix
+belongs in the seed's tailcc codegen.
+
+With the pin, stages 1 to 3 reach a fixed point and the audited 106 target
+Stage 3 grid verifies 103 targets (evidence `build/verify-stage3/run9`).
+Remaining: `bootstrap_export_interfaces` (the pipeline writer expands a named
+refinement where the native writer prints the alias), `bootstrap_runtime_ir`
+(the checker cannot resolve `negate` when the program supplies no class
+interfaces), and `interface_machine_contracts` (the core prover has no
+certificate for an intrinsic's declared refined result).
+
 # Compiler checkpoint — 1 November 2026
 
 Byte observations and strict-let proof identities are installed and validated.
