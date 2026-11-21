@@ -5745,7 +5745,7 @@ pub fn driver_with_profile_opts(
         schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
     };
     trace_driver_phase(phase_trace, "check.begin");
-    let (program, ifaces, report, _diags) = check::check_program_multi_full_with_preludes(
+    let (program, ifaces, hashes, report) = check::check_program_with_interface_hashes(
         &prelude.modules,
         &modules,
         &hashes,
@@ -5759,7 +5759,7 @@ pub fn driver_with_profile_opts(
     // Metadata boundary checks (design note, section 3).
     // Each interface's contract hash, rendered once for this compile: the
     // chain check and the artifacts written below both read it.
-    let contract_hashes = crate::interface::contract_hashes(&ifaces);
+    let contract_hashes = ifaces.iter().map(|iface| iface.module.as_str()).zip(hashes).collect();
     crate::interface::verify_chain_with(&ifaces, &contract_hashes).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     trace_driver_phase(phase_trace, "contracts.end");

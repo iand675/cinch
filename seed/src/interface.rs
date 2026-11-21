@@ -12,7 +12,7 @@
 //! caching and invalidation, not a security boundary. A later schema version
 //! may switch to a cryptographic hash behind the same field.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 /// 5: definition-site class contexts, method slots and resolved method schemes.
@@ -142,13 +142,53 @@ pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
 }
 
 /// Is `identity` inside `module`'s namespace (the byte after it is `.`)?
-/// The ownership walks below test every module of the set against every
-/// identity, so the separator test avoids allocating a qualified prefix per
-/// candidate.
-fn under_module(identity: &str, module: &str) -> bool {
-    identity.len() > module.len()
-        && identity.starts_with(module)
-        && identity.as_bytes()[module.len()] == b'.'
+/// Find the longest loaded module prefix at a dot boundary.
+fn defining_module<'a>(identity: &str, modules: &BTreeMap<&'a str, &Iface>) -> Option<&'a str> {
+    identity.rmatch_indices('.').find_map(|(end, _)| {
+        modules.get_key_value(&identity[..end]).map(|(&module, _)| module)
+    })
+}
+
+struct ImportRange<'a> {
+    root: &'a str,
+    enter: usize,
+    exit: usize,
+}
+
+/// A run of single-import modules can share its reachability index. In
+/// the forest of these edges, an ancestor's interval contains its users.
+/// A root with several imports may reach more modules through those
+/// imports. Cycles without a root have no interval and use the graph walk.
+fn single_import_ranges<'a>(modules: &BTreeMap<&'a str, &'a Iface>) -> HashMap<&'a str, ImportRange<'a>> {
+    let mut users = HashMap::<&str, Vec<&str>>::new();
+    let mut roots = Vec::new();
+    for (&name, iface) in modules {
+        match iface.imports.as_slice() {
+            [reference] if modules.contains_key(reference.module.as_str()) => {
+                users.entry(reference.module.as_str()).or_default().push(name);
+            }
+            _ => roots.push(name),
+        }
+    }
+    let mut ranges = HashMap::with_capacity(modules.len());
+    let mut cursor = 0;
+    let mut pending = Vec::new();
+    for root in roots {
+        pending.push((root, None));
+        while let Some((name, enter)) = pending.pop() {
+            match enter {
+                Some(enter) => {
+                    ranges.insert(name, ImportRange { root, enter, exit: cursor });
+                }
+                None => {
+                    pending.push((name, Some(cursor)));
+                    cursor += 1;
+                    pending.extend(users.get(name).into_iter().flatten().map(|&child| (child, None)));
+                }
+            }
+        }
+    }
+    ranges
 }
 
 /// The contract hash of every module in a closed interface set, one entry per
@@ -173,15 +213,8 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
     let mut actual_definitions = BTreeMap::new();
+    let single_imports = std::cell::OnceCell::new();
     for f in ifaces {
-        let mut reachable = std::collections::BTreeSet::new();
-        let mut pending = vec![f.module.as_str()];
-        while let Some(module) = pending.pop() {
-            if !reachable.insert(module) { continue }
-            if let Some(interface) = by_module.get(module) {
-                pending.extend(interface.imports.iter().map(|i| i.module.as_str()));
-            }
-        }
         for imp in &f.imports {
             match by_module.get(imp.module.as_str()) {
                 None => {
@@ -201,10 +234,41 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
                 }
             }
         }
+        // Most authority is local. For cross-module rows, share the
+        // single-import index and walk past branching roots only as needed.
+        let mut reachable = None;
+        let mut reaches = |owner: &str| {
+            if owner == f.module { return true }
+            let ranges = single_imports.get_or_init(|| single_import_ranges(&by_module));
+            let root = match ranges.get(f.module.as_str()) {
+                Some(source) => {
+                    if ranges.get(owner).is_some_and(|target| {
+                        target.enter <= source.enter && source.enter < target.exit
+                    }) {
+                        return true;
+                    }
+                    source.root
+                }
+                None => f.module.as_str(),
+            };
+            if by_module[root].imports.is_empty() { return false }
+            reachable.get_or_insert_with(|| {
+                let mut visited = BTreeSet::new();
+                let mut pending = vec![root];
+                while let Some(module) = pending.pop() {
+                    if !visited.insert(module) { continue }
+                    if let Some(interface) = by_module.get(module) {
+                        pending.extend(interface.imports.iter().map(|i| i.module.as_str()));
+                    }
+                }
+                visited
+            }).contains(owner)
+        };
         for instance in &f.exports.instances {
             for body in &instance.method_bodies {
-                let owner = |identity: &str| by_module.keys().filter(|module| under_module(identity, module)).max_by_key(|module| module.len()).copied();
-                if owner(&instance.id) != Some(f.module.as_str()) || owner(&body.implementation) != Some(f.module.as_str()) {
+                if defining_module(&instance.id, &by_module) != Some(f.module.as_str())
+                    || defining_module(&body.implementation, &by_module) != Some(f.module.as_str())
+                {
                     return Err(CoherenceError(format!("method body {} is not owned by its declaring dictionary module {}", body.implementation, f.module)));
                 }
             }
@@ -213,24 +277,25 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
             .chain(f.exports.instances.iter().flat_map(|instance| &instance.method_bodies).map(|body| &body.total_body));
         for graph in graphs {
             for definition in graph.definitions() {
-                let owner = by_module.keys().filter(|module| under_module(&definition.identity, module)).max_by_key(|module| module.len());
-                if owner.is_none_or(|owner| !reachable.contains(owner)) {
+                let owner = defining_module(&definition.identity, &by_module);
+                if owner.is_none_or(|owner| !reaches(owner)) {
                     return Err(CoherenceError(format!("total body dependency {} is outside the checked module closure of {}", definition.identity, f.module)));
                 }
-                if let Some(prior) = actual_definitions.insert(definition.identity.clone(), definition.clone()) {
-                    if prior != *definition { return Err(CoherenceError(format!("conflicting actual total body dependency: {}", definition.identity))); }
+                if actual_definitions.insert(definition.identity.as_str(), definition)
+                    .is_some_and(|prior| prior != definition)
+                {
+                    return Err(CoherenceError(format!("conflicting actual total body dependency: {}", definition.identity)));
                 }
             }
         }
         for value in &f.exports.values {
             let Some(ordering) = value.keyed_ordering else { continue };
-            let owner = by_module.keys().filter(|module| under_module(&value.symbol, module))
-                .max_by_key(|module| module.len()).copied();
-            let defining = owner.filter(|owner| reachable.contains(owner))
+            let owner = defining_module(&value.symbol, &by_module);
+            let defining = owner.filter(|owner| reaches(owner))
                 .and_then(|owner| by_module.get(owner))
                 .and_then(|interface| interface.exports.values.iter().find(|row| row.symbol == value.symbol));
             let ord_module = crate::known::split(crate::known::ORD).0;
-            let ordinal = by_module.get(ord_module).filter(|_| reachable.contains(ord_module))
+            let ordinal = by_module.get(ord_module).filter(|_| reaches(ord_module))
                 .and_then(|interface| interface.exports.signatures.iter().find(|row| row.identity == crate::known::ORD));
             if !defining.is_some_and(|row| row.keyed_ordering == Some(ordering) && row.resolved == value.resolved)
                 || !ordinal.is_some_and(|signature| [ordering.less_slot, ordering.greater_slot].iter()
@@ -242,13 +307,13 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
         for signature in &f.exports.signatures {
             let (owner, _) = signature.identity.rsplit_once('.').ok_or_else(||
                 CoherenceError(format!("signature {} has no defining module", signature.identity)))?;
-            if !reachable.contains(owner) {
+            if !reaches(owner) {
                 return Err(CoherenceError(format!("signature {} is outside the checked dependency closure", signature.identity)));
             }
             let defining = by_module.get(owner).and_then(|f| f.exports.signatures.iter()
                 .find(|s| s.identity == signature.identity)).ok_or_else(||
                     CoherenceError(format!("signature {} has no defining contract", signature.identity)))?;
-            if signature_contract(signature) != signature_contract(defining) {
+            if !same_signature_contract(signature, defining) {
                 return Err(CoherenceError(format!("conflicting defining signature contract: {}", signature.identity)));
             }
         }
@@ -256,12 +321,19 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
     Ok(())
 }
 
-fn signature_contract(signature: &SigExport) -> SigExport {
-    let mut contract = signature.clone();
-    contract.name.clear();
-    contract.exports.clear();
-    for method in &mut contract.methods { method.exports.clear(); }
-    contract
+fn same_signature_contract(a: &SigExport, b: &SigExport) -> bool {
+    // The display name and public aliases belong to the exporting module.
+    let SigExport { name: _, identity, exports: _, params, parameters, methods, laws } = a;
+    std::ptr::eq(a, b) || (identity == &b.identity
+        && params == &b.params
+        && parameters == &b.parameters
+        && laws == &b.laws
+        && methods.len() == b.methods.len()
+        && methods.iter().zip(&b.methods).all(|(x, y)| {
+            let MethodExport { name, slot, exports: _, scheme, resolved, default } = x;
+            (name, slot, scheme, resolved, default)
+                == (&y.name, &y.slot, &y.scheme, &y.resolved, &y.default)
+        }))
 }
 
 /// Order modules so every import precedes its importers; detect cycles.
@@ -2783,6 +2855,47 @@ mod tests {
         let f = sample();
         // The same module twice (diamond closure) must not self-conflict.
         assert!(check_coherence(&[f.clone(), f.clone()]).is_ok());
+    }
+
+    #[test]
+    fn reexport_checks_single_imports_and_the_branches_above_them() {
+        let mut ifaces = [
+            ("Leaf", &["Middle"][..]),
+            ("Middle", &["Branch"][..]),
+            ("Branch", &["Prefix", "Owner"][..]),
+            ("Prefix", &["Ancestor"][..]),
+            ("Ancestor", &[][..]),
+            ("Owner", &[][..]),
+            ("Unrelated", &["Owner"][..]),
+        ].map(|(name, imports)| {
+            let mut iface = Iface::new(name, "");
+            iface.imports = imports.iter().map(|&module| IfaceRef {
+                module: module.into(),
+                iface_hash: "test-hash".into(),
+            }).collect();
+            iface
+        });
+        let signature = |owner: &str| SigExport {
+            name: "Class".into(),
+            identity: format!("{owner}.Class"),
+            exports: Vec::new(),
+            params: Vec::new(),
+            parameters: Vec::new(),
+            methods: Vec::new(),
+            laws: Vec::new(),
+        };
+        for index in [1, 4, 5, 6] {
+            let owner = signature(&ifaces[index].module);
+            ifaces[index].exports.signatures.push(owner);
+        }
+        ifaces[0].exports.signatures = ["Middle", "Ancestor", "Owner"].map(signature).into();
+        let verify = |ifaces: &[Iface]| {
+            let hashes = ifaces.iter().map(|iface| (iface.module.as_str(), "test-hash".into())).collect();
+            verify_chain_with(ifaces, &hashes)
+        };
+        verify(&ifaces).unwrap();
+        ifaces[0].exports.signatures.push(signature("Unrelated"));
+        assert!(verify(&ifaces).unwrap_err().0.contains("outside the checked dependency closure"));
     }
 
     #[test]

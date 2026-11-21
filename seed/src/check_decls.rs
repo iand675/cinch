@@ -18323,7 +18323,31 @@ pub fn check_program_multi_full_with_preludes(
         None,
         module_preludes,
     )?;
-    Ok((program, ifaces, report, diags))
+    Ok((program, ifaces.interfaces, report, diags))
+}
+
+/// Check and retain the interface identities computed in dependency order.
+pub(crate) fn check_program_with_interface_hashes(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+    module_preludes: &HashMap<String, String>,
+) -> Result<(Program, Vec<crate::interface::Iface>, Vec<String>, StageReport)> {
+    let (program, checked, report, _, _) = check_program_multi_full_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        None,
+        None,
+        module_preludes,
+    )?;
+    Ok((program, checked.interfaces, checked.hashes, report))
 }
 
 pub fn check_program_multi_full(
@@ -18375,7 +18399,7 @@ pub fn check_program_multi_full_recorded(
     let (mut program, safety_records, searches) = prepared.finish_recorded()?;
     report.safety = verify_safety_groups(&safety_records, &program)?;
     contract_facts(&safety_records, &mut program);
-    Ok((program, ifaces, report, diags, searches))
+    Ok((program, ifaces.interfaces, report, diags, searches))
 }
 
 /// A probe expression for [`check_program_multi_full_probe`]: the REPL's
@@ -18506,7 +18530,7 @@ pub fn check_program_multi_full_probe(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
-    check_program_multi_full_impl(
+    let (program, checked, report, diags, probe) = check_program_multi_full_impl(
         prelude,
         modules,
         source_hashes,
@@ -18516,7 +18540,8 @@ pub fn check_program_multi_full_probe(
         probe,
         None,
         &HashMap::new(),
-    )
+    )?;
+    Ok((program, checked.interfaces, report, diags, probe))
 }
 
 /// The editor uses the same check and receives the actual binding targets of
@@ -18526,7 +18551,7 @@ pub(crate) fn check_program_multi_full_probe_indexed(
     scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
-    check_program_multi_full_impl(
+    let (program, checked, report, diags, probe) = check_program_multi_full_impl(
         prelude,
         modules,
         source_hashes,
@@ -18536,7 +18561,8 @@ pub(crate) fn check_program_multi_full_probe_indexed(
         probe,
         Some(references),
         &HashMap::new(),
-    )
+    )?;
+    Ok((program, checked.interfaces, report, diags, probe))
 }
 
 /// The number of parameters a type's arrow spine declares: what an
@@ -18611,6 +18637,11 @@ fn trace_checker_phase(
     }
 }
 
+struct CheckedInterfaces {
+    interfaces: Vec<crate::interface::Iface>,
+    hashes: Vec<String>,
+}
+
 /// [`check_program_multi_full_probe`]'s body; the plain entry delegates
 /// with no probe. Returning the checker before [`Checker::finish`] is what
 /// lets a front end reuse the checked prelude and session across probes.
@@ -18626,7 +18657,7 @@ fn check_program_multi_full_prepared_impl(
     module_preludes: &HashMap<String, String>,
 ) -> Result<(
     PreparedCheck,
-    Vec<crate::interface::Iface>,
+    CheckedInterfaces,
     StageReport,
     Vec<Diagnostic>,
     Option<ProbeResult>,
@@ -18943,6 +18974,7 @@ fn check_program_multi_full_prepared_impl(
     c.interface_checked_bodies = Some(c.checked_total_bodies());
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
+    let mut hashes = Vec::new();
     let mut built: HashMap<String, String> = HashMap::new(); // module -> iface_hash
     let members = InterfaceMembers::new(&c);
     for plan in interface_module_order(&c, &members, prelude, modules, &prelude_name)? {
@@ -18972,8 +19004,9 @@ fn check_program_multi_full_prepared_impl(
             iface.imports.push(crate::interface::IfaceRef { module: owner.clone(), iface_hash: hash });
         }
         let hash = iface.iface_hash();
-        built.entry(module.to_string()).or_insert(hash);
+        built.entry(module.to_string()).or_insert_with(|| hash.clone());
         ifaces.push(iface);
+        hashes.push(hash);
     }
     trace_checker_phase(phase_trace, "prepare", "interfaces.end", None);
     let diags = std::mem::take(&mut c.diags);
@@ -18996,7 +19029,7 @@ fn check_program_multi_full_prepared_impl(
         instance_searches,
     };
     trace_checker_phase(phase_trace, "prepare", "end", None);
-    Ok((prepared, ifaces, report, diags, probe_out))
+    Ok((prepared, CheckedInterfaces { interfaces: ifaces, hashes }, report, diags, probe_out))
 }
 
 /// [`check_program_multi_full_probe`]'s body with the checker retained,
@@ -19007,7 +19040,7 @@ pub(crate) fn check_program_multi_full_prepared(
     scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
 ) -> Result<(PreparedCheck, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
-    check_program_multi_full_prepared_impl(
+    let (prepared, checked, report, diags, probe) = check_program_multi_full_prepared_impl(
         prelude,
         modules,
         source_hashes,
@@ -19017,7 +19050,8 @@ pub(crate) fn check_program_multi_full_prepared(
         probe,
         Some(references),
         &HashMap::new(),
-    )
+    )?;
+    Ok((prepared, checked.interfaces, report, diags, probe))
 }
 
 /// [`check_program_multi_full_prepared`] with per-package preludes
@@ -19035,7 +19069,7 @@ pub(crate) fn check_program_multi_full_prepared_with_preludes(
     references: &mut Vec<CheckedReference>,
     module_preludes: &HashMap<String, String>,
 ) -> Result<(PreparedCheck, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
-    check_program_multi_full_prepared_impl(
+    let (prepared, checked, report, diags, probe) = check_program_multi_full_prepared_impl(
         prelude,
         modules,
         source_hashes,
@@ -19045,7 +19079,8 @@ pub(crate) fn check_program_multi_full_prepared_with_preludes(
         probe,
         Some(references),
         module_preludes,
-    )
+    )?;
+    Ok((prepared, checked.interfaces, report, diags, probe))
 }
 
 /// Finish a prepared checker into the ordinary program representation.
@@ -19054,7 +19089,7 @@ fn check_program_multi_full_impl(
     scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>, reference_sink: Option<&mut Vec<CheckedReference>>,
     module_preludes: &HashMap<String, String>,
-) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+) -> Result<(Program, CheckedInterfaces, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
     let phase_trace = checker_phase_clock();
     trace_checker_phase(phase_trace, "full", "begin", None);
     // Publish references to the full-check caller only after final checks succeed.
