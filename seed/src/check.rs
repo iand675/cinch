@@ -3238,6 +3238,9 @@ struct Checker {
     /// Each logical definition's logical references, for the mutual
     /// recursion check (a looping function must not inhabit a `Prop`).
     logical_refs: HashMap<(String, String), Vec<(String, String)>>,
+    /// Set whenever a body adds or replaces edges. Modules with no new
+    /// logical bodies can reuse the previous cycle check.
+    logical_refs_dirty: bool,
     /// Checked bodies retained for termination checks of computations inside
     /// erased evidence. A pure arrow alone grants no termination authority.
     erasure_bodies: HashMap<GlobalId, (Vec<LocalId>, ECore)>,
@@ -3985,6 +3988,7 @@ impl Checker {
             current_logical: None,
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
+            logical_refs_dirty: false,
             erasure_bodies: HashMap::new(),
             pending_runtime_arithmetic: RefCell::new(Vec::new()),
             used_runtime_arithmetic: RefCell::new(Vec::new()),

@@ -6834,31 +6834,32 @@ impl Checker {
 
     /// Reject reference cycles among logical definitions (a direct
     /// self-reference is the structural check's business, not a cycle).
-    fn check_logical_cycles(&self) -> Result<()> {
-        for start in self.logical_refs.keys() {
-            let mut seen: Vec<(String, String)> = vec![start.clone()];
-            let mut stack: Vec<(String, String)> = vec![start.clone()];
-            while let Some(k) = stack.pop() {
-                let Some(refs) = self.logical_refs.get(&k) else {
-                    continue;
-                };
-                for r in refs {
-                    if r == start {
-                        if k != *start {
-                            return Err(Error::plain(format!(
-                                "logical definitions {} are mutually recursive; a looping function must not inhabit a proposition (obligation status: unsupported)",
-                                start.1
-                            )));
-                        }
-                        continue;
-                    }
-                    if !seen.contains(r) {
-                        seen.push(r.clone());
-                        stack.push(r.clone());
-                    }
-                }
-            }
+    fn check_logical_cycles(&mut self) -> Result<()> {
+        if !self.logical_refs_dirty {
+            return Ok(());
         }
+        // Index just the checked bodies. A reference to a declaration whose
+        // body is still pending adds no path until that body is checked.
+        let names: Vec<_> = self.logical_refs.keys().collect();
+        let index: HashMap<_, _> = names.iter().enumerate().map(|(i, name)| (*name, i)).collect();
+        let edges: Vec<Vec<_>> = names.iter().map(|name| {
+            self.logical_refs[*name].iter().filter_map(|reference| index.get(reference).copied()).collect()
+        }).collect();
+
+        // Preserve the original order of the starting names for diagnostics.
+        // A singleton component may have a direct self-reference, which is
+        // already governed by the structural termination check.
+        let first_cycle = strongly_connected(&edges).into_iter()
+            .filter(|members| members.len() > 1)
+            .map(|members| members[0])
+            .min();
+        if let Some(first) = first_cycle {
+            return Err(Error::plain(format!(
+                "logical definitions {} are mutually recursive; a looping function must not inhabit a proposition (obligation status: unsupported)",
+                names[first].1
+            )));
+        }
+        self.logical_refs_dirty = false;
         Ok(())
     }
 
@@ -7939,6 +7940,7 @@ impl Checker {
                 (self.current_module.clone(), name.to_string()),
                 std::mem::take(&mut self.pending_refs),
             );
+            self.logical_refs_dirty = true;
             self.current_logical = None;
             self.cur_tparams = tparams;
             return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta, None);
@@ -17603,6 +17605,22 @@ struct InterfaceMembers<'a> {
     functions: HashSet<&'a GlobalId>,
     signatures: HashMap<(&'a str, &'a str), Vec<(usize, &'a SigInfo)>>,
     fixities: HashMap<(&'a str, &'a str), &'a crate::interface::FixityExport>,
+    primitives: HashMap<&'a str, Vec<&'a crate::core::PrimPlan>>,
+    foreign: HashMap<&'a str, Vec<&'a crate::interface::ForeignExport>>,
+    evaluations: HashMap<&'a str, Vec<&'a String>>,
+    upgrades: HashMap<&'a str, Vec<&'a crate::interface::UpgradeEvidence>>,
+    units: HashMap<&'a str, Vec<&'a UnitRec>>,
+    laws: HashMap<&'a str, Vec<&'a crate::core::LawRow>>,
+}
+
+fn group_interface_rows<'a, T>(
+    rows: impl IntoIterator<Item = (&'a str, &'a T)>,
+) -> HashMap<&'a str, Vec<&'a T>> {
+    let mut groups = HashMap::<_, Vec<_>>::new();
+    for (owner, row) in rows {
+        groups.entry(owner).or_default().push(row);
+    }
+    groups
 }
 
 impl<'a> InterfaceMembers<'a> {
@@ -17627,7 +17645,18 @@ impl<'a> InterfaceMembers<'a> {
                 signatures.entry((owner, name.as_str())).or_default().push((position, signature));
             }
         }
-        Self { instances, definitions, functions, signatures, fixities }
+        let primitives = group_interface_rows(checker.prims.iter().map(|p| (p.module.as_str(), p)));
+        let foreign = group_interface_rows(checker.module_foreign.iter().map(|(home, row)| (home.as_str(), row)));
+        let evaluations = group_interface_rows(checker.eval_sites.iter().map(|(home, row)| (home.as_str(), row)));
+        let upgrades = group_interface_rows(checker.upgrade_evidence.iter().map(|(home, row)| (home.as_str(), row)));
+        let units = group_interface_rows(checker.units.iter().map(|unit| (unit.owner.as_str(), unit)));
+        // Law instances can have qualified names. An interface previously
+        // selected every law with its module as a dot-delimited prefix.
+        let laws = group_interface_rows(checker.law_rows.iter().flat_map(|law| {
+            law.instance.match_indices('.').map(move |(end, _)| (&law.instance[..end], law))
+        }));
+        Self { instances, definitions, functions, signatures, fixities,
+            primitives, foreign, evaluations, upgrades, units, laws }
     }
 }
 
@@ -17952,10 +17981,7 @@ impl Checker {
         // assumed prim's body content is contract (editing it stales
         // dependents). Selection is representation and never enters the
         // contract projection (section 6).
-        for p in &self.prims {
-            if p.module != module {
-                continue;
-            }
+        for p in members.primitives.get(module).into_iter().flatten() {
             match p.tier {
                 crate::core::PrimTier::Justified => {
                     for l in &p.laws {
@@ -17983,44 +18009,36 @@ impl Checker {
             }
         }
         let mut trusted = Vec::new();
-        for (m, f) in &self.module_foreign {
-            if m == module {
-                let mut foreign = f.clone();
-                if f.kind == "intrinsic" && f.external == "cinch.runtime.bytesLen" {
-                    let identity = format!("{m}.{}", f.symbol);
-                    // The importer matches this observation to the defining
-                    // value. Use its checked spelling, including nominal owners.
-                    if let Some(value) = iface.exports.values.iter().find(|v| v.symbol == identity) {
-                        foreign.ty.clone_from(&value.scheme);
-                    }
+        for &f in members.foreign.get(module).into_iter().flatten() {
+            let mut foreign = f.clone();
+            if f.kind == "intrinsic" && f.external == "cinch.runtime.bytesLen" {
+                let identity = format!("{module}.{}", f.symbol);
+                // The importer matches this observation to the defining
+                // value. Use its checked spelling, including nominal owners.
+                if let Some(value) = iface.exports.values.iter().find(|v| v.symbol == identity) {
+                    foreign.ty.clone_from(&value.scheme);
                 }
-                iface.exports.foreign.push(foreign);
-                if f.kind == "intrinsic" {
-                    iface.assumptions.primitives.push(f.external.clone());
-                } else if f.kind == "import" {
-                    // The module trusts this external symbol: an
-                    // unverified native library remains in the process's
-                    // memory-safety trust boundary (core specification
-                    // section 11's acceptance manifest; foreign function
-                    // interface specification section 1).
-                    trusted.push(f.external.clone());
-                }
+            }
+            iface.exports.foreign.push(foreign);
+            if f.kind == "intrinsic" {
+                iface.assumptions.primitives.push(f.external.clone());
+            } else if f.kind == "import" {
+                // The module trusts this external symbol: an
+                // unverified native library remains in the process's
+                // memory-safety trust boundary (core specification
+                // section 11's acceptance manifest; foreign function
+                // interface specification section 1).
+                trusted.push(f.external.clone());
             }
         }
         // `eval` uses are build-visible assumptions in the same table as
         // the foreign ones (supercompilation and JIT specification
         // section 7).
-        for (m, site) in &self.eval_sites {
-            if m == module {
-                trusted.push(format!("eval at {site}"));
-            }
+        for site in members.evaluations.get(module).into_iter().flatten() {
+            trusted.push(format!("eval at {site}"));
         }
         iface.assumptions.foreign = trusted;
-        for (m, e) in &self.upgrade_evidence {
-            if m == module {
-                iface.upgrades.push(e.clone());
-            }
-        }
+        iface.upgrades.extend(members.upgrades.get(module).into_iter().flatten().map(|&row| row.clone()));
         // Parameter identity is part of the contract projection (module
         // parameters as module arguments): a parameterized module records
         // its parameter signatures, and instantiation is representation,
@@ -18029,32 +18047,27 @@ impl Checker {
         if let Some(ps) = self.module_params.get(module) {
             iface.params = ps.iter().map(|p| p.sig.clone()).collect();
         }
-        for u in &self.units {
-            if u.owner == module {
-                iface.units.push(crate::interface::UnitExport {
-                    name: u.name.clone(),
-                    target: u.target.clone(),
-                    args: u.arg_ids.clone(),
-                    unit_id: u.unit_id.clone(),
-                });
-            }
+        for u in members.units.get(module).into_iter().flatten() {
+            iface.units.push(crate::interface::UnitExport {
+                name: u.name.clone(),
+                target: u.target.clone(),
+                args: u.arg_ids.clone(),
+                unit_id: u.unit_id.clone(),
+            });
         }
         // The law and preservation check rows of this module's
         // instances (refinement types design, "composability"): contract
         // facts hashed into `iface_hash`, exactly like the assertion
         // rows.
-        let prefix = format!("{module}.");
-        for l in &self.law_rows {
-            if l.instance.starts_with(&prefix) {
-                let class = self.class_sigs.get(&l.class).and_then(|sigs| sigs.first())
-                    .map_or_else(|| l.class.clone(), |sig| format!("{}.{}", sig.module, sig.name));
-                iface.laws.push(crate::interface::LawFact {
-                    instance: l.instance.clone(),
-                    class,
-                    law: l.law.clone(),
-                    status: l.status.clone(),
-                });
-            }
+        for l in members.laws.get(module).into_iter().flatten() {
+            let class = self.class_sigs.get(&l.class).and_then(|sigs| sigs.first())
+                .map_or_else(|| l.class.clone(), |sig| format!("{}.{}", sig.module, sig.name));
+            iface.laws.push(crate::interface::LawFact {
+                instance: l.instance.clone(),
+                class,
+                law: l.law.clone(),
+                status: l.status.clone(),
+            });
         }
         iface
     }
