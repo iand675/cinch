@@ -1,7 +1,6 @@
 //! Indexed checked-body records. Node and operand views borrow the mapping.
 use super::{invalid, words, Decode, Strings, BODY_ROW, MAX_DEPTH};
 use crate::total::{Definition, Expr, Op, Sort};
-use std::sync::Arc;
 
 const NODE_ROW: usize = 16;
 
@@ -67,8 +66,9 @@ impl<'a> FlatBodies<'a> {
         Sort::parse(self.strings.get(id)?).ok_or_else(|| invalid("unknown packed body sort"))
     }
 
-    fn definition_name(&self, id: u32) -> Decode<&'a str> {
-        let [name] = words(self.bodies, row_offset(id, BODY_ROW)?)?;
+    pub(super) fn definition_name(&self, id: u32) -> Decode<&'a str> {
+        let [name] = words(self.bodies, row_offset(id, BODY_ROW)?)
+            .map_err(|_| invalid("packed body definition outside its section"))?;
         self.strings.get(name)
     }
 
@@ -92,7 +92,7 @@ impl<'a> FlatBodies<'a> {
         })
     }
 
-    pub(super) fn definitions(&self) -> Decode<Vec<Arc<Definition>>> {
+    pub(super) fn definitions(&self) -> Decode<Vec<Definition>> {
         let mut definitions = Vec::with_capacity(self.bodies.len() / BODY_ROW);
         let mut seen = vec![false; self.nodes.len() / NODE_ROW];
         let mut previous = None;
@@ -118,12 +118,12 @@ impl<'a> FlatBodies<'a> {
                     "packed body dependencies disagree with its expression",
                 ));
             }
-            definitions.push(Arc::new(Definition {
+            definitions.push(Definition {
                 identity: identity.into(),
                 parameters,
                 result: self.sort(result)?,
                 body,
-            }));
+            });
         }
         if seen.contains(&false) {
             return Err(invalid("unreferenced packed body node"));

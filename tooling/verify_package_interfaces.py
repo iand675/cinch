@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-from pack_interfaces import pack, publish, read_abi, read_manifest
+from pack_interfaces import BODY_ROOT, pack, publish, read_abi, read_manifest
 
 HELLO = """module Main where
   import Data.Path (path-from-string)
@@ -156,15 +156,44 @@ def rust(seed, work):
     body_rows, body_size = words(contents, 40, 2)
     nodes, node_size = words(contents, 56, 2)
     assert body_size >= 32 and node_size >= 16, "fixture must include a checked body"
+    strings, _ = words(contents, 16, 2)
+    (string_count,) = words(contents, strings, 1)
+    strings_start = strings + 4 + string_count * 8
+    for key in range(string_count):
+        at, length = words(contents, strings + 4 + key * 8, 2)
+        if contents[strings_start + at:strings_start + at + length] == b"total_body":
+            break
+    else:
+        raise AssertionError("fixture must include a total_body field")
+    documents, document_size = words(contents, 72, 2)
+    reference = contents.find(struct.pack("<III", key, BODY_ROOT, 0),
+                              documents, documents + document_size)
+    assert reference >= 0, "fixture must use an indexed body root"
     for offset, value, error in (
         (body_rows + 16, node_size // 16, "packed body node outside its section"),
         (nodes, 255, "invalid packed body node"),
+        (reference + 8, body_size // 32, "packed body definition outside its section"),
     ):
         altered = bytearray(contents)
         struct.pack_into("<I", altered, offset, value)
         publish(package, altered)
         result = invoke(command, project, status=1)
         assert error in result.stderr, result.stderr
+
+    # Installed package metadata can refer to the mapped contracts by name
+    # and digest, leaving one copy in the packed artifact.
+    abi_path = installed / "build/package.cinchif"
+    execution["interface_refs"] = [
+        {key: value for key, value in row.items() if key != "interface"}
+        for row in execution.pop("interfaces")
+    ]
+    abi_path.write_text(json.dumps(execution))
+    publish(package, contents)
+    invoke(command, project)
+    invoke([executable], project, status=42)
+    package.unlink()
+    result = invoke(command, project, status=1)
+    assert "interface references require a single packed interface set" in result.stderr
 
 
 def main():

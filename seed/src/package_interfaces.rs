@@ -1,10 +1,9 @@
 //! Binary interface packages borrowed from an immutable package artifact.
 
 use crate::interface::{Iface, JsonValue, ParseError};
-use crate::total::Definition;
+use crate::total::CheckedGraph;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::Arc;
 
 mod flat;
 use flat::FlatBodies;
@@ -93,22 +92,25 @@ enum BodyTable<'a> {
     Flat(FlatBodies<'a>),
 }
 
-enum Definitions {
+enum Definitions<'a> {
     Recipes(Vec<JsonValue>),
-    Flat(Vec<Arc<Definition>>),
+    Flat {
+        table: &'a FlatBodies<'a>,
+        checked: CheckedGraph,
+    },
 }
 
 impl<'a> Package<'a> {
     fn open(file: &'a [u8]) -> Decode<Self> {
-        let [length, version] = words(file, 8)?;
-        if length as usize != file.len() {
-            return Err(invalid("invalid interface package header"));
-        }
-        let header = match (file.get(..8), version) {
-            (Some(b"CINCHPK2"), 2) => HEADER,
-            (Some(b"CINCHPK3"), 3) => FLAT_HEADER,
+        let (version, header) = match file.get(..8) {
+            Some(b"CINCHPK2") => (2, HEADER),
+            Some(b"CINCHPK3") => (3, FLAT_HEADER),
             _ => return Err(invalid("invalid interface package header")),
         };
+        let [length, format] = words(file, 8)?;
+        if length as usize != file.len() || format != version {
+            return Err(invalid("invalid interface package header"));
+        }
         let mut sections = [&file[..0]; 9];
         let mut next = header;
         for (i, section) in sections[..(header - 16) / 8].iter_mut().enumerate() {
@@ -119,7 +121,8 @@ impl<'a> Package<'a> {
             *section = span(file, start, length)?;
             next += section.len();
         }
-        let [strings, modules, values, bodies, edges, payload, sixth, seventh, _eighth] = sections;
+        let [strings, modules, values, bodies, edges, payload, operands_or_documents, documents_or_abi, _] =
+            sections;
         if next != file.len()
             || modules.len() % MODULE_ROW != 0
             || values.len() % 32 != 0
@@ -130,11 +133,31 @@ impl<'a> Package<'a> {
         }
         let strings = Strings::open(strings)?;
         let (bodies, documents) = if version == 3 {
-            (BodyTable::Flat(FlatBodies::open(strings, bodies, edges, payload, sixth)?), seventh)
+            (
+                BodyTable::Flat(FlatBodies::open(
+                    strings,
+                    bodies,
+                    edges,
+                    payload,
+                    operands_or_documents,
+                )?),
+                documents_or_abi,
+            )
         } else {
-            (BodyTable::Recipes { rows: bodies, payload }, sixth)
+            (
+                BodyTable::Recipes {
+                    rows: bodies,
+                    payload,
+                },
+                operands_or_documents,
+            )
         };
-        Ok(Self { strings, modules, bodies, documents })
+        Ok(Self {
+            strings,
+            modules,
+            bodies,
+            documents,
+        })
     }
 
     fn identities(&self) -> Decode<Identities> {
@@ -147,7 +170,11 @@ impl<'a> Package<'a> {
                     })
                     .collect::<Decode<_>>()?,
             ),
-            BodyTable::Flat(bodies) => Definitions::Flat(bodies.definitions()?),
+            BodyTable::Flat(table) => Definitions::Flat {
+                table,
+                checked: CheckedGraph::check(table.definitions()?)
+                    .map_err(|error| ParseError::from(error.0))?,
+            },
         };
         let count = self.modules.len() / MODULE_ROW;
         let mut seen = vec![false; count];
@@ -185,7 +212,7 @@ impl<'a> Package<'a> {
 struct Document<'a> {
     strings: Strings<'a>,
     source: &'a [u8],
-    definitions: Option<&'a Definitions>,
+    definitions: Option<&'a Definitions<'a>>,
     at: usize,
 }
 
@@ -193,7 +220,7 @@ impl<'a> Document<'a> {
     fn decode(
         strings: Strings<'a>,
         source: &'a [u8],
-        definitions: Option<&'a Definitions>,
+        definitions: Option<&'a Definitions<'a>>,
     ) -> Decode<JsonValue> {
         let mut state = Document {
             strings,
@@ -265,20 +292,25 @@ impl<'a> Document<'a> {
                 }
                 JsonValue::Obj(fields)
             }
-            7 => self.definition_rows()?,
+            7 => JsonValue::Arr(self.definition_rows()?),
+            9 => {
+                let Some(Definitions::Flat { table, checked }) = self.definitions else {
+                    return Err(invalid("unexpected packed body root"));
+                };
+                let [root] = self.take()?;
+                let graph = checked
+                    .closure([table.definition_name(root)?])
+                    .map_err(|error| ParseError::from(error.0))?;
+                JsonValue::PackedBody(graph)
+            }
             _ => return Err(invalid("unknown or unsupported structured contract tag")),
         })
     }
 
-    fn definition_rows(&mut self) -> Decode<JsonValue> {
-        match self.definitions {
-            Some(Definitions::Recipes(rows)) => Ok(JsonValue::Arr(self.copy_rows(rows)?)),
-            Some(Definitions::Flat(rows)) => Ok(JsonValue::PackedDefinitions(self.copy_rows(rows)?)),
-            None => Err(invalid("nested shared definition table")),
-        }
-    }
-
-    fn copy_rows<T: Clone>(&mut self, definitions: &[T]) -> Decode<Vec<T>> {
+    fn definition_rows(&mut self) -> Decode<Vec<JsonValue>> {
+        let Some(Definitions::Recipes(definitions)) = self.definitions else {
+            return Err(invalid("unexpected shared definition table"));
+        };
         let count = self.count(8)?;
         let mut rows = Vec::new();
         for _ in 0..count {

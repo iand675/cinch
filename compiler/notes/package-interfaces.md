@@ -68,6 +68,42 @@ order. Tag 7 carries a count of shared definition spans followed by
 `(first ID, count)` pairs that expand in the recorded order. A contract or
 recipe has a maximum nesting depth of 256 values.
 
+### Indexed body format
+
+The indexed format uses `CINCHPK3`, version 3 and an 88-byte header.
+Its directory has nine sections. The Nodes and Operands sections replace
+Recipes in the same position. Other section layouts are unchanged.
+
+A body row holds its identity string ID, result sort string ID, parameter
+start and count, root node ID, call edge start and count, and a reserved
+zero word. Parameter ranges index sort string IDs in Operands. Edge
+ranges index sorted distinct body IDs in Edges.
+
+Each node consists of a tag and three unsigned words.
+
+| Tag | Node | First word | Second word | Third word |
+| --- | --- | --- | --- | --- |
+| 0 | Local | Lexical slot | 0 | 0 |
+| 1 | Number | Sort string ID | Decimal string ID | 0 |
+| 2 | Boolean | 0 or 1 | 0 | 0 |
+| 3 | Primitive | Operation string ID | Argument start | Argument count |
+| 4 | Call | Target body ID | Argument start | Argument count |
+| 5 | Let | Value node ID | Body node ID | 0 |
+| 6 | If | Condition node ID | True node ID | False node ID |
+
+Argument ranges index node IDs in Operands. Children precede their
+parents in Nodes and each node belongs to exactly one definition tree.
+References between definitions use Call nodes. A contract's entire checked
+body graph is tag 9 followed by one body ID. Its member definitions follow
+from the call edges and are ordered by identity for the schema-10 digest.
+
+The Rust package reader uses the mapped records to build one shared typed
+tree per definition. The packer's Python API exposes this format through
+`flat_bodies=True`. The CLI publishes version 2 during reader integration.
+An execution interface can supply `interface_refs` in place of embedded
+`interfaces`. Each row supplies the module name and contract digest. This
+form requires the matching packed sidecar.
+
 ## Verification
 
 ```sh

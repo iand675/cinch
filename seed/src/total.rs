@@ -99,13 +99,9 @@ fn number(sort: Sort, decimal: &str) -> bool {
 
 impl CheckedGraph {
     pub fn check(definitions: Vec<Definition>) -> Result<Self, Invalid> {
-        Self::check_shared(definitions.into_iter().map(Arc::new))
-    }
-
-    pub(crate) fn check_shared(definitions: impl IntoIterator<Item = Arc<Definition>>) -> Result<Self, Invalid> {
         let mut by_name = BTreeMap::new();
         for definition in definitions {
-            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), definition).is_some() {
+            if definition.identity.is_empty() || by_name.insert(Arc::from(definition.identity.as_str()), Arc::new(definition)).is_some() {
                 return Err(Invalid("empty or duplicate total-body identity".into()));
             }
         }
@@ -114,8 +110,7 @@ impl CheckedGraph {
             let inferred = graph.infer(&definition.body, &definition.parameters)?;
             if inferred != definition.result { return Err(Invalid(format!("{}: body result sort disagrees with its declaration", definition.identity))) }
         }
-        let mut done = BTreeSet::new();
-        for identity in graph.definitions.keys() { graph.acyclic(identity.as_ref(), &mut BTreeSet::new(), &mut done)?; }
+        graph.check_acyclic()?;
         Ok(graph)
     }
     pub fn empty() -> Self { Self { definitions: BTreeMap::new() } }
@@ -267,12 +262,36 @@ impl CheckedGraph {
         }
         Ok(())
     }
-    fn acyclic<'a>(&'a self, identity: &'a str, visiting: &mut BTreeSet<&'a str>, done: &mut BTreeSet<&'a str>) -> Result<(), Invalid> {
-        if done.contains(identity) { return Ok(()) }
-        if !visiting.insert(identity) { return Err(Invalid(format!("cyclic total-body dependency: {identity}"))) }
-        let mut calls = BTreeSet::new(); dependencies(&self.definitions[identity].body, &mut calls);
-        for target in calls { self.acyclic(target, visiting, done)?; }
-        visiting.remove(identity); done.insert(identity); Ok(())
+    fn check_acyclic(&self) -> Result<(), Invalid> {
+        enum Visit<'a> { Enter(&'a str), Leave(&'a str) }
+
+        let mut visiting = BTreeSet::new();
+        let mut done = BTreeSet::new();
+        let mut pending = Vec::new();
+        for root in self.definitions.keys() {
+            pending.push(Visit::Enter(root.as_ref()));
+            while let Some(visit) = pending.pop() {
+                match visit {
+                    Visit::Enter(identity) => {
+                        if done.contains(identity) {
+                            continue;
+                        }
+                        if !visiting.insert(identity) {
+                            return Err(Invalid(format!("cyclic total-body dependency: {identity}")));
+                        }
+                        let mut calls = BTreeSet::new();
+                        dependencies(&self.definitions[identity].body, &mut calls);
+                        pending.push(Visit::Leave(identity));
+                        pending.extend(calls.into_iter().rev().map(Visit::Enter));
+                    }
+                    Visit::Leave(identity) => {
+                        visiting.remove(identity);
+                        done.insert(identity);
+                    }
+                }
+            }
+        }
+        Ok(())
     }
     /// Stable structural content, including the exact transitive bodies.
     /// This is the preimage for the interface's eventual versioned digest,
@@ -348,6 +367,26 @@ mod tests {
         let closure = graph.closure(["leaf"]).unwrap();
         assert!(std::ptr::eq(graph.get("leaf").unwrap(), closure.get("leaf").unwrap()));
         assert_eq!(closure.to_json(), graph.to_json());
+    }
+
+    #[test]
+    fn package_length_call_chains_are_checked_without_recursing_on_the_stack() {
+        let count = 25_000;
+        let name = |index| format!("body.{index:06}");
+        let definitions = (0..count)
+            .map(|index| Definition {
+                identity: name(index),
+                parameters: Vec::new(),
+                result: Sort::Bool,
+                body: if index + 1 == count {
+                    Expr::Bool(true)
+                } else {
+                    Expr::Call { target: name(index + 1), arguments: Vec::new() }
+                },
+            })
+            .collect();
+        let graph = CheckedGraph::check(definitions).unwrap();
+        assert_eq!(graph.closure([name(0).as_str()]).unwrap().definitions().count(), count);
     }
 
     #[test]

@@ -1712,8 +1712,8 @@ pub(crate) enum JsonValue {
     Obj(BTreeMap<String, JsonValue>),
     /// Output-only canonical JSON for a checked definition shared by several export closures.
     CanonicalBodyRow(Arc<str>),
-    /// A packed contract's definition array, backed by its shared typed body table.
-    PackedDefinitions(Vec<Arc<crate::total::Definition>>),
+    /// A packed contract's checked body closure, resolved from one root index.
+    PackedBody(crate::total::CheckedGraph),
 }
 
 impl From<&str> for JsonValue {
@@ -1857,16 +1857,7 @@ impl JsonValue {
                 }
                 out.write_char(']')
             }
-            JsonValue::PackedDefinitions(definitions) => {
-                out.write_char('[')?;
-                for (index, definition) in definitions.iter().enumerate() {
-                    if index != 0 {
-                        out.write_char(',')?;
-                    }
-                    definition.to_json_value().write_canonical_to(out)?;
-                }
-                out.write_char(']')
-            }
+            JsonValue::PackedBody(graph) => graph.to_json_value().write_canonical_to(out),
             JsonValue::Obj(map) => {
                 out.write_char('{')?;
                 for (i, (key, value)) in map.iter().enumerate() {

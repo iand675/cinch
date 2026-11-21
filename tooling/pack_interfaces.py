@@ -12,6 +12,7 @@ FLAT_MAGIC = b"CINCHPK3"
 # Value tags in a structured contract. Integers take two little-endian
 # words after the tag. Text and object keys use common string-table IDs.
 NULL, FALSE, TRUE, NAT, TEXT, ARRAY, OBJECT, DEFINITIONS, NEGATIVE = range(9)
+BODY_ROOT = 9
 HEADER_SIZE = 80
 FLAT_HEADER_SIZE = 88
 MISSING = 0xFFFFFFFF
@@ -102,6 +103,7 @@ class BodyNodes:
         self.definitions = definitions
         self.nodes = bytearray()
         self.operands = bytearray()
+        self.targets = []
 
     def append_operands(self, entries):
         first = len(self.operands) // 4
@@ -150,12 +152,39 @@ class BodyNodes:
         targets = set()
         root = self.expression(definition["body"], targets)
         first_target = len(edges) // 4
-        edges.extend(words(*sorted(targets)))
+        ordered = sorted(targets)
+        self.targets.append(ordered)
+        edges.extend(words(*ordered))
         return words(self.strings.id(definition["identity"]), self.strings.id(definition["result"]),
                      start, count, root, first_target, len(targets), 0)
 
+    def reference(self, root, graph):
+        if graph.keys() != {"version", "definitions"} or graph["version"] != 1:
+            raise ValueError(f"unsupported total-body graph for {root!r}")
+        if root not in self.definitions:
+            raise ValueError(f"missing total-body root {root!r}")
+        rows = graph["definitions"]
+        indices = [self.definitions[row["identity"]] for row in rows]
+        if any(a >= b for a, b in zip(indices, indices[1:])):
+            raise ValueError(f"unordered or duplicate total-body definitions for {root}")
+        selected = set(indices)
+        root_id = self.definitions[root]
+        pending = [root_id]
+        seen = set()
+        while pending:
+            node = pending.pop()
+            if node in seen:
+                continue
+            if node not in selected:
+                raise ValueError(f"missing total-body dependency for {root}")
+            seen.add(node)
+            pending.extend(self.targets[node])
+        if seen != selected:
+            raise ValueError(f"unrelated total-body definition for {root}")
+        return words(BODY_ROOT, root_id)
 
-def encode_value(out, value, strings, body_index, *, definitions=False, graph=False):
+
+def encode_value(out, value, strings, body_index, *, definitions=False, graph=False, flat=None):
     if value is None:
         out.extend(words(NULL))
     elif isinstance(value, bool):
@@ -185,16 +214,20 @@ def encode_value(out, value, strings, body_index, *, definitions=False, graph=Fa
         else:
             out.extend(words(ARRAY, len(value)))
             for item in value:
-                encode_value(out, item, strings, body_index)
+                encode_value(out, item, strings, body_index, flat=flat)
     elif isinstance(value, dict):
         out.extend(words(OBJECT, len(value)))
         for key, child in sorted(value.items()):
             out.extend(words(strings.id(key)))
+            if flat is not None and key == "total_body" and child is not None:
+                root = value.get("symbol", value.get("implementation", value.get("identity")))
+                out.extend(flat.reference(root, child))
+                continue
             # Only the schema-10 body envelope owns a definition table.
             body_table = (graph and key == "definitions" and value.keys() == {"version", "definitions"}
                           and value["version"] == 1 and isinstance(child, list)
                           and all(isinstance(row, dict) and row.get("identity") in body_index for row in child))
-            encode_value(out, child, strings, body_index, definitions=body_table, graph=key == "total_body")
+            encode_value(out, child, strings, body_index, definitions=body_table, graph=key == "total_body", flat=flat)
     else:
         raise ValueError(f"unsupported structured contract value {type(value).__name__}")
 
@@ -241,7 +274,7 @@ def pack(rows, objects=None, *, flat_bodies=False):
         if any(a["name"] == b["name"] for a, b in zip(values, values[1:])):
             raise ValueError(f"duplicate value export in {name}")
         encoded = bytearray()
-        encode_value(encoded, documents[name], strings, body_index)
+        encode_value(encoded, documents[name], strings, body_index, flat=nodes)
         span = contracts.add(bytes(encoded))
         modules.extend(words(*strings.add(name), *strings.add(digest),
                              len(exports) // 32, len(values), *span, input_to_sorted[i]))

@@ -5474,7 +5474,15 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(Error::plain(format!("{}: {e}", pack_path.display()))),
     };
-    if let Some(interfaces) = abi.get("interfaces").and_then(serde_json::Value::as_array) {
+    let embedded = abi.get("interfaces");
+    let references = abi.get("interface_refs");
+    if references.is_some() && (embedded.is_some() || packed.is_none()) {
+        return Err(Error::plain(format!(
+            "{}: interface references require a single packed interface set",
+            abi_path.display()
+        )));
+    }
+    if let Some(interfaces) = embedded.or(references).and_then(serde_json::Value::as_array) {
         let mut packed = packed;
         let build = path.parent().map(|parent| parent.join("build"));
         for interface in interfaces {
