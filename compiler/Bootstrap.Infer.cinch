@@ -1274,6 +1274,9 @@ module Bootstrap.Infer where
     CInt source ty text -> case index-number text of
       Some value -> checked-source-index sp (normalize st ty) (IInteger value) st
       None -> bad sp "invalid integer argument literal" st
+    CChar source ty text -> if same-type (normalize st ty) (UCon "Char" KType) then
+        (case unpack text of Cons c Nil -> checked-source-index sp (normalize st ty) (ICharacter c) st; other -> bad sp "invalid character argument literal" st)
+      else bad sp "character argument needs a character carrier" st
     CPrimitive source ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if has op ["+", "-", "*"] && math-carrier (normalize st ty) then
         (case reify-argument sp env first st of
@@ -9587,7 +9590,8 @@ module Bootstrap.Infer where
         let local = CLocal sp (core-type value) value-id display Nil in
         let actual = case projection of None -> local; Some carrier -> CForget sp carrier local in
         let callee = CLocal sp (core-type fun) function-id function-name Nil in
-        case reify-argument sp bound actual sv of
+        let index-source = (case value of CInt literal-span literal-type literal-text -> value; CChar literal-span literal-type literal-text -> value; other -> actual) in
+        case reify-argument sp bound index-source sv of
           (index, si) -> case open-pi sp (core-type fun) index si of
             (out, row, so) -> case discharge-call classes sp bound (applied-core sp out row callee actual) so of
               (call, done) -> let result = core-type call in
