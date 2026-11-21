@@ -25,6 +25,20 @@ class FrozenVerification(unittest.TestCase):
                 self.assertEqual(run.call_args.args[0], ["cinch", "--check-types", "--interfaces",
                                                         selected, "Main.cinch", "out"])
 
+    def test_stage3_uses_packed_abi_for_clients_and_full_abi_for_library_output(self):
+        with patch.object(verify_stage3.subprocess, "call", return_value=0) as run:
+            for mode, selected in (("--emit-ir", "stage/base-objects.json"),
+                                   ("--emit-object", "stage/objects.json")):
+                args = [mode, "--interfaces", "stage/base-interfaces.json", "--objects",
+                        "stage/objects.json", "Main.cinch", "out"]
+                code = verify_stage3.compile_client(
+                    "cinch", "stage/objects.json", "runtime.a", args,
+                    indexed_base=("stage/base-interfaces.json", "stage/base.cpk"),
+                    indexed_objects=("stage/objects.json", "stage/base-objects.json"))
+                self.assertEqual(code, 0)
+                self.assertEqual(run.call_args.args[0], ["cinch", mode, "--interfaces",
+                                                        "stage/base.cpk", "--objects", selected, "Main.cinch", "out"])
+
     def fixture(self, root):
         for part in verify.PARTS:
             (root / part).mkdir(parents=True)

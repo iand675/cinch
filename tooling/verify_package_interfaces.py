@@ -125,6 +125,20 @@ def verify_native_object_references(stage, work, package, source, ir, expected):
     invoke(command, work, status=7, leak=True)
     assert "runtime object checked interface identity mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
 
+    publish(configuration, canonical({**original, "metadata": str(package),
+                                      "metadata_sha256": sha256(data).hexdigest()}).encode())
+    invoke(command, work, leak=True)
+    assert ir.read_bytes() == expected
+
+    broken = bytearray(data)
+    struct.pack_into("<I", broken, 84, count + 1)
+    broken_path = work / "bad-embedded-abi.cpk"
+    publish(broken_path, broken)
+    publish(configuration, canonical({**original, "metadata": str(broken_path),
+                                      "metadata_sha256": sha256(broken).hexdigest()}).encode())
+    invoke(command, work, status=7, leak=True)
+    assert "invalid interface package section directory" in ir.with_suffix(".ll.diagnostics").read_text()
+
 
 def native(stage, work, repeats):
     manifest = stage / "base-interfaces.json"

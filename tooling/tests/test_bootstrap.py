@@ -432,7 +432,7 @@ class BootstrapContract(unittest.TestCase):
         metadata = runtime.parent / "library.abi.json"
         if not library.exists():
             library.write_bytes(b"verified library-only object")
-            metadata.write_bytes(b"verified library-only metadata")
+            metadata.write_bytes(b'{"interfaces":[]}')
         return {"runtime": runtime, "object": library,
                 "interfaces": {"schema": 1, "interfaces": []},
                 "configuration": {"schema": 1, "target": "test-host", "object": str(library),
@@ -455,7 +455,10 @@ class BootstrapContract(unittest.TestCase):
                     self.assertEqual(len(args), 8)
                     self.assertEqual(args[3], directory / "base.cpk")
                     self.assertTrue(args[3].read_bytes().startswith(b"CINCHPK3"))
-                    self.assertEqual(args[4:6], ["--objects", directory / "objects.json"])
+                    self.assertEqual(args[4:6], ["--objects", directory / "base-objects.json"])
+                    compact = bootstrap.read_json(args[5])
+                    self.assertEqual(compact["metadata"], str(args[3].resolve()))
+                    self.assertEqual(compact["metadata_sha256"], bootstrap.file_hash(args[3]))
                     Path(args[-1]).write_text("typed IR")
                     return 0
                 if str(args[0]) == "selected-clang":

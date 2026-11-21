@@ -11,8 +11,9 @@ module Bootstrap.Package where
   import Data.Machine (u32-to-nat, saturating-i64-to-i32)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end)
+  import Text.Lex (bytes-slice)
 
-  export read-package-documents
+  export read-package-documents, packaged-abi
 
   foreign import ccall "mmap" map-file :: forall r. I64 -> I64 -> I32 -> I32 -> I32 -> I64 ->{IO r} I64
   foreign import ccall "munmap" unmap-file :: forall r. I64 -> I64 ->{IO r} I32
@@ -43,7 +44,7 @@ module Bootstrap.Package where
     Recipes :: Region -> Region -> BodyFormat
     Indexed :: FlatBodies -> BodyFormat
   data Package where
-    Package :: Region -> Region -> BodyFormat -> Region -> Package
+    Package :: Region -> Region -> BodyFormat -> Region -> Region -> Package
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
@@ -91,21 +92,37 @@ module Bootstrap.Package where
       if magic == 843796552 && version == 2 then
         (case sections address size 80 16 80 of
           Some [strings, modules, values, bodies, edges, recipes, documents, abi] ->
-            checked-sections strings modules values bodies edges (Recipes bodies recipes) documents
+            checked-sections strings modules values bodies edges (Recipes bodies recipes) documents abi
           other -> Err "invalid interface package section directory")
       else if magic == 860573768 && version == 3 && size >= 88 then
         (case sections address size 88 16 88 of
           Some [strings, modules, values, bodies, edges, nodes, operands, documents, abi] ->
             if region-size nodes % 16 /= 0 || region-size operands % 4 /= 0 then Err "mis-sized packed body node or operand section"
-            else checked-sections strings modules values bodies edges (Indexed (FlatBodies bodies edges nodes operands)) documents
+            else checked-sections strings modules values bodies edges (Indexed (FlatBodies bodies edges nodes operands)) documents abi
           other -> Err "invalid interface package section directory")
       else Err "invalid interface package header"
 
-  checked-sections :: Region -> Region -> Region -> Region -> Region -> BodyFormat -> Region -> Result String Package
-  checked-sections strings modules values bodies edges format documents =
+  checked-sections :: Region -> Region -> Region -> Region -> Region -> BodyFormat -> Region -> Region -> Result String Package
+  checked-sections strings modules values bodies edges format documents abi =
     if region-size modules % 36 /= 0 || region-size bodies % 32 /= 0 ||
        region-size values % 32 /= 0 || region-size edges % 4 /= 0 then Err "mis-sized interface package section"
-    else Ok (Package strings modules format documents)
+    else Ok (Package strings modules format documents abi)
+
+  -- The caller has authenticated these bytes as the object's metadata.
+  -- Reuse the package directory check before exposing the ABI section.
+  packaged-abi :: Bytes -> Result String (Option Bytes)
+  packaged-abi source =
+    let size = bytes-len source in
+    if size < 8 then Ok None else
+      let address = bytes-data source in
+      let magic = word address 4 in
+      if word address 0 /= 1129204035 || (magic /= 843796552 && magic /= 860573768) then Ok None else
+        (case package-header address size of
+          Err message -> Err message
+          Ok (Package strings modules format documents (Region start length)) ->
+            if length == 0 then Err "interface package has no object ABI"
+            else if start + length <= bytes-len source then Ok (Some (bytes-slice source start (start + length)))
+            else Err "invalid interface package ABI span")
 
   read-text :: forall r. I64 -> Region ->{IO r} Result String String
   read-text address region = case region of
@@ -419,7 +436,7 @@ module Bootstrap.Package where
   decode-package :: forall r. I64 -> Nat ->{IO r} Result String (List (String, String, Json))
   decode-package address size = case package-header address size of
     Err message -> Err message
-    Ok (Package strings (Region modules module-size) format documents) ->
+    Ok (Package strings (Region modules module-size) format documents abi) ->
       case strings of
         Region base length ->
           if length < 4 then Err "truncated package string table" else

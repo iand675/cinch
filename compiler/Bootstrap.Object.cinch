@@ -4,6 +4,7 @@ module Bootstrap.Object where
   import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
   import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, known-contract-end)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
+  import Bootstrap.Package (packaged-abi)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Builtin (scalar-intrinsic)
@@ -590,7 +591,15 @@ module Bootstrap.Object where
 
   parse-runtime-object-bytes :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
   parse-runtime-object-bytes validated reclaim expected-triple interfaces object-file metadata-file code metadata =
-    case parse-json metadata-file metadata of
+    case packaged-abi metadata of
+      Err message -> Err message
+      Ok embedded -> (case embedded of
+        None -> parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code metadata
+        Some abi -> parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code abi)
+
+  parse-runtime-abi :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-abi validated reclaim expected-triple interfaces object-file metadata-file code abi =
+    case parse-json metadata-file abi of
       Parsed artifact Nil -> (case (field "interface_refs" artifact, validated) of
         (JNull, other) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact EmbeddedContracts
         (refs, Some checked) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact (ReferencedContracts checked)

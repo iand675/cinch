@@ -112,6 +112,10 @@ ABI metadata containing `interface_refs` and an optional single
 contract set in the recorded order. The private entry carries its document
 and must satisfy the existing standalone object interface checks.
 The packer's ABI section already carries metadata in this form.
+An object configuration can name the package itself as its metadata
+artifact. Its SHA-256 then authenticates the entire package before the
+compiler reads the ABI section. The bootstrap emits this configuration as
+`base-objects.json` and uses it with `base.cpk` for native self-builds.
 
 ## Verification
 

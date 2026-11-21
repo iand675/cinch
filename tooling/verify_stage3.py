@@ -34,7 +34,7 @@ def publish_interfaces(manifest, source, prefix):
 PROFILE_FLAGS = ("--clear-features", "--rc-debug", "--no-reclaim", "--portable-isa")
 
 
-def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_base=None):
+def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_base=None, indexed_objects=None):
     """Adapt the shared Rust test harness to the staged frontend and linker."""
     env = bootstrap.environment()
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
@@ -50,6 +50,13 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_b
             at = options.index("--interfaces") + 1
             if at < len(options) and Path(options[at]) == Path(manifest):
                 options = [*options[:at], package, *options[at + 1:]]
+                # Library-object emission can republish the provider's
+                # embedded contracts, so it still uses the full metadata.
+                if indexed_objects and "--objects" in options and "--emit-object" not in options:
+                    at = options.index("--objects") + 1
+                    original, compact = indexed_objects
+                    if at < len(options) and Path(options[at]) == Path(original):
+                        options[at] = compact
         return subprocess.call([compiler, *options], env=env)
 
     if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", "--check-platform", *PROFILE_FLAGS):
@@ -135,6 +142,8 @@ def stage3_artifacts():
     })
     if "interface_package_sha256" in inputs:
         hashes[stage / "base.cpk"] = inputs["interface_package_sha256"]
+    if "packed_object_configuration_sha256" in inputs:
+        hashes[stage / "base-objects.json"] = inputs["packed_object_configuration_sha256"]
     if (inputs["builder_sha256"] != receipt["executable_sha256"]
             or any(bootstrap.file_hash(path) != digest for path, digest in hashes.items())):
         raise bootstrap.BootstrapError("Stage3 frontend test artifacts changed")
@@ -264,8 +273,11 @@ def write_wrapper(wrapper, compiler, objects, runtime):
     inputs = bootstrap.read_json(receipt).get("inputs", {}) if receipt.is_file() else {}
     stage_receipt = str(receipt.resolve()) if "library_provider" in inputs else None
     indexed_base = None
+    indexed_objects = None
     if "interface_package_sha256" in inputs:
         indexed_base = (str(receipt.with_name("base-interfaces.json")), str(receipt.with_name("base.cpk")))
+    if "packed_object_configuration_sha256" in inputs:
+        indexed_objects = (str(objects), str(receipt.with_name("base-objects.json")))
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
@@ -274,7 +286,7 @@ def write_wrapper(wrapper, compiler, objects, runtime):
         "if sys.argv[1:2] == ['--test-target-inputs'] and len(sys.argv) >= 3 and sys.argv[3:] in ([], ['--no-reclaim']):\n"
         f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3, stage_receipt={stage_receipt!r}))\n"
         f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], "
-        f"ir_only={ir_only!r}, indexed_base={indexed_base!r}))\n"
+        f"ir_only={ir_only!r}, indexed_base={indexed_base!r}, indexed_objects={indexed_objects!r}))\n"
     )
     wrapper.chmod(0o755)
 
@@ -335,6 +347,9 @@ def verify(evidence, cargo_target, jobs=1):
     package = compiler.with_name("base.cpk")
     if package in hashes:
         report["interface_package_sha256"] = hashes[package]
+    packed_objects = compiler.with_name("base-objects.json")
+    if packed_objects in hashes:
+        report["packed_object_configuration_sha256"] = hashes[packed_objects]
     report_path = evidence / "results.json"
     bootstrap.write_json(report_path, report)
     completed = {}
