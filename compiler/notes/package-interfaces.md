@@ -124,6 +124,10 @@ An object configuration can name the package itself as its metadata
 artifact. Its SHA-256 then authenticates the entire package before the
 compiler reads the ABI section. The bootstrap emits this configuration as
 `base-objects.json` and uses it with `base.cpk` for native self-builds.
+When a native client's interfaces and object configuration name the
+same package path, it reads one bounded snapshot and reuses the decoded
+contract strings for ABI admission. It verifies the digest of that
+snapshot before decoding the ABI. Interface-only loads map the file.
 Pass `--legacy-json-abi` to write version 3 with a JSON ABI section, or
 `--legacy-recipes` to write version 2.
 

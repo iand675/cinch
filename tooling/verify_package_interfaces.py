@@ -137,12 +137,24 @@ def verify_native_object_references(stage, work, package, legacy_package, source
         use_embedded_abi(path, contents)
         invoke(command, work, leak=True)
         assert ir.read_bytes() == expected
+        if path != package:
+            invoke([*command[:3], path, *command[4:]], work, leak=True)
+            assert ir.read_bytes() == expected
 
-    for at, value, diagnostic in (
-        (84, count + 1, "invalid interface package section directory"),
-        (start, 0xffffffff, "invalid structured ABI string boundary"),
-        (start + 4, 255, "unknown structured contract tag"),
-        (start + 12, 0xffffffff, "field key outside package string table"),
+    runtime = Path(original["metadata"]).with_name("libcinchruntime.a")
+    run = invoke([stage / "cinch", "--interfaces", package, "--objects", configuration,
+                  "run", runtime, work / "packed-run", source], work)
+    assert run.stdout == "Hello, world!\n"
+
+    use_embedded_abi(package, b"not the package bytes")
+    invoke(command, work, status=7, leak=True)
+    assert "bootstrap.object: runtime object artifact digest mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
+
+    for at, value, phase, diagnostic in (
+        (84, count + 1, "interfaces", "invalid interface package section directory"),
+        (start, 0xffffffff, "interfaces", "invalid structured ABI string boundary"),
+        (start + 4, 255, "object", "unknown structured contract tag"),
+        (start + 12, 0xffffffff, "object", "field key outside package string table"),
     ):
         broken = bytearray(data)
         struct.pack_into("<I", broken, at, value)
@@ -150,6 +162,8 @@ def verify_native_object_references(stage, work, package, legacy_package, source
         use_embedded_abi(broken_path, broken)
         invoke(command, work, status=7, leak=True)
         assert diagnostic in ir.with_suffix(".ll.diagnostics").read_text()
+        invoke([*command[:3], broken_path, *command[4:]], work, status=7, leak=True)
+        assert f"bootstrap.{phase}: {diagnostic}" in ir.with_suffix(".ll.diagnostics").read_text()
 
 
 def native(stage, work, repeats):
