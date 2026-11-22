@@ -8559,9 +8559,9 @@ impl Checker {
     /// the current path stands for, for that diagnostic.
     fn compile_rows(
         &mut self,
-        rows: Vec<Row>,
-        cols: Vec<ECore>,
-        types: Vec<Ty>,
+        mut rows: Vec<Row>,
+        mut cols: Vec<ECore>,
+        mut types: Vec<Ty>,
         expected: &Ty,
         ctx_span: ast::Span,
         uncovered: &str,
@@ -8581,6 +8581,24 @@ impl Checker {
         }
         for r in &rows {
             check_row_binders(&r.pats)?;
+        }
+        // A shared prefix of variables and wildcards introduces no branch.
+        // Bind in column order and remove the prefix once, so wide equations
+        // do not repeatedly validate, clone or shift the remaining columns.
+        let mut prefix = types.len();
+        for row in &rows {
+            if prefix == 0 {
+                break;
+            }
+            prefix = row.pats.iter()
+                .take(prefix)
+                .take_while(|pat| matches!(pat, ast::Pat::Var(..) | ast::Pat::Wild(_)))
+                .count();
+        }
+        if prefix != 0 {
+            self.bind_pattern_columns(&mut rows, &cols[..prefix], &types[..prefix])?;
+            cols.drain(..prefix);
+            types.drain(..prefix);
         }
         if types.is_empty() && !self.param_facts.is_empty() {
             // Every column is consumed, so each row's patterns have named
@@ -8616,32 +8634,27 @@ impl Checker {
         }
         let col0 = cols[0].clone();
         let ty0 = self.uni.zonk(&types[0]);
-        let mut rows = rows;
-
         // Expand as-patterns in column 0 by binding the alias.
-        for r in rows.iter_mut() {
-            let mut pat = r.pats[0].clone();
-            loop {
-                match pat {
-                    ast::Pat::As(n, inner, _) => {
-                        if let ECore::Var(l) = &col0 {
-                            self.bind_syntax_local(
-                                &mut r.env,
-                                &n,
-                                *l,
-                                Scheme::mono(ty0.clone()),
-                                None,
-                                n.span,
-                            )?;
-                        }
-                        pat = (*inner).clone();
-                    }
-                    other => {
-                        r.pats[0] = other;
-                        break;
-                    }
-                }
+        for row in &mut rows {
+            if !matches!(row.pats[0], ast::Pat::As(..)) {
+                continue;
             }
+            let span = row.pats[0].span();
+            let mut pat = std::mem::replace(&mut row.pats[0], ast::Pat::Wild(span));
+            while let ast::Pat::As(name, inner, _) = pat {
+                if let ECore::Var(local) = &col0 {
+                    self.bind_syntax_local(
+                        &mut row.env,
+                        &name,
+                        *local,
+                        Scheme::mono(ty0.clone()),
+                        None,
+                        name.span,
+                    )?;
+                }
+                pat = *inner;
+            }
+            row.pats[0] = pat;
         }
 
         // Variable and wildcard patterns match a column of any type.
@@ -9733,32 +9746,32 @@ impl Checker {
     fn consume_column(
         &mut self,
         mut rows: Vec<Row>,
-        cols: Vec<ECore>,
-        types: Vec<Ty>,
+        mut cols: Vec<ECore>,
+        mut types: Vec<Ty>,
         expected: &Ty,
         ctx_span: ast::Span,
         uncovered: &str,
     ) -> Result<ECore> {
-        for r in rows.iter_mut() {
-            let p0 = r.pats[0].clone();
-            if let ast::Pat::Var(n, _) = &p0 {
-                if let ECore::Var(l) = &cols[0] {
-                    let t = self.uni.zonk(&types[0]);
-                    self.bind_syntax_local(&mut r.env, &n, *l, Scheme::mono(t), None, n.span)?;
+        self.bind_pattern_columns(&mut rows, &cols[..1], &types[..1])?;
+        cols.remove(0);
+        types.remove(0);
+        self.compile_rows(rows, cols, types, expected, ctx_span, uncovered)
+    }
+
+    fn bind_pattern_columns(&mut self, rows: &mut [Row], cols: &[ECore], types: &[Ty]) -> Result<()> {
+        for (index, (column, ty)) in cols.iter().zip(types).enumerate() {
+            let ECore::Var(local) = column else { continue };
+            for row in &mut *rows {
+                if let ast::Pat::Var(name, _) = &row.pats[index] {
+                    let ty = self.uni.zonk(ty);
+                    self.bind_syntax_local(&mut row.env, name, *local, Scheme::mono(ty), None, name.span)?;
                 }
             }
-            // Shift the consumed pattern off in place: the remaining ones
-            // move, they are not copied.
-            r.pats.remove(0);
         }
-        self.compile_rows(
-            rows,
-            cols[1..].to_vec(),
-            types[1..].to_vec(),
-            expected,
-            ctx_span,
-            uncovered,
-        )
+        for row in rows {
+            row.pats.drain(..cols.len());
+        }
+        Ok(())
     }
 
     /// Desugar the surface pattern sugar: list patterns become nested
@@ -12310,16 +12323,15 @@ struct Row {
 /// A row's patterns must bind every variable at most once; duplicate
 /// binders previously shadowed silently (review P2).
 fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
-    fn walk(p: &ast::Pat, seen: &mut Vec<String>) -> Result<()> {
+    fn walk<'a>(p: &'a ast::Pat, seen: &mut HashSet<&'a str>) -> Result<()> {
         match p {
             ast::Pat::Var(n, span) | ast::Pat::As(n, _, span) => {
-                if seen.contains(&n.text) {
+                if !seen.insert(n.text.as_str()) {
                     return Err(Error::at(
                         *span,
                         format!("variable {} is bound twice in the same pattern", n.text),
                     ));
                 }
-                seen.push(n.text.clone());
                 if let ast::Pat::As(_, inner, _) = p {
                     walk(inner, seen)?;
                 }
@@ -12338,7 +12350,7 @@ fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
         }
         Ok(())
     }
-    let mut seen = Vec::new();
+    let mut seen = HashSet::new();
     for p in pats {
         walk(p, &mut seen)?;
     }

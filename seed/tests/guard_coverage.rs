@@ -146,6 +146,25 @@ fn guarded_equations_use_the_same_fallthrough_and_coverage_as_case() {
 }
 
 #[test]
+fn variable_prefix_preserves_aliases_and_guard_fallthrough() {
+    let defs = r#"
+  radius :: Shape -> Int
+  radius (Circle n) = n
+  radius (Square n) = n
+
+  score :: Int -> Int -> Shape -> Int -> Int
+  score bias _ whole@(Circle n) suffix | n > 0 && suffix > 0 = bias + radius whole + suffix
+  score _ fallback (Circle _) _ = fallback
+  score _ _ (Square n) suffix = n + suffix
+"#;
+    expect_ok(
+        "variable-prefix",
+        &program(defs, "if score 10 20 (Circle 3) 2 == 15 && score 10 20 (Circle 3) 0 == 20 && score 10 20 (Square 3) 2 == 5 then 0 else 1"),
+        0,
+    );
+}
+
+#[test]
 fn mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor() {
     // Circle has an unguarded row; Square only a guarded one.
     expect_err(
