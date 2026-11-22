@@ -95,22 +95,37 @@ pub fn parse_object_roots(text: &str) -> crate::Result<Vec<ObjectRoot>> {
 }
 
 fn validate_object_roots(program: &Program, roots: &[ObjectRoot]) -> crate::Result<()> {
+    if roots.is_empty() {
+        return Ok(());
+    }
+    let mut units = HashMap::new();
+    for function in &program.fns {
+        units.entry(function.id.0.as_str()).or_insert(function.repr.tparams);
+    }
+    let mut dictionaries = HashMap::new();
+    let mut families: HashMap<&str, (&InstanceDef, bool)> = HashMap::new();
+    for instance in &program.instances {
+        dictionaries.entry(instance.id.0.as_str()).or_insert(instance.tparams);
+        let (first, consistent) = families.entry(&instance.class).or_insert((instance, true));
+        *consistent &= instance.own.len() == instance.method_count
+            && instance.method_count == first.method_count && instance.own == first.own;
+    }
     for root in roots {
         let (symbol, vector, expected) = match root {
             ObjectRoot::Unit { symbol, classes } => {
-                let f = program.fns.iter().find(|f| f.id.0 == *symbol)
+                let width = units.get(symbol.as_str())
                     .ok_or_else(|| crate::Error::plain(format!("unknown object unit root {symbol}")))?;
-                (symbol, classes, f.repr.tparams)
+                (symbol, classes, *width)
             }
             ObjectRoot::Dictionary { symbol, classes } => {
-                let inst = program.instances.iter().find(|i| i.id.0 == *symbol)
+                let width = dictionaries.get(symbol.as_str())
                     .ok_or_else(|| crate::Error::plain(format!("unknown object dictionary root {symbol}")))?;
-                (symbol, classes, inst.tparams)
+                (symbol, classes, *width)
             }
             ObjectRoot::Method { class, slot, own } => {
-                let insts: Vec<_> = program.instances.iter().filter(|i| i.class == *class).collect();
-                let first = insts.first().ok_or_else(|| crate::Error::plain(format!("unknown object method class {class}")))?;
-                if insts.iter().any(|i| i.own.len() != i.method_count || i.method_count != first.method_count || i.own != first.own) {
+                let (first, consistent) = families.get(class.as_str())
+                    .ok_or_else(|| crate::Error::plain(format!("unknown object method class {class}")))?;
+                if !consistent {
                     return Err(crate::Error::plain(format!("inconsistent defining method family for {class}")));
                 }
                 let n = first.own.get(*slot).ok_or_else(|| crate::Error::plain(format!("unknown object method slot {class}:{slot}")))?;
@@ -145,6 +160,9 @@ enum Item {
     Inst(String, Vector),
 }
 
+// Keys retain the published order by logical slot, then representation.
+type MethodSlots = BTreeMap<(usize, Vector), usize>;
+
 struct Cx<'a> {
     fns: HashMap<&'a str, &'a FnDef>,
     insts: HashMap<&'a str, &'a InstanceDef>,
@@ -155,7 +173,7 @@ struct Cx<'a> {
     /// Reached dictionaries per class.
     by_class: BTreeMap<String, BTreeSet<(String, Vector)>>,
     /// Own vectors reached per (class, method index) through projections.
-    own: BTreeMap<(String, usize), BTreeSet<Vector>>,
+    own: BTreeMap<String, BTreeMap<usize, BTreeSet<Vector>>>,
     /// Reached vectors per vector-dependent constructor unit.
     ctors: BTreeMap<String, BTreeSet<Vector>>,
     /// The constructor units of each data type, by type.
@@ -165,6 +183,10 @@ struct Cx<'a> {
 }
 
 impl<'a> Cx<'a> {
+    fn own_vectors(&self, class: &str, method: usize) -> Option<&BTreeSet<Vector>> {
+        self.own.get(class)?.get(&method)
+    }
+
     fn generic(&self, id: &str) -> Option<&'a FnDef> {
         let f = *self.fns.get(id)?;
         let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. } | crate::core::PrimOp::Stm { .. } | crate::core::PrimOp::MVar { .. } | crate::core::PrimOp::Slots { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
@@ -219,7 +241,7 @@ impl<'a> Cx<'a> {
         if k == 0 {
             return vec![iv.to_vec()];
         }
-        match self.own.get(&(inst.class.clone(), i)) {
+        match self.own_vectors(&inst.class, i) {
             Some(set) if !set.is_empty() => set
                 .iter()
                 .map(|o| {
@@ -256,8 +278,7 @@ impl<'a> Cx<'a> {
             Core::DictProj(_, i, Some(site), _) if !site.own.is_empty() => {
                 let (o, filled) = fit(&site.own, site.own.len());
                 self.unrecorded += filled as usize;
-                let key = (site.class.clone(), *i);
-                if self.own.entry(key).or_default().insert(o.clone()) {
+                if self.own.entry(site.class.clone()).or_default().entry(*i).or_default().insert(o.clone()) {
                     let dicts: Vec<(String, Vector)> =
                         self.by_class.get(&site.class).cloned().unwrap_or_default().into_iter().collect();
                     for (id, iv) in dicts {
@@ -311,7 +332,7 @@ impl<'a> Cx<'a> {
             for (id, ivs) in &self.inst_copies {
                 let inst = self.insts[id.as_str()];
                 for (i, k) in inst.own.iter().enumerate() {
-                    let reached = self.own.get(&(inst.class.clone(), i)).map(|s| !s.is_empty()).unwrap_or(false);
+                    let reached = self.own_vectors(&inst.class, i).is_some_and(|s| !s.is_empty());
                     if *k == 0 || reached {
                         continue;
                     }
@@ -336,21 +357,19 @@ impl<'a> Cx<'a> {
     /// The own vector a method slot holds when it is the declared slot.
     fn declared_own(&self, inst: &InstanceDef, i: usize) -> Vector {
         let k = inst.own.get(i).copied().unwrap_or(0);
-        match self.own.get(&(inst.class.clone(), i)).and_then(|s| s.iter().next()) {
+        match self.own_vectors(&inst.class, i).and_then(|s| s.first()) {
             Some(o) if k > 0 => o.clone(),
             _ => vec![Class::Obj; k],
         }
     }
 
     /// The appended slots of a class, in order: (method, own vector).
-    fn extras(&self, class: &str) -> Vec<(usize, Vector)> {
-        let mut out = Vec::new();
-        for ((c, i), set) in &self.own {
-            if c == class {
-                out.extend(set.iter().skip(1).map(|o| (*i, o.clone())));
-            }
-        }
-        out
+    fn extras(&self, class: &str) -> impl Iterator<Item = (usize, &Vector)> {
+        self.own.get(class).into_iter().flat_map(|methods| {
+            methods.iter().flat_map(|(&method, vectors)| {
+                vectors.iter().skip(1).map(move |own| (method, own))
+            })
+        })
     }
 
     fn method_name(&self, m: &GlobalId, v: &[Class]) -> GlobalId {
@@ -361,7 +380,7 @@ impl<'a> Cx<'a> {
     }
 
     /// Rename every reference to the copy it reaches.
-    fn rename(&self, e: &mut Core, slots: &HashMap<String, (usize, Vec<(usize, Vector)>)>) {
+    fn rename(&self, e: &mut Core, slots: &HashMap<&str, MethodSlots>) {
         match e {
             Core::Global(g, v) | Core::Lam { fn_id: g, classes: v, .. } | Core::Ctor(g, v) => {
                 if let Some(f) = self.generic(&g.0).or_else(|| self.ctor_generic(&g.0)) {
@@ -376,17 +395,10 @@ impl<'a> Cx<'a> {
                 }
             }
             Core::DictProj(_, i, site, _) => {
-                if let Some(s) = site.take() {
-                    if !s.own.is_empty() {
-                        let o = fit(&s.own, s.own.len()).0;
-                        let first = self.own.get(&(s.class.clone(), *i)).and_then(|set| set.iter().next());
-                        if first != Some(&o) {
-                            if let Some((mc, extras)) = slots.get(&s.class) {
-                                if let Some(p) = extras.iter().position(|(m, v)| m == i && *v == o) {
-                                    *i = mc + p;
-                                }
-                            }
-                        }
+                if let Some(s) = site.take().filter(|site| !site.own.is_empty()) {
+                    let own = fit(&s.own, s.own.len()).0;
+                    if let Some(physical) = slots.get(s.class.as_str()).and_then(|extra| extra.get(&(*i, own))) {
+                        *i = *physical;
                     }
                 }
             }
@@ -449,7 +461,7 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                 }
             }
             ObjectRoot::Method { class, slot, own } => {
-                cx.own.entry((class.clone(), *slot)).or_default().insert(own.clone());
+                cx.own.entry(class.clone()).or_default().entry(*slot).or_default().insert(own.clone());
             }
         }
     }
@@ -461,10 +473,14 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
     cx.drain();
     cx.fill_defaults();
 
-    let mut slots: HashMap<String, (usize, Vec<(usize, Vector)>)> = HashMap::new();
+    let mut slots: HashMap<&str, MethodSlots> = HashMap::new();
     for (class, dicts) in &cx.by_class {
         if let Some((id, _)) = dicts.iter().next() {
-            slots.insert(class.clone(), (cx.insts[id.as_str()].method_count, cx.extras(class)));
+            let declared = cx.insts[id.as_str()].method_count;
+            let extras = cx.extras(class).enumerate().map(|(offset, (logical, own))| {
+                ((logical, own.clone()), declared + offset)
+            }).collect();
+            slots.insert(class, extras);
         }
     }
 
@@ -526,8 +542,8 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                     cx.method_name(&inst.methods[i], &v)
                 })
                 .collect();
-            if let Some((_, extras)) = slots.get(&inst.class) {
-                for (i, o) in extras {
+            if let Some(extras) = slots.get(inst.class.as_str()) {
+                for (i, o) in extras.keys() {
                     let mut v = iv.clone();
                     v.extend(o.iter().copied());
                     methods.push(cx.method_name(&inst.methods[*i], &v));
@@ -546,13 +562,17 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
     report.versions.sort();
     report.unrecorded = cx.unrecorded;
     if let Some(families) = families {
+        let mut defining = HashMap::new();
+        for instance in &program.instances {
+            defining.entry(instance.class.as_str()).or_insert(instance);
+        }
         let emitted: BTreeSet<_> = out.instances.iter().map(|i| &i.class).collect();
         for class in emitted {
-            let inst = program.instances.iter().find(|i| &i.class == class).expect("emitted instance has a defining class");
+            let inst = defining[class.as_str()];
             let mut entries: Vec<_> = (0..inst.method_count).map(|i|
                 MethodSlot { logical: i, physical: i, own: cx.declared_own(inst, i) }).collect();
-            entries.extend(cx.extras(class).into_iter().enumerate().map(|(index, (logical, own))|
-                MethodSlot { logical, physical: inst.method_count + index, own }));
+            entries.extend(cx.extras(class).enumerate().map(|(index, (logical, own))|
+                MethodSlot { logical, physical: inst.method_count + index, own: own.clone() }));
             families.push(MethodFamily { class: class.clone(), declared_methods: inst.method_count, slots: entries });
         }
     }
