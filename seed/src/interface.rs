@@ -122,21 +122,19 @@ pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     for f in ifaces {
         by_module.entry(f.module.as_str()).or_insert(f);
     }
-    let mut seen: Vec<(&str, &str, &str)> = Vec::new(); // (class, target, owner)
+    let mut seen: HashMap<(&str, &str), &str> = HashMap::new();
     for f in by_module.values() {
         for inst in &f.exports.instances {
             if !inst.implicit {
                 continue;
             }
-            for (class, target, owner) in &seen {
-                if *class == inst.class && *target == inst.target {
-                    return Err(CoherenceError(format!(
-                        "ambiguous instance for {} {}: declared by both {} and {}",
-                        inst.class, inst.target, owner, f.module
-                    )));
-                }
+            let key = (inst.class.as_str(), inst.target.as_str());
+            if let Some(owner) = seen.insert(key, &f.module) {
+                return Err(CoherenceError(format!(
+                    "ambiguous instance for {} {}: declared by both {} and {}",
+                    inst.class, inst.target, owner, f.module
+                )));
             }
-            seen.push((&inst.class, &inst.target, &f.module));
         }
     }
     Ok(())
@@ -213,6 +211,14 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
 pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> Result<(), CoherenceError> {
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
+    // Preserve the first defining row for each identity, as the previous
+    // search through a module's exported signatures did.
+    let mut defining_signatures = HashMap::new();
+    for (&module, interface) in &by_module {
+        for signature in &interface.exports.signatures {
+            defining_signatures.entry((module, signature.identity.as_str())).or_insert(signature);
+        }
+    }
     let mut actual_definitions = BTreeMap::new();
     let single_imports = std::cell::OnceCell::new();
     for f in ifaces {
@@ -296,8 +302,8 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
                 .and_then(|owner| by_module.get(owner))
                 .and_then(|interface| interface.exports.values.iter().find(|row| row.symbol == value.symbol));
             let ord_module = crate::known::split(crate::known::ORD).0;
-            let ordinal = by_module.get(ord_module).filter(|_| reaches(ord_module))
-                .and_then(|interface| interface.exports.signatures.iter().find(|row| row.identity == crate::known::ORD));
+            let ordinal = defining_signatures.get(&(ord_module, crate::known::ORD))
+                .filter(|_| reaches(ord_module));
             if !defining.is_some_and(|row| row.keyed_ordering == Some(ordering) && row.resolved == value.resolved)
                 || !ordinal.is_some_and(|signature| [ordering.less_slot, ordering.greater_slot].iter()
                     .all(|slot| signature.methods.iter().any(|method| method.slot == *slot)))
@@ -311,8 +317,7 @@ pub fn verify_chain_with(ifaces: &[Iface], hashes: &BTreeMap<&str, String>) -> R
             if !reaches(owner) {
                 return Err(CoherenceError(format!("signature {} is outside the checked dependency closure", signature.identity)));
             }
-            let defining = by_module.get(owner).and_then(|f| f.exports.signatures.iter()
-                .find(|s| s.identity == signature.identity)).ok_or_else(||
+            let defining = defining_signatures.get(&(owner, signature.identity.as_str())).ok_or_else(||
                     CoherenceError(format!("signature {} has no defining contract", signature.identity)))?;
             if !same_signature_contract(signature, defining) {
                 return Err(CoherenceError(format!("conflicting defining signature contract: {}", signature.identity)));
