@@ -22,6 +22,13 @@ module Life where
       let bit = if eq-u32 (bit-and-u32 mask 1) 0 then 0 else 1 in
       bit + count-bits (wrapping-shr-u32 mask 1)
 
+  -- Columns (1–62) and rows (1–64).
+  grid-width :: Int
+  grid-width = 40
+
+  grid-height :: Int
+  grid-height = 24
+
   -- Join the opposite sides of the board.
   wrap-edges :: Bool
   wrap-edges = True

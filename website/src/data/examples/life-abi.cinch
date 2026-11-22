@@ -22,6 +22,12 @@ module Life.Browser where
   initial-wrap :: Unit -> U32
   initial-wrap () = if wrap-edges then 1 else 0
 
+  initial-width :: Unit -> U32
+  initial-width () = to-u32 grid-width
+
+  initial-height :: Unit -> U32
+  initial-height () = to-u32 grid-height
+
   -- The host supplies three packed rows. Bits 0–2 are the row above,
   -- 3–4 the cells to either side, and 5–7 the row below, left to right.
   neighbour-mask :: U64 -> U64 -> U64 -> U32 -> U32
@@ -37,4 +43,6 @@ module Life.Browser where
   foreign export ccall "life_initial_color" initial-color :: U32 -> U32
   foreign export ccall "life_initial_step_ms" initial-step-ms :: Unit -> U32
   foreign export ccall "life_initial_wrap" initial-wrap :: Unit -> U32
+  foreign export ccall "life_initial_width" initial-width :: Unit -> U32
+  foreign export ccall "life_initial_height" initial-height :: Unit -> U32
   foreign export ccall "life_neighbour_mask" neighbour-mask :: U64 -> U64 -> U64 -> U32 -> U32
