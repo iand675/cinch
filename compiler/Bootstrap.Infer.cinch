@@ -9254,21 +9254,68 @@ module Bootstrap.Infer where
     Cons (SourceTotalDecl at declaration) rest -> (case declaration of
       DFun sp name clauses -> declaration-references [declaration] <> source-total-body-refs rest
       other -> source-total-body-refs rest)
-  source-total-dependencies :: List String -> HashMap String (List SourceTotalDecl) -> HashMap String (List String) -> HashMap String (List String)
+  data SourceTotalDependencies where
+    RetryDependencies :: List String -> Option String -> SourceTotalDependencies
+
+  -- A direct ordinary application must resolve its head. Resolved source
+  -- globals use the m. namespace, which no lexical binder can have.
+  source-total-application-head :: Expr -> Option String
+  source-total-application-head expr = case expr of
+    EApp at callee arguments -> source-total-application-head callee
+    EVar at name | string-starts-with "m." name -> Some name
+    other -> None
+  source-total-binders-only :: List Pat -> Bool
+  source-total-binders-only patterns = case patterns of
+    Nil -> True
+    Cons (PVar at name) rest -> source-total-binders-only rest
+    other -> False
+  source-total-single-head :: List SourceTotalDecl -> Option String
+  source-total-single-head rows = case rows of
+    Cons (SourceTotalDecl at (DSig sp name ty)) rest -> source-total-single-head rest
+    [SourceTotalDecl at (DFun sp name [(patterns, body)])] | source-total-binders-only patterns -> source-total-application-head body
+    other -> None
+  source-total-dependencies :: List String -> HashMap String (List SourceTotalDecl) -> HashMap String SourceTotalDependencies -> HashMap String SourceTotalDependencies
   source-total-dependencies names functions indexed = case names of
     Nil -> indexed
     Cons name rest -> (case hash-map-lookup name indexed of
       Some _ -> source-total-dependencies rest functions indexed
-      None -> source-total-dependencies rest functions (hash-map-insert name (source-total-body-refs (source-total-group name functions)) indexed))
-  source-total-closure :: HashMap String (List String) -> List String -> HashMap String () -> List String -> List String
-  source-total-closure dependencies pending seen selected = case pending of
-    Nil -> selected
+      None ->
+        let rows = source-total-group name functions in
+        let dependency = RetryDependencies (source-total-body-refs rows) (source-total-single-head rows) in
+        source-total-dependencies rest functions (hash-map-insert name dependency indexed))
+
+  retry-declaration-name :: Decl -> Option String
+  retry-declaration-name declaration = case declaration of
+    DProof sp body -> retry-declaration-name body
+    other -> decl-name declaration
+  source-total-shared-names :: List SourceTotalDecl -> HashMap String () -> HashMap String ()
+  source-total-shared-names declarations seen = case declarations of
+    Nil -> seen
+    Cons (SourceTotalDecl at declaration) rest -> (case retry-declaration-name declaration of
+      Some name -> source-total-shared-names rest (hash-map-insert name () seen)
+      None -> source-total-shared-names rest seen)
+  source-total-missing-head :: Option String -> HashMap String SourceTotalDependencies -> HashMap String (List SourceTotalDecl) -> HashMap String () -> Bool
+  source-total-missing-head head dependencies functions shared = case head of
+    None -> False
+    Some name -> (case (hash-map-lookup name dependencies, hash-map-lookup name functions, hash-map-lookup name shared) of
+      (None, Some rows, None) -> True
+      other -> False)
+
+  -- A retry omits every equation and signature for a noncandidate. With
+  -- no shared declaration of its resolved name, a direct reference to
+  -- that value makes this whole attempt fail before it can contribute a
+  -- checked body.
+  source-total-closure :: HashMap String SourceTotalDependencies -> HashMap String (List SourceTotalDecl) -> HashMap String () -> List String -> HashMap String () -> List String -> Option (List String)
+  source-total-closure dependencies functions shared pending seen selected = case pending of
+    Nil -> Some selected
     Cons name rest -> (case hash-map-lookup name seen of
-      Some _ -> source-total-closure dependencies rest seen selected
+      Some _ -> source-total-closure dependencies functions shared rest seen selected
       None -> let checked = hash-map-insert name () seen in
         (case hash-map-lookup name dependencies of
-          None -> source-total-closure dependencies rest checked selected
-          Some refs -> source-total-closure dependencies (refs <> rest) checked (Cons name selected)))
+          None -> source-total-closure dependencies functions shared rest checked selected
+          Some (RetryDependencies refs head) ->
+            if source-total-missing-head head dependencies functions shared then None
+            else source-total-closure dependencies functions shared (refs <> rest) checked (Cons name selected)))
 
   -- A retry elaborates exactly the selected names and their local dependencies.
   source-total-preliminary :: ElaborationImports -> String -> Module -> SourceTotalDecls -> List String -> Elaboration
@@ -9335,13 +9382,15 @@ module Bootstrap.Infer where
   -- function of the module's size. The attempt keeps its result only when it
   -- reports no error, which is the rule this pass has always applied to a
   -- re-elaboration.
-  source-total-retry :: ElaborationImports -> String -> Module -> SourceTotalDecls -> HashMap String (List String) -> List String -> List (String, Option BodyBinding) -> List (String, Option BodyBinding)
-  source-total-retry imports label m indexed-decls dependencies pending retried = case pending of
+  source-total-retry :: ElaborationImports -> String -> Module -> SourceTotalDecls -> HashMap String SourceTotalDependencies -> HashMap String () -> List String -> List (String, Option BodyBinding) -> List (String, Option BodyBinding)
+  source-total-retry imports label m indexed-decls dependencies shared pending retried = case pending of
     Nil -> retried
     Cons name rest ->
-      let needed = source-total-closure dependencies [name] hash-map-empty Nil in
-      let attempt = source-total-preliminary imports label m indexed-decls needed in
-      source-total-retry imports label m indexed-decls dependencies rest (Cons (name, source-total-retry-body name attempt) retried)
+      let needed = source-total-closure dependencies (source-total-functions indexed-decls) shared [name] hash-map-empty Nil in
+      let body = (case needed of
+        Some names -> source-total-retry-body name (source-total-preliminary imports label m indexed-decls names)
+        None -> None) in
+      source-total-retry imports label m indexed-decls dependencies shared rest (Cons (name, body) retried)
   source-total-retry-body :: String -> Elaboration -> Option BodyBinding
   source-total-retry-body name attempt = case elaboration-errors attempt of
     Nil -> source-total-checked-body name (source-total-surface attempt)
@@ -9367,11 +9416,12 @@ module Bootstrap.Infer where
   -- elaboration standing in only for the names the module elaboration did
   -- not produce.
   source-total-resolved :: ElaborationImports -> String -> Module -> SourceTotalDecls -> List String -> List (String, Option BodyBinding) -> List BodyBinding
-  source-total-resolved imports label m indexed-decls all entries = case source-total-missing entries of
-    Nil -> source-total-emit entries Nil
-    missing ->
-      let dependencies = source-total-dependencies all (source-total-functions indexed-decls) hash-map-empty in
-      source-total-emit entries (source-total-retry imports label m indexed-decls dependencies (reverse missing) Nil)
+  source-total-resolved imports label m indexed-decls all entries = case (indexed-decls, source-total-missing entries) of
+    (other, Nil) -> source-total-emit entries Nil
+    (MkSourceTotalDecls functions aliases datas shared, missing) ->
+      let dependencies = source-total-dependencies all functions hash-map-empty in
+      let names = source-total-shared-names shared hash-map-empty in
+      source-total-emit entries (source-total-retry imports label m indexed-decls dependencies names (reverse missing) Nil)
   -- A module elaboration that reports no error needs no retry at all: every
   -- name it resolved is emitted and every name it did not is dropped, which
   -- is what this pass has always done with a clean elaboration. The retry

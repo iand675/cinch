@@ -107,6 +107,32 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         if wanted != 0 { assert!(report.contains(diagnostic) || (diagnostic == "refinement predicate is not established" && report.contains("does not flow to the target")), "{name}: expected {diagnostic}: {report}"); }
         else { assert!(report.is_empty(), "{name}: {report}"); }
     }
+    // The monomorphic wrapper cannot be checked in a total-body retry that
+    // omits its polymorphic callee. An independent body still proves its range.
+    for (upper, wanted) in [(4, 0), (9, 4)] {
+        let source = format!(r#"module Main where
+  import Algebra.Arithmetic (InRange)
+  hidden :: forall a. a -> Nat
+  hidden value = 6
+  wrap :: Nat -> Nat
+  wrap n = hidden n
+  bounds :: Nat -> Nat
+  bounds n = if n < 128 then 1 else {upper}
+  use-bounds :: Nat -> InRange 1 4 Nat
+  use-bounds n = bounds n
+  main :: Int
+  main = 0
+"#);
+        std::fs::write(dir.join("source.cinch"), &source).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        let report = common::read_output(&dir, "refinement-report.txt");
+        assert_eq!(output.status.code(), Some(wanted), "{source}\n{report}");
+        if wanted == 0 {
+            assert!(report.is_empty(), "{report}");
+        } else {
+            assert!(report.contains("undischarged refinement obligation"), "{report}");
+        }
+    }
     // The full closed kernel vocabulary must survive source checking. A
     // known label is still an effect: neither erasure nor a different label
     // can satisfy its caller's row, and unknown/unsaturated labels are refused.
