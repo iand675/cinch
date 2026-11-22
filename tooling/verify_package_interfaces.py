@@ -142,6 +142,20 @@ module Main where
     arg = nodes + 16 * words(data, operands + 4 * first_arg, 1)[0]
     assert words(data, arg, 1)[0] == 0
     edge = edges + 4 * first_edge
+
+    # Point the wrapper's contract at the callee's otherwise valid graph.
+    # The body table still validates, but the export no longer owns its root.
+    documents, length = words(data, 72, 2)
+    key = next(index for index in range(string_count) if string_at(index) == "total_body")
+    reference = struct.pack("<III", key, BODY_ROOT, wrapper)
+    at = data.find(reference, documents, documents + length)
+    assert at >= documents and data.find(reference, at + 1, documents + length) == -1
+    corrupt = bytearray(data)
+    struct.pack_into("<I", corrupt, at + 8, callee)
+    publish(package, corrupt)
+    invoke(command, work, status=7, leak=True)
+    assert "malformed interface contract envelope" in output.with_suffix(".diagnostics").read_text()
+
     for updates, refusal in (
         ([(arg + 4, 0xffffffff)], "packed body local slot outside its scope"),
         ([(call + 12, 0)], "packed body argument arity mismatch"),

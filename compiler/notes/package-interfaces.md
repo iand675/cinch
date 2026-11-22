@@ -105,7 +105,9 @@ packed tables while building one shared tree per definition for the
 JSON-based contract consumers. Its total-body queries use checked node
 IDs and operand spans against the retained package bytes when the
 definition matches the admitted row. This includes the refinement checker
-and the LLVM inliner for imported primitive bodies. During decode it hashes
+and the LLVM inliner for imported primitive bodies. Graphs that match the
+checked package rows reuse their signatures and edges. A projected closure
+builds a JSON definition array only when a caller requests it. During decode it hashes
 plain strings and indexed body graphs from their file records. Escaped text
 and legacy shared definitions use the canonical value writer.
 An execution interface can supply `interface_refs` in place of embedded

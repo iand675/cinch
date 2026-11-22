@@ -4,7 +4,7 @@
 -- These standalone version-1 artifacts are not yet admitted by cinchif.
 module Bootstrap.Total where
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, empty-body-scope, push-body-slot, body-slot)
-  import Bootstrap.Package (PackedBodyTable, PackedTerm, PackedArguments, packed-term-for, packed-node, packed-argument-node,
+  import Bootstrap.Package (PackedBodyTable, PackedTerm, PackedArguments, packed-definition-for, same-packed-term, packed-node, packed-argument-node,
     PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm,
     NoPackedArguments, NextPackedArgument)
   import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
@@ -16,9 +16,9 @@ module Bootstrap.Total where
   import Algebra.Semigroup
   import Text.Json (canonical-bytes, json-eq)
 
-  export TotalGraph, TotalFunction, check-total-graph, check-total-graph-with-package, check-total-function, total-function, total-graph-for-roots, total-graph-body
+  export TotalGraph, TotalFunction, check-total-graph, check-total-graph-with-package, check-total-function, check-total-function-with-package, total-function, total-graph-for-roots, total-graph-body
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
-  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-graph, total-function-equal, total-functions-compatible
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-matches-document, total-function-graph, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
@@ -36,7 +36,7 @@ module Bootstrap.Total where
   data VisitedRows where
     VisitedRows :: HashMap String TotalRow -> Nat -> List TotalRow -> VisitedRows
   data TotalGraph where
-    MkTotalGraph :: Json -> TotalRows -> TotalGraph
+    MkTotalGraph :: Option Json -> TotalRows -> List TotalRow -> TotalGraph
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
     MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
@@ -141,15 +141,17 @@ module Bootstrap.Total where
   definition-name declaration = let name = text (field "identity" declaration) in
     if string-length name > 0 && fields ["identity", "parameters", "result", "body"] declaration then Some name else None
   definition-row :: Option PackedBodyTable -> Json -> Nat -> Option TotalRow
-  definition-row bodies declaration position = case (definition-name declaration, sorts (field "parameters" declaration)) of
-    (Some name, Some parameters) ->
-      let result = text (field "result" declaration) in
-      let body = field "body" declaration in
-      if valid-sort result then
-        let packed = (case bodies of Some table -> packed-term-for table name declaration; None -> None) in
-        Some (TotalRow name position declaration parameters result body (calls-into body Nil) packed)
-      else None
-    other -> None
+  definition-row bodies declaration position =
+    let name = text (field "identity" declaration) in
+    let body = field "body" declaration in
+    let packed = (case bodies of Some table -> packed-definition-for table name declaration; None -> None) in
+    case packed of
+      Some (parameters, result, term, calls) -> Some (TotalRow name position declaration parameters result body calls (Some term))
+      None -> (case (definition-name declaration, sorts (field "parameters" declaration)) of
+        (Some name, Some parameters) ->
+          let result = text (field "result" declaration) in
+          if valid-sort result then Some (TotalRow name position declaration parameters result body (calls-into body Nil) None) else None
+        other -> None)
   index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
   index-definitions bodies rows position table indexed = case rows of
     JArr declaration rest -> case definition-row bodies declaration position of
@@ -168,6 +170,20 @@ module Bootstrap.Total where
   valid-definitions all rows = case rows of
     Cons declaration rest -> valid-definition all declaration && valid-definitions all rest
     Nil -> True
+  -- The wire reader checked each row's types and its edge sorts against
+  -- the same table. This proof applies only if every row matches that
+  -- table and the graph walk below finds every referenced definition.
+  all-packed-rows :: List TotalRow -> Bool
+  all-packed-rows rows = case rows of
+    Nil -> True
+    Cons (TotalRow name position original parameters result body targets (Some term)) rest -> all-packed-rows rest
+    other -> False
+
+  valid-single-definition :: TotalRow -> Bool
+  valid-single-definition row = case row of
+    TotalRow name position original parameters result body targets (Some term) -> (case targets of Nil -> True; other -> False)
+    other -> valid-definition (IndexedRows 0 hash-map-empty) row
+
   check-total-graph :: Json -> Option TotalGraph
   check-total-graph doc = check-graph None doc None
 
@@ -177,7 +193,10 @@ module Bootstrap.Total where
   -- Interface declarations require one root and its exact closure. Walking
   -- from that root proves acyclicity and membership in the same traversal.
   check-total-function :: Json -> String -> Option TotalFunction
-  check-total-function doc name = case check-graph None doc (Some name) of
+  check-total-function doc name = check-total-function-with-package None doc name
+
+  check-total-function-with-package :: Option PackedBodyTable -> Json -> String -> Option TotalFunction
+  check-total-function-with-package bodies doc name = case check-graph bodies doc (Some name) of
     Some graph -> Some (MkTotalFunction graph name)
     None -> None
 
@@ -188,32 +207,34 @@ module Bootstrap.Total where
       -- The only possible internal call would recurse back to this row.
       JArr declaration JArrEnd -> (case definition-row bodies declaration 0 of
         Some row -> let name = row-name row in
-          if (case root of Some required -> same name required; None -> True) && valid-definition (IndexedRows 0 hash-map-empty) row
-          then Some (MkTotalGraph doc (SingleRow name row)) else None
+          if (case root of Some required -> same name required; None -> True) && valid-single-definition row
+          then Some (MkTotalGraph (Some doc) (SingleRow name row) [row]) else None
         None -> None)
       other -> case index-definitions bodies definitions 0 hash-map-empty Nil of
         Some (rows, indexed) ->
-          if valid-definitions rows indexed && check-graph-roots rows definitions root then Some (MkTotalGraph doc rows)
+          if (all-packed-rows indexed || valid-definitions rows indexed) && check-graph-roots rows indexed root then Some (MkTotalGraph (Some doc) rows (reverse indexed))
           else None
         None -> None
     else None
 
-  check-graph-roots :: TotalRows -> Json -> Option String -> Bool
+  check-graph-roots :: TotalRows -> List TotalRow -> Option String -> Bool
   check-graph-roots rows definitions root = case root of
-    None -> case walk-calls rows (total-row-symbols definitions) of
+    None -> case walk-calls rows (map row-name definitions) of
       Some checked -> True
       None -> False
     Some name -> exact-roots rows [name]
 
   total-function :: TotalGraph -> String -> Option TotalFunction
-  total-function graph name = case graph of MkTotalGraph doc rows -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-function graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
   total-graph-body :: TotalGraph -> String -> Option Json
   total-graph-body graph name = case graph of
-    MkTotalGraph doc rows -> (case find-row name rows of
+    MkTotalGraph doc rows ordered -> (case find-row name rows of
       Some row -> Some (row-body row)
       None -> None)
   total-document :: TotalGraph -> Json
-  total-document graph = case graph of MkTotalGraph doc rows -> doc
+  total-document (MkTotalGraph original rows ordered) = case original of
+    Some doc -> doc
+    None -> JObj "version" (JNum 1) (JObj "definitions" (closure-rows ordered) JObjEnd)
   -- Projections are reconstructed against the checked source constructors.
   -- Their carrier-tree representation carries no imported body authority.
   source-total-projection :: String -> String -> List (String, Nat) -> Option TotalFunction
@@ -258,7 +279,7 @@ module Bootstrap.Total where
   total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain result steps -> name; MkKeyedOrdering name less greater -> name
   function-row :: TotalFunction -> Option TotalRow
   function-row function = case function of
-    MkTotalFunction (MkTotalGraph doc rows) name -> find-row name rows
+    MkTotalFunction (MkTotalGraph doc rows ordered) name -> find-row name rows
     other -> None
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
@@ -279,6 +300,22 @@ module Bootstrap.Total where
     MkTotalFunction graph name -> total-document graph
     MkSourceProjection name domain result steps -> JObj "source_projection" (projection-document domain result steps) JObjEnd
     MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
+  -- The admitted graph's shape and version are fixed. Compare the
+  -- requested rows directly, including their order, without emitting a
+  -- compatibility document for a projected closure.
+  total-function-matches-document :: TotalFunction -> Json -> Bool
+  total-function-matches-document function doc = case function of
+    MkTotalFunction (MkTotalGraph original rows ordered) name ->
+      fields ["version", "definitions"] doc && (case field "version" doc of
+        JNum value -> value == 1 && match-total-rows ordered (field "definitions" doc)
+        other -> False)
+    other -> False
+  match-total-rows :: List TotalRow -> Json -> Bool
+  match-total-rows rows definitions = case (rows, definitions) of
+    (Nil, JArrEnd) -> True
+    (Cons row rest, JArr expected more) -> json-eq (row-document row) expected && match-total-rows rest more
+    other -> False
+
   compare-position :: TotalRow -> TotalRow -> Ordering
   compare-position (TotalRow a first doc params result body targets packed) (TotalRow b second other args returns term callees other-packed) =
     if first < second then LT else if first > second then GT else EQ
@@ -287,15 +324,11 @@ module Bootstrap.Total where
     Cons row rest -> JArr (row-document row) (closure-rows rest)
     Nil -> JArrEnd
   projected-graph :: TotalRows -> List TotalRow -> TotalGraph
-  projected-graph index rows = MkTotalGraph (JObj "version" (JNum 1) (JObj "definitions" (closure-rows rows) JObjEnd)) index
+  projected-graph index rows = MkTotalGraph None index rows
   total-graph-symbols :: TotalGraph -> List String
-  total-graph-symbols graph = case graph of MkTotalGraph doc rows -> total-row-symbols (field "definitions" doc)
-  total-row-symbols :: Json -> List String
-  total-row-symbols rows = case rows of
-    JArr row rest -> Cons (text (field "identity" row)) (total-row-symbols rest)
-    other -> Nil
+  total-graph-symbols (MkTotalGraph doc rows ordered) = map row-name ordered
   total-function-closure :: TotalGraph -> String -> Option TotalFunction
-  total-function-closure graph name = case graph of MkTotalGraph doc rows -> (case find-row name rows of
+  total-function-closure graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of
     None -> None
     Some row | row-count rows == 1 -> Some (MkTotalFunction graph name)
     Some row -> (case row-targets row of
@@ -312,9 +345,24 @@ module Bootstrap.Total where
   -- compare documents that encode the same fields in different orders.
   total-documents-equal :: Json -> Json -> Bool
   total-documents-equal first second = json-eq first second || bytes-compare (canonical-bytes first) (canonical-bytes second) == 0
+  same-total-row :: TotalRow -> TotalRow -> Bool
+  same-total-row first second = case (first, second) of
+    (TotalRow name position original parameters result body targets (Some left),
+     TotalRow other ordinal declaration args returns term calls (Some right)) ->
+      same-packed-term left right || total-documents-equal original declaration
+    other -> total-documents-equal (row-document first) (row-document second)
+
+  same-total-rows :: List TotalRow -> List TotalRow -> Bool
+  same-total-rows first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons x xs, Cons y ys) -> same-total-row x y && same-total-rows xs ys
+    other -> False
+
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
-  total-function-equal first second = same (total-identity first) (total-identity second)
-    && total-documents-equal (total-function-document first) (total-function-document second)
+  total-function-equal first second = same (total-identity first) (total-identity second) &&
+    (case (first, second) of
+      (MkTotalFunction (MkTotalGraph a left x) p, MkTotalFunction (MkTotalGraph b right y) q) -> same-total-rows x y
+      other -> total-documents-equal (total-function-document first) (total-function-document second))
   total-body :: TotalFunction -> Json
   total-body function = case function-row function of Some row -> row-body row; None -> JNull
 
@@ -345,7 +393,7 @@ module Bootstrap.Total where
     Some row -> Some (row-term row)
     None -> None
   total-graph-term :: TotalGraph -> String -> Option TotalTerm
-  total-graph-term (MkTotalGraph doc rows) name = case find-row name rows of
+  total-graph-term (MkTotalGraph doc rows ordered) name = case find-row name rows of
     Some row -> Some (row-term row)
     None -> None
   row-term :: TotalRow -> TotalTerm
@@ -450,17 +498,16 @@ module Bootstrap.Total where
     None -> False
 
   total-graph-for-roots :: TotalGraph -> List String -> Bool
-  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows -> exact-roots rows roots
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows ordered -> exact-roots rows roots
 
   -- Every row of `first` must be byte-identical to the row of `second` that
   -- carries the same identity, and a row `second` does not have is compatible.
-  compatible-rows :: Json -> TotalRows -> Bool
+  compatible-rows :: List TotalRow -> TotalRows -> Bool
   compatible-rows first table = case first of
-    JArr row rest -> (case find-row (text (field "identity" row)) table of
-      Some prior -> total-documents-equal row (row-document prior)
+    Cons row rest -> (case find-row (row-name row) table of
+      Some prior -> same-total-row row prior
       None -> True) && compatible-rows rest table
-    JArrEnd -> True
-    other -> False
+    Nil -> True
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
   total-functions-compatible first second = case (first, second) of
     (MkKeyedOrdering name less greater, MkKeyedOrdering other small large) -> not (same name other) || (less == small && greater == large)
@@ -469,15 +516,15 @@ module Bootstrap.Total where
     other -> graph-views-compatible first second
   graph-views-compatible :: TotalFunction -> TotalFunction -> Bool
   graph-views-compatible first second = case (total-source-projection first, total-source-projection second) of
-    (False, False) -> case second of
-      MkTotalFunction (MkTotalGraph doc rows) name -> compatible-rows (field "definitions" (total-function-document first)) rows
+    (False, False) -> case (first, second) of
+      (MkTotalFunction (MkTotalGraph a left ordered) p, MkTotalFunction (MkTotalGraph b rows other) q) -> compatible-rows ordered rows
       other -> True
     (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
     (True, False) -> projection-compatible first second
     (False, True) -> projection-compatible second first
   projection-compatible :: TotalFunction -> TotalFunction -> Bool
   projection-compatible projection graph = case graph of
-    MkTotalFunction (MkTotalGraph doc rows) name ->
+    MkTotalFunction (MkTotalGraph doc rows ordered) name ->
       (case find-row (total-identity projection) rows of None -> True; Some row -> False)
     other -> True
 
@@ -485,7 +532,7 @@ module Bootstrap.Total where
   -- projection or keyed ordering excludes a graph row with its identity.
   -- Projection and ordering descriptors only compare within their own kind.
   data TotalCompatibility where
-    CheckedTotalCompatibility :: HashMap String Json -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
+    CheckedTotalCompatibility :: HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
   empty-total-compatibility :: TotalCompatibility
   empty-total-compatibility = CheckedTotalCompatibility hash-map-empty hash-map-empty hash-map-empty
   remember-descriptor :: TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalFunction)
@@ -493,22 +540,21 @@ module Bootstrap.Total where
     case hash-map-lookup name descriptors of
       None -> Some (hash-map-insert name function descriptors)
       Some old -> if total-function-equal old function then Some descriptors else None
-  remember-graph-rows :: Json -> HashMap String Json -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String Json)
+  remember-graph-rows :: List TotalRow -> HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalRow)
   remember-graph-rows rows known projections orderings = case rows of
-    JArr row rest ->
-      let name = text (field "identity" row) in
+    Cons row rest ->
+      let name = row-name row in
       case (hash-map-lookup name projections, hash-map-lookup name orderings) of
         (None, None) ->
           case hash-map-lookup name known of
             None -> remember-graph-rows rest (hash-map-insert name row known) projections orderings
-            Some prior -> if total-documents-equal row prior then remember-graph-rows rest known projections orderings else None
+            Some prior -> if same-total-row row prior then remember-graph-rows rest known projections orderings else None
         other -> None
-    JArrEnd -> Some known
-    other -> None
+    Nil -> Some known
   extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
   extend-total-compatibility function context = case context of
     CheckedTotalCompatibility rows projections orderings -> case function of
-      MkTotalFunction (MkTotalGraph doc table) name -> (case remember-graph-rows (field "definitions" doc) rows projections orderings of
+      MkTotalFunction (MkTotalGraph doc table ordered) name -> (case remember-graph-rows ordered rows projections orderings of
         Some known -> Some (CheckedTotalCompatibility known projections orderings)
         None -> None)
       MkSourceProjection name domain result steps -> (case hash-map-lookup name rows of

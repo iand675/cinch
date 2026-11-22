@@ -79,7 +79,7 @@ module Bootstrap.Load where
   data LoadedInterface where
     MkLoadedInterface :: Bool -> String -> String -> Json -> Bytes -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> ExportEntries
-      -> List (String, String, String) -> List (String, String, String) -> Option PackedBodyTable -> LoadedInterface
+      -> List (String, String, String) -> List (String, String, String) -> Option (List TotalGraph) -> LoadedInterface
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
@@ -119,7 +119,7 @@ module Bootstrap.Load where
   match-packed-function native doc graphs = case graphs of
     Nil -> None
     Cons graph rest -> (case total-function-closure graph native of
-      Some function | total-function-is-packed function && compare-documents False doc (total-function-document function) -> Some function
+      Some function | total-function-is-packed function && total-function-matches-document function doc -> Some function
       other -> match-packed-function native doc rest)
 
   set-value-bodies :: Option PackedBodyTable -> Json -> List TotalGraph
@@ -133,12 +133,18 @@ module Bootstrap.Load where
   set-method-bodies bodies instances = case instances of
     JArr row rest -> set-value-bodies bodies (field "method_bodies" row) <> set-method-bodies bodies rest
     other -> Nil
+  export-body-graphs :: Option PackedBodyTable -> Json -> List TotalGraph
+  export-body-graphs bodies exports =
+    set-value-bodies bodies (field "values" exports) <> set-method-bodies bodies (field "instances" exports)
+
   set-bodies :: List LoadedInterface -> List TotalGraph
   set-bodies interfaces = case interfaces of
     Nil -> Nil
-    Cons (MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies) rest ->
-      let exported = field "exports" doc in
-      set-value-bodies bodies (field "values" exported) <> set-method-bodies bodies (field "instances" exported) <> set-bodies rest
+    Cons (MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods prepared) rest ->
+      let graphs = (case prepared of
+        Some checked -> checked
+        None -> export-body-graphs None (field "exports" doc)) in
+      graphs <> set-bodies rest
 
   check-interface-set :: List LoadedInterface -> Result String InterfaceSet
   check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
@@ -512,17 +518,17 @@ module Bootstrap.Load where
     JArrEnd -> case names of JArrEnd -> True; other -> False
     other -> False
 
-  ctors-valid :: Json -> List String -> Bool
-  ctors-valid rows seen = case rows of
+  ctors-valid :: Option PackedBodyTable -> Json -> List String -> Bool
+  ctors-valid bodies rows seen = case rows of
     JArr row rest ->
       let name = text (field "name" row) in
       string-length name > 0 && not (member name seen)
       && string-length (text (field "symbol" row)) > 0
       && string-length (text (field "scheme" row)) > 0 && nat-p (field "tag" row)
-      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
+      && resolved-entry-valid row && measure-bodies-valid bodies (resolved-measures row)
       && strings-p (field "fields" row) && bools-p (field "erased" row)
       && array-length (field "fields" row) == array-length (field "erased" row)
-      && ctors-valid rest (Cons name seen)
+      && ctors-valid bodies rest (Cons name seen)
     JArrEnd -> True
     other -> False
 
@@ -540,13 +546,13 @@ module Bootstrap.Load where
         && (case field "tag" constructor of JNum tag -> tag == 0; other -> False)
         && array-length labels == array-length (field "fields" constructor)
       other -> False)
-  type-row-valid :: Json -> Bool
-  type-row-valid row =
+  type-row-valid :: Option PackedBodyTable -> Json -> Bool
+  type-row-valid bodies row =
     let kind = text (field "kind" row) in
     string-length (text (field "identity" row)) > 0
     && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
     && parameters-valid (field "parameters" row) (field "params" row) Nil
-    && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
+    && ctors-valid bodies (field "ctors" row) Nil && strings-p (field "fields" row)
     && ownership-header-valid row
     && (if same kind "codata" then
       (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
@@ -632,17 +638,17 @@ module Bootstrap.Load where
   checked-scheme-spelling row = case resolved-text row of
     Some scheme -> same scheme (text (field "scheme" row))
     None -> True
-  methods-valid :: Json -> List String -> Bool
-  methods-valid rows seen = case rows of
+  methods-valid :: Option PackedBodyTable -> Json -> List String -> Bool
+  methods-valid bodies rows seen = case rows of
     JArr row rest ->
       let name = text (field "name" row) in
       string-length name > 0 && not (member name seen)
       && string-length (text (field "scheme" row)) > 0 && strings-p (field "exports" row)
       && nat-p (field "slot" row) && number (field "slot" row) == list-length seen
-      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
+      && resolved-entry-valid row && measure-bodies-valid bodies (resolved-measures row)
       && checked-scheme-spelling row
       && method-default-valid row
-      && methods-valid rest (Cons name seen)
+      && methods-valid bodies rest (Cons name seen)
     JArrEnd -> True
     other -> False
 
@@ -666,84 +672,84 @@ module Bootstrap.Load where
     JArrEnd -> True
     other -> False
 
-  signature-row-valid :: Json -> Bool
-  signature-row-valid row =
+  signature-row-valid :: Option PackedBodyTable -> Json -> Bool
+  signature-row-valid bodies row =
     string-length (text (field "name" row)) > 0
     && strings-p (field "exports" row)
     && parameters-valid (field "parameters" row) (field "params" row) Nil
-    && methods-valid (field "methods" row) Nil && class-laws-valid (field "laws" row) Nil
+    && methods-valid bodies (field "methods" row) Nil && class-laws-valid (field "laws" row) Nil
 
   conditional-slot :: Nat -> Json -> Option String
   conditional-slot slot rows = case rows of
     JArr (JStr identity) rest -> if slot == 0 then Some identity else conditional-slot (slot - 1) rest
     other -> None
-  conditional-contract-valid :: Nat -> Json -> Json -> Bool
-  conditional-contract-valid slot methods row =
+  conditional-contract-valid :: Option PackedBodyTable -> Nat -> Json -> Json -> Bool
+  conditional-contract-valid bodies slot methods row =
       let checked = field "checked" row in
       let head = field "head" checked in let implementation = field "implementation" checked in
       (case field "schema" checked of JNum 1 -> True; other -> False)
       && (not (has-field "body" implementation) || (case field "body" implementation of JObj key value rest -> True; other -> False))
       && (case (field "resolved" head, field "resolved" implementation) of (JNull, other) -> False; (other, JNull) -> False; other -> True)
       && resolved-entry-valid head && resolved-entry-valid implementation
-      && measure-bodies-valid (resolved-measures head) && measure-bodies-valid (resolved-measures implementation)
+      && measure-bodies-valid bodies (resolved-measures head) && measure-bodies-valid bodies (resolved-measures implementation)
       && (case (conditional-slot slot methods, field "identity" implementation) of (Some actual, JStr identity) -> same actual identity && string-length identity > 0; other -> False)
-  instance-methods-valid :: Json -> Json -> List Nat -> List String -> Bool
-  instance-methods-valid rows methods slots names = case rows of
+  instance-methods-valid :: Option PackedBodyTable -> Json -> Json -> List Nat -> List String -> Bool
+  instance-methods-valid bodies rows methods slots names = case rows of
     JArr row rest ->
       let slot = number (field "slot" row) in
       let name = text (field "name" row) in
       nat-p (field "slot" row) && not (member-slot slot slots)
       && string-length name > 0 && not (member name names)
       && string-length (text (field "scheme" row)) > 0
-      && conditional-contract-valid slot methods row
-      && instance-methods-valid rest methods (Cons slot slots) (Cons name names)
+      && conditional-contract-valid bodies slot methods row
+      && instance-methods-valid bodies rest methods (Cons slot slots) (Cons name names)
     JArrEnd -> True
     other -> False
   method-body-declaration :: List String -> String -> String
   method-body-declaration parameters result = case parameters of Nil -> result; Cons first rest -> string-concat-all ["(", first, " -> ", method-body-declaration rest result, ")"]
-  method-bodies-valid :: Json -> Json -> List Nat -> List String -> Bool
-  method-bodies-valid rows methods slots names = case rows of
+  method-bodies-valid :: Option PackedBodyTable -> Json -> Json -> List Nat -> List String -> Bool
+  method-bodies-valid bodies rows methods slots names = case rows of
     JArr row rest -> let slot = number (field "slot" row) in let identity = text (field "implementation" row) in
       nat-p (field "slot" row) && not (member-slot slot slots) && string-length identity > 0 && not (member identity names)
       && (case conditional-slot slot methods of Some actual -> same actual identity; None -> False)
       && resolved-entry-valid row && (case (field "nominals" (field "resolved" row), field "measures" (field "resolved" row)) of (JArrEnd, JArrEnd) -> True; other -> False)
-      && (case check-total-function (field "total_body" row) identity of
+      && (case check-total-function-with-package bodies (field "total_body" row) identity of
         Some function -> same (text (field "scheme" (field "resolved" row))) (method-body-declaration (total-parameters function) (total-result function))
         None -> False)
-      && method-bodies-valid rest methods (Cons slot slots) (Cons identity names)
+      && method-bodies-valid bodies rest methods (Cons slot slots) (Cons identity names)
     JArrEnd -> True
     other -> False
-  optional-method-bodies-valid :: Json -> Bool
-  optional-method-bodies-valid row = if not (has-field "method_bodies" row) then True else case field "method_bodies" row of
+  optional-method-bodies-valid :: Option PackedBodyTable -> Json -> Bool
+  optional-method-bodies-valid bodies row = if not (has-field "method_bodies" row) then True else case field "method_bodies" row of
     JArr first rest -> (case (field "ctx" row, field "method_contracts" row, field "resolved" row) of
       (JArrEnd, JArrEnd, JNull) -> False
-      (JArrEnd, JArrEnd, resolved) -> method-bodies-valid (field "method_bodies" row) (field "methods" row) Nil Nil
+      (JArrEnd, JArrEnd, resolved) -> method-bodies-valid bodies (field "method_bodies" row) (field "methods" row) Nil Nil
       other -> False)
     other -> False
   member-slot :: Nat -> List Nat -> Bool
   member-slot slot slots = case slots of Nil -> False; Cons first rest -> slot == first || member-slot slot rest
-  instance-row-valid :: Json -> Bool
-  instance-row-valid row =
+  instance-row-valid :: Option PackedBodyTable -> Json -> Bool
+  instance-row-valid bodies row =
     string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
     && strings-p (field "ctx" row) && strings-p (field "methods" row)
     && (case field "implicit" row of JBool value -> True; other -> False)
-    && optional-method-bodies-valid row
-    && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) (field "methods" row) Nil Nil
+    && optional-method-bodies-valid bodies row
+    && resolved-entry-valid row && measure-bodies-valid bodies (resolved-measures row) && instance-methods-valid bodies (field "method_contracts" row) (field "methods" row) Nil Nil
     && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
 
   has-field :: String -> Json -> Bool
   has-field name doc = case doc of JObj key value rest -> same name key || has-field name rest; other -> False
-  measure-bodies-valid :: Json -> Bool
-  measure-bodies-valid rows = case rows of
-    JArr row rest -> (case check-total-function (field "total_body" row) (text (field "identity" row)) of
+  measure-bodies-valid :: Option PackedBodyTable -> Json -> Bool
+  measure-bodies-valid bodies rows = case rows of
+    JArr row rest -> (case check-total-function-with-package bodies (field "total_body" row) (text (field "identity" row)) of
       Some function -> True
-      None -> False) && measure-bodies-valid rest
+      None -> False) && measure-bodies-valid bodies rest
     JArrEnd -> True
     other -> False
-  value-body-valid :: Json -> Bool
-  value-body-valid row = has-field "total_body" row && (case field "total_body" row of
+  value-body-valid :: Option PackedBodyTable -> Json -> Bool
+  value-body-valid bodies row = has-field "total_body" row && (case field "total_body" row of
     JNull -> True
-    doc -> (case field "resolved" row of JNull -> False; other -> (case check-total-function doc (text (field "symbol" row)) of
+    doc -> (case field "resolved" row of JNull -> False; other -> (case check-total-function-with-package bodies doc (text (field "symbol" row)) of
       Some function -> list-length (total-parameters function) == number (field "arity" row)
       None -> False)))
   keyed-ordering-valid :: Json -> Bool
@@ -751,11 +757,11 @@ module Bootstrap.Load where
     case (field "total_body" row, field "resolved" row, field "arity" row) of
       (JNull, JObj key value rest, JNum 4) -> (case read-keyed-ordering (text (field "symbol" row)) (field "keyed_ordering" row) of Some function -> True; None -> False)
       other -> False
-  value-row-valid :: Json -> Bool
-  value-row-valid v =
+  value-row-valid :: Option PackedBodyTable -> Json -> Bool
+  value-row-valid bodies v =
     string-length (text (field "symbol" v)) > 0
     && string-length (text (field "scheme" v)) > 0
-    && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v && keyed-ordering-valid v
+    && resolved-entry-valid v && measure-bodies-valid bodies (resolved-measures v) && value-body-valid bodies v && keyed-ordering-valid v
     && nat-p (field "arity" v)
 
   ref-row-valid :: Json -> Bool
@@ -807,8 +813,8 @@ module Bootstrap.Load where
 
   -- These tables remain intact in loaded-contract. Their detailed
   -- interpretation belongs to kind checking, coherence and ABI lowering.
-  envelope-valid :: Json -> Bool
-  envelope-valid doc =
+  envelope-valid :: Option PackedBodyTable -> Json -> Bool
+  envelope-valid bodies doc =
     object-p doc && string-length (text (field "module" doc)) > 0
     && string-p (field "compiler" doc) && string-p (field "source_hash" doc)
     && same (text (field "language" doc)) "draft-0.2+amendments"
@@ -823,9 +829,9 @@ module Bootstrap.Load where
       && same (text (field "convention" abi)) "uniform-word, curried apply stub"
       && strings-p (field "symbols" abi) && objects-p (field "layouts" abi))
     && (let exports = field "exports" doc in object-p exports
-      && validate-named-rows "name" value-row-valid (field "values" exports) && validate-named-rows "op" fixity-row-valid (field "fixities" exports)
-      && validate-named-rows "name" type-row-valid (field "types" exports) && validate-named-rows "identity" signature-row-valid (field "signatures" exports)
-      && validate-named-rows "id" instance-row-valid (field "instances" exports) && objects-p (field "foreign" exports))
+      && validate-named-rows "name" (value-row-valid bodies) (field "values" exports) && validate-named-rows "op" fixity-row-valid (field "fixities" exports)
+      && validate-named-rows "name" (type-row-valid bodies) (field "types" exports) && validate-named-rows "identity" (signature-row-valid bodies) (field "signatures" exports)
+      && validate-named-rows "id" (instance-row-valid bodies) (field "instances" exports) && objects-p (field "foreign" exports))
     && validate-named-rows "module" ref-row-valid (field "imports" doc)
 
   -- Project root fields structurally. A nested field named `compiler`
@@ -857,12 +863,12 @@ module Bootstrap.Load where
   -- What every consumer of a contract must agree with before its rows
   -- mean anything: the module it claims to be, the schema and runtime ABI
   -- this reader understands, and the contract's own internal consistency.
-  check-contract-envelope :: String -> Json -> Result String Unit
-  check-contract-envelope expected-name doc =
+  check-contract-envelope :: Option PackedBodyTable -> String -> Json -> Result String Unit
+  check-contract-envelope bodies expected-name doc =
     if not (same expected-name (text (field "module" doc))) then Err "interface module name mismatch"
     else if not (nat-p (field "schema" doc)) || number (field "schema" doc) /= iface-schema-version then Err "unsupported interface schema"
     else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= runtime-abi then Err "interface runtime ABI mismatch"
-    else if not (envelope-valid doc) then Err "malformed interface contract envelope"
+    else if not (envelope-valid bodies doc) then Err "malformed interface contract envelope"
     else Ok ()
 
   -- The identity is derived from the artifact's own bytes
@@ -878,7 +884,7 @@ module Bootstrap.Load where
   load-interface :: String -> String -> Bytes -> Result String LoadedInterface
   load-interface expected-name expected-hash src = case iface-parse src of
     None -> Err "interface is not valid JSON"
-    Some doc -> case check-contract-envelope expected-name doc of
+    Some doc -> case check-contract-envelope None expected-name doc of
       Err message -> Err message
       Ok unit -> case iface-hash src doc of
         None -> Err "interface contract identity mismatch"
@@ -891,7 +897,7 @@ module Bootstrap.Load where
   -- is taken as the declaration states it, so no consumer re-encodes the
   -- contract to re-derive a hash it already holds.
   load-interface-from-contract :: String -> String -> Json -> Result String LoadedInterface
-  load-interface-from-contract expected-name hash doc = case check-contract-envelope expected-name doc of
+  load-interface-from-contract expected-name hash doc = case check-contract-envelope None expected-name doc of
     Err message -> Err message
     Ok unit -> accepted-interface False expected-name hash doc (string-to-bytes "")
 
@@ -903,7 +909,7 @@ module Bootstrap.Load where
   load-interface-from-document = load-interface-document-with (\doc -> fnv-source-hash (canonical-bytes doc))
 
   load-interface-document-with :: (Json -> String) -> String -> String -> Json -> Result String LoadedInterface
-  load-interface-document-with fingerprint expected-name expected-hash doc = case check-contract-envelope expected-name doc of
+  load-interface-document-with fingerprint expected-name expected-hash doc = case check-contract-envelope None expected-name doc of
     Err message -> Err message
     Ok unit ->
       let digest = fingerprint (contract-projection doc) in
@@ -925,9 +931,12 @@ module Bootstrap.Load where
     let exports = field "exports" doc in
     let private = private-signature-methods name (field "signatures" exports) in
     let rows = export-rows exports in
+    let prepared = (case bodies of
+      None -> None
+      Some table -> Some (export-body-graphs bodies exports)) in
     Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries rows exports) rows private bodies)
+      (export-entries rows exports) rows private prepared)
 
   read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
   read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
@@ -1140,7 +1149,7 @@ module Bootstrap.Load where
     Err message -> Err message
     Ok loaded -> validate-interfaces loaded
   load-packed-contract :: String -> String -> (Json, String, Option PackedBodyTable) -> Result String LoadedInterface
-  load-packed-contract expected-name expected-hash (doc, digest, bodies) = case check-contract-envelope expected-name doc of
+  load-packed-contract expected-name expected-hash (doc, digest, bodies) = case check-contract-envelope bodies expected-name doc of
     Err message -> Err message
     Ok unit ->
       if not (same digest expected-hash) then Err "interface contract identity mismatch"

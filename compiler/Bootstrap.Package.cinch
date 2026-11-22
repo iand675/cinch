@@ -20,7 +20,7 @@ module Bootstrap.Package where
 
   export PackageContract, package-contract, read-package-documents, packaged-abi
   export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
-  export PackedBodyTable, PackedTerm, PackedArguments, packed-term-for, packed-node, packed-argument-node
+  export PackedBodyTable, PackedTerm, PackedArguments, packed-definition-for, same-packed-term, packed-node, packed-argument-node
   export PackedNode, PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm
   export PackedArgumentNode, NoPackedArguments, NextPackedArgument
 
@@ -868,15 +868,34 @@ module Bootstrap.Package where
 
   -- A compatibility row may instead come from a legacy JSON value or a
   -- synthesized declaration. Match its complete definition before using
-  -- the package's proof and node IDs.
-  packed-term-for :: PackedBodyTable -> String -> Json -> Option PackedTerm
-  packed-term-for table name row = case table of
+  -- the package's proof, signature, and edges.
+  packed-definition-for :: PackedBodyTable -> String -> Json -> Option (List String, String, PackedTerm, List String)
+  packed-definition-for table name row = case table of
     BodyTable source strings nodes operands signatures indexed rows -> (case hash-map-lookup name indexed of
       None -> None
       Some id -> (case (array-get rows id, array-get signatures id) of
-        (Some original, Some (PackedSignature identity parameters result root edges)) | json-eq original row ->
-          Some (PackedTermRef table root)
+        (Some original, Some (PackedSignature identity parameters result root (Region start length))) | json-eq original row ->
+          let calls = hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) Nil) in
+          (case calls of
+            Some callees -> Some (parameters, result, PackedTermRef table root, callees)
+            None -> None)
         other -> None))
+
+  packed-callees :: I64 -> Array PackedSignature -> Nat -> Nat -> List String -> Option (List String)
+  packed-callees address signatures at end backwards =
+    if at == end then Some (reverse backwards) else
+      (case array-get signatures (word address at) of
+        Some (PackedSignature name parameters result root edges) ->
+          packed-callees address signatures (at + 4) end (Cons name backwards)
+        None -> None)
+
+  -- Node IDs identify a checked definition only within the same retained
+  -- snapshot. Keep both owners live through the address comparison.
+  same-packed-term :: PackedTerm -> PackedTerm -> Bool
+  same-packed-term (PackedTermRef first a) (PackedTermRef second b) =
+    a == b && (case (first, second) of
+      (BodyTable one strings nodes operands signatures indexed rows, BodyTable two texts other-nodes other-operands other-signatures more other-rows) ->
+        hold-package-source one (hold-package-source two (bytes-data one == bytes-data two)))
 
   packed-node :: PackedTerm -> PackedNode
   packed-node (PackedTermRef table id) = case table of
