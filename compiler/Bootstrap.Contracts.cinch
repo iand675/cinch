@@ -11,6 +11,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (sort-by)
+  import Data.Nat (nat-from-int)
   import Bootstrap.Document
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -19,6 +20,7 @@ module Bootstrap.Contracts where
   export interface-headers, interface-fixity-header, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, expr-references, imported-class-references, kernel-references
   export ImportedClasses, imported-classes, imported-class-rows, imported-class-row
+  export prepare-imported-class-methods, imported-class-methods
   export PreparedExternals, prepare-externals, select-externals
 
   same :: String -> String -> Bool
@@ -428,13 +430,13 @@ module Bootstrap.Contracts where
     other -> Nil
 
   data ImportedClasses where
-    ImportedClasses :: List (String, Json) -> HashMap String Json -> ImportedClasses
+    ImportedClasses :: List (String, Json) -> HashMap String Json -> HashMap String (Option (List (String, Nat, TypeExpr))) -> ImportedClasses
 
   -- Keep document order for checks that visit all rows, and keep the first
   -- row for lookups, including when a class is re-exported.
   imported-classes :: List Decl -> ImportedClasses
   imported-classes ds = let newest = collect-class-rows ds Nil in
-    ImportedClasses (reverse newest) (index-class-rows newest hash-map-empty)
+    ImportedClasses (reverse newest) (index-class-rows newest hash-map-empty) hash-map-empty
 
   collect-class-rows :: List Decl -> List (String, Json) -> List (String, Json)
   collect-class-rows ds found = case ds of
@@ -456,10 +458,43 @@ module Bootstrap.Contracts where
     Cons (native, row) rest -> index-class-rows rest (hash-map-insert native row indexed)
 
   imported-class-rows :: ImportedClasses -> List (String, Json)
-  imported-class-rows classes = case classes of ImportedClasses ordered indexed -> ordered
+  imported-class-rows (ImportedClasses ordered indexed methods) = ordered
 
   imported-class-row :: String -> ImportedClasses -> Option Json
-  imported-class-row name classes = case classes of ImportedClasses ordered indexed -> hash-map-lookup name indexed
+  imported-class-row name (ImportedClasses ordered indexed methods) = hash-map-lookup name indexed
+
+  -- Qualification depends on the defining row. Elaboration still needs
+  -- the live kind environment, which can change at each source edit.
+  prepare-imported-class-methods :: ImportedClasses -> ImportedClasses
+  prepare-imported-class-methods (ImportedClasses ordered indexed methods) =
+    ImportedClasses ordered indexed (prepare-class-method-rows ordered hash-map-empty)
+
+  imported-class-methods :: String -> ImportedClasses -> Option (List (String, Nat, TypeExpr))
+  imported-class-methods owner (ImportedClasses ordered indexed methods) = case hash-map-lookup owner methods of
+    Some prepared -> prepared
+    None -> None
+
+  prepare-class-method-rows :: List (String, Json) -> HashMap String (Option (List (String, Nat, TypeExpr))) -> HashMap String (Option (List (String, Nat, TypeExpr)))
+  prepare-class-method-rows rows prepared = case rows of
+    Nil -> prepared
+    Cons (owner, row) rest -> case hash-map-lookup owner prepared of
+      Some prior -> prepare-class-method-rows rest prepared
+      None -> prepare-class-method-rows rest (hash-map-insert owner (read-class-methods (field "methods" row)) prepared)
+
+  read-class-methods :: Json -> Option (List (String, Nat, TypeExpr))
+  read-class-methods rows = case rows of
+    JArr row rest -> case (field "name" row, field "slot" row, resolved-text row) of
+      (JStr name, JNum slot, Some text) | slot >= 0 ->
+        (case parse-scheme "resolved-interface" (string-to-bytes text) of
+          Parsed ty Nil -> (case qualify-resolved row ty of
+            (qualified, Nil) -> (case read-class-methods rest of
+              Some methods -> Some (Cons (name, nat-from-int slot, qualified) methods)
+              None -> None)
+            errors -> None)
+          other -> None)
+      other -> None
+    JArrEnd -> Some Nil
+    other -> None
 
   instance-class-name :: TypeExpr -> Option String
   instance-class-name ty = case ty of

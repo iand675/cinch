@@ -24,6 +24,7 @@ module Bootstrap.Infer where
   import Bootstrap.Global
   import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers, ImportedClasses, imported-classes, imported-class-rows, imported-class-row, reference-index, referenced)
+  import Bootstrap.Contracts (prepare-imported-class-methods, imported-class-methods)
   import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, prepare-body-interface-load, ValidatedInterfaces, validated-interfaces-members, loaded-module, loaded-hash, loaded-contract, interface-set-body, interface-set-has-body, admitted-packed-function, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape, prepare-usage-shape)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -1941,6 +1942,9 @@ module Bootstrap.Infer where
         other -> kind-of True kinds locals syntax st
       Some bound -> kind-of True kinds locals syntax st
     other -> kind-of True kinds locals syntax st
+  closed-imported-kind :: String -> Option Kind
+  closed-imported-kind text = if same text "Type -> Type" then Some (KFun KType KType) else atomic-kind text
+
   imported-kinds :: TypeContext -> Json -> Store -> (List Quant, Store)
   imported-kinds kinds rows st = case imported-kinds-from kinds Nil 0 Nil rows st of
     (qs, checked) -> (qs, declaration-kind-errors zero qs checked)
@@ -1948,7 +1952,7 @@ module Bootstrap.Infer where
   imported-kinds-from kinds locals next seen rows st = case rows of
     JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
       (JStr name, JStr text, JBool only) ->
-        let annotation = (case atomic-kind text of
+        let annotation = (case closed-imported-kind text of
           Some k -> Some (\store -> (k, store))
           None -> case parse-scheme "interface-kind" (string-to-bytes text) of
             Parsed ast Nil -> Some (imported-parameter-kind kinds locals ast)
@@ -2339,7 +2343,7 @@ module Bootstrap.Infer where
   closed-parameter-kind rows seen = case rows of
     JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
       (JStr name, JStr text, JBool only) | not (referenced name seen) ->
-        (case atomic-kind text of
+        (case closed-imported-kind text of
           Some k -> case closed-parameter-kind rest (hash-map-insert name True seen) of
             Some more -> Some (KFun k more)
             None -> None
@@ -2465,6 +2469,12 @@ module Bootstrap.Infer where
       other -> (Nil, add-error sp "source instance needs a portable defining contract for every class method" st)
     JArrEnd -> (Nil, st)
     other -> (Nil, add-error sp "invalid defining class method array" st)
+  typed-prepared-class-methods :: Span -> List (String, Kind) -> TypeContext -> List (String, Nat, TypeExpr) -> Store -> (List CoreClassMethod, Store)
+  typed-prepared-class-methods sp classes kinds methods st = case methods of
+    Nil -> (Nil, st)
+    Cons (name, slot, syntax) rest -> case make-scheme False classes kinds Nil syntax st of
+      (sc, checked) -> case typed-prepared-class-methods sp classes kinds rest checked of
+        (more, final) -> (Cons (MkCoreClassMethod sp name slot sc) more, final)
   typed-class :: Span -> String -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
   typed-class sp owner rows classes kinds st = case find-class owner (context-source-classes kinds) of
     Some description -> (Some description, st)
@@ -2472,8 +2482,10 @@ module Bootstrap.Infer where
   imported-typed-class :: Span -> String -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
   imported-typed-class sp owner rows classes kinds st = case (imported-class-row owner rows, context-kind owner kinds) of
     (Some row, Some kind) -> case imported-kinds kinds (field "parameters" row) st of
-      (params, checked) -> case typed-class-methods sp classes kinds (field "methods" row) checked of
-        (methods, final) -> let description = MkCoreClass sp owner kind params methods in
+      (params, checked) -> let (methods, final) = (case imported-class-methods owner rows of
+        Some prepared -> typed-prepared-class-methods sp classes kinds prepared checked
+        None -> typed-class-methods sp classes kinds (field "methods" row) checked) in
+        let description = MkCoreClass sp owner kind params methods in
           if class-closed description then (Some description, final) else (None, add-error sp "defining class contract is not closed or has inconsistent method slots" final)
     other -> (None, add-error sp "source instance has no defining class contract" st)
   -- Imported methods need their defining class even when this module creates
@@ -8572,15 +8584,17 @@ module Bootstrap.Infer where
   -- headers. Only source declarations and their elaborated kinds differ.
   data PreparedUsageRow where
     PreparedUsageRow :: Json -> ((String -> Option Kind) -> Result String UsageShape) -> PreparedUsageRow
+  data InstanceBodyPlans where
+    InstanceBodyPlans :: HashMap String Json -> HashMap String (Nat -> Scheme -> Option BodyBinding) -> InstanceBodyPlans
   data PreparedContracts where
     PreparedContracts :: (ImportedClasses, List (String, Json)) -> (HashMap String (List Json), HashMap String (List Json)) -> HashMap String (List PreparedUsageRow)
       -> HashMap String (List NominalStep) -> TypeContext -> HashMap String (List Json)
-      -> HashMap String ImportedSyntax -> Option (HashMap String Json) -> PreparedContracts
+      -> HashMap String ImportedSyntax -> Option InstanceBodyPlans -> PreparedContracts
   data ElaborationImports where
     ElaborationImports :: Result String InterfaceSet -> ImportedClasses -> (HashMap String ImportedSyntax, Option (HashMap String (List Json)))
       -> List (String, Json) -> HashMap String (List String) -> (String -> Json -> List Json, Option (String -> Json -> List Json))
       -> ((String -> Option Kind) -> Json -> Result String UsageShape)
-      -> (String -> Option (List NominalStep)) -> (Option TypeContext, Option (HashMap String Json)) -> ElaborationImports
+      -> (String -> Option (List NominalStep)) -> (Option TypeContext, Option InstanceBodyPlans) -> ElaborationImports
 
   projected-nominals :: HashMap String (List Json) -> String -> Json -> List Json
   projected-nominals indexed name doc = case hash-map-lookup name indexed of
@@ -9374,43 +9388,55 @@ module Bootstrap.Infer where
     JArr row rest -> if has-imported-method-body interfaces (field "methods" row) then
       JArr row (body-instance-rows interfaces rest) else body-instance-rows interfaces rest
     other -> JArrEnd
+  index-instance-binders :: InterfaceSet -> Json -> HashMap String (Nat -> Scheme -> Option BodyBinding) -> HashMap String (Nat -> Scheme -> Option BodyBinding)
+  index-instance-binders interfaces rows indexed = case rows of
+    JArr row rest -> case field "id" row of
+      JStr identity -> (case prepare-imported-method-binding interfaces identity of
+        Some bind -> index-instance-binders interfaces rest (hash-map-insert identity bind indexed)
+        None -> index-instance-binders interfaces rest indexed)
+      other -> index-instance-binders interfaces rest indexed
+    other -> indexed
+
   -- Only an exact admitted body set can decide which instance rows may
   -- contribute total methods. An overlay uses its own body index.
-  prepare-instance-imports :: Option InterfaceSet -> List Decl -> HashMap String ImportedSyntax -> HashMap String Json -> (HashMap String ImportedSyntax, HashMap String Json)
+  prepare-instance-imports :: Option InterfaceSet -> List Decl -> HashMap String ImportedSyntax -> InstanceBodyPlans -> (HashMap String ImportedSyntax, InstanceBodyPlans)
   prepare-instance-imports resident declarations parsed bodies = case declarations of
     Nil -> (parsed, bodies)
     Cons (DInterface sp name hash metadata) rest -> let rows = instance-exports metadata in
-      let indexed = (case resident of
-        Some interfaces -> hash-map-insert name (body-instance-rows interfaces rows) bodies
-        None -> bodies) in
+      let indexed = (case (resident, bodies) of
+        (Some interfaces, InstanceBodyPlans groups binders) -> let selected = body-instance-rows interfaces rows in
+          InstanceBodyPlans (hash-map-insert name selected groups) (index-instance-binders interfaces selected binders)
+        other -> bodies) in
       prepare-instance-imports resident rest (prepare-instance-syntax rows parsed) indexed
     Cons other rest -> prepare-instance-imports resident rest parsed bodies
 
-  total-imported-instances :: InterfaceSet -> ImportedClasses -> List (String, Kind) -> Bool -> Json -> TypeContext -> Store -> (TypeContext, Store)
-  total-imported-instances interfaces descriptions classes prepared instances kinds st = case instances of
+  total-imported-instances :: InterfaceSet -> ImportedClasses -> List (String, Kind) -> (String -> Option (Nat -> Scheme -> Option BodyBinding)) -> Bool -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-instances interfaces descriptions classes binder prepared instances kinds st = case instances of
     JArr row rest -> if not prepared && not (has-imported-method-body interfaces (field "methods" row)) then
-      total-imported-instances interfaces descriptions classes prepared rest kinds st
+      total-imported-instances interfaces descriptions classes binder prepared rest kinds st
       else let (factory, checked) = imported-scheme zero classes kinds (TUnmodeled zero "missing total method factory") row (empty-store "closed imported method") in
       (case (store-errors checked, scheme-params factory, scheme-requirements factory, field "id" row, root-name (scheme-body factory)) of
         (Nil, Nil, Nil, JStr native, Some owner) -> (case typed-class zero owner descriptions classes kinds checked of
           (Some description, complete) -> (case store-errors complete of
-            Nil -> (case prepare-imported-method-binding interfaces native of
+            Nil -> (case binder native of
               Some bind -> (case total-imported-methods bind description factory (class-methods description) kinds st of
-                (more, done) -> total-imported-instances interfaces descriptions classes prepared rest more done)
-              None -> total-imported-instances interfaces descriptions classes prepared rest kinds st)
-            other -> total-imported-instances interfaces descriptions classes prepared rest kinds st)
-          other -> total-imported-instances interfaces descriptions classes prepared rest kinds st)
-        other -> total-imported-instances interfaces descriptions classes prepared rest kinds st)
+                (more, done) -> total-imported-instances interfaces descriptions classes binder prepared rest more done)
+              None -> total-imported-instances interfaces descriptions classes binder prepared rest kinds st)
+            other -> total-imported-instances interfaces descriptions classes binder prepared rest kinds st)
+          other -> total-imported-instances interfaces descriptions classes binder prepared rest kinds st)
+        other -> total-imported-instances interfaces descriptions classes binder prepared rest kinds st)
     other -> (kinds, st)
-  total-imported-declarations :: InterfaceSet -> Option (HashMap String Json) -> ImportedClasses -> List (String, Kind) -> List Decl -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-declarations :: InterfaceSet -> Option InstanceBodyPlans -> ImportedClasses -> List (String, Kind) -> List Decl -> TypeContext -> Store -> (TypeContext, Store)
   total-imported-declarations interfaces prepared descriptions classes declarations kinds st = case declarations of
     Nil -> (kinds, st)
-    Cons (DInterface sp name hash metadata) rest -> let (ready, rows) = (case prepared of
-      Some indexed -> (case hash-map-lookup name indexed of
-        Some selected -> (True, selected)
-        None -> (False, instance-exports metadata))
-      None -> (False, instance-exports metadata)) in
-      (case total-imported-instances interfaces descriptions classes ready rows kinds st of
+    Cons (DInterface sp name hash metadata) rest ->
+      let fallback = (False, instance-exports metadata, prepare-imported-method-binding interfaces) in
+      let (ready, rows, binder) = (case prepared of
+        Some (InstanceBodyPlans groups binders) -> (case hash-map-lookup name groups of
+          Some selected -> (True, selected, \identity -> hash-map-lookup identity binders)
+          None -> fallback)
+        None -> fallback) in
+      (case total-imported-instances interfaces descriptions classes binder ready rows kinds st of
         (more, done) -> total-imported-declarations interfaces prepared descriptions classes rest more done)
     Cons (DExternal sp name category syntax metadata) rest -> if not (same category "value") then total-imported-declarations interfaces prepared descriptions classes rest kinds st else
       (case field "symbol" metadata of
@@ -9425,7 +9451,7 @@ module Bootstrap.Infer where
           None -> total-imported-declarations interfaces prepared descriptions classes rest kinds st)
         other -> total-imported-declarations interfaces prepared descriptions classes rest kinds st)
     Cons other rest -> total-imported-declarations interfaces prepared descriptions classes rest kinds st
-  collect-imported-total-methods :: Result String InterfaceSet -> Option (HashMap String Json) -> List Decl -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-imported-total-methods :: Result String InterfaceSet -> Option InstanceBodyPlans -> List Decl -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-imported-total-methods checked prepared declarations descriptions classes kinds st = case checked of
     Ok interfaces -> total-imported-declarations interfaces prepared descriptions classes declarations kinds st
     Err error -> (kinds, st)
@@ -9813,9 +9839,9 @@ module Bootstrap.Infer where
     let planned = index-nominal-plans declarations nominals hash-map-empty in
     let headers = imported-carrier-kinds declarations primitive-kinds in
     let foreign-rows = index-foreign-declarations declarations hash-map-empty in
-    let classes = imported-classes declarations in
+    let classes = prepare-imported-class-methods (imported-classes declarations) in
     let (resident, load) = prepare-body-interface-load admitted in
-    let (instance-syntax, body-instances) = prepare-instance-imports resident declarations hash-map-empty hash-map-empty in
+    let (instance-syntax, body-instances) = prepare-instance-imports resident declarations hash-map-empty (InstanceBodyPlans hash-map-empty hash-map-empty) in
     let total-instances = (case resident of Some ready -> Some body-instances; None -> None) in
     let facts = PreparedContracts (classes, imported-class-rows classes) (nominals, distinct) usage planned headers foreign-rows instance-syntax total-instances in
     let import-view = \declarations -> case load (total-interface-inputs declarations) of

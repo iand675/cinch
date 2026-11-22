@@ -423,8 +423,15 @@ module Main where
 """
     opaque = guarded.replace("checked :: Nat -> Nat",
                              "checked :: using (ordering :: Ord Nat) => Nat -> Nat")
+    higher_kind = """module Main where
+  import Category.Functor (Functor, map)
+  use :: forall (f :: Type -> Type). using (functor :: Functor f) => f Int -> f Int
+  use xs = map (\\n -> n + 1) xs
+  main :: Int
+  main = 0
+"""
     expected_edits = {}
-    for edit in (new_import, shadow, guarded, changed):
+    for edit in (new_import, shadow, guarded, higher_kind, changed):
         hello.write_text(edit)
         invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
                 "--objects", config, hello, ir], session_dir, leak=True)
@@ -505,7 +512,7 @@ module Main where
                     assert build() == b"2\n"
                     assert not ir.read_bytes()
                     assert b"cannot read source" in diagnostics.read_bytes()
-                    for edit in (new_import, shadow, guarded):
+                    for edit in (new_import, shadow, guarded, higher_kind):
                         hello.write_text(edit)
                         assert build() == b"0\n"
                         assert not diagnostics.read_bytes()
