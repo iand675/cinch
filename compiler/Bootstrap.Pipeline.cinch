@@ -25,6 +25,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
   import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
+  import Bootstrap.PackageWrite (encode-object-package)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
@@ -42,11 +43,11 @@ module Bootstrap.Pipeline where
   import Bootstrap.Document
   import Data.Bytes (bytes-compare)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Data.List (map)
+  import Data.List (map, reverse)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
   import Data.String (string-concat, string-to-bytes)
-  import Effect.Fs (fs-read, fs-write)
+  import Effect.Fs (fs-read, fs-rename, fs-write)
   import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
 
@@ -773,12 +774,28 @@ module Bootstrap.Pipeline where
       (JStr home, JStr hash) | string-compare home name == 0 && string-compare hash identity == 0 -> object-field "interface" row
       other -> JNull)
     other -> JNull
-  without-object-interface-refs :: Json -> Json
-  without-object-interface-refs provider = case provider of
-    JObj key value rest ->
-      if string-compare key "interface_refs" == 0 || string-compare key "private_interfaces" == 0 then without-object-interface-refs rest
-      else JObj key value (without-object-interface-refs rest)
+  object-delete :: String -> Json -> Json
+  object-delete name doc = case doc of
+    JObj key value rest -> if key == name then rest else JObj key value (object-delete name rest)
     other -> other
+  -- A provider's private contract stays in the ABI section. Only public
+  -- contracts belong in the module directory.
+  object-package-closure :: Json -> Json -> List (String, String, Json) -> List Json -> Result String (List (String, String, Json), Json)
+  object-package-closure rows private public refs = case rows of
+    JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row, object-field "interface" row) of
+      (JStr name, JStr hash, JObj key item tail) ->
+        let ref = object-delete "interface" row in
+        let published = (case private-object-contract name hash private of
+          JNull -> Cons (name, hash, object-field "interface" row) public
+          other -> public) in
+        object-package-closure rest private published (Cons ref refs)
+      other -> Err "invalid packed object contract")
+    JArrEnd -> Ok (reverse public, object-refs refs JArrEnd)
+    other -> Err "invalid packed object closure"
+  object-refs :: List Json -> Json -> Json
+  object-refs refs ordered = case refs of
+    Nil -> ordered
+    Cons row rest -> object-refs rest (JArr row ordered)
   object-interface-hashes :: Json -> HashMap String String -> HashMap String String
   object-interface-hashes rows hashes = case rows of
     JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
@@ -887,8 +904,8 @@ module Bootstrap.Pipeline where
   object-manifest provider interfaces units facts ir code =
     let actual = (object-set "method_families" (object-merge-families (object-field "method_families" facts) (object-field "method_families" provider))
       (object-set "constructors" (object-merge-fields (object-field "constructors" facts) (object-field "constructors" provider))
-        (object-set "self_describing" (JBool True) (without-object-interface-refs provider)))) in
-    object-set "interfaces" interfaces
+        (object-set "self_describing" (JBool True) (object-delete "interfaces" provider)))) in
+    object-set "interface_refs" interfaces
       (object-set "dictionaries" (object-merge-fields (object-field "dictionaries" facts) (object-field "dictionaries" provider))
       (object-set "units" (object-append (object-field "units" provider) units)
         (object-set "ir_content_hash" (JStr (fnv-source-hash (string-to-bytes ir)))
@@ -899,32 +916,34 @@ module Bootstrap.Pipeline where
     Cons first rest -> not (object-path-member first rest) && object-paths-distinct rest
   object-path-member :: String -> List String -> Bool
   object-path-member path paths = case paths of Nil -> False; Cons first rest -> string-compare path first == 0 || object-path-member path rest
-  write-object-interfaces :: forall r. using (io :: Io r) => String -> List (String, Json) ->{IO r} Result String Unit
-  write-object-interfaces prefix rows = case rows of
-    Nil -> Ok ()
-    Cons (name, doc) rest -> case fs-write (path-from-string (prefix <> name <> ".cinchif")) (canonical-bytes doc) of
-      Err error -> Err "cannot write checked object interface"
-      Ok done -> write-object-interfaces prefix rest
-  compile-source-library-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  compile-source-library-object inlining manifest configuration source ir object abi prefix =
-    compile-source-library-object-at inlining host-profile manifest configuration source ir object abi prefix
+  replace-object-package :: forall r. using (io :: Io r) => Path -> Bytes ->{IO r} Result String Unit
+  replace-object-package path bytes =
+    let temp = path-from-string (path-to-string path <> ".new") in
+    case fs-write temp bytes of
+      Err error -> Err "cannot write object package"
+      Ok done -> (case fs-rename temp path of
+        Err error -> Err "cannot publish object package"
+        Ok done -> Ok ())
+  compile-source-library-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-library-object inlining manifest configuration source ir object abi =
+    compile-source-library-object-at inlining host-profile manifest configuration source ir object abi
 
-  compile-source-library-object-at :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  compile-source-library-object-at inlining profile manifest configuration source ir object abi prefix =
-    compile-source-library-object-roots inlining profile Nil manifest configuration source ir object abi prefix
+  compile-source-library-object-at :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-library-object-at inlining profile manifest configuration source ir object abi =
+    compile-source-library-object-roots inlining profile Nil manifest configuration source ir object abi
 
-  compile-requested-library-object :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  compile-requested-library-object inlining profile roots manifest configuration source ir object abi prefix =
-    if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
+  compile-requested-library-object :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-requested-library-object inlining profile roots manifest configuration source ir object abi =
+    if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string abi <> ".new", path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
       case read-object-unit-roots roots of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-        Ok requested -> compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi prefix
+        Ok requested -> compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi
 
-  compile-source-library-object-roots :: forall r. using (io :: Io r) => Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi prefix =
+  compile-source-library-object-roots :: forall r. using (io :: Io r) => Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi =
     let ir-name = path-to-string ir in let object-name = path-to-string object in let abi-name = path-to-string abi in
-    if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
-      case fs-write abi (string-to-bytes "") of
+    if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, abi-name <> ".new", object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
+      case replace-object-package abi (string-to-bytes "") of
         Err error -> pipeline-write-failed
         Ok cleared -> case read-validated-interfaces manifest of
           Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
@@ -935,7 +954,7 @@ module Bootstrap.Pipeline where
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
             Ok (provider, document, provider-path, provider-code) ->
               if not (provider-matches-profile document profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-              if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
+              if object-path-member provider-path [source, ir-name, object-name, abi-name, abi-name <> ".new", object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
                 case fs-read (path-from-string source) of
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
                   Ok bytes -> case parse-program-with source bytes (interface-fixity-headers interfaces) of
@@ -944,10 +963,10 @@ module Bootstrap.Pipeline where
                       Err message -> write-failure ir message pipeline-check-refused
                       Ok view -> (case check-object-client profile bytes view admitted of
                         Err message -> write-failure ir message pipeline-check-refused
-                        Ok checked -> prepare-library-object profile inlining requested checked interfaces bytes provider document provider-code ir object abi prefix)
+                        Ok checked -> prepare-library-object profile inlining requested checked interfaces bytes provider document provider-code ir object abi)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
-  prepare-library-object :: forall r. using (io :: Io r) => TargetProfile -> Bool -> List (String, List Nat) -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  prepare-library-object profile inlining requested checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-unit-roots checked requested of
+  prepare-library-object :: forall r. using (io :: Io r) => TargetProfile -> Bool -> List (String, List Nat) -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
+  prepare-library-object profile inlining requested checked interfaces source provider document provider-code ir object abi = case runtime-library-unit-roots checked requested of
     Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
     Ok roots -> case export-object-interfaces checked interfaces source of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
@@ -962,15 +981,15 @@ module Bootstrap.Pipeline where
               None -> write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused
               Some indexed -> case object-conditional-methods exported indexed JObjEnd of
                 Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-                Ok rows -> write-library-object profile document closure exported prefix text units (object-set "dictionaries" rows facts) provider-code ir object abi
-  write-library-object :: forall r. using (io :: Io r) => TargetProfile -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
-  write-library-object profile document closure exported prefix text units facts provider-code ir object abi =
+                Ok rows -> write-library-object profile document closure exported text units (object-set "dictionaries" rows facts) provider-code ir object abi
+  write-library-object :: forall r. using (io :: Io r) => TargetProfile -> Json -> Json -> List (String, Json) -> String -> Json -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
+  write-library-object profile document closure exported text units facts provider-code ir object abi =
     case fs-write ir (string-to-bytes text) of
       Err error -> pipeline-write-failed
-      Ok done -> if string-compare (path-to-string object) "-" == 0 then publish-library-module document closure exported prefix text units facts ir abi
+      Ok done -> if string-compare (path-to-string object) "-" == 0 then publish-library-package (map object-package-row exported) (JObj "facts" facts (JObj "units" units JObjEnd)) ir abi
         else case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
           Err error -> pipeline-write-failed
-          Ok done -> assemble-library-object (profile-triple profile) document closure exported prefix text units facts ir object abi
+          Ok done -> assemble-library-object (profile-triple profile) document closure text units facts ir object abi
   -- An object path of `-` asks for the module without its object: the IR,
   -- the checked interfaces and what the module adds to a manifest, and no
   -- assembler or linker run. A build that compiles the IR itself
@@ -981,17 +1000,19 @@ module Bootstrap.Pipeline where
   -- written out again with the module merged in either: it assembles
   -- providers itself. So the manifest path receives the module's units and
   -- its facts alone, the two things `object-manifest` would have merged.
-  publish-library-module :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path ->{IO r, Diverge} Int
-  publish-library-module document closure exported prefix text units facts ir abi =
-    case write-object-interfaces prefix exported of
+  object-package-row :: (String, Json) -> (String, String, Json)
+  object-package-row (name, doc) = (name, interface-hash doc, doc)
+  publish-library-package :: forall r. using (io :: Io r) => List (String, String, Json) -> Json -> Path -> Path ->{IO r, Diverge} Int
+  publish-library-package rows metadata ir abi =
+    case encode-object-package rows metadata of
       Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
-      Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
+      Ok bytes -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Err error -> pipeline-write-failed
-        Ok done -> case fs-write abi (canonical-bytes (JObj "facts" facts (JObj "units" units JObjEnd))) of
-          Err error -> pipeline-write-failed
+        Ok done -> case replace-object-package abi bytes of
+          Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
           Ok done -> pipeline-ok
-  assemble-library-object :: forall r. using (io :: Io r) => String -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
-  assemble-library-object triple document closure exported prefix text units facts ir object abi =
+  assemble-library-object :: forall r. using (io :: Io r) => String -> Json -> Json -> String -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
+  assemble-library-object triple document closure text units facts ir object abi =
     let object-name = path-to-string object in
     case process-run (command (path-from-string "clang") ["--target=" <> triple, "-Wno-override-module", "-c", path-to-string ir, "-o", object-name <> ".new.o"]) "" of
       Err error -> write-failure ir "bootstrap.object: cannot start object assembler" pipeline-emit-refused
@@ -999,12 +1020,8 @@ module Bootstrap.Pipeline where
         Err error -> write-failure ir "bootstrap.object: cannot start dependency linker" pipeline-emit-refused
         Ok (0, output) -> (case fs-read object of
           Err error -> write-failure ir "bootstrap.object: cannot read linked object" pipeline-read-failed
-          Ok code -> case write-object-interfaces prefix exported of
+          Ok code -> (case object-package-closure closure (object-field "private_interfaces" document) Nil Nil of
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
-            Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
-              Err error -> pipeline-write-failed
-              Ok done -> case fs-write abi (canonical-bytes (object-manifest document closure units facts text code)) of
-                Err error -> pipeline-write-failed
-                Ok done -> pipeline-ok)
+            Ok (rows, refs) -> publish-library-package rows (object-manifest document refs units facts text code) ir abi))
         Ok (status, output) -> write-failure ir "bootstrap.object: dependency linker refused" pipeline-emit-refused)
       Ok (status, output) -> write-failure ir "bootstrap.object: object assembler refused" pipeline-emit-refused

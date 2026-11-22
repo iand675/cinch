@@ -156,23 +156,22 @@ fn object_output_invokes_selected_frontend_with_explicit_dependency_and_companio
     let dependency = dir.join("dependency with spaces.json");
     std::fs::write(&dependency, "fixture dependency configuration").unwrap();
     std::fs::write(&frontend.compiler, r#"#!/bin/sh
-if [ "$1" != '--emit-object' ] || [ "$2" != '--interfaces' ] || [ "$4" != '--objects' ] || [ "$#" != 10 ]; then exit 92; fi
+if [ "$1" != '--emit-object' ] || [ "$2" != '--interfaces' ] || [ "$4" != '--objects' ] || [ "$#" != 9 ]; then exit 92; fi
 printf invoked > selected-was-invoked
 printf 'fixture IR' > "$7"
 printf 'fixture object' > "$8"
 printf 'fixture metadata' > "$9"
-printf 'fixture interface' > "${10}Library.cinchif"
 "#).unwrap();
     assert_eq!(common::external_frontend::drive_with_objects(&frontend, Mode::EmitObject, &dir, entry, Some(output.clone()), Some(dependency.clone())).unwrap(), 0);
     assert_eq!(std::fs::read_to_string(&output).unwrap(), "fixture object");
     assert_eq!(std::fs::read_to_string(output.with_extension("ll")).unwrap(), "fixture IR");
-    assert_eq!(std::fs::read_to_string(output.with_extension("abi.json")).unwrap(), "fixture metadata");
-    assert!(dir.join("build/Library.cinchif").is_file());
+    assert_eq!(std::fs::read_to_string(output.with_extension("cpk")).unwrap(), "fixture metadata");
+    assert!(!dir.join("build/Library.cinchif").exists());
     let receipt = invocations(&dir).into_iter().find_map(|p| std::fs::read_to_string(p.join("invocation.json")).ok()).unwrap();
     assert!(receipt.contains("--emit-object") && receipt.contains("--objects") && receipt.contains("dependency with spaces.json"), "{receipt}");
     // A second call still has to produce all companions; an exit code alone
     // cannot turn absent artifacts into an object-emission pass.
-    std::fs::remove_file(output.with_extension("abi.json")).unwrap();
+    std::fs::remove_file(output.with_extension("cpk")).unwrap();
     std::fs::write(&frontend.compiler, "#!/bin/sh\nexit 0\n").unwrap();
     let error = common::external_frontend::drive_with_objects(&frontend, Mode::EmitObject, &dir, entry, Some(output), Some(dependency)).unwrap_err();
     assert!(error.contains("object companions"), "{error}");

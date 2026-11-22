@@ -525,8 +525,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     if mode == Mode::EmitObject {
         if objects.is_none() { return Err("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback".into()); }
         ir = exe.with_extension("ll");
-        if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
-        std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
+        if exe == ir || exe == exe.with_extension("cpk") { return Err("object output collides with its companions".into()); }
     }
     if mode != Mode::Check || request.link.is_some() {
         if let Some(configuration) = &objects {
@@ -545,7 +544,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     }
     args.extend([source.display().to_string(), ir.display().to_string()]);
     match mode {
-        Mode::EmitObject => args.extend([exe.display().to_string(), exe.with_extension("abi.json").display().to_string(), format!("{}/", dir.join("build").display())]),
+        Mode::EmitObject => args.extend([exe.display().to_string(), exe.with_extension("cpk").display().to_string()]),
         Mode::Build | Mode::Run if request.link.is_some() => {}
         Mode::Build | Mode::Run => args.extend([exe.display().to_string(), report.display().to_string()]),
         Mode::Check | Mode::EmitIr => (),
@@ -594,7 +593,7 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
             else { print!("{}", std::fs::read_to_string(&ir).map_err(|e| e.to_string())?); }
             Ok(0)
         } else { Err("selected compiler succeeded without LLVM output".into()) },
-        Mode::EmitObject => if exe.is_file() && ir.is_file() && exe.with_extension("abi.json").is_file() { Ok(0) }
+        Mode::EmitObject => if exe.is_file() && ir.is_file() && exe.with_extension("cpk").is_file() { Ok(0) }
             else { Err("selected compiler succeeded without object companions".into()) },
     }
 }

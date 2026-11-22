@@ -287,37 +287,52 @@ def native_shared_body_ranges(stage, work, package, rows):
 def native_packed_object_publication(stage, work, package, rows):
     source = work / "Library.cinch"
     source.write_text("""module PackedLibrary where
-  export double
+  export double, increment
   double :: Int -> Int
   double x = x + x
+  increment :: Nat -> Nat
+  increment x = helper x
+  helper :: Nat -> Nat
+  helper x = x + 1
 """)
     ir, library = work / "library.ll", work / "library.o"
-    abi, prefix = work / "built-library.abi.json", work / "library."
+    delta, combined = work / "library-delta.cpk", work / "built-library.cpk"
     config = stage / "base-objects.json"
-    invoke([stage / "cinch", "--emit-object", "--interfaces", package, "--objects", config,
-            source, ir, library, abi, prefix], work, leak=True)
-    combined = json.loads(abi.read_bytes())
-    assert "interface_refs" not in combined and "private_interfaces" not in combined
-    assert {"PackedLibrary", "CinchBaseObject"} <= {row["module"] for row in combined["interfaces"]}
-    document = (work / "library.PackedLibrary.cinchif").read_bytes()
-    package = work / "built-library.cpk"
-    data = pack([*rows, ("PackedLibrary", interface_hash(json.loads(document)), document)],
-                combined)
-    publish(package, data)
+    command = [stage / "cinch", "--emit-object", "--interfaces", package, "--objects", config, source, ir]
+    invoke([*command, "-", delta], work, leak=True)
+    module = PackedInterfaces(delta.read_bytes())
+    [(name, digest, document)] = module.documents
+    assert name == "PackedLibrary"
+    assert interface_hash(document) == digest
+    assert set(module.metadata()) == {"facts", "units"}
+    body = next(row["total_body"] for row in document["exports"]["values"] if row["name"] == "increment")
+    definitions = {row["identity"]: row["body"] for row in body["definitions"]}
+    assert definitions["PackedLibrary.increment"]["target"] == "PackedLibrary.helper"
+    assert definitions["PackedLibrary.helper"]["arguments"][1]["decimal"] == "1"
+
+    invoke([*command, library, combined], work, leak=True)
+    data = combined.read_bytes()
+    merged = PackedInterfaces(data)
+    assert "interfaces" not in merged.metadata()
+    assert [row["module"] for row in merged.metadata()["private_interfaces"]] == ["CinchBaseObject"]
+    assert "CinchBaseObject" not in {name for name, _, _ in merged.documents}
+    assert merged.documents[0] == (name, digest, document)
+    assert {name for name, _, _ in merged.documents[1:]} == {name for name, _, _ in rows}
+    assert not list(work.glob("library.*.cinchif"))
     settings = json.loads(config.read_bytes())
     runtime = Path(settings["object"]).with_name("libcinchruntime.a")
-    settings.update(metadata=str(package), metadata_sha256=sha256(data).hexdigest(),
+    settings.update(metadata=str(combined), metadata_sha256=sha256(data).hexdigest(),
                     object=str(library), object_sha256=sha256(library.read_bytes()).hexdigest())
     config = work / "built-library-objects.json"
     publish(config, canonical(settings).encode())
-    source = work / "PackedLibraryClient.cinch"
-    source.write_text("""module Main where
+    client = work / "PackedLibraryClient.cinch"
+    client.write_text("""module Main where
   import PackedLibrary (double)
   main :: Int
   main = double 21 - 42
 """)
-    invoke([stage / "cinch", "--interfaces", package, "--objects", config,
-            "run", runtime, work / "linked-library-client", source], work, leak=True)
+    invoke([stage / "cinch", "--interfaces", combined, "--objects", config,
+            "run", runtime, work / "linked-library-client", client], work, leak=True)
 
 
 def native(stage, work, repeats):

@@ -28,19 +28,11 @@ a reference module, which is the evidence that it is the same compiler.
 
 How a module sees its imports
 -----------------------------
-`--emit-object` takes one provider: an object file and its ABI manifest. It
-writes the module's own object beside a layer that is the provider with that
-object merged in. Chaining layers would make every module depend on every
-module before it. Instead this tool keeps, for each module, the delta its
-compile added to the manifest (its units, constructors, dictionaries, method
-families and interface), and assembles a module's provider from the base
-library plus the deltas of the modules it transitively imports. That is the
-merge `Bootstrap.Pipeline.object-manifest` performs, applied in import order.
-
-The provider's object is an empty one. A compile reads the provider object
-only to check its identity against the manifest and to copy it into the
-layer; the module's code never depends on its bytes. The manifest this tool
-writes names the empty object's hash, so the check is a true one.
+`--emit-object` checks against a provider object and package. The builder
+asks for the module's IR and a package with its checked contract and ABI
+delta. It assembles each provider from the base library and the deltas of
+the module's transitive imports. The provider points at an empty object
+whose hash is recorded in the provider package.
 
 Roots
 -----
@@ -67,7 +59,6 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bootstrap  # noqa: E402
 from pack_interfaces import PackedInterfaces, pack, publish
-from bootstrap_interfaces import interface_hash, read_contract  # noqa: E402
 from bootstrap_objects import requested_roots  # noqa: E402
 import shard_ir  # noqa: E402
 
@@ -159,7 +150,7 @@ class Base:
         self.target = configuration["target"]
         package = PackedInterfaces(provider["interface_package"].read_bytes())
         self.manifest = package.full_metadata()
-        self.rows = {name: (name, identity, canonical(doc)) for name, identity, doc in package.documents}
+        self.rows = {name: (name, identity, doc) for name, identity, doc in package.documents}
         self.identity = sha(canonical([configuration["object_sha256"], configuration["metadata_sha256"]]))
         self.stub = out / "provider-stub.o"
         if not self.stub.is_file():
@@ -171,7 +162,7 @@ class Base:
         self.stub_fnv = fnv_decimal(self.stub.read_bytes())
 
 
-def merged_manifest(base: Base, deltas: list[dict]) -> dict:
+def merged_manifest(base: Base, deltas: list[dict], rows: dict[str, tuple[str, str, dict]]) -> dict:
     """The base manifest with each delta applied in order."""
     merged = dict(base.manifest)
     merged["units"] = list(base.manifest["units"])
@@ -186,32 +177,17 @@ def merged_manifest(base: Base, deltas: list[dict]) -> dict:
         replaced = {row["class"] for row in delta["method_families"]}
         families = delta["method_families"] + [row for row in families if row["class"] not in replaced]
         merged["interfaces"].insert(0, {"module": delta["module"], "iface_hash": delta["iface_hash"],
-                                        "interface": {"$raw": delta["module"]}})
+                                        "interface": rows[delta["module"]][2]})
     merged["method_families"] = families
     merged["self_describing"] = True
     merged["object_content_hash"] = base.stub_fnv
     return merged
 
 
-def delta_of(module: str, produced: dict, provider: dict, interface: Path) -> dict:
-    """What one module's compile added to its provider's manifest.
-
-    A builder asked for a module without its object answers with the
-    module's units and facts. An older one answers with the provider's
-    manifest and the module merged in, and the delta is the difference.
-    Either way a fact the provider already states is not part of it.
-    """
-    if "facts" in produced:
-        units, facts = produced["units"], produced["facts"]
-    else:
-        units, facts = produced["units"][len(provider["units"]):], produced
-        if produced["units"][:len(provider["units"])] != provider["units"]:
-            raise BuildError(f"{module}: the layer manifest does not extend its provider's units")
-        added = [row["module"] for row in produced["interfaces"]
-                 if row["module"] not in {other["module"] for other in provider["interfaces"]}]
-        if added != [module]:
-            raise BuildError(f"{module}: the layer adds interfaces {added}, expected only its own")
-    delta = {"module": module, "iface_hash": interface_hash(read_contract(interface)), "units": units}
+def delta_of(module: str, identity: str, produced: dict, provider: dict) -> dict:
+    """Retain only the module's new ABI facts."""
+    facts = produced["facts"]
+    delta = {"module": module, "iface_hash": identity, "units": produced["units"]}
     for name in MAPS:
         delta[name] = {key: value for key, value in (facts.get(name) or {}).items()
                        if provider[name].get(key) != value}
@@ -230,7 +206,6 @@ class Builder:
         self.clang = os.environ.get("CINCH_CLANG") or shutil.which("clang") or "clang"
         self.opt_level = args.opt_level
         self.keep = args.keep_inputs
-        self.bare_modules = True
         self.jobs = args.jobs
         self.base = Base(self.out, self.clang)
         self.sources, self.imports, self.order = module_graph(files)
@@ -238,7 +213,7 @@ class Builder:
         self.compiler_id = bootstrap.file_hash(self.compiler)
         self.roots = self.read_roots()
         self.deltas: dict[str, dict] = {}
-        self.interfaces: dict[str, Path] = {}
+        self.interfaces: dict[str, tuple[str, str, dict]] = {}
         self.objects: dict[str, list[Path]] = {}
         self.pool = concurrent.futures.ThreadPoolExecutor(self.jobs)
         self.pending: dict[str, list[concurrent.futures.Future]] = {}
@@ -285,15 +260,10 @@ class Builder:
 
     def provider(self, module: str, directory: Path) -> tuple[dict, Path, Path]:
         deltas = [self.deltas[name] for name in self.closure[module]]
-        merged = merged_manifest(self.base, deltas)
-        raw = {name: self.interfaces[name].read_bytes() for name in self.closure[module]}
-        # Resolve the source interfaces before writing the packed provider.
-        for row in merged["interfaces"]:
-            if isinstance(row["interface"], dict) and set(row["interface"]) == {"$raw"}:
-                row["interface"] = json.loads(raw[row["interface"]["$raw"]])
         rows = dict(self.base.rows)
         for name in self.closure[module]:
-            rows[name] = (name, self.deltas[name]["iface_hash"], raw[name])
+            rows[name] = self.interfaces[name]
+        merged = merged_manifest(self.base, deltas, rows)
         manifest = directory / "provider.cpk"
         publish(manifest, pack([rows[name] for name in sorted(rows)], merged))
         objects = directory / "objects.json"
@@ -363,14 +333,14 @@ class Builder:
         directory = self.directory(module)
         key = self.key(module)
         stamp = directory / "key"
-        interface = directory / f"iface.{module}.cinchif"
+        layer = directory / "layer.cpk"
         saved = directory / "delta.json"
         listed = directory / "objects.list.json"
-        if stamp.is_file() and stamp.read_text() == key and interface.is_file() and saved.is_file() and listed.is_file():
+        if stamp.is_file() and stamp.read_text() == key and layer.is_file() and saved.is_file() and listed.is_file():
             objects = [Path(path) for path in json.loads(listed.read_text())]
             if all(path.is_file() for path in objects):
                 self.deltas[module] = bootstrap.read_json(saved)
-                self.interfaces[module] = interface
+                self.interfaces[module] = self.read_layer(module, layer).documents[0]
                 self.objects[module] = objects
                 self.reused.append(module)
                 return "reused", ""
@@ -385,39 +355,33 @@ class Builder:
             bootstrap.write_json(requested, {"schema": 1, "units": self.roots[module],
                                              "dictionaries": [], "methods": []})
             command += ["--object-roots", str(requested)]
-        # `-` for the object: this build assembles the IR itself, so the
-        # compiler makes neither an object nor a merged layer. A builder from
-        # before that option was understood refuses the path, and is asked
-        # again for the layer it knows how to make.
-        command += ["--interfaces", str(manifest), "--objects", str(objects), source.name, "unit.ll"]
-        tail = [["-", "layer.abi.json", "iface."], ["layer.o", "layer.abi.json", "iface."]]
+        command += ["--interfaces", str(manifest), "--objects", str(objects),
+                    source.name, "unit.ll", "-", layer.name]
         started = time.monotonic()
-        diagnostics = directory / "unit.ll.diagnostics"
-        for words in tail if self.bare_modules else tail[1:]:
-            result = subprocess.run(command + words, cwd=directory, env=self.environment,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            text = diagnostics.read_text(errors="replace") if diagnostics.is_file() else ""
-            if result.returncode == 0 or words[0] != "-" or "cannot read linked object" not in text:
-                break
-            # A builder that does not know `-` links to standard output and
-            # then finds no object to read.
-            self.bare_modules = False
+        result = subprocess.run(command, cwd=directory, env=self.environment,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if result.returncode:
+            diagnostics = directory / "unit.ll.diagnostics"
+            text = diagnostics.read_text(errors="replace") if diagnostics.is_file() else ""
             return "refused", text or result.stdout.decode(errors="replace")
-        self.deltas[module] = delta_of(module, bootstrap.read_json(directory / "layer.abi.json"), provider, interface)
-        self.interfaces[module] = interface
+        package = self.read_layer(module, layer)
+        self.interfaces[module] = package.documents[0]
+        self.deltas[module] = delta_of(module, package.documents[0][1], package.metadata(), provider)
         self.objects[module] = self.schedule_objects(module, directory)
         bootstrap.write_json(saved, self.deltas[module])
-        # The layer and the provider copy are the provider again plus this
-        # module; nothing reads them once the delta is taken.
         if not self.keep:
-            for name in ("layer.o", "layer.o.provider.o", "layer.o.new.o", "-.provider.o", "-.new.o",
-                         "layer.abi.json", "provider.cpk"):
-                (directory / name).unlink(missing_ok=True)
+            manifest.unlink()
         stamp.write_text(key)
         seconds = time.monotonic() - started
         self.compiled.append((module, seconds))
         return "compiled", f"{seconds:.1f}"
+
+    @staticmethod
+    def read_layer(module: str, path: Path) -> PackedInterfaces:
+        package = PackedInterfaces(path.read_bytes())
+        if [name for name, _, _ in package.documents] != [module]:
+            raise BuildError(f"{module}: packed module layer must contain only its own contract")
+        return package
 
     # ------------------------------------------------------------ the schedule
 
@@ -553,7 +517,7 @@ def main() -> int:
     parser.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 2)
     parser.add_argument("--opt-level", type=int, default=1, choices=range(4))
     parser.add_argument("--keep-inputs", action="store_true",
-                        help="leave each module's provider manifest and layer in place, to rerun its compile by hand")
+                        help="keep each module's provider package so its compile can be rerun by hand")
     parser.add_argument("--check", type=Path, metavar="COMPILER_LL",
                         help="a stage's compiler.ll; the result must emit it again for that chain's bundle")
     args = parser.parse_args()

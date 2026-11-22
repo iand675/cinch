@@ -208,7 +208,7 @@ def pack(rows, objects=None):
     definitions = {}
     documents = {}
     for name, _, raw in rows:
-        doc = json.loads(raw)
+        doc = raw if isinstance(raw, dict) else json.loads(raw)
         if doc["schema"] != 10 or doc["module"] != name or name in documents:
             raise ValueError(f"wrong schema or inconsistent module {name}")
         documents[name] = doc

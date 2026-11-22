@@ -299,7 +299,7 @@ The driver also has separate frontend and build modes:
     cinch --emit-ir-only --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
-    cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT ABI INTERFACE_PREFIX
+    cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT PACKAGE.cpk
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
 
 Check-only runs parsing, resolution and the current source/Core checks, then
@@ -595,15 +595,13 @@ successfully built artifact and retains its exit code. Only distinct base-family
 interfaces are accepted; Native-produced compiler implementation interfaces are
 refused. LLVM output is copied to the requested output file, or printed when
 no file is requested. Object emission requires an explicit `CINCH_TEST_OBJECTS`
-configuration and asks the selected compiler for `.o`, `.ll`, `.abi.json` and
-`build/*.cinchif` outputs. An older selected compiler that lacks object mode
-still refuses; the adapter cannot supply that compiler feature itself.
-The Cinch object CLI emits actual checked first-order functions and concrete
-constructor entries, interfaces and a closed dependency object. The caller
-creates the interface output directory and passes its prefix with a trailing
-separator, for example `build/`. It authenticates and snapshots the library-only
-provider bytes before linking them with the Cinch-generated object, then writes
-the final ABI manifest after successful assembly, linking and interface output.
+configuration and asks the selected compiler for `.o`, `.ll` and `.cpk`
+outputs. The package contains the checked module contracts and the ABI of the
+linked object, including the provider's dependencies. Checked bodies use the
+package's indexed AST sections. Use the same package for `--interfaces` and
+the configuration's `metadata` field when consuming the library. Passing `-`
+as OBJECT emits IR and a package containing just the new contracts and ABI
+delta, so a build tool can assemble and link the IR separately.
 The final consumer installs the complete layout prefix; a dependency object
 never installs a shorter table from a constructor. Physical inventory does not
 introduce private names into source scope. Reached source dictionary factories

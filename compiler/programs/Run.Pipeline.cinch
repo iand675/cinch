@@ -127,10 +127,10 @@ module Main where
           other -> pipeline-bad-args
       else case (roots, mode, debug, reclaim, manifest, object-config, ws) of
         (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected mode manifest object-config (resolve-platform mode wanted) debug reclaim inlining ws
-        (Some path, ObjectOnly, False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
+        (Some path, ObjectOnly, False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi Nil)))) ->
           (case resolve-platform mode wanted of
             Err message -> report-target-refusal (path-from-string ir) message
-            Ok profile -> compile-requested-library-object inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix)
+            Ok profile -> compile-requested-library-object inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi))
         other -> pipeline-bad-args
     Nil -> pipeline-bad-args
 
@@ -145,10 +145,10 @@ module Main where
   run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
   run-selected mode manifest object-config wanted debug reclaim inlining ws = case mode of
     ObjectOnly -> case (debug, reclaim, manifest, object-config, ws) of
-      (False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
+      (False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi Nil)))) ->
         case wanted of
           Err message -> report-target-refusal (path-from-string ir) message
-          Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix
+          Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi)
       other -> pipeline-bad-args
     IrOnly -> case ws of
       Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir

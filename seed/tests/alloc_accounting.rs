@@ -401,13 +401,15 @@ fn build_external_drop_probe(
     let library = dir.join("AllocationFixture.o");
     drive(frontend, Mode::EmitObject, dir, "AllocationFixture.cinch", Some(library.clone()))
         .expect("emit the checked allocation fixture object");
-    let interface = std::fs::read_to_string(dir.join("build/AllocationFixture.cinchif"))
+    let contracts = dir.join("object-contract-fixture");
+    let document = common::editable_object_fixture(&library, &contracts);
+    let interface = std::fs::read_to_string(contracts.join("AllocationFixture.cinchif"))
         .expect("read the builder's checked interface");
     let interface = cinch::interface::Iface::from_json(&interface).expect("parse the builder's interface");
     assert_eq!(interface.module, "AllocationFixture");
     assert_eq!(interface.exports.values.iter().map(|value| value.name.as_str()).collect::<Vec<_>>(), ["build"]);
-    let metadata = library.with_extension("abi.json");
-    let document = parse_json(&std::fs::read_to_string(&metadata).unwrap()).unwrap();
+    let metadata = library.with_extension("cpk");
+    let document = parse_json(&document).unwrap();
     let worker = document.get("units").and_then(Json::as_arr).unwrap().iter()
         .find(|unit| unit.get("symbol").and_then(Json::as_str) == Some("AllocationFixture.build"))
         .expect("checked builder worker");

@@ -408,12 +408,11 @@ module GuardedNumbers where
     choose x y = x
 "#);
     std::fs::write(&library, &source).unwrap();
-    let ir = dir.join("library.ll"); let out = dir.join("library.o"); let abi = out.with_extension("abi.json");
-    let build = dir.join("object-interfaces"); std::fs::create_dir(&build).unwrap();
-    let prefix = build.join("").display().to_string() + "/";
-    let result = run(&compiler, &[&library, &ir, &out, &abi, Path::new(&prefix)], "--emit-object", &manifest, &objects);
+    let ir = dir.join("library.ll"); let out = dir.join("library.o"); let abi = out.with_extension("cpk");
+    let build = dir.join("object-interfaces");
+    let result = run(&compiler, &[&library, &ir, &out, &abi], "--emit-object", &manifest, &objects);
     assert!(result.status.success(), "{}\n{}", String::from_utf8_lossy(&result.stderr), common::read_output(&dir, "library.ll.diagnostics"));
-    let text = std::fs::read_to_string(&abi).unwrap();
+    let text = common::editable_object_fixture(&out, &build);
     std::fs::write(dir.join("successful.abi.json"), &text).unwrap();
     std::fs::copy(&ir, dir.join("successful.library.ll")).unwrap();
     std::fs::write(dir.join("successful.library.source"), &source).unwrap();
@@ -450,7 +449,7 @@ module GuardedNumbers where
     let llvm = std::fs::read_to_string(&ir).unwrap();
     assert!(!llvm.contains("@llvm.global_ctors"), "dependency object must leave table registration to final consumer");
     for symbol in ["cinch_array_from_list", "cinch_tensor_get", "cinch_columnar_column"] { assert!(llvm.contains(symbol)); }
-    let final_manifest = dir.join("client.interfaces.json"); interfaces(&final_manifest, &[&provider.join("build"), &build]);
+    let final_manifest = abi.clone();
     let final_objects = dir.join("client.objects.json"); configuration(&final_objects, &out, &abi);
     let client = dir.join("client.source"); let client_ir = dir.join("client.ll");
     std::fs::write(&client, r#"module Main where
@@ -515,7 +514,7 @@ module GuardedNumbers where
     assert!(std::fs::read(&client_ir).unwrap().is_empty());
     // A failed rebuild invalidates its previously good manifest.
     std::fs::write(&library, "module Library where\n  broken = (\n").unwrap();
-    assert!(!run(&compiler, &[&library, &ir, &out, &abi, Path::new(&prefix)], "--emit-object", &manifest, &objects).status.success());
+    assert!(!run(&compiler, &[&library, &ir, &out, &abi], "--emit-object", &manifest, &objects).status.success());
     assert!(std::fs::read(&abi).unwrap().is_empty());
     resolved_application_contracts(&compiler, &dir, &manifest, &objects);
     foreign_roundtrip(&compiler, &dir, &provider, &manifest, &objects, &runtime);

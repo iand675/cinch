@@ -22,11 +22,7 @@ pub mod source_frontend;
 
 /// Read the ABI recorded by the selected test frontend.
 pub fn object_metadata(path: &Path) -> String {
-    let package = path.with_extension("cpk");
-    if package.is_file() {
-        return inspect_package(&package, None);
-    }
-    std::fs::read_to_string(path.with_extension("abi.json")).expect("native fixture ABI")
+    inspect_package(&path.with_extension("cpk"), None)
 }
 
 /// Some native compiler fixtures mutate individual contracts or metadata rows.
