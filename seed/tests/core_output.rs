@@ -687,6 +687,10 @@ fn dump_core_lowered_matches_the_manifest_digest() {
         .expect("build/Main.checked.core");
     assert!(checked.contains("@stage(checked)"), "{checked}");
     assert!(!checked.contains("target "), "the checked dump prints no target line");
+    let checked_manifest: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(dir.join("build/Main.manifest.json")).expect("checked manifest"),
+    ).expect("read checked manifest");
+    assert_eq!(checked_manifest["simplifier"]["iterations"], 0);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
