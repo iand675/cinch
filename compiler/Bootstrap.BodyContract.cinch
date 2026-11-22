@@ -10,7 +10,7 @@ module Bootstrap.BodyContract where
   import Bootstrap.Total
   import Bootstrap.Proof
   import Bootstrap.Load (InterfaceSet, interface-set-body, interface-set-instance, interface-set-signature)
-  import Bootstrap.Nominal (decode-identity, interface-global, kernel-type-name, resolved-text, global-data-ordering-ordering, global-relation-ord-ord)
+  import Bootstrap.Nominal (raw-interface-global, interface-global, kernel-type-name, resolved-text, global-data-ordering-ordering, global-relation-ord-ord)
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-to-int)
@@ -110,13 +110,11 @@ module Bootstrap.BodyContract where
       && binding-matches (binding-name binding) "external" (mono (UFun key (UFun key (UCon "Bool" KType)))) binding
     other -> False
   check-imported-method-binding :: InterfaceSet -> String -> Nat -> Scheme -> Option BodyBinding
-  check-imported-method-binding interfaces dictionary slot sc = case unpack dictionary of
-    Cons prefix (Cons dot rest) | char-code prefix == 105 && char-code dot == 46 ->
-      (case decode-identity rest of
-        Some (identity, Nil) | same (interface-global identity) dictionary ->
-          (case prepare-imported-method-binding interfaces identity of Some bind -> bind slot sc; None -> None)
-        other -> None)
-    other -> None
+  check-imported-method-binding interfaces dictionary slot sc = case raw-interface-global dictionary of
+    Some identity -> (case prepare-imported-method-binding interfaces identity of
+      Some bind -> bind slot sc
+      None -> None)
+    None -> None
   prepare-imported-method-binding :: InterfaceSet -> String -> Option (Nat -> Scheme -> Option BodyBinding)
   prepare-imported-method-binding interfaces identity = case interface-set-instance identity interfaces of
     Some row -> (case (resolved-text row, method-field "ctx" row) of

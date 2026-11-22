@@ -20,6 +20,7 @@ module Bootstrap.Load where
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.String (string-from-bytes)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span, bytes-slice)
   import Algebra.Semigroup
@@ -1296,14 +1297,14 @@ module Bootstrap.Load where
     let exports = field "exports" (loaded-contract member) in
     case (field "types" exports, field "signatures" exports, field "instances" exports,
           interface-nominals member, interface-body-declarations member) of
-      (JArrEnd, JArrEnd, JArrEnd, Nil, Nil) -> undotted-name (unpack name)
+      (JArrEnd, JArrEnd, JArrEnd, Nil, Nil) -> undotted-name name
         && (case verify-refs (loaded-imports member) (MkInterfaceIndex Nil indexed hash-map-empty) of Ok unit -> True; Err message -> False)
         && plain-object-values (field "values" exports)
       other -> False
-  undotted-name :: List Char -> Bool
-  undotted-name chars = case chars of
-    Nil -> True
-    Cons first rest -> char-code first /= 46 && undotted-name rest
+  undotted-name :: String -> Bool
+  undotted-name name =
+    let bytes = string-to-bytes name in
+    case final-dot bytes (bytes-len bytes) of None -> True; Some at -> False
   plain-object-values :: Json -> Bool
   plain-object-values rows = case rows of
     JArr row rest -> not (has-field "keyed_ordering" row) && plain-object-values rest
@@ -1452,13 +1453,21 @@ module Bootstrap.Load where
       let reachable = closure-insert home (include-dependencies refs closures ix largest) in
       index-closures rest ix (hash-map-insert home reachable closures)
 
-  nominal-owner-reversed :: List Char -> Bool -> String
-  nominal-owner-reversed chars has-name = case chars of
-    Nil -> ""
-    Cons c rest -> if char-code c == 46 then (if has-name then pack (reverse rest) else "")
-      else nominal-owner-reversed rest True
+  -- The ASCII separator is always a UTF-8 scalar boundary.
+  final-dot :: Bytes -> Nat -> Option Nat
+  final-dot bytes end = if end > 0 && end <= bytes-len bytes then
+    let at = end - 1 in
+    if bytes-get bytes at == 46 then Some at else final-dot bytes at
+    else None
+
   nominal-owner :: String -> String
-  nominal-owner identity = nominal-owner-reversed (reverse (unpack identity)) False
+  nominal-owner identity =
+    let bytes = string-to-bytes identity in
+    let size = bytes-len bytes in
+    case final-dot bytes size of
+      Some at | at + 1 < size ->
+        (case string-from-bytes (bytes-slice bytes 0 at) of Some owner -> owner; None -> "")
+      other -> ""
   method-contracts :: Json -> Json
   method-contracts rows = case rows of
     JArr row rest -> JArr (JObj "name" (field "name" row)
@@ -1484,9 +1493,9 @@ module Bootstrap.Load where
   law-global reachable ix name = if law-kernel-name name || member name ["True", "False"]
     || law-global-present name reachable ix then Some name else None
   law-kernel-name :: String -> Bool
-  law-kernel-name name = case unpack name of
-    Cons prefix (Cons dot rest) -> char-code prefix == 98 && char-code dot == 46
-    other -> False
+  law-kernel-name name =
+    let bytes = string-to-bytes name in
+    1 < bytes-len bytes && bytes-get bytes 0 == 98 && bytes-get bytes 1 == 46
 
   class-law-references-owned :: Json -> ModuleClosure -> InterfaceIndex -> Bool
   class-law-references-owned rows reachable ix = case rows of
@@ -1552,19 +1561,20 @@ module Bootstrap.Load where
             || same-contract (field "parameters" row) (field "parameters" definition))
   -- Keep the parsed defining contract by identity so repeated mentions
   -- can be compared without allocating an encoded copy of each row.
-  verify-nominal-rows :: String -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String Json -> Result String (HashMap String Json)
+  verify-nominal-rows :: String -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String (String, Json) -> Result String (HashMap String (String, Json))
   verify-nominal-rows home rows reachable ix seen = case rows of
     Nil -> Ok seen
     Cons row rest ->
       let identity = text (field "identity" row) in
-      let owner-name = nominal-owner identity in
+      let previous = hash-map-lookup identity seen in
+      let owner-name = (case previous of Some (owner, prior) -> owner; None -> nominal-owner identity) in
       if not (name-in owner-name reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
       else if not (signature-owner-valid home owner-name row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
-      else case hash-map-lookup identity seen of
-        None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity row seen)
-        Some prior -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
+      else case previous of
+        None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity (owner-name, row) seen)
+        Some (owner, prior) -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
-  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String Json -> Result String Unit
+  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String (String, Json) -> Result String Unit
   verify-nominal-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest -> let home = loaded-module i in
