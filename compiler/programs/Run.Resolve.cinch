@@ -322,6 +322,23 @@ module Main where
     (Cons x rest, Cons y more) -> string-compare x y == 0 && same-references rest more
     other -> False
 
+  resolved-homes :: List Decl -> List String
+  resolved-homes ds = case ds of
+    Nil -> Nil
+    Cons (DSource sp name metadata) rest -> Cons name (resolved-homes rest)
+    Cons other rest -> resolved-homes rest
+
+  source-order-ok :: Bool
+  source-order-ok =
+    let source = "module Main where\n  import Leaf as L\n  import Leaf as R\n  main :: Int\n  main = L.value + R.value\nmodule Leaf where\n  value :: Int\n  value = 21\nmodule Free where\n  unused :: Int\n  unused = 0\n" in
+    case parse-program "source-order" (string-to-bytes source) of
+      Parsed program Nil -> (case resolve-program program of
+        (resolved, Nil) -> (case program-modules resolved of
+          [m] -> same-references (resolved-homes (module-decls m)) ["Leaf", "Main", "Free"]
+          other -> False)
+        other -> False)
+      other -> False
+
   reference-order-ok :: Bool
   reference-order-ok =
     let sp = Span 0 0 1 1 in
@@ -348,7 +365,7 @@ module Main where
                 -- The report is a runtime input, so this walk cannot be
                 -- replaced with a compile-time constant by the seed.
                 case fs-read (path-from-string "resolve-report.txt") of
-                  Ok bytes -> if large-references-ok (6000 + bytes-len bytes) then 0 else 206
+                  Ok bytes -> if large-references-ok (6000 + bytes-len bytes) then (if source-order-ok then 0 else 208) else 206
                   Err error -> 255
               else 207 else 205 else 204 else 203 else 202
             else 201

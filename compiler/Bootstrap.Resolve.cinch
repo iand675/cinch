@@ -15,6 +15,7 @@ module Bootstrap.Resolve where
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
   import Bootstrap.Document
+  import Data.Array (array-from-list, array-get)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
@@ -103,11 +104,6 @@ module Bootstrap.Resolve where
   lookup-scoped name done = case done of
     Nil -> None
     Cons s rest -> if same name (scoped-name s) then Some s else lookup-scoped name rest
-
-  has-module :: String -> List Module -> Bool
-  has-module name modules = case modules of
-    Nil -> False
-    Cons m rest -> same name (module-name m) || has-module name rest
 
   -- The identity spelling (Bootstrap.Nominal.encode-identity): plain
   -- identifier characters are themselves and everything else, including the
@@ -215,41 +211,89 @@ module Bootstrap.Resolve where
     Nil -> acc
     Cons (name, ty) rest -> own-ctors home rest (add-own home name acc)
 
-  validate-modules :: List Module -> List Scoped -> List Module -> List String -> List Diagnostic
-  validate-modules all interfaces remaining seen = case remaining of
+  validate-modules :: HashMap String Bool -> HashMap String Bool -> List Module -> HashMap String Bool -> List Diagnostic
+  validate-modules sources interfaces remaining seen = case remaining of
     Nil -> Nil
-    Cons m rest ->
-      (if has-name (module-name m) seen then fail (module-span m) (cat ["duplicate module: ", module-name m]) else Nil)
-      <> (case lookup-scoped (module-name m) interfaces of None -> Nil; Some i -> fail (module-span m) "source module conflicts with a loaded interface")
-      <> validate-imports all interfaces (module-decls m)
-      <> validate-modules all interfaces rest (Cons (module-name m) seen)
+    Cons m rest -> let home = module-name m in
+      (if referenced home seen then fail (module-span m) (cat ["duplicate module: ", home]) else Nil)
+      <> (if referenced home interfaces then fail (module-span m) "source module conflicts with a loaded interface" else Nil)
+      <> validate-imports sources interfaces (module-decls m)
+      <> validate-modules sources interfaces rest (hash-map-insert home True seen)
 
-  validate-imports :: List Module -> List Scoped -> List Decl -> List Diagnostic
-  validate-imports all interfaces ds = case ds of
+  validate-imports :: HashMap String Bool -> HashMap String Bool -> List Decl -> List Diagnostic
+  validate-imports sources interfaces ds = case ds of
     Nil -> Nil
     Cons d rest -> (case d of
       DImport s path mods alias members hidden args ->
-        (if has-module path all then Nil else case lookup-scoped path interfaces of
-          Some i -> Nil
-          None -> fail s (cat ["missing source module or checked interface: ", path]))
+        (if referenced path sources || referenced path interfaces then Nil
+         else fail s (cat ["missing source module or checked interface: ", path]))
         <> (case mods of Nil -> Nil; [mode] | same mode "stage" -> Nil; other -> fail s "modified imports require stage/module-argument elaboration")
         <> (case args of Nil -> Nil; Cons arg more -> fail s "applied imports require module-argument elaboration")
-      other -> Nil) <> validate-imports all interfaces rest
+      other -> Nil) <> validate-imports sources interfaces rest
 
-  imports-ready :: List Decl -> List Scoped -> Bool
-  imports-ready ds done = case ds of
-    Nil -> True
-    Cons d rest -> case d of
-      DImport s path mods alias members hidden args -> case lookup-scoped path done of
-        None -> False
-        Some ready -> imports-ready rest done
-      other -> imports-ready rest done
+  -- Keep the earliest ready module in source order, including when a newly
+  -- ready importer precedes a module already in the queue. The leftist heap
+  -- bounds insertion and removal by the height of its short right spine.
+  data ReadyModules where
+    ReadyEnd :: ReadyModules
+    ReadyNode :: Nat -> Nat -> Module -> ReadyModules -> ReadyModules -> ReadyModules
+  ready-rank :: ReadyModules -> Nat
+  ready-rank queue = case queue of ReadyEnd -> 0; ReadyNode rank ordinal m left right -> rank
+  ready-branch :: Nat -> Module -> ReadyModules -> ReadyModules -> ReadyModules
+  ready-branch ordinal m left right =
+    let a = ready-rank left in let b = ready-rank right in
+    if a < b then ReadyNode (a + 1) ordinal m right left else ReadyNode (b + 1) ordinal m left right
+  merge-ready :: ReadyModules -> ReadyModules -> ReadyModules
+  merge-ready a b = case (a, b) of
+    (ReadyEnd, other) -> other
+    (other, ReadyEnd) -> other
+    (ReadyNode ra ia ma la pa, ReadyNode rb ib mb lb pb) ->
+      if ia < ib then ready-branch ia ma la (merge-ready pa b)
+      else ready-branch ib mb lb (merge-ready a pb)
+  push-ready :: Nat -> Module -> ReadyModules -> ReadyModules
+  push-ready ordinal m queue = merge-ready (ReadyNode 1 ordinal m ReadyEnd ReadyEnd) queue
 
-  pick-ready :: List Module -> List Scoped -> List Module -> Option (Module, List Module)
-  pick-ready remaining done before = case remaining of
-    Nil -> None
-    Cons m rest -> if imports-ready (module-decls m) done then Some (m, reverse before <> rest)
-      else pick-ready rest done (Cons m before)
+  module-order :: List Module -> HashMap String Bool -> (List Module, List Module)
+  module-order modules available = index-module-imports (array-from-list modules) available modules 0 hash-map-empty hash-map-empty ReadyEnd
+  index-module-imports :: Array Module -> HashMap String Bool -> List Module -> Nat -> HashMap Nat Nat -> HashMap String (List Nat) -> ReadyModules -> (List Module, List Module)
+  index-module-imports modules available remaining ordinal waiting edges queue = case remaining of
+    Nil -> order-ready-modules modules waiting edges queue Nil
+    Cons m rest -> case index-import-edges available ordinal (module-decls m) 0 edges of
+      (0, dependents) -> index-module-imports modules available rest (ordinal + 1) waiting dependents (push-ready ordinal m queue)
+      (count, dependents) -> index-module-imports modules available rest (ordinal + 1)
+        (hash-map-insert ordinal count waiting) dependents queue
+  index-import-edges :: HashMap String Bool -> Nat -> List Decl -> Nat -> HashMap String (List Nat) -> (Nat, HashMap String (List Nat))
+  index-import-edges available ordinal declarations count edges = case declarations of
+    Nil -> (count, edges)
+    Cons (DImport site home mods alias members hidden args) rest | not (referenced home available) ->
+      let dependents = (case hash-map-lookup home edges of Some rows -> rows; None -> Nil) in
+      index-import-edges available ordinal rest (count + 1) (hash-map-insert home (Cons ordinal dependents) edges)
+    Cons other rest -> index-import-edges available ordinal rest count edges
+  order-ready-modules :: Array Module -> HashMap Nat Nat -> HashMap String (List Nat) -> ReadyModules -> List Module -> (List Module, List Module)
+  order-ready-modules modules waiting edges queue ordered = case queue of
+    ReadyEnd -> (reverse ordered, waiting-modules modules waiting 0)
+    ReadyNode rank ordinal m left right ->
+      let home = module-name m in
+      let rest = merge-ready left right in
+      (case hash-map-lookup home edges of
+        None -> order-ready-modules modules waiting edges rest (Cons m ordered)
+        Some dependents -> (case release-importers modules dependents waiting rest of
+          (still-waiting, ready) -> order-ready-modules modules still-waiting (hash-map-insert home Nil edges) ready (Cons m ordered)))
+  release-importers :: Array Module -> List Nat -> HashMap Nat Nat -> ReadyModules -> (HashMap Nat Nat, ReadyModules)
+  release-importers modules dependents waiting queue = case dependents of
+    Nil -> (waiting, queue)
+    Cons ordinal rest -> case hash-map-lookup ordinal waiting of
+      Some 1 -> (case array-get modules ordinal of
+        Some m -> release-importers modules rest (hash-map-insert ordinal 0 waiting) (push-ready ordinal m queue)
+        None -> release-importers modules rest waiting queue)
+      Some count | count > 1 -> release-importers modules rest (hash-map-insert ordinal (count - 1) waiting) queue
+      other -> release-importers modules rest waiting queue
+  waiting-modules :: Array Module -> HashMap Nat Nat -> Nat -> List Module
+  waiting-modules modules waiting ordinal = case array-get modules ordinal of
+    None -> Nil
+    Some m -> case hash-map-lookup ordinal waiting of
+      Some count | count > 0 -> Cons m (waiting-modules modules waiting (ordinal + 1))
+      other -> waiting-modules modules waiting (ordinal + 1)
 
   select-members :: Span -> String -> List (String, Option String) -> List Binding -> (List Binding, List Diagnostic)
   select-members sp path members surface = case members of
@@ -462,8 +506,10 @@ module Bootstrap.Resolve where
   data MacroNamespaces where
     MkMacroNamespaces :: List (String, List Binding) -> MacroNamespaces
   macro-namespaces :: List Module -> List Module -> MacroNamespaces
-  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules)
-    (external-macro-headers (reference-index (map module-name modules)) headers) Nil)
+  macro-namespaces modules headers =
+    let imported = external-macro-headers (reference-index (map module-name modules)) headers in
+    case module-order (map macro-header modules) (reference-index (map scoped-name imported)) of
+      (ordered, blocked) -> MkMacroNamespaces (macro-scope-order ordered imported Nil)
   external-macro-headers :: HashMap String Bool -> List Module -> List Scoped
   external-macro-headers sources headers = case headers of
     Nil -> Nil
@@ -486,12 +532,12 @@ module Bootstrap.Resolve where
     DMacro s (DSig at name ty) -> DMacroBinding s name
     other -> declaration
   macro-scope-order :: List Module -> List Scoped -> List (String, List Binding) -> List (String, List Binding)
-  macro-scope-order remaining done scopes = case pick-ready remaining done Nil of
-    None -> scopes
-    Some (m, pending) -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
+  macro-scope-order ordered done scopes = case ordered of
+    Nil -> scopes
+    Cons m rest -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
       let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
       let home = module-name m in
-      macro-scope-order pending (Cons (MkScoped home surface Nil) done) (Cons (home, visible) scopes)
+      macro-scope-order rest (Cons (MkScoped home surface Nil) done) (Cons (home, visible) scopes)
   lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
   lookup-macro names owner spelling = case macro-site-binding names owner spelling of
     Some binding | macro-binding binding -> Some (binding-owner binding, string-drop 7 (binding-symbol binding))
@@ -507,43 +553,45 @@ module Bootstrap.Resolve where
     Nil -> None
     Cons (home, bindings) rest -> if same home owner then lookup-binding spelling bindings else module-macro rest owner spelling
 
-  resolve-ordered :: List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, List Diagnostic)
-  resolve-ordered remaining done base homes checked = case remaining of
-    Nil -> (reverse done, Nil)
-    Cons first rest -> case pick-ready remaining done Nil of
-      None -> (reverse done, import-cycle first remaining)
-      Some (m, pending) -> case build-scope m done base homes checked of
-        (ready, more-homes, errors) -> case resolve-ordered pending (Cons ready done) base more-homes checked of
-          (ordered, more) -> (ordered, errors <> more)
+  resolve-ordered :: List Module -> List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, List Diagnostic)
+  resolve-ordered modules blocked done base homes checked = case modules of
+    Nil -> (reverse done, case blocked of Nil -> Nil; Cons first rest -> import-cycle first blocked)
+    Cons m pending -> case build-scope m done base homes checked of
+      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) base more-homes checked of
+        (ordered, more) -> (ordered, errors <> more)
 
   -- Every remaining module has an unresolved edge into the remaining
   -- graph. Follow one edge per module until it repeats. Drop the prefix
   -- before the repeated module, which may just be an importer of the cycle.
   import-cycle :: Module -> List Module -> List Diagnostic
-  import-cycle first remaining = case cycle-from (module-name first) remaining Nil of
-    Some (entry, chain) -> fail (source-span entry remaining) (cat ["module import cycle: ", render-cycle chain])
+  import-cycle first remaining = case cycle-from (module-name first) (index-modules (reverse remaining) hash-map-empty) hash-map-empty Nil of
+    Some (site, chain) -> fail site (cat ["module import cycle: ", render-cycle chain])
     None -> fail (module-span first) (cat ["unresolved module imports involving ", module-name first])
-  cycle-from :: String -> List Module -> List String -> Option (String, List String)
-  cycle-from name remaining visited =
-    if has-name name visited then Some (name, reverse (cycle-prefix name visited) <> [name])
-    else case first-pending-import (module-declarations name remaining) remaining of
-      Some next -> cycle-from next remaining (Cons name visited)
-      None -> None
-  first-pending-import :: List Decl -> List Module -> Option String
+  cycle-from :: String -> HashMap String Module -> HashMap String Bool -> List String -> Option (Span, List String)
+  cycle-from name remaining seen visited = case hash-map-lookup name remaining of
+    None -> None
+    Some m -> if referenced name seen then Some (module-span m, reverse (cycle-prefix name visited) <> [name])
+      else (case first-pending-import (module-decls m) remaining of
+        Some next -> cycle-from next remaining (hash-map-insert name True seen) (Cons name visited)
+        None -> None)
+  first-pending-import :: List Decl -> HashMap String Module -> Option String
   first-pending-import declarations remaining = case declarations of
     Nil -> None
-    Cons (DImport sp name mods alias members hidden args) rest ->
-      if has-module name remaining then Some name else first-pending-import rest remaining
+    Cons (DImport sp name mods alias members hidden args) rest -> case hash-map-lookup name remaining of
+      Some pending -> Some name
+      None -> first-pending-import rest remaining
     Cons other rest -> first-pending-import rest remaining
   cycle-prefix :: String -> List String -> List String
   cycle-prefix name visited = case visited of
     Nil -> Nil
     Cons current rest -> if same name current then [current] else Cons current (cycle-prefix name rest)
   render-cycle :: List String -> String
-  render-cycle chain = case chain of
-    Nil -> ""
-    Cons first Nil -> first
-    Cons first rest -> cat [first, " -> ", render-cycle rest]
+  render-cycle chain = cat (cycle-pieces chain)
+  cycle-pieces :: List String -> List String
+  cycle-pieces chain = case chain of
+    Nil -> Nil
+    [last] -> [last]
+    Cons first rest -> Cons first (Cons " -> " (cycle-pieces rest))
 
   scoped-decls :: List Scoped -> List Decl
   scoped-decls modules = case modules of
@@ -1503,31 +1551,38 @@ module Bootstrap.Resolve where
 
   resolve-context :: Program -> List Scoped -> List Module -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-context p interfaces headers base checked = case p of
-    MkProgram sp modules -> case validate-modules modules interfaces modules Nil of
-      Nil -> case resolve-ordered modules (reverse interfaces) base Nil checked of
-        (done, Nil) ->
-          let declarations = builtin-declarations <> scoped-decls done in
-          let source-surfaces = source-scopes (reference-index (map module-name modules)) done in
-          let imported-records = imported-record-symbols declarations in
-          let records = source-record-symbols modules <> imported-records in
-          let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
-          let contexts = source-contexts modules (modules <> headers) done source-surfaces prelude-available records base in
-          let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
-          let reference-set = reference-index references in
-          let record-references = (case imported-records of
-            Nil -> Nil
-            other -> imported-record-references reference-set imported-records declarations) in
-          let all-references = references <> overload-references reference-set declarations <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
-          let all-reference-set = reference-index all-references in
-          -- The parallel interface is a kernel declaration: a program that
-          -- names `Parallelism` or one of its methods keeps it, exactly as
-          -- a source mention of a prelude family would.
-          let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
-          let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
-          case materialize-externals all-reference-set families Nil of
-            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
-        (done, errors) -> (p, errors)
-      errors -> (p, errors)
+    MkProgram sp modules ->
+      let sources = reference-index (map module-name modules) in
+      let imported = reference-index (map scoped-name interfaces) in
+      case validate-modules sources imported modules hash-map-empty of
+        Nil -> case module-order modules imported of
+          (ordered, blocked) -> finish-resolution p sp modules sources (resolve-ordered ordered blocked (reverse interfaces) base Nil checked) headers base
+        errors -> (p, errors)
+
+  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> (List Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
+  finish-resolution p sp modules sources resolution headers base = case resolution of
+    (done, Nil) ->
+      let declarations = builtin-declarations <> scoped-decls done in
+      let source-surfaces = source-scopes sources done in
+      let imported-records = imported-record-symbols declarations in
+      let records = source-record-symbols modules <> imported-records in
+      let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
+      let contexts = source-contexts modules (modules <> headers) done source-surfaces prelude-available records base in
+      let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
+      let reference-set = reference-index references in
+      let record-references = (case imported-records of
+        Nil -> Nil
+        other -> imported-record-references reference-set imported-records declarations) in
+      let all-references = references <> overload-references reference-set declarations <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
+      let all-reference-set = reference-index all-references in
+      -- The parallel interface is a kernel declaration: a program that
+      -- names `Parallelism` or one of its methods keeps it, exactly as
+      -- a source mention of a prelude family would.
+      let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
+      let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
+      case materialize-externals all-reference-set families Nil of
+        (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
+    (done, errors) -> (p, errors)
 
   -- A program that names the signature, one of its methods, or the host
   -- instance keeps the kernel declarations. The instance is named so a
@@ -1641,22 +1696,32 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons m rest -> if same name (module-name m) then module-decls m else module-declarations name rest
   declared-imports :: List Decl -> List String -> List String
-  declared-imports declarations seen = case declarations of
-    Nil -> reverse seen
-    Cons (DImport sp name mods alias members hidden arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
-    Cons other rest -> declared-imports rest seen
+  declared-imports declarations prior = known-imports declarations (reference-index prior) prior
+  known-imports :: List Decl -> HashMap String Bool -> List String -> List String
+  known-imports declarations seen names = case declarations of
+    Nil -> reverse names
+    Cons (DImport sp name mods alias members hidden arguments) rest | not (referenced name seen) ->
+      known-imports rest (hash-map-insert name True seen) (Cons name names)
+    Cons other rest -> known-imports rest seen names
+
+  -- Index in reverse order so the first source spelling retains authority
+  -- even while staging is inspecting source with a duplicate declaration.
+  index-modules :: List Module -> HashMap String Module -> HashMap String Module
+  index-modules modules indexed = case modules of
+    Nil -> indexed
+    Cons m rest -> index-modules rest (hash-map-insert (module-name m) m indexed)
   -- A compile-time evaluator sees its producer, the source Prelude when present,
   -- and their transitive imports. Runtime clients may import names that the
   -- producer has yet to generate. The expanded program checks those imports.
   source-import-closure :: String -> List Module -> List String
-  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] modules Nil
+  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] (index-modules (reverse modules) hash-map-empty) hash-map-empty Nil
 
-  walk-source-imports :: List String -> List Module -> List String -> List String
-  walk-source-imports pending modules seen = case pending of
-    Nil -> seen
-    Cons name rest -> if has-name name seen then walk-source-imports rest modules seen else
-      let imports = declared-imports (module-declarations name modules) Nil in
-      walk-source-imports (imports <> rest) modules (Cons name seen)
+  walk-source-imports :: List String -> HashMap String Module -> HashMap String Bool -> List String -> List String
+  walk-source-imports pending modules seen visited = case pending of
+    Nil -> visited
+    Cons name rest -> if referenced name seen then walk-source-imports rest modules seen visited else
+      let declarations = (case hash-map-lookup name modules of Some m -> module-decls m; None -> Nil) in
+      walk-source-imports (declared-imports declarations Nil <> rest) modules (hash-map-insert name True seen) (Cons name visited)
 
   module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
   module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
