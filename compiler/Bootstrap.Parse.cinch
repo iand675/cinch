@@ -52,7 +52,7 @@ module Bootstrap.Parse where
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export parse-program, parse-program-with, parse-scheme, exported-fixities
+  export parse-program, parse-program-with, parse-scheme, exported-fixities, indexed-exported-fixities
   export macro-argument-groups, parse-tree-value-fields, parse-tree-record-fields, parse-tree-term, module-scope-fixes, indexed-module-scope-fixes
   export Ps, POk, PBad, Fix, MkFix, parse-expr
 
@@ -479,6 +479,10 @@ module Bootstrap.Parse where
   exported-fixities name modules names = case exported-operators names of
     Nil -> Nil
     wanted -> exported-fixity-facts wanted (walk-fixes (module-fixes name (module-name-index modules) Nil hash-map-empty))
+  indexed-exported-fixities :: String -> HashMap String Module -> List String -> List (String, String, Nat)
+  indexed-exported-fixities name modules names = case exported-operators names of
+    Nil -> Nil
+    wanted -> exported-fixity-facts wanted (walk-fixes (module-fixes name modules Nil hash-map-empty))
   exported-operators :: List String -> List String
   exported-operators names = case names of
     Nil -> Nil

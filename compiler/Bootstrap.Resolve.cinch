@@ -11,7 +11,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (embedded-library-home)
   import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
-  import Bootstrap.Parse (exported-fixities)
+  import Bootstrap.Parse (indexed-exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
   import Bootstrap.Document
@@ -100,10 +100,10 @@ module Bootstrap.Resolve where
   scoped-name s = case s of
     MkScoped name surface body -> name
 
-  lookup-scoped :: String -> List Scoped -> Option Scoped
-  lookup-scoped name done = case done of
-    Nil -> None
-    Cons s rest -> if same name (scoped-name s) then Some s else lookup-scoped name rest
+  scope-index :: List Scoped -> HashMap String Scoped -> HashMap String Scoped
+  scope-index scopes indexed = case scopes of
+    Nil -> indexed
+    Cons scope rest -> scope-index rest (hash-map-insert (scoped-name scope) scope indexed)
 
   -- The identity spelling (Bootstrap.Nominal.encode-identity): plain
   -- identifier characters are themselves and everything else, including the
@@ -295,28 +295,28 @@ module Bootstrap.Resolve where
       Some count | count > 0 -> Cons m (waiting-modules modules waiting (ordinal + 1))
       other -> waiting-modules modules waiting (ordinal + 1)
 
-  select-members :: Span -> String -> List (String, Option String) -> List Binding -> (List Binding, List Diagnostic)
+  select-members :: Span -> String -> List (String, Option String) -> HashMap String Binding -> (List Binding, List Diagnostic)
   select-members sp path members surface = case members of
     Nil -> (Nil, Nil)
     Cons (name, alias) rest -> case select-members sp path rest surface of
-      (others, errors) -> case lookup-binding name surface of
+      (others, errors) -> case hash-map-lookup name surface of
         None -> (others, fail sp (cat ["`", path, "` has no member `", name, "` to import (as `", (case alias of None -> name; Some renamed -> renamed), "`)"]) <> errors)
         Some (MkBinding visible owner symbol) ->
           (Cons (MkBinding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
 
   -- A hidden name must be a member of the source's surface: a misspelled one
   -- would otherwise hide nothing, silently.
-  hidden-errors :: Span -> String -> List String -> List Binding -> List Diagnostic
+  hidden-errors :: Span -> String -> List String -> HashMap String Binding -> List Diagnostic
   hidden-errors sp path hidden surface = case hidden of
     Nil -> Nil
-    Cons name rest -> (case lookup-binding name surface of
+    Cons name rest -> (case hash-map-lookup name surface of
       None -> fail sp (cat ["`", path, "` has no member `", name, "` to hide"])
       Some b -> Nil) <> hidden-errors sp path rest surface
 
-  without-hidden :: List String -> List Binding -> List Binding
+  without-hidden :: HashMap String Bool -> List Binding -> List Binding
   without-hidden hidden surface = case surface of
     Nil -> Nil
-    Cons b rest -> if has-name (binding-name b) hidden then without-hidden hidden rest
+    Cons b rest -> if referenced (binding-name b) hidden then without-hidden hidden rest
       else Cons b (without-hidden hidden rest)
 
   -- The surface one import contributes. A hidden member is out of the
@@ -327,22 +327,22 @@ module Bootstrap.Resolve where
   import-surface :: Span -> String -> List (String, Option String) -> List String -> List Binding -> (List Binding, List Diagnostic)
   import-surface sp path members hidden surface = case (members, hidden) of
     (Nil, Nil) -> (surface, Nil)
-    (Cons first more, Nil) -> select-members sp path members surface
-    (Nil, Cons first more) -> (without-hidden hidden surface, hidden-errors sp path hidden surface)
+    (Cons first more, Nil) -> select-members sp path members (binding-index surface)
+    (Nil, Cons first more) -> (without-hidden (reference-index hidden) surface, hidden-errors sp path hidden (binding-index surface))
     -- The pairing is refused. The view still carries the hidden surface, the
     -- same best-effort a failed selection returns, so the refusal is one
     -- message about the import rather than that message plus an unknown-name
     -- cascade from every name the line was meant to bring in.
     (Cons first more, Cons name rest) ->
-      (without-hidden hidden surface,
+      (without-hidden (reference-index hidden) surface,
         fail sp "an import either selects members or hides them: `import X (a, b)` names what comes in, `import X hiding (a, b)` what stays out")
 
-  import-views :: List Decl -> List Scoped -> (List View, List Diagnostic)
+  import-views :: List Decl -> HashMap String Scoped -> (List View, List Diagnostic)
   import-views ds done = case ds of
     Nil -> (Nil, Nil)
     Cons d rest -> case import-views rest done of
       (views, errors) -> case d of
-        DImport s path mods alias members hidden args -> case lookup-scoped path done of
+        DImport s path mods alias members hidden args -> case hash-map-lookup path done of
           None -> (views, fail s (cat ["module was not resolved before its importer: ", path]) <> errors)
           Some (MkScoped home surface body) -> case import-surface s path members hidden surface of
             (selected, failures) ->
@@ -352,25 +352,25 @@ module Bootstrap.Resolve where
 
   -- Explicit imports have an eager duplicate-name rule even when an declared
   -- declaration shadows the name. Qualified-only aliases add no bare names.
-  bare-imports :: List View -> List Binding -> (List Binding, List Diagnostic)
-  bare-imports views acc = case views of
+  bare-imports :: List View -> List Binding -> HashMap String Binding -> (List Binding, List Diagnostic)
+  bare-imports views acc indexed = case views of
     Nil -> (reverse acc, Nil)
-    Cons (MkView s path qualifier only selected) rest -> if only then bare-imports rest acc
-      else case merge-imports s selected acc of
-        (entries, errors) -> case bare-imports rest entries of
+    Cons (MkView s path qualifier only selected) rest -> if only then bare-imports rest acc indexed
+      else case merge-imports s selected acc indexed of
+        (entries, names, errors) -> case bare-imports rest entries names of
           (all, more) -> (all, errors <> more)
 
-  merge-imports :: Span -> List Binding -> List Binding -> (List Binding, List Diagnostic)
-  merge-imports sp incoming acc = case incoming of
-    Nil -> (acc, Nil)
+  merge-imports :: Span -> List Binding -> List Binding -> HashMap String Binding -> (List Binding, HashMap String Binding, List Diagnostic)
+  merge-imports sp incoming acc indexed = case incoming of
+    Nil -> (acc, indexed, Nil)
     Cons b rest -> case b of
-      MkBinding name home symbol -> case lookup-binding name acc of
-        None -> merge-imports sp rest (Cons b acc)
-        Some prior | same-declaration prior b -> merge-imports sp rest acc
-        Some (MkBinding old previous symbol-before) -> case merge-imports sp rest acc of
+      MkBinding name home symbol -> case hash-map-lookup name indexed of
+        None -> merge-imports sp rest (Cons b acc) (hash-map-insert name b indexed)
+        Some prior | same-declaration prior b -> merge-imports sp rest acc indexed
+        Some (MkBinding old previous symbol-before) -> case merge-imports sp rest acc indexed of
           -- Both ways out are named, as the seed's refusal does: a selection
           -- renames one side, and a hiding list leaves one out.
-          (entries, errors) -> (entries, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
+          (entries, names, errors) -> (entries, names, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
             , ": rename one (a selection like `import ", home, " (", name, " as ...)`) or leave one out (`import ", home, " hiding (", name, ")`)"]) <> errors)
 
   qualified-imports :: List View -> List Binding
@@ -471,18 +471,18 @@ module Bootstrap.Resolve where
     Some (MkBinding label source symbol) | same source home && string-starts-with "i." symbol -> symbol
     other -> global-name home name
 
-  module-visibility :: Module -> List Scoped -> List Binding -> List LoadedInterface -> (List Binding, List Binding, List View, List Diagnostic)
+  module-visibility :: Module -> HashMap String Scoped -> List Binding -> List LoadedInterface -> (List Binding, List Binding, List View, List Diagnostic)
   module-visibility m done base checked =
     let home = module-name m in
     let declared = own-bindings home (module-decls m) (shared-signatures home (module-decls m) checked) in
     let (views, errors) = import-views (module-decls m) done in
-    let (bare, clashes) = bare-imports views Nil in
+    let (bare, clashes) = bare-imports views Nil hash-map-empty in
     let qualified = qualified-imports views in
-    let prelude-bindings = case lookup-scoped "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
+    let prelude-bindings = case hash-map-lookup "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified hash-map-empty)
 
-  build-scope :: Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
+  build-scope :: Module -> HashMap String Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
   build-scope m done base earlier checked =
     let home = module-name m in
     let (declared, visible, views, visibility-errors) = module-visibility m done base checked in
@@ -504,12 +504,12 @@ module Bootstrap.Resolve where
   -- resolver uses for values. Source and interface validation still runs on
   -- the complete program before any generated code can be accepted.
   data MacroNamespaces where
-    MkMacroNamespaces :: List (String, List Binding) -> MacroNamespaces
+    MkMacroNamespaces :: HashMap String (List Binding) -> MacroNamespaces
   macro-namespaces :: List Module -> List Module -> MacroNamespaces
   macro-namespaces modules headers =
     let imported = external-macro-headers (reference-index (map module-name modules)) headers in
     case module-order (map macro-header modules) (reference-index (map scoped-name imported)) of
-      (ordered, blocked) -> MkMacroNamespaces (macro-scope-order ordered imported Nil)
+      (ordered, blocked) -> MkMacroNamespaces (macro-scope-order ordered (scope-index (reverse imported) hash-map-empty) hash-map-empty)
   external-macro-headers :: HashMap String Bool -> List Module -> List Scoped
   external-macro-headers sources headers = case headers of
     Nil -> Nil
@@ -531,13 +531,13 @@ module Bootstrap.Resolve where
     DMacro s (DFun at name clauses) -> DMacroBinding s name
     DMacro s (DSig at name ty) -> DMacroBinding s name
     other -> declaration
-  macro-scope-order :: List Module -> List Scoped -> List (String, List Binding) -> List (String, List Binding)
+  macro-scope-order :: List Module -> HashMap String Scoped -> HashMap String (List Binding) -> HashMap String (List Binding)
   macro-scope-order ordered done scopes = case ordered of
     Nil -> scopes
     Cons m rest -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
       let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
       let home = module-name m in
-      macro-scope-order rest (Cons (MkScoped home surface Nil) done) (Cons (home, visible) scopes)
+      macro-scope-order rest (hash-map-insert home (MkScoped home surface Nil) done) (hash-map-insert home visible scopes)
   lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
   lookup-macro names owner spelling = case macro-site-binding names owner spelling of
     Some binding | macro-binding binding -> Some (binding-owner binding, string-drop 7 (binding-symbol binding))
@@ -547,18 +547,16 @@ module Bootstrap.Resolve where
     None -> True
     Some shadow -> False
   macro-site-binding :: MacroNamespaces -> String -> String -> Option Binding
-  macro-site-binding names owner spelling = case names of MkMacroNamespaces scopes -> module-macro scopes owner spelling
-  module-macro :: List (String, List Binding) -> String -> String -> Option Binding
-  module-macro scopes owner spelling = case scopes of
-    Nil -> None
-    Cons (home, bindings) rest -> if same home owner then lookup-binding spelling bindings else module-macro rest owner spelling
+  macro-site-binding (MkMacroNamespaces scopes) owner spelling = case hash-map-lookup owner scopes of
+    Some bindings -> lookup-binding spelling bindings
+    None -> None
 
-  resolve-ordered :: List Module -> List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, List Diagnostic)
-  resolve-ordered modules blocked done base homes checked = case modules of
-    Nil -> (reverse done, case blocked of Nil -> Nil; Cons first rest -> import-cycle first blocked)
-    Cons m pending -> case build-scope m done base homes checked of
-      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) base more-homes checked of
-        (ordered, more) -> (ordered, errors <> more)
+  resolve-ordered :: List Module -> List Module -> List Scoped -> HashMap String Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, HashMap String Scoped, List Diagnostic)
+  resolve-ordered modules blocked done indexed base homes checked = case modules of
+    Nil -> (reverse done, indexed, case blocked of Nil -> Nil; Cons first rest -> import-cycle first blocked)
+    Cons m pending -> case build-scope m indexed base homes checked of
+      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) (hash-map-insert (scoped-name ready) ready indexed) base more-homes checked of
+        (ordered, scopes, more) -> (ordered, scopes, errors <> more)
 
   -- Every remaining module has an unresolved edge into the remaining
   -- graph. Follow one edge per module until it repeats. Drop the prefix
@@ -1556,18 +1554,19 @@ module Bootstrap.Resolve where
       let imported = reference-index (map scoped-name interfaces) in
       case validate-modules sources imported modules hash-map-empty of
         Nil -> case module-order modules imported of
-          (ordered, blocked) -> finish-resolution p sp modules sources (resolve-ordered ordered blocked (reverse interfaces) base Nil checked) headers base
+          (ordered, blocked) -> finish-resolution p sp modules sources
+            (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked) headers base
         errors -> (p, errors)
 
-  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> (List Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
+  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
   finish-resolution p sp modules sources resolution headers base = case resolution of
-    (done, Nil) ->
+    (done, indexed, Nil) ->
       let declarations = builtin-declarations <> scoped-decls done in
       let source-surfaces = source-scopes sources done in
       let imported-records = imported-record-symbols declarations in
       let records = source-record-symbols modules <> imported-records in
-      let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
-      let contexts = source-contexts modules (modules <> headers) done source-surfaces prelude-available records base in
+      let prelude-available = (case hash-map-lookup "Prelude" indexed of Some prelude -> True; None -> False) in
+      let contexts = source-contexts (module-name-index (modules <> headers)) indexed source-surfaces prelude-available records base in
       let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
       let reference-set = reference-index references in
       let record-references = (case imported-records of
@@ -1582,7 +1581,7 @@ module Bootstrap.Resolve where
       let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
       case materialize-externals all-reference-set families Nil of
         (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
-    (done, errors) -> (p, errors)
+    (done, indexed, errors) -> (p, errors)
 
   -- A program that names the signature, one of its methods, or the host
   -- instance keeps the kernel declarations. The instance is named so a
@@ -1602,22 +1601,24 @@ module Bootstrap.Resolve where
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
-  source-contexts :: List Module -> List Module -> List Scoped -> List Scoped -> Bool -> List String -> List Binding -> List Decl
-  source-contexts modules available all-scopes scopes prelude records base = case scopes of
+  source-contexts :: HashMap String Module -> HashMap String Scoped -> List Scoped -> Bool -> List String -> List Binding -> List Decl
+  source-contexts available all-scopes scopes prelude records base = case scopes of
     Nil -> Nil
     Cons (MkScoped name surface body) rest ->
-      let at = source-span name modules in
+      let source = hash-map-lookup name available in
+      let at = (case source of Some m -> module-span m; None -> Span 0 0 1 1) in
+      let declarations = (case source of Some m -> module-decls m; None -> Nil) in
       let begin = span-start at in
       let finish = span-end at in
       Cons (DSource at name
-        (record-source-context name modules all-scopes records base
+        (record-source-context source all-scopes records base
         (JObj "module" (JStr name)
           (JObj "source_start" (JNum (nat-to-int begin))
             (JObj "source_end" (JNum (nat-to-int finish))
               (JObj "exports" (surface-json (select-phase False surface))
                 (JObj "declarations" (symbols-json body)
-                  (JObj "imports" (strings-json (module-imports name modules prelude base surface body))
-                    (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records base)
+                  (JObj "imports" (strings-json (module-imports name declarations prelude base surface body))
+                    (JObj "fixities" (fixity-json (indexed-exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts available all-scopes rest prelude records base)
 
   source-record-symbols :: List Module -> List String
   source-record-symbols modules = case modules of
@@ -1677,24 +1678,19 @@ module Bootstrap.Resolve where
   visible-record-symbol name bindings = case bindings of
     Nil -> False
     Cons binding rest -> same name (binding-symbol binding) || visible-record-symbol name rest
-  record-source-context :: String -> List Module -> List Scoped -> List String -> List Binding -> Json -> Json
-  record-source-context name modules scopes records base document = case records of
+  record-source-context :: Option Module -> HashMap String Scoped -> List String -> List Binding -> Json -> Json
+  record-source-context source scopes records base document = case records of
     Nil -> document
-    other -> JObj "record_scope" (strings-json (module-record-scope name modules scopes records base)) document
-  module-record-scope :: String -> List Module -> List Scoped -> List String -> List Binding -> List String
-  module-record-scope name modules scopes records base = case modules of
-    Nil -> Nil
-    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes base Nil of
-      (declared, visible, views, errors) -> visible-record-symbols visible records)
-      else module-record-scope name rest scopes records base
+    other -> JObj "record_scope" (strings-json (module-record-scope source scopes records base)) document
+  module-record-scope :: Option Module -> HashMap String Scoped -> List String -> List Binding -> List String
+  module-record-scope source scopes records base = case source of
+    None -> Nil
+    Some m -> case module-visibility m scopes base Nil of
+      (declared, visible, views, errors) -> visible-record-symbols visible records
 
   -- Retain consumed imports and the parser's definition-owned fixity facts
   -- before elaboration drops source declarations. Reexport metadata carries
   -- an inherited fact; it never introduces a new source fixity declaration.
-  module-declarations :: String -> List Module -> List Decl
-  module-declarations name modules = case modules of
-    Nil -> Nil
-    Cons m rest -> if same name (module-name m) then module-decls m else module-declarations name rest
   declared-imports :: List Decl -> List String -> List String
   declared-imports declarations prior = known-imports declarations (reference-index prior) prior
   known-imports :: List Decl -> HashMap String Bool -> List String -> List String
@@ -1717,8 +1713,8 @@ module Bootstrap.Resolve where
       let declarations = (case hash-map-lookup name modules of Some m -> module-decls m; None -> Nil) in
       walk-source-imports (declared-imports declarations Nil <> rest) modules (hash-map-insert name True seen) (Cons name visited)
 
-  module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
-  module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
+  module-imports :: String -> List Decl -> Bool -> List Binding -> List Binding -> List Decl -> List String
+  module-imports name declarations prelude base surface body = declared-imports declarations
     (if prelude && not (same name "Prelude") then ["Prelude"] else case base of
       Nil -> Nil
       other -> consumed-base-imports base (binding-references surface <> declaration-references body) Nil)
@@ -1736,11 +1732,6 @@ module Bootstrap.Resolve where
     Nil -> JArrEnd
     Cons (name, association, precedence) rest -> JArr (JObj "op" (JStr name)
       (JObj "assoc" (JStr association) (JObj "prec" (JNum (nat-to-int precedence)) JObjEnd))) (fixity-json rest)
-
-  source-span :: String -> List Module -> Span
-  source-span name modules = case modules of
-    Nil -> Span 0 0 1 1
-    Cons m rest -> if same name (module-name m) then module-span m else source-span name rest
 
   surface-json :: List Binding -> Json
   surface-json bindings = case bindings of
