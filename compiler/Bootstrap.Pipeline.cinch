@@ -45,11 +45,15 @@ module Bootstrap.Pipeline where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (map, reverse)
   import Data.Nat (nat-to-int)
-  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem, path-dirname, path-join)
   import Data.String (string-concat, string-to-bytes)
   import Effect.Fs (fs-metadata, fs-read, fs-rename, fs-write)
   import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
+
+  foreign import ccall "cinch.runtime.randomBytes" package-stage-entropy :: Nat -> Bytes
+  foreign import ccall "cinch.runtime.fsMkdir" make-package-stage :: Bytes -> Bool -> I64
+  foreign import ccall "cinch.runtime.fsRemove" remove-package-stage :: Bytes -> Bool -> I64
 
   -- Check-only preserves all frontend checks while stopping before emission.
   -- Compile-only emits and links without running the generated program.
@@ -231,7 +235,7 @@ module Bootstrap.Pipeline where
     let output = build-manifest-path ir in
     let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
     let package = interface-output-path ir in
-    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output, path-to-string package, path-to-string package <> ".new"] in
+    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output, path-to-string package] in
     let direct = map normalize-name [manifest, object-config, source] in
     if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
       let references = read-interface-inputs manifest in
@@ -512,7 +516,7 @@ module Bootstrap.Pipeline where
       let package = path-to-string (interface-output-path prefix) in
       let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
       object-path-member (normalize-name input)
-        (map normalize-name [path-to-string prefix, path-to-string (refusal-path prefix), package, package <> ".new"])
+        (map normalize-name [path-to-string prefix, path-to-string (refusal-path prefix), package])
     other -> False
   invalidate-interface-package :: forall r. using (io :: Io r) => Path ->{IO r} Result String Unit
   invalidate-interface-package path = case fs-metadata path of
@@ -946,14 +950,27 @@ module Bootstrap.Pipeline where
     Cons first rest -> not (object-path-member first rest) && object-paths-distinct rest
   object-path-member :: String -> List String -> Bool
   object-path-member path paths = case paths of Nil -> False; Cons first rest -> string-compare path first == 0 || object-path-member path rest
+  -- Each writer owns a fresh staging directory on the destination volume.
+  -- Another writer can never truncate an inode already published to readers.
   replace-object-package :: forall r. using (io :: Io r) => Path -> Bytes ->{IO r} Result String Unit
   replace-object-package path bytes =
-    let temp = path-from-string (path-to-string path <> ".new") in
-    case fs-write temp bytes of
-      Err error -> Err "cannot write object package"
-      Ok done -> (case fs-rename temp path of
-        Err error -> Err "cannot publish object package"
-        Ok done -> Ok ())
+    let entropy = package-stage-entropy 16 in
+    let parent = path-from-string (path-dirname path) in
+    let staging-directory = path-join parent (path-from-string (".cinch-package-" <> sha256-hex entropy)) in
+    let staging-path = string-to-bytes (path-to-string staging-directory) in
+    case make-package-stage staging-path False of
+      0 -> let temp = path-join staging-directory (path-from-string "package") in
+        (case (case fs-write temp bytes of
+          Err error -> Err "cannot write object package"
+          Ok done -> (case fs-rename temp path of
+            Err error -> Err "cannot publish object package"
+            Ok done -> Ok ())) of
+          written -> (case remove-package-stage staging-path True of
+            0 -> written
+            other -> (case written of
+              Err message -> Err message
+              Ok done -> Err "cannot remove object package staging directory")))
+      other -> Err "cannot create object package staging directory"
   compile-source-library-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-library-object inlining manifest configuration source ir object abi =
     compile-source-library-object-at inlining host-profile manifest configuration source ir object abi
@@ -964,7 +981,7 @@ module Bootstrap.Pipeline where
 
   compile-requested-library-object :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-requested-library-object inlining profile roots manifest configuration source ir object abi =
-    if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string abi <> ".new", path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
+    if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
       case read-object-unit-roots roots of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
         Ok requested -> compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi
@@ -972,7 +989,7 @@ module Bootstrap.Pipeline where
   compile-source-library-object-roots :: forall r. using (io :: Io r) => Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi =
     let ir-name = path-to-string ir in let object-name = path-to-string object in let abi-name = path-to-string abi in
-    if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, abi-name <> ".new", object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
+    if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
       case replace-object-package abi (string-to-bytes "") of
         Err error -> pipeline-write-failed
         Ok cleared -> case read-validated-interfaces manifest of
@@ -984,7 +1001,7 @@ module Bootstrap.Pipeline where
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
             Ok (provider, document, provider-path, provider-code) ->
               if not (provider-matches-profile document profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-              if object-path-member provider-path [source, ir-name, object-name, abi-name, abi-name <> ".new", object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
+              if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
                 case fs-read (path-from-string source) of
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
                   Ok bytes -> case parse-program-with source bytes (interface-fixity-headers interfaces) of

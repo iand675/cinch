@@ -23,6 +23,7 @@ module Bootstrap.Package where
   export PackedBodyTable, packed-definition-for
 
   foreign import ccall "memmove" copy-memory :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch.runtime.mapPackageBytes" map-package-bytes :: I64 -> I64 -> Result I64 Bytes
 
   -- The caller has checked the word against its containing region. The
   -- validator and checked views keep the backing bytes live through the read.
@@ -939,7 +940,8 @@ module Bootstrap.Package where
     PackageContract name declared doc computed bodies
 
   -- Read one bounded snapshot when the contracts and object ABI have
-  -- the same path. Both consumers then see the same bytes after a rename.
+  -- the same path. Publishers rename a new inode so readers can keep
+  -- using the original mapping after publication and descriptor close.
   read-package-snapshot :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract, PackageSnapshot)
   read-package-snapshot path = case sys-open-read path of
     Err error -> Err "cannot open interface package"
@@ -954,9 +956,11 @@ module Bootstrap.Package where
   read-package-bytes :: forall r. using (io :: Io r) => I64 ->{IO r} Result String Bytes
   read-package-bytes fd = case sys-lseek fd 0 sys-seek-end of
     Ok length | length > 0 && length <= 4294967295 ->
-      (case (checked-nat-from-i64 length, sys-lseek fd 0 sys-seek-set) of
-        (Some size, Ok start) -> fill-package-buffer fd (bytes-new size) length 0
-        other -> Err "cannot read interface package")
+      (case map-package-bytes fd length of
+        Ok mapped -> Ok mapped
+        Err error -> (case (checked-nat-from-i64 length, sys-lseek fd 0 sys-seek-set) of
+          (Some size, Ok start) -> fill-package-buffer fd (bytes-new size) length 0
+          other -> Err "cannot read interface package"))
     other -> Err "invalid interface package length"
 
   fill-package-buffer :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result String Bytes

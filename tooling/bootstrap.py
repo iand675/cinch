@@ -512,11 +512,10 @@ def prebuilt_compiler(revision: str) -> Path | None:
 
     CINCH_PREBUILT_COMPILERS names a directory of `<revision>/cinch`
     executables. It exists for builds where the cargo step is its own cached
-    unit (the Nix derivations in tooling/nix): the release build of a pinned
-    revision is a function of that revision and the toolchain, so it should
-    not be repeated because a file in tooling/ changed. Whoever sets the
-    variable vouches for the binary; the source snapshot is still checked
-    against the pin, and the default (unset) builds from it as before.
+    unit (the Nix derivations in tooling/nix). The binary must come from
+    the pinned sources, with the stage-0 patch applied for the seed. Whoever
+    sets the variable vouches for that build. The source snapshot is still
+    checked against the pin, and the default (unset) builds from it.
     """
     supplied = os.environ.get("CINCH_PREBUILT_COMPILERS")
     if not supplied:

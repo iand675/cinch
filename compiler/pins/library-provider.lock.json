@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider that publishes only the packed CINCHPK4 library interface and ABI.",
-  "revision": "143fd34372f693a0f80ecd16d452b2407c57af66",
+  "description": "ABI 10 packed library provider and runtime with owned read-only package mappings.",
+  "revision": "80712815f7b1a8b2ec73bf7ee5282277835fb98e",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "89da63977ccceae67948d74c7c7a1f8b988a6f64e2f81a5d743c01c62746bdf0"
+  "source_sha256": "c3589cd62e10ce9cac8baeaca594b665235d1338a3533afd4ce10f7f7b56051f"
 }

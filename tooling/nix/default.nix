@@ -61,24 +61,32 @@ let
   # remembers is its own store path, which a consumer's closure carries, and
   # the archive is already as new as its sources.
   pinnedCompiler = name: lock:
-    let tree = fetchPinned lock.revision; in
+    let
+      tree = fetchPinned lock.revision;
+      seedDir = if builtins.pathExists (tree + "/seed/Cargo.toml") then "seed" else "compiler";
+    in
     pkgs.rustPlatform.buildRustPackage {
       pname = "cinch-${name}";
       version = builtins.substring 0 12 lock.revision;
       src = tree;
-      sourceRoot = "source/compiler";
-      cargoLock.lockFile = tree + "/compiler/Cargo.lock";
-      nativeBuildInputs = [ pkgs.tree-sitter pkgs.nodejs ];
-      postUnpack = "chmod -R u+w source";
+      sourceRoot = "source/${seedDir}";
+      cargoLock.lockFile = tree + "/${seedDir}/Cargo.lock";
+      nativeBuildInputs = [ pkgs.tree-sitter pkgs.nodejs pkgs.patch ];
+      postUnpack = ''
+        chmod -R u+w source
+        ${lib.optionalString (lock ? patch) ''
+          patch --batch -p1 -d source -i ${src + "/${lock.patch}"}
+        ''}
+      '';
       buildPhase = ''
         runHook preBuild
         mkdir -p $out/src/tooling
-        cp -r ../compiler $out/src/compiler
+        cp -r ../${seedDir} $out/src/${seedDir}
         cp -r ../tooling/tree-sitter-cinch $out/src/tooling/tree-sitter-cinch
         # The vendoring configuration was written for the unpacked tree, and
         # Cargo looks for it upward from the directory it runs in.
         vendored=$(grep -rls vendored-sources "$NIX_BUILD_TOP"/.cargo "$NIX_BUILD_TOP"/source/.cargo .cargo ''${CARGO_HOME:-} 2>/dev/null | head -1)
-        cd $out/src/compiler
+        cd $out/src/${seedDir}
         cargo build --config "$vendored" --release --frozen --bin cinch --target-dir $TMPDIR/target -j $NIX_BUILD_CORES
         cargo build --config "$vendored" --release --frozen --manifest-path runtime/Cargo.toml --target-dir runtime/target
         runHook postBuild
@@ -105,7 +113,8 @@ let
     # The store may hard-link identical files; the driver admits only plain
     # files and directories, so archive each one whole.
     tar --hard-dereference --sort=name --mtime=@1 --owner=0 --group=0 --numeric-owner -cf $out \
-      compiler $(for f in grammar.js tree-sitter.json src/scanner.c Cargo.toml bindings/rust/build.rs bindings/rust/lib.rs; do
+      $(if [ -f seed/Cargo.toml ]; then echo seed; else echo compiler; fi) \
+      $(for f in grammar.js tree-sitter.json src/scanner.c Cargo.toml bindings/rust/build.rs bindings/rust/lib.rs; do
         [ -e tooling/tree-sitter-cinch/$f ] && echo tooling/tree-sitter-cinch/$f; done)
   '';
 
