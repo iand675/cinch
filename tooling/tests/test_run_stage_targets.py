@@ -44,11 +44,10 @@ class StageTargetCounts(unittest.TestCase):
 
 
 class StageTargetInputs(unittest.TestCase):
-    def test_reused_target_checks_interface_files_and_absolute_manifest_paths(self):
+    def test_reused_target_checks_package_bytes_and_absolute_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
-            paths = [output / name for name in ("objects.json", "interfaces.json", "library.abi.json",
-                                                "library.o", "library/build/Example.cinchif")]
+            paths = [output / name for name in ("objects.json", "library.o", "library.cpk")]
             for path in paths:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(path.name)
@@ -65,7 +64,7 @@ class StageTargetInputs(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch.object(runner.bootstrap, 'runtime_provider') as prepare:
             directory = Path(temp)
             compiler, manifest, objects, library, metadata, runtime = (
-                directory / name for name in ('cinch', 'base-interfaces.json', 'objects.json', 'library.o',
+                directory / name for name in ('cinch', 'base.cpk', 'base-objects.json', 'library.o',
                                                'library.abi.json', 'libcinchruntime.a'))
             for path in (compiler, manifest, library, metadata, runtime):
                 path.write_bytes(path.name.encode())

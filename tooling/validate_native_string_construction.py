@@ -37,12 +37,12 @@ def main() -> None:
     args = parser.parse_args()
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
     args.artifacts.mkdir(parents=True, exist_ok=False)
-    manifest, objects = args.artifacts / "interfaces.json", args.artifacts / "objects.json"
-    bootstrap.write_json(manifest, provider["interfaces"])
+    manifest, objects = provider['interface_package'], args.artifacts / "objects.json"
     bootstrap.write_json(objects, provider["configuration"])
     fixture_path = ROOT / "seed/tests/fixtures/string-construction-vectors.json"
     fixture = json.loads(fixture_path.read_text())
-    expected = {row[0]: row[1] for row in provider["interfaces"]["interfaces"]}["Data.String"]
+    from pack_interfaces import packed_manifest
+    expected = dict(packed_manifest(manifest.read_bytes()))["Data.String"]
     report = {"compiler_sha256": digest(args.compiler), "provider": provider["identity"],
               "base_object_sha256": digest(provider["object"]), "runtime_sha256": digest(provider["runtime"]),
               "fixture_sha256": digest(fixture_path), "consumer_opt_level": args.opt_level,

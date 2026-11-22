@@ -428,10 +428,10 @@ def check_commands(compiler: Path, cli: str, source: Path, ir: Path, diag: Path)
     if cli == "seed":
         return {"check": [compiler, "check", source],
                 "emit-ir": [compiler, "emit-ir", source, "-o", ir]}
-    manifest = compiler.parent / "base-interfaces.json"
-    objects = compiler.parent / "objects.json"
+    manifest = compiler.parent / "base.cpk"
+    objects = compiler.parent / "base-objects.json"
     if not (manifest.is_file() and objects.is_file()):
-        raise SystemExit(f"{compiler} has no base-interfaces.json/objects.json beside it; "
+        raise SystemExit(f"{compiler} has no base.cpk/base-objects.json beside it; "
                          "run `profile_build.py chain` first")
     return {"check": [compiler, "--check", "--interfaces", manifest, source, diag],
             "emit-ir": [compiler, "--emit-ir", "--interfaces", manifest, "--objects", objects,

@@ -47,7 +47,6 @@ class CurrentBaseArtifactContract(unittest.TestCase):
             document["exports"] = {key: [] for key in document["exports"]}
             document["abi"] = {"convention": "uniform-word, curried apply stub", "symbols": [], "layouts": []}
             self.documents[module] = document
-            bootstrap.write_json(self.directory / "library/build" / (module + ".cinchif"), document)
         self.metadata = {"schema": 1, "runtime_abi": 10, "target": self.target, "word_size": 64,
                          "endian": "little", "reclaim": True, "self_describing": True,
                          "interfaces": [{"module": name, "iface_hash": interface_hash(document), "interface": document}
@@ -64,8 +63,6 @@ class CurrentBaseArtifactContract(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(raw)
         (self.directory / "cinch").chmod(0o755)
-        bootstrap.write_json(self.directory / "interfaces.json", {"schema": 1, "interfaces": [
-            ["Data.String", interface_hash(self.documents["Data.String"]), str(self.directory / "library/build/Data.String.cinchif")]]})
         self.receipt = {"schema": 1, "kind": "current-base-artifact", "host": self.host, "target": self.target,
                         "runtime_abi": 10, "producer": {"mode": "fresh-embedded", "source_sha256": "a" * 64},
                         "runtime": {"runtime_abi": 10, "source_sha256": "b" * 64},
@@ -87,9 +84,10 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         self.assertFalse(classify("concrete-string", 5, text))
         self.assertFalse(classify("list-string-O", 5, text.replace("[O]", "[R]")))
 
-    def seal(self):
+    def seal(self, *, repack=True):
         """Reseal file digests so semantic rejection cases cannot pass merely through a stale checksum."""
-        bootstrap.write_json(self.directory / "library.abi.json", self.metadata)
+        if repack:
+            self.package_public_contract(self.directory / "library.cpk")
         artifacts = {str(path.relative_to(self.directory)): bootstrap.file_hash(path)
                      for path in self.directory.rglob("*") if path.is_file() and path.name != "provider.json"}
         self.receipt["artifacts"] = artifacts
@@ -104,8 +102,8 @@ class CurrentBaseArtifactContract(unittest.TestCase):
 
     def package_public_contract(self, path):
         name = "Data.String"
-        document = self.documents[name]
-        rows = [(name, interface_hash(document), json.dumps(document).encode())]
+        row = next(row for row in self.metadata["interfaces"] if row["module"] == name)
+        rows = [(name, row["iface_hash"], json.dumps(row["interface"]).encode())]
         data = pack(rows, self.metadata, flat_bodies=True, structured_abi=True)
         path.write_bytes(data)
         return rows, bootstrap.digest(data)
@@ -119,23 +117,22 @@ class CurrentBaseArtifactContract(unittest.TestCase):
 
     def test_producer_package_is_bound_to_checked_public_interfaces(self):
         path = self.directory / "library.cpk"
-        rows, self.metadata["interface_package_sha256"] = self.package_public_contract(path)
-        self.seal()
         self.assertEqual(self.admit()["interface_package"], path)
-
-        other = pack([(rows[0][0], "wrong", rows[0][2])], flat_bodies=True, structured_abi=True)
-        path.write_bytes(other)
-        self.seal()
-        with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from its object ABI"):
-            self.admit()
-        self.metadata["interface_package_sha256"] = bootstrap.digest(other)
-        self.seal()
-        with self.assertRaisesRegex(bootstrap.BootstrapError, "does not name the checked base contracts"):
+        rows, _ = self.package_public_contract(path)
+        metadata = copy.deepcopy(self.metadata)
+        embedded = metadata.pop("interfaces")
+        metadata["interface_refs"] = [{key: value for key, value in row.items() if key != "interface"}
+                                      for row in embedded]
+        metadata["private_interfaces"] = [embedded[1]]
+        metadata["interface_refs"][0]["iface_hash"] = "wrong"
+        path.write_bytes(pack(rows, metadata, flat_bodies=True, structured_abi=True))
+        self.seal(repack=False)
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid receipt or checked metadata"):
             self.admit()
 
     def test_changed_object_runtime_and_interface_bytes_are_rejected(self):
         """Replacing any actual payload invalidates the original receipt."""
-        for name in ["library.o", "libcinchruntime.a", "library/build/Data.String.cinchif"]:
+        for name in ["library.o", "libcinchruntime.a", "library.cpk"]:
             path = self.directory / name
             original = path.read_bytes()
             with self.subTest(name=name):
@@ -239,9 +236,9 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         path.write_text(original.replace('"schema": 1', '"schema": 1, "schema": 1', 1))
         with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate artifact field"):
             self.admit()
-        self.receipt["artifacts"].pop("library/build/Data.String.cinchif")
+        self.receipt["artifacts"].pop("library.cpk")
         bootstrap.write_json(path, self.receipt)
-        with self.assertRaisesRegex(bootstrap.BootstrapError, "interface bytes are not retained"):
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "required artifact bytes"):
             self.admit()
 
     def test_default_provider_and_stage3_selection_remain_explicit(self):
@@ -274,14 +271,13 @@ class CurrentBaseArtifactContract(unittest.TestCase):
                 self.assertEqual(command[1], "emit-object")
                 self.assertEqual(Path(command[2]).read_bytes(), bootstrap_objects.ARTIFACT_ENTRY)
                 self.assertFalse((Path(command[2]).parent / "Data.String.cinch").exists())
-                self.assertIn("--interface-package", command)
+                self.assertIn("--interface-package-only", command)
                 self.assertEqual(command[command.index("--interface-package-private") + 1], "CinchBaseObject")
                 (output / "library.o").write_bytes(b"object")
                 (output / "library.ll").write_bytes(b"LLVM")
                 for name, document in self.documents.items():
                     bootstrap.write_json(output / "library/build" / (name + ".cinchif"), document)
-                _, digest = self.package_public_contract(output / "library.cpk")
-                bootstrap.write_json(output / "library.abi.json", {**self.metadata, "interface_package_sha256": digest})
+                self.package_public_contract(output / "library.cpk")
 
         sources = {"compiler/src/driver.rs": b"embedded producer source", "compiler/runtime/src/lib.rs": b"runtime source"}
         with patch.object(bootstrap, "seed_sources", return_value=sources), \
@@ -303,14 +299,17 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         (build / "stage2").mkdir()
         for binary in [stage / "cinch", build / "stage2/cinch"]:
             binary.write_bytes(b"same self-built compiler")
-        bootstrap.write_json(stage / "base-interfaces.json", provider["interfaces"])
-        bootstrap.write_json(stage / "objects.json", provider["configuration"])
+        package = stage / "base.cpk"
+        package.write_bytes(provider["interface_package"].read_bytes())
+        bootstrap.write_json(stage / "base-objects.json",
+                             {**provider["configuration"], "metadata": str(package),
+                              "metadata_sha256": bootstrap.file_hash(package)})
         files = {"Main.cinch": b"frozen compiler source"}
         inputs = {"source_sha256": bootstrap.source_hash(files), "built_by_stage": 2,
                   "protocol": bootstrap.PROTOCOL, "host": self.host, "library_provider": provider["identity"],
                   "builder_sha256": bootstrap.file_hash(build / "stage2/cinch"),
-                  "interface_set_sha256": bootstrap.file_hash(stage / "base-interfaces.json"),
-                  "object_configuration_sha256": bootstrap.file_hash(stage / "objects.json"),
+                  "interface_set_sha256": bootstrap.file_hash(stage / "base.cpk"),
+                  "object_configuration_sha256": bootstrap.file_hash(stage / "base-objects.json"),
                   "runtime_archive_sha256": bootstrap.file_hash(provider["runtime"])}
         bootstrap.write_json(stage / "stage.json", {"inputs": inputs, "executable_sha256": bootstrap.file_hash(stage / "cinch")})
         with patch.object(bootstrap, "BUILD", build), \

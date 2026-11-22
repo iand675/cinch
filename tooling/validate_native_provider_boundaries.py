@@ -37,8 +37,7 @@ def main() -> None:
     if (host_receipt['runtime']['runtime_abi'] != provider['identity']['runtime']['runtime_abi']
             or host_receipt['runtime']['source_sha256'] != provider['identity']['runtime']['source_sha256']):
         raise bootstrap.BootstrapError('compiler-host and consumer runtime source/ABI compatibility is not established')
-    interfaces, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-    bootstrap.write_json(interfaces, provider['interfaces'])
+    interfaces, objects = provider['interface_package'], args.artifacts / 'objects.json'
     bootstrap.write_json(objects, provider['configuration'])
     report = {'status': 'running', 'native_family_admission': False, 'performance_claim': False,
               'source_shadow_used': False, 'compiler_sha256': build['compiler_sha256'],

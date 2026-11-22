@@ -168,6 +168,7 @@ def emit(output: Path, snapshot: Path, provenance_path: Path, repository: Path, 
     entry = library / 'CinchBaseObject.cinch'
     entry.write_bytes(bootstrap_objects.ARTIFACT_ENTRY)
     command = [str(output / 'cinch'), 'emit-object', str(entry), '--object-roots', str(output / 'roots.json'),
+               '--interface-package-only', '--interface-package-private', 'CinchBaseObject',
                '--opt-level', '2', '-o', str(output / 'library.o')]
     with (output / 'object-build.log').open('w') as log:
         subprocess.run(command, cwd=library, env=bootstrap.environment(), stdout=log,
@@ -175,13 +176,11 @@ def emit(output: Path, snapshot: Path, provenance_path: Path, repository: Path, 
     verified_after, _ = verify_snapshot(snapshot, provenance_path, repository, checkpoint)
     if verified_after != identity:
         raise bootstrap.BootstrapError('qualified producer inputs changed during object emission')
-    metadata = bootstrap.read_json(output / 'library.abi.json')
-    bootstrap.write_json(output / 'interfaces.json', bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, output))
-    retained = {'cinch', 'libcinchruntime.a', 'library.o', 'library.ll', 'library.abi.json', 'interfaces.json',
+    metadata = bootstrap_objects.packed_provider_metadata(bootstrap, output / 'library.cpk', package)
+    retained = {'cinch', 'libcinchruntime.a', 'library.o', 'library.ll', 'library.cpk',
                 'base/cinch-base.cinchpkg', 'roots.json', 'library/CinchBaseObject.cinch', 'object-build.log',
                 'producer-provenance.json', 'producer-snapshot-verification.json'}
     retained.update(row['path'] for row in sources.values())
-    retained.update(str(path.relative_to(output)) for path in (library / 'build').glob('*.cinchif'))
     artifacts = {name: bootstrap.file_hash(output / name) for name in sorted(retained)}
     receipt = {'schema': 1, 'kind': 'current-base-artifact', 'host': bootstrap.HOST,
                'target': metadata['target'], 'runtime_abi': metadata['runtime_abi'],

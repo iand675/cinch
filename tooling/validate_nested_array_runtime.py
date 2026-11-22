@@ -22,8 +22,7 @@ def main() -> None:
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
-    manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-    bootstrap.write_json(manifest, provider['interfaces'])
+    manifest, objects = provider['interface_package'], args.artifacts / 'objects.json'
     bootstrap.write_json(objects, provider['configuration'])
     array = bootstrap.ROOT / 'seed/prelude/Data/Array.cinch'
     fixture = bootstrap.ROOT / 'seed/tests/fixtures/nested-array-runtime-control.cinch'

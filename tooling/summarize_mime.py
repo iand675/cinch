@@ -82,7 +82,7 @@ def main() -> None:
             label = row['frontend']; identity = report['frontends'][label]
             if label == 'native' and report.get('compiler_environment', {}).get('CINCH_STACK_SIZE') != '64M':
                 raise RuntimeError('Native compiler program-stack bound was not explicit')
-            pair = {key: identity[key] for key in ('compiler_sha256', 'runtime_sha256', 'provider_sha256', 'base-interfaces.json', 'objects.json') if key in identity}
+            pair = {key: identity[key] for key in ('compiler_sha256', 'runtime_sha256', 'provider_sha256', 'base.cpk', 'base-objects.json') if key in identity}
             if label in summary['frontends'] and summary['frontends'][label]['identity'] != pair:
                 raise RuntimeError('multiple qualification pairs for frontend: ' + label)
             if label not in coverage:

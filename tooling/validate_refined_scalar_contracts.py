@@ -32,10 +32,10 @@ def main() -> None:
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
-    manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-    bootstrap.write_json(manifest, provider['interfaces'])
+    manifest, objects = provider['interface_package'], args.artifacts / 'objects.json'
+    base_fixture = bootstrap_objects.fixture_interfaces(provider, args.artifacts / 'interface-fixtures')
     bootstrap.write_json(objects, provider['configuration'])
-    machine_path = next(Path(row[2]) for row in provider['interfaces']['interfaces'] if row[0] == 'Data.Machine')
+    machine_path = next(Path(row[2]) for row in base_fixture['interfaces'] if row[0] == 'Data.Machine')
     original = bootstrap.read_json(machine_path)
     report = {'status': 'running', 'compiler_sha256': bootstrap.file_hash(args.compiler),
               'provider': provider['identity'], 'runtime_sha256': bootstrap.file_hash(provider['runtime']),
@@ -63,7 +63,7 @@ def main() -> None:
             document['exports'].update(values=[value], foreign=[foreign])
             contract = directory / 'MaskContractFixture.cinchif'
             contract.write_text(canonical(document))
-            index = copy.deepcopy(provider['interfaces'])
+            index = copy.deepcopy(base_fixture)
             index['interfaces'].append(['MaskContractFixture', interface_hash(document), str(contract)])
             admitted = directory / 'interfaces.json'
             bootstrap.write_json(admitted, index)
@@ -162,7 +162,7 @@ module Main where
 ''', mode='--emit-interfaces')
     contract = Path(str(producer) + '.MaskFacade.cinchif')
     facade = bootstrap.read_json(contract)
-    index = copy.deepcopy(provider['interfaces'])
+    index = copy.deepcopy(base_fixture)
     index['interfaces'].append(['MaskFacade', interface_hash(facade), str(contract)])
     admitted = args.artifacts / 'facade-interfaces.json'
     bootstrap.write_json(admitted, index)

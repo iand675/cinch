@@ -430,14 +430,7 @@ def shard_identity() -> dict:
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
     if inputs.get("built_by_stage", 0) > 0:
-        outputs = ("compiler.ll", "link-report.txt", "base-interfaces.json")
-        if inputs.get("frontend_mode") == "typed-ir-objects":
-            outputs += ("objects.json",)
-        if "interface_package_sha256" in inputs:
-            outputs += ("base.cpk",)
-        if "packed_object_configuration_sha256" in inputs:
-            outputs += ("base-objects.json",)
-        return outputs
+        return ("compiler.ll", "link-report.txt", "base.cpk", "base-objects.json")
     if "source_sha256" in inputs:
         return ("compiler.cinch", "sources/build/Main.manifest.json")
     return ()
@@ -602,7 +595,7 @@ def build_seed_runtime() -> Path:
 # seed's own store path) has to stay where it was. They are the
 # expensive, rarely-changing half of a cold chain (two release cargo builds),
 # so they are what a binary cache keeps across commits. Stage directories are
-# deliberately absent: a stage-2/3 receipt covers `objects.json`, which names
+# deliberately absent: a stage-2/3 receipt covers `base-objects.json`, which names
 # the library object by absolute path.
 PIN_KEYED = ("stage0", "seed-sources", "library-sources", "library-provider")
 # Cargo's own target directories are rebuilt inputs, not artifacts. The seed
@@ -748,7 +741,8 @@ def bundle(files: dict[str, bytes]) -> bytes:
 def prepare_outputs(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     for name in ("cinch", "cinch.instrumented", "compiler.ll", "compiler.ll.diagnostics",
-                 "link-report.txt", "requested-roots.json", "seed-link.json"):
+                 "link-report.txt", "requested-roots.json", "seed-link.json",
+                 "base-interfaces.json", "objects.json"):
         (directory / name).unlink(missing_ok=True)
     for shard in directory.glob("compiler.shard*"):
         shard.unlink()
@@ -907,40 +901,32 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None,
                pgo_enabled: bool | None = None, opt_level: int = 2,
                publish_interfaces: bool = True) -> Path:
-    from pack_interfaces import pack, publish
+    from pack_interfaces import publish
 
     provider = runtime_provider()
-    base = provider["interfaces"]
-    base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
     package = directory / "base.cpk"
     object_config = provider["configuration"]
-    try:
-        produced_package = provider.get("interface_package")
-        if produced_package is not None:
-            packed = produced_package.read_bytes()
-            if digest(packed) != provider["identity"]["artifacts"]["library.cpk"]:
-                raise BootstrapError("direct base interface package changed after admission")
-        else:
-            embedded = json.loads(Path(object_config["metadata"]).read_bytes())
-            packed = pack([(name, identity, Path(path).read_bytes())
-                           for name, identity, path in base["interfaces"]], embedded,
-                          flat_bodies=True, structured_abi=True)
-    except (KeyError, TypeError, ValueError) as error:
-        raise BootstrapError(f"cannot pack the base interfaces: {error}") from error
-    configuration = json.dumps(object_config, sort_keys=True, separators=(",", ":")).encode()
+    produced_package = provider.get("interface_package")
+    if produced_package is None:
+        raise BootstrapError("base provider has no packed interface package")
+    packed = produced_package.read_bytes()
+    package_hash = digest(packed)
+    if package_hash != provider["identity"]["artifacts"]["library.cpk"]:
+        raise BootstrapError("direct base interface package changed after admission")
     packed_configuration = json.dumps(
-        {**object_config, "metadata": str(package.resolve()), "metadata_sha256": digest(packed)},
+        {**object_config, "metadata": str(package.resolve()), "metadata_sha256": package_hash},
         sort_keys=True, separators=(",", ":")).encode()
+    config_hash = digest(packed_configuration)
     runtime = provider["runtime"]
     sources = source_hash(files)
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": sources,
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "shard_count": SHARDS, **shard_identity(),
-              "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
-              "interface_package_sha256": digest(packed),
-              "packed_object_configuration_sha256": digest(packed_configuration),
+              "interface_set_sha256": package_hash, "frontend_mode": "typed-ir-packed-objects",
+              "interface_package_sha256": package_hash,
+              "packed_object_configuration_sha256": config_hash,
               "interface_output": "checked-schema10" if publish_interfaces else "none",
-              "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
+              "library_provider": provider["identity"], "object_configuration_sha256": config_hash,
               "runtime_archive_sha256": file_hash(runtime)}
     # Normal stages keep the existing -O2 cache identity. A one-shot
     # behavioral probe records its different clang setting explicitly.
@@ -954,11 +940,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         print(f"{directory.name}: verified cached compiler", flush=True)
         return directory / "cinch"
     prepare_outputs(directory)
-    manifest = directory / "base-interfaces.json"
-    manifest.write_bytes(base_bytes)
     publish(package, packed)
-    objects = directory / "objects.json"
-    objects.write_bytes(configuration)
     packed_objects = directory / "base-objects.json"
     packed_objects.write_bytes(packed_configuration)
     if source is None:
@@ -1149,6 +1131,7 @@ def compiler_interface_paths(directory: Path):
 
 def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> None:
     from bootstrap_interfaces import interface_hash, read_contract, validate_contract, verify_dependencies
+    from pack_interfaces import PackedInterfaces
 
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
     documents = {}
@@ -1176,11 +1159,10 @@ def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> Non
             raise BootstrapError(f"invalid actual compiler interface {name}: {error}") from error
     try:
         base = {}
-        for name, identity, filename in read_json(directory / "base-interfaces.json").get("interfaces", []):
-            doc = read_contract(Path(filename))
+        for name, identity, doc in PackedInterfaces((directory / "base.cpk").read_bytes()).documents:
             validate_contract(doc, runtime_abi)
             if doc["module"] != name or interface_hash(doc) != identity or name in base:
-                raise ValueError("base interface identity disagrees with its manifest")
+                raise ValueError("base interface identity disagrees with its package")
             base[name] = doc
         verify_dependencies(contracts, base)
     except (OSError, KeyError, TypeError, ValueError) as error:
@@ -1195,23 +1177,24 @@ def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
     because the next writer repeats the same bytes.
     """
     from bootstrap_interfaces import interface_hash, read_contract
+    from pack_interfaces import PackedInterfaces, canonical, pack, publish
 
     require_compiler_interfaces(directory, files)
     case = directory / "interface-consumer"
     case.mkdir(exist_ok=True)
     source = case / "Main.cinch"
     source.write_bytes(files["Main.cinch"])
-    rows = {name: [name, identity, filename]
-            for name, identity, filename in read_json(directory / "base-interfaces.json").get("interfaces", [])}
+    rows = {name: (name, identity, canonical(doc))
+            for name, identity, doc in PackedInterfaces((directory / "base.cpk").read_bytes()).documents}
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
     for path in compiler_interface_paths(directory):
         doc = read_contract(path)
         if doc["module"] in expected:
-            rows[doc["module"]] = [doc["module"], interface_hash(doc), str(path.resolve())]
+            rows[doc["module"]] = (doc["module"], interface_hash(doc), path.read_bytes())
     # Main is the source client in this check, not an imported module.
     rows.pop("Main", None)
-    manifest = case / "interfaces.json"
-    write_json(manifest, {"schema": 1, "interfaces": [rows[name] for name in sorted(rows)]})
+    manifest = case / "interfaces.cpk"
+    publish(manifest, pack([rows[name] for name in sorted(rows)], flat_bodies=True, structured_abi=True))
     output = case / "entry"
     diagnostics = case / "entry.diagnostics"
     diagnostics.unlink(missing_ok=True)

@@ -66,6 +66,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bootstrap  # noqa: E402
+from pack_interfaces import PackedInterfaces, pack, publish
 from bootstrap_interfaces import interface_hash, read_contract  # noqa: E402
 from bootstrap_objects import requested_roots  # noqa: E402
 import shard_ir  # noqa: E402
@@ -154,18 +155,12 @@ class Base:
         provider = bootstrap.runtime_provider()
         self.runtime = Path(provider["runtime"])
         self.object = Path(provider["object"])
-        self.rows = {row[0]: row for row in provider["interfaces"]["interfaces"]}
         configuration = provider["configuration"]
         self.target = configuration["target"]
-        metadata = Path(configuration["metadata"])
-        self.manifest = json.loads(metadata.read_bytes())
-        self.identity = sha(canonical([configuration["object_sha256"], configuration["metadata_sha256"],
-                                       sorted(self.rows.values())]))
-        # An interface the manifest embeds is, for the base set, a file the
-        # interface manifest also names. Keeping the file's bytes lets a
-        # provider embed them verbatim, which is what lets the compiler take
-        # the interface it already loaded instead of parsing the copy.
-        self.raw = {name: Path(row[2]).read_bytes() for name, row in self.rows.items()}
+        package = PackedInterfaces(provider["interface_package"].read_bytes())
+        self.manifest = package.full_metadata()
+        self.rows = {name: (name, identity, canonical(doc)) for name, identity, doc in package.documents}
+        self.identity = sha(canonical([configuration["object_sha256"], configuration["metadata_sha256"]]))
         self.stub = out / "provider-stub.o"
         if not self.stub.is_file():
             source = out / "provider-stub.ll"
@@ -196,24 +191,6 @@ def merged_manifest(base: Base, deltas: list[dict]) -> dict:
     merged["self_describing"] = True
     merged["object_content_hash"] = base.stub_fnv
     return merged
-
-
-def manifest_bytes(base: Base, merged: dict, raw: dict[str, bytes]) -> bytes:
-    """Serialise a manifest with every interface it can as the file's bytes."""
-    parts = []
-    for row in merged["interfaces"]:
-        document = row["interface"]
-        module = row["module"]
-        if isinstance(document, dict) and set(document) == {"$raw"}:
-            body = raw[document["$raw"]]
-        elif module in base.raw and json.loads(base.raw[module]) == document:
-            body = base.raw[module]
-        else:
-            body = canonical(document)
-        rest = {key: value for key, value in row.items() if key != "interface"}
-        parts.append(canonical(rest)[:-1] + b',"interface":' + body + b"}")
-    shell = dict(merged, interfaces="$interfaces")
-    return canonical(shell).replace(b'"$interfaces"', b"[" + b",".join(parts) + b"]", 1)
 
 
 def delta_of(module: str, produced: dict, provider: dict, interface: Path) -> dict:
@@ -310,21 +287,19 @@ class Builder:
         deltas = [self.deltas[name] for name in self.closure[module]]
         merged = merged_manifest(self.base, deltas)
         raw = {name: self.interfaces[name].read_bytes() for name in self.closure[module]}
-        metadata = directory / "provider.abi.json"
-        metadata.write_bytes(manifest_bytes(self.base, merged, raw))
-        # The manifest the compiler sees holds real documents again.
+        # Resolve the source interfaces before writing the packed provider.
         for row in merged["interfaces"]:
             if isinstance(row["interface"], dict) and set(row["interface"]) == {"$raw"}:
                 row["interface"] = json.loads(raw[row["interface"]["$raw"]])
         rows = dict(self.base.rows)
         for name in self.closure[module]:
-            rows[name] = [name, self.deltas[name]["iface_hash"], str(self.interfaces[name])]
-        manifest = directory / "interfaces.json"
-        bootstrap.write_json(manifest, {"schema": 1, "interfaces": [rows[name] for name in sorted(rows)]})
+            rows[name] = (name, self.deltas[name]["iface_hash"], raw[name])
+        manifest = directory / "provider.cpk"
+        publish(manifest, pack([rows[name] for name in sorted(rows)], merged, flat_bodies=True, structured_abi=True))
         objects = directory / "objects.json"
         bootstrap.write_json(objects, {"schema": 1, "target": self.base.target, "object": str(self.base.stub),
-                                       "metadata": str(metadata), "object_sha256": self.base.stub_sha,
-                                       "metadata_sha256": bootstrap.file_hash(metadata)})
+                                       "metadata": str(manifest), "object_sha256": self.base.stub_sha,
+                                       "metadata_sha256": bootstrap.file_hash(manifest)})
         return merged, manifest, objects
 
     def schedule_objects(self, module: str, directory: Path) -> list[Path]:
@@ -437,7 +412,7 @@ class Builder:
         # module; nothing reads them once the delta is taken.
         if not self.keep:
             for name in ("layer.o", "layer.o.provider.o", "layer.o.new.o", "-.provider.o", "-.new.o",
-                         "layer.abi.json", "provider.abi.json"):
+                         "layer.abi.json", "provider.cpk"):
                 (directory / name).unlink(missing_ok=True)
         stamp.write_text(key)
         seconds = time.monotonic() - started
@@ -563,8 +538,8 @@ def check(compiler: Path, reference: Path, base: Base, out: Path) -> None:
     bundle = stage.parent / "stage1" / "compiler.cinch"
     target = out / "check.ll"
     started = time.monotonic()
-    code = subprocess.run([str(compiler), "--emit-ir-only", "--interfaces", str(stage / "base-interfaces.json"),
-                           "--objects", str(stage / "objects.json"), str(bundle), str(target)],
+    code = subprocess.run([str(compiler), "--emit-ir-only", "--interfaces", str(stage / "base.cpk"),
+                           "--objects", str(stage / "base-objects.json"), str(bundle), str(target)],
                           cwd=out, env=bootstrap.environment()).returncode
     if code or not bootstrap.same_file_bytes(target, reference):
         raise BuildError(f"the module-built compiler does not reproduce {reference} (exit {code})")

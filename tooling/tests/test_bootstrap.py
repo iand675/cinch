@@ -275,6 +275,8 @@ class BootstrapContract(unittest.TestCase):
             for name in ["Main", "Bootstrap.Check"]:
                 doc = {**template, "module": name, "runtime_abi": runtime_abi}
                 (root / (name + ".cinchif")).write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            from pack_interfaces import pack
+            (root / "base.cpk").write_bytes(pack([], flat_bodies=True, structured_abi=True))
             bootstrap.require_compiler_interfaces(root, files)
             wrong_abi = 5 if runtime_abi == 6 else 6
             (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": wrong_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
@@ -285,27 +287,16 @@ class BootstrapContract(unittest.TestCase):
             with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
                 bootstrap.require_compiler_interfaces(root, files)
 
-    def test_base_manifest_excludes_compiler_sources_and_verifies_artifacts(self):
-        with tempfile.TemporaryDirectory() as temp:
-            directory = Path(temp)
-            artifacts = directory / "library/build"
-            base = {"module": "Data.Core", "imports": []}
-            row = {"module": "Data.Core", "iface_hash": "checked-base-hash", "interface": base}
-            metadata = {"interfaces": [row]}
-            package = {"modules": [{"name": "Data.Core"}]}
-            base_file = artifacts / "Data.Core.cinchif"
-            bootstrap.write_json(base_file, base)
-            bootstrap.write_json(artifacts / "Bootstrap.Check.cinchif", {"module": "Bootstrap.Check"})
-            manifest = bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
-            self.assertEqual(manifest, {"schema": 1, "interfaces": [
-                ["Data.Core", "checked-base-hash", str(base_file.resolve())]]})
-            changed = {**base, "imports": [{"module": "Bootstrap.Check"}]}
-            bootstrap.write_json(base_file, changed)
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from its actual checked interface"):
-                bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
-            row["interface"] = changed
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "depends on compiler implementation"):
-                bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
+    def test_packed_base_excludes_compiler_implementation_dependencies(self):
+        base = {"module": "Data.Core", "imports": []}
+        row = {"module": "Data.Core", "iface_hash": "checked-base-hash", "interface": base}
+        metadata = {"interfaces": [row]}
+        package = {"modules": [{"name": "Data.Core"}]}
+        identities = bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
+        self.assertEqual(identities, [("Data.Core", "checked-base-hash")])
+        row["interface"] = {**base, "imports": [{"module": "Bootstrap.Check"}]}
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "depends on compiler implementation"):
+            bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
 
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
         live = (bootstrap.ROOT / "compiler/Bootstrap.RuntimeAbi.cinch").read_bytes()
@@ -379,7 +370,8 @@ class BootstrapContract(unittest.TestCase):
             exe.write_bytes(b"compiler")
             exe.chmod(0o755)
             (directory / "compiler.ll").write_text("IR")
-            (directory / "base-interfaces.json").write_text("{}")
+            (directory / "base.cpk").write_bytes(b"packed interfaces")
+            (directory / "base-objects.json").write_text("{}")
             (directory / "link-report.txt").write_text("clang-exit: 0\nartifact-exit: 1\n")
             log = directory / "build.log"
             log.write_text("")
@@ -413,7 +405,8 @@ class BootstrapContract(unittest.TestCase):
             exe.write_bytes(b"compiler")
             exe.chmod(0o755)
             (directory / "compiler.ll").write_text("IR")
-            (directory / "base-interfaces.json").write_text("{}")
+            (directory / "base.cpk").write_bytes(b"packed interfaces")
+            (directory / "base-objects.json").write_text("{}")
             (directory / "link-report.txt").write_text("clang-exit: 0\nartifact-exit: 73\n")
             log = directory / "build.log"
             log.write_text("")
@@ -429,16 +422,20 @@ class BootstrapContract(unittest.TestCase):
 
     def provider_fixture(self, runtime):
         library = runtime.parent / "library.o"
-        metadata = runtime.parent / "library.abi.json"
+        from pack_interfaces import pack
+
+        metadata = runtime.parent / "library.cpk"
         if not library.exists():
             library.write_bytes(b"verified library-only object")
-            metadata.write_bytes(b'{"interfaces":[]}')
+            metadata.write_bytes(pack([], {"interfaces": []}, flat_bodies=True, structured_abi=True))
         return {"runtime": runtime, "object": library,
                 "interfaces": {"schema": 1, "interfaces": []},
                 "configuration": {"schema": 1, "target": "test-host", "object": str(library),
                                   "metadata": str(metadata), "object_sha256": bootstrap.file_hash(library),
                                   "metadata_sha256": bootstrap.file_hash(metadata)},
-                "identity": {"producer_sha256": "verified library producer", "runtime_abi": 5}}
+                "interface_package": metadata,
+                "identity": {"producer_sha256": "verified library producer", "runtime_abi": 5,
+                             "artifacts": {"library.cpk": bootstrap.file_hash(metadata)}}}
 
     def test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -486,10 +483,12 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual(len(calls), 3)
                 self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
                 inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
-                self.assertEqual(inputs["frontend_mode"], "typed-ir-objects")
+                self.assertEqual(inputs["frontend_mode"], "typed-ir-packed-objects")
                 self.assertEqual(inputs["interface_output"], "checked-schema10")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
                 self.assertEqual(inputs["interface_package_sha256"], bootstrap.file_hash(directory / "base.cpk"))
+                self.assertFalse((directory / "base-interfaces.json").exists())
+                self.assertFalse((directory / "objects.json").exists())
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")
                 runtime.write_bytes(b"different runtime object")
@@ -498,7 +497,7 @@ class BootstrapContract(unittest.TestCase):
                 (root / "library.o").write_bytes(b"different native library object")
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 9, "changed dependency code must invalidate the cached compiler")
-                (directory / "objects.json").write_text("corrupted stage configuration")
+                (directory / "base-objects.json").write_text("corrupted stage configuration")
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 12, "a changed admission configuration must invalidate the cache")
                 (directory / "base.cpk").write_text("corrupted stage package")

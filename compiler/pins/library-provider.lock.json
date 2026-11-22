@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with direct CINCHPK4 emission and faster artifact SHA-256.",
-  "revision": "2d592a33259eb47254dce1e0f7759fe2d1db6ab8",
+  "description": "ABI 10 provider that publishes only the packed CINCHPK4 library interface and ABI.",
+  "revision": "143fd34372f693a0f80ecd16d452b2407c57af66",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "f2e97c46f50aee50354b4d6ca90d6100529f7dc4f0b01a33a78ab412fbee0c74"
+  "source_sha256": "89da63977ccceae67948d74c7c7a1f8b988a6f64e2f81a5d743c01c62746bdf0"
 }

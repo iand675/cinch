@@ -187,7 +187,7 @@ def main() -> None:
                          str(args.native_interfaces.resolve()), str(bundle.resolve()), str(exe.with_suffix('.ll')), str(exe), str(exe.with_suffix('.link.txt'))])
                 except RuntimeError as error:
                     raise RuntimeError(str(error) + '\n' + exe.with_suffix('.ll.diagnostics').read_text()) from error
-                runtime = Path(configuration['metadata']).with_name('libcinchruntime.a')
+                runtime = Path(configuration['object']).with_name('libcinchruntime.a')
                 run([os.environ.get('CINCH_CLANG', 'clang'), '-O2', str(exe.with_suffix('.ll')), configuration['object'],
                      str(runtime), '-o', str(exe), '-ldl', '-lpthread', '-lm'])
             else:

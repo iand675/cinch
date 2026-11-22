@@ -1,12 +1,10 @@
 """Build the pinned library dependency bundle, never compiler implementations."""
 from pathlib import Path
 import fcntl
-import heapq
 import json
 import os
 import re
 import shutil
-import subprocess
 
 
 ENTRY = b"module CinchBaseObject where\n  export marker\n  marker :: Unit -> Unit\n  marker unit = unit\n"
@@ -112,7 +110,7 @@ def source_snapshot(driver, lock):
     return snapshot
 
 
-def admitted_interfaces(driver, metadata, package, directory):
+def admitted_interface_identities(driver, metadata, package):
     """Admit only this pin's base package and the generated trivial root."""
     allowed = {row["name"] for row in package["modules"]} | {"Prelude.Generated"}
     if any(name == "Bootstrap" or name.startswith("Bootstrap.") for name in allowed):
@@ -127,11 +125,8 @@ def admitted_interfaces(driver, metadata, package, directory):
         names.add(name)
         if any(dep["module"] not in closure for dep in doc.get("imports", [])):
             raise driver.BootstrapError("library object depends on compiler implementation interfaces")
-        path = directory / "library" / "build" / (name + ".cinchif")
-        if not path.is_file() or driver.read_json(path) != doc:
-            raise driver.BootstrapError("library object differs from its actual checked interface file: " + name)
         if name in allowed:
-            rows.append([name, row["iface_hash"], str(path.resolve())])
+            rows.append((name, row["iface_hash"]))
     if not rows:
         raise driver.BootstrapError("library object has no checked base contracts")
     for unit in metadata.get("units", []):
@@ -140,48 +135,12 @@ def admitted_interfaces(driver, metadata, package, directory):
                      or re.fullmatch(r"Tuple\.[0-9]+(?:@[ROT]+)?", symbol) is not None)
         if not generated and not any(symbol.startswith(name + ".") for name in closure):
             raise driver.BootstrapError("library object contains a compiler or unknown implementation unit: " + symbol)
-    return {"schema": 1, "interfaces": sorted(rows)}
-
-
-def ordered_base_manifest(manifest, metadata):
-    """Present the base in the same dependency order its native loader uses."""
-    rows = manifest["interfaces"]
-    positions = {row[0]: pos for pos, row in enumerate(rows)}
-    if len(positions) != len(rows):
-        return manifest
-    counts = {}
-    users = {name: [] for name in positions}
-    for row in metadata.get("interfaces", []):
-        name = row["module"]
-        if name not in positions:
-            continue
-        imports = row["interface"].get("imports", [])
-        counts[name] = len(imports)
-        for dep in imports:
-            home = dep["module"]
-            if home not in users:
-                return manifest
-            users[home].append(name)
-    if counts.keys() != positions.keys():
-        return manifest
-    ready = [positions[name] for name, count in counts.items() if not count]
-    heapq.heapify(ready)
-    ordered = []
-    while ready:
-        row = rows[heapq.heappop(ready)]
-        ordered.append(row)
-        for name in users[row[0]]:
-            counts[name] -= 1
-            if not counts[name]:
-                heapq.heappush(ready, positions[name])
-    if len(ordered) != len(rows):
-        return manifest
-    return {**manifest, "interfaces": ordered}
+    return sorted(rows)
 
 
 def cached(driver, directory, inputs):
     record = driver.read_json(directory / "provider.json")
-    required = {"cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a"}
+    required = {"cinch", "library.o", "library.ll", "library.cpk", "libcinchruntime.a"}
     artifacts = record.get("artifacts", {})
     return (record.get("status") == "built" and record.get("inputs") == inputs
             and os.access(directory / "cinch", os.X_OK)
@@ -190,20 +149,29 @@ def cached(driver, directory, inputs):
                     for name, expected in artifacts.items()))
 
 
-def published_package(directory, metadata, artifacts, interfaces):
-    from pack_interfaces import packed_manifest
+def packed_provider_metadata(driver, path, package):
+    from pack_interfaces import PackedInterfaces
 
-    if "interface_package_sha256" not in metadata and "library.cpk" not in artifacts:
-        return None
-    digest = artifacts.get("library.cpk")
-    if digest is None or metadata.get("interface_package_sha256") != digest:
-        raise ValueError("packed interface package differs from its object ABI metadata")
-    path = directory / "library.cpk"
-    actual = packed_manifest(path.read_bytes())
-    expected = [(name, identity) for name, identity, _ in interfaces["interfaces"]]
-    if sorted(actual) != sorted(expected):
+    packed = PackedInterfaces(path.read_bytes())
+    metadata = packed.full_metadata()
+    expected = admitted_interface_identities(driver, metadata, package)
+    if sorted((name, identity) for name, identity, _ in packed.documents) != expected:
         raise ValueError("packed interface package does not name the checked base contracts")
-    return path
+    return metadata
+
+
+def fixture_interfaces(provider, directory):
+    """Publish editable per-module fixtures for contract mutation tests."""
+    from pack_interfaces import PackedInterfaces, canonical
+
+    directory.mkdir(parents=True, exist_ok=True)
+    packed = PackedInterfaces(provider["interface_package"].read_bytes())
+    rows = []
+    for name, identity, document in packed.documents:
+        path = directory / (name + ".cinchif")
+        path.write_bytes(canonical(document))
+        rows.append([name, identity, str(path.resolve())])
+    return {"schema": 1, "interfaces": rows}
 
 
 def artifact_provider(driver, receipt_path):
@@ -251,7 +219,8 @@ def artifact_provider(driver, receipt_path):
         if receipt.get("runtime_abi") != abi or receipt.get("target") != target:
             refuse("target or runtime ABI differs from this compiler")
         artifacts = receipt.get("artifacts", {})
-        required = {"cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a", "base/cinch-base.cinchpkg", "roots.json", "library/CinchBaseObject.cinch"}
+        required = {"cinch", "library.o", "library.ll", "library.cpk", "libcinchruntime.a",
+                    "base/cinch-base.cinchpkg", "roots.json", "library/CinchBaseObject.cinch"}
         if not isinstance(artifacts, dict) or not required <= artifacts.keys():
             refuse("required artifact bytes are missing from the receipt")
         for name, digest in artifacts.items():
@@ -262,7 +231,9 @@ def artifact_provider(driver, receipt_path):
                 refuse("artifact digest mismatch: " + name)
         if not os.access(directory / "cinch", os.X_OK):
             refuse("producer compiler is not executable")
-        metadata = read_document(directory / "library.abi.json")
+        packed = directory / "library.cpk"
+        package = read_document(directory / "base/cinch-base.cinchpkg")
+        metadata = packed_provider_metadata(driver, packed, package)
         if (type(metadata.get("schema")) is not int or metadata["schema"] != 1 or metadata.get("runtime_abi") != abi
                 or metadata.get("target") != target or metadata.get("word_size") != 64
                 or metadata.get("endian") != "little" or metadata.get("reclaim") is not True
@@ -280,22 +251,15 @@ def artifact_provider(driver, receipt_path):
         if (producer.get("mode") != "fresh-embedded" or producer.get("compiler_sha256") != artifacts["cinch"]
                 or not re.fullmatch(r"[0-9a-f]{64}", producer.get("source_sha256", ""))):
             refuse("producer identity is incomplete or inconsistent")
-        package = read_document(directory / "base/cinch-base.cinchpkg")
         if artifacts["base/cinch-base.cinchpkg"] != driver.file_hash(driver.seed_source_root(driver.ROOT) / "prelude/cinch-base.cinchpkg"):
             refuse("base package differs from current sources")
         modules = package["modules"]
         sources = receipt.get("sources", {})
         if len({row["name"] for row in modules}) != len(modules) or set(sources) != {row["name"] for row in modules}:
             refuse("base source manifest is incomplete or duplicated")
-        interfaces = admitted_interfaces(driver, metadata, package, directory)
-        if read_document(directory / "interfaces.json") != interfaces:
-            refuse("interface manifest does not name this object's actual interfaces")
-        packed = published_package(directory, metadata, artifacts, interfaces)
         documents = {}
         for row in metadata["interfaces"]:
             document = row["interface"]
-            if "library/build/" + row["module"] + ".cinchif" not in artifacts:
-                refuse("checked interface bytes are not retained: " + row["module"])
             validate_contract(document, abi)
             if interface_hash(document) != row["iface_hash"]:
                 refuse("checked interface hash mismatch: " + row["module"])
@@ -337,10 +301,10 @@ def artifact_provider(driver, receipt_path):
                     "host": driver.HOST, "producer": producer, "runtime": runtime,
                     "sources": sources, "roots_sha256": roots_sha256, "artifacts": artifacts}
         configuration = {"schema": 1, "target": target, "object": str(directory / "library.o"),
-                         "metadata": str(directory / "library.abi.json"),
-                         "object_sha256": artifacts["library.o"], "metadata_sha256": artifacts["library.abi.json"]}
+                         "metadata": str(packed),
+                         "object_sha256": artifacts["library.o"], "metadata_sha256": artifacts["library.cpk"]}
         return {"runtime": directory / "libcinchruntime.a", "object": directory / "library.o",
-                "interfaces": interfaces, "configuration": configuration, "identity": identity,
+                "configuration": configuration, "identity": identity,
                 "interface_package": packed}
     except driver.BootstrapError:
         raise
@@ -351,7 +315,7 @@ def artifact_provider(driver, receipt_path):
 def provider(driver):
     lock = driver.library_provider_lock()
     roots = (driver.ROOT / "compiler/pins/library-object-roots.json").read_bytes()
-    inputs = {"protocol": 2, "host": driver.HOST, "producer": lock,
+    inputs = {"protocol": 3, "host": driver.HOST, "producer": lock,
               "roots_sha256": driver.digest(roots), "entry_sha256": driver.digest(ENTRY)}
     snapshot = source_snapshot(driver, lock)
     directory = driver.BUILD / "library-provider" / driver.digest(canonical(inputs))
@@ -395,46 +359,36 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
     requested = directory / "roots.json"
     requested.write_bytes(roots)
     producer = directory / "cinch"
-    usage = subprocess.run([producer, "--help"], env=driver.environment(), capture_output=True)
-    packed_options = (["--interface-package", "--interface-package-private", "CinchBaseObject"]
-                      if b"--interface-package-private" in usage.stdout + usage.stderr else [])
     code = driver.run([producer, "emit-object", source, "--object-roots", requested,
-                       *packed_options, "-o", directory / "library.o"], library, log, append=True)
+                       "--interface-package-only", "--interface-package-private", "CinchBaseObject",
+                       "-o", directory / "library.o"], library, log, append=True)
     if code:
         raise driver.BootstrapError(f"library object did not emit (exit {code}): {log}")
-    metadata = driver.read_json(directory / "library.abi.json")
+    package = driver.read_json(driver.seed_source_root(snapshot) / "prelude/cinch-base.cinchpkg")
+    try:
+        metadata = packed_provider_metadata(driver, directory / "library.cpk", package)
+    except (KeyError, OSError, TypeError, ValueError) as error:
+        raise driver.BootstrapError(f"invalid packed library producer output: {error}") from error
     if (metadata.get("schema") != 1 or metadata.get("runtime_abi") != lock["runtime_abi"]
             or metadata.get("word_size") != 64 or metadata.get("endian") != "little"
             or metadata.get("reclaim") is not True or metadata.get("self_describing") is not True):
         raise driver.BootstrapError("library object has an incompatible runtime/descriptor ABI")
-    package = driver.read_json(driver.seed_source_root(snapshot) / "prelude/cinch-base.cinchpkg")
-    interfaces = admitted_interfaces(driver, metadata, package, directory)
-    driver.write_json(directory / "interfaces.json", interfaces)
     artifacts = {name: driver.file_hash(directory / name) for name in
-                 ("cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a")}
-    if packed_options:
-        artifacts["library.cpk"] = driver.file_hash(directory / "library.cpk")
-        published_package(directory, metadata, artifacts, interfaces)
-    artifacts.update({str(p.relative_to(directory)): driver.file_hash(p)
-                      for p in library.rglob("*.cinchif")})
+                 ("cinch", "library.o", "library.ll", "library.cpk", "libcinchruntime.a")}
     driver.write_json(directory / "provider.json", {"status": "built", "inputs": inputs, "artifacts": artifacts})
 
 
 def provider_artifacts(driver, directory, inputs):
+    from pack_interfaces import PackedInterfaces
+
     artifacts = driver.read_json(directory / "provider.json")["artifacts"]
-    metadata = driver.read_json(directory / "library.abi.json")
+    package = directory / "library.cpk"
+    metadata = PackedInterfaces(package.read_bytes()).metadata()
     configuration = {"schema": 1, "target": metadata["target"],
                      "object": str((directory / "library.o").resolve()),
-                     "metadata": str((directory / "library.abi.json").resolve()),
+                     "metadata": str(package.resolve()),
                      "object_sha256": artifacts["library.o"],
-                     "metadata_sha256": artifacts["library.abi.json"]}
+                     "metadata_sha256": artifacts["library.cpk"]}
     identity = {**inputs, "artifacts": artifacts}
-    # Leave the pinned artifact and its receipt unchanged on disk.
-    manifest = driver.read_json(directory / "interfaces.json")
-    try:
-        package = published_package(directory, metadata, artifacts, manifest)
-    except ValueError as error:
-        raise driver.BootstrapError(f"pinned library interface package: {error}") from error
     return {"runtime": directory / "libcinchruntime.a", "object": directory / "library.o",
-            "interfaces": ordered_base_manifest(manifest, metadata),
             "configuration": configuration, "identity": identity, "interface_package": package}

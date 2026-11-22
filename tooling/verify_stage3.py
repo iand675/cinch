@@ -19,10 +19,17 @@ from bootstrap_checklist import matches_digest, published_stage3_status
 
 
 def publish_interfaces(manifest, source, prefix):
+    from pack_interfaces import PackedInterfaces, STRUCTURED_ABI_MAGIC, canonical
+
     build = source.parents[2] / "build"
     build.mkdir(exist_ok=True)
-    for name, _, path in bootstrap.read_json(manifest)["interfaces"]:
-        shutil.copyfile(path, build / (name + ".cinchif"))
+    data = manifest.read_bytes()
+    if data.startswith(STRUCTURED_ABI_MAGIC):
+        for name, _, doc in PackedInterfaces(data).documents:
+            (build / (name + ".cinchif")).write_bytes(canonical(doc))
+    else:
+        for name, _, path in json.loads(data)["interfaces"]:
+            shutil.copyfile(path, build / (name + ".cinchif"))
     for path in prefix.parent.glob(prefix.name + ".*.cinchif"):
         shutil.copyfile(path, build / path.name.removeprefix(prefix.name + "."))
 
@@ -34,7 +41,7 @@ def publish_interfaces(manifest, source, prefix):
 PROFILE_FLAGS = ("--clear-features", "--rc-debug", "--no-reclaim", "--portable-isa")
 
 
-def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_base=None, indexed_objects=None):
+def compile_client(compiler, objects, runtime, args, *, ir_only=False):
     """Adapt the shared Rust test harness to the staged frontend and linker."""
     env = bootstrap.environment()
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
@@ -42,21 +49,6 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False, indexed_b
     emit = "--emit-ir-only" if ir_only and not api and env.get("CINCH_TEST_DISCARD_INTERFACES") == "1" else "--emit-ir"
 
     def frontend(options):
-        # Test fixtures can supply their own manifests. Select the packed
-        # artifact for the receipt's base interfaces and preserve each
-        # fixture's chosen inputs and the API's JSON publication manifest.
-        if indexed_base and "--interfaces" in options:
-            manifest, package = indexed_base
-            at = options.index("--interfaces") + 1
-            if at < len(options) and Path(options[at]) == Path(manifest):
-                options = [*options[:at], package, *options[at + 1:]]
-                # Library-object emission can republish the provider's
-                # embedded contracts, so it still uses the full metadata.
-                if indexed_objects and "--objects" in options and "--emit-object" not in options:
-                    at = options.index("--objects") + 1
-                    original, compact = indexed_objects
-                    if at < len(options) and Path(options[at]) == Path(original):
-                        options[at] = compact
         return subprocess.call([compiler, *options], env=env)
 
     if args and args[0] in ("--interfaces", "--target", "--require-capability", "--target-feature", "--check-platform", *PROFILE_FLAGS):
@@ -127,9 +119,9 @@ def stage3_artifacts():
             or inputs.get("host") != bootstrap.HOST or not bootstrap.cached(stage, inputs)
             or not library_matches):
         raise bootstrap.BootstrapError("Stage3 frontend tests require the current checked compiler and library")
-    compiler, manifest, objects = (stage / name for name in ("cinch", "base-interfaces.json", "objects.json"))
+    compiler, manifest, objects = (stage / name for name in ("cinch", "base.cpk", "base-objects.json"))
     configuration = bootstrap.read_json(objects)
-    runtime = Path(configuration["metadata"]).with_name("libcinchruntime.a")
+    runtime = Path(configuration["object"]).with_name("libcinchruntime.a")
     hashes = {runtime.parent / name: digest for name, digest in provider["artifacts"].items()}
     hashes.update({
         bootstrap.BUILD / "stage2/cinch": inputs["builder_sha256"],
@@ -155,7 +147,7 @@ def target_artifacts_match(output, record):
     if not isinstance(record, dict) or record.get("directory") != str(output.resolve()):
         return False
     hashes = record.get("sha256")
-    required = {"objects.json", "interfaces.json", "library.abi.json", "library.o"}
+    required = {"objects.json", "library.cpk", "library.o"}
     if not isinstance(hashes, dict) or not required.issubset(hashes):
         return False
     return all((output / name).is_file() and bootstrap.file_hash(output / name) == digest
@@ -164,7 +156,7 @@ def target_artifacts_match(output, record):
 
 def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receipt=None):
     """Build only the base library for the requested target using its pinned producer."""
-    from bootstrap_objects import ENTRY, admitted_interfaces, source_snapshot
+    from bootstrap_objects import ENTRY, packed_provider_metadata, source_snapshot
 
     supported = {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu",
                  "aarch64-unknown-linux-gnu", "powerpc64-unknown-linux-gnu", "wasm32-unknown-unknown"}
@@ -213,7 +205,7 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
         output = output / "no-reclaim"
     project = output / "library"
     project.mkdir(parents=True, exist_ok=True)
-    manifest, config = output / "interfaces.json", output / "objects.json"
+    manifest, config = output / "library.cpk", output / "objects.json"
     with (output / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         receipt = output / "artifacts.json"
@@ -221,22 +213,21 @@ def test_target_inputs(directory, objects, triple, *, reclaim=True, stage_receip
             source = project / "CinchBaseObject.cinch"
             source.write_bytes(ENTRY)
             code = bootstrap.run([producer, "emit-object", source, "--target", triple,
+                                  "--interface-package-only", "--interface-package-private", "CinchBaseObject",
                                   *([] if reclaim else ["--no-reclaim"]), "--object-roots", roots, "-o", output / "library.o"],
                                  project, output / "build.log")
             if code:
                 raise ValueError(f"building {triple} base library failed: {output / 'build.log'}")
-            metadata = output / "library.abi.json"
-            document = bootstrap.read_json(metadata)
+            snapshot = source_snapshot(bootstrap, identity["producer"])
+            package = bootstrap.read_json(bootstrap.seed_source_root(snapshot) / "prelude/cinch-base.cinchpkg")
+            document = packed_provider_metadata(bootstrap, manifest, package)
             if document.get("target") != triple or document.get("reclaim") is not reclaim:
                 raise ValueError("base library producer emitted a different target or ownership mode")
-            snapshot = source_snapshot(bootstrap, identity["producer"])
-            package = bootstrap.read_json(snapshot / "seed/prelude/cinch-base.cinchpkg")
-            bootstrap.write_json(manifest, admitted_interfaces(bootstrap, document, package, output))
             library = output / "library.o"
             bootstrap.write_json(config, dict(schema=1, target=triple, object=str(library),
-                                              metadata=str(metadata), object_sha256=bootstrap.file_hash(library),
-                                              metadata_sha256=bootstrap.file_hash(metadata)))
-            paths = [config, manifest, metadata, library, *(project / "build").glob("*.cinchif")]
+                                              metadata=str(manifest), object_sha256=bootstrap.file_hash(library),
+                                              metadata_sha256=bootstrap.file_hash(manifest)))
+            paths = [config, manifest, library]
             hashes = {str(path.relative_to(output)): bootstrap.file_hash(path) for path in paths}
             bootstrap.write_json(receipt, {"directory": str(output.resolve()), "sha256": hashes})
     print(json.dumps({"interfaces": str(manifest), "objects": str(config)}))
@@ -258,8 +249,8 @@ def supports_check_types(compiler):
 def standalone_inputs(directory, compiler, manifest, objects, runtime):
     """Expose the selected artifacts to public CLI corpus runners."""
     directory.mkdir(exist_ok=True)
-    for name, source in (("cinch", compiler), ("base-interfaces.json", manifest),
-                         ("objects.json", objects), ("libcinchruntime.a", runtime)):
+    for name, source in (("cinch", compiler), ("base.cpk", manifest),
+                         ("base-objects.json", objects), ("libcinchruntime.a", runtime)):
         path = directory / name
         if path.is_symlink() and path.resolve() == source.resolve(strict=True):
             continue
@@ -272,12 +263,6 @@ def write_wrapper(wrapper, compiler, objects, runtime):
     receipt = Path(compiler).parent / "stage.json"
     inputs = bootstrap.read_json(receipt).get("inputs", {}) if receipt.is_file() else {}
     stage_receipt = str(receipt.resolve()) if "library_provider" in inputs else None
-    indexed_base = None
-    indexed_objects = None
-    if "interface_package_sha256" in inputs:
-        indexed_base = (str(receipt.with_name("base-interfaces.json")), str(receipt.with_name("base.cpk")))
-    if "packed_object_configuration_sha256" in inputs:
-        indexed_objects = (str(objects), str(receipt.with_name("base-objects.json")))
     wrapper.write_text(
         "#!/usr/bin/env python3\nimport sys\n"
         f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})\n"
@@ -286,7 +271,7 @@ def write_wrapper(wrapper, compiler, objects, runtime):
         "if sys.argv[1:2] == ['--test-target-inputs'] and len(sys.argv) >= 3 and sys.argv[3:] in ([], ['--no-reclaim']):\n"
         f"    raise SystemExit(test_target_inputs({str(wrapper.parent.resolve())!r}, {str(objects)!r}, sys.argv[2], reclaim=len(sys.argv) == 3, stage_receipt={stage_receipt!r}))\n"
         f"raise SystemExit(compile_client(compiler, {str(objects)!r}, {str(runtime)!r}, sys.argv[1:], "
-        f"ir_only={ir_only!r}, indexed_base={indexed_base!r}, indexed_objects={indexed_objects!r}))\n"
+        f"ir_only={ir_only!r}))\n"
     )
     wrapper.chmod(0o755)
 

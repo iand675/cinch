@@ -29,8 +29,7 @@ def main() -> None:
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
-    manifest, objects = args.artifacts / "interfaces.json", args.artifacts / "objects.json"
-    bootstrap.write_json(manifest, provider["interfaces"])
+    manifest, objects = provider['interface_package'], args.artifacts / "objects.json"
     bootstrap.write_json(objects, provider["configuration"])
     fixture = bootstrap.ROOT / "seed/tests/fixtures/native-scalar-intrinsic-vectors.json"
     rows = json.loads(fixture.read_text())[args.first:]

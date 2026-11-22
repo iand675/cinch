@@ -47,7 +47,7 @@ def main():
     # The bundle is the compiler's own sources, so the base interface set is
     # what its imports resolve against; without it every prelude import is
     # an unresolved module.
-    manifest = compiler.parent / "base-interfaces.json"
+    manifest = compiler.parent / "base.cpk"
     command = [str(compiler), "--check", str(entry), str(directory / "diagnostics.txt")]
     if manifest.is_file():
         command[1:1] = ["--interfaces", str(manifest)]

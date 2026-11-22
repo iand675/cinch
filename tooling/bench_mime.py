@@ -115,11 +115,11 @@ def main() -> None:
         ir = work / 'bench.ll'
         if args.native:
             snap = args.native.resolve()
-            config = json.loads((snap / 'objects.json').read_text())
+            config = json.loads((snap / 'base-objects.json').read_text())
             provider = Path(config['object'])
             (work / 'bundle.source').write_text('\n'.join((work / (name + '.cinch')).read_text() for name in ordered) + '\n' + driver.read_text())
-            command = [str(compiler), '--emit-ir', '--interfaces', str(snap / 'base-interfaces.json'), '--objects', str(snap / 'objects.json'), str(work / 'bundle.source'), str(ir)]
-            report['native'] = {name: digest(snap / name) for name in ('base-interfaces.json', 'objects.json')}
+            command = [str(compiler), '--emit-ir', '--interfaces', str(snap / 'base.cpk'), '--objects', str(snap / 'base-objects.json'), str(work / 'bundle.source'), str(ir)]
+            report['native'] = {name: digest(snap / name) for name in ('base.cpk', 'base-objects.json')}
             report['native']['provider_sha256'] = digest(provider)
         else:
             command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)]

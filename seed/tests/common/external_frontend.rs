@@ -246,22 +246,60 @@ pub fn configured() -> Result<Option<Frontend>, String> {
 }
 
 fn validate_interfaces(path: &Path) -> Result<(), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("read external interface manifest: {e}"))?;
-    let doc = parse_json(&text).map_err(|e| format!("external interface manifest: {e}"))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("read external interfaces: {e}"))?;
+    if bytes.starts_with(b"CINCHPK4") {
+        let names = packed_interface_names(&bytes).ok_or("invalid external packed interface directory")?;
+        return validate_base_module_names(names);
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|e| format!("external interface manifest: {e}"))?;
+    let doc = parse_json(text).map_err(|e| format!("external interface manifest: {e}"))?;
     if doc.get("schema").and_then(Json::as_num) != Some(1.0) {
         return Err("external interface manifest must use schema 1".into());
     }
-    static BASE_MODULES: std::sync::LazyLock<BTreeSet<&str>> = std::sync::LazyLock::new(|| {
-        base_package().modules.iter().map(|module| module.name.as_str()).collect()
-    });
     let rows = doc.get("interfaces").and_then(Json::as_arr).ok_or("external manifest needs interfaces")?;
-    let mut seen = BTreeSet::new();
+    let mut names = Vec::with_capacity(rows.len());
     for row in rows {
         let fields = row.as_arr().ok_or("invalid external interface row")?;
         if fields.len() != 3 || fields.iter().any(|x| x.as_str().is_none_or(str::is_empty)) {
             return Err("external interface row must contain module, hash and path strings".into());
         }
-        let name = fields[0].as_str().unwrap();
+        names.push(fields[0].as_str().unwrap());
+    }
+    validate_base_module_names(names)
+}
+
+// The test wrapper only restricts which modules may be supplied. The selected
+// compiler validates the package and checks each contract's identity.
+fn packed_interface_names(bytes: &[u8]) -> Option<Vec<&str>> {
+    fn word(bytes: &[u8], at: usize) -> Option<usize> {
+        Some(u32::from_le_bytes(bytes.get(at..at.checked_add(4)?)?.try_into().ok()?) as usize)
+    }
+    let section = |at| {
+        let start = word(bytes, at)?;
+        let length = word(bytes, at + 4)?;
+        bytes.get(start..start.checked_add(length)?)
+    };
+    let strings = section(16)?;
+    let text_start = word(strings, 0)?.checked_mul(8)?.checked_add(4)?;
+    let text = strings.get(text_start..)?;
+    let modules = section(24)?;
+    let rows = modules.chunks_exact(36);
+    if !rows.remainder().is_empty() {
+        return None;
+    }
+    rows.map(|row| {
+        let start = word(row, 0)?;
+        let length = word(row, 4)?;
+        std::str::from_utf8(text.get(start..start.checked_add(length)?)?).ok()
+    }).collect()
+}
+
+fn validate_base_module_names<'a>(names: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
+    static BASE_MODULES: std::sync::LazyLock<BTreeSet<&str>> = std::sync::LazyLock::new(|| {
+        base_package().modules.iter().map(|module| module.name.as_str()).collect()
+    });
+    let mut seen = BTreeSet::new();
+    for name in names {
         if !BASE_MODULES.contains(name) || !seen.insert(name) {
             return Err(format!("external tests require distinct checked base interfaces, not {name}"));
         }

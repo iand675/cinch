@@ -415,8 +415,8 @@ def main() -> None:
                     "runtime_sha256": digest(runtime), "compile_rc_debug": label == "native"}
         if label == "native":
             mode = corpus_emit_mode(compiler, report["runs"])
-            config = json.loads((snap / "objects.json").read_text()); provider = Path(config["object"])
-            identity.update({name: digest(snap / name) for name in ("objects.json", "base-interfaces.json")})
+            config = json.loads((snap / "base-objects.json").read_text()); provider = Path(config["object"])
+            identity.update({name: digest(snap / name) for name in ("base-objects.json", "base.cpk")})
             identity["provider_sha256"] = digest(provider)
         if label in report["frontends"] and report["frontends"][label] != identity:
             raise RuntimeError("changed frontend cannot resume: " + label)
@@ -433,7 +433,7 @@ def main() -> None:
             row = next((entry for entry in report["runs"] if entry["frontend"] == label and entry["case"] == name), None)
             if row is None:
                 guard("emit-" + label + "-" + name)
-                command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), mode, "--rc-debug", "--interfaces", str(snap / "base-interfaces.json"), "--objects", str(snap / "objects.json"), str(work / "bundle.source"), str(ir)]
+                command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), mode, "--rc-debug", "--interfaces", str(snap / "base.cpk"), "--objects", str(snap / "base-objects.json"), str(work / "bundle.source"), str(ir)]
                 started = time.monotonic()
                 result = execute(command, {**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"})
                 target = re.search(r'target triple = "([^"]+)"', ir.read_text())

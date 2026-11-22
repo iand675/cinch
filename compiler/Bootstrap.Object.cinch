@@ -2,7 +2,7 @@
 -- from the independently loaded interface set, never from this unit inventory.
 module Bootstrap.Object where
   import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
-  import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, known-contract-end)
+  import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, load-referenced-object-interfaces, known-contract-end)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Bootstrap.Package (PackageSnapshot, authenticated-snapshot-abi, packaged-abi)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
@@ -24,6 +24,7 @@ module Bootstrap.Object where
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export read-runtime-object-document, read-runtime-object-mode, admit-runtime-object-mode
   export read-runtime-object-client-mode, admit-runtime-object-client-mode
+  export read-runtime-object-publication
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
   export runtime-object-metadata-file, admit-runtime-object-package-client
   export object-unit, unit-symbol, unit-closure, unit-params, unit-result
@@ -396,7 +397,10 @@ module Bootstrap.Object where
     ReferencedContracts validated -> (case field "interfaces" doc of
       JNull -> (case referenced-interface-rows (field "interface_refs" doc) (field "private_interfaces" doc) of
         Err message -> Err message
-        Ok refs -> Ok (validated-interface-references-match validated refs))
+        Ok refs -> if validated-interface-references-match validated refs then Ok True
+          else (case load-referenced-object-interfaces validated refs of
+            Some actual -> Ok (matching-interfaces interfaces actual)
+            None -> Ok False))
       other -> Err "runtime object contains both interface references and embedded public contracts")
 
   referenced-interface-rows :: Json -> Json -> Result String (List (String, String, Option Json))
@@ -564,6 +568,12 @@ module Bootstrap.Object where
     Err message -> Err message
     Ok configuration -> admit-runtime-object-client-mode reclaim interfaces configuration
 
+  -- Object publication needs the original rows, including the private root.
+  read-runtime-object-publication :: forall r. using (io :: Io r) => ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-publication validated path = case read-runtime-object-config path of
+    Err message -> Err message
+    Ok configuration -> admit-runtime-object-artifacts (Some validated) False True (validated-interfaces-members validated) configuration
+
   data RuntimeObjectConfig where
     MkRuntimeObjectConfig :: String -> String -> String -> String -> String -> RuntimeObjectConfig
   runtime-object-input-files :: RuntimeObjectConfig -> List String
@@ -585,24 +595,27 @@ module Bootstrap.Object where
   admit-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object = admit-runtime-object-mode True
   admit-runtime-object-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  admit-runtime-object-mode reclaim interfaces configuration = case configuration of
+  admit-runtime-object-mode reclaim interfaces configuration = admit-runtime-object-artifacts None False reclaim interfaces configuration
+
+  admit-runtime-object-artifacts :: forall r. using (io :: Io r) => Option ValidatedInterfaces -> Bool -> Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  admit-runtime-object-artifacts validated carve reclaim interfaces configuration = case configuration of
     MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
         (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-          parse-runtime-object-bytes None reclaim expected-triple interfaces object-file metadata-file code metadata
+          parse-runtime-object-bytes validated carve reclaim expected-triple interfaces object-file metadata-file code metadata
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
 
-  parse-runtime-object-bytes :: forall r. Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  parse-runtime-object-bytes validated reclaim expected-triple interfaces object-file metadata-file code metadata =
+  parse-runtime-object-bytes :: forall r. Option ValidatedInterfaces -> Bool -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  parse-runtime-object-bytes validated carve reclaim expected-triple interfaces object-file metadata-file code metadata =
     case packaged-abi metadata-file metadata of
       Err message -> Err message
       Ok (Some artifact) -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
       Ok None -> (case validated of
-        Some checked -> (case admit-carved reclaim expected-triple checked code metadata-file metadata of
+        Some checked | carve -> (case admit-carved reclaim expected-triple checked code metadata-file metadata of
           Some (provider, artifact) -> Ok (provider, artifact, object-file, code)
           None -> parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code metadata)
-        None -> parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code metadata)
+        other -> parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code metadata)
 
   parse-runtime-abi-json :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
   parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code abi =
@@ -625,14 +638,7 @@ module Bootstrap.Object where
 
   admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-client-mode reclaim validated configuration =
-    let interfaces = validated-interfaces-members validated in
-    case configuration of
-      MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
-        (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
-          (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-            parse-runtime-object-bytes (Some validated) reclaim expected-triple interfaces object-file metadata-file code metadata
-            else Err "runtime object artifact digest mismatch"
-          other -> Err "cannot read runtime object artifacts")
+    admit-runtime-object-artifacts (Some validated) True reclaim (validated-interfaces-members validated) configuration
 
   admit-runtime-object-package-client :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig -> PackageSnapshot ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-package-client reclaim validated configuration snapshot = case configuration of

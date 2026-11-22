@@ -149,10 +149,10 @@ def main() -> None:
             command = [clang, "-O" + str(args.opt), "--target=" + original_row["target"], str(ir), str(folder / "fixture.o"), str(folder / args.kernel_object_name)]
             if label == "native":
                 snapshot = Path(identity["compiler"]).parent
-                for filename in ("objects.json", "base-interfaces.json"):
+                for filename in ("base-objects.json", "base.cpk"):
                     if digest(snapshot / filename) != identity[filename]:
                         raise RuntimeError("changed admitted Native manifest")
-                provider = Path(json.loads((snapshot / "objects.json").read_text())["object"])
+                provider = Path(json.loads((snapshot / "base-objects.json").read_text())["object"])
                 if digest(provider) != identity["provider_sha256"]:
                     raise RuntimeError("changed admitted Native provider")
                 command.append(str(provider))

@@ -131,7 +131,7 @@ and `Text.Builder` plus a `Main` that imports all five so the checker walks
 the whole toolkit (about 4,000 lines): the same workload section 8 measured,
 and a check is small enough to retrain on every source revision. Stage1's
 manifest for that check is built from the interfaces the seed emitted; later
-stages use their own `base-interfaces.json`.
+stages use their own `base.cpk`.
 
 A profile is keyed, and rechecked on every use, by what it depends on: the
 compiler source digest, the workload digest, the `llvm-profdata` version, and

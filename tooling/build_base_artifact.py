@@ -57,18 +57,15 @@ def build(output: Path, cargo_target: Path) -> Path:
     entry = library / "CinchBaseObject.cinch"
     entry.write_bytes(bootstrap_objects.ARTIFACT_ENTRY)
     execute([str(output / "cinch"), "emit-object", str(entry), "--object-roots", str(roots),
-             "--interface-package", "--interface-package-private", "CinchBaseObject",
+             "--interface-package-only", "--interface-package-private", "CinchBaseObject",
              "--opt-level", "2", "-o", str(output / "library.o")], library, output / "object-build.log")
     if bootstrap.source_hash(bootstrap.seed_sources(bootstrap.ROOT)) != source_hash:
         raise bootstrap.BootstrapError("compiler/base sources changed during the artifact build")
-    metadata = bootstrap.read_json(output / "library.abi.json")
-    interfaces = bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, output)
-    bootstrap.write_json(output / "interfaces.json", interfaces)
-    retained = {"cinch", "libcinchruntime.a", "library.o", "library.ll", "library.abi.json", "library.cpk", "interfaces.json",
+    metadata = bootstrap_objects.packed_provider_metadata(bootstrap, output / "library.cpk", package)
+    retained = {"cinch", "libcinchruntime.a", "library.o", "library.ll", "library.cpk",
                 "base/cinch-base.cinchpkg", "roots.json", "library/CinchBaseObject.cinch",
                 "compiler-build.log", "runtime-build.log", "object-build.log"}
     retained.update(row["path"] for row in sources.values())
-    retained.update(str(path.relative_to(output)) for path in (library / "build").glob("*.cinchif"))
     artifacts = {name: bootstrap.file_hash(output / name) for name in sorted(retained)}
     receipt = {"schema": 1, "kind": "current-base-artifact", "host": bootstrap.HOST,
                "target": metadata["target"], "runtime_abi": metadata["runtime_abi"],

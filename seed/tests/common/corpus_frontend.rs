@@ -17,8 +17,8 @@ impl Frontend {
     pub fn selected(rust_runtime: &Path) -> Self {
         let native = env::var_os("CINCH_TEST_STANDALONE").map(PathBuf::from);
         let selectors = [
-            ("CINCH_TEST_INTERFACES", "base-interfaces.json"),
-            ("CINCH_TEST_OBJECTS", "objects.json"),
+            ("CINCH_TEST_INTERFACES", "base.cpk"),
+            ("CINCH_TEST_OBJECTS", "base-objects.json"),
             ("CINCH_TEST_RUNTIME_ARCHIVE", "libcinchruntime.a"),
         ];
         if let Some(directory) = native {
@@ -82,8 +82,8 @@ impl Frontend {
                 for (key, file) in [
                     ("compiler_sha256", "cinch"),
                     ("runtime_sha256", "libcinchruntime.a"),
-                    ("base-interfaces.json", "base-interfaces.json"),
-                    ("objects.json", "objects.json"),
+                    ("base.cpk", "base.cpk"),
+                    ("base-objects.json", "base-objects.json"),
                 ] {
                     let mut digest = Sha256::new();
                     io::copy(
@@ -94,7 +94,7 @@ impl Frontend {
                     assert_eq!(identity[key], format!("{:x}", digest.finalize()), "{file}");
                 }
                 let objects: Value =
-                    serde_json::from_slice(&fs::read(directory.join("objects.json")).unwrap())
+                    serde_json::from_slice(&fs::read(directory.join("base-objects.json")).unwrap())
                         .unwrap();
                 assert!(objects["object_sha256"].is_string());
                 assert_eq!(identity["provider_sha256"], objects["object_sha256"]);

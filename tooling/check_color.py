@@ -108,13 +108,13 @@ def main() -> None:
         host_env = {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'}
         link_objects = []
         if snapshot:
-            objects = snapshot / 'objects.json'
-            interfaces = snapshot / 'base-interfaces.json'
+            objects = snapshot / 'base-objects.json'
+            interfaces = snapshot / 'base.cpk'
             configuration = json.loads(objects.read_text())
             provider = Path(configuration['object'])
             identity = {'compiler_sha256': report['compiler_sha256'], 'runtime_sha256': report['runtime_sha256'],
-                        'provider_sha256': digest(provider), 'base-interfaces.json': digest(interfaces),
-                        'objects.json': digest(objects)}
+                        'provider_sha256': digest(provider), 'base.cpk': digest(interfaces),
+                        'base-objects.json': digest(objects)}
             if identity['provider_sha256'] != configuration['object_sha256']:
                 raise RuntimeError('color provider hash disagrees with its object manifest')
             report['frontends'] = {'native': identity}

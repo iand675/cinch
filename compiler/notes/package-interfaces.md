@@ -6,11 +6,11 @@ definition, even when many exports reference the same definitions. The
 contract digest, total bodies, typed schemes, layouts, laws, and dependency
 identities have the same meaning as in the per-module JSON files.
 
-The Rust compiler can write the package directly from its checked contracts
-and body trees while emitting a library object.
+The Rust compiler writes the package directly from its checked contracts and
+body trees while emitting a standalone library object.
 
 ```sh
-cinch emit-object Library.cinch --interface-package -o library.o
+cinch emit-object Library.cinch --interface-package-only -o library.o
 ```
 
 The fresh-base workflow uses the same writer. `tooling/build_base_artifact.py`
@@ -18,20 +18,17 @@ records the producer's `library.cpk` in its receipt. A bootstrap using
 `--library-artifact` takes that package as its base artifact after checking
 its digest and public module identities.
 
-To generate a package from a native compiler's existing manifest:
+Use the staged package and linker configuration to compile a client:
 
 ```sh
-python3 tooling/pack_interfaces.py "$stage/base-interfaces.json" base.cpk \
-  --objects "$stage/objects.json"
-"$stage/cinch" --check-types --interfaces base.cpk Hello.cinch hello
-"$stage/cinch" --emit-ir-only --interfaces base.cpk \
-  --objects "$stage/objects.json" Hello.cinch hello.ll
+"$stage/cinch" --check-types --interfaces "$stage/base.cpk" Hello.cinch hello
+"$stage/cinch" --emit-ir-only --interfaces "$stage/base.cpk" \
+  --objects "$stage/base-objects.json" Hello.cinch hello.ll
 ```
 
-The `--objects` argument to the packer is optional. It carries the provider's
-ABI metadata in a separate binary section. The native object linker still verifies
-the configured metadata digest, binary digest, and target through
-`objects.json`. The metadata in the package does not grant link authority.
+The provider's object ABI lives in a binary section of the same package.
+`base-objects.json` records the target, paths, and digests used to authenticate
+the package and the compiled library object.
 
 The Rust compiler accepts a packed interface sidecar for package objects
 alongside their current execution metadata. For an installed package:
@@ -168,8 +165,8 @@ Pass `--legacy-json-abi` to write version 3 with a JSON ABI section, or
 python3 tooling/verify_package_interfaces.py --native "$stage" --seed "$seed"
 ```
 
-The gate checks valid and invalid Hello World programs through both native
-input paths, compares emitted LLVM IR, requires a clean leak line, corrupts
+The gate checks valid and invalid Hello World programs using the staged and
+repacked inputs, compares emitted LLVM IR, requires a clean leak line, corrupts
 package sections and identities, and checks a real installed Rust package.
 Native timings use fresh processes with a warm filesystem cache.
 The native bootstrap writes `base.cpk` and uses it as the base contract

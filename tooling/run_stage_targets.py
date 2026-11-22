@@ -26,18 +26,21 @@ def selected_stage_inputs(stage, directory, compiler):
         # The seed and the compiler built by the seed predate object receipts.
         provider = bootstrap.runtime_provider()
         encode = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
-        return encode(provider['interfaces']), encode(provider['configuration']), provider['object'], provider['runtime']
+        package = provider["interface_package"]
+        config = {**provider["configuration"], "metadata": str(package.resolve()),
+                  "metadata_sha256": bootstrap.file_hash(package)}
+        return package.read_bytes(), encode(config), provider['object'], provider['runtime']
 
     receipt = bootstrap.read_json(directory / 'stage.json')
     if receipt.get('status') != 'built':
         raise bootstrap.BootstrapError(f'missing build receipt for stage {stage}')
     inputs = receipt['inputs']
-    manifest, objects = directory / 'base-interfaces.json', directory / 'objects.json'
+    manifest, objects = directory / 'base.cpk', directory / 'base-objects.json'
     config = bootstrap.read_json(objects)
     if not all(key in config for key in ('object', 'metadata', 'object_sha256', 'metadata_sha256')):
         raise bootstrap.BootstrapError(f'incomplete object configuration for stage {stage}')
     library, metadata = Path(config['object']), Path(config['metadata'])
-    runtime = metadata.with_name('libcinchruntime.a')
+    runtime = library.with_name('libcinchruntime.a')
     for path, digest in ((compiler, receipt['executable_sha256']),
                          (manifest, inputs['interface_set_sha256']), (objects, inputs['object_configuration_sha256']),
                          (library, config['object_sha256']), (metadata, config['metadata_sha256']),
@@ -57,9 +60,9 @@ def setup(stage, out, tree, compiler=None):
         # stage receipt. It targets the pinned library like every stage, so
         # it runs against the pinned provider's interfaces and object.
         manifest_bytes, object_bytes, library, runtime = selected_stage_inputs(0, directory, compiler)
-    manifest = out / 'base-interfaces.json'
+    manifest = out / 'base.cpk'
     manifest.write_bytes(manifest_bytes)
-    objects = out / 'objects.json'
+    objects = out / 'base-objects.json'
     objects.write_bytes(object_bytes)
     wrapper = out / 'frontend.py'
     write_wrapper(wrapper, compiler, objects, runtime)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish a typed, memory-mappable Cinch interface package."""
 import argparse
+from functools import cached_property
 import json
 import os
 from pathlib import Path
@@ -289,19 +290,20 @@ def pack(rows, objects=None, *, flat_bodies=False, structured_abi=False):
     abi = b""
     if objects is not None:
         metadata = dict(objects)
-        embedded = metadata.pop("interfaces")
-        manifest = {name: digest for name, digest, _ in rows}
-        private = []
-        for item in embedded:
-            name = item["module"]
-            if name not in manifest:
-                private.append(item)
-            elif (manifest[name], documents[name]) != (item["iface_hash"], item["interface"]):
-                raise ValueError(f"object and interface disagree for {name}")
-        metadata["interface_refs"] = [{key: value for key, value in row.items() if key != "interface"}
-                                      for row in embedded]
-        if private:
-            metadata["private_interfaces"] = private
+        if "interfaces" in metadata:
+            embedded = metadata.pop("interfaces")
+            manifest = {name: digest for name, digest, _ in rows}
+            private = []
+            for item in embedded:
+                name = item["module"]
+                if name not in manifest:
+                    private.append(item)
+                elif (manifest[name], documents[name]) != (item["iface_hash"], item["interface"]):
+                    raise ValueError(f"object and interface disagree for {name}")
+            metadata["interface_refs"] = [{key: value for key, value in row.items() if key != "interface"}
+                                          for row in embedded]
+            if private:
+                metadata["private_interfaces"] = private
         if structured_abi:
             # ABI-only IDs follow all the contract IDs. An interface-only
             # reader can leave that string table suffix untouched.
@@ -333,8 +335,7 @@ def read_manifest(path):
     return [(name, digest, (path.parent / filename).read_bytes()) for name, digest, filename in manifest["interfaces"]]
 
 
-def packed_manifest(data):
-    """Read the public module identities from a CINCHPK4 section directory."""
+def packed_sections(data):
     if len(data) < FLAT_HEADER_SIZE or data[:8] != STRUCTURED_ABI_MAGIC:
         raise ValueError("invalid packed interface header")
     if struct.unpack_from("<II", data, 8) != (len(data), 4):
@@ -349,7 +350,12 @@ def packed_manifest(data):
         sections.append(memoryview(data)[start:end])
     if end != len(data):
         raise ValueError("invalid packed interface directory")
-    strings, modules = sections[:2]
+    return sections
+
+
+def packed_manifest(data):
+    """Read the public module identities from a CINCHPK4 section directory."""
+    strings, modules = packed_sections(data)[:2]
     if len(strings) < 4 or len(modules) % 36:
         raise ValueError("invalid packed module index")
     text_at = 4 + 8 * struct.unpack_from("<I", strings)[0]
@@ -375,10 +381,168 @@ def packed_manifest(data):
     return rows
 
 
+class PackedInterfaces:
+    """Project checked CINCHPK4 records for tooling that inspects contracts."""
+
+    def __init__(self, data):
+        self.data = data
+        (strings, self.modules, _, self.bodies, self.edges, self.nodes,
+         self.operands, self.contracts, self.abi) = packed_sections(data)
+        if len(strings) < 4 or 0 < len(self.abi) < 4:
+            raise ValueError("invalid packed string table or ABI")
+        count, = struct.unpack_from("<I", strings)
+        first = 4 + 8 * count
+        if first > len(strings):
+            raise ValueError("invalid packed string table")
+        self.strings = [
+            bytes(self.span(strings, first + start, length)).decode("utf-8")
+            for start, length in struct.iter_unpack("<II", strings[4:first])
+        ]
+
+    @staticmethod
+    def span(data, start, size):
+        if start + size > len(data):
+            raise ValueError("invalid packed value span")
+        return data[start:start + size]
+
+    @staticmethod
+    def words(data, start, count):
+        return tuple(word for (word,) in struct.iter_unpack("<I", PackedInterfaces.span(data, start * 4, count * 4)))
+
+    @cached_property
+    def definitions(self):
+        rows = list(struct.iter_unpack("<8I", self.bodies))
+        names = [self.strings[row[0]] for row in rows]
+        expressions = []
+        for tag, a, b, c in struct.iter_unpack("<4I", self.nodes):
+            if tag == LOCAL:
+                node = dict(node="local", slot=a)
+            elif tag == NUMBER:
+                node = dict(node="number", sort=self.strings[a], decimal=self.strings[b])
+            elif tag == BOOL and a <= 1:
+                node = dict(node="bool", value=bool(a))
+            elif tag in (PRIMITIVE, CALL):
+                args = [expressions[i] for i in self.words(self.operands, b, c)]
+                node = (dict(node="primitive", operation=self.strings[a], arguments=args) if tag == PRIMITIVE
+                        else dict(node="call", target=names[a], arguments=args))
+            elif tag == LET:
+                node = dict(node="let", value=expressions[a], body=expressions[b])
+            elif tag == IF:
+                node = dict(node="if", condition=expressions[a], yes=expressions[b], no=expressions[c])
+            else:
+                raise ValueError("invalid packed body node")
+            expressions.append(node)
+        return [
+            (dict(identity=self.strings[name], parameters=[self.strings[i] for i in self.words(self.operands, start, count)],
+                  result=self.strings[sort], body=expressions[root]),
+             self.words(self.edges, first, size))
+            for name, sort, start, count, root, first, size, _ in rows
+        ]
+
+    def body(self, root):
+        pending = [root]
+        members = set()
+        while pending:
+            index = pending.pop()
+            if index not in members:
+                members.add(index)
+                pending.extend(self.definitions[index][1])
+        return dict(version=1, definitions=[self.definitions[i][0] for i in sorted(members)])
+
+    def value(self, data, *, bodies, string_count=None):
+        def read(depth):
+            nonlocal at
+            if depth > 256:
+                raise ValueError("packed value nesting limit exceeded")
+            tag = word()
+            if tag <= TRUE:
+                return (None, False, True)[tag]
+            if tag in (NAT, NEGATIVE):
+                magnitude = word() | (word() << 32)
+                return magnitude if tag == NAT else -magnitude
+            if tag == TEXT:
+                return string()
+            if tag == BODY_ROOT and bodies:
+                return self.body(word())
+            if tag in (ARRAY, OBJECT):
+                count = word()
+                if count * (8 if tag == OBJECT else 4) > len(data) - at:
+                    raise ValueError("invalid packed collection length")
+                if tag == ARRAY:
+                    return [read(depth + 1) for _ in range(count)]
+                result = {}
+                for _ in range(count):
+                    name = string()
+                    if name in result:
+                        raise ValueError("duplicate packed object key")
+                    result[name] = read(depth + 1)
+                return result
+            raise ValueError("invalid packed value tag")
+
+        def word():
+            nonlocal at
+            value, = struct.unpack_from("<I", data, at)
+            at += 4
+            return value
+
+        def string():
+            index = word()
+            if index >= string_count:
+                raise ValueError("invalid packed text index")
+            return self.strings[index]
+
+        at = 0
+        if string_count is None:
+            string_count = len(self.strings)
+        try:
+            result = read(0)
+        except (IndexError, struct.error) as error:
+            raise ValueError("truncated or invalid packed value") from error
+        if at != len(data):
+            raise ValueError("trailing packed value bytes")
+        return result
+
+    @cached_property
+    def documents(self):
+        manifest = packed_manifest(self.data)
+        rows = list(struct.iter_unpack("<9I", self.modules))
+        string_count = struct.unpack_from("<I", self.abi)[0] if self.abi else len(self.strings)
+        if string_count > len(self.strings):
+            raise ValueError("invalid packed contract string boundary")
+        documents = []
+        for (name, identity), row in zip(manifest, rows):
+            start, size = rows[row[8]][6:8]
+            document = self.value(self.span(self.contracts, start, size), bodies=True, string_count=string_count)
+            documents.append((name, identity, document))
+        return documents
+
+    def metadata(self):
+        if not self.abi:
+            raise ValueError("packed interface package has no object ABI")
+        return self.value(self.abi[4:], bodies=False)
+
+    def full_metadata(self):
+        metadata = self.metadata()
+        documents = {(name, identity): doc for name, identity, doc in self.documents}
+        for row in metadata.pop("private_interfaces", []):
+            key = row["module"], row["iface_hash"]
+            if key in documents:
+                raise ValueError("duplicate packed object interface")
+            documents[key] = row["interface"]
+        metadata["interfaces"] = [
+            {**row, "interface": documents[row["module"], row["iface_hash"]]}
+            for row in metadata.pop("interface_refs")
+        ]
+        return metadata
+
+
 def read_abi(config_path):
     config = json.loads(config_path.read_bytes())
     path = config_path.parent / config["metadata"]
-    return path, json.loads(path.read_bytes())
+    data = path.read_bytes()
+    if data.startswith(STRUCTURED_ABI_MAGIC):
+        return path, PackedInterfaces(data).metadata()
+    return path, json.loads(data)
 
 
 def publish(path, data):

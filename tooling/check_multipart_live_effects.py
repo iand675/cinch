@@ -126,7 +126,7 @@ def main() -> None:
         if frontend == 'rust':
             command = [str(compiler), 'check', str(work / 'Main.cinch')]
         else:
-            command = [str(compiler), '--check', '--interfaces', str(args.native.resolve() / 'base-interfaces.json'),
+            command = [str(compiler), '--check', '--interfaces', str(args.native.resolve() / 'base.cpk'),
                        str(work / 'bundle.source'), str(work / 'check.output')]
         result = subprocess.run(command, cwd=work, text=True, capture_output=True, timeout=600,
                                 env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})

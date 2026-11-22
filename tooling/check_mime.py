@@ -233,8 +233,8 @@ def main() -> None:
         identity = {'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'compile_rc_debug': label == 'native'}
         if label == 'native':
             mode = corpus_emit_mode(compiler, report['runs'])
-            config = json.loads((snap / 'objects.json').read_text()); provider = Path(config['object'])
-            identity.update({name: digest(snap / name) for name in ('objects.json', 'base-interfaces.json')}); identity['provider_sha256'] = digest(provider)
+            config = json.loads((snap / 'base-objects.json').read_text()); provider = Path(config['object'])
+            identity.update({name: digest(snap / name) for name in ('base-objects.json', 'base.cpk')}); identity['provider_sha256'] = digest(provider)
         if label in report['frontends'] and report['frontends'][label] != identity:
             raise RuntimeError('cannot resume changed frontend identity: ' + label)
         report['frontends'][label] = identity
@@ -244,7 +244,7 @@ def main() -> None:
             shutil.copyfile(work / (name + '.source'), work / 'Main.cinch')
             (work / 'bundle.source').write_text('\n'.join((work / (m + '.cinch')).read_text() for m in modules) + '\n' + (work / 'Main.cinch').read_text())
             ir, exe = work / f'{label}-{name}.ll', work / f'{label}-{name}'
-            command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)] if label == 'rust' else [str(compiler), mode, '--rc-debug', '--interfaces', str(snap / 'base-interfaces.json'), '--objects', str(snap / 'objects.json'), str(work / 'bundle.source'), str(ir)]
+            command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)] if label == 'rust' else [str(compiler), mode, '--rc-debug', '--interfaces', str(snap / 'base.cpk'), '--objects', str(snap / 'base-objects.json'), str(work / 'bundle.source'), str(ir)]
             start = time.monotonic(); result = execute(command, env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
             target = re.search(r'target triple = "([^"]+)"', ir.read_text()); triple = target.group(1) if target else config['target']
             entry = {'frontend': label, 'case': name, 'count': counts[name], 'command': command, 'compile_seconds': time.monotonic() - start, 'stdout': result.stdout, 'stderr': result.stderr, 'target': triple, 'source_sha256': digest(work / 'Main.cinch'), 'ir_sha256': digest(ir), 'profiles': []}

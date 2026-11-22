@@ -266,14 +266,14 @@ def main() -> None:
         report['frontends'][label]={'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'compile_rc_debug':label=='native' and args.native_rc_debug}
         if label=='native':
             mode=corpus_emit_mode(compiler, report['runs'])
-            snap=args.native.resolve(); cfg=json.loads((snap/'objects.json').read_text()); provider=Path(cfg['object'])
-            report['frontends'][label].update({key:digest(snap/key) for key in ('base-interfaces.json','objects.json')}); report['frontends'][label]['provider_sha256']=digest(provider)
+            snap=args.native.resolve(); cfg=json.loads((snap/'base-objects.json').read_text()); provider=Path(cfg['object'])
+            report['frontends'][label].update({key:digest(snap/key) for key in ('base.cpk','base-objects.json')}); report['frontends'][label]['provider_sha256']=digest(provider)
         for name in args.only or counts:
             if any(entry['frontend']==label and entry['case']==name and len(entry.get('profiles',[]))==2 for entry in report['runs']): continue
             shutil.copyfile(work/f'{name}.source',work/'Main.cinch')
             ir=work/f'{label}-{name}.ll'; exe=work/f'{label}-{name}'
             (work/'bundle.source').write_text((work/'Data.Compare.cinch').read_text()+'\n'+(work/'Main.cinch').read_text())
-            command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)] if label=='rust' else [str(compiler),mode,'--interfaces',str(snap/'base-interfaces.json'),'--objects',str(snap/'objects.json'),str(work/'bundle.source'),str(ir)]
+            command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)] if label=='rust' else [str(compiler),mode,'--interfaces',str(snap/'base.cpk'),'--objects',str(snap/'base-objects.json'),str(work/'bundle.source'),str(ir)]
             if label=='native' and args.native_rc_debug: command.insert(2,'--rc-debug')
             start=time.monotonic(); result=run(command,work,300)
             target=re.search(r'target triple = "([^"]+)"',ir.read_text())

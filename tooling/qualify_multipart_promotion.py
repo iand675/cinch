@@ -27,13 +27,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def qualify_native(snapshot: Path, work: Path, candidate: Path) -> None:
     """Compile the exact live consumer once, then inspect and execute its defining artifacts."""
     compiler = snapshot / 'cinch'
-    interfaces, objects = snapshot / 'base-interfaces.json', snapshot / 'objects.json'
+    interfaces, objects = snapshot / 'base.cpk', snapshot / 'base-objects.json'
     configuration = json.loads(objects.read_text())
     provider = Path(configuration['object'])
     runtime = snapshot / 'libcinchruntime.a'
     identity = {'compiler_sha256': digest(compiler), 'runtime_sha256': digest(runtime),
-                'provider_sha256': digest(provider), 'base-interfaces.json': digest(interfaces),
-                'objects.json': digest(objects)}
+                'provider_sha256': digest(provider), 'base.cpk': digest(interfaces),
+                'base-objects.json': digest(objects)}
     if identity['provider_sha256'] != configuration['object_sha256']:
         raise ValueError('multipart provider disagrees with its object manifest')
 

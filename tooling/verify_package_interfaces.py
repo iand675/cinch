@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 
-from pack_interfaces import BODY_ROOT, pack, publish, read_abi, read_manifest
+from pack_interfaces import BODY_ROOT, PackedInterfaces, pack, publish
 from bootstrap_interfaces import canonical, interface_hash
 
 HELLO = """module Main where
@@ -45,7 +45,7 @@ def words(data, offset, count):
     return struct.unpack_from(f"<{count}I", data, offset)
 
 
-def native_indexed_body_nodes(stage, work, manifest, rows):
+def native_indexed_body_nodes(stage, work, package, rows):
     source = work / "Probe.cinch"
     source.write_text("""module PackedProbe where
   export branch, wrapper
@@ -58,8 +58,8 @@ module Main where
   main = 0
 """)
     ir = work / "probe.ll"
-    invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", manifest,
-            "--objects", stage / "objects.json", source, ir], work, leak=True)
+    invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", package,
+            "--objects", stage / "base-objects.json", source, ir], work, leak=True)
     document = json.loads((work / "probe.ll.PackedProbe.cinchif").read_bytes())
     document["compiler"] = "producer metadata with a quote \" and a newline \n"
     document["source_hash"] = "producer metadata with a backslash \\"
@@ -182,50 +182,35 @@ module Main where
         assert refusal in output.with_suffix(".diagnostics").read_text()
 
 
-def verify_native_object_references(stage, work, package, legacy_package, source, ir, expected):
+def verify_native_object_references(stage, work, package, rows, source, ir, expected):
     data = package.read_bytes()
     start, count = words(data, 80, 2)
-    legacy_data = legacy_package.read_bytes()
-    legacy_start, legacy_count = words(legacy_data, 80, 2)
-    metadata = json.loads(legacy_data[legacy_start:legacy_start + legacy_count])
-    assert metadata["interface_refs"]
-    original = json.loads((stage / "objects.json").read_bytes())
-    metadata_path = work / "compact-abi.json"
-    configuration = work / "compact-objects.json"
+    metadata = PackedInterfaces(data).metadata()
+    original = json.loads((stage / "base-objects.json").read_bytes())
+    configuration = work / "test-objects.json"
     command = [stage / "cinch", "--emit-ir-only", "--interfaces", package, "--objects",
                configuration, source, ir]
-
-    def publish_config():
-        contents = canonical(metadata).encode()
-        publish(metadata_path, contents)
-        publish(configuration, canonical({**original, "metadata": str(metadata_path),
-                                          "metadata_sha256": sha256(contents).hexdigest()}).encode())
-
-    publish_config()
-    invoke(command, work, leak=True)
-    assert ir.read_bytes() == expected
-    public = next(row for row in metadata["interface_refs"]
-                  if row["module"] not in {private["module"] for private in metadata.get("private_interfaces", [])})
-    public["iface_hash"] = "wrong-interface-identity"
-    publish_config()
-    invoke(command, work, status=7, leak=True)
-    assert "runtime object checked interface identity mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
-
-    broken_path = work / "bad-embedded-abi.cpk"
 
     def use_embedded_abi(path, contents):
         publish(configuration, canonical({**original, "metadata": str(path),
                                           "metadata_sha256": sha256(contents).hexdigest()}).encode())
 
-    for path, contents in ((legacy_package, legacy_data), (package, data)):
-        use_embedded_abi(path, contents)
-        invoke(command, work, leak=True)
-        assert ir.read_bytes() == expected
-        if path != package:
-            invoke([*command[:3], path, *command[4:]], work, leak=True)
-            assert ir.read_bytes() == expected
+    private = {row["module"] for row in metadata.get("private_interfaces", [])}
+    public = next(row for row in metadata["interface_refs"] if row["module"] not in private)
+    public["iface_hash"] = "wrong-interface-identity"
+    mismatch = work / "mismatched-abi.cpk"
+    bad_abi = pack(rows, metadata, flat_bodies=True, structured_abi=True)
+    publish(mismatch, bad_abi)
+    use_embedded_abi(mismatch, bad_abi)
+    invoke(command, work, status=7, leak=True)
+    assert "runtime object checked interface identity mismatch" in ir.with_suffix(".ll.diagnostics").read_text()
 
-    runtime = Path(original["metadata"]).with_name("libcinchruntime.a")
+    broken_path = work / "bad-embedded-abi.cpk"
+    use_embedded_abi(package, data)
+    invoke(command, work, leak=True)
+    assert ir.read_bytes() == expected
+
+    runtime = Path(original["object"]).with_name("libcinchruntime.a")
     run_directory = work / "packed-run"
     run_directory.mkdir()
     prefix = run_directory / "hello"
@@ -255,7 +240,7 @@ def verify_native_object_references(stage, work, package, legacy_package, source
         assert f"bootstrap.{phase}: {diagnostic}" in ir.with_suffix(".ll.diagnostics").read_text()
 
 
-def native_shared_body_ranges(stage, work, manifest, rows):
+def native_shared_body_ranges(stage, work, package, rows):
     source = work / "SharedBodies.cinch"
     names = [f"step{i:02d}" for i in range(48)]
     declarations = ["module SharedBodies where", "  export " + ", ".join(names)]
@@ -268,8 +253,8 @@ def native_shared_body_ranges(stage, work, manifest, rows):
     declarations += ["module Main where", "  main :: Int", "  main = 0"]
     source.write_text("\n".join(declarations) + "\n")
     ir = work / "shared.ll"
-    invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", manifest,
-            "--objects", stage / "objects.json", source, ir], work, leak=True)
+    invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", package,
+            "--objects", stage / "base-objects.json", source, ir], work, leak=True)
     contract = work / "shared.ll.SharedBodies.cinchif"
     document = json.loads(contract.read_bytes())
     graphs = [row["total_body"]["definitions"] for row in document["exports"]["values"]]
@@ -300,22 +285,52 @@ def native_shared_body_ranges(stage, work, manifest, rows):
     assert "interface contract identity mismatch" in output.with_suffix(".diagnostics").read_text()
 
 
+def native_packed_object_publication(stage, work, package, rows):
+    source = work / "Library.cinch"
+    source.write_text("""module PackedLibrary where
+  export double
+  double :: Int -> Int
+  double x = x + x
+""")
+    ir, library = work / "library.ll", work / "library.o"
+    abi, prefix = work / "built-library.abi.json", work / "library."
+    config = stage / "base-objects.json"
+    invoke([stage / "cinch", "--emit-object", "--interfaces", package, "--objects", config,
+            source, ir, library, abi, prefix], work, leak=True)
+    combined = json.loads(abi.read_bytes())
+    assert "interface_refs" not in combined and "private_interfaces" not in combined
+    assert {"PackedLibrary", "CinchBaseObject"} <= {row["module"] for row in combined["interfaces"]}
+    document = (work / "library.PackedLibrary.cinchif").read_bytes()
+    package = work / "built-library.cpk"
+    data = pack([*rows, ("PackedLibrary", interface_hash(json.loads(document)), document)],
+                combined, flat_bodies=True, structured_abi=True)
+    publish(package, data)
+    settings = json.loads(config.read_bytes())
+    runtime = Path(settings["object"]).with_name("libcinchruntime.a")
+    settings.update(metadata=str(package), metadata_sha256=sha256(data).hexdigest(),
+                    object=str(library), object_sha256=sha256(library.read_bytes()).hexdigest())
+    config = work / "built-library-objects.json"
+    publish(config, canonical(settings).encode())
+    source = work / "PackedLibraryClient.cinch"
+    source.write_text("""module Main where
+  import PackedLibrary (double)
+  main :: Int
+  main = double 21 - 42
+""")
+    invoke([stage / "cinch", "--interfaces", package, "--objects", config,
+            "run", runtime, work / "linked-library-client", source], work, leak=True)
+
+
 def native(stage, work, repeats):
-    manifest = stage / "base-interfaces.json"
-    rows = read_manifest(manifest)
-    metadata_path, metadata = read_abi(stage / "objects.json")
-    contents = pack(rows, metadata)
-    package = work / "base.cpk"
-    publish(package, contents)
-    indexed = work / "base-indexed.cpk"
-    invoke([sys.executable, Path(__file__).with_name("pack_interfaces.py"), manifest,
-            indexed, "--objects", stage / "objects.json"], work)
-    indexed_contents = indexed.read_bytes()
-    assert indexed_contents.startswith(b"CINCHPK4")
-    legacy_indexed = work / "base-json-abi.cpk"
-    invoke([sys.executable, Path(__file__).with_name("pack_interfaces.py"), manifest,
-            legacy_indexed, "--objects", stage / "objects.json", "--legacy-json-abi"], work)
-    assert legacy_indexed.read_bytes().startswith(b"CINCHPK3")
+    package = stage / "base.cpk"
+    contents = package.read_bytes()
+    packed = PackedInterfaces(contents)
+    rows = [(name, identity, canonical(doc).encode()) for name, identity, doc in packed.documents]
+    indexed = work / "repacked.cpk"
+    indexed_contents = pack(rows, packed.full_metadata(), flat_bodies=True, structured_abi=True)
+    publish(indexed, indexed_contents)
+    for name in ("base-interfaces.json", "objects.json"):
+        assert not (stage / name).exists(), f"stage wrote a redundant interface artifact: {name}"
     hello = work / "Hello.cinch"
     hello.write_text(HELLO)
     output = work / "hello"
@@ -324,8 +339,7 @@ def native(stage, work, repeats):
     def command(source, interfaces):
         return [stage / "cinch", "--check-types", "--interfaces", interfaces, source, output]
 
-    cases = {"json": command(hello, manifest), "mapped": command(hello, package),
-             "indexed": command(hello, indexed)}
+    cases = {"produced": command(hello, package), "repacked": command(hello, indexed)}
     allocations = {}
     for name, args in cases.items():
         result = invoke(args, work, leak=True)
@@ -338,15 +352,15 @@ def native(stage, work, repeats):
     bad = work / "Bad.cinch"
     bad.write_text(HELLO.replace('"/dev/stdout"', "123"))
     refusals = []
-    for interfaces in (manifest, package, indexed):
+    for interfaces in (package, indexed):
         invoke(command(bad, interfaces), work, status=4, leak=True)
         refusals.append(diagnostics.read_bytes())
     assert refusals[0] and all(refusal == refusals[0] for refusal in refusals)
 
     modules, _ = words(contents, 24, 2)
-    documents, _ = words(contents, 64, 2)
+    documents, _ = words(contents, 72, 2)
     root, _ = words(contents, modules + 24, 2)
-    corruptions = (("table", 24, len(contents)), ("string-table", 80, len(contents)),
+    corruptions = (("table", 24, len(contents)), ("string-table", 88, len(contents)),
                    ("row", modules + 32, len(rows)), ("tag", documents + root, 255))
     for name, offset, value in corruptions:
         altered = bytearray(contents)
@@ -374,20 +388,19 @@ def native(stage, work, repeats):
 
     mismatched = work / "bad-identity.cpk"
     name, _, raw = rows[0]
-    for flat in (False, True):
-        publish(mismatched, pack([(name, "not-the-identity", raw), *rows[1:]], flat_bodies=flat))
-        invoke(command(hello, mismatched), work, status=7, leak=True)
-        assert "interface contract identity mismatch" in diagnostics.read_text()
+    publish(mismatched, pack([(name, "not-the-identity", raw), *rows[1:]], flat_bodies=True, structured_abi=True))
+    invoke(command(hello, mismatched), work, status=7, leak=True)
+    assert "interface contract identity mismatch" in diagnostics.read_text()
 
     ir = work / "hello.ll"
-    provider = stage / "objects.json"
-    for interfaces in (manifest, package, indexed):
+    provider = stage / "base-objects.json"
+    for interfaces in (package, indexed):
         invoke([stage / "cinch", "--emit-ir-only", "--interfaces", interfaces, "--objects",
                 provider, hello, ir], work, leak=True)
-        if interfaces == manifest:
-            legacy_ir = ir.read_bytes()
+        if interfaces == package:
+            produced_ir = ir.read_bytes()
         else:
-            assert ir.read_bytes() == legacy_ir
+            assert ir.read_bytes() == produced_ir
 
     reexport = work / "Reexport.cinch"
     reexport.write_text("""module Reexport where
@@ -399,20 +412,21 @@ module Main where
 """)
     output = work / "reexport.ll"
     exported = work / "reexport.ll.Reexport.cinchif"
-    for interfaces in (manifest, indexed):
+    for interfaces in (package, indexed):
         invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", interfaces,
                 "--objects", provider, reexport, output], work, leak=True)
         emitted = exported.read_bytes()
-        if interfaces == manifest:
-            legacy_export = emitted
+        if interfaces == package:
+            produced_export = emitted
             value, = json.loads(emitted)["exports"]["values"]
             assert value["total_body"]["definitions"]
         else:
-            assert emitted == legacy_export
+            assert emitted == produced_export
 
-    native_indexed_body_nodes(stage, work, manifest, rows)
-    native_shared_body_ranges(stage, work, manifest, rows)
-    verify_native_object_references(stage, work, indexed, legacy_indexed, hello, ir, legacy_ir)
+    native_indexed_body_nodes(stage, work, package, rows)
+    native_shared_body_ranges(stage, work, package, rows)
+    verify_native_object_references(stage, work, package, rows, hello, ir, produced_ir)
+    native_packed_object_publication(stage, work, package, rows)
 
     times = {name: [] for name in cases}
     order = list(cases)
@@ -422,8 +436,7 @@ module Main where
             start = time.perf_counter_ns()
             invoke(cases[name], work)
             times[name].append((time.perf_counter_ns() - start) / 1e6)
-    return {"interfaces_and_abi_bytes": sum(len(raw) for _, _, raw in rows) + metadata_path.stat().st_size,
-            "package_bytes": len(contents), "indexed_package_bytes": len(indexed_contents),
+    return {"package_bytes": len(contents), "repacked_bytes": len(indexed_contents),
             "samples_ms": times,
             "median_ms": {name: statistics.median(values) for name, values in times.items()},
             "allocations": allocations}

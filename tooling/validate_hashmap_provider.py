@@ -22,10 +22,10 @@ def main() -> None:
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
-    manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-    bootstrap.write_json(manifest, provider['interfaces'])
+    manifest, objects = provider['interface_package'], args.artifacts / 'objects.json'
     bootstrap.write_json(objects, provider['configuration'])
-    metadata = bootstrap.read_json(Path(provider['configuration']['metadata']))
+    from pack_interfaces import PackedInterfaces
+    metadata = PackedInterfaces(manifest.read_bytes()).metadata()
     emitted = [unit for unit in metadata['units'] if unit['symbol'] == 'Data.HashMap.hash-map-to-list@OO']
     if len(emitted) != 1:
         raise bootstrap.BootstrapError('the actual object must contain exactly one requested OO enumeration unit')

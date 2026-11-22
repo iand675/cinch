@@ -39,8 +39,7 @@ def main() -> None:
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
-    manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-    bootstrap.write_json(manifest, provider['interfaces'])
+    manifest, objects = provider['interface_package'], args.artifacts / 'objects.json'
     bootstrap.write_json(objects, provider['configuration'])
     source = bootstrap.ROOT / 'compiler/programs/Run.ScalarIntrinsicLoop.cinch'
     fixture = bootstrap.ROOT / 'tooling/scalar_intrinsic_benchmark.c'

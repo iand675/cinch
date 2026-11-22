@@ -24,7 +24,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
-  import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode)
+  import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
@@ -744,10 +744,41 @@ module Bootstrap.Pipeline where
   object-append first second = case first of JArr row rest -> JArr row (object-append rest second); JArrEnd -> second; other -> JNull
   object-interface-row :: String -> String -> Json -> Json
   object-interface-row name hash doc = JObj "module" (JStr name) (JObj "iface_hash" (JStr hash) (JObj "interface" doc JObjEnd))
-  object-imports :: List LoadedInterface -> Json
-  object-imports interfaces = case interfaces of
-    Nil -> JArrEnd
-    Cons first rest -> JArr (object-interface-row (loaded-module first) (loaded-hash first) (loaded-contract first)) (object-imports rest)
+  object-provider-closure :: Bool -> List LoadedInterface -> Json -> Result String Json
+  object-provider-closure merged admitted provider = case object-field "interface_refs" provider of
+    JNull -> Ok (object-field "interfaces" provider)
+    refs -> if merged then
+      (let public = overlay-interface-index admitted hash-map-empty in
+      let private = object-field "private_interfaces" provider in
+      expand-object-interfaces refs public private)
+      else Ok refs
+  expand-object-interfaces :: Json -> HashMap String LoadedInterface -> Json -> Result String Json
+  expand-object-interfaces refs public private = case refs of
+    JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
+      (JStr name, JStr identity) ->
+        let document = (case hash-map-lookup name public of
+          Some admitted | string-compare (loaded-hash admitted) identity == 0 -> loaded-contract admitted
+          other -> private-object-contract name identity private) in
+        (case document of
+          JNull -> Err "object interface references require their checked contracts"
+          other -> (case expand-object-interfaces rest public private of
+            Err message -> Err message
+            Ok tail -> Ok (JArr (object-set "interface" document row) tail)))
+      other -> Err "malformed object interface reference")
+    JArrEnd -> Ok JArrEnd
+    other -> Err "malformed object interface references"
+  private-object-contract :: String -> String -> Json -> Json
+  private-object-contract name identity rows = case rows of
+    JArr row JArrEnd -> (case (object-field "module" row, object-field "iface_hash" row) of
+      (JStr home, JStr hash) | string-compare home name == 0 && string-compare hash identity == 0 -> object-field "interface" row
+      other -> JNull)
+    other -> JNull
+  without-object-interface-refs :: Json -> Json
+  without-object-interface-refs provider = case provider of
+    JObj key value rest ->
+      if string-compare key "interface_refs" == 0 || string-compare key "private_interfaces" == 0 then without-object-interface-refs rest
+      else JObj key value (without-object-interface-refs rest)
+    other -> other
   object-interface-present :: String -> Json -> Option String
   object-interface-present name rows = case rows of
     JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
@@ -836,7 +867,7 @@ module Bootstrap.Pipeline where
   object-manifest provider interfaces units facts ir code =
     let actual = (object-set "method_families" (object-merge-families (object-field "method_families" facts) (object-field "method_families" provider))
       (object-set "constructors" (object-merge-fields (object-field "constructors" facts) (object-field "constructors" provider))
-        (object-set "self_describing" (JBool True) provider))) in
+        (object-set "self_describing" (JBool True) (without-object-interface-refs provider)))) in
     object-set "interfaces" interfaces
       (object-set "dictionaries" (object-merge-fields (object-field "dictionaries" facts) (object-field "dictionaries" provider))
       (object-set "units" (object-append (object-field "units" provider) units)
@@ -880,7 +911,7 @@ module Bootstrap.Pipeline where
           -- A caller that takes no object (`-`) takes no merged manifest
           -- either, so the provider's embedded contracts are never written
           -- back and the carved read a client uses is enough.
-          Ok admitted -> let interfaces = validated-interfaces-members admitted in case (if string-compare object-name "-" == 0 then read-runtime-object-client-mode True admitted configuration else read-runtime-object-document interfaces configuration) of
+          Ok admitted -> let interfaces = validated-interfaces-members admitted in case (if string-compare object-name "-" == 0 then read-runtime-object-client-mode True admitted configuration else read-runtime-object-publication admitted configuration) of
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
             Ok (provider, document, provider-path, provider-code) ->
               if not (provider-matches-profile document profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
@@ -900,7 +931,9 @@ module Bootstrap.Pipeline where
     Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
     Ok roots -> case export-object-interfaces checked interfaces source of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
-      Ok exported -> case object-interface-closure exported (object-field "interfaces" document) of
+      Ok exported -> case (case object-provider-closure (string-compare (path-to-string object) "-" /= 0) interfaces document of
+        Err message -> Err message
+        Ok provider-rows -> object-interface-closure exported provider-rows) of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
         Ok closure -> case emit-runtime-library-artifact-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) False inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused

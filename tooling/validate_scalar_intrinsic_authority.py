@@ -86,9 +86,9 @@ def main() -> None:
     args.artifacts = args.artifacts.resolve()
     args.artifacts.mkdir(parents=True, exist_ok=False)
     provider = bootstrap_objects.artifact_provider(bootstrap, args.library_artifact)
-    manifest = args.artifacts / 'interfaces.json'
+    manifest = provider['interface_package']
     objects = args.artifacts / 'objects.json'
-    bootstrap.write_json(manifest, provider['interfaces'])
+    base_fixture = bootstrap_objects.fixture_interfaces(provider, args.artifacts / 'interface-fixtures')
     bootstrap.write_json(objects, provider['configuration'])
     report = {'compiler_sha256': bootstrap.file_hash(args.compiler), 'provider_receipt_sha256': provider['identity']['receipt_sha256'],
               'object_sha256': bootstrap.file_hash(provider['object']), 'runtime_sha256': bootstrap.file_hash(provider['runtime']),
@@ -199,7 +199,7 @@ module Main where
   main unit = case wrapping-add-u64 18446744073709551615 1 of 42 -> 0; _ -> 1
 ''', extra=[fixture_object])
         producer = invoke(args.artifacts / 'reexport-producer', REEXPORT, mode='--emit-interfaces')
-        admitted = json.loads(manifest.read_text())
+        admitted = copy.deepcopy(base_fixture)
         for name in ['ScalarRelay', 'ScalarFacade']:
             contract = Path(str(producer) + '.' + name + '.cinchif')
             document = read_contract(contract)
@@ -225,7 +225,7 @@ module Main where
             value = next(value for value in defining_document['exports']['values'] if value['name'] == row['symbol'])
             if row['type'] != value['resolved']['scheme'] or row['abi'] != 'ccall' or row['effects'] != '':
                 raise bootstrap.BootstrapError('the source scalar descriptor lost its exact checked scheme or ABI')
-        configuration = copy.deepcopy(provider['interfaces'])
+        configuration = copy.deepcopy(base_fixture)
         configuration['interfaces'].append(['ScalarDeclaration', interface_hash(defining_document), str(defining_contract)])
         selected = args.artifacts / 'defining-intrinsic-interfaces.json'
         bootstrap.write_json(selected, configuration)
@@ -236,7 +236,7 @@ module Main where
         next(row for row in legacy['exports']['values'] if row['name'] == 'native')['resolved'] = None
         legacy_path = args.artifacts / 'legacy-display-only.cinchif'
         legacy_path.write_text(canonical(legacy))
-        configuration = copy.deepcopy(provider['interfaces'])
+        configuration = copy.deepcopy(base_fixture)
         configuration['interfaces'].append(['ScalarDeclaration', interface_hash(legacy), str(legacy_path)])
         selected = args.artifacts / 'legacy-display-only-interfaces.json'
         bootstrap.write_json(selected, configuration)
@@ -271,7 +271,7 @@ module Main where
                    selected=selected, accepted=False, diagnostic='runtime object checked interface identity mismatch')
         ordinary_contract = Path(str(producer) + '.ScalarOrdinary.cinchif')
         ordinary_doc = read_contract(ordinary_contract)
-        configuration = copy.deepcopy(provider['interfaces'])
+        configuration = copy.deepcopy(base_fixture)
         configuration['interfaces'].append(['ScalarOrdinary', interface_hash(ordinary_doc), str(ordinary_contract)])
         selected = args.artifacts / 'ordinary-interfaces.json'
         bootstrap.write_json(selected, configuration)
@@ -290,7 +290,7 @@ module Main where
             row[field] = value
             contract = args.artifacts / (name + '.cinchif')
             contract.write_text(canonical(document))
-            configuration = copy.deepcopy(provider['interfaces'])
+            configuration = copy.deepcopy(base_fixture)
             configuration['interfaces'].append(['ScalarDeclaration', interface_hash(document), str(contract)])
             selected = args.artifacts / (name + '-interfaces.json')
             bootstrap.write_json(selected, configuration)

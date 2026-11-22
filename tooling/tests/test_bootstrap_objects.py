@@ -63,15 +63,13 @@ class LibraryProviderContract(unittest.TestCase):
                     self.assertEqual(args[1], "emit-object")
                     self.assertEqual(Path(args[2]).read_bytes(), bootstrap_objects.ENTRY)
                     self.assertNotIn(b"Bootstrap.", Path(args[2]).read_bytes())
-                    self.assertIn("--interface-package", args)
+                    self.assertIn("--interface-package-only", args)
                     output = Path(args[-1])
                     output.write_bytes(b"native library code")
                     output.with_suffix(".ll").write_bytes(b"native library LLVM")
                     rows = []
                     for name in ["Data.Core", "CinchBaseObject"]:
                         doc = {"schema": 10, "module": name, "imports": [], "exports": {"values": []}}
-                        interface = Path(args[2]).parent / "build" / (name + ".cinchif")
-                        bootstrap.write_json(interface, doc)
                         rows.append({"module": name, "iface_hash": name + "-hash", "interface": doc})
                     metadata = {"schema": 1, "runtime_abi": 10, "word_size": 64, "endian": "little",
                                 "reclaim": True, "self_describing": True, "target": "test-host",
@@ -79,8 +77,6 @@ class LibraryProviderContract(unittest.TestCase):
                     data = pack([("Data.Core", "Data.Core-hash", bootstrap_objects.canonical(rows[0]["interface"]))],
                                 metadata, flat_bodies=True, structured_abi=True)
                     output.with_suffix(".cpk").write_bytes(data)
-                    metadata["interface_package_sha256"] = bootstrap.digest(data)
-                    bootstrap.write_json(output.with_suffix(".abi.json"), metadata)
                 return 0
 
             with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "BUILD", directory / "build"), \
@@ -93,21 +89,18 @@ class LibraryProviderContract(unittest.TestCase):
                 provider = results[0]
                 self.assertTrue(all(row == provider for row in results))
                 self.assertEqual(len(calls), 3, "concurrent requests must share one construction")
-                self.assertEqual([row[0] for row in provider["interfaces"]["interfaces"]], ["Data.Core"])
+                from pack_interfaces import packed_manifest
+                self.assertEqual(packed_manifest(provider["interface_package"].read_bytes()), [("Data.Core", "Data.Core-hash")])
                 self.assertEqual(provider["configuration"]["object_sha256"], bootstrap.file_hash(provider["object"]))
                 self.assertEqual(provider["identity"]["artifacts"]["library.cpk"], bootstrap.file_hash(provider["interface_package"]))
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 3)
-                contract = Path(provider["interfaces"]["interfaces"][0][2])
-                contract.write_bytes(b"corrupted checked interface")
-                bootstrap_objects.provider(bootstrap)
-                self.assertEqual(len(calls), 6, "checked dependency bytes cannot be waived by a cache hit")
                 provider["object"].write_bytes(b"corrupted library code")
                 bootstrap_objects.provider(bootstrap)
-                self.assertEqual(len(calls), 9)
+                self.assertEqual(len(calls), 6)
                 provider["interface_package"].write_bytes(b"corrupted packed interface")
                 bootstrap_objects.provider(bootstrap)
-                self.assertEqual(len(calls), 12)
+                self.assertEqual(len(calls), 9)
 
     def test_unsupported_library_abi_is_rejected_before_a_native_command(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -146,9 +139,9 @@ class LibraryProviderContract(unittest.TestCase):
                     bootstrap.write_json(directory / "library/build/Data.Core.cinchif", doc)
                     metadata["interfaces"] = [{"module": "Data.Core", "iface_hash": "hash", "interface": doc}]
                 with self.assertRaises(bootstrap.BootstrapError):
-                    bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
+                    bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
             with self.assertRaisesRegex(bootstrap.BootstrapError, "compiler implementation"):
-                bootstrap_objects.admitted_interfaces(bootstrap, {}, {"modules": [{"name": "Bootstrap.Check"}]}, directory)
+                bootstrap_objects.admitted_interface_identities(bootstrap, {}, {"modules": [{"name": "Bootstrap.Check"}]})
 
     def test_actual_generated_primitive_and_tuple_units_are_library_dependencies(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -157,25 +150,11 @@ class LibraryProviderContract(unittest.TestCase):
             bootstrap.write_json(directory / "library/build/Data.Core.cinchif", doc)
             metadata = {"interfaces": [{"module": "Data.Core", "iface_hash": "hash", "interface": doc}],
                         "units": [{"symbol": name} for name in ["<builtin>.Fin", "Tuple.2@OT", "cinch.prim.eqChar", "cinch.runtime.bytesGet"]]}
-            rows = bootstrap_objects.admitted_interfaces(bootstrap, metadata, {"modules": [{"name": "Data.Core"}]}, directory)
-            self.assertEqual(len(rows["interfaces"]), 1)
+            rows = bootstrap_objects.admitted_interface_identities(bootstrap, metadata, {"modules": [{"name": "Data.Core"}]})
+            self.assertEqual(rows, [("Data.Core", "hash")])
             metadata["units"].append({"symbol": "Tuple.Compiler.infer"})
             with self.assertRaises(bootstrap.BootstrapError):
-                bootstrap_objects.admitted_interfaces(bootstrap, metadata, {"modules": [{"name": "Data.Core"}]}, directory)
-
-    def test_base_manifest_order_preserves_the_earliest_ready_input(self):
-        rows = [[name, "hash", name + ".cinchif"] for name in ("A", "B", "C", "D")]
-        manifest = {"schema": 1, "interfaces": rows}
-        graph = {"A": ["C"], "B": ["D"], "C": [], "D": []}
-        metadata = {"interfaces": [
-            {"module": name, "interface": {"imports": [{"module": dep} for dep in deps]}}
-            for name, deps in graph.items()
-        ]}
-        ordered = bootstrap_objects.ordered_base_manifest(manifest, metadata)
-        self.assertEqual(ordered["interfaces"], [rows[i] for i in (2, 0, 3, 1)])
-        self.assertEqual(manifest["interfaces"], rows)
-        metadata["interfaces"][2]["interface"]["imports"] = [{"module": "A"}]
-        self.assertEqual(bootstrap_objects.ordered_base_manifest(manifest, metadata), manifest)
+                bootstrap_objects.admitted_interface_identities(bootstrap, metadata, {"modules": [{"name": "Data.Core"}]})
 
     def test_source_pin_is_checked_even_for_an_existing_snapshot(self):
         with tempfile.TemporaryDirectory() as temp:

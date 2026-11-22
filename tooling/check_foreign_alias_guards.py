@@ -60,8 +60,7 @@ def main() -> None:
     bootstrap.write_json(args.output, report)
     emit = [str(args.producer.resolve()), 'emit-ir', str(source), '-o', str(ir)]
     if provider is not None:
-        manifest, objects = args.artifacts / 'interfaces.json', args.artifacts / 'objects.json'
-        bootstrap.write_json(manifest, provider['interfaces'])
+        manifest, objects = provider['interface_package'], args.artifacts / 'objects.json'
         bootstrap.write_json(objects, provider['configuration'])
         emit = [str(args.producer.resolve()), '--emit-ir', '--interfaces', str(manifest),
                 '--objects', str(objects), str(source), str(ir)]

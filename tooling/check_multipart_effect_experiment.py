@@ -137,7 +137,7 @@ def main() -> None:
               'sources': {name: digest(work / (name + '.cinch')) for name in ordered},
               'native_prefix_sha256': digest(work / 'native-prefix.source'), 'runs': []}
     snapshot = args.native.resolve()
-    report['native_pair'] = {name: digest(snapshot / name) for name in ('cinch', 'base-interfaces.json', 'objects.json', 'libcinchruntime.a')}
+    report['native_pair'] = {name: digest(snapshot / name) for name in ('cinch', 'base.cpk', 'base-objects.json', 'libcinchruntime.a')}
     for frontend, compiler in [('rust', args.rust.resolve()), ('native', snapshot / 'cinch')]:
         for client in clients:
             selector = frontend + ':' + client.stem
@@ -148,7 +148,7 @@ def main() -> None:
                 command = [str(compiler), 'check', str(entry)]
             else:
                 bundle = work / 'bundle.source'; bundle.write_text(prefix + client.read_text())
-                command = [str(compiler), '--check', '--interfaces', str(snapshot / 'base-interfaces.json'),
+                command = [str(compiler), '--check', '--interfaces', str(snapshot / 'base.cpk'),
                            str(bundle), str(work / 'check.output')]
             diagnostic = work / 'check.output.diagnostics'
             if diagnostic.exists():

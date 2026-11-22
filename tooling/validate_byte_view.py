@@ -186,7 +186,7 @@ def main() -> None:
             (work / 'compile.log').write_text(build.stdout + build.stderr)
         if args.native_interfaces and args.opt_level == '2':
             configuration = json.loads((args.compiler.parent / 'objects.json').read_text())
-            runtime = Path(configuration['metadata']).with_name('libcinchruntime.a')
+            runtime = Path(configuration['object']).with_name('libcinchruntime.a')
             link = [os.environ.get('CINCH_CLANG', 'clang'), '-O2', str(exe.with_suffix('.ll')),
                     configuration['object'], str(runtime), '-o', str(exe), '-ldl', '-lpthread', '-lm']
             linked = run(link)

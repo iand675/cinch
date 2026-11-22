@@ -51,10 +51,10 @@ def main() -> None:
     report={'format':1,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'library_sha256':digest(work/'Data.Compare.cinch'),'driver_sha256':digest(work/'Main.cinch'),'reference_source_sha256':digest(reference_source),'cpu_affinity':[args.cpu],'opt_level':2,'iterations':args.iterations,'samples':args.samples,'profile':{'heap':'32M','stack':'8M','poison':False,'leak_check':True},'scope':'Complete public scalar comparison/less or first-non-default pipeline; includes loop, dispatch, arithmetic and selection container construction. No timing threshold. Different allocation and compiler policies remain visible.','results':[]}
     report.update(driver_path=str(driver),reference_source_path=str(reference_source),runner_sha256=digest(Path(__file__)),progression=args.progression)
     if args.native:
-        snap=args.native.resolve(); cfg=json.loads((snap/'objects.json').read_text()); provider=Path(cfg['object'])
+        snap=args.native.resolve(); cfg=json.loads((snap/'base-objects.json').read_text()); provider=Path(cfg['object'])
         (work/'bundle.source').write_text((work/'Data.Compare.cinch').read_text()+'\n'+(work/'Main.cinch').read_text())
-        command=[str(compiler),'--emit-ir','--interfaces',str(snap/'base-interfaces.json'),'--objects',str(snap/'objects.json'),str(work/'bundle.source'),str(ir)]
-        report['native']={key:digest(snap/key) for key in ('base-interfaces.json','objects.json')};report['native']['provider_sha256']=digest(provider)
+        command=[str(compiler),'--emit-ir','--interfaces',str(snap/'base.cpk'),'--objects',str(snap/'base-objects.json'),str(work/'bundle.source'),str(ir)]
+        report['native']={key:digest(snap/key) for key in ('base.cpk','base-objects.json')};report['native']['provider_sha256']=digest(provider)
     else: command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)]
     result=run(command,work,300); report['compile']={'command':command,'stdout':result.stdout,'stderr':result.stderr}
     target=re.search(r'target triple = "([^"]+)"',ir.read_text())
