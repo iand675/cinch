@@ -4,9 +4,11 @@ use crate::interface::{Iface, JsonValue, ParseError};
 use crate::total::CheckedGraph;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 
 mod flat;
 use flat::FlatBodies;
+pub(crate) use flat::PackedClosure;
 
 const HEADER: usize = 80;
 const FLAT_HEADER: usize = 88;
@@ -100,12 +102,9 @@ enum BodyTable<'a> {
     Flat(FlatBodies<'a>),
 }
 
-enum Definitions<'a> {
+enum Definitions {
     Recipes(Vec<JsonValue>),
-    Flat {
-        table: &'a FlatBodies<'a>,
-        checked: CheckedGraph,
-    },
+    Flat(Arc<flat::CheckedTable>),
 }
 
 /// The decoder projects the checked graph from this exact wire root.
@@ -192,7 +191,7 @@ impl<'a> Package<'a> {
         })
     }
 
-    fn identities(&self) -> Decode<Identities> {
+    fn identities(&self, bytes: &Arc<PackageBytes>) -> Decode<Identities> {
         let definitions = match &self.bodies {
             BodyTable::Recipes { rows, payload } => Definitions::Recipes(
                 rows.chunks_exact(BODY_ROW)
@@ -202,11 +201,7 @@ impl<'a> Package<'a> {
                     })
                     .collect::<Decode<_>>()?,
             ),
-            BodyTable::Flat(table) => Definitions::Flat {
-                table,
-                checked: CheckedGraph::check(table.definitions()?)
-                    .map_err(|error| ParseError::from(error.0))?,
-            },
+            BodyTable::Flat(table) => Definitions::Flat(table.check(Arc::clone(bytes))?),
         };
         let count = self.modules.len() / MODULE_ROW;
         let mut seen = vec![false; count];
@@ -244,7 +239,7 @@ impl<'a> Package<'a> {
 struct Document<'a> {
     strings: Strings<'a>,
     source: &'a [u8],
-    definitions: Option<&'a Definitions<'a>>,
+    definitions: Option<&'a Definitions>,
     at: usize,
 }
 
@@ -252,7 +247,7 @@ impl<'a> Document<'a> {
     fn decode(
         strings: Strings<'a>,
         source: &'a [u8],
-        definitions: Option<&'a Definitions<'a>>,
+        definitions: Option<&'a Definitions>,
     ) -> Decode<JsonValue> {
         let mut state = Document {
             strings,
@@ -326,14 +321,12 @@ impl<'a> Document<'a> {
             }
             7 => JsonValue::Arr(self.definition_rows()?),
             9 => {
-                let Some(Definitions::Flat { table, checked }) = self.definitions else {
+                let Some(Definitions::Flat(table)) = self.definitions else {
                     return Err(invalid("unexpected packed body root"));
                 };
-                let [root] = self.take()?;
-                let root = table.definition_name(root)?;
-                let graph = checked
-                    .closure([root])
-                    .map_err(|error| ParseError::from(error.0))?;
+                let [root_id] = self.take()?;
+                let root = table.definition_name(root_id)?;
+                let graph = CheckedGraph::from_packed(table.closure_by_id(root_id)?);
                 JsonValue::PackedBody(PackedBody { root: root.into(), graph })
             }
             _ => return Err(invalid("unknown or unsupported structured contract tag")),
@@ -370,6 +363,11 @@ mod mapping {
         address: NonNull<u8>,
         len: usize,
     }
+
+    // The mapping is read only and its owner keeps the inode immutable.
+    // Shared references can read its bytes, and only drop unmaps it.
+    unsafe impl Send for Mapping {}
+    unsafe impl Sync for Mapping {}
 
     impl Mapping {
         /// The package publisher writes a fresh inode and replaces by rename.
@@ -414,25 +412,34 @@ mod mapping {
     }
 }
 
-/// Read every verified interface, keeping the mapping scoped to the read.
+#[cfg(unix)]
+use mapping::Mapping as PackageBytes;
+
+#[cfg(not(unix))]
+struct PackageBytes(Vec<u8>);
+
+#[cfg(not(unix))]
+impl PackageBytes {
+    fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// Read every verified interface. Checked body views share this file's backing.
 /// The caller verifies the same name and digest against the object manifest.
 pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate::Error> {
     let error =
         |error: &dyn std::fmt::Display| crate::Error::plain(format!("{}: {error}", path.display()));
     let file = std::fs::File::open(path).map_err(|e| error(&e))?;
     #[cfg(unix)]
-    let mapping = unsafe { mapping::Mapping::open(&file) }.map_err(|e| error(&e))?;
-    #[cfg(unix)]
-    let bytes = mapping.bytes();
+    let bytes = Arc::new(unsafe { PackageBytes::open(&file) }.map_err(|e| error(&e))?);
     #[cfg(not(unix))]
-    let owned = {
+    let bytes = {
         let mut owned = Vec::new();
         std::io::Read::read_to_end(&mut &file, &mut owned).map_err(|e| error(&e))?;
-        owned
+        Arc::new(PackageBytes(owned))
     };
-    #[cfg(not(unix))]
-    let bytes = &owned;
-    Package::open(bytes)
-        .and_then(|package| package.identities())
+    Package::open(bytes.bytes())
+        .and_then(|package| package.identities(&bytes))
         .map_err(|e| error(&e))
 }

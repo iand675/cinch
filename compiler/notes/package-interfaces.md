@@ -34,13 +34,11 @@ The Rust object admission path checks the typed contracts against the package
 execution metadata. The seed still checks its source closure. Existing
 per-module JSON files and native JSON manifests remain supported.
 
-The readers map the file and decode structured values directly from its
-sections. They verify the same interface identities and contracts as the
-JSON readers. The current checkers materialize their internal semantic trees,
-and native Cinch materializes each interned string once. The package carries
-complete contracts without a JSON compatibility payload. The writer replaces
-the file by rename so an existing mapping keeps seeing its original bytes.
-Keep published package files immutable while mapped.
+The readers decode structured values directly from the package sections and
+verify the same interface identities and contracts as the JSON readers.
+The package carries complete contracts without a JSON compatibility payload.
+The writer replaces the file by rename so an existing mapping keeps seeing
+its original bytes. Keep published package files immutable while mapped.
 
 ## File format
 
@@ -98,9 +96,12 @@ References between definitions use Call nodes. A contract's entire checked
 body graph is tag 9 followed by one body ID. Its member definitions follow
 from the call edges and are ordered by identity for the schema-10 digest.
 
-The readers consume the mapped records and materialize one shared tree per
-definition. Native Cinch uses the contract document shape for its checker
-and canonical contract digests.
+Rust package-object admission checks sorts, lexical slots and call edges
+directly in the packed records. It walks closures by definition ID and hashes
+the same canonical contract without allocating expression trees. An explicit
+request for an owned definition materializes that closure on demand. Native
+Cinch still materializes each interned string and one shared tree per
+definition and uses the contract document shape for checking and hashing.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.

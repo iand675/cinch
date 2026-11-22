@@ -1,6 +1,10 @@
 //! Indexed checked-body records. Node and operand views borrow the mapping.
-use super::{invalid, words, Decode, Strings, BODY_ROW, MAX_DEPTH};
-use crate::total::{Definition, Expr, Op, Sort};
+use super::{invalid, words, Decode, Strings, BODY_ROW};
+use crate::total::{Expr, Op, Sort};
+
+mod checked;
+pub(super) use checked::CheckedTable;
+pub(crate) use checked::PackedClosure;
 
 const NODE_ROW: usize = 16;
 
@@ -20,12 +24,6 @@ enum Node<'a> {
     Call(u32, &'a [u8]),
     Let(u32, u32),
     If(u32, u32, u32),
-}
-
-struct Tree {
-    first: u32,
-    next: u32,
-    calls: Vec<u32>,
 }
 
 fn row_offset(id: u32, width: usize) -> Decode<usize> {
@@ -98,112 +96,30 @@ impl<'a> FlatBodies<'a> {
         })
     }
 
-    pub(super) fn definitions(&self) -> Decode<Vec<Definition>> {
-        let mut definitions = Vec::with_capacity(self.bodies.len() / BODY_ROW);
-        let mut first_node = 0;
-        let mut previous = None;
-        for row in self.bodies.chunks_exact(BODY_ROW) {
-            let [name, result, first, count, root, edge, edges, reserved] = words(row, 0)?;
-            let identity = self.strings.get(name)?;
-            if identity.is_empty()
-                || previous.is_some_and(|earlier| earlier >= identity)
-                || reserved != 0
-            {
-                return Err(invalid("invalid packed body definition row"));
-            }
-            previous = Some(identity);
-            let parameters = indices(word_range(self.operands, first, count)?)
-                .map(|sort| self.sort(sort))
-                .collect::<Decode<_>>()?;
-            let next = root
-                .checked_add(1)
-                .ok_or_else(|| invalid("packed body node outside its section"))?;
-            let mut tree = Tree {
-                first: first_node,
-                next,
-                calls: Vec::new(),
-            };
-            let body = self.materialize(root, MAX_DEPTH, &mut tree)?;
-            if tree.next != first_node {
-                return Err(invalid("unreferenced packed body node"));
-            }
-            first_node = next;
-            tree.calls.sort_unstable();
-            tree.calls.dedup();
-            if !indices(word_range(self.edges, edge, edges)?).eq(tree.calls) {
-                return Err(invalid(
-                    "packed body dependencies disagree with its expression",
-                ));
-            }
-            definitions.push(Definition {
-                identity: identity.into(),
-                parameters,
-                result: self.sort(result)?,
-                body,
-            });
-        }
-        if first_node as usize != self.nodes.len() / NODE_ROW {
-            return Err(invalid("unreferenced packed body node"));
-        }
-        Ok(definitions)
-    }
-
-    fn materialize(&self, id: u32, depth: usize, tree: &mut Tree) -> Decode<Expr> {
-        if depth == 0 {
-            return Err(invalid("over-nested packed body"));
-        }
-        if id as usize >= self.nodes.len() / NODE_ROW {
-            return Err(invalid("packed body node outside its section"));
-        }
-        // Each reverse step must consume the next record of this tree.
-        if id < tree.first || id + 1 != tree.next {
-            return Err(invalid("packed body child is not in postorder"));
-        }
-        tree.next = id;
-        let mut child = |node| self.materialize(node, depth - 1, tree);
-        Ok(match self.node(id)? {
+    // Called only on tables that have passed the shape and depth checks.
+    fn materialize(&self, id: u32) -> Expr {
+        let child = |node| self.materialize(node);
+        match self.node(id).expect("checked body node") {
             Node::Local(slot) => Expr::Local(slot as usize),
             Node::Number(sort, decimal) => Expr::Number {
                 sort,
                 decimal: decimal.into(),
             },
             Node::Bool(value) => Expr::Bool(value),
-            Node::Primitive(op, args) => {
-                let mut arguments = indices(args)
-                    .rev()
-                    .map(&mut child)
-                    .collect::<Decode<Vec<_>>>()?;
-                arguments.reverse();
-                Expr::Primitive(op, arguments)
-            }
-            Node::Call(target, args) => {
-                let mut arguments = indices(args)
-                    .rev()
-                    .map(&mut child)
-                    .collect::<Decode<Vec<_>>>()?;
-                arguments.reverse();
-                tree.calls.push(target);
-                Expr::Call {
-                    target: self.definition_name(target)?.into(),
-                    arguments,
-                }
-            }
-            Node::Let(value, body) => {
-                let body = Box::new(child(body)?);
-                Expr::Let {
-                    value: Box::new(child(value)?),
-                    body,
-                }
-            }
-            Node::If(condition, yes, no) => {
-                let no = Box::new(child(no)?);
-                let yes = Box::new(child(yes)?);
-                Expr::If {
-                    condition: Box::new(child(condition)?),
-                    yes,
-                    no,
-                }
-            }
-        })
+            Node::Primitive(op, args) => Expr::Primitive(op, indices(args).map(child).collect()),
+            Node::Call(target, args) => Expr::Call {
+                target: self.definition_name(target).expect("checked call target").into(),
+                arguments: indices(args).map(child).collect(),
+            },
+            Node::Let(value, body) => Expr::Let {
+                value: Box::new(child(value)),
+                body: Box::new(child(body)),
+            },
+            Node::If(condition, yes, no) => Expr::If {
+                condition: Box::new(child(condition)),
+                yes: Box::new(child(yes)),
+                no: Box::new(child(no)),
+            },
+        }
     }
 }

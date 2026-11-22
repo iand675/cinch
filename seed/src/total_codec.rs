@@ -68,6 +68,9 @@ impl CheckedGraph {
     }
 
     pub(crate) fn to_json_value(&self) -> J {
+        if matches!(&self.storage, BodyStorage::Packed(_)) {
+            return J::PackedGraph(self.clone());
+        }
         J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), definition_json))])
     }
 
@@ -78,6 +81,9 @@ impl CheckedGraph {
         &self,
         rows: &mut HashMap<*const Definition, Arc<str>>,
     ) -> J {
+        if matches!(&self.storage, BodyStorage::Packed(_)) {
+            return J::PackedGraph(self.clone());
+        }
         let definitions = J::arr(self.definitions(), |definition| {
             let canonical = rows
                 .entry(std::ptr::from_ref(definition))
@@ -92,8 +98,10 @@ impl CheckedGraph {
     }
 
     pub(crate) fn from_json_value(data: &J) -> Result<Self, Invalid> {
-        if let J::PackedBody(body) = data {
-            return Ok(body.graph().clone());
+        match data {
+            J::PackedBody(body) => return Ok(body.graph().clone()),
+            J::PackedGraph(graph) => return Ok(graph.clone()),
+            _ => {}
         }
         let root=object(data,&["version","definitions"])?;
         if root["version"].as_num().map_err(|e| Invalid(e.to_string()))? != 1 { return Err(Invalid("unknown total-body version".into())) }
