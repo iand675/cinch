@@ -30,6 +30,9 @@ module Main where
     let borrow = UApp (UApp (UCon "Mut" borrow-constructor-kind) region) integer in
     let label = mutation region in
     [ nominal-kinds-closed kinds
+    , not (nominal-kinds-closed (Cons ("Unit", KType) kinds))
+    , not (type-well-formed kinds empty-type-scope (UFun unit (UFun integer (UCon "missing" KType))))
+    , not (type-well-formed kinds empty-type-scope (UFun unit (UFun integer (UApp integer unit))))
     , scoped KRegion (UFunEff unit (row label) unit)
     , scoped KRegion (UFun borrow borrow)
     , scoped KRegion (UFunEff borrow (row label) borrow)
@@ -42,7 +45,8 @@ module Main where
     , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Mut" (KFun KType KEffect)) region)) unit))
     , not (scoped KRegion (UFunEff unit (row (UCon "Mut" KEffect)) unit))
     , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Mut" borrow-constructor-kind) region)) unit))
-    , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Forged" (KFun KRegion KEffect)) region)) unit))
+    , scoped KRegion (UFunEff unit (row (UApp (UCon "Trace" (KFun KRegion KEffect)) region)) unit)
+    , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Unknown.Forged" (KFun KRegion KEffect)) region)) unit))
     , not (scheme-well-formed [("Unit", KType)] empty-type-scope (MkScheme [MkQuant 0 "r" KRegion False] (UFunEff unit (row label) unit)))
     ]
 

@@ -28,7 +28,7 @@ module Bootstrap.Typing where
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> List UType -> TypingContext
+    CheckedTypingContext :: KindIndex -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> List UType -> TypingContext
   context-data :: TypingContext -> List CoreData
   context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> datas
   context-declarations :: TypingContext -> List CoreGlobal
@@ -41,7 +41,7 @@ module Bootstrap.Typing where
   context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-body-context globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
   context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-guarded-bodies globals
-  context-kinds :: TypingContext -> List (String, Kind)
+  context-kinds :: TypingContext -> KindIndex
   context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> kinds
   context-task-forwarder :: TypingContext -> String -> Bool
   context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> has name forwarders
@@ -97,9 +97,9 @@ module Bootstrap.Typing where
     UProofFun predicate row result -> effects-fit row empty-row && constructor-pure result
     UPi id name a row b -> effects-fit row empty-row && constructor-pure b
     other -> True
-  global-schemes-well-formed :: List (String, Kind) -> List Scheme -> Bool
-  global-schemes-well-formed kinds schemes = case schemes of Nil -> True; Cons sc rest -> scheme-well-formed kinds empty-type-scope sc && global-schemes-well-formed kinds rest
-  global-types :: List (String, Kind) -> List CoreGlobal -> Bool
+  global-schemes-well-formed :: KindIndex -> List Scheme -> Bool
+  global-schemes-well-formed kinds schemes = case schemes of Nil -> True; Cons sc rest -> scheme-well-formed-in kinds empty-type-scope sc && global-schemes-well-formed kinds rest
+  global-types :: KindIndex -> List CoreGlobal -> Bool
   global-types kinds declarations = case declarations of
     Nil -> True
     Cons declaration rest -> global-schemes-well-formed kinds (global-schemes declaration)
@@ -109,8 +109,8 @@ module Bootstrap.Typing where
   kernel-effect-kinds = [("#kernel.MVar", KEffect), ("#kernel.STM", KEffect), ("#kernel.Handler", handler-kind), ("#kernel.ForeignIO", KEffect), ("Foreign", KFun KRegion KEffect), ("Diverge", KEffect), ("Blocking", KEffect), ("Global", KEffect), ("Fail", KEffect), ("Reentrant", KEffect), ("ThreadAffine", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
   close-typing-context :: List (String, Kind) -> List CoreGlobal -> Option TypingContext
   close-typing-context kinds declarations = close-typing-context-with-effects kinds declarations Nil
-  effect-kind-declared :: String -> Kind -> List (String, Kind) -> Bool
-  effect-kind-declared name kind kinds = case kinds of Nil -> False; Cons (key, actual) rest -> if same key name then kind-equal kind actual else effect-kind-declared name kind rest
+  effect-kind-declared :: String -> Kind -> KindIndex -> Bool
+  effect-kind-declared name kind kinds = case kind-at name kinds of Some actual -> kind-equal kind actual; None -> False
   operation-registered :: CoreOperation -> List CoreGlobal -> Bool
   operation-registered operation declarations = case declarations of
     Nil -> False
@@ -118,7 +118,7 @@ module Bootstrap.Typing where
     Cons other rest -> operation-registered operation rest
   operations-registered :: List CoreOperation -> List CoreGlobal -> Bool
   operations-registered operations declarations = case operations of Nil -> True; Cons first rest -> operation-registered first declarations && operations-registered rest declarations
-  effects-registered :: List (String, Kind) -> List CoreGlobal -> List String -> List CoreEffect -> Bool
+  effects-registered :: KindIndex -> List CoreGlobal -> List String -> List CoreEffect -> Bool
   effects-registered kinds globals seen declarations = case declarations of
     Nil -> True
     Cons declaration rest -> let name = core-effect-name declaration in
@@ -155,13 +155,14 @@ module Bootstrap.Typing where
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
   close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
-    let all = declared <> constructor-index-kinds datas in
-    if nominal-kinds-closed declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
+    let defined = index-kinds declared in
+    let all = extend-kind-index defined (constructor-index-kinds datas) in
+    if nominal-index-closed defined declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
         && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
       (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage Nil); None -> None)
     else None
   -- | Require unique owners and recheck every field's scope without adding runtime data or constructors.
-  usage-context-closed :: List (String, Kind) -> List UsageShape -> List String -> Bool
+  usage-context-closed :: KindIndex -> List UsageShape -> List String -> Bool
   usage-context-closed kinds rows seen = case rows of
     Nil -> True
     Cons first rest -> not (has (usage-name first) seen) && usage-shape-closed kinds first
@@ -225,8 +226,9 @@ module Bootstrap.Typing where
   -- caller uses; this one only shapes a message.
   closure-refusal :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> String
   closure-refusal kinds declarations effects datas definitions = let declared = kernel-effect-kinds <> kinds in
-    let all = declared <> constructor-index-kinds datas in
-    if not (nominal-kinds-closed declared) then "the nominal kind table is not closed"
+    let defined = index-kinds declared in
+    let all = extend-kind-index defined (constructor-index-kinds datas) in
+    if not (nominal-index-closed defined declared) then "the nominal kind table is not closed"
     else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))
     else if not (effects-registered all declarations Nil effects) then "an effect declaration is not registered"
     else if not (task-data-closed all datas) then "task data is not closed"
@@ -234,9 +236,9 @@ module Bootstrap.Typing where
       Some reason -> string-concat "the global reference closure refused: " reason
       None -> "the source body closure refused: a body binding does not match its definition"
   -- Which declaration `global-types` rejects, named. A proposition-valued body
-  -- is a legal scheme (`scheme-well-formed` admits `declared-type`), so naming
+  -- is a legal scheme (`scheme-well-formed-in` admits `declared-type`), so naming
   -- it distinguishes that from an impure constructor, which is not legal.
-  ill-formed-scheme :: List (String, Kind) -> List CoreGlobal -> String
+  ill-formed-scheme :: KindIndex -> List CoreGlobal -> String
   ill-formed-scheme kinds declarations = case declarations of
     Nil -> "no declaration names itself"
     Cons declaration rest ->
@@ -246,9 +248,9 @@ module Bootstrap.Typing where
           other -> ill-formed-scheme kinds rest)
       else global-name declaration
   wf :: TypingContext -> TypeScope -> UType -> Bool
-  wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
+  wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed-in (context-kinds context) scope ty
   actual-types :: TypingContext -> TypeScope -> List UType -> Bool
-  actual-types context scope types = case types of Nil -> True; Cons ty rest -> body-type-authorized (context-bodies context) ty && argument-well-formed (context-kinds context) scope ty && actual-types context scope rest
+  actual-types context scope types = case types of Nil -> True; Cons ty rest -> body-type-authorized (context-bodies context) ty && argument-well-formed-in (context-kinds context) scope ty && actual-types context scope rest
   evidence-types :: TypingContext -> TypeScope -> CoreEvidence -> Bool
   evidence-types context scope evidence = case evidence of
     CECopy sp carrier -> wf context scope (evidence-type evidence) && copy-marker-carrier carrier
@@ -541,7 +543,7 @@ module Bootstrap.Typing where
     -- check: the goal's two sides must be definitionally equal.
     CProofRefl sp predicate -> reflexive-equality predicate
     other -> False)
-  task-data-closed :: List (String, Kind) -> List CoreData -> Bool
+  task-data-closed :: KindIndex -> List CoreData -> Bool
   task-data-closed kinds datas = case datas of
     Nil -> True
     Cons d rest -> core-data-closed d && effect-kind-declared (core-data-name d) (core-data-kind d) kinds && task-data-closed kinds rest
@@ -1873,10 +1875,10 @@ module Bootstrap.Typing where
         && (case handler-residual label (core-effects body) of Some actual -> equal-type actual residual; None -> False)
       None -> False)
   checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
-  checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed (context-kinds context) scope sc
+  checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed-in (context-kinds context) scope sc
     && not (volatile-borrow-index (scheme-body sc)) && (case scheme-requirements sc of Nil -> True; other -> False)
     && equal-type (scheme-body sc) (core-type rhs) && equal-type ty (core-type body)
-    && (case scheme-type-scope (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
+    && (case scheme-type-scope-in (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
     && (case add-local-scheme id sc scope of
       Some bound -> let writes = core-mutable-writes rhs in
         let next = proof-after-writes (scope-let gamma facts id sc rhs) writes in
@@ -1887,7 +1889,7 @@ module Bootstrap.Typing where
   recursive-type-scope context scope members = case members of
     CRecursiveBindingsEnd -> Some scope
     CRecursiveBinding id name value rest -> let scheme = mono (core-type value) in
-      if scheme-well-formed (context-kinds context) scope scheme && body-scheme-authorized (context-bodies context) scheme
+      if scheme-well-formed-in (context-kinds context) scope scheme && body-scheme-authorized (context-bodies context) scheme
       then (case add-local-scheme id scheme scope of Some bound -> recursive-type-scope context bound rest; None -> None)
       else None
     other -> None
@@ -1906,7 +1908,7 @@ module Bootstrap.Typing where
   openings-scope :: TypingContext -> TypeScope -> List (Nat, UType) -> Option TypeScope
   openings-scope context scope openings = case openings of
     Nil -> Some scope
-    Cons (key, URigid id name level kind) rest -> if body-kind-authorized (context-bodies context) kind && kind-well-formed (context-kinds context) scope kind then
+    Cons (key, URigid id name level kind) rest -> if body-kind-authorized (context-bodies context) kind && kind-well-formed-in (context-kinds context) scope kind then
       (case add-rigid-kind id kind scope of Some bound -> openings-scope context bound rest; None -> None) else None
     Cons (key, UIndex carrier (IRigid id name level)) rest -> if body-type-authorized (context-bodies context) carrier && wf context scope carrier then
       (case add-rigid-kind id (value-kind carrier) scope of Some bound -> openings-scope context bound rest; None -> None) else None
@@ -1914,7 +1916,7 @@ module Bootstrap.Typing where
   private-scope :: TypeScope -> List (Nat, Kind) -> Option TypeScope
   private-scope scope entries = case entries of Nil -> Some scope; Cons (id, kind) rest -> case add-rigid-kind id kind scope of Some bound -> private-scope bound rest; None -> None
   private-kinds :: TypingContext -> TypeScope -> List (Nat, Kind) -> Bool
-  private-kinds context scope entries = case entries of Nil -> True; Cons (id, kind) rest -> body-kind-authorized (context-bodies context) kind && kind-well-formed (context-kinds context) scope kind && private-kinds context scope rest
+  private-kinds context scope entries = case entries of Nil -> True; Cons (id, kind) rest -> body-kind-authorized (context-bodies context) kind && kind-well-formed-in (context-kinds context) scope kind && private-kinds context scope rest
   givens-typed :: TypingContext -> TypeScope -> List CoreGiven -> Bool
   givens-typed context scope givens = case givens of Nil -> True; Cons given rest -> wf context scope (given-type given) && givens-typed context scope rest
   clause-typed :: TypingContext -> TypeScope -> ProofScope -> UType -> UType -> List CorePattern -> CoreTerm -> Bool

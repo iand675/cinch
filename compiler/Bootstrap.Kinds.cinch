@@ -4,10 +4,13 @@ module Bootstrap.Kinds where
   import Bootstrap.Type
   import Bootstrap.Index
   import Data.Char (is-ascii-alpha-numeric)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Lex (Span)
 
   export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme, add-value-parameter
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
+  export KindIndex, index-kinds, extend-kind-index, kind-at, nominal-index-closed
+  export type-well-formed-in, kind-well-formed-in, scheme-well-formed-in, scheme-type-scope-in, argument-well-formed-in
   export nominal-kinds-closed, add-rigid-kind, constructor-index-key
   export proper-type, argument-well-formed, symbolic-effect-spelling
   export borrow-scope-conflict, open-memo-region, in-memo-region
@@ -46,8 +49,26 @@ module Bootstrap.Kinds where
   same a b = string-compare a b == 0
   lookup-id :: Nat -> List (Nat, Kind) -> Option Kind
   lookup-id id entries = case entries of Nil -> None; Cons (key, kind) rest -> if id == key then Some kind else lookup-id id rest
-  lookup-kind :: String -> List (String, Kind) -> Option Kind
-  lookup-kind name entries = case entries of Nil -> None; Cons (key, kind) rest -> if same name key then Some kind else lookup-kind name rest
+  data KindIndex where
+    KindIndex :: Nat -> HashMap String Kind -> KindIndex
+
+  -- Declaration order gives the first name authority over later entries.
+  index-kinds :: List (String, Kind) -> KindIndex
+  index-kinds rows = collect-kinds rows 0 hash-map-empty
+
+  extend-kind-index :: KindIndex -> List (String, Kind) -> KindIndex
+  extend-kind-index (KindIndex size table) rows = collect-kinds rows size table
+
+  collect-kinds :: List (String, Kind) -> Nat -> HashMap String Kind -> KindIndex
+  collect-kinds rows size table = case rows of
+    Nil -> KindIndex size table
+    Cons (name, kind) rest -> (case hash-map-lookup name table of
+      Some _ -> collect-kinds rest size table
+      None -> collect-kinds rest (size + 1) (hash-map-insert name kind table))
+
+  kind-at :: String -> KindIndex -> Option Kind
+  kind-at name (KindIndex size table) = hash-map-lookup name table
+
   equal-type :: UType -> UType -> Bool
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "kind scope")) of Nil -> True; other -> False)
   add-rigid-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
@@ -141,16 +162,19 @@ module Bootstrap.Kinds where
           (expected, pairs, opened) -> (case store-errors (unify (Span 0 0 1 1) expected carrier opened) of Nil -> True; other -> False))
       other -> False)
     None -> False
-  kind-well-formed :: List (String, Kind) -> TypeScope -> Kind -> Bool
-  kind-well-formed kinds scope kind = valid-kind kind && (case kind of
-    KFun domain result -> kind-well-formed kinds scope domain && kind-well-formed kinds scope result
-    KValue carrier -> type-well-formed kinds scope carrier
-    other -> True)
+  kind-well-formed-in :: KindIndex -> TypeScope -> Kind -> Bool
+  kind-well-formed-in kinds scope kind = valid-kind kind && kind-authorized kinds scope kind
+
+  kind-authorized :: KindIndex -> TypeScope -> Kind -> Bool
+  kind-authorized kinds scope kind = case kind of
+    KFun domain result -> kind-authorized kinds scope domain && kind-authorized kinds scope result
+    KValue carrier -> type-authorized kinds scope carrier
+    other -> True
   index-binding :: UType -> Nat -> List (Nat, Kind) -> Bool
   index-binding carrier id entries = case lookup-id id entries of
     Some kind -> (case value-carrier kind of Some expected -> equal-type expected carrier; None -> False)
     None -> False
-  index-well-formed :: List (String, Kind) -> TypeScope -> UType -> IndexTerm -> Bool
+  index-well-formed :: KindIndex -> TypeScope -> UType -> IndexTerm -> Bool
   index-well-formed kinds scope carrier value = case value of
     ICharacter c -> same-shape carrier (UCon "Char" KType)
     IInteger n -> integer-literal-valid carrier n
@@ -160,9 +184,9 @@ module Bootstrap.Kinds where
     ISubtract a b -> index-well-formed kinds scope carrier a && index-well-formed kinds scope carrier b
     IMultiply a b -> index-well-formed kinds scope carrier a && index-well-formed kinds scope carrier b
     other -> False
-  binder-body :: List (String, Kind) -> TypeScope -> Nat -> UType -> UType -> Bool
-  binder-body kinds scope id carrier body = type-well-formed kinds scope carrier && (case add-bound-kind id (value-kind carrier) scope of
-    Some bound -> type-well-formed kinds bound body
+  binder-body :: KindIndex -> TypeScope -> Nat -> UType -> UType -> Bool
+  binder-body kinds scope id carrier body = type-authorized kinds scope carrier && (case add-bound-kind id (value-kind carrier) scope of
+    Some bound -> type-authorized kinds bound body
     None -> False)
   -- | Recheck nominal and lexical authority, interpreting mutation labels only inside effect rows.
   -- This namespace is reserved at context closure. Only the independently
@@ -172,56 +196,61 @@ module Bootstrap.Kinds where
   constructor-index-key :: String -> String
   constructor-index-key name = string-concat "@constructor:" name
 
-  type-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
-  type-well-formed kinds scope ty = valid-type ty && (case ty of
-    UCon name actual -> (case lookup-kind name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
+  -- `valid-type` checks the shape of the entire input before authority is
+  -- visited. Repeating it at each child rescans deeply nested types.
+  type-well-formed-in :: KindIndex -> TypeScope -> UType -> Bool
+  type-well-formed-in kinds scope ty = valid-type ty && type-authorized kinds scope ty
+
+  type-authorized :: KindIndex -> TypeScope -> UType -> Bool
+  type-authorized kinds scope ty = case ty of
+    UCon name actual -> (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope-bound scope) of Some expected -> kind-equal actual expected; None -> False)
-    URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-well-formed kinds scope carrier && local-carrier carrier id scope; None -> False)
+    URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-authorized kinds scope carrier && local-carrier carrier id scope; None -> False)
     UMeta id kind -> False
     UError -> False
-    UIndex carrier value -> type-well-formed kinds scope carrier && index-runtime-admissible carrier value && index-well-formed kinds scope carrier value
+    UIndex carrier value -> type-authorized kinds scope carrier && index-runtime-admissible carrier value && index-well-formed kinds scope carrier value
     URefine id name carrier predicate -> binder-body kinds scope id carrier predicate
-    URefineFormer name ids body -> (case (lookup-kind name kinds, scheme-type-scope kinds empty-type-scope (refinement-formals ids)) of
-      (Some declared, Some bound) -> kind-equal declared (type-kind ty) && type-well-formed kinds bound body
+    URefineFormer name ids body -> (case (kind-at name kinds, scheme-type-scope-in kinds empty-type-scope (refinement-formals ids)) of
+      (Some declared, Some bound) -> kind-equal declared (type-kind ty) && type-authorized kinds bound body
       other -> False)
     UPi id name domain row result -> binder-body kinds scope id domain (UArg row (UArg result UEnd))
-    UApp f x -> type-well-formed kinds scope f && type-well-formed kinds scope x
-    UFun a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    UFunEff a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
-    UUsageArrow usage arrow -> type-well-formed kinds scope arrow
-    UProofFun a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
-    UIndexForget value -> type-well-formed kinds scope value
-    UIndexPromote value -> type-well-formed kinds scope value
-    UIndexByteLength value -> type-well-formed kinds scope value
-    UIndexMeasure measure value -> type-well-formed kinds scope value
-    UIndexStringLength value -> type-well-formed kinds scope value
-    UIndexBorrowRead value -> type-well-formed kinds scope value
-    UIndexConstructor name arrow input -> (case lookup-kind (constructor-index-key name) kinds of
-      Some (KValue declared) -> same-shape arrow declared && type-well-formed kinds scope arrow && type-well-formed kinds scope input
+    UApp f x -> type-authorized kinds scope f && type-authorized kinds scope x
+    UFun a b -> type-authorized kinds scope a && type-authorized kinds scope b
+    UFunEff a row b -> type-authorized kinds scope a && type-authorized kinds scope row && type-authorized kinds scope b
+    UUsageArrow usage arrow -> type-authorized kinds scope arrow
+    UProofFun a row b -> type-authorized kinds scope a && type-authorized kinds scope row && type-authorized kinds scope b
+    UIndexForget value -> type-authorized kinds scope value
+    UIndexPromote value -> type-authorized kinds scope value
+    UIndexByteLength value -> type-authorized kinds scope value
+    UIndexMeasure measure value -> type-authorized kinds scope value
+    UIndexStringLength value -> type-authorized kinds scope value
+    UIndexBorrowRead value -> type-authorized kinds scope value
+    UIndexConstructor name arrow input -> (case kind-at (constructor-index-key name) kinds of
+      Some (KValue declared) -> same-shape arrow declared && type-authorized kinds scope arrow && type-authorized kinds scope input
       other -> False)
-    UIndexList element fields -> type-well-formed kinds scope element && type-well-formed kinds scope fields
-    UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
-    UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UIndexList element fields -> type-authorized kinds scope element && type-authorized kinds scope fields
+    UIndexCall function args -> type-authorized kinds scope args
+    UIndexMath op a b -> type-authorized kinds scope a && type-authorized kinds scope b
     URow labels -> row-labels-well-formed kinds scope labels
-    URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    UTuple fields -> type-well-formed kinds scope fields
-    UForall qs body -> type-well-formed kinds (bind-quant-scope (quants-list qs) scope) body
-    UArg first rest -> type-well-formed kinds scope first && type-well-formed kinds scope rest
-    UCompare relation a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    UPropAnd a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    UPropOr a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    UPropNot body -> type-well-formed kinds scope body
-    UPropNonZero body -> type-well-formed kinds scope body
-    UPropNotNull body -> type-well-formed kinds scope body
-    UPropAscii body -> type-well-formed kinds scope body
-    UPropOrdered body -> type-well-formed kinds scope body
-    UPropNonZeroPending body -> type-well-formed kinds scope body
-    URequire predicates body -> type-well-formed kinds scope predicates && type-well-formed kinds scope body
+    URowJoin a b -> type-authorized kinds scope a && type-authorized kinds scope b
+    UTuple fields -> type-authorized kinds scope fields
+    UForall qs body -> type-authorized kinds (bind-quant-scope (quants-list qs) scope) body
+    UArg first rest -> type-authorized kinds scope first && type-authorized kinds scope rest
+    UCompare relation a b -> type-authorized kinds scope a && type-authorized kinds scope b
+    UPropAnd a b -> type-authorized kinds scope a && type-authorized kinds scope b
+    UPropOr a b -> type-authorized kinds scope a && type-authorized kinds scope b
+    UPropNot body -> type-authorized kinds scope body
+    UPropNonZero body -> type-authorized kinds scope body
+    UPropNotNull body -> type-authorized kinds scope body
+    UPropAscii body -> type-authorized kinds scope body
+    UPropOrdered body -> type-authorized kinds scope body
+    UPropNonZeroPending body -> type-authorized kinds scope body
+    URequire predicates body -> type-authorized kinds scope predicates && type-authorized kinds scope body
     UPropLit value -> True
-    UEnd -> True)
+    UEnd -> True
 
   -- | Check every closed row label without giving effect-only constructor kinds ordinary nominal authority.
-  row-labels-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  row-labels-well-formed :: KindIndex -> TypeScope -> UType -> Bool
   row-labels-well-formed kinds scope labels = case labels of
     UEnd -> True
     UArg first rest -> row-label-well-formed kinds scope first && row-labels-well-formed kinds scope rest
@@ -239,51 +268,65 @@ module Bootstrap.Kinds where
     Nil -> True
     Cons ch rest -> (is-ascii-alpha-numeric ch || char-code ch == 95 || char-code ch == 45 || char-code ch == 39) && symbolic-effect-tail rest
 
-  row-label-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  row-label-well-formed :: KindIndex -> TypeScope -> UType -> Bool
   row-label-well-formed kinds scope label = case label of
     UApp (UCon name actual) region -> if same name "Mut" then
       kind-equal actual (KFun KRegion KEffect)
-        && kind-equal (type-kind region) KRegion && type-well-formed kinds scope region
-        && (case lookup-kind "Mut" kinds of Some declared -> kind-equal declared borrow-constructor-kind; None -> False)
-      else (case lookup-kind name kinds of
-        Some declared -> type-well-formed kinds scope label
+        && kind-equal (type-kind region) KRegion && type-authorized kinds scope region
+        && (case kind-at "Mut" kinds of Some declared -> kind-equal declared borrow-constructor-kind; None -> False)
+      else (case kind-at name kinds of
+        Some declared -> type-authorized kinds scope label
         None -> symbolic-effect-spelling name && kind-equal actual (KFun KRegion KEffect)
-          && kind-equal (type-kind region) KRegion && type-well-formed kinds scope region)
-    UCon name KEffect -> (case lookup-kind name kinds of
+          && kind-equal (type-kind region) KRegion && type-authorized kinds scope region)
+    UCon name KEffect -> (case kind-at name kinds of
       Some declared -> kind-equal declared KEffect
       None -> symbolic-effect-spelling name)
-    other -> type-well-formed kinds scope label
-  scheme-type-scope :: List (String, Kind) -> TypeScope -> List Quant -> Option TypeScope
-  scheme-type-scope kinds scope qs = case qs of
+    other -> type-authorized kinds scope label
+  scheme-type-scope-in :: KindIndex -> TypeScope -> List Quant -> Option TypeScope
+  scheme-type-scope-in kinds scope qs = case qs of
     Nil -> Some scope
-    Cons q rest -> if kind-well-formed kinds scope (quant-kind q) then
-      (case add-bound-kind (quant-id q) (quant-kind q) scope of Some bound -> scheme-type-scope kinds bound rest; None -> None)
+    Cons q rest -> if kind-well-formed-in kinds scope (quant-kind q) then
+      (case add-bound-kind (quant-id q) (quant-kind q) scope of Some bound -> scheme-type-scope-in kinds bound rest; None -> None)
       else None
-  requirements-well-formed :: List (String, Kind) -> TypeScope -> List Requirement -> Bool
-  requirements-well-formed kinds scope requirements = case requirements of Nil -> True; Cons r rest -> type-well-formed kinds scope (requirement-type r) && requirements-well-formed kinds scope rest
-  scheme-well-formed :: List (String, Kind) -> TypeScope -> Scheme -> Bool
-  scheme-well-formed kinds scope sc = case scheme-type-scope kinds scope (scheme-params sc) of
+  requirements-well-formed :: KindIndex -> TypeScope -> List Requirement -> Bool
+  requirements-well-formed kinds scope requirements = case requirements of Nil -> True; Cons r rest -> type-well-formed-in kinds scope (requirement-type r) && requirements-well-formed kinds scope rest
+  scheme-well-formed-in :: KindIndex -> TypeScope -> Scheme -> Bool
+  scheme-well-formed-in kinds scope sc = case scheme-type-scope-in kinds scope (scheme-params sc) of
     -- A declaration's type is a value type or a proposition: `same :: (value
     -- :: Bool) -> Eq value value` declares a proof former, whose scheme body
     -- is a goal rather than a value. `proper-type` still governs every
     -- position that must be a value.
-    Some bound -> declared-type (scheme-body sc) && type-well-formed kinds bound (scheme-body sc) && requirements-well-formed kinds bound (scheme-requirements sc)
+    Some bound -> declared-type (scheme-body sc) && type-authorized kinds bound (scheme-body sc) && requirements-well-formed kinds bound (scheme-requirements sc)
     None -> False
   declared-type :: UType -> Bool
   declared-type ty = proper-type ty || (valid-type ty && kind-equal (type-kind ty) KProp)
   proper-type :: UType -> Bool
   proper-type ty = valid-type ty && kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
-  argument-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
-  argument-well-formed kinds scope ty = type-well-formed kinds scope ty && (case type-kind ty of
+  argument-well-formed-in :: KindIndex -> TypeScope -> UType -> Bool
+  argument-well-formed-in kinds scope ty = (case type-kind ty of
     KType -> proper-type ty
     KValue carrier -> typed-index-admissible ty
-    other -> True)
-  nominal-seen :: List (String, Kind) -> List (String, Kind) -> List String -> Bool
-  nominal-seen all entries names = case entries of
+    other -> valid-type ty) && type-authorized kinds scope ty
+  nominal-index-closed :: KindIndex -> List (String, Kind) -> Bool
+  nominal-index-closed kinds entries = case kinds of
+    KindIndex size table -> size == list-length entries && nominal-entries-closed kinds entries
+
+  nominal-entries-closed :: KindIndex -> List (String, Kind) -> Bool
+  nominal-entries-closed kinds entries = case entries of
     Nil -> True
-    Cons (name, kind) rest -> nominal-name name && not (name-seen name names)
-      && kind-well-formed all empty-type-scope kind && nominal-seen all rest (Cons name names)
-  name-seen :: String -> List String -> Bool
-  name-seen name names = case names of Nil -> False; Cons key rest -> same name key || name-seen name rest
+    Cons (name, kind) rest -> nominal-name name
+      && kind-well-formed-in kinds empty-type-scope kind && nominal-entries-closed kinds rest
+
   nominal-kinds-closed :: List (String, Kind) -> Bool
-  nominal-kinds-closed kinds = nominal-seen kinds kinds Nil
+  nominal-kinds-closed kinds = nominal-index-closed (index-kinds kinds) kinds
+
+  type-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  type-well-formed kinds = type-well-formed-in (index-kinds kinds)
+  kind-well-formed :: List (String, Kind) -> TypeScope -> Kind -> Bool
+  kind-well-formed kinds = kind-well-formed-in (index-kinds kinds)
+  scheme-type-scope :: List (String, Kind) -> TypeScope -> List Quant -> Option TypeScope
+  scheme-type-scope kinds = scheme-type-scope-in (index-kinds kinds)
+  scheme-well-formed :: List (String, Kind) -> TypeScope -> Scheme -> Bool
+  scheme-well-formed kinds = scheme-well-formed-in (index-kinds kinds)
+  argument-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  argument-well-formed kinds = argument-well-formed-in (index-kinds kinds)

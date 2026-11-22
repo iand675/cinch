@@ -3,7 +3,7 @@ module Bootstrap.Usage where
   import Bootstrap.Ast
   import Bootstrap.Type
   import Bootstrap.Core
-  import Bootstrap.Kinds (scheme-well-formed, empty-type-scope)
+  import Bootstrap.Kinds (KindIndex, kind-at, scheme-well-formed-in, empty-type-scope)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Load (nominal-owner)
   import Bootstrap.Nominal (interface-global, nominal-entry-valid, global-data-core-list, global-data-core-option)
@@ -239,15 +239,17 @@ module Bootstrap.Usage where
   instantiate-fields pairs fields = case fields of Nil -> Nil; Cons first rest -> Cons (substitute-bound pairs first) (instantiate-fields pairs rest)
 
   -- | Recheck field scope and owner roles whenever a later Core typing context is closed.
-  usage-shape-closed :: List (String, Kind) -> UsageShape -> Bool
+  usage-shape-closed :: KindIndex -> UsageShape -> Bool
   usage-shape-closed kinds shape = case shape of
-    CheckedUsageShape owner params fields -> declared-owner-kind owner (kind-arrow params) kinds && closed-fields kinds params (all-fields fields)
+    CheckedUsageShape owner params fields -> (case kind-at owner kinds of
+      Some actual -> kind-equal actual (kind-arrow params) && closed-fields kinds params (all-fields fields)
+      None -> False)
 
   -- | Validate every field as a scheme under the complete definition-site Type and Region scope.
-  closed-fields :: List (String, Kind) -> List Quant -> List UType -> Bool
+  closed-fields :: KindIndex -> List Quant -> List UType -> Bool
   closed-fields kinds params fields = case fields of
     Nil -> True
-    Cons first rest -> scheme-well-formed kinds empty-type-scope (MkScheme params first) && closed-fields kinds params rest
+    Cons first rest -> scheme-well-formed-in kinds empty-type-scope (MkScheme params first) && closed-fields kinds params rest
 
   -- | Compare decoded duplicate proofs semantically, after the loader checks their defining bytes.
   usage-equal :: UsageShape -> UsageShape -> Bool
