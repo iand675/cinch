@@ -490,6 +490,12 @@ impl Scan {
                 }
                 Scan::mapped(words, k, 0, scan_slot(code, TVAR_VALUE_WORD))
             }
+            KIND_BYTES_VIEW => {
+                if words != BYTES_VIEW_OWNER_WORD as usize + 1 {
+                    crate::abi::panic_exit(b"compiler bug: corrupt byte view");
+                }
+                Scan::mapped(words, k, 0, scan_slot(SCAN_OBJ, BYTES_VIEW_OWNER_WORD))
+            }
             _ => Scan::mapped(words, k, 0, 0),
         }
     }

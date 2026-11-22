@@ -103,8 +103,12 @@ pub const KIND_TVAR: u8 = 17;
 pub const KIND_MVAR: u8 = 18;
 /// Read-only bytes backed by a file mapping released with the block.
 pub const KIND_BYTES_MAPPED: u8 = 19;
+/// Read-only byte span with a counted reference to its backing buffer.
+pub const KIND_BYTES_VIEW: u8 = 20;
+/// The owner follows the length and data pointer of the byte span.
+pub const BYTES_VIEW_OWNER_WORD: u64 = 2;
 /// Last live kind; keep range validation in step with new runtime kinds.
-pub const KIND_LAST: u8 = KIND_BYTES_MAPPED;
+pub const KIND_LAST: u8 = KIND_BYTES_VIEW;
 /// A freed block (debug poisoning): the largest value the field holds.
 pub const KIND_FREED: u8 = 31;
 

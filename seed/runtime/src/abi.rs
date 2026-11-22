@@ -170,6 +170,42 @@ pub unsafe extern "C" fn cinch_map_package_bytes(fd: i64, length: i64) -> i64 {
     }
 }
 
+/// Check a string span and return a fresh `String` word, or a negative
+/// error code. Immutable bytes can be retained as a view, while mutable
+/// buffers are copied once so no later write can change the string.
+///
+/// # Safety
+///
+/// `owner` is a live byte buffer, with no concurrent mutation during the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_package_text(owner: i64, offset: i64, length: i64) -> i64 {
+    use crate::block::{KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW, RC_FRESH};
+    let (Ok(start), Ok(length)) = (usize::try_from(offset), usize::try_from(length)) else {
+        return -crate::sys::EINVAL;
+    };
+    let Some(end) = start.checked_add(length) else {
+        return -crate::sys::EINVAL;
+    };
+    let source = unsafe { as_bytes(owner) };
+    let Some(span) = source.as_slice().get(start..end) else {
+        return -crate::sys::EINVAL;
+    };
+    if std::str::from_utf8(span).is_err() {
+        return -crate::sys::EINVAL;
+    }
+    let bytes = if !span.is_empty()
+        && matches!(unsafe { box_kind(owner) }, KIND_BYTES_MAPPED | KIND_BYTES_STATIC | KIND_BYTES_VIEW)
+    {
+        boxed(KIND_BYTES_VIEW, RC_FRESH, unsafe { crate::bytes::ByteView::new(span, owner) })
+    } else {
+        box_bytes(span.to_vec().into())
+    };
+    // Data.String.StrBuf is the sole constructor, with a counted Bytes field.
+    let string = unsafe { crate::block::allocate_ctor(8, crate::block::shape_field(0, 1), false) };
+    unsafe { string.cast::<i64>().write(bytes) };
+    string as usize as i64
+}
+
 /// Box one interned name cell (the cell is handed out once per name and
 /// never freed, so its word is the name's identity): an immortal block.
 pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
@@ -404,19 +440,19 @@ fn ordering_word(o: std::cmp::Ordering) -> i64 {
 
 /// Read a byte buffer, constant, or owned file mapping.
 pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
-    use crate::block::{KIND_BYTES, KIND_BYTES_MAPPED, KIND_BYTES_STATIC};
-    if !matches!(unsafe { box_kind(word) }, KIND_BYTES | KIND_BYTES_STATIC | KIND_BYTES_MAPPED) {
+    use crate::block::{KIND_BYTES, KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW};
+    if !matches!(unsafe { box_kind(word) }, KIND_BYTES | KIND_BYTES_STATIC | KIND_BYTES_MAPPED | KIND_BYTES_VIEW) {
         raise(Error::CorruptValue);
     }
     unsafe { &*(word as usize as *const crate::bytes::Bytes) }
 }
 
 /// Read a byte buffer for mutation. Generated code sequences all writes,
-/// and the two read-only kinds take the defined fault.
+/// and read-only buffers take the defined fault.
 unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
     match unsafe { box_kind(word) } {
         crate::block::KIND_BYTES => unsafe { &mut *(word as usize as *mut crate::bytes::Bytes) },
-        crate::block::KIND_BYTES_STATIC | crate::block::KIND_BYTES_MAPPED => raise(Error::ReadOnly),
+        crate::block::KIND_BYTES_STATIC | crate::block::KIND_BYTES_MAPPED | crate::block::KIND_BYTES_VIEW => raise(Error::ReadOnly),
         _ => raise(Error::CorruptValue),
     }
 }
@@ -1424,9 +1460,33 @@ mod tests {
             crate::rc::cinch_dup(first);
             crate::rc::cinch_drop(first);
             assert_eq!(as_bytes(first).as_slice(), b"first");
+            let text = cinch_package_text(first, 1, 4);
+            assert!(text > 0);
+            let view = (text as usize as *const i64).read();
+            assert_eq!(box_kind(view), crate::block::KIND_BYTES_VIEW);
+            assert_eq!(as_bytes(view).data_ptr(), as_bytes(first).data_ptr().add(1));
             crate::rc::cinch_drop(first);
             crate::rc::cinch_drop(second);
+            assert_eq!(as_bytes(view).as_slice(), b"irst");
+            crate::rc::cinch_drop(text);
             assert!(cinch_map_package_bytes(-1, 5) < 0);
+        }
+    }
+
+    #[test]
+    fn package_text_copies_mutable_bytes_and_rejects_invalid_spans() {
+        let source = box_bytes(vec![b'x', b'y', 0xff].into());
+        unsafe {
+            assert!(cinch_package_text(source, 2, 1) < 0);
+            assert!(cinch_package_text(source, -1, 1) < 0);
+            assert!(cinch_package_text(source, 2, 2) < 0);
+            let text = cinch_package_text(source, 1, 1);
+            assert!(text > 0);
+            let bytes = (text as usize as *const i64).read();
+            as_bytes_mut(source).set(1, i64::from(b'z')).unwrap();
+            crate::rc::cinch_drop(source);
+            assert_eq!(as_bytes(bytes).as_slice(), b"y");
+            crate::rc::cinch_drop(text);
         }
     }
 

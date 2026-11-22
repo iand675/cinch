@@ -58,6 +58,7 @@ const NAMES: [&[u8]; BUCKETS] = [
     b"tvar",
     b"mvar",
     b"mapped-bytes",
+    b"bytes-view",
     b"other",
 ];
 

@@ -666,6 +666,10 @@ pub enum PlatformOp {
     FsTempDir,
     /// Map a stable package file as an owned read-only byte buffer.
     MapPackageBytes,
+    /// Validate text and retain an immutable package string span.
+    PackageText,
+    /// Unbox a bounded packed-package offset without constructing an Option.
+    PackageOffset,
     /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
     SignalSend,
     /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
@@ -686,6 +690,8 @@ impl PlatformOp {
             PlatformOp::FsRemove => "fsRemove",
             PlatformOp::FsTempDir => "fsTempDir",
             PlatformOp::MapPackageBytes => "mapPackageBytes",
+            PlatformOp::PackageText => "packageText",
+            PlatformOp::PackageOffset => "packageOffset",
             PlatformOp::SignalSend => "signalSend",
             PlatformOp::ArenaNew => "arenaNew",
             PlatformOp::ArenaLeave => "arenaLeave",
@@ -700,6 +706,8 @@ impl PlatformOp {
             PlatformOp::FsRemove => "cinch_fs_remove",
             PlatformOp::FsTempDir => "cinch_fs_temp_dir",
             PlatformOp::MapPackageBytes => "cinch_map_package_bytes",
+            PlatformOp::PackageText => "cinch_package_text",
+            PlatformOp::PackageOffset => "cinch_nat_to_i64",
             PlatformOp::SignalSend => "cinch_signal_send",
             PlatformOp::ArenaNew => "cinch_arena_new",
             PlatformOp::ArenaLeave => "cinch_arena_leave",
@@ -1265,6 +1273,8 @@ impl PrimOp {
                 "fsRemove" => Platform(PlatformOp::FsRemove),
                 "fsTempDir" => Platform(PlatformOp::FsTempDir),
                 "mapPackageBytes" => Platform(PlatformOp::MapPackageBytes),
+                "packageText" => Platform(PlatformOp::PackageText),
+                "packageOffset" => Platform(PlatformOp::PackageOffset),
                 "signalSend" => Platform(PlatformOp::SignalSend),
                 "arenaNew" => Platform(PlatformOp::ArenaNew),
                 "arenaLeave" => Platform(PlatformOp::ArenaLeave),
@@ -1416,8 +1426,8 @@ impl PrimOp {
                     | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
             )
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
-            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => 1,
-            Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
+            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
+            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
             Bytes(BytesOp::Set) => 3,
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
@@ -1526,6 +1536,11 @@ impl PrimOp {
             }
             Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
             Platform(PlatformOp::MapPackageBytes) => (vec![i64t.clone(), i64t.clone()], res(Ty::Bytes)),
+            Platform(PlatformOp::PackageText) => (
+                vec![Ty::Bytes, i64t.clone(), i64t.clone()],
+                res(Ty::Adt(crate::known::STRING.into(), vec![])),
+            ),
+            Platform(PlatformOp::PackageOffset) => (vec![Ty::Nat], i64t),
             Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
             Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),

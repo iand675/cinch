@@ -31,6 +31,28 @@ pub struct Bytes {
     data: *mut u8,
 }
 
+/// Shares the byte payload layout so read-only operations work on a span.
+#[repr(C)]
+pub(crate) struct ByteView {
+    bytes: Bytes,
+    owner: i64,
+}
+
+impl ByteView {
+    /// Construct a span into a stable buffer with a counted owner.
+    ///
+    /// # Safety
+    ///
+    /// `span` is immutable and remains valid while `owner` is live.
+    pub(crate) unsafe fn new(span: &[u8], owner: i64) -> Self {
+        unsafe { crate::rc::cinch_dup(owner) };
+        Self {
+            bytes: Bytes { len: span.len() as i64, data: span.as_ptr().cast_mut() },
+            owner,
+        }
+    }
+}
+
 impl Bytes {
     /// A zeroed buffer of `len` bytes; `len` must be non-negative.
     pub fn new(len: i64) -> Result<Bytes> {
