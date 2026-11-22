@@ -18,6 +18,7 @@ module Bootstrap.Total where
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
+  export valid-sort, decimal-number, operation-type
 
   -- Keep the original row for contract equality and emission. All semantic
   -- queries use the signature, body and call edges checked at admission.

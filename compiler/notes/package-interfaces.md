@@ -100,8 +100,10 @@ Rust package-object admission checks sorts, lexical slots and call edges
 directly in the packed records. It walks closures by definition ID and hashes
 the same canonical contract without allocating expression trees. An explicit
 request for an owned definition materializes that closure on demand. Native
-Cinch still materializes each interned string and one shared tree per
-definition and uses the contract document shape for checking and hashing.
+Cinch checks the node sorts, lexical scope, and call graph against the
+packed tables while building one shared tree per definition for the
+JSON-based contract consumers. Its digest still uses the contract document
+shape.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.

@@ -2,8 +2,9 @@
 -- the returned contracts retain only ordinary managed Cinch values.
 module Bootstrap.Package where
 
+  import Bootstrap.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
   import Bootstrap.Interface (sha256-hex)
-  import Bootstrap.Total (check-total-graph)
+  import Bootstrap.Total (valid-sort, decimal-number, operation-type)
   import Data.Array (array-append, array-from-list, array-get, array-length)
   import Data.Bytes (bytes-data, bytes-len, bytes-new)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -44,6 +45,10 @@ module Bootstrap.Package where
     Region :: Nat -> Nat -> Region
   data FlatBodies where
     FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
+  data PackedSignature where
+    PackedSignature :: String -> List String -> String -> Nat -> Region -> PackedSignature
+  data PackedTable where
+    PackedTable :: I64 -> Array String -> Region -> Region -> Array PackedSignature -> PackedTable
   data BodyFormat where
     Recipes :: Region -> Region -> BodyFormat
     Indexed :: FlatBodies -> BodyFormat
@@ -294,83 +299,122 @@ module Bootstrap.Package where
   reversed-words address at end tail =
     if at == end then tail else reversed-words address (at + 4) end (Cons (word address at) tail)
 
-  read-parameters :: I64 -> Array String -> Nat -> Nat -> Json -> Result String Json
+  read-parameters :: I64 -> Array String -> Nat -> Nat -> List String -> Result String (List String)
   read-parameters address strings start end tail =
     if start == end then Ok tail
     else if end < 4 then Err "truncated packed body parameter" else
       let previous = end - 4 in
-      (case array-get strings (word address previous) of
-        Some sort -> read-parameters address strings start previous (JArr (JStr sort) tail)
-        None -> Err "packed body parameter outside package string table")
+      case array-get strings (word address previous) of
+        Some sort -> if valid-sort sort then read-parameters address strings start previous (Cons sort tail)
+          else Err "invalid packed body parameter sort"
+        None -> Err "packed body parameter outside package string table"
 
-  -- The writer emits each definition contiguously in postorder. A reverse
-  -- walk must consume its exact interval, once per node, before any
-  -- node becomes part of a managed term or escapes the mapping.
-  read-flat-term :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> Nat -> List Nat -> Result String (Json, Nat, List Nat)
-  read-flat-term address strings flat first cursor id depth targets =
-    case flat of
-      FlatBodies bodies edges nodes operands ->
-        if depth == 0 then Err "over-nested packed body"
-        else if id >= region-size nodes / 16 then Err "packed body node outside its section"
-        else if id < first || id + 1 /= cursor then Err "packed body child is not in postorder"
-        else
-          let at = region-start nodes + id * 16 in
-          let a = word address (at + 4) in
-          let b = word address (at + 8) in
-          let c = word address (at + 12) in
-          let left = depth - 1 in
-          (case word address at of
-            0 | b == 0 && c == 0 ->
-              Ok (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int a)) JObjEnd), id, targets)
-            1 | c == 0 -> (case (array-get strings a, array-get strings b) of
-              (Some sort, Some decimal) ->
-                Ok (JObj "decimal" (JStr decimal) (JObj "node" (JStr "number") (JObj "sort" (JStr sort) JObjEnd)), id, targets)
-              other -> Err "packed body number outside package string table")
-            2 | a <= 1 && b == 0 && c == 0 ->
-              Ok (JObj "node" (JStr "bool") (JObj "value" (JBool (a == 1)) JObjEnd), id, targets)
-            3 -> (case array-get strings a of
-              Some operation -> read-flat-application address strings flat first id left "primitive" "operation" operation b c targets
-              None -> Err "packed body primitive outside package string table")
-            4 -> if a >= region-size bodies / 32 then Err "packed body definition outside its section" else
-              (case array-get strings (word address (region-start bodies + a * 32)) of
-                Some callee -> read-flat-application address strings flat first id left "call" "target" callee b c (Cons a targets)
-                None -> Err "packed body target outside package string table")
-            5 | c == 0 -> (case read-flat-term address strings flat first id b left targets of
+  -- Read just the headers first so call sites can check forward references
+  -- without decoding either the callee's expression or a temporary graph.
+  read-flat-signatures :: I64 -> Array String -> FlatBodies -> Nat -> Option String -> List PackedSignature -> Result String (Array PackedSignature)
+  read-flat-signatures address strings flat index previous rows = case flat of
+    FlatBodies bodies edges nodes operands ->
+      if index == region-size bodies / 32 then Ok (array-from-list (reverse rows)) else
+        let at = region-start bodies + index * 32 in
+        case (array-get strings (word address at), array-get strings (word address (at + 4))) of
+          (Some identity, Some result) ->
+            if string-length identity == 0 || out-of-order previous identity || word address (at + 28) /= 0 || not (valid-sort result) then
+              Err "invalid packed body definition row"
+            else
+              (case (operand-region operands (word address (at + 8)) (word address (at + 12)),
+                     operand-region edges (word address (at + 20)) (word address (at + 24))) of
+                (Ok (Region parameter-start parameter-size), Ok calls) ->
+                  (case read-parameters address strings parameter-start (parameter-start + parameter-size) Nil of
+                    Err message -> Err message
+                    Ok parameters ->
+                      let row = PackedSignature identity parameters result (word address (at + 16)) calls in
+                      read-flat-signatures address strings flat (index + 1) (Some identity) (Cons row rows))
+                other -> Err "packed body span outside its section")
+          other -> Err "packed body definition outside package string table"
+
+  finish-flat-term :: Json -> String -> Nat -> Nat -> List Nat -> Result String (Json, String, Nat, List Nat)
+  finish-flat-term term sort cursor id targets =
+    if cursor == id then Ok (term, sort, id + 1, targets) else Err "unreferenced packed body node"
+
+  -- Consume each definition's contiguous postorder interval once, in source
+  -- evaluation order. A let's checked value sort is in scope only for its
+  -- body. Construct compatibility rows as we go for the JSON-based users.
+  read-flat-term :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> Nat -> List Nat -> Result String (Json, String, Nat, List Nat)
+  read-flat-term table scope cursor parent id depth targets = case table of
+    PackedTable address strings nodes operands signatures ->
+      if depth == 0 then Err "over-nested packed body"
+      else if id >= region-size nodes / 16 then Err "packed body node outside its section"
+      else if id < cursor || id >= parent then Err "packed body child is not in postorder"
+      else
+        let at = region-start nodes + id * 16 in
+        let a = word address (at + 4) in
+        let b = word address (at + 8) in
+        let c = word address (at + 12) in
+        let left = depth - 1 in
+        (case word address at of
+          0 | b == 0 && c == 0 -> (case body-slot a scope of
+            Some sort -> finish-flat-term (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int a)) JObjEnd)) sort cursor id targets
+            None -> Err "packed body local slot outside its scope")
+          1 | c == 0 -> (case (array-get strings a, array-get strings b) of
+            (Some sort, Some decimal) | decimal-number sort decimal ->
+              finish-flat-term (JObj "decimal" (JStr decimal) (JObj "node" (JStr "number") (JObj "sort" (JStr sort) JObjEnd))) sort cursor id targets
+            (Some sort, Some decimal) -> Err "invalid packed body number"
+            other -> Err "packed body number outside package string table")
+          2 | a <= 1 && b == 0 && c == 0 ->
+            finish-flat-term (JObj "node" (JStr "bool") (JObj "value" (JBool (a == 1)) JObjEnd)) "Bool" cursor id targets
+          3 -> (case array-get strings a of
+            Some operation -> (case operation-type operation of
+              Some (parameters, result) ->
+                read-flat-application table scope cursor id left "primitive" "operation" operation parameters result b c targets
+              None -> Err "unknown packed body primitive")
+            None -> Err "packed body primitive outside package string table")
+          4 -> (case array-get signatures a of
+            Some (PackedSignature callee parameters result root edges) ->
+              read-flat-application table scope cursor id left "call" "target" callee parameters result b c (Cons a targets)
+            None -> Err "packed body definition outside its section")
+          5 | c == 0 -> (case read-flat-term table scope cursor id a left targets of
+            Err message -> Err message
+            Ok (value, sort, next, calls) -> (case read-flat-term table (push-body-slot scope sort) next id b left calls of
               Err message -> Err message
-              Ok (body, before-body, used) -> (case read-flat-term address strings flat first before-body a left used of
-                Err message -> Err message
-                Ok (value, next, calls) ->
-                  Ok (JObj "body" body (JObj "node" (JStr "let") (JObj "value" value JObjEnd)), next, calls)))
-            6 -> (case read-flat-term address strings flat first id c left targets of
-              Err message -> Err message
-              Ok (no, before-no, used) -> (case read-flat-term address strings flat first before-no b left used of
-                Err message -> Err message
-                Ok (yes, before-yes, following) -> (case read-flat-term address strings flat first before-yes a left following of
+              Ok (body, result, following, used) ->
+                finish-flat-term (JObj "body" body (JObj "node" (JStr "let") (JObj "value" value JObjEnd))) result following id used))
+          6 -> (case read-flat-term table scope cursor id a left targets of
+            Err message -> Err message
+            Ok (condition, sort, next, calls) ->
+              if string-compare sort "Bool" /= 0 then Err "packed body condition is not Bool" else
+                (case read-flat-term table scope next id b left calls of
                   Err message -> Err message
-                  Ok (condition, next, calls) ->
-                    Ok (JObj "condition" condition (JObj "no" no (JObj "node" (JStr "if") (JObj "yes" yes JObjEnd))), next, calls))))
-            other -> Err "invalid packed body node")
+                  Ok (yes, yes-sort, following, used) -> (case read-flat-term table scope following id c left used of
+                    Err message -> Err message
+                    Ok (no, no-sort, final, all) ->
+                      if string-compare yes-sort no-sort /= 0 then Err "packed body branch sorts disagree"
+                      else finish-flat-term (JObj "condition" condition (JObj "no" no (JObj "node" (JStr "if") (JObj "yes" yes JObjEnd)))) yes-sort final id all)))
+          other -> Err "invalid packed body node")
 
-  read-flat-arguments :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> Nat -> Nat -> Json -> List Nat -> Result String (Json, Nat, List Nat)
-  read-flat-arguments address strings flat first cursor depth start end tail targets =
-    if start == end then Ok (tail, cursor, targets)
-    else if end < 4 then Err "truncated packed body operand" else
-      let previous = end - 4 in
-      (case read-flat-term address strings flat first cursor (word address previous) depth targets of
-        Err message -> Err message
-        Ok (node, next, calls) -> read-flat-arguments address strings flat first next depth start previous (JArr node tail) calls)
+  read-flat-arguments :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> Nat -> Nat -> List String -> List Json -> List Nat -> Result String (Json, Nat, List Nat)
+  read-flat-arguments table scope cursor parent depth at end parameters backwards targets =
+    case (at == end, parameters) of
+      (True, Nil) -> Ok (array-from-reverse backwards JArrEnd, cursor, targets)
+      (False, Cons expected rest) -> (case table of
+        PackedTable address strings nodes operands signatures ->
+          (case read-flat-term table scope cursor parent (word address at) depth targets of
+            Err message -> Err message
+            Ok (node, sort, next, calls) ->
+              if string-compare sort expected /= 0 then Err "packed body argument sort mismatch"
+              else read-flat-arguments table scope next parent depth (at + 4) end rest (Cons node backwards) calls))
+      other -> Err "packed body argument arity mismatch"
 
-  read-flat-application :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Nat -> String -> String -> String -> Nat -> Nat -> List Nat -> Result String (Json, Nat, List Nat)
-  read-flat-application address strings flat first cursor depth kind key name start count targets =
-    case flat of
-      FlatBodies bodies edges nodes operands ->
+  read-flat-application :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> String -> String -> String -> List String -> String -> Nat -> Nat -> List Nat -> Result String (Json, String, Nat, List Nat)
+  read-flat-application table scope cursor id depth kind key name parameters result start count targets =
+    case table of
+      PackedTable address strings nodes operands signatures ->
         (case operand-region operands start count of
           Err message -> Err message
           Ok (Region at length) ->
-            case read-flat-arguments address strings flat first cursor depth at (at + length) JArrEnd targets of
+            case read-flat-arguments table scope cursor id depth at (at + length) parameters Nil targets of
               Err message -> Err message
               Ok (arguments, next, calls) ->
-                Ok (JObj "arguments" arguments (JObj "node" (JStr kind) (JObj key (JStr name) JObjEnd)), next, calls))
+                finish-flat-term (JObj "arguments" arguments (JObj "node" (JStr kind) (JObj key (JStr name) JObjEnd))) result next id calls)
 
   skip-target :: Nat -> List Nat -> List Nat
   skip-target callee calls = case calls of
@@ -383,36 +427,58 @@ module Bootstrap.Package where
     Cons first rest -> at < end && word address at == first &&
       edges-agree address (at + 4) end (skip-target first rest)
 
-  read-flat-rows :: I64 -> Array String -> FlatBodies -> Nat -> Nat -> Option String -> List Json -> Result String Definitions
-  read-flat-rows address strings flat index first previous rows =
-    case flat of
-      FlatBodies bodies edges nodes operands ->
-        if index == region-size bodies / 32 then
-          (if first /= region-size nodes / 16 then Err "unreferenced packed body node" else
-            case check-total-graph (body-document (array-from-reverse rows JArrEnd)) of
-              Some graph -> Ok (IndexedDefinitions flat (array-from-list (reverse rows)))
-              None -> Err "invalid packed total-body graph")
-        else
-          let at = region-start bodies + index * 32 in
-          let root = word address (at + 16) in
-          (case (array-get strings (word address at), array-get strings (word address (at + 4))) of
-            (Some identity, Some result) ->
-              if string-length identity == 0 || out-of-order previous identity || word address (at + 28) /= 0 then Err "invalid packed body definition row" else
-                (case (operand-region operands (word address (at + 8)) (word address (at + 12)),
-                       operand-region edges (word address (at + 20)) (word address (at + 24))) of
-                  (Ok (Region parameter-start parameter-size), Ok (Region edge-start edge-size)) ->
-                    (case read-parameters address strings parameter-start (parameter-start + parameter-size) JArrEnd of
-                      Err message -> Err message
-                      Ok parameters -> (case read-flat-term address strings flat first (root + 1) root 256 Nil of
-                        Err message -> Err message
-                        Ok (body, next, calls) ->
-                          if next /= first then Err "unreferenced packed body node"
-                          else if not (edges-agree address edge-start (edge-start + edge-size) (sort calls)) then Err "packed body dependencies disagree with its expression"
-                          else
-                            let row = JObj "body" body (JObj "identity" (JStr identity) (JObj "parameters" parameters (JObj "result" (JStr result) JObjEnd))) in
-                            read-flat-rows address strings flat (index + 1) (root + 1) (Some identity) (Cons row rows)))
-                  other -> Err "packed body span outside its section")
-            other -> Err "packed body definition outside package string table")
+  -- An explicit stack keeps a valid long chain of compact calls off the
+  -- process stack. The edge spans and their agreement with call nodes have
+  -- already been checked.
+  data PackedVisit where
+    EnterBody :: Nat -> PackedVisit
+    LeaveBody :: String -> PackedVisit
+
+  stack-body-edges :: I64 -> Nat -> Nat -> List PackedVisit -> List PackedVisit
+  stack-body-edges address at end rest =
+    if at == end then rest
+    else stack-body-edges address (at + 4) end (Cons (EnterBody (word address at)) rest)
+
+  check-body-cycles :: I64 -> Array PackedSignature -> Nat -> List PackedVisit -> HashMap String Bool -> Bool
+  check-body-cycles address signatures next pending visited = case pending of
+    Nil -> if next == array-length signatures then True
+      else check-body-cycles address signatures (next + 1) [EnterBody next] visited
+    Cons (EnterBody id) rest -> (case array-get signatures id of
+      None -> False
+      Some (PackedSignature identity parameters result root (Region start length)) ->
+        if length == 0 then check-body-cycles address signatures next rest visited else
+        (case hash-map-lookup identity visited of
+          Some done -> done && check-body-cycles address signatures next rest visited
+          None -> check-body-cycles address signatures next
+            (stack-body-edges address start (start + length) (Cons (LeaveBody identity) rest))
+            (hash-map-insert identity False visited)))
+    Cons (LeaveBody identity) rest -> check-body-cycles address signatures next rest (hash-map-insert identity True visited)
+
+  parameter-document :: List String -> Json -> Json
+  parameter-document backwards tail = case backwards of
+    Nil -> tail
+    Cons sort rest -> parameter-document rest (JArr (JStr sort) tail)
+
+  read-flat-rows :: FlatBodies -> PackedTable -> Nat -> Nat -> List Json -> Result String Definitions
+  read-flat-rows flat table index first rows = case table of
+    PackedTable address strings nodes operands signatures ->
+      if index == array-length signatures then
+        (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
+         else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
+         else Ok (IndexedDefinitions flat (array-from-list (reverse rows))))
+      else
+        (case array-get signatures index of
+          None -> Err "packed body definition outside its section"
+          Some (PackedSignature identity parameters result root (Region edge-start edge-size)) ->
+            (case read-flat-term table (body-scope-from-list parameters) first (region-size nodes / 16) root 256 Nil of
+              Err message -> Err message
+              Ok (body, actual, next, calls) ->
+                if string-compare actual result /= 0 then Err "packed body result sort disagrees with its declaration"
+                else if not (edges-agree address edge-start (edge-start + edge-size) (sort calls)) then Err "packed body dependencies disagree with its expression"
+                else
+                  let arguments = parameter-document (reverse parameters) JArrEnd in
+                  let row = JObj "body" body (JObj "identity" (JStr identity) (JObj "parameters" arguments (JObj "result" (JStr result) JObjEnd))) in
+                  read-flat-rows flat table (index + 1) next (Cons row rows)))
 
   body-document :: Json -> Json
   body-document definitions = JObj "definitions" definitions (JObj "version" (JNum 1) JObjEnd)
@@ -456,7 +522,10 @@ module Bootstrap.Package where
     Recipes (Region bodies size) recipes -> (case read-recipes address strings recipes bodies (bodies + size) Nil of
       Err message -> Err message
       Ok rows -> Ok (RecipeDefinitions rows))
-    Indexed flat -> read-flat-rows address strings flat 0 0 None Nil
+    Indexed flat -> case flat of
+      FlatBodies bodies edges nodes operands -> (case read-flat-signatures address strings flat 0 None Nil of
+        Err message -> Err message
+        Ok signatures -> read-flat-rows flat (PackedTable address strings nodes operands signatures) 0 0 Nil)
 
   read-strings :: forall r. I64 -> Region -> Nat -> Nat -> List String ->{IO r} Result String (Array String)
   read-strings address raw at limit items =

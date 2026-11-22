@@ -97,6 +97,40 @@ module Main where
     invoke(command, work, status=7, leak=True)
     assert "packed body child is not in postorder" in output.with_suffix(".diagnostics").read_text()
 
+    string_table, _ = words(data, 16, 2)
+    (string_count,) = words(data, string_table, 1)
+    string_data = string_table + 4 + 8 * string_count
+
+    def string_at(index):
+        offset, length = words(data, string_table + 4 + 8 * index, 2)
+        return data[string_data + offset:string_data + offset + length].decode()
+
+    bodies, body_size = words(data, 40, 2)
+    edges, _ = words(data, 48, 2)
+    operands, _ = words(data, 64, 2)
+    wrapper, row = next((index, offset) for index, offset in
+                        enumerate(range(bodies, bodies + body_size, 32))
+                        if string_at(words(data, offset, 1)[0]) == "PackedProbe.wrapper")
+    root, first_edge, edge_count = words(data, row + 16, 3)
+    call = nodes + 16 * root
+    kind, callee, first_arg, argc = words(data, call, 4)
+    assert kind == 4 and argc == edge_count == 1 and callee != wrapper
+    arg = nodes + 16 * words(data, operands + 4 * first_arg, 1)[0]
+    assert words(data, arg, 1)[0] == 0
+    edge = edges + 4 * first_edge
+    for updates, refusal in (
+        ([(arg + 4, 0xffffffff)], "packed body local slot outside its scope"),
+        ([(call + 12, 0)], "packed body argument arity mismatch"),
+        ([(edge, wrapper)], "packed body dependencies disagree with its expression"),
+        ([(call + 4, wrapper), (edge, wrapper)], "cyclic packed total-body graph"),
+    ):
+        corrupt = bytearray(data)
+        for offset, value in updates:
+            struct.pack_into("<I", corrupt, offset, value)
+        publish(package, corrupt)
+        invoke(command, work, status=7, leak=True)
+        assert refusal in output.with_suffix(".diagnostics").read_text()
+
 
 def verify_native_object_references(stage, work, package, legacy_package, source, ir, expected):
     data = package.read_bytes()
