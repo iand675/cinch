@@ -102,10 +102,12 @@ the same canonical contract without allocating expression trees. An explicit
 request for an owned definition materializes that closure on demand. Native
 Cinch checks the node sorts, lexical scope, and call graph against the
 packed tables while building one shared tree per definition for the
-JSON-based contract consumers. It hashes the canonical contract during
-decode. Plain strings and indexed body graphs are hashed from their file
-records. Escaped text and legacy shared definitions use the canonical value
-writer.
+JSON-based contract consumers. Its total-body queries use checked node
+IDs and operand spans against the retained package bytes when the
+definition matches the admitted row. This includes the refinement checker
+and the LLVM inliner for imported primitive bodies. During decode it hashes
+plain strings and indexed body graphs from their file records. Escaped text
+and legacy shared definitions use the canonical value writer.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.
@@ -132,7 +134,8 @@ compiler reads the ABI section. The bootstrap emits this configuration as
 When a native client's interfaces and object configuration name the
 same package path, it reads one bounded snapshot and reuses the decoded
 contract strings for ABI admission. It verifies the digest of that
-snapshot before decoding the ABI. Interface-only loads map the file.
+snapshot before decoding the ABI. Interface-only loads also read a bounded
+snapshot so that checked body references can retain their backing bytes.
 Pass `--legacy-json-abi` to write version 3 with a JSON ABI section, or
 `--legacy-recipes` to write version 2.
 

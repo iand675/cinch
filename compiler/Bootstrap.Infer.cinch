@@ -24,7 +24,7 @@ module Bootstrap.Infer where
   import Bootstrap.Global
   import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
-  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, ValidatedInterfaces, interface-set-body, interface-set-has-body, contract-usage-nominals, nominal-owner)
+  import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, ValidatedInterfaces, interface-set-body, interface-set-has-body, admitted-packed-function, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Text.Json (canonical-bytes, json-eq)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -2589,9 +2589,9 @@ module Bootstrap.Infer where
   context-add-total sp binding context st = case context-total-observation (binding-name binding) context of
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
     None -> (case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> (MkTypeContext handling kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes payloads, st))
-  collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-total-metadata sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
-    JNull -> collect-closed-body sp name native metadata classes kinds st
+  collect-total-metadata :: Option InterfaceSet -> Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-total-metadata admitted sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
+    JNull -> collect-closed-body admitted sp name native metadata classes kinds st
     doc -> (case read-keyed-ordering native doc of
       Some function -> collect-defining-body sp name native metadata classes kinds function st
       None -> (kinds, add-error sp "invalid defining keyed ordering body" st))
@@ -2600,38 +2600,45 @@ module Bootstrap.Infer where
     (sc, checked) -> (case check-body-binding name native "external" sc function of
       Some binding -> context-add-total sp binding kinds checked
       None -> (kinds, add-error sp "executable body disagrees with its complete defining declaration" checked))
-  collect-closed-body :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-closed-body sp name native metadata classes kinds st = case field "total_body" metadata of
+  collect-closed-body :: Option InterfaceSet -> Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-closed-body admitted sp name native metadata classes kinds st = case field "total_body" metadata of
     JNull -> (kinds, st)
-    doc -> (case check-total-graph doc of
-      Some graph -> if not (total-graph-for-roots graph [native]) then (kinds, add-error sp "total body contains unrelated definitions" st)
-        else (case total-function graph native of
+    doc ->
+      let prior = (case admitted of Some interfaces -> admitted-packed-function native doc interfaces; None -> None) in
+      case prior of
+        Some function -> collect-defining-body sp name native metadata classes kinds function st
+        None -> case check-total-function doc native of
           Some function -> collect-defining-body sp name native metadata classes kinds function st
-          None -> (kinds, add-error sp "total body has no actual defining value identity" st))
-      None -> (kinds, add-error sp "invalid defining total body graph" st))
-  collect-private-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-private-measures sp rows classes kinds st = case rows of
+          None -> diagnose-closed-body sp native doc kinds st
+  -- Keep the existing refusal distinctions off the successful path.
+  diagnose-closed-body :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  diagnose-closed-body sp native doc kinds st = case check-total-graph doc of
+    Some graph -> if not (total-graph-for-roots graph [native]) then (kinds, add-error sp "total body contains unrelated definitions" st)
+      else (kinds, add-error sp "total body has no actual defining value identity" st)
+    None -> (kinds, add-error sp "invalid defining total body graph" st)
+  collect-private-measures :: Option InterfaceSet -> Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-private-measures admitted sp rows classes kinds st = case rows of
     JArr row rest -> (case field "identity" row of
-      JStr native -> (case collect-total-metadata sp (interface-global native) native row classes kinds st of
-        (more, checked) -> collect-private-measures sp rest classes more checked)
+      JStr native -> (case collect-total-metadata admitted sp (interface-global native) native row classes kinds st of
+        (more, checked) -> collect-private-measures admitted sp rest classes more checked)
       other -> (kinds, add-error sp "defining measure has no identity" st))
     JArrEnd -> (kinds, st)
     other -> (kinds, add-error sp "invalid defining measure declarations" st)
-  collect-body-contracts :: List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-body-contracts ds classes kinds st = case ds of
+  collect-body-contracts :: Option InterfaceSet -> List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-body-contracts admitted ds classes kinds st = case ds of
     Nil -> (kinds, st)
     Cons (DExternal sp name category syntax metadata) rest ->
-      (case collect-private-measures sp (resolved-measures metadata) classes kinds st of
+      (case collect-private-measures admitted sp (resolved-measures metadata) classes kinds st of
         (with-private, checked) -> (case (field "total_body" metadata, field "keyed_ordering" metadata) of
-          (JNull, JNull) -> collect-body-contracts rest classes with-private checked
+          (JNull, JNull) -> collect-body-contracts admitted rest classes with-private checked
           doc -> if not (same category "value") then (kinds, add-error sp "total bodies require actual external value declarations" checked)
             else (case field "symbol" metadata of
-              JStr native -> (case collect-total-metadata sp name native metadata classes with-private checked of
-                (more, done) -> collect-body-contracts rest classes more done)
+              JStr native -> (case collect-total-metadata admitted sp name native metadata classes with-private checked of
+                (more, done) -> collect-body-contracts admitted rest classes more done)
               other -> (kinds, add-error sp "total body has no actual exported symbol" checked))))
     Cons (DInterface sp name hash metadata) rest -> case collect-conditional-instance-measures sp (field "instances" (field "exports" metadata)) classes kinds st of
-      (more, done) -> collect-body-contracts rest classes more done
-    Cons other rest -> collect-body-contracts rest classes kinds st
+      (more, done) -> collect-body-contracts admitted rest classes more done
+    Cons other rest -> collect-body-contracts admitted rest classes kinds st
   observation-bindings :: List ByteObservation -> List CheckedBinding
   observation-bindings observations = case observations of
     Nil -> Nil
@@ -8428,7 +8435,8 @@ module Bootstrap.Infer where
     let (identity-kinds, identity-store) = collect-source-identities ds ds classes runtime-kinds runtime-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
-    let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
+    let admitted-bodies = (case interfaces of Ok checked -> Some checked; Err message -> None) in
+    let (import-kinds, import-body-store) = collect-body-contracts admitted-bodies ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
     let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies imports label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
@@ -10061,8 +10069,8 @@ module Bootstrap.Infer where
   collect-conditional-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-conditional-measures sp rows classes kinds st = case rows of
     JArr row rest -> let checked = field "checked" row in
-      case collect-private-measures sp (resolved-measures (field "head" checked)) classes kinds st of
-        (head, sh) -> case collect-private-measures sp (resolved-measures (field "implementation" checked)) classes head sh of
+      case collect-private-measures None sp (resolved-measures (field "head" checked)) classes kinds st of
+        (head, sh) -> case collect-private-measures None sp (resolved-measures (field "implementation" checked)) classes head sh of
           (actual, sa) -> collect-conditional-measures sp rest classes actual sa
     other -> (kinds, st)
   collect-conditional-instance-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)

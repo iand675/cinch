@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise packed interfaces through the native and Rust compiler CLIs."""
 import argparse
+from copy import deepcopy
 from hashlib import sha256
 import json
 import os
@@ -47,11 +48,10 @@ def words(data, offset, count):
 def native_indexed_body_nodes(stage, work, manifest, rows):
     source = work / "Probe.cinch"
     source.write_text("""module PackedProbe where
-  import Algebra.Arithmetic (InRange)
   export branch, wrapper
-  branch :: Nat -> InRange 1 4 Nat
+  branch :: Nat -> Nat
   branch n = let small = n < 128 in if small then 1 else 4
-  wrapper :: Nat -> InRange 1 4 Nat
+  wrapper :: Nat -> Nat
   wrapper n = branch n
 module Main where
   main :: Int
@@ -96,6 +96,18 @@ module Main where
     command = [stage / "cinch", "--check-types", "--interfaces", package, source, output]
     invoke(command, work, leak=True)
     assert not output.with_suffix(".diagnostics").read_bytes()
+
+    # Both imported declarations return Nat. The client can prove its
+    # refinement only by evaluating the admitted body and following its call.
+    changed = deepcopy(document)
+    for export in changed["exports"]["values"]:
+        for definition in export["total_body"]["definitions"]:
+            if definition["identity"] == "PackedProbe.branch":
+                definition["body"]["yes"]["body"]["no"]["decimal"] = "9"
+    changed_digest = interface_hash(changed)
+    publish(package, pack([*rows, ("PackedProbe", changed_digest, canonical(changed).encode())], flat_bodies=True))
+    invoke(command, work, status=4, leak=True)
+    assert "undischarged refinement obligation" in output.with_suffix(".diagnostics").read_text()
 
     document["digest_probe"]["source_hash"] = "changed nested field"
     publish(package, pack([*rows, ("PackedProbe", digest, canonical(document).encode())], flat_bodies=True))

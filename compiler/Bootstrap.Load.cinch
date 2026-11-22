@@ -14,7 +14,7 @@ module Bootstrap.Load where
   import Bootstrap.RuntimeAbi (runtime-abi)
   import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
-  import Bootstrap.Package (PackageContract, package-contract)
+  import Bootstrap.Package (PackageContract, PackedBodyTable, package-contract)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, decode-identity, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
@@ -41,7 +41,7 @@ module Bootstrap.Load where
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known, load-body-interfaces-with-admission
   export check-interface-set, interface-set-members
   export contract-nominals, contract-usage-nominals
-  export interface-set-body, interface-set-has-body
+  export interface-set-body, interface-set-has-body, admitted-packed-function
 
   data ImportedValue where
     MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
@@ -79,7 +79,7 @@ module Bootstrap.Load where
   data LoadedInterface where
     MkLoadedInterface :: Bool -> String -> String -> Json -> Bytes -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> ExportEntries
-      -> List (String, String, String) -> List (String, String, String) -> LoadedInterface
+      -> List (String, String, String) -> List (String, String, String) -> Option PackedBodyTable -> LoadedInterface
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
@@ -109,20 +109,37 @@ module Bootstrap.Load where
   index-body-symbols names graph indexed = case names of
     Nil -> indexed
     Cons name rest -> index-body-symbols rest graph (hash-map-insert name (Cons graph (body-graphs name indexed)) indexed)
-  set-value-bodies :: Json -> List TotalGraph
-  set-value-bodies rows = case rows of
-    JArr row rest -> (case check-total-graph (field "total_body" row) of Some graph -> Cons graph (set-value-bodies rest); None -> set-value-bodies rest)
+  -- Match the complete closure before taking authority from a package.
+  -- A synthesized declaration may have the same symbol and a different body.
+  admitted-packed-function :: String -> Json -> InterfaceSet -> Option TotalFunction
+  admitted-packed-function native doc (CheckedInterfaceSet members bodies) =
+    match-packed-function native doc (body-graphs native bodies)
+
+  match-packed-function :: String -> Json -> List TotalGraph -> Option TotalFunction
+  match-packed-function native doc graphs = case graphs of
+    Nil -> None
+    Cons graph rest -> (case total-function-closure graph native of
+      Some function | total-function-is-packed function && compare-documents False doc (total-function-document function) -> Some function
+      other -> match-packed-function native doc rest)
+
+  set-value-bodies :: Option PackedBodyTable -> Json -> List TotalGraph
+  set-value-bodies bodies rows = case rows of
+    JArr row rest ->
+      let doc = field "total_body" row in
+      let checked = (case bodies of Some table -> check-total-graph-with-package table doc; None -> check-total-graph doc) in
+      (case checked of Some graph -> Cons graph (set-value-bodies bodies rest); None -> set-value-bodies bodies rest)
     other -> Nil
-  set-method-bodies :: Json -> List TotalGraph
-  set-method-bodies instances = case instances of
-    JArr row rest -> set-value-bodies (field "method_bodies" row) <> set-method-bodies rest
+  set-method-bodies :: Option PackedBodyTable -> Json -> List TotalGraph
+  set-method-bodies bodies instances = case instances of
+    JArr row rest -> set-value-bodies bodies (field "method_bodies" row) <> set-method-bodies bodies rest
     other -> Nil
   set-bodies :: List LoadedInterface -> List TotalGraph
   set-bodies interfaces = case interfaces of
     Nil -> Nil
-    Cons first rest ->
-      let exports = field "exports" (loaded-contract first) in
-      set-value-bodies (field "values" exports) <> set-method-bodies (field "instances" exports) <> set-bodies rest
+    Cons (MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies) rest ->
+      let exported = field "exports" doc in
+      set-value-bodies bodies (field "values" exported) <> set-method-bodies bodies (field "instances" exported) <> set-bodies rest
+
   check-interface-set :: List LoadedInterface -> Result String InterfaceSet
   check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
   load-checked-interface-set :: List (String, String, Bytes) -> Result String InterfaceSet
@@ -156,7 +173,7 @@ module Bootstrap.Load where
   admitted-body-documents :: List LoadedInterface -> List (String, String, Json) -> Bool
   admitted-body-documents members inputs = case (members, inputs) of
     (Nil, Nil) -> True
-    (Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods) rest,
+    (Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest,
       Cons (name, hash, doc) more) -> same owner name && same digest hash
         && compare-documents False doc original && admitted-body-documents rest more
     other -> False
@@ -206,22 +223,22 @@ module Bootstrap.Load where
       None -> Cons member (retain-body-closed-interfaces rest removed)
 
   loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> name
+  loaded-module i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> name
 
   loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> hash
+  loaded-hash i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> hash
 
   loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> doc
+  loaded-contract i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> doc
 
   loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> values
+  loaded-values i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> values
 
   loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> fixes
+  loaded-fixities i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> fixes
 
   loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> refs
+  loaded-imports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
@@ -229,14 +246,14 @@ module Bootstrap.Load where
   -- loaded: every name a consumer binds asks for these rows, so deriving
   -- them per ask cost names x rows allocations per interface.
   loaded-exports :: LoadedInterface -> List (String, String, String)
-  loaded-exports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> exports
+  loaded-exports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> exports
 
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
   -- the name table the load built instead of a scan of every row.
   loaded-identities :: LoadedInterface -> String -> List String
   loaded-identities i name = case i of
-    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods ->
+    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods bodies ->
       identity-list (hash-map-lookup name (name-entries entries))
   identity-list :: Option (List (String, String, String)) -> List String
   identity-list looked = case looked of
@@ -285,7 +302,7 @@ module Bootstrap.Load where
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
   loaded-entry i kind identity = case i of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods ->
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies ->
       if same kind "value" then entry-in value-entries identity entries
       else if same kind "type" then entry-in type-entries identity entries
       else if same kind "signature" then entry-in signature-entries identity entries
@@ -312,7 +329,7 @@ module Bootstrap.Load where
   -- overload declarations both need one binding per public spelling.
   loaded-names :: LoadedInterface -> List String
   loaded-names i = case i of
-    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered)) exports private-methods -> ordered
+    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered)) exports private-methods bodies -> ordered
   -- The globals this interface exports, `interface-global` of every export
   -- identity and of every private method identity: the two lists the law
   -- closure compares a name against. Both are encoded once here instead of
@@ -416,7 +433,7 @@ module Bootstrap.Load where
 
   loaded-private-methods :: LoadedInterface -> List (String, String, String)
   loaded-private-methods i = case i of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods -> private-methods
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> private-methods
 
   private-signature-methods :: String -> Json -> List (String, String, String)
   private-signature-methods owner rows = case rows of
@@ -901,12 +918,16 @@ module Bootstrap.Load where
   -- parsing them (`read-known-source`).
   accepted-interface :: Bool -> String -> String -> Json -> Bytes -> Result String LoadedInterface
   accepted-interface verified name hash doc source =
+    accepted-interface-with-bodies verified name hash doc source None
+
+  accepted-interface-with-bodies :: Bool -> String -> String -> Json -> Bytes -> Option PackedBodyTable -> Result String LoadedInterface
+  accepted-interface-with-bodies verified name hash doc source bodies =
     let exports = field "exports" doc in
     let private = private-signature-methods name (field "signatures" exports) in
     let rows = export-rows exports in
     Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries rows exports) rows private)
+      (export-entries rows exports) rows private bodies)
 
   read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
   read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
@@ -925,7 +946,7 @@ module Bootstrap.Load where
   read-known-document :: HashMap String LoadedInterface -> String -> String -> Json -> Result String LoadedInterface
   read-known-document known name hash doc = case hash-map-lookup name known of
     Some previous -> (case previous of
-      MkLoadedInterface True owner identity original source values fixes refs entries exports methods
+      MkLoadedInterface True owner identity original source values fixes refs entries exports methods bodies
         | same hash identity && compare-documents False doc original -> Ok previous
       other -> load-interface-from-document name hash doc)
     None -> load-interface-from-document name hash doc
@@ -939,7 +960,7 @@ module Bootstrap.Load where
   read-known-source :: HashMap String LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
   read-known-source known name hash src = case hash-map-lookup name known of
     Some previous -> (case previous of
-      MkLoadedInterface True owner identity original source values fixes refs entries exports methods
+      MkLoadedInterface True owner identity original source values fixes refs entries exports methods bodies
         | same hash identity && bytes-len source > 0 && bytes-compare source src == 0 -> Ok previous
       other -> read-parsed-source known name hash src)
     None -> read-parsed-source known name hash src
@@ -1118,12 +1139,12 @@ module Bootstrap.Load where
   load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
     Ok loaded -> validate-interfaces loaded
-  load-packed-contract :: String -> String -> (Json, String) -> Result String LoadedInterface
-  load-packed-contract expected-name expected-hash (doc, digest) = case check-contract-envelope expected-name doc of
+  load-packed-contract :: String -> String -> (Json, String, Option PackedBodyTable) -> Result String LoadedInterface
+  load-packed-contract expected-name expected-hash (doc, digest, bodies) = case check-contract-envelope expected-name doc of
     Err message -> Err message
     Ok unit ->
       if not (same digest expected-hash) then Err "interface contract identity mismatch"
-      else accepted-interface True expected-name digest doc (string-to-bytes "")
+      else accepted-interface-with-bodies True expected-name digest doc (string-to-bytes "") bodies
 
   load-validated-package-contracts :: List PackageContract -> Result String ValidatedInterfaces
   load-validated-package-contracts inputs = case read-interface-inputs load-packed-contract (map package-contract inputs) of
@@ -1144,7 +1165,7 @@ module Bootstrap.Load where
   index-contract-sources :: List LoadedInterface -> HashMap String Bytes -> HashMap String Bytes
   index-contract-sources members sources = case members of
     Nil -> sources
-    Cons (MkLoadedInterface True name hash doc original values fixes refs entries exports methods) rest ->
+    Cons (MkLoadedInterface True name hash doc original values fixes refs entries exports methods bodies) rest ->
       index-contract-sources rest (if bytes-len original > 0 then hash-map-insert hash original sources else sources)
     Cons other rest -> index-contract-sources rest sources
 
@@ -1152,7 +1173,7 @@ module Bootstrap.Load where
   validated-interface-sources-match = validated-object-contracts-match source-agrees load-interface
   source-agrees :: LoadedInterface -> Bytes -> Bool
   source-agrees member bytes = case member of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports methods ->
+    MkLoadedInterface verified name hash doc source values fixes refs entries exports methods bodies ->
       bytes-len source > 0 && bytes-compare source bytes == 0
 
   -- Public reference rows resolve only to contracts already verified by the
@@ -1189,7 +1210,7 @@ module Bootstrap.Load where
     Nil -> Some Nil
     Cons (name, hash, payload) rest -> case (hash-map-lookup name indexed, hash-map-lookup name seen) of
       (Some member, None) -> (case member of
-        MkLoadedInterface True owner identity doc source values fixes refs entries exports methods ->
+        MkLoadedInterface True owner identity doc source values fixes refs entries exports methods bodies ->
           if same hash identity && agrees member payload then
             (case match-object-contracts agrees load rest indexed (hash-map-insert name () seen) extra of
               Some matched -> Some (Cons member matched)

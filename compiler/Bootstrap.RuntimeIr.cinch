@@ -7,7 +7,8 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
   import Bootstrap.BodyContract (binding-name, binding-native, binding-function)
-  import Bootstrap.Total (TotalFunction, total-body, total-parameters, total-result)
+  import Bootstrap.Total (TotalFunction, TotalTerm, TotalArguments, total-term, total-parameters, total-result,
+    term-node, argument-node, LocalTerm, NumberTerm, PrimitiveTerm, NextArgument, NoArguments)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
@@ -25,9 +26,9 @@ module Bootstrap.RuntimeIr where
   import Text.Show (nat-to-string, int-to-string)
   import Text.Scan (string-split-on, string-starts-with)
   import Text.Lex (Span)
+  import Data.Array (array-from-list, array-get)
   import Data.Json
   import Data.List (split-at)
-  import Data.Nat (nat-from-int)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
@@ -2470,10 +2471,10 @@ module Bootstrap.RuntimeIr where
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
   external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
-  external-shape count ty params = if count == 0 then Some (params, ty) else case arrow-shape (base ty) of
-    UFun domain result -> external-shape (count - 1) result (params <> [domain])
-    UFunEff domain row result -> external-shape (count - 1) result (params <> [domain])
-    UPi id name domain row result -> external-shape (count - 1) result (params <> [domain])
+  external-shape count ty backwards = if count == 0 then Some (reverse backwards, ty) else case arrow-shape (base ty) of
+    UFun domain result -> external-shape (count - 1) result (Cons domain backwards)
+    UFunEff domain row result -> external-shape (count - 1) result (Cons domain backwards)
+    UPi id name domain row result -> external-shape (count - 1) result (Cons domain backwards)
     other -> None
   external-param-types :: List Nat -> List String
   external-param-types params = case params of Nil -> Nil; Cons first rest -> Cons (class-llvm first) (external-param-types rest)
@@ -2548,12 +2549,16 @@ module Bootstrap.RuntimeIr where
     Nil -> if list-length args /= list-length (unit-params unit) || not (inline-abi-agrees w unit sc) then None else
       (case found of
         None -> None
-        Some function -> let body = total-body function in
-          let count = list-length (total-parameters function) in
-          if count /= list-length args || not (inline-sort (total-result function)) || not (inline-sorts (total-parameters function))
-            || not (inline-body body) || not (inline-linear (inline-slots body) count) then None
-          else (case expressions definitions locals w args of
-            (ready, values) -> Some (inline-term ready values body)))
+        Some function ->
+          let parameters = total-parameters function in
+          let count = list-length parameters in
+          if count /= list-length args || not (inline-sort (total-result function)) || not (inline-sorts parameters) then None
+          else (case total-term function of
+            Some body -> (case plan-imported-operations body Nil of
+              Some (plan, slots) | inline-linear slots count -> (case expressions definitions locals w args of
+                (ready, values) -> Some (inline-term ready (array-from-list values) plan))
+              other -> None)
+            None -> None))
     other -> None
   inline-abi-agrees :: Writer -> RuntimeUnit -> Scheme -> Bool
   inline-abi-agrees w unit sc = case scheme-requirements sc of
@@ -2579,12 +2584,6 @@ module Bootstrap.RuntimeIr where
   inline-sort sort = same sort "I64" || same sort "Nat" || same sort "Int" || same sort "Bool"
   inline-sorts :: List String -> Bool
   inline-sorts sorts = case sorts of Nil -> True; Cons first rest -> inline-sort first && inline-sorts rest
-  body-field :: String -> Json -> Json
-  body-field name doc = case doc of JObj key value rest -> if same name key then value else body-field name rest; other -> JNull
-  body-node :: Json -> String
-  body-node doc = case body-field "node" doc of JStr kind -> kind; other -> ""
-  body-operation :: Json -> String
-  body-operation doc = case body-field "operation" doc of JStr operation -> operation; other -> ""
   -- The operations emitted in place, with the number of operands each takes.
   inline-operation :: String -> Option Nat
   inline-operation operation =
@@ -2593,57 +2592,63 @@ module Bootstrap.RuntimeIr where
       || same operation "NatCmp" || same operation "IntCmp" || same operation "NatAdd" || same operation "IntAdd" || same operation "IntSub" then Some 2
     else if same operation "BoolNot" then Some 1
     else None
-  inline-body :: Json -> Bool
-  inline-body body =
-    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> 0 <= slot; other -> False)
-    else if same (body-node body) "number" then (case (body-field "sort" body, body-field "decimal" body) of
-      (JStr sort, JStr decimal) -> same sort "I64" && constant-word decimal
-      other -> False)
-    else if same (body-node body) "primitive" then (case inline-operation (body-operation body) of
-      Some arity -> inline-arguments (body-field "arguments" body) arity
-      None -> False)
-    else False
-  inline-arguments :: Json -> Nat -> Bool
-  inline-arguments arguments arity = case arguments of
-    JArr first rest -> arity > 0 && inline-body first && inline-arguments rest (arity - 1)
-    JArrEnd -> arity == 0
-    other -> False
-  inline-slots :: Json -> List Nat
-  inline-slots body =
-    if same (body-node body) "local" then (case body-field "slot" body of JNum slot -> if 0 <= slot then [nat-from-int slot] else Nil; other -> Nil)
-    else if same (body-node body) "primitive" then inline-argument-slots (body-field "arguments" body)
-    else Nil
-  inline-argument-slots :: Json -> List Nat
-  inline-argument-slots arguments = case arguments of
-    JArr first rest -> inline-slots first <> inline-argument-slots rest
-    other -> Nil
-  -- Every parameter exactly once: as many uses as parameters, each in
-  -- range, none twice.
+  -- Decode each supported checked node once. This plan keeps the same
+  -- evaluation order and ownership test for both backing representations.
+  data ImportedOperations where
+    ImportedLocal :: Nat -> ImportedOperations
+    ImportedConstant :: String -> ImportedOperations
+    ImportedNot :: ImportedOperations -> ImportedOperations
+    ImportedBinary :: String -> ImportedOperations -> ImportedOperations -> ImportedOperations
+
+  plan-imported-operations :: TotalTerm -> List Nat -> Option (ImportedOperations, List Nat)
+  plan-imported-operations term slots = case term-node term of
+    LocalTerm slot -> Some (ImportedLocal slot, Cons slot slots)
+    NumberTerm sort decimal | same sort "I64" && constant-word decimal -> Some (ImportedConstant decimal, slots)
+    PrimitiveTerm operation arguments -> (case inline-operation operation of
+      Some arity -> plan-imported-primitive arity operation arguments slots
+      None -> None)
+    other -> None
+
+  plan-imported-primitive :: Nat -> String -> TotalArguments -> List Nat -> Option (ImportedOperations, List Nat)
+  plan-imported-primitive arity operation arguments slots = case argument-node arguments of
+    NextArgument first rest -> (case plan-imported-operations first slots of
+      Some (left, next) -> (case (arity, argument-node rest) of
+        (1, NoArguments) -> Some (ImportedNot left, next)
+        (2, NextArgument second end) -> (case argument-node end of
+          NoArguments -> (case plan-imported-operations second next of
+            Some (right, final) -> Some (ImportedBinary operation left right, final)
+            None -> None)
+          other -> None)
+        other -> None)
+      None -> None)
+    other -> None
+
+  -- Every parameter exactly once. Small calls avoid allocating an index.
   inline-linear :: List Nat -> Nat -> Bool
-  inline-linear slots count = list-length slots == count && inline-distinct slots count
+  inline-linear slots count = list-length slots == count &&
+    (if count <= 8 then inline-distinct slots count else inline-distinct-indexed slots count hash-map-empty)
   inline-distinct :: List Nat -> Nat -> Bool
   inline-distinct slots count = case slots of
     Nil -> True
     Cons first rest -> first < count && not (inline-slot-member first rest) && inline-distinct rest count
   inline-slot-member :: Nat -> List Nat -> Bool
   inline-slot-member slot slots = case slots of Nil -> False; Cons first rest -> first == slot || inline-slot-member slot rest
-  inline-value :: List String -> Nat -> String
-  inline-value values slot = case values of
-    Nil -> "0"
-    Cons first rest -> if slot == 0 then first else inline-value rest (slot - 1)
-  inline-term :: Writer -> List String -> Json -> (Writer, String)
-  inline-term w values body =
-    if same (body-node body) "local" then (case body-field "slot" body of
-      JNum slot -> if 0 <= slot then (w, inline-value values (nat-from-int slot)) else (w, "0")
-      other -> (w, "0"))
-    else if same (body-node body) "number" then (case body-field "decimal" body of JStr decimal -> (w, decimal); other -> (w, "0"))
-    else (case body-field "arguments" body of
-      JArr first (JArr second JArrEnd) -> (case inline-term w values first of
-        (one, left) -> case inline-term one values second of
-          (two, right) -> inline-binary two (body-operation body) left right)
-      JArr first JArrEnd -> (case inline-term w values first of
-        (one, operand) -> let (two, result) = fresh one "%v" in (line two (cat ["  ", result, " = xor i64 ", operand, ", 1"]), result))
-      other -> (w, "0"))
+  inline-distinct-indexed :: List Nat -> Nat -> HashMap Nat Nat -> Bool
+  inline-distinct-indexed slots count seen = case slots of
+    Nil -> True
+    Cons first rest -> first < count && (case hash-map-lookup first seen of
+      Some _ -> False
+      None -> inline-distinct-indexed rest count (hash-map-insert first 0 seen))
+
+  inline-term :: Writer -> Array String -> ImportedOperations -> (Writer, String)
+  inline-term w values plan = case plan of
+    ImportedLocal slot -> (case array-get values slot of Some value -> (w, value); None -> (w, "0"))
+    ImportedConstant decimal -> (w, decimal)
+    ImportedNot body -> (case inline-term w values body of
+      (one, operand) -> let (two, result) = fresh one "%v" in (line two (cat ["  ", result, " = xor i64 ", operand, ", 1"]), result))
+    ImportedBinary operation first second -> (case inline-term w values first of
+      (one, left) -> case inline-term one values second of
+        (two, right) -> inline-binary two operation left right)
   inline-binary :: Writer -> String -> String -> String -> (Writer, String)
   inline-binary w operation left right =
     if same operation "I64Eq" || same operation "BoolEq" then compare-word w "eq" left right

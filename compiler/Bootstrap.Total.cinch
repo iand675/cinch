@@ -4,6 +4,10 @@
 -- These standalone version-1 artifacts are not yet admitted by cinchif.
 module Bootstrap.Total where
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, empty-body-scope, push-body-slot, body-slot)
+  import Bootstrap.Package (PackedBodyTable, PackedTerm, PackedArguments, packed-term-for, packed-node, packed-argument-node,
+    PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm,
+    NoPackedArguments, NextPackedArgument)
+  import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (sort-by)
@@ -12,21 +16,20 @@ module Bootstrap.Total where
   import Algebra.Semigroup
   import Text.Json (canonical-bytes, json-eq)
 
-  export TotalGraph, TotalFunction, check-total-graph, check-total-function, total-function, total-graph-for-roots, total-graph-body
+  export TotalGraph, TotalFunction, check-total-graph, check-total-graph-with-package, check-total-function, total-function, total-graph-for-roots, total-graph-body
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-graph, total-function-equal, total-functions-compatible
   export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
-  export valid-sort, decimal-number, operation-type
   export TotalTerm, TotalArguments, TermNode, LocalTerm, NumberTerm, BoolTerm, PrimitiveTerm, CallTerm, LetTerm, IfTerm, InvalidTerm
   export ArgumentNode, NoArguments, NextArgument, InvalidArguments
-  export total-term, total-graph-term, term-node, argument-node
+  export total-term, total-graph-term, term-node, argument-node, total-function-is-packed
 
   -- Keep the original row for contract equality and emission. All semantic
   -- queries use the signature, body and call edges checked at admission.
   data TotalRow where
-    TotalRow :: String -> Nat -> Json -> List String -> String -> Json -> List String -> TotalRow
+    TotalRow :: String -> Nat -> Json -> List String -> String -> Json -> List String -> Option PackedTerm -> TotalRow
   data TotalRows where
     SingleRow :: String -> TotalRow -> TotalRows
     IndexedRows :: Nat -> HashMap String TotalRow -> TotalRows
@@ -54,8 +57,6 @@ module Bootstrap.Total where
     JObj key value rest -> has key keys && fields (without key keys) rest
     JObjEnd -> (case keys of Nil -> True; other -> False)
     other -> False
-  valid-sort :: String -> Bool
-  valid-sort name = has name ["Nat", "Int", "Bool", "Bytes", "I64"]
   sorts :: Json -> Option (List String)
   sorts rows = case rows of
     JArr (JStr sort) rest -> if valid-sort sort then (case sorts rest of Some more -> Some (Cons sort more); None -> None) else None
@@ -68,49 +69,21 @@ module Bootstrap.Total where
   row-count :: TotalRows -> Nat
   row-count rows = case rows of SingleRow identity row -> 1; IndexedRows count table -> count
   row-name :: TotalRow -> String
-  row-name (TotalRow name position original parameters result body targets) = name
+  row-name (TotalRow name position original parameters result body targets packed) = name
   row-body :: TotalRow -> Json
-  row-body (TotalRow name position original parameters result body targets) = body
+  row-body (TotalRow name position original parameters result body targets packed) = body
   row-document :: TotalRow -> Json
-  row-document (TotalRow name position original parameters result body targets) = original
+  row-document (TotalRow name position original parameters result body targets packed) = original
   row-targets :: TotalRow -> List String
-  row-targets (TotalRow name position original parameters result body targets) = targets
+  row-targets (TotalRow name position original parameters result body targets packed) = targets
 
-  decimal-digits :: List Char -> Bool
-  decimal-digits chars = case chars of Nil -> True; Cons char rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
-  trim-zeros :: List Char -> List Char
-  trim-zeros chars = case chars of Cons char (Cons next rest) -> if char-code char == 48 then trim-zeros (Cons next rest) else chars; other -> chars
-  i64-digits :: Bool -> List Char -> Bool
-  i64-digits negative digits = let value = pack (trim-zeros digits) in
-    string-length value < 19 || (string-length value == 19 && string-compare value (if negative then "9223372036854775808" else "9223372036854775807") <= 0)
-  decimal-number :: String -> String -> Bool
-  decimal-number sort value = case unpack value of
-    Nil -> False
-    Cons char rest -> if char-code char == 45 then
-      not (same sort "Nat") && (same sort "Int" || same sort "I64") && (case rest of Nil -> False; other -> decimal-digits rest && (not (same sort "I64") || i64-digits True rest))
-      else (same sort "Nat" || same sort "Int" || same sort "I64") && decimal-digits (Cons char rest) && (not (same sort "I64") || i64-digits False (Cons char rest))
-
-  operation-type :: String -> Option (List String, String)
-  operation-type name =
-    if has name ["NatAdd", "NatMul"] then Some (["Nat", "Nat"], "Nat")
-    else if same name "NatCmp" then Some (["Nat", "Nat"], "I64")
-    else if has name ["IntAdd", "IntSub", "IntMul"] then Some (["Int", "Int"], "Int")
-    else if same name "IntNeg" then Some (["Int"], "Int")
-    else if same name "IntCmp" then Some (["Int", "Int"], "I64")
-    else if same name "IntFromNat" then Some (["Nat"], "Int")
-    else if same name "IntFromI64" then Some (["I64"], "Int")
-    else if has name ["I64Eq", "I64Ne", "I64Lt", "I64Le", "I64Gt", "I64Ge"] then Some (["I64", "I64"], "Bool")
-    else if has name ["BoolEq", "BoolNe", "BoolAnd", "BoolOr"] then Some (["Bool", "Bool"], "Bool")
-    else if same name "BoolNot" then Some (["Bool"], "Bool")
-    else if same name "BytesLen" then Some (["Bytes"], "Nat")
-    else None
   arguments-fit :: TotalRows -> BodyScope String -> Json -> List String -> Bool
   arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
     (JArr argument rest, Cons expected more) -> (case infer definitions scope argument of Some actual -> same expected actual; None -> False) && arguments-fit definitions scope rest more
     (JArrEnd, Nil) -> True
     other -> False
   call-type :: TotalRows -> BodyScope String -> Json -> TotalRow -> Option String
-  call-type definitions scope arguments (TotalRow name position original parameters result body targets) =
+  call-type definitions scope arguments (TotalRow name position original parameters result body targets packed) =
     if arguments-fit definitions scope arguments parameters then Some result else None
   infer :: TotalRows -> BodyScope String -> Json -> Option String
   infer definitions scope term = let node = text (field "node" term) in
@@ -167,24 +140,27 @@ module Bootstrap.Total where
   definition-name :: Json -> Option String
   definition-name declaration = let name = text (field "identity" declaration) in
     if string-length name > 0 && fields ["identity", "parameters", "result", "body"] declaration then Some name else None
-  definition-row :: Json -> Nat -> Option TotalRow
-  definition-row declaration position = case (definition-name declaration, sorts (field "parameters" declaration)) of
+  definition-row :: Option PackedBodyTable -> Json -> Nat -> Option TotalRow
+  definition-row bodies declaration position = case (definition-name declaration, sorts (field "parameters" declaration)) of
     (Some name, Some parameters) ->
       let result = text (field "result" declaration) in
       let body = field "body" declaration in
-      if valid-sort result then Some (TotalRow name position declaration parameters result body (calls-into body Nil)) else None
+      if valid-sort result then
+        let packed = (case bodies of Some table -> packed-term-for table name declaration; None -> None) in
+        Some (TotalRow name position declaration parameters result body (calls-into body Nil) packed)
+      else None
     other -> None
-  index-definitions :: Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
-  index-definitions rows position table indexed = case rows of
-    JArr declaration rest -> case definition-row declaration position of
+  index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
+  index-definitions bodies rows position table indexed = case rows of
+    JArr declaration rest -> case definition-row bodies declaration position of
       Some row -> let name = row-name row in (case hash-map-lookup name table of
-        None -> index-definitions rest (position + 1) (hash-map-insert name row table) (Cons row indexed)
+        None -> index-definitions bodies rest (position + 1) (hash-map-insert name row table) (Cons row indexed)
         Some duplicate -> None)
       None -> None
     JArrEnd -> Some (IndexedRows position table, indexed)
     other -> None
   valid-definition :: TotalRows -> TotalRow -> Bool
-  valid-definition all (TotalRow name position original parameters result body targets) =
+  valid-definition all (TotalRow name position original parameters result body targets packed) =
     case infer all (body-scope-from-list parameters) body of
       Some inferred -> same result inferred
       None -> False
@@ -193,26 +169,29 @@ module Bootstrap.Total where
     Cons declaration rest -> valid-definition all declaration && valid-definitions all rest
     Nil -> True
   check-total-graph :: Json -> Option TotalGraph
-  check-total-graph doc = check-graph doc None
+  check-total-graph doc = check-graph None doc None
+
+  check-total-graph-with-package :: PackedBodyTable -> Json -> Option TotalGraph
+  check-total-graph-with-package bodies doc = check-graph (Some bodies) doc None
 
   -- Interface declarations require one root and its exact closure. Walking
   -- from that root proves acyclicity and membership in the same traversal.
   check-total-function :: Json -> String -> Option TotalFunction
-  check-total-function doc name = case check-graph doc (Some name) of
+  check-total-function doc name = case check-graph None doc (Some name) of
     Some graph -> Some (MkTotalFunction graph name)
     None -> None
 
-  check-graph :: Json -> Option String -> Option TotalGraph
-  check-graph doc root = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
+  check-graph :: Option PackedBodyTable -> Json -> Option String -> Option TotalGraph
+  check-graph bodies doc root = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
     let definitions = field "definitions" doc in
     case definitions of
       -- The only possible internal call would recurse back to this row.
-      JArr declaration JArrEnd -> (case definition-row declaration 0 of
+      JArr declaration JArrEnd -> (case definition-row bodies declaration 0 of
         Some row -> let name = row-name row in
           if (case root of Some required -> same name required; None -> True) && valid-definition (IndexedRows 0 hash-map-empty) row
           then Some (MkTotalGraph doc (SingleRow name row)) else None
         None -> None)
-      other -> case index-definitions definitions 0 hash-map-empty Nil of
+      other -> case index-definitions bodies definitions 0 hash-map-empty Nil of
         Some (rows, indexed) ->
           if valid-definitions rows indexed && check-graph-roots rows definitions root then Some (MkTotalGraph doc rows)
           else None
@@ -284,11 +263,11 @@ module Bootstrap.Total where
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
     MkSourceProjection name domain result steps -> [domain]
-    other -> (case function-row function of Some (TotalRow name position original parameters result body targets) -> parameters; None -> Nil)
+    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> parameters; None -> Nil)
   total-result :: TotalFunction -> String
   total-result function = case function of
     MkSourceProjection name domain result steps -> result
-    other -> (case function-row function of Some (TotalRow name position original parameters result body targets) -> result; None -> "")
+    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> result; None -> "")
   -- Only an admitted closed function carries an executable graph.
   total-function-graph :: TotalFunction -> Option TotalGraph
   total-function-graph function = case function of
@@ -301,7 +280,7 @@ module Bootstrap.Total where
     MkSourceProjection name domain result steps -> JObj "source_projection" (projection-document domain result steps) JObjEnd
     MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
   compare-position :: TotalRow -> TotalRow -> Ordering
-  compare-position (TotalRow a first doc params result body targets) (TotalRow b second other args returns term callees) =
+  compare-position (TotalRow a first doc params result body targets packed) (TotalRow b second other args returns term callees other-packed) =
     if first < second then LT else if first > second then GT else EQ
   closure-rows :: List TotalRow -> Json
   closure-rows rows = case rows of
@@ -343,8 +322,10 @@ module Bootstrap.Total where
   -- remain opaque so traversal does not require a particular backing tree.
   data TotalTerm where
     JsonTerm :: Json -> TotalTerm
+    WireTerm :: PackedTerm -> TotalTerm
   data TotalArguments where
     JsonArguments :: Json -> TotalArguments
+    WireArguments :: PackedArguments -> TotalArguments
   data TermNode where
     LocalTerm :: Nat -> TermNode
     NumberTerm :: String -> String -> TermNode
@@ -361,18 +342,39 @@ module Bootstrap.Total where
 
   total-term :: TotalFunction -> Option TotalTerm
   total-term function = case function-row function of
-    Some row -> Some (JsonTerm (row-body row))
+    Some row -> Some (row-term row)
     None -> None
   total-graph-term :: TotalGraph -> String -> Option TotalTerm
   total-graph-term (MkTotalGraph doc rows) name = case find-row name rows of
-    Some row -> Some (JsonTerm (row-body row))
+    Some row -> Some (row-term row)
     None -> None
+  row-term :: TotalRow -> TotalTerm
+  row-term (TotalRow name position original parameters result body targets packed) = case packed of
+    Some term -> WireTerm term
+    None -> JsonTerm body
+  total-function-is-packed :: TotalFunction -> Bool
+  total-function-is-packed function = case function-row function of
+    Some (TotalRow name position original parameters result body targets (Some term)) -> True
+    other -> False
+
   argument-node :: TotalArguments -> ArgumentNode
   argument-node (JsonArguments args) = case args of
     JArr first rest -> NextArgument (JsonTerm first) (JsonArguments rest)
     JArrEnd -> NoArguments
     other -> InvalidArguments
+  argument-node (WireArguments args) = case packed-argument-node args of
+    NextPackedArgument first rest -> NextArgument (WireTerm first) (WireArguments rest)
+    NoPackedArguments -> NoArguments
   term-node :: TotalTerm -> TermNode
+  term-node (WireTerm term) = case packed-node term of
+    PackedLocal slot -> LocalTerm slot
+    PackedNumber sort decimal -> NumberTerm sort decimal
+    PackedBool value -> BoolTerm value
+    PackedPrimitive operation args -> PrimitiveTerm operation (WireArguments args)
+    PackedCall callee args -> CallTerm callee (WireArguments args)
+    PackedLet value body -> LetTerm (WireTerm value) (WireTerm body)
+    PackedIf condition yes no -> IfTerm (WireTerm condition) (WireTerm yes) (WireTerm no)
+    InvalidPackedTerm -> InvalidTerm
   term-node (JsonTerm doc) = let node = text (field "node" doc) in
     if same node "local" then (case field "slot" doc of JNum slot | slot >= 0 -> LocalTerm (nat-from-int slot); other -> InvalidTerm)
     else if same node "number" then NumberTerm (text (field "sort" doc)) (text (field "decimal" doc))

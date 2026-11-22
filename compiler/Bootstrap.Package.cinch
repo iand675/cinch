@@ -1,32 +1,33 @@
--- Typed interface packages. The mmap address is private to the decoder, and
--- the returned contracts retain only ordinary managed Cinch values.
+-- Typed interface packages. Packed body references keep the verified byte
+-- snapshot alive and never expose its address.
 module Bootstrap.Package where
 
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
   import Bootstrap.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
-  import Bootstrap.Total (valid-sort, decimal-number, operation-type)
+  import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
   import Data.Array (array-append, array-from-list, array-get, array-length)
   import Data.Bytes (bytes-data, bytes-len, bytes-new)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
   import Data.List (sort)
-  import Data.Machine (u32-to-nat, saturating-i64-to-i32)
+  import Data.Machine (u32-to-nat)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int, nat-to-i64)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
   import Text.Fnv (fnv64a-update)
-  import Text.Json (parse-json)
+  import Text.Json (parse-json, json-eq)
   import Text.Lex (bytes-slice)
   import Text.Parse (ParseOutcome, Parsed)
 
   export PackageContract, package-contract, read-package-documents, packaged-abi
   export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
+  export PackedBodyTable, PackedTerm, PackedArguments, packed-term-for, packed-node, packed-argument-node
+  export PackedNode, PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm
+  export PackedArgumentNode, NoPackedArguments, NextPackedArgument
 
-  foreign import ccall "mmap" map-file :: forall r. I64 -> I64 -> I32 -> I32 -> I32 -> I64 ->{IO r} I64
-  foreign import ccall "munmap" unmap-file :: forall r. I64 -> I64 ->{IO r} I32
   foreign import ccall "memmove" copy-memory :: forall r. I64 -> I64 -> I64 ->{IO r} I64
 
   -- The caller has checked the word against its containing region. The
-  -- invariant is local to this module and includes the lifetime of the mapping.
+  -- invariant is local to this module and includes the lifetime of the backing bytes.
   prim load-word :: I64 -> I64 -> U32 where
     unsafe llvm {
       %base = inttoptr i64 %0 to ptr
@@ -62,11 +63,30 @@ module Bootstrap.Package where
     StringTable :: Nat -> Nat -> Region -> StringTable
   data PackageSnapshot where
     PackageSnapshot :: Bytes -> StringTable -> Array String -> AbiSection -> PackageSnapshot
-  data PackageContract where
-    PackageContract :: String -> String -> Json -> String -> PackageContract
+  data PackedBodyTable where
+    BodyTable :: Bytes -> Array String -> Region -> Region -> Array PackedSignature -> HashMap String Nat -> Array Json -> PackedBodyTable
+  data PackedTerm where
+    PackedTermRef :: PackedBodyTable -> Nat -> PackedTerm
+  data PackedArguments where
+    PackedOperandSpan :: PackedBodyTable -> Nat -> Nat -> PackedArguments
+  data PackedNode where
+    PackedLocal :: Nat -> PackedNode
+    PackedNumber :: String -> String -> PackedNode
+    PackedBool :: Bool -> PackedNode
+    PackedPrimitive :: String -> PackedArguments -> PackedNode
+    PackedCall :: String -> PackedArguments -> PackedNode
+    PackedLet :: PackedTerm -> PackedTerm -> PackedNode
+    PackedIf :: PackedTerm -> PackedTerm -> PackedTerm -> PackedNode
+    InvalidPackedTerm :: PackedNode
+  data PackedArgumentNode where
+    NoPackedArguments :: PackedArgumentNode
+    NextPackedArgument :: PackedTerm -> PackedArguments -> PackedArgumentNode
 
-  package-contract :: PackageContract -> (String, String, (Json, String))
-  package-contract (PackageContract name declared doc computed) = (name, declared, (doc, computed))
+  data PackageContract where
+    PackageContract :: String -> String -> Json -> String -> Option PackedBodyTable -> PackageContract
+
+  package-contract :: PackageContract -> (String, String, (Json, String, Option PackedBodyTable))
+  package-contract (PackageContract name declared doc computed bodies) = (name, declared, (doc, computed, bodies))
 
   -- Prepare these fixed canonical fragments once per package.
   record WireSyntax where
@@ -833,8 +853,76 @@ module Bootstrap.Package where
     StructuredAbi (Region start length) | length >= 4 -> Some (word address start)
     other -> None
 
-  read-rows :: forall r. I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract)
-  read-rows address raw table strings documents definitions base count index items =
+  index-packed-signatures :: Array PackedSignature -> Nat -> HashMap String Nat -> HashMap String Nat
+  index-packed-signatures signatures at indexed = case array-get signatures at of
+    None -> indexed
+    Some (PackedSignature name parameters result root edges) ->
+      index-packed-signatures signatures (at + 1) (hash-map-insert name at indexed)
+
+  retain-body-table :: Bytes -> Definitions -> Option PackedBodyTable
+  retain-body-table source definitions = case definitions of
+    IndexedDefinitions (PackedTable address strings nodes operands signatures) rows syntax
+      | array-length signatures > 0 ->
+        Some (BodyTable source strings nodes operands signatures (index-packed-signatures signatures 0 hash-map-empty) rows)
+    other -> None
+
+  -- A compatibility row may instead come from a legacy JSON value or a
+  -- synthesized declaration. Match its complete definition before using
+  -- the package's proof and node IDs.
+  packed-term-for :: PackedBodyTable -> String -> Json -> Option PackedTerm
+  packed-term-for table name row = case table of
+    BodyTable source strings nodes operands signatures indexed rows -> (case hash-map-lookup name indexed of
+      None -> None
+      Some id -> (case (array-get rows id, array-get signatures id) of
+        (Some original, Some (PackedSignature identity parameters result root edges)) | json-eq original row ->
+          Some (PackedTermRef table root)
+        other -> None))
+
+  packed-node :: PackedTerm -> PackedNode
+  packed-node (PackedTermRef table id) = case table of
+    BodyTable source strings nodes operands signatures indexed rows ->
+      hold-package-source source (packed-node-at table (bytes-data source) strings nodes signatures id)
+
+  packed-node-at :: PackedBodyTable -> I64 -> Array String -> Region -> Array PackedSignature -> Nat -> PackedNode
+  packed-node-at table address strings nodes signatures id =
+    let at = region-start nodes + id * 16 in
+    let a = word address (at + 4) in
+    let b = word address (at + 8) in
+    let c = word address (at + 12) in
+    case word address at of
+      0 -> PackedLocal a
+      1 -> (case (array-get strings a, array-get strings b) of
+        (Some sort, Some decimal) -> PackedNumber sort decimal
+        other -> InvalidPackedTerm)
+      2 -> PackedBool (a == 1)
+      3 -> (case array-get strings a of
+        Some operation -> PackedPrimitive operation (packed-arguments table b c)
+        None -> InvalidPackedTerm)
+      4 -> (case array-get signatures a of
+        Some (PackedSignature name parameters result root edges) -> PackedCall name (packed-arguments table b c)
+        None -> InvalidPackedTerm)
+      5 -> PackedLet (PackedTermRef table a) (PackedTermRef table b)
+      6 -> PackedIf (PackedTermRef table a) (PackedTermRef table b) (PackedTermRef table c)
+      other -> InvalidPackedTerm
+
+  -- These offsets come only from checked nodes and operand ranges. The
+  -- private cursors can advance through that range or follow a checked ID.
+  packed-arguments :: PackedBodyTable -> Nat -> Nat -> PackedArguments
+  packed-arguments table first count = case table of
+    BodyTable source strings nodes operands signatures indexed rows ->
+      let start = region-start operands + first * 4 in
+      PackedOperandSpan table start (start + count * 4)
+
+  packed-argument-node :: PackedArguments -> PackedArgumentNode
+  packed-argument-node (PackedOperandSpan table at end) =
+    if at == end then NoPackedArguments else
+      (case table of
+        BodyTable source strings nodes operands signatures indexed rows ->
+          let id = hold-package-source source (word (bytes-data source) at) in
+          NextPackedArgument (PackedTermRef table id) (PackedOperandSpan table (at + 4) end))
+
+  read-rows :: forall r. I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Option PackedBodyTable -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract)
+  read-rows address raw table strings documents definitions bodies base count index items =
     if index == count then Ok (reverse items) else
       let id = word address (base + index * 36 + 32) in
       if id >= count then Err "invalid package manifest index" else
@@ -847,24 +935,26 @@ module Bootstrap.Package where
               Err message -> Err message
               Ok region -> case read-hashed-document address strings definitions region (Some table) of
                 Err message -> Err message
-                Ok (document, computed) -> read-rows address raw table strings documents definitions base count (index + 1)
-                  (Cons (PackageContract name digest document (u64-decimal computed)) items))
+                Ok (document, computed) -> read-rows address raw table strings documents definitions bodies base count (index + 1)
+                  (Cons (PackageContract name digest document (u64-decimal computed) bodies) items))
 
-  decode-package :: forall r. I64 -> Nat ->{IO r} Result String (List PackageContract, StringTable, Array String, AbiSection)
-  decode-package address size = case package-header address size of
-    Err message -> Err message
-    Ok (Package strings (Region modules module-size) format documents abi) ->
-      case string-table address strings of
-        Err message -> Err message
-        Ok (StringTable start count raw) ->
-          let table = StringTable start count raw in
-          case contract-texts address table abi of
-            Err message -> Err message
-            Ok texts -> case read-package-definitions address texts format of
+  decode-package :: forall r. Bytes ->{IO r} Result String (List PackageContract, StringTable, Array String, AbiSection)
+  decode-package source =
+    let address = bytes-data source in
+    case package-header address (bytes-len source) of
+      Err message -> Err message
+      Ok (Package strings (Region modules module-size) format documents abi) ->
+        case string-table address strings of
+          Err message -> Err message
+          Ok (StringTable start count raw) ->
+            let table = StringTable start count raw in
+            case contract-texts address table abi of
               Err message -> Err message
-              Ok definitions -> case read-rows address raw table texts documents definitions modules (module-size / 36) 0 Nil of
+              Ok texts -> case read-package-definitions address texts format of
                 Err message -> Err message
-                Ok rows -> Ok (rows, table, texts, abi)
+                Ok definitions -> case read-rows address raw table texts documents definitions (retain-body-table source definitions) modules (module-size / 36) 0 Nil of
+                  Err message -> Err message
+                  Ok rows -> Ok (rows, table, texts, abi)
 
   -- Read one bounded snapshot when the contracts and object ABI have
   -- the same path. Both consumers then see the same bytes after a rename.
@@ -875,7 +965,7 @@ module Bootstrap.Package where
       result -> case sys-close fd of
         _ -> case result of
           Err message -> Err message
-          Ok source -> case hold-package-source source (decode-package (bytes-data source) (bytes-len source)) of
+          Ok source -> case hold-package-source source (decode-package source) of
             Err message -> Err message
             Ok (rows, table, texts, abi) -> Ok (rows, PackageSnapshot source table texts abi)
 
@@ -895,21 +985,6 @@ module Bootstrap.Package where
         other -> Err "cannot read interface package")
 
   read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract)
-  read-package-documents path = case sys-open-read path of
-    Err error -> Err "cannot open interface package"
-    Ok fd ->
-      let outcome = (case sys-lseek fd 0 sys-seek-end of
-            Ok size | size > 0 && size <= 4294967295 -> Ok (size, map-file 0 size 1 2 (saturating-i64-to-i32 fd) 0)
-            other -> Err "invalid interface package length") in
-      case sys-close fd of
-        _ -> case outcome of
-          Err message -> Err message
-          Ok (size, address) ->
-            if address == -1 || address == 0 then Err "cannot map interface package" else
-              let result = (case checked-nat-from-i64 size of
-                Some count -> decode-package address count
-                None -> Err "invalid interface package length") in
-              case unmap-file address size of
-                _ -> (case result of
-                  Ok (rows, table, texts, abi) -> Ok rows
-                  Err message -> Err message)
+  read-package-documents path = case read-package-snapshot path of
+    Ok (rows, snapshot) -> Ok rows
+    Err message -> Err message
