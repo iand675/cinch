@@ -395,6 +395,22 @@ pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate:
     read_package(path, |bytes| Package::open(bytes.bytes())?.identities(bytes))
 }
 
+pub(crate) fn read_interfaces(path: &Path) -> crate::Result<Vec<(Iface, String)>> {
+    read_package(path, |bytes| {
+        let package = Package::open(bytes.bytes())?;
+        let mut contracts = Vec::with_capacity(package.modules.len() / MODULE_ROW);
+        package.visit_contracts(bytes, |hash, iface| {
+            contracts.push((iface, hash));
+            Ok(())
+        })?;
+        let names: std::collections::BTreeSet<_> = contracts.iter().map(|(iface, _)| &iface.module).collect();
+        if names.len() != contracts.len() {
+            return Err(invalid("duplicate package module"));
+        }
+        Ok(contracts)
+    })
+}
+
 #[cfg(test)]
 pub(crate) fn read_verified_contracts(path: &Path) -> crate::Result<(Vec<(Iface, String)>, JsonValue)> {
     read_package(path, |bytes| {

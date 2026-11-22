@@ -69,7 +69,16 @@ def compile_client(compiler, objects, runtime, args, *, ir_only=False):
         end += width
     args = args[:1] + args[end:]
     if args[0:1] in (["--emit-ir-with-interfaces"], ["--check"], ["--check-types"]):
-        return frontend([*profile, *args])
+        code = frontend([*profile, *args])
+        if code == 0 and api and args[0] == "--check":
+            from pack_interfaces import PackedInterfaces, canonical
+
+            source = Path(args[-2])
+            build = source.parents[2] / "build"
+            package = build / (source.stem + ".cpk")
+            for name, _, doc in PackedInterfaces(package.read_bytes()).documents:
+                (build / (name + ".cinchif")).write_bytes(canonical(doc))
+        return code
     if args[0:1] == ["--emit-object"]:
         return frontend([args[0], *profile, *args[1:]])
     if args[0:1] == ["--emit-ir"]:

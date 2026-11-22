@@ -183,7 +183,8 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
     assert_eq!(actual.exports.values, expected.exports.values);
     assert_eq!(actual.assumptions.foreign, expected.assumptions.foreign);
     // The editable manifests below also support the identity-refusal fixture.
-    std::fs::write(host_dir.join("Host.cinchif"), document).unwrap();
+    let iface_path = host_dir.join("Host.cinchif");
+    std::fs::write(&iface_path, document).unwrap();
     let host_manifest = root.join("host.interfaces.json");
     interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
     let direct = format!("module Main where\n  import Host\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (read-handle (open ())) 42 then 0 else 1\n");

@@ -335,18 +335,27 @@ pub fn check_diagnostics(dir: &Path, entry: &str) -> Result<(), String> {
 /// Read checked contracts from the compiler that checked the project.
 pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     check(dir, entry)?;
-    build_interfaces(dir)
+    build_interfaces(dir, entry)
 }
 
 /// [`check_interfaces`] under an explicit target profile.
 pub fn check_interfaces_profile(dir: &Path, entry: &str, profile: &TargetProfile) -> Result<Vec<cinch::interface::Iface>, String> {
     drive_with_profile(Mode::Check, StageMode::Refresh, dir, entry, None, profile)?;
-    build_interfaces(dir)
+    build_interfaces(dir, entry)
 }
 
-/// Every `build/*.cinchif` the last check of the project wrote.
-fn build_interfaces(dir: &Path) -> Result<Vec<cinch::interface::Iface>, String> {
+/// Read the selected compiler's checked output. The Rust fixture producer
+/// still emits individual contracts on this stage of the migration.
+fn build_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     let build = dir.join("build");
+    let name = Path::new(entry).file_stem().expect("fixture entry name");
+    let mut path = build.join(name);
+    path.as_mut_os_string().push(".cpk");
+    if path.is_file() {
+        return cinch::interface::read_package(&path)
+            .map(|rows| rows.into_iter().map(|(iface, _)| iface).collect())
+            .map_err(|error| error.to_string());
+    }
     let mut interfaces = Vec::new();
     for artifact in std::fs::read_dir(&build).map_err(|error| format!("{}: {error}", build.display()))? {
         let path = artifact.map_err(|error| error.to_string())?.path();

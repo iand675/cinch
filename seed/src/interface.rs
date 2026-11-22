@@ -863,6 +863,11 @@ pub struct Iface {
     pub units: Vec<UnitExport>,
 }
 
+/// Read the checked contracts in a CINCHPK4 package in manifest order.
+pub fn read_package(path: &std::path::Path) -> crate::Result<Vec<(Iface, String)>> {
+    crate::package_interfaces::read_interfaces(path)
+}
+
 impl Iface {
     pub fn new(module: impl Into<String>, source_hash: impl Into<String>) -> Iface {
         Iface {
