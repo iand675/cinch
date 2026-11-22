@@ -891,13 +891,18 @@ impl Iface {
     /// canonical JSON form (keys in byte order, no whitespace; see
     /// [`JsonValue::write_canonical`]).
     pub fn to_json(&self) -> String {
-        self.json_document(false).to_canonical_string()
+        self.artifact_document().to_canonical_string()
+    }
+
+    /// The complete checked artifact before choosing its on-disk encoding.
+    pub(crate) fn artifact_document(&self) -> JsonValue {
+        self.json_document(false)
     }
 
     /// Stream the same canonical bytes into a buffered file output.
     pub(crate) fn write_json(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
         let mut output = CanonicalOutput { writer, error: None };
-        self.json_document(false)
+        self.artifact_document()
             .write_canonical_to(&mut output)
             .map_err(|_| output.error.expect("a failed output records its I/O error"))
     }

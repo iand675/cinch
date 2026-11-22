@@ -6287,10 +6287,7 @@ fn write_object(
             Ok(J::obj([
                 ("module", iface.module.as_str().into()),
                 ("iface_hash", iface.iface_hash().into()),
-                (
-                    "interface",
-                    parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?,
-                ),
+                ("interface", iface.artifact_document()),
                 ("optimisation", optimisation),
             ]))
         })

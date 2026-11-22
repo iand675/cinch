@@ -17609,6 +17609,7 @@ impl Checker {
 type InterfaceAliases<'a> = HashMap<(&'a str, &'a str), Vec<&'a str>>;
 
 struct InterfaceMembers<'a> {
+    declared_names: HashMap<&'a str, HashSet<&'a str>>,
     instances: HashMap<&'a str, Vec<&'a InstanceInfo>>,
     definitions: HashMap<&'a GlobalId, &'a InstanceDef>,
     functions: HashSet<&'a GlobalId>,
@@ -17634,6 +17635,12 @@ fn group_interface_rows<'a, T>(
 
 impl<'a> InterfaceMembers<'a> {
     fn new(checker: &'a Checker) -> Self {
+        let mut declared_names = HashMap::<_, HashSet<_>>::new();
+        for (owner, name) in checker.declared_name_rows() {
+            if !checker.module_surface.contains_key(owner) {
+                declared_names.entry(owner).or_default().insert(name);
+            }
+        }
         let mut instances = HashMap::<&str, Vec<_>>::new();
         for instance in &checker.instance_list {
             instances.entry(&instance.module).or_default().push(instance);
@@ -17664,7 +17671,7 @@ impl<'a> InterfaceMembers<'a> {
         let laws = group_interface_rows(checker.law_rows.iter().flat_map(|law| {
             law.instance.match_indices('.').map(move |(end, _)| (&law.instance[..end], law))
         }));
-        Self { instances, definitions, functions, signatures, fixities,
+        Self { declared_names, instances, definitions, functions, signatures, fixities,
             primitives, foreign, evaluations, upgrades, units, laws }
     }
 }
@@ -17696,15 +17703,13 @@ impl Checker {
                 .iter()
                 .map(|(l, d)| (l.clone(), d.clone()))
                 .collect(),
-            None => self
-                .declared_names(module)
-                .into_iter()
-                .map(|n| {
+            None => members.declared_names.get(module).into_iter().flatten()
+                .map(|&name| {
                     (
-                        n.clone(),
+                        name.to_string(),
                         SurfaceName {
                             module: module.to_string(),
-                            name: n,
+                            name: name.to_string(),
                         },
                     )
                 })
@@ -20038,36 +20043,31 @@ impl Checker {
 
     /// The names a module declares (its default export surface).
     fn declared_names(&self, module: &str) -> Vec<String> {
-        let mut out: Vec<String> = Vec::new();
         let mut seen = HashSet::new();
-        for (n, vs) in &self.values {
-            if vs.iter().any(|v| v.module == module) && seen.insert(n.as_str()) {
-                out.push(n.clone());
-            }
-        }
-        for (n, ts) in &self.types {
-            if ts.iter().any(|t| t.module == module) && seen.insert(n.as_str()) {
-                out.push(n.clone());
-            }
-        }
-        for (n, ss) in &self.sigs {
-            if ss.iter().any(|s| s.module == module) && seen.insert(n.as_str()) {
-                out.push(n.clone());
-            }
-        }
-        for (home, name) in self.effect_bindings.keys() {
-            if home == module && seen.insert(name.as_str()) { out.push(name.clone()); }
-        }
-        for (home, name) in self.deferred_headers.keys() {
-            if home == module && seen.insert(name.as_str()) { out.push(name.clone()); }
-        }
-        for instance in self.instance_defs_pending.get(module).into_iter().flatten() {
-            if seen.insert(instance.name.text.as_str()) { out.push(instance.name.text.clone()); }
-        }
-        for instance in &self.instance_list {
-            if instance.module == module && seen.insert(instance.name.as_str()) { out.push(instance.name.clone()); }
-        }
-        out
+        self.declared_name_rows()
+            .filter_map(|(home, name)| (home == module && seen.insert(name)).then(|| name.to_string()))
+            .collect()
+    }
+
+    fn declared_name_rows(&self) -> impl Iterator<Item = (&str, &str)> {
+        let values = self.values.iter().flat_map(|(name, rows)| {
+            rows.iter().map(move |row| (row.module.as_str(), name.as_str()))
+        });
+        let types = self.types.iter().flat_map(|(name, rows)| {
+            rows.iter().map(move |row| (row.module.as_str(), name.as_str()))
+        });
+        let signatures = self.sigs.iter().flat_map(|(name, rows)| {
+            rows.iter().map(move |row| (row.module.as_str(), name.as_str()))
+        });
+        let deferred = self.effect_bindings.keys().chain(self.deferred_headers.keys())
+            .map(|(home, name)| (home.as_str(), name.as_str()));
+        let pending = self.instance_defs_pending.iter()
+            .flat_map(|(home, rows)| {
+                rows.iter().map(move |row| (home.as_str(), row.name.text.as_str()))
+            });
+        let instances = self.instance_list.iter()
+            .map(|row| (row.module.as_str(), row.name.as_str()));
+        values.chain(types).chain(signatures).chain(deferred).chain(pending).chain(instances)
     }
 
     /// The definition an `export` item names: a name in the exporting
