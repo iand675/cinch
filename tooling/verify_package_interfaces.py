@@ -465,7 +465,7 @@ def rust(seed, work):
     installed = project / "vendor/test/tiny/0.1.0"
     artifact = installed / "package.o"
     package = installed / "build/package.cpk"
-    assert not package.with_suffix(".cinchif").exists()
+    assert not list(package.parent.glob("*.cinchif"))
     contents = package.read_bytes()
     packed = PackedInterfaces(contents)
     execution = packed.metadata()

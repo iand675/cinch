@@ -2655,14 +2655,16 @@ fn write_artifacts(
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
                 Err(e) => return Err(error(e)),
             }
-        } else if let Some(contract_hash) = store_hash {
-            let json = iface.to_json();
-            std::fs::write(&p, &json).map_err(error)?;
-            rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
-        } else {
-            let mut output = std::io::BufWriter::new(std::fs::File::create(&p).map_err(error)?);
-            iface.write_json(&mut output).map_err(error)?;
-            std::io::Write::flush(&mut output).map_err(error)?;
+        } else if opts.emit_modules.is_empty() {
+            if let Some(contract_hash) = store_hash {
+                let json = iface.to_json();
+                std::fs::write(&p, &json).map_err(error)?;
+                rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
+            } else {
+                let mut output = std::io::BufWriter::new(std::fs::File::create(&p).map_err(error)?);
+                iface.write_json(&mut output).map_err(error)?;
+                std::io::Write::flush(&mut output).map_err(error)?;
+            }
         }
         let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
         match &body_index {
@@ -3324,7 +3326,7 @@ fn write_artifacts(
     // embedded sources, so it cannot happen, and silently ignoring it
     // would hide a real inconsistency.
     let store = crate::store::Store::user();
-    if !opts.interface_package_only && store.ensure_root().is_ok() {
+    if !opts.interface_package_only && opts.emit_modules.is_empty() && store.ensure_root().is_ok() {
         if let Err(e) = store.write_rendered(package, profile, wit, ifaces, &[], opts.rebuild_store, &rendered) {
             if matches!(&e, crate::store::StoreError::Package { .. }) {
                 return Err(Error::plain(e.to_string()));
@@ -5496,7 +5498,7 @@ fn checked_package_execution(
     Ok(abi)
 }
 
-fn package_object_modules(path: &Path) -> Result<Vec<String>> {
+pub(crate) fn package_object_modules(path: &Path) -> Result<Vec<String>> {
     let abi_path = package_execution_path(path);
     let (document, mut packed) = crate::package_interfaces::read_abi_and_identities(&abi_path)?;
     let abi = checked_package_execution(path, &abi_path, document)?;
@@ -5519,6 +5521,15 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             path.display()
         )));
     }
+    let modules = abi.get("modules").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| Error::plain(format!("{}: package object ABI has no modules array", path.display())))?
+        .iter().map(|value| {
+            let module = value.as_str().ok_or_else(|| Error::plain("package module entry is not a string"))?;
+            if !packed.contains_key(module) {
+                return Err(Error::plain(format!("{}: no interface for object module {module}", abi_path.display())));
+            }
+            Ok(module.to_owned())
+        }).collect::<Result<Vec<_>>>()?;
     let interfaces = abi.get("interface_refs").and_then(serde_json::Value::as_array)
         .ok_or_else(|| Error::plain("package execution metadata is missing interface references"))?;
     for interface in interfaces {
@@ -5545,23 +5556,7 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
     if !packed.is_empty() {
         return Err(Error::plain(format!("{}: object does not declare every packed interface", abi_path.display())));
     }
-    let modules = abi
-        .get("modules")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| {
-            Error::plain(format!(
-                "{}: package object ABI has no modules array; rebuild it with this compiler",
-                path.display()
-            ))
-        })?;
-    modules
-        .iter()
-        .map(|module| {
-            module.as_str().map(str::to_string).ok_or_else(|| {
-                Error::plain(format!("{}: module entry is not a string", path.display()))
-            })
-        })
-        .collect()
+    Ok(modules)
 }
 
 fn object_paths(objects: &[PathBuf]) -> Vec<String> {

@@ -13,7 +13,7 @@
 //! installed release is placed under `vendor/`, which the source loader indexes
 //! recursively.
 
-use crate::driver::{driver_opts, package_execution_path, read_package_execution, DriverOptions, Mode};
+use crate::driver::{driver_opts, package_execution_path, package_object_modules, read_package_execution, DriverOptions, Mode};
 use crate::{Error, Result};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -2002,12 +2002,6 @@ fn materialize(
         .map(String::as_str)
         .chain(std::iter::once("CinchPackageRoot"))
     {
-        let from = project_build.join(format!("{module}.cinchif"));
-        let to = interfaces.join(format!("{module}.cinchif"));
-        if from.exists() {
-            std::fs::copy(&from, &to)
-                .map_err(|e| Error::plain(format!("{}: {e}", to.display())))?;
-        }
         // The optimisation artifact is the contract's optional companion
         // (`crate::ifaceopt`); an installed package ships it so a consumer
         // can inline the library's small units without its sources.
@@ -2548,26 +2542,10 @@ fn verify(project: &Path) -> Result<Verified> {
                 .ok_or_else(|| Error::plain(format!("{name} lock entry has no object")))?,
         );
         let abi_path = package_execution_path(&object);
-        let object_bytes = std::fs::read(&object)
-            .map_err(|e| Error::plain(format!("{}: {e}", object.display())))?;
-        let abi = read_package_execution(&object)?;
-        if abi.get("modules") != Some(&json!(manifest_modules(&manifest, name)?)) {
+        if package_object_modules(&object)? != manifest_modules(&manifest, name)? {
             return Err(Error::plain(format!(
                 "{}: package execution modules differ from .cinchpkg",
                 abi_path.display()
-            )));
-        }
-        let expected = abi
-            .get("object_content_hash")
-            .and_then(Value::as_str)
-            .ok_or_else(|| {
-                Error::plain(format!("{} has no object_content_hash", abi_path.display()))
-            })?;
-        let actual = crate::interface::content_hash_bytes(&object_bytes);
-        if actual != expected {
-            return Err(Error::plain(format!(
-                "{}: object hash mismatch: manifest says {expected}, object is {actual}",
-                object.display()
             )));
         }
         let interfaces = project.join(
@@ -2575,28 +2553,8 @@ fn verify(project: &Path) -> Result<Verified> {
                 .and_then(Value::as_str)
                 .ok_or_else(|| Error::plain(format!("{name} lock entry has no interfaces")))?,
         );
-        for module in manifest
-            .get("modules")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            let module_name = module
-                .get("name")
-                .and_then(Value::as_str)
-                .ok_or_else(|| Error::plain("module entry has no name"))?;
-            let iface_path = interfaces.join(format!("{module_name}.cinchif"));
-            let iface = std::fs::read_to_string(&iface_path)
-                .map_err(|e| Error::plain(format!("{}: {e}", iface_path.display())))?;
-            let iface = crate::interface::Iface::from_json(&iface)
-                .map_err(|e| Error::plain(format!("{}: {e}", iface_path.display())))?;
-            if iface.module != module_name {
-                return Err(Error::plain(format!(
-                    "{} names module {}, expected {module_name}",
-                    iface_path.display(),
-                    iface.module
-                )));
-            }
+        if abi_path.parent() != Some(interfaces.as_path()) {
+            return Err(Error::plain(format!("{name}: lock interfaces path does not contain the package")));
         }
     }
     Ok(Verified {
@@ -2838,7 +2796,8 @@ mod tests {
         .expect("install bundle");
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
-        assert!(installed.interfaces.join("Library.cinchif").exists());
+        assert!(!installed.interfaces.join("Library.cinchif").exists());
+        assert!(!dir.join("build/Library.cinchif").exists());
         assert_eq!(installed.abi, installed.interfaces.join("package.cpk"));
         assert!(!installed.interfaces.join("package.cinchif").exists());
         assert!(!installed.object.with_extension("abi.json").exists());
