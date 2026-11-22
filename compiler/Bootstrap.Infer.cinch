@@ -23,7 +23,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Eager (check-eager-values)
-  import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
+  import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers, ImportedClasses, imported-classes, imported-class-rows, imported-class-row, reference-index, referenced)
   import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, ValidatedInterfaces, interface-set-body, interface-set-has-body, admitted-packed-function, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
@@ -2325,18 +2325,8 @@ module Bootstrap.Infer where
     JArrEnd -> (kinds, st)
     other -> (kinds, add-error sp "invalid public constructor contract table" st)
 
-  class-declaration-rows :: Decl -> List Json
-  class-declaration-rows d = case d of
-    DInterface s name hash metadata -> json-rows (field "signatures" (field "exports" metadata))
-    other -> Nil
   json-rows :: Json -> List Json
   json-rows rows = case rows of JArr row rest -> Cons row (json-rows rest); other -> Nil
-  class-rows :: List Decl -> List Json
-  class-rows ds = case ds of Nil -> Nil; Cons d rest -> class-declaration-rows d <> class-rows rest
-  find-class-row :: String -> List Json -> Option Json
-  find-class-row name rows = case rows of
-    Nil -> None
-    Cons row rest -> case field "identity" row of JStr identity -> if same name (interface-global identity) then Some row else find-class-row name rest; other -> find-class-row name rest
   instance-syntax-owner :: TypeExpr -> Option String
   instance-syntax-owner ty = case ty of TName s name -> Some name; TApp s f xs -> instance-syntax-owner f; TUsing s bounds body -> instance-syntax-owner body; TForall s qs body -> instance-syntax-owner body; other -> None
   member-nominal-kinds :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
@@ -2347,11 +2337,11 @@ module Bootstrap.Infer where
       None -> member-nominal-kinds sp rest kinds st
     JArrEnd -> (kinds, st)
     other -> (kinds, add-error sp "invalid defining class method array" st)
-  source-instance-nominals :: List Decl -> List Json -> TypeContext -> Store -> (TypeContext, Store)
+  source-instance-nominals :: List Decl -> ImportedClasses -> TypeContext -> Store -> (TypeContext, Store)
   source-instance-nominals ds rows kinds st = case ds of
     Nil -> (kinds, st)
     Cons (DInstance sp flag name params head-type members) rest -> case instance-syntax-owner head-type of
-      Some owner -> (case find-class-row owner rows of
+      Some owner -> (case imported-class-row owner rows of
         Some row -> (case member-nominal-kinds sp (field "methods" row) kinds st of (more, checked) -> source-instance-nominals rest rows more checked)
         None -> source-instance-nominals rest rows kinds st)
       None -> source-instance-nominals rest rows kinds st
@@ -2365,12 +2355,12 @@ module Bootstrap.Infer where
       other -> (Nil, add-error sp "source instance needs a portable defining contract for every class method" st)
     JArrEnd -> (Nil, st)
     other -> (Nil, add-error sp "invalid defining class method array" st)
-  typed-class :: Span -> String -> List Json -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
+  typed-class :: Span -> String -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
   typed-class sp owner rows classes kinds st = case find-class owner (context-source-classes kinds) of
     Some description -> (Some description, st)
     None -> imported-typed-class sp owner rows classes kinds st
-  imported-typed-class :: Span -> String -> List Json -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
-  imported-typed-class sp owner rows classes kinds st = case (find-class-row owner rows, context-kind owner kinds) of
+  imported-typed-class :: Span -> String -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
+  imported-typed-class sp owner rows classes kinds st = case (imported-class-row owner rows, context-kind owner kinds) of
     (Some row, Some kind) -> case imported-kinds kinds (field "parameters" row) st of
       (params, checked) -> case typed-class-methods sp classes kinds (field "methods" row) checked of
         (methods, final) -> let description = MkCoreClass sp owner kind params methods in
@@ -2380,49 +2370,40 @@ module Bootstrap.Infer where
   -- no source instance. Probe portable contracts in a private store: an unused
   -- unported class must not add diagnostics or inference state to the module.
   -- A missing descriptor still receives an explicit runtime refusal if used.
-  imported-runtime-class-kinds :: List Json -> TypeContext -> Store -> (TypeContext, Store)
+  imported-runtime-class-kinds :: List (String, Json) -> TypeContext -> Store -> (TypeContext, Store)
   imported-runtime-class-kinds rows kinds st = case rows of
     Nil -> (kinds, st)
-    Cons row rest -> case field "identity" row of
-      JStr identity -> (case imported-kinds kinds (field "parameters" row) (empty-store "imported class parameters") of
-        (params, checked) -> case store-errors checked of
-          Nil -> let owner = interface-global identity in let kind = kind-arrow params in
-            (case context-kind owner kinds of
-              None -> imported-runtime-class-kinds rest (context-add-kind owner kind kinds) st
-              Some old -> imported-runtime-class-kinds rest kinds (if kind-equal old kind then st else add-error zero "imported class kind disagrees with its defining parameters" st))
-          other -> imported-runtime-class-kinds rest kinds st)
-      other -> imported-runtime-class-kinds rest kinds st
-  checked-imported-classes :: List Json -> List Json -> List (String, Kind) -> TypeContext -> List CoreClass -> List CoreClass
-  checked-imported-classes remaining rows classes kinds descriptions = case remaining of
+    Cons (owner, row) rest -> case imported-kinds kinds (field "parameters" row) (empty-store "imported class parameters") of
+      (params, checked) -> case store-errors checked of
+        Nil -> let kind = kind-arrow params in
+          (case context-kind owner kinds of
+            None -> imported-runtime-class-kinds rest (context-add-kind owner kind kinds) st
+            Some old -> imported-runtime-class-kinds rest kinds (if kind-equal old kind then st else add-error zero "imported class kind disagrees with its defining parameters" st))
+        other -> imported-runtime-class-kinds rest kinds st
+  checked-imported-classes :: List (String, Json) -> ImportedClasses -> List (String, Kind) -> TypeContext -> List CoreClass -> HashMap String Bool -> List CoreClass
+  checked-imported-classes remaining rows classes kinds descriptions seen = case remaining of
     Nil -> descriptions
-    Cons row rest -> case field "identity" row of
-      JStr identity -> let owner = interface-global identity in case find-class owner descriptions of
-        Some description -> checked-imported-classes rest rows classes kinds descriptions
-        None -> (case member-nominal-kinds zero (field "methods" row) kinds (empty-store "imported runtime class") of
+    Cons (owner, row) rest -> if referenced owner seen then checked-imported-classes rest rows classes kinds descriptions seen else
+        (case member-nominal-kinds zero (field "methods" row) kinds (empty-store "imported runtime class") of
           (local-kinds, prepared) -> case store-errors prepared of
             Nil -> (case imported-typed-class zero owner rows classes local-kinds prepared of
               (Some description, checked) -> case store-errors checked of
-                Nil -> checked-imported-classes rest rows classes kinds (Cons description descriptions)
-                other -> checked-imported-classes rest rows classes kinds descriptions
-              other -> checked-imported-classes rest rows classes kinds descriptions)
-            other -> checked-imported-classes rest rows classes kinds descriptions)
-      other -> checked-imported-classes rest rows classes kinds descriptions
-  class-kinds :: List Json -> TypeContext -> List (String, Kind) -> List (String, Kind)
-  class-kinds rows kinds seen = case rows of
-    Nil -> seen
-    Cons row rest -> case field "identity" row of
-      JStr identity -> let name = interface-global identity in
-        case (context-kind name kinds, lookup-kind name seen) of
-          (Some kind, None) -> class-kinds rest kinds (Cons (name, kind) seen)
-          other -> class-kinds rest kinds seen
-      other -> class-kinds rest kinds seen
-  method-slot-valid :: String -> String -> Nat -> List Json -> Bool
-  method-slot-valid owner name slot rows = case rows of
-    Nil -> False
-    Cons row rest -> case field "identity" row of
-      JStr identity -> if same owner (interface-global identity) then method-slot-in identity name slot (field "methods" row)
-        else method-slot-valid owner name slot rest
-      other -> method-slot-valid owner name slot rest
+                Nil -> checked-imported-classes rest rows classes kinds (Cons description descriptions) (hash-map-insert owner True seen)
+                other -> checked-imported-classes rest rows classes kinds descriptions seen
+              other -> checked-imported-classes rest rows classes kinds descriptions seen)
+            other -> checked-imported-classes rest rows classes kinds descriptions seen)
+  class-kinds :: List (String, Json) -> TypeContext -> HashMap String Bool -> List (String, Kind) -> List (String, Kind)
+  class-kinds rows kinds seen found = case rows of
+    Nil -> found
+    Cons (name, row) rest -> case context-kind name kinds of
+      Some kind | not (referenced name seen) -> class-kinds rest kinds (hash-map-insert name True seen) (Cons (name, kind) found)
+      other -> class-kinds rest kinds seen found
+  method-slot-valid :: String -> String -> Nat -> ImportedClasses -> Bool
+  method-slot-valid owner name slot rows = case imported-class-row owner rows of
+    None -> False
+    Some row -> case field "identity" row of
+      JStr identity -> method-slot-in identity name slot (field "methods" row)
+      other -> False
   method-slot-in :: String -> String -> Nat -> Json -> Bool
   method-slot-in owner name slot rows = case rows of
     JArr row rest -> (case (field "name" row, field "slot" row) of
@@ -2677,7 +2658,7 @@ module Bootstrap.Infer where
       other -> False)
     None -> False
   -- | Register only the checked authority carried by a kernel, class, foreign, or ordinary external declaration.
-  register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-external :: Span -> String -> String -> TypeExpr -> Json -> ImportedClasses -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =
     if same category "stage-primitive" && same name global-stage-str-nat then
       (case make-scheme False classes kinds Nil ty st of
@@ -3052,8 +3033,8 @@ module Bootstrap.Infer where
       && (case field "slot" row of JNum slot -> slot == nat-to-int (class-method-slot member); other -> False)
       then Some row else portable-default-row member rest
     other -> None
-  default-import-body :: Span -> CoreClass -> CoreClassMethod -> List Decl -> Result String (Option (List (List Pat, Expr)))
-  default-import-body sp description member declarations = case find-class-row (class-name description) (class-rows declarations) of
+  default-import-body :: Span -> CoreClassMethod -> Option Json -> Result String (Option (List (List Pat, Expr)))
+  default-import-body sp member imported = case imported of
     None -> Ok None
     Some owner -> case portable-default-row member (field "methods" owner) of
       None -> Ok None
@@ -3062,9 +3043,9 @@ module Bootstrap.Infer where
         syntax -> case portable-default-clauses sp portable-default-global syntax of
           Some (Cons clause rest) -> Ok (Some (Cons clause rest))
           other -> Err "imported default has unsupported or unscoped source clauses"
-  checked-imported-default :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> CoreClassMethod -> List Decl -> Scheme -> Store -> (Option (List (List Pat, Expr)), Store)
-  checked-imported-default sp classes kinds families env description member defaults actual st =
-    case default-import-body sp description member defaults of
+  checked-imported-default :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> CoreClassMethod -> Option Json -> Scheme -> Store -> (Option (List (List Pat, Expr)), Store)
+  checked-imported-default sp classes kinds families env description member imported actual st =
+    case default-import-body sp member imported of
       Err error -> (None, add-error sp error st)
       Ok None -> (None, st)
       Ok (Some original) ->
@@ -3094,7 +3075,7 @@ module Bootstrap.Infer where
   -- `all` is the reference graph of the module's whole declaration list: a
   -- declaration's group is a property of the module, so it cannot be read
   -- from the tail being walked.
-  register :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register all rows classes kinds ds env st =
     -- Small scopes cost less to scan than to index. Limit the size probe to
     -- the cutoff so a wide declaration list is not traversed twice.
@@ -3104,7 +3085,7 @@ module Bootstrap.Infer where
   registration-wide ds remaining = if remaining == 0 then True else case ds of
     Nil -> False
     Cons first rest -> registration-wide rest (remaining - 1)
-  register-linear :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-linear :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-linear all rows classes kinds ds env st = case ds of
     Nil -> (env, st)
     Cons d rest -> case register-declaration all rows classes kinds d env st of
@@ -3126,7 +3107,7 @@ module Bootstrap.Infer where
     Cons (MkRegistrationLookup get) rest -> (rest, index)
     Cons binding rest -> case index-new-bindings rest index of
       (more, previous) -> (Cons binding more, hash-map-insert (checked-name binding) binding previous)
-  register-indexed :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> HashMap String CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-indexed :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> HashMap String CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-indexed all rows classes kinds ds env index st = case ds of
     Nil -> (env, st)
     Cons (DFun sp name clauses) rest -> register-indexed all rows classes kinds rest env index st
@@ -3139,7 +3120,7 @@ module Bootstrap.Infer where
       (added, checked) -> case index-new-bindings added index of
         (more, updated) -> register-indexed all rows classes kinds rest more updated checked
 
-  register-declaration :: DataGraph -> List Json -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-declaration :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-declaration all rows classes kinds d env st = case d of
     DSig s name ty -> case make-scheme False classes kinds Nil ty st of
       (sc, ss) -> register-source-value s name sc kinds env ss
@@ -7661,7 +7642,7 @@ module Bootstrap.Infer where
   source-method-symbol identity member = interface-global (string-concat-all [identity, ".", member])
   -- Conditional implementations are ordinary private functions. There is
   -- no source dictionary factory to project or pass to a generic caller.
-  register-source-conditional :: List Json -> List (String, Kind) -> TypeContext -> Span -> Bool -> String -> Scheme -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-source-conditional :: ImportedClasses -> List (String, Kind) -> TypeContext -> Span -> Bool -> String -> Scheme -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-source-conditional rows classes kinds sp flag symbol head declarations env st =
     case (root-name (scheme-body head), export-global symbol) of
       (Some owner, Ok identity) -> if not (closed-conditional-scheme head) then (env, add-error sp "a conditional method needs a closed instance head" st) else
@@ -7697,8 +7678,8 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons (DFun sp name clauses) rest -> Cons (DFun sp (source-method-symbol identity name) clauses) (conditional-definitions identity rest)
     Cons other rest -> conditional-definitions identity rest
-  source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
-  source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations methods st = case methods of
+  source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> Option Json -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
+  source-instance-fields instance-span classes kinds families env defaults imported description symbol factory declarations methods st = case methods of
     Nil -> (Nil, st)
     Cons (MkCoreEquationMethod sp name slot telescope identity equation) rest ->
       (Nil, add-error instance-span "an equality method implementation needs erased proof elaboration" st)
@@ -7711,7 +7692,7 @@ module Bootstrap.Infer where
           let implementation = implementation-scheme factory actual in
           let bound = Cons (MkCheckedBinding private-name implementation "instance-method") env in
           let existing = inherited-default-clauses description member defaults actual in
-          let (clauses, with-default) = if has-definition name declarations then (Some (function-clauses name declarations), prepared) else (case existing of Some original -> (Some original, prepared); None -> checked-imported-default instance-span classes kinds families env description member defaults actual prepared) in
+          let (clauses, with-default) = if has-definition name declarations then (Some (function-clauses name declarations), prepared) else (case existing of Some original -> (Some original, prepared); None -> checked-imported-default instance-span classes kinds families env description member imported actual prepared) in
           let annotations = if has-definition name declarations then Some Nil else default-annotation-bindings description factory member actual in
           case (clauses, annotations) of
             (None, other) -> (Nil, add-error instance-span (string-concat-all ["instance ", diagnostic-member-name symbol, " does not define method ", name]) with-default)
@@ -7719,11 +7700,11 @@ module Bootstrap.Infer where
             (Some body, Some aliases) -> (case check-definition-with-annotations classes kinds families bound zero private-name body aliases with-default of
               (None, failed) -> (Nil, failed)
               (Some definition, checked) -> case resolve-inventory-definition classes (env-inventory env) definition checked of
-                (resolved, final) -> case source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations rest final of
+                (resolved, final) -> case source-instance-fields instance-span classes kinds families env defaults imported description symbol factory declarations rest final of
                   (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done))
-  checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
+  checked-source-instances :: ImportedClasses -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
   checked-source-instances rows classes kinds families env ds descriptions st = checked-source-instances-with rows classes kinds families env ds ds descriptions st
-  checked-source-instances-with :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
+  checked-source-instances-with :: ImportedClasses -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
   checked-source-instances-with rows classes kinds families env all ds descriptions st = case ds of
     Nil -> (descriptions, Nil, st)
     Cons (DInstance sp flag name ps head-type members) rest | guarded-members (decls-of members) -> checked-source-instances-with rows classes kinds families env all rest descriptions st
@@ -7733,7 +7714,7 @@ module Bootstrap.Infer where
           Some owner -> (case (case find-class owner descriptions of Some description -> (Some description, st); None -> typed-class sp owner rows classes kinds st) of
             (Some description, checked) -> let members-list = decls-of members in
               let prepared = instance-member-errors members-list (class-member-names (class-methods description)) Nil checked in
-              (case source-instance-fields sp classes kinds families env all description name factory members-list (class-methods description) prepared of
+              (case source-instance-fields sp classes kinds families env all (imported-class-row (class-name description) rows) description name factory members-list (class-methods description) prepared of
                 (fields, done) -> let constructor = MkCoreInstance sp name flag factory fields in
                   let retained = case find-class owner descriptions of Some prior -> descriptions; None -> Cons description descriptions in
                   let verified = if instance-contracts-closed (env-body-context env) (env-guarded-bindings env) (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
@@ -7922,7 +7903,7 @@ module Bootstrap.Infer where
         then add-error sp "the justification does not prove the rule's equation" done else done
       (formals, None, checked) -> add-error sp "rewrite citation must conclude with a checked equation" checked
 
-  check-rewrite-evidence :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> List Json -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
+  check-rewrite-evidence :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> ImportedClasses -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
   check-rewrite-evidence classes kinds families env locals givens declarations rows lhs rhs evidence st = case evidence of
     RewriteLaw sp owner member args ->
       let (definition, syntax, assumption, header) = (case find-class owner (context-source-classes kinds) of
@@ -7930,7 +7911,7 @@ module Bootstrap.Infer where
           Some (symbol, equation) -> (Some description, Some equation,
             (case export-global symbol of Ok identity -> Some identity; Err error -> None), st)
           None -> (Some description, declared-cited-law owner member declarations, law-assumption-identity owner member, st))
-        None -> (case find-class-row owner rows of
+        None -> (case imported-class-row owner rows of
           Some row -> let (description, checked) = typed-class sp owner rows classes kinds st in
             (description, imported-cited-law sp member (field "laws" row), law-assumption-identity owner member, checked)
           None -> (None, None, None, st))) in
@@ -7951,7 +7932,7 @@ module Bootstrap.Infer where
     None -> (None, st)
     Some expression -> case check-required classes kinds families env locals expression (primitive-type "Bool") st of
       (test, checked) -> (Some test, include-effects (expr-span expression) (core-effects test) (URow UEnd) checked)
-  check-source-rewrite :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Json -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
+  check-source-rewrite :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> ImportedClasses -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
   check-source-rewrite classes kinds families env declarations rows sp name syntax st = case syntax of
     MkRewriteSyntax True params bounds pattern replacement guard evidence ->
       (None, add-error sp "target rewrite needs a checked target applicability condition" st)
@@ -7992,7 +7973,7 @@ module Bootstrap.Infer where
       Nil -> (Some (MkCheckedRewrite name (typed first) (typed second) test identity), done)
       other -> (None, done)
 
-  check-source-rewrites :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Json -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
+  check-source-rewrites :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> ImportedClasses -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
   check-source-rewrites classes kinds families env declarations rows pending seen st = case pending of
     Nil -> (Nil, st)
     Cons (DRewrite sp name syntax) rest -> if has name seen then (Nil, add-error sp "duplicate rewrite declaration" st)
@@ -8292,17 +8273,17 @@ module Bootstrap.Infer where
         (more, done) -> (facts <> more, done)
     Cons other rest -> check-law-instances classes kinds families env sampler instances rest st
 
-  check-imported-instance-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> LawSampling -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
+  check-imported-instance-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> ImportedClasses -> List CoreClass -> LawSampling -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
   check-imported-instance-laws classes kinds families env rows descriptions sampler instances st = case instances of
     Nil -> (Nil, st)
     Cons subject rest -> continue-imported-laws classes kinds families env rows descriptions sampler rest
       (case root-name (scheme-body (instance-scheme subject)) of
       None -> (Nil, st)
-      Some owner -> (case (find-class owner descriptions, find-class-row owner rows) of
+      Some owner -> (case (find-class owner descriptions, imported-class-row owner rows) of
         (Some description, Some row) -> check-imported-law-rows classes kinds families env description sampler subject (field "laws" row) st
         other -> (Nil, st)))
 
-  continue-imported-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> LawSampling -> List CoreInstance -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
+  continue-imported-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> ImportedClasses -> List CoreClass -> LawSampling -> List CoreInstance -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
   continue-imported-laws classes kinds families env rows descriptions sampler rest current = case current of
     (facts, checked) -> case check-imported-instance-laws classes kinds families env rows descriptions sampler rest checked of
       (more, done) -> (facts <> more, done)
@@ -8416,13 +8397,13 @@ module Bootstrap.Infer where
   -- The ordinary pass and every total-body retry see the same interface
   -- headers. Only source declarations and their elaborated kinds differ.
   data ElaborationImports where
-    ElaborationImports :: Result String InterfaceSet -> List Json -> HashMap String (String, Option TypeExpr) -> ElaborationImports
+    ElaborationImports :: Result String InterfaceSet -> ImportedClasses -> HashMap String (String, Option TypeExpr) -> ElaborationImports
 
   elaborate-module :: (List (String, String, Json) -> Result String InterfaceSet) -> String -> Module -> Elaboration
   elaborate-module load label m =
     let declarations = module-decls m in
     let interfaces = load (total-interface-inputs declarations) in
-    let imports = ElaborationImports interfaces (class-rows declarations) (prepare-import-syntax declarations hash-map-empty) in
+    let imports = ElaborationImports interfaces (imported-classes declarations) (prepare-import-syntax declarations hash-map-empty) in
     elaborate-module-with-source-bodies imports True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: ElaborationImports -> Bool -> String -> Module -> Elaboration
@@ -8446,10 +8427,11 @@ module Bootstrap.Infer where
     let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded base-kinds preliminary-kinds contracts preliminary-store in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
-    let (runtime-kinds, runtime-store) = imported-runtime-class-kinds rows nominal-kinds sk in
+    let ordered-classes = imported-class-rows rows in
+    let (runtime-kinds, runtime-store) = imported-runtime-class-kinds ordered-classes nominal-kinds sk in
     -- Copy and Share are compiler-known structural classes: their evidence is
     -- the checked shape of a type, so no module declares them.
-    let classes = Cons ("b.Io", KFun KRegion KType) (Cons ("Copy", KFun KType KType) (Cons ("Share", KFun KType KType) (source-class-kinds ds runtime-kinds (class-kinds rows runtime-kinds Nil)))) in
+    let classes = Cons ("b.Io", KFun KRegion KType) (Cons ("Copy", KFun KType KType) (Cons ("Share", KFun KType KType) (source-class-kinds ds runtime-kinds (class-kinds ordered-classes runtime-kinds hash-map-empty Nil)))) in
     let (identity-kinds, identity-store) = collect-source-identities ds ds classes runtime-kinds runtime-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
@@ -8495,7 +8477,9 @@ module Bootstrap.Infer where
     let verified = case (specs, store-errors finished) of
           (Cons first more, Nil) -> check-logical-declarations classes linked-kinds families env rows instances datas usage core specs finished
           other -> finished in
-    let retained-classes = case store-errors verified of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
+    let retained-classes = (case store-errors verified of
+      Nil -> checked-imported-classes ordered-classes rows classes linked-kinds descriptions (reference-index (map class-name descriptions))
+      other -> descriptions) in
     let (temporal-rows, temporal-store) = check-temporal-contracts (module-name m) classes linked-kinds families env ds core verified in
     -- Checked Core retains contextual phantom regions. Source provenance retains
     -- the defining header, so a later value signature cannot rewrite an export.
@@ -8506,7 +8490,7 @@ module Bootstrap.Infer where
 
   -- The ordinary checker has no specification bindings. Only the logical
   -- pass can resolve them, and its definitions never become executable Core.
-  check-logical-declarations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreInstance -> List CoreData -> List UsageShape -> List CoreDefinition -> List Decl -> Store -> Store
+  check-logical-declarations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> ImportedClasses -> List CoreInstance -> List CoreData -> List UsageShape -> List CoreDefinition -> List Decl -> Store -> Store
   check-logical-declarations classes kinds families env rows instances datas usage ordinary specs st =
     let (logical, registered) = register (data-graph specs) rows classes kinds specs env st in
     let (definitions, checked) = check-bodies classes kinds families logical Nil specs specs registered in
@@ -9078,7 +9062,7 @@ module Bootstrap.Infer where
   has-imported-method-body interfaces methods = case methods of
     JArr (JStr native) rest -> interface-set-has-body native interfaces || has-imported-method-body interfaces rest
     other -> False
-  total-imported-instances :: InterfaceSet -> List Json -> List (String, Kind) -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-instances :: InterfaceSet -> ImportedClasses -> List (String, Kind) -> Json -> TypeContext -> Store -> (TypeContext, Store)
   total-imported-instances interfaces descriptions classes instances kinds st = case instances of
     JArr row rest -> if not (has-imported-method-body interfaces (field "methods" row)) then
       total-imported-instances interfaces descriptions classes rest kinds st
@@ -9092,7 +9076,7 @@ module Bootstrap.Infer where
           other -> total-imported-instances interfaces descriptions classes rest kinds st)
         other -> total-imported-instances interfaces descriptions classes rest kinds st)
     other -> (kinds, st)
-  total-imported-declarations :: InterfaceSet -> List Json -> List (String, Kind) -> List Decl -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-declarations :: InterfaceSet -> ImportedClasses -> List (String, Kind) -> List Decl -> TypeContext -> Store -> (TypeContext, Store)
   total-imported-declarations interfaces descriptions classes declarations kinds st = case declarations of
     Nil -> (kinds, st)
     Cons (DInterface sp name hash metadata) rest -> (case total-imported-instances interfaces descriptions classes (field "instances" (field "exports" metadata)) kinds st of
@@ -9110,7 +9094,7 @@ module Bootstrap.Infer where
           None -> total-imported-declarations interfaces descriptions classes rest kinds st)
         other -> total-imported-declarations interfaces descriptions classes rest kinds st)
     Cons other rest -> total-imported-declarations interfaces descriptions classes rest kinds st
-  collect-imported-total-methods :: Result String InterfaceSet -> List Decl -> List Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-imported-total-methods :: Result String InterfaceSet -> List Decl -> ImportedClasses -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-imported-total-methods checked declarations descriptions classes kinds st = case checked of
     Ok interfaces -> total-imported-declarations interfaces descriptions classes declarations kinds st
     Err error -> (kinds, st)
@@ -9939,7 +9923,7 @@ module Bootstrap.Infer where
     other -> False
   closed-conditional-scheme :: Scheme -> Bool
   closed-conditional-scheme sc = contract-scheme-closed sc && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False)
-  register-conditional-methods :: List Json -> List (String, Kind) -> TypeContext -> Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-methods :: ImportedClasses -> List (String, Kind) -> TypeContext -> Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-conditional-methods descriptions classes kinds sp dictionary methods env st = case methods of
     JArr row rest -> let checked = field "checked" row in
       case (field "slot" row, field "identity" (field "implementation" checked)) of
@@ -9970,7 +9954,7 @@ module Bootstrap.Infer where
         other -> (env, add-error sp "invalid checked conditional method declaration" st)
     JArrEnd -> (env, st)
     other -> (env, add-error sp "invalid conditional method array" st)
-  register-conditional-rows :: List Json -> List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-rows :: ImportedClasses -> List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-conditional-rows descriptions classes kinds sp rows env st = case rows of
     JArr row rest -> case (field "implicit" row, field "class" row, field "id" row) of
       (JBool True, JStr owner, JStr dictionary) -> (case register-conditional-methods descriptions classes kinds sp dictionary (field "method_contracts" row) env st of
@@ -9978,7 +9962,7 @@ module Bootstrap.Infer where
       other -> register-conditional-rows descriptions classes kinds sp rest env st
     JArrEnd -> (env, st)
     other -> (env, add-error sp "invalid conditional instance rows" st)
-  register-conditional-instances :: List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-instances :: ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-conditional-instances descriptions classes kinds ds env st = case ds of
     Nil -> (env, st)
     Cons (DInterface sp name hash metadata) rest -> (case register-conditional-rows descriptions classes kinds sp (field "instances" (field "exports" metadata)) env st of

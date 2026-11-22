@@ -17,6 +17,7 @@ module Bootstrap.Contracts where
 
   export interface-headers, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, expr-references, imported-class-references, kernel-references
+  export ImportedClasses, imported-classes, imported-class-rows, imported-class-row
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -374,22 +375,39 @@ module Bootstrap.Contracts where
         other -> more)
     other -> Nil
 
-  defining-class-contract :: String -> Json -> Option Json
-  defining-class-contract owner classes = case classes of
-    JArr description rest -> (case field "identity" description of
-      JStr identity -> if same owner (interface-global identity) then Some description
-        else defining-class-contract owner rest
-      other -> defining-class-contract owner rest)
-    other -> None
+  data ImportedClasses where
+    ImportedClasses :: List (String, Json) -> HashMap String Json -> ImportedClasses
 
-  imported-class-contract :: String -> List Decl -> Option Json
-  imported-class-contract owner ds = case ds of
-    Nil -> None
+  -- Keep document order for checks that visit all rows, and keep the first
+  -- row for lookups, including when a class is re-exported.
+  imported-classes :: List Decl -> ImportedClasses
+  imported-classes ds = let newest = collect-class-rows ds Nil in
+    ImportedClasses (reverse newest) (index-class-rows newest hash-map-empty)
+
+  collect-class-rows :: List Decl -> List (String, Json) -> List (String, Json)
+  collect-class-rows ds found = case ds of
+    Nil -> found
     Cons (DInterface s name hash metadata) rest ->
-      (case defining-class-contract owner (field "signatures" (field "exports" metadata)) of
-        Some methods -> Some methods
-        None -> imported-class-contract owner rest)
-    Cons other rest -> imported-class-contract owner rest
+      collect-class-rows rest (append-class-rows (field "signatures" (field "exports" metadata)) found)
+    Cons other rest -> collect-class-rows rest found
+
+  append-class-rows :: Json -> List (String, Json) -> List (String, Json)
+  append-class-rows rows found = case rows of
+    JArr row rest -> case field "identity" row of
+      JStr identity -> append-class-rows rest (Cons (interface-global identity, row) found)
+      other -> append-class-rows rest found
+    other -> found
+
+  index-class-rows :: List (String, Json) -> HashMap String Json -> HashMap String Json
+  index-class-rows rows indexed = case rows of
+    Nil -> indexed
+    Cons (native, row) rest -> index-class-rows rest (hash-map-insert native row indexed)
+
+  imported-class-rows :: ImportedClasses -> List (String, Json)
+  imported-class-rows classes = case classes of ImportedClasses ordered indexed -> ordered
+
+  imported-class-row :: String -> ImportedClasses -> Option Json
+  imported-class-row name classes = case classes of ImportedClasses ordered indexed -> hash-map-lookup name indexed
 
   instance-class-name :: TypeExpr -> Option String
   instance-class-name ty = case ty of
@@ -408,17 +426,26 @@ module Bootstrap.Contracts where
 
   -- The source instance needs bindings for its class laws and omitted
   -- default methods. Loading an unrelated interface has no runtime demand.
-  imported-class-references :: List Decl -> List Decl -> List String
-  imported-class-references all ds = case ds of
+  imported-class-references :: List Decl -> List String
+  imported-class-references ds = seek-instance ds ds
+
+  seek-instance :: List Decl -> List Decl -> List String
+  seek-instance all ds = case ds of
+    Nil -> Nil
+    Cons (DInstance sp flag name params head members) rest -> class-references (imported-classes all) ds
+    Cons other rest -> seek-instance all rest
+
+  class-references :: ImportedClasses -> List Decl -> List String
+  class-references classes ds = case ds of
     Nil -> Nil
     Cons (DInstance sp flag name params head members) rest ->
       (case instance-class-name head of
-        Some owner -> (case imported-class-contract owner all of
+        Some owner -> (case imported-class-row owner classes of
           Some row -> default-method-references (decls-of members) (field "methods" row)
             <> imported-law-references (field "laws" row)
           None -> Nil)
-        None -> Nil) <> imported-class-references all rest
-    Cons other rest -> imported-class-references all rest
+        None -> Nil) <> class-references classes rest
+    Cons other rest -> class-references classes rest
 
   ctor-references :: List (String, TypeExpr) -> List String
   ctor-references ctors = case ctors of Nil -> Nil; Cons (name, ty) rest -> type-references ty <> ctor-references rest

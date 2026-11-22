@@ -1597,7 +1597,7 @@ module Bootstrap.Resolve where
       let record-references = (case imported-records of
         Nil -> Nil
         other -> imported-record-references reference-set (reference-index imported-records) declarations) in
-      let additional = overload-references reference-set declarations <> kernel-references reference-set declarations <> imported-class-references declarations declarations <> record-references in
+      let additional = overload-references reference-set declarations <> kernel-references reference-set declarations <> imported-class-references declarations <> record-references in
       let all-reference-set = reference-index-from additional reference-set in
       -- The parallel interface is a kernel declaration: a program that
       -- names `Parallelism` or one of its methods keeps it, exactly as
