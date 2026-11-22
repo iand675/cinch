@@ -2,7 +2,6 @@
 use super::{invalid, Decode, HEADER, MAX_DEPTH};
 use crate::interface::{Iface, JsonValue as Value};
 use crate::total::{CheckedGraph, Definition, Expr};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Write;
 use std::path::Path;
@@ -351,7 +350,7 @@ pub(crate) fn encode(rows: &[(&Iface, &str)], abi: &Value) -> Decode<Vec<u8>> {
     Ok(bytes)
 }
 
-pub(crate) fn publish(path: &Path, rows: &[(&Iface, &str)], abi: &Value) -> crate::Result<String> {
+pub(crate) fn publish(path: &Path, rows: &[(&Iface, &str)], abi: &Value) -> crate::Result<()> {
     let error =
         |err: &dyn std::fmt::Display| crate::Error::plain(format!("{}: {err}", path.display()));
     let bytes = encode(rows, abi).map_err(|err| error(&err))?;
@@ -363,7 +362,7 @@ pub(crate) fn publish(path: &Path, rows: &[(&Iface, &str)], abi: &Value) -> crat
     file.write_all(&bytes).map_err(|err| error(&err))?;
     // Existing readers may have the old file mapped. Publish a fresh inode.
     file.persist(path).map_err(|err| error(&err))?;
-    Ok(format!("{:x}", Sha256::digest(&bytes)))
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1302,10 +1302,8 @@ impl Session {
             // flag is the driver's. A store entry that disagrees with the
             // session's interfaces is still a hard error here.
             &crate::driver::DriverOptions::default(),
-                    &crate::driver::LinkPlan::default(),
-            // An incremental session writes interfaces for its store, not
-            // a library's unfoldings for a consumer.
-            false,
+            &crate::driver::LinkPlan::default(),
+            crate::driver::Mode::EmitIr,
             &crate::interface::contract_hashes(&ifaces),
         )?;
         report.chain_ok = self.chain_ok();

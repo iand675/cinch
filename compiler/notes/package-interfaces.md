@@ -6,11 +6,11 @@ definition, even when many exports reference the same definitions. The
 contract digest, total bodies, typed schemes, layouts, laws, and dependency
 identities have the same meaning as in the per-module JSON files.
 
-The Rust compiler writes the package directly from its checked contracts and
-body trees while emitting a standalone library object.
+Rust `emit-object` writes the package directly from the checked contracts and
+body trees. The packed ABI and contracts are published beside the object.
 
 ```sh
-cinch emit-object Library.cinch --interface-package-only -o library.o
+cinch emit-object Library.cinch -o library.o  # also writes library.cpk
 ```
 
 The fresh-base workflow uses the same writer. `tooling/build_base_artifact.py`

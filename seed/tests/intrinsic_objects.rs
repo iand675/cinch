@@ -17,7 +17,7 @@ fn checked_intrinsic_exports_are_object_roots_with_exact_word_classes() {
     let roots = cinch::specialize::parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.compare","classes":""},{"symbol":"Library.negate","classes":""},{"symbol":"Library.successor","classes":""}]}"#).unwrap();
     let opts = cinch::driver::DriverOptions { object_roots: roots, ..Default::default() };
     common::drive_opts(cinch::driver::Mode::EmitObject, &dir, "Library.cinch", Some(object.clone()), &opts).unwrap();
-    let metadata = std::fs::read_to_string(object.with_extension("abi.json")).unwrap();
+    let metadata = common::object_metadata(&object);
     for (name, params, result) in [("Library.compare", "[\"O\",\"O\"]", "R"), ("Library.negate", "[\"T\"]", "T"), ("Library.successor", "[\"R\"]", "R")] {
         // Unit rows are flat objects in the actual canonical ABI artifact.
         let key = format!("\"symbol\":\"{name}\"");
@@ -51,7 +51,7 @@ fn explicit_unit_roots_select_only_the_requested_polymorphic_variant() {
 
     emit("Library.identity", vec![Class::TObj]).unwrap();
     let metadata: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(object.with_extension("abi.json")).unwrap()).unwrap();
+        serde_json::from_str(&common::object_metadata(&object)).unwrap();
     let variants: Vec<_> = metadata["units"].as_array().unwrap().iter()
         .filter(|row| row["symbol"].as_str().unwrap().starts_with("Library.identity"))
         .collect();

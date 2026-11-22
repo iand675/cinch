@@ -17,7 +17,7 @@
   ],
   "native_api_assertions": {
     "arrays": {
-      "source_sha256": "de125a8febe0f8d718b954a1351e5e6a06080fafaffdbdf62d9d3e677bc9b5db",
+      "source_sha256": "ba21aec070dd5654ecc2df4c64cce50ef9497e1bdd7a11ad2df79a1723f63f23",
       "cases": {
         "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source.",
         "array_interface_producer_refuses_reordered_mandatory_option_tags": "Drives the Rust interface producer over reordered Data.Core source and inspects the emitted .cinchif. This case compiles no Cinch source through the selected frontend."

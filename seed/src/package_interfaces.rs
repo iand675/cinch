@@ -396,8 +396,8 @@ pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate:
 }
 
 #[cfg(test)]
-pub(crate) fn rewrite_abi(path: &Path, edit: impl FnOnce(&mut JsonValue)) -> crate::Result<()> {
-    let (contracts, mut abi) = read_package(path, |bytes| {
+pub(crate) fn read_verified_contracts(path: &Path) -> crate::Result<(Vec<(Iface, String)>, JsonValue)> {
+    read_package(path, |bytes| {
         let package = Package::open(bytes.bytes())?;
         let mut contracts = Vec::new();
         package.visit_contracts(bytes, |hash, iface| {
@@ -405,10 +405,15 @@ pub(crate) fn rewrite_abi(path: &Path, edit: impl FnOnce(&mut JsonValue)) -> cra
             Ok(())
         })?;
         Ok((contracts, package.abi()?))
-    })?;
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn rewrite_abi(path: &Path, edit: impl FnOnce(&mut JsonValue)) -> crate::Result<()> {
+    let (contracts, mut abi) = read_verified_contracts(path)?;
     edit(&mut abi);
     let rows: Vec<_> = contracts.iter().map(|(iface, hash)| (iface, hash.as_str())).collect();
-    publish(path, &rows, &abi).map(|_| ())
+    publish(path, &rows, &abi)
 }
 
 fn read_package<T>(path: &Path, decode: impl FnOnce(&Arc<PackageBytes>) -> Decode<T>) -> Result<T, crate::Error> {

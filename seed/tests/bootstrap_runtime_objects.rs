@@ -69,6 +69,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeObject.cinch")),
     ]);
+    let metadata = common::editable_object_fixture(&object, &provider.join("build"));
     let mut rows = Vec::new();
     for e in std::fs::read_dir(provider.join("build")).unwrap() {
         let path = e.unwrap().path();
@@ -80,7 +81,6 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     std::fs::copy(&object, dir.join("provider.o")).unwrap();
-    let metadata = std::fs::read_to_string(object.with_extension("abi.json")).unwrap();
     std::fs::write(dir.join("provider.abi.json"), &metadata).unwrap();
     std::fs::write(dir.join("target.txt"), &profile.triple).unwrap();
     let compiler = common::build(&dir, "Main.cinch", "runtime-object-emitter").expect("build actual Cinch object consumer");

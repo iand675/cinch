@@ -82,15 +82,16 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     let foreign_triple = *triple != TargetProfile::native().triple;
     let core_wasm = host.artifact == cinch::core::ArtifactProfile::CoreWasm
         && *name == TargetProfile::wasm32(host.artifact).name;
-    let same_platform = has_backend
-        && (!foreign_triple || *name == host.name || core_wasm)
-        && *triple == host.triple && *os == host.os
+    let same_name = !foreign_triple || *name == host.name || core_wasm;
+    let same_target = has_backend && *triple == host.triple && *os == host.os
         && (*arch == host.arch || arch == "portable") && *libc == host.libc
         && *word_size == host.word_size && *endian == host.endian;
+    let same_platform = same_name && same_target;
     let check_platform = mode == Mode::Check && !same_platform;
     let mut lacking = Vec::new();
     for (field, same) in [
-        ("platform", same_platform || check_platform),
+        ("name", same_name || check_platform),
+        ("platform", same_target || check_platform),
         ("os_version", *os_version == host.os_version),
         ("vector_shape", *vector_shape == host.vector_shape),
         ("allow_eval", *allow_eval == host.allow_eval),

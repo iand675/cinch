@@ -20,6 +20,46 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub mod external_frontend;
 pub mod source_frontend;
 
+/// Read the ABI recorded by the selected test frontend.
+pub fn object_metadata(path: &Path) -> String {
+    let package = path.with_extension("cpk");
+    if package.is_file() {
+        return inspect_package(&package, None);
+    }
+    std::fs::read_to_string(path.with_extension("abi.json")).expect("native fixture ABI")
+}
+
+/// Some native compiler fixtures mutate individual contracts or metadata rows.
+/// Project the packed object into editable files for those tests only.
+pub fn editable_object_fixture(path: &Path, contracts: &Path) -> String {
+    inspect_package(&path.with_extension("cpk"), Some(contracts))
+}
+
+fn inspect_package(path: &Path, contracts: Option<&Path>) -> String {
+    let tooling = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tooling");
+    let output = std::process::Command::new("python3")
+        .args(["-c", r#"
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[1])
+from pack_interfaces import PackedInterfaces, canonical
+package = PackedInterfaces(Path(sys.argv[2]).read_bytes())
+if len(sys.argv) == 4:
+    contracts = Path(sys.argv[3])
+    contracts.mkdir(parents=True, exist_ok=True)
+    for name, _, document in package.documents:
+        (contracts / (name + '.cinchif')).write_bytes(canonical(document))
+sys.stdout.buffer.write(canonical(package.full_metadata()))
+"#])
+        .arg(tooling)
+        .arg(path)
+        .args(contracts)
+        .output()
+        .expect("inspect packed object");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8(output.stdout).expect("UTF-8 fixture metadata")
+}
+
 /// The toolkit a bootstrap project ships. Order follows the modules'
 /// own imports: `Text.Parse` imports `Text.Lex` and `Text.Scan`; the
 /// renderers emit through `Text.Builder`, because a right-nested

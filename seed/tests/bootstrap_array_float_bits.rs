@@ -54,6 +54,7 @@ uint64_t cinch_test_f64_bits(double value) { uint64_t bits; memcpy(&bits, &value
         ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeObject.cinch")),
     ]);
+    let metadata = common::editable_object_fixture(&object, &provider.join("build"));
     let mut interfaces = Vec::new();
     for entry in std::fs::read_dir(provider.join("build")).unwrap() {
         let path = entry.unwrap().path();
@@ -65,7 +66,7 @@ uint64_t cinch_test_f64_bits(double value) { uint64_t bits; memcpy(&bits, &value
     interfaces.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", interfaces.join(","))).unwrap();
     std::fs::copy(&object, dir.join("provider.o")).unwrap();
-    std::fs::copy(object.with_extension("abi.json"), dir.join("provider.abi.json")).unwrap();
+    std::fs::write(dir.join("provider.abi.json"), metadata).unwrap();
     std::fs::write(dir.join("target.txt"), &profile.triple).unwrap();
     let compiler = common::build(&dir, "Main.cinch", "array-float-emitter").expect("build actual Cinch object and array emitter");
     let cases = [

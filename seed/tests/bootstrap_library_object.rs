@@ -367,9 +367,10 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     if let Some(path) = &retained {
         std::fs::write(path, Json::obj(vec![("compiler", Json::Str(compiler.display().to_string())), ("compiler_sha256", Json::Str(sha256(&compiler))), ("project", Json::Str(dir.display().to_string())), ("provider", Json::Str(provider.display().to_string()))]).to_text()).unwrap();
     }
-    let manifest = dir.join("provider.interfaces.json");
-    interfaces(&manifest, &[&provider.join("build")]);
-    let objects = dir.join("provider.objects.json"); configuration(&objects, &object, &object.with_extension("abi.json"));
+    let manifest = object.with_extension("cpk");
+    // The later refusal cases replace individual fixture contracts.
+    common::editable_object_fixture(&object, &provider.join("build"));
+    let objects = dir.join("provider.objects.json"); configuration(&objects, &object, &manifest);
     let library = dir.join("library.source");
     let source = format!("{}\n{}\n{}\n{}", include_str!("../prelude/Data/Array.cinch"), include_str!("../prelude/Data/Tensor.cinch"), include_str!("../prelude/Data/Columnar.cinch"), r#"module Library where
   import Data.Array

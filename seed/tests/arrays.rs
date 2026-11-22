@@ -60,10 +60,12 @@ fn array_library_objects_stamp_matching_abi_and_owned_types() {
     common::drive(cinch::driver::Mode::EmitObject, &dir, "Library.cinch", Some(out.clone()))
         .expect("emit the array library object");
     assert!(out.is_file());
-    let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
+    let text = common::object_metadata(&out);
     assert!(text.contains(&format!("\"runtime_abi\":{}", cinch::interface::RUNTIME_ABI_VERSION)), "{text}");
-    // Inspect the separately emitted interface through the public reader.
-    let iface = cinch::interface::Iface::from_json(&std::fs::read_to_string(dir.join("build/Library.cinchif")).unwrap()).unwrap();
+    let metadata: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let contract = metadata["interfaces"].as_array().unwrap().iter()
+        .find(|row| row["module"] == "Library").expect("published Library contract");
+    let iface = cinch::interface::Iface::from_json(&contract["interface"].to_string()).unwrap();
     assert_eq!(iface.runtime_abi, cinch::interface::RUNTIME_ABI_VERSION);
     for (name, ty) in [("make", "Array"), ("peek", "Tensor"), ("column", "Columnar")] {
         assert!(iface.exports.values.iter().any(|v| v.name == name && v.scheme.contains(ty)), "{name}: {:?}", iface.exports.values);

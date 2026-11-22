@@ -223,6 +223,11 @@ pub struct EmittedObject {
     pub abi: String,
 }
 
+pub(crate) struct EmittedModule {
+    pub ir: String,
+    pub abi: crate::interface::JsonValue,
+}
+
 pub fn emit_object_for(
     profile: &crate::core::TargetProfile,
     program: &Program,
@@ -238,6 +243,15 @@ pub fn emit_object_for_modules(
     program: &Program,
     modules: &[String],
 ) -> Result<EmittedObject> {
+    let object = emit_packed_object(profile, program, modules)?;
+    Ok(EmittedObject { ir: object.ir, abi: object.abi.to_canonical_string() })
+}
+
+pub(crate) fn emit_packed_object(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+    modules: &[String],
+) -> Result<EmittedModule> {
     if program.main.is_some() {
         return err("object emission requires a library program without a process entry");
     }
@@ -295,7 +309,7 @@ fn emit_module(
     emit_modules: &[String],
     prune: bool,
     shared: bool,
-) -> Result<EmittedObject> {
+) -> Result<EmittedModule> {
     // Inspection emission can receive checked Core without ownership
     // planning. Keep the same strict stages before its wide edges too.
     let program: &Program = &crate::applications::with_boundaries(program);
@@ -1116,9 +1130,9 @@ fn emit_module(
     let abi = if object {
         reg.object_abi(program, profile, &ir, shipped, &shipped_modules)?
     } else {
-        String::new()
+        crate::interface::JsonValue::Null
     };
-    Ok(EmittedObject { ir, abi })
+    Ok(EmittedModule { ir, abi })
 }
 
 fn err<T>(msg: impl Into<String>) -> Result<T> {
@@ -1364,7 +1378,7 @@ impl Registry {
         ir: &str,
         shipped: &[String],
         modules: &HashSet<String>,
-    ) -> Result<String> {
+    ) -> Result<crate::interface::JsonValue> {
         use crate::interface::JsonValue as J;
         fn class(c: Class) -> Result<J> {
             Ok(J::from(match c {
@@ -1561,8 +1575,7 @@ impl Registry {
             // Blocks describe themselves: an object publishes no layout
             // table for a consumer to register.
             ("self_describing", true.into()),
-        ])
-        .to_canonical_string())
+        ]))
     }
 
     /// Register one module-level metadata node; returns its `!N`
@@ -12648,24 +12661,25 @@ int main(void) {{
     #[test]
     fn object_driver_records_checked_interface_closure() {
         std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
-            use crate::interface::parse_json;
             let dir = std::env::temp_dir().join(format!("cinch_object_driver_{}", std::process::id()));
             std::fs::create_dir_all(&dir).unwrap();
             let input = dir.join("Library.cinch");
             std::fs::write(&input, "module Library where\n  export library-string\n  library-string :: Unit -> String\n  library-string u = \"boundaries\"\n").unwrap();
             let out = dir.join("base.o");
             crate::driver::driver(crate::driver::Mode::EmitObject, &input, Some(&out)).unwrap();
-            let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
-            let manifest = parse_json(&text).unwrap();
+            let (contracts, manifest) = crate::package_interfaces::read_verified_contracts(&out.with_extension("cpk")).unwrap();
+            assert!(!out.with_extension("abi.json").exists());
+            assert!(!dir.join("build/Library.cinchif").exists());
             let m = manifest.as_object().unwrap();
             assert_eq!(m["runtime_abi"].as_num().unwrap(), crate::interface::RUNTIME_ABI_VERSION as u64);
             let mut ifaces = Vec::new();
-            for row in m["interfaces"].as_array().unwrap() {
+            let refs = m["interface_refs"].as_array().unwrap();
+            assert_eq!(contracts.len(), refs.len());
+            for ((iface, digest), row) in contracts.into_iter().zip(refs) {
                 let row = row.as_object().unwrap();
-                let iface = crate::interface::Iface::from_json(&row["interface"].to_canonical_string()).unwrap();
                 assert_eq!(iface.runtime_abi, crate::interface::RUNTIME_ABI_VERSION);
                 assert_eq!(iface.module, row["module"].as_str().unwrap());
-                assert_eq!(iface.iface_hash(), row["iface_hash"].as_str().unwrap());
+                assert_eq!(digest, row["iface_hash"].as_str().unwrap());
                 ifaces.push(iface);
             }
             crate::interface::verify_chain(&ifaces).unwrap();
@@ -12680,7 +12694,6 @@ int main(void) {{
             assert_eq!(m["ir_content_hash"].as_str().unwrap(), crate::interface::content_hash(&ir));
             assert!(!ir.contains("@llvm.global_ctors"));
             assert!(m["constructors"].as_object().unwrap().keys().any(|k| k.contains("StrBuf")));
-            assert_eq!(manifest.to_canonical_string(), text);
             let string_iface = ifaces.iter().find(|i| i.module == "Data.String").unwrap();
             assert!(string_iface.exports.types.iter().all(|t| t.ctors.iter().all(|c| c.name != "StrBuf")));
             // Blocks describe themselves: the consumer registers no table.
@@ -12713,7 +12726,6 @@ int main(void) {
     #[test]
     fn object_explicit_roots_and_method_families_link() {
         std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
-            use crate::interface::parse_json;
             use crate::specialize::{parse_object_roots, ObjectRoot};
             let dir = std::env::temp_dir().join(format!("cinch_object_roots_{}", std::process::id()));
             std::fs::create_dir_all(&dir).unwrap();
@@ -12724,7 +12736,7 @@ int main(void) {
             let opts = crate::driver::DriverOptions { object_roots: roots.clone(), ..Default::default() };
             let out = dir.join("library.o");
             crate::driver::driver_with_profile_opts(crate::driver::Mode::EmitObject, crate::driver::StageMode::Refresh, &input, Some(&out), &profile, &opts).unwrap();
-            let manifest = parse_json(&std::fs::read_to_string(out.with_extension("abi.json")).unwrap()).unwrap();
+            let manifest = crate::package_interfaces::read_abi(&out.with_extension("cpk")).unwrap();
             let m = manifest.as_object().unwrap();
             let choose: Vec<_> = m["units"].as_array().unwrap().iter().filter_map(|u| {
                 let name = u.as_object().unwrap()["symbol"].as_str().unwrap();

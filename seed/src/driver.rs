@@ -2612,10 +2612,10 @@ fn read_stage_snap(path: &Path) -> Vec<StageInput> {
 /// and trust level; platform proofs and SIMD specification sections 1
 /// and 8: the target conditions and which lowering was checked).
 #[allow(clippy::too_many_arguments)]
-fn write_artifacts(
+fn write_artifacts<'a>(
     out_dir: &Path,
     entry: &str,
-    ifaces: &[crate::interface::Iface],
+    ifaces: &'a [crate::interface::Iface],
     manifest_path: &Path,
     report: &StageReport,
     program: &crate::core::Program,
@@ -2626,9 +2626,11 @@ fn write_artifacts(
     wit: &[crate::interface::WitAdapter],
     opts: &DriverOptions,
     link_plan: &LinkPlan,
-    write_optimisations: bool,
+    mode: Mode,
     contract_hashes: &std::collections::BTreeMap<&str, String>,
-) -> Result<()> {
+) -> Result<std::collections::BTreeMap<&'a str, crate::interface::JsonValue>> {
+    use crate::interface::JsonValue as J;
+
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
     // The optimisation artifact (`crate::ifaceopt`): the unfoldable bodies
@@ -2636,6 +2638,7 @@ fn write_artifacts(
     // below. The class pass and the encoding are only paid for when this
     // compile is a library producer (or the caller asked), so a check of a
     // user program does not run them.
+    let write_optimisations = opts.emit_interface_optimisations || mode == Mode::EmitObject;
     let body_index = if write_optimisations && !opts.interface_package_only {
         Some(crate::ifaceopt::ModuleBodyIndex::new(program, &crate::simplify::unfoldable_names(program)))
     } else {
@@ -2644,18 +2647,13 @@ fn write_artifacts(
     let package = base_package();
     let package_modules: std::collections::HashSet<&str> = package.order.iter().map(String::as_str).collect();
     let mut rendered = std::collections::BTreeMap::new();
+    let mut optimisation_metadata = std::collections::BTreeMap::new();
     for iface in ifaces {
         let p = out_dir.join(format!("{}.cinchif", iface.module));
         let error = |e| Error::plain(format!("{}: {e}", p.display()));
         let store_hash = contract_hashes.get(iface.module.as_str())
             .filter(|_| package_modules.contains(iface.module.as_str()));
-        if opts.interface_package_only {
-            match std::fs::remove_file(&p) {
-                Ok(()) => (),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-                Err(e) => return Err(error(e)),
-            }
-        } else if opts.emit_modules.is_empty() {
+        if mode != Mode::EmitObject {
             if let Some(contract_hash) = store_hash {
                 let json = iface.to_json();
                 std::fs::write(&p, &json).map_err(error)?;
@@ -2679,9 +2677,18 @@ fn write_artifacts(
                 if optimisation.bodies.is_empty() {
                     let _ = std::fs::remove_file(&opt_path);
                 } else {
-                    std::fs::write(&opt_path, optimisation.to_json()).map_err(|e| {
+                    let text = optimisation.to_json();
+                    std::fs::write(&opt_path, &text).map_err(|e| {
                         Error::plain(format!("{}: {e}", opt_path.display()))
                     })?;
+                    if mode == Mode::EmitObject {
+                        optimisation_metadata.insert(iface.module.as_str(), J::obj([
+                            ("schema", crate::ifaceopt::SCHEMA.into()),
+                            ("iface_hash", optimisation.iface_hash.as_str().into()),
+                            ("content_hash", crate::interface::content_hash(&text).into()),
+                            ("bodies", (optimisation.bodies.len() as u64).into()),
+                        ]));
+                    }
                 }
             }
         }
@@ -2715,7 +2722,6 @@ fn write_artifacts(
     foreign.dedup();
     declared.sort();
     declared.dedup();
-    use crate::interface::JsonValue as J;
     // `prim` declarations (primitive operations and inline target IR
     // specification section 8): per prim the selected body's family and
     // condition, its tier, its `uses` list and its validation result.
@@ -3326,14 +3332,14 @@ fn write_artifacts(
     // embedded sources, so it cannot happen, and silently ignoring it
     // would hide a real inconsistency.
     let store = crate::store::Store::user();
-    if !opts.interface_package_only && opts.emit_modules.is_empty() && store.ensure_root().is_ok() {
+    if mode != Mode::EmitObject && store.ensure_root().is_ok() {
         if let Err(e) = store.write_rendered(package, profile, wit, ifaces, &[], opts.rebuild_store, &rendered) {
             if matches!(&e, crate::store::StoreError::Package { .. }) {
                 return Err(Error::plain(e.to_string()));
             }
         }
     }
-    Ok(())
+    Ok(optimisation_metadata)
 }
 
 /// One variant of a packaged distribution (WebAssembly and WASI
@@ -4495,9 +4501,7 @@ pub struct DriverOptions {
     /// Concrete representation variants demanded by a library consumer.
     /// Used only by `EmitObject`; an empty list preserves ordinary roots.
     pub object_roots: Vec<crate::specialize::ObjectRoot>,
-    /// Write a CINCHPK4 companion for the emitted object.
-    pub interface_package: bool,
-    /// Use that package as the complete contract and ABI publication.
+    /// Omit standalone optimisation sidecars for the packed object.
     pub interface_package_only: bool,
     /// An object-only module, stored in the native package ABI section.
     pub interface_package_private: Option<String>,
@@ -5600,14 +5604,11 @@ pub fn driver_with_profile_opts(
             "explicit object roots require emit-object mode",
         ));
     }
-    if opts.interface_package && mode != Mode::EmitObject {
-        return Err(Error::plain("--interface-package requires emit-object mode"));
-    }
-    if opts.interface_package_private.is_some() && !opts.interface_package {
-        return Err(Error::plain("--interface-package-private requires --interface-package"));
+    if opts.interface_package_private.is_some() && mode != Mode::EmitObject {
+        return Err(Error::plain("--interface-package-private requires emit-object mode"));
     }
     if opts.interface_package_only
-        && (!opts.interface_package || !opts.emit_modules.is_empty() || !opts.package_objects.is_empty())
+        && (mode != Mode::EmitObject || !opts.emit_modules.is_empty() || !opts.package_objects.is_empty())
     {
         return Err(Error::plain("--interface-package-only requires a packed standalone object"));
     }
@@ -6049,7 +6050,7 @@ pub fn driver_with_profile_opts(
         }
     }
     trace_driver_phase(phase_trace, "artifacts.begin");
-    write_artifacts(
+    let optimisation_metadata = write_artifacts(
         &out_dir,
         &entry_stem,
         &ifaces,
@@ -6063,7 +6064,7 @@ pub fn driver_with_profile_opts(
         &adapters,
         opts,
         &link_plan,
-        opts.emit_interface_optimisations || mode == Mode::EmitObject,
+        mode,
         &contract_hashes,
     )?;
     trace_driver_phase(phase_trace, "artifacts.end");
@@ -6130,7 +6131,8 @@ pub fn driver_with_profile_opts(
             out,
             &emit_modules,
             opts,
-            &out_dir,
+            &contract_hashes,
+            optimisation_metadata,
         );
     }
     let ir = if opts.shared {
@@ -6211,24 +6213,20 @@ fn write_object(
     out: Option<&Path>,
     emit_modules: &[String],
     opts: &DriverOptions,
-    artifacts: &Path,
+    contract_hashes: &std::collections::BTreeMap<&str, String>,
+    mut optimisation_metadata: std::collections::BTreeMap<&str, crate::interface::JsonValue>,
 ) -> Result<i32> {
-    use crate::interface::{parse_json, JsonValue as J};
-    let object = codegen::emit_object_for_modules(profile, program, emit_modules)?;
+    use crate::interface::JsonValue as J;
+    let object = codegen::emit_packed_object(profile, program, emit_modules)?;
     let out = out
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.with_extension("o"));
     let ir_path = out.with_extension("ll");
     let package_execution = !emit_modules.is_empty();
-    let abi_path = if emit_modules.is_empty() {
-        out.with_extension("abi.json")
-    } else {
-        package_execution_path(&out)
-    };
-    let package_path = if emit_modules.is_empty() {
+    let package_path = if !package_execution {
         out.with_extension("cpk")
     } else {
-        abi_path.clone()
+        package_execution_path(&out)
     };
     let private = opts.interface_package_private.as_deref();
     if let Some(module) = private {
@@ -6236,19 +6234,16 @@ fn write_object(
             return Err(Error::plain(format!("invalid object-only interface module {module}")));
         }
     }
-    if out == ir_path || out == abi_path || ((package_execution || opts.interface_package) && (out == package_path || path == package_path)) {
+    if out == ir_path || out == package_path || path == package_path {
         return Err(Error::plain(
             "emit-object output must differ from its LLVM and ABI companions",
         ));
     }
     // A failed rebuild must not leave an old manifest advertising new code.
-    if abi_path.exists() {
-        std::fs::remove_file(&abi_path)
-            .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
-    }
-    if opts.interface_package && package_path.exists() {
-        std::fs::remove_file(&package_path)
-            .map_err(|e| Error::plain(format!("{}: {e}", package_path.display())))?;
+    match std::fs::remove_file(&package_path) {
+        Ok(()) => (),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(error) => return Err(Error::plain(format!("{}: {error}", package_path.display()))),
     }
     std::fs::write(&ir_path, &object.ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
@@ -6274,44 +6269,19 @@ fn write_object(
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    let mut abi = parse_json(&object.abi).map_err(|e| Error::plain(e.to_string()))?;
-    let J::Obj(ref mut fields) = abi else {
+    let J::Obj(mut fields) = object.abi else {
         unreachable!()
     };
-    if !emit_modules.is_empty() {
+    if package_execution {
         fields.insert("kind".into(), "package-execution".into());
         fields.insert("modules".into(), J::arr(emit_modules, |name| name.as_str().into()));
         let name = out.file_name().and_then(|name| name.to_str())
             .ok_or_else(|| Error::plain("package object needs a UTF-8 file name"))?;
         fields.insert("object".into(), name.into());
-        let directory = abi_path.parent().expect("package execution interface directory");
+        let directory = package_path.parent().expect("package execution interface directory");
         std::fs::create_dir_all(directory)
             .map_err(|e| Error::plain(format!("{}: {e}", directory.display())))?;
     }
-    let interfaces = ifaces
-        .iter()
-        .map(|iface| {
-            // The optimisation artifact, when the module has one, is a
-            // sibling of its contract. The package records its content hash
-            // so a consumer can pin the unfoldings it inlines with the same
-            // rigor as the object they came from.
-            let opt_path = artifacts.join(format!("{}.cinchopt", iface.module));
-            let optimisation = match std::fs::read_to_string(&opt_path) {
-                Ok(text) => {
-                    let artifact = crate::ifaceopt::Optimisation::from_json(&text)
-                        .map_err(|e| Error::plain(format!("{}: {e}", opt_path.display())))?;
-                    J::obj([
-                        ("schema", crate::ifaceopt::SCHEMA.into()),
-                        ("iface_hash", artifact.iface_hash.as_str().into()),
-                        ("content_hash", artifact.content_hash().as_str().into()),
-                        ("bodies", (artifact.bodies.len() as u64).into()),
-                    ])
-                }
-                Err(_) => J::Null,
-            };
-            Ok((iface.iface_hash(), optimisation))
-        })
-        .collect::<Result<Vec<_>>>()?;
     fields.insert(
         "method_families".into(),
         J::Arr(
@@ -6347,44 +6317,30 @@ fn write_object(
         "object_content_hash".into(),
         crate::interface::content_hash_bytes(&bytes).into(),
     );
-    if package_execution || opts.interface_package {
-        let entries: Vec<_> = ifaces.iter().zip(&interfaces).filter_map(|(iface, (hash, _))| {
-            (Some(iface.module.as_str()) != private).then_some((iface, hash.as_str()))
-        }).collect();
-        let mut packed_abi = fields.clone();
-        packed_abi.insert("interface_refs".into(), J::Arr(ifaces.iter().zip(&interfaces).map(|(iface, (hash, optimisation))| {
-            J::obj([
-                ("module", iface.module.as_str().into()),
-                ("iface_hash", hash.into()),
-                ("optimisation", optimisation.clone()),
-            ])
-        }).collect()));
-        if let Some((iface, (hash, optimisation))) = ifaces.iter().zip(&interfaces)
-            .find(|(iface, _)| Some(iface.module.as_str()) == private)
-        {
-            packed_abi.insert("private_interfaces".into(), J::Arr(vec![J::obj([
-                ("module", iface.module.as_str().into()),
+    let mut entries = Vec::with_capacity(ifaces.len());
+    let mut references = Vec::with_capacity(ifaces.len());
+    for iface in ifaces {
+        let module = iface.module.as_str();
+        let hash = contract_hashes[module].as_str();
+        let optimisation = optimisation_metadata.remove(module).unwrap_or(J::Null);
+        if Some(module) == private {
+            fields.insert("private_interfaces".into(), J::Arr(vec![J::obj([
+                ("module", module.into()),
                 ("iface_hash", hash.into()),
                 ("interface", iface.packed_document()),
                 ("optimisation", optimisation.clone()),
             ])]));
+        } else {
+            entries.push((iface, hash));
         }
-        let digest = crate::package_interfaces::publish(&package_path, &entries, &J::Obj(packed_abi))?;
-        if package_execution || opts.interface_package_only {
-            return Ok(0);
-        }
-        fields.insert("interface_package_sha256".into(), digest.into());
-    }
-    fields.insert("interfaces".into(), J::Arr(ifaces.iter().zip(interfaces).map(|(iface, (hash, optimisation))| {
-        J::obj([
-            ("module", iface.module.as_str().into()),
+        references.push(J::obj([
+            ("module", module.into()),
             ("iface_hash", hash.into()),
-            ("interface", iface.artifact_document()),
             ("optimisation", optimisation),
-        ])
-    }).collect()));
-    std::fs::write(&abi_path, abi.to_canonical_string())
-        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+        ]));
+    }
+    fields.insert("interface_refs".into(), J::Arr(references));
+    crate::package_interfaces::publish(&package_path, &entries, &J::Obj(fields))?;
     Ok(0)
 }
 

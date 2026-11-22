@@ -170,7 +170,7 @@ fn wide_inline_primitives_publish_wide_object_positions() {
         .unwrap()
         .unwrap();
     let manifest: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(object.with_extension("abi.json")).unwrap())
+        serde_json::from_str(&common::object_metadata(&object))
             .unwrap();
     let units = manifest.as_object().unwrap()["units"].as_array().unwrap();
     for (name, params, wide_result) in [
