@@ -395,7 +395,7 @@ fn build_external_drop_probe(
 ) {
     use cinch::driver::Mode;
     use cinch::lsp::{parse_json, Json};
-    use common::external_frontend::{drive, drive_with_objects};
+    use common::external_frontend::drive;
     use sha2::{Digest, Sha256};
 
     let library = dir.join("AllocationFixture.o");
@@ -428,10 +428,14 @@ fn build_external_drop_probe(
         ("metadata_sha256", Json::Str(sha256(&metadata))),
     ]).to_text()).expect("write the allocation object configuration");
     let ir = dir.join("entry.ll");
-    // Main only calls C. The object supplies the builder and its layout
-    // table prefix, with its checked interfaces embedded in the metadata.
-    drive_with_objects(frontend, Mode::EmitIr, dir, "Main.cinch", Some(ir.clone()), Some(configuration))
-        .expect("emit the entry against the allocation fixture object");
+    // Load the checked contracts and ABI from the same linked package.
+    let emitted = Command::new(&frontend.compiler).current_dir(dir)
+        .args(["--emit-ir", "--interfaces"]).arg(&metadata)
+        .arg("--objects").arg(&configuration).arg(dir.join("Main.cinch")).arg(&ir)
+        .output().expect("emit the entry against the allocation fixture object");
+    assert!(emitted.status.success(), "{}\n{}",
+        String::from_utf8_lossy(&emitted.stderr),
+        std::fs::read_to_string(ir.with_extension("ll.diagnostics")).unwrap_or_default());
     let runtime = PathBuf::from(std::env::var_os("CINCH_TEST_RUNTIME_ARCHIVE")
         .expect("selected frontend requires the matching runtime archive"));
     let mut link = Command::new(clang);
