@@ -9,7 +9,7 @@ module Bootstrap.Object where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Builtin (scalar-intrinsic)
   import Bootstrap.Infer (scalar-interface-contract-matches)
-  import Bootstrap.Nominal (interface-global, global-data-string-string)
+  import Bootstrap.Nominal (interface-global, raw-interface-global, global-data-string-string)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Bootstrap.Document
   import Data.Nat (nat-from-int)
@@ -34,19 +34,17 @@ module Bootstrap.Object where
   export object-string-layout, llvm-data-bytes
 
   data RuntimeUnit where
-    RuntimeUnit :: String -> String -> String -> List Nat -> Option Nat -> RuntimeUnit
+    RuntimeUnit :: String -> String -> List Nat -> Option Nat -> RuntimeUnit
   data RuntimeObject where
     RuntimeObject :: HashMap String RuntimeUnit -> HashMap String () -> HashMap String () -> HashMap String Json -> HashMap String Json -> Json -> RuntimeObject
   unit-symbol :: RuntimeUnit -> String
-  unit-symbol value = case value of RuntimeUnit name key closure params result -> name
-  unit-key :: RuntimeUnit -> String
-  unit-key value = case value of RuntimeUnit name key closure params result -> key
+  unit-symbol value = case value of RuntimeUnit name closure params result -> name
   unit-closure :: RuntimeUnit -> String
-  unit-closure value = case value of RuntimeUnit name key closure params result -> closure
+  unit-closure value = case value of RuntimeUnit name closure params result -> closure
   unit-params :: RuntimeUnit -> List Nat
-  unit-params value = case value of RuntimeUnit name key closure params result -> params
+  unit-params value = case value of RuntimeUnit name closure params result -> params
   unit-result :: RuntimeUnit -> Option Nat
-  unit-result value = case value of RuntimeUnit name key closure params result -> result
+  unit-result value = case value of RuntimeUnit name closure params result -> result
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
@@ -57,22 +55,19 @@ module Bootstrap.Object where
   -- export as well. Private helpers and dictionary workers do not bind names.
   object-unit :: String -> RuntimeObject -> Option RuntimeUnit
   object-unit name value = object-variant name Nil value
-  -- The variant suffix in the identity spelling: `@` is the one escaped
-  -- character and the class letters are plain, so appending the suffix to an
-  -- encoded name is the encoding of the concatenation, character for
-  -- character. Escaping `R`, `O` and `T` as if they needed it produced a
-  -- spelling no producer writes, and every non-empty variant lookup missed.
-  encoded-classes :: List Nat -> String
-  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W") <> encoded-classes rest
-  encoded-variant :: List Nat -> String
-  encoded-variant codes = case codes of Nil -> ""; other -> "$40" <> encoded-classes codes
+  variant-classes :: List Nat -> String
+  variant-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W") <> variant-classes rest
+  variant-name :: String -> List Nat -> String
+  variant-name name codes = case codes of Nil -> name; other -> name <> "@" <> variant-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
-  object-variant name codes value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> if has name exports then hash-map-lookup (name <> encoded-variant codes) units else None
+  object-variant name codes value = case (raw-interface-global name, value) of
+    (Some raw, RuntimeObject units exports instances dictionaries families constructors) ->
+      if has raw exports then hash-map-lookup (variant-name raw codes) units else None
+    other -> None
   instance-symbols :: Json -> HashMap String () -> HashMap String ()
   instance-symbols rows symbols = case rows of
     JArr row rest -> (case field "id" row of
-      JStr name -> instance-symbols rest (hash-map-insert (interface-global name) () symbols)
+      JStr name -> instance-symbols rest (hash-map-insert name () symbols)
       other -> instance-symbols rest symbols)
     other -> symbols
   exported-instances :: List LoadedInterface -> HashMap String () -> HashMap String ()
@@ -82,13 +77,14 @@ module Bootstrap.Object where
   -- Factory workers do not bind ordinary source values. Their authority is
   -- a checked instance export and its actual selected native inventory row.
   object-dictionary :: String -> List Nat -> RuntimeObject -> Option (RuntimeUnit, String, Nat, List Nat)
-  object-dictionary name codes value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> if not (has name instances) then None else
-      (let key = name <> encoded-variant codes in case hash-map-lookup key dictionaries of
-        Some row -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), hash-map-lookup (key <> "$2emk") units) of
+  object-dictionary name codes value = case (raw-interface-global name, value) of
+    (Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
+      (let key = variant-name raw codes in case hash-map-lookup key dictionaries of
+        Some row -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), hash-map-lookup (key <> ".mk") units) of
           (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
           other -> None)
         None -> None)
+    other -> None
   conditional-method-at :: Nat -> Json -> Option String
   conditional-method-at index rows = case rows of
     JArr (JStr name) rest -> if index == 0 then Some name else conditional-method-at (index - 1) rest
@@ -96,11 +92,11 @@ module Bootstrap.Object where
   -- A closed conditional method is callable through its actual exported
   -- instance and checked declaring slot, never through ordinary value scope.
   object-conditional-unit :: String -> String -> Nat -> String -> List Nat -> RuntimeObject -> Option RuntimeUnit
-  object-conditional-unit owner dictionary slot name codes value = case (codes, value) of
-    (Nil, RuntimeObject units exports instances dictionaries families constructors) -> if not (has dictionary instances) then None else
-      (case hash-map-lookup dictionary dictionaries of
+  object-conditional-unit owner dictionary slot name codes value = case (codes, raw-interface-global dictionary, value) of
+    (Nil, Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
+      (case hash-map-lookup raw dictionaries of
         Some row -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
-          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then hash-map-lookup name units else None
+          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then hash-map-lookup method units else None
           other -> None)
         None -> None)
     other -> None
@@ -112,21 +108,22 @@ module Bootstrap.Object where
   closed-function-fields :: HashMap String RuntimeUnit -> List Nat -> Json -> Bool
   closed-function-fields units fields methods = case (fields, methods) of
     (Nil, JArrEnd) -> True
-    (Cons 1 rest, JArr (JStr name) more) -> (case hash-map-lookup (interface-global name) units of
+    (Cons 1 rest, JArr (JStr name) more) -> (case hash-map-lookup name units of
       Some unit -> (case unit-params unit of Nil -> False; other -> True) && closed-function-fields units rest more
       None -> False)
     other -> False
   object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
-  object-closed-method-unit owner factory slot value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> if not (has factory instances) then None else
-      (case hash-map-lookup factory dictionaries of
+  object-closed-method-unit owner factory slot value = case (raw-interface-global factory, value) of
+    (Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
+      (case hash-map-lookup raw dictionaries of
         Some row -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
           (JStr actual-owner, JNum 0, Some fields) -> if not (same owner (interface-global actual-owner) && closed-function-fields units fields (field "methods" row)) then None else
             (case conditional-method-at slot (field "methods" row) of
-              Some method -> hash-map-lookup (interface-global method) units
+              Some method -> hash-map-lookup method units
               None -> None)
           other -> None)
         None -> None)
+    other -> None
   own-classes :: String -> Nat -> Option (List Nat)
   own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
     (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 && byte /= 87 then None else
@@ -177,14 +174,15 @@ module Bootstrap.Object where
     JArrEnd -> Some Nil
     other -> None
   object-family :: String -> RuntimeObject -> Option (Nat, List (Nat, Nat, List Nat))
-  object-family owner value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> case hash-map-lookup owner families of
+  object-family owner value = case (raw-interface-global owner, value) of
+    (Some raw, RuntimeObject units exports instances dictionaries families constructors) -> (case hash-map-lookup raw families of
       Some row -> (case field "declared_methods" row of
         JNum count | count >= 0 -> (case family-slots (field "slots" row) (nat-from-int count) 0 of
           Some slots -> Some (nat-from-int count, slots)
           None -> None)
         other -> None)
-      None -> None
+      None -> None)
+    other -> None
   -- Runtime String is the defining library's private one-Bytes wrapper.
   -- Check its actual description: an inline tag 0 whose one field (the
   -- Bytes) is counted, header layout field 256. This does not bind StrBuf
@@ -207,35 +205,57 @@ module Bootstrap.Object where
     JArr first rest -> (case (class-code first, classes rest) of (Some code, Some more) -> Some (Cons code more); other -> None)
     JArrEnd -> Some Nil
     other -> None
-  -- Encoding preserves the complete symbol. The table rejects duplicate
-  -- metadata rows during admission and serves later worker lookups.
+  -- Packed objects put keys in byte order. Recognize both common unit
+  -- shapes in one pass and use ordinary field lookup for legacy rows.
+  unit-fields :: Json -> (Json, Json, Json, Json, Json)
+  unit-fields row =
+    let fields = (case row of
+      JObj a arity (JObj c closure tail) | same a "arity" && same c "closure_entry" ->
+        (case unit-body-fields (skip-lent-fields tail) of
+          Some (name, params, result) -> Some (name, closure, arity, params, result)
+          None -> None)
+      other -> None) in
+    case fields of
+      Some ordered -> ordered
+      None -> (field "symbol" row, field "closure_entry" row, field "arity" row, field "params" row, field "result" row)
+  skip-lent-fields :: Json -> Json
+  skip-lent-fields row = case row of
+    JObj key lent (JObj entry name (JObj width count rest))
+      | same key "lent" && same entry "lent_entry" && same width "lent_width" -> rest
+    other -> row
+  unit-body-fields :: Json -> Option (Json, Json, Json)
+  unit-body-fields row = case row of
+    JObj p params (JObj r result (JObj s name JObjEnd))
+      | same p "params" && same r "result" && same s "symbol" -> Some (name, params, result)
+    other -> None
+
   units :: Json -> HashMap String RuntimeUnit -> Result String (HashMap String RuntimeUnit)
   units doc table = case doc of
-    JArr row rest -> (case (field "symbol" row, field "closure_entry" row, field "arity" row, classes (field "params" row)) of
-      (JStr name, JStr closure, JNum arity, Some params) ->
-        if string-length name == 0 || not (same closure (name <> ".object-closure")) || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
-        let key = interface-global name in
-        (case hash-map-lookup key table of
-          Some prior -> Err "invalid or duplicate runtime object unit"
-          None -> (case field "result" row of
-            JNull -> add-unit (RuntimeUnit name key closure params None) rest table
-            value -> (case class-code value of
-              Some result -> add-unit (RuntimeUnit name key closure params (Some result)) rest table
-              None -> Err "invalid runtime object result class")))
+    JArr row rest -> (case unit-fields row of
+      (JStr name, JStr closure, JNum arity, arguments, result) ->
+        (case classes arguments of
+          None -> Err "malformed runtime object unit"
+          Some params ->
+            if string-byte-length name == 0 || not (same closure (name <> ".object-closure")) || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
+            (case hash-map-lookup name table of
+              Some prior -> Err "invalid or duplicate runtime object unit"
+              None -> (case result of
+                JNull -> units rest (hash-map-insert name (RuntimeUnit name closure params None) table)
+                value -> (case class-code value of
+                  Some code -> units rest (hash-map-insert name (RuntimeUnit name closure params (Some code)) table)
+                  None -> Err "invalid runtime object result class"))))
       other -> Err "malformed runtime object unit")
     JArrEnd -> Ok table
     other -> Err "malformed runtime object units"
-  add-unit :: RuntimeUnit -> Json -> HashMap String RuntimeUnit -> Result String (HashMap String RuntimeUnit)
-  add-unit unit rest table = units rest (hash-map-insert (unit-key unit) unit table)
   -- The first row for a key wins, as in an ordered metadata lookup.
   index-dictionaries :: Json -> HashMap String Json
   index-dictionaries rows = case rows of
-    JObj key value rest -> hash-map-insert (interface-global key) value (index-dictionaries rest)
+    JObj key value rest -> hash-map-insert key value (index-dictionaries rest)
     other -> hash-map-empty
   index-families :: Json -> HashMap String Json
   index-families rows = case rows of
     JArr row rest -> (case (field "class" row, field "declared_methods" row) of
-      (JStr name, JNum count) -> hash-map-insert (interface-global name) row (index-families rest)
+      (JStr name, JNum count) -> hash-map-insert name row (index-families rest)
       other -> hash-map-empty)
     other -> hash-map-empty
   -- The contracts the object carries, as the documents it already parsed:
@@ -331,18 +351,21 @@ module Bootstrap.Object where
       (JArrEnd, JArrEnd, JArrEnd, JArrEnd, JArrEnd) -> scalar-reexport-values (field "values" exports) represented
       other -> False
   -- | Preserve represented module hashes and separately classify code-free external aliases.
-  matching-interface :: LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
-  matching-interface wanted actual interfaces = matching-interface-provider wanted actual interfaces actual
-  -- | Retain the complete represented inventory while searching for an exact module hash match.
-  matching-interface-provider :: LoadedInterface -> List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
-  matching-interface-provider wanted remaining interfaces represented = case remaining of
-    Nil -> foreign-interface-only wanted interfaces || scalar-reexport-only wanted represented
-    Cons first rest -> if same (loaded-module wanted) (loaded-module first) then same (loaded-hash wanted) (loaded-hash first)
-      else matching-interface-provider wanted rest interfaces represented
   matching-interfaces :: List LoadedInterface -> List LoadedInterface -> Bool
-  matching-interfaces wanted actual = matching-interface-list wanted actual wanted
-  matching-interface-list :: List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
-  matching-interface-list wanted actual interfaces = case wanted of Nil -> True; Cons first rest -> matching-interface first actual interfaces && matching-interface-list rest actual interfaces
+  matching-interfaces wanted actual =
+    matching-interface-list wanted (index-object-interfaces (reverse actual) hash-map-empty) wanted actual
+  index-object-interfaces :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
+  index-object-interfaces actual indexed = case actual of
+    Nil -> indexed
+    Cons first rest -> index-object-interfaces rest (hash-map-insert (loaded-module first) first indexed)
+  matching-interface-list :: List LoadedInterface -> HashMap String LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
+  matching-interface-list remaining indexed wanted actual = case remaining of
+    Nil -> True
+    Cons first rest ->
+      (case hash-map-lookup (loaded-module first) indexed of
+        Some represented -> same (loaded-hash first) (loaded-hash represented)
+        None -> foreign-interface-only first wanted || scalar-reexport-only first actual)
+      && matching-interface-list rest indexed wanted actual
   exported-symbols :: List LoadedInterface -> HashMap String () -> HashMap String ()
   exported-symbols interfaces symbols = case interfaces of
     Nil -> symbols
@@ -350,7 +373,7 @@ module Bootstrap.Object where
   value-symbols :: List ImportedValue -> HashMap String () -> HashMap String ()
   value-symbols values symbols = case values of
     Nil -> symbols
-    Cons first rest -> value-symbols rest (hash-map-insert (interface-global (imported-symbol first)) () symbols)
+    Cons first rest -> value-symbols rest (hash-map-insert (imported-symbol first) () symbols)
   -- The runtime object a manifest document states. The caller parses the
   -- manifest once and passes the document on, because the same bytes are also
   -- the artifact it returns: parsing them a second time to recover them was

@@ -13,7 +13,7 @@ module Bootstrap.Nominal where
   import Data.Char (char-from-code)
   import Data.String (string-from-bytes, string-to-bytes)
 
-  export interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
+  export interface-global, raw-interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
   export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-string-length, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
   export stage-quotation-module, stage-code-type-name, global-stage-code, global-stage-str-nat
@@ -77,19 +77,28 @@ module Bootstrap.Nominal where
   -- the first character outside the grammar, which is how a name embedded in
   -- a longer spelling keeps its suffix.
   decode-identity :: List Char -> Option (String, List Char)
-  decode-identity chars = case decode-run chars Nil of
+  decode-identity chars = case decode-run False chars Nil of
     Some (reversed, rest) -> Some (pack (reverse reversed), rest)
     None -> None
-  decode-run :: List Char -> List Char -> Option (List Char, List Char)
-  decode-run chars reversed = case chars of
+  -- The object index uses the producer's spelling. Its lookups still
+  -- admit only the complete canonical global name.
+  raw-interface-global :: String -> Option String
+  raw-interface-global name = case unpack name of
+    Cons prefix (Cons dot tail) | char-code prefix == 105 && char-code dot == 46 -> (case decode-run True tail Nil of
+      Some (reversed, Nil) -> Some (pack (reverse reversed))
+      other -> None)
+    other -> None
+
+  decode-run :: Bool -> List Char -> List Char -> Option (List Char, List Char)
+  decode-run canonical chars reversed = case chars of
     Nil -> Some (reversed, Nil)
     Cons c rest -> let code = char-code c in
-      if plain-code code then decode-run rest (Cons c reversed)
+      if plain-code code then decode-run canonical rest (Cons c reversed)
       else if code == 36 then (case hex-byte rest of
-        Some (lead, more) -> (case decode-scalar lead more of
-          Some (scalar, after) -> decode-run after (Cons scalar reversed)
+        Some (lead, more) | not (canonical && plain-code lead) -> (case decode-scalar lead more of
+          Some (scalar, after) -> decode-run canonical after (Cons scalar reversed)
           None -> None)
-        None -> None)
+        other -> None)
       else Some (reversed, chars)
   -- Each admitted lead and continuation byte's payload is taken modulo its
   -- field width, which is the same number for every value its width admits:
