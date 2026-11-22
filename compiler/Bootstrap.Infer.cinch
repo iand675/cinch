@@ -9070,7 +9070,7 @@ module Bootstrap.Infer where
   total-imported-methods interfaces dictionary description factory members kinds st = case members of
     Nil -> (kinds, st)
     Cons member rest -> case specialize-method description factory member of
-      Some sc -> (case check-imported-method-binding interfaces dictionary (class-method-slot member) sc of
+      Some sc -> (case check-imported-method-binding-by-id interfaces dictionary (class-method-slot member) sc of
         Some binding -> (case context-add-total zero binding kinds st of (more, checked) -> total-imported-methods interfaces dictionary description factory rest more checked)
         None -> total-imported-methods interfaces dictionary description factory rest kinds st)
       None -> total-imported-methods interfaces dictionary description factory rest kinds st
@@ -9086,7 +9086,7 @@ module Bootstrap.Infer where
       (case (store-errors checked, scheme-params factory, scheme-requirements factory, field "id" row, root-name (scheme-body factory)) of
         (Nil, Nil, Nil, JStr native, Some owner) -> (case typed-class zero owner descriptions classes kinds checked of
           (Some description, complete) -> (case store-errors complete of
-            Nil -> (case total-imported-methods interfaces (interface-global native) description factory (class-methods description) kinds st of
+            Nil -> (case total-imported-methods interfaces native description factory (class-methods description) kinds st of
               (more, done) -> total-imported-instances interfaces descriptions classes rest more done)
             other -> total-imported-instances interfaces descriptions classes rest kinds st)
           other -> total-imported-instances interfaces descriptions classes rest kinds st)

@@ -52,6 +52,8 @@ module Main where
       else if (case check-imported-method-binding interfaces dict 999 (mono method-type) of None -> False; Some forged -> True) then 15
       else if (case check-imported-method-binding interfaces "made-up-dictionary" 0 (mono method-type) of None -> False; Some forged -> True) then 16
       else if (case check-imported-method-binding interfaces dict 0 (mono (UFun boolean (UFun nat boolean))) of None -> False; Some forged -> True) then 17
+      else if (case check-imported-method-binding interfaces "i.$44ata$2eNat$2eOrd_Nat" 0 (mono method-type) of None -> False; Some forged -> True) then 21
+      else if not (case check-imported-method-binding-by-id interfaces "Data.Nat.Ord_Nat" 0 (mono method-type) of Some indexed -> binding-equal body indexed; None -> False) then 22
       else if wanted then (if actual scope then 0 else 18)
       else (if unknown scope (call (method 0 [evidence])) then 0 else 19)
   main :: Unit ->{IO r} Int

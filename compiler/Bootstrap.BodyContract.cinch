@@ -9,8 +9,8 @@ module Bootstrap.BodyContract where
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.Proof
-  import Bootstrap.Load (LoadedInterface, InterfaceSet, loaded-contract, interface-set-members, interface-set-body, loaded-entry)
-  import Bootstrap.Nominal (interface-global, kernel-type-name, resolved-text, global-data-ordering-ordering, global-relation-ord-ord)
+  import Bootstrap.Load (LoadedInterface, InterfaceSet, interface-set-members, interface-set-body, loaded-entry)
+  import Bootstrap.Nominal (decode-identity, interface-global, kernel-type-name, resolved-text, global-data-ordering-ordering, global-relation-ord-ord)
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-to-int)
@@ -22,6 +22,7 @@ module Bootstrap.BodyContract where
   export BodyBindings, empty-body-bindings, body-bindings-members, check-body-bindings, extend-body-bindings
   export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
   export check-source-body-binding, check-imported-method-binding, selected-method-body, method-selection-matches, ordering-method-matches
+  export check-imported-method-binding-by-id
 
   data BodyBinding where
     VerifiedBody :: String -> String -> String -> Scheme -> TotalFunction -> BodyBinding
@@ -65,27 +66,15 @@ module Bootstrap.BodyContract where
   method-text value = case value of JStr text -> text; other -> ""
   method-at :: Nat -> Json -> Option String
   method-at slot rows = case rows of JArr (JStr native) rest -> if slot == 0 then Some native else method-at (slot - 1) rest; other -> None
-  selected-implementation :: String -> Nat -> Json -> Option String
-  selected-implementation dictionary slot rows = case rows of
-    JArr row rest -> if same dictionary (interface-global (method-text (method-field "id" row))) then method-at slot (method-field "methods" row) else selected-implementation dictionary slot rest
-    other -> None
-  declared-implementation :: String -> Nat -> List LoadedInterface -> Option String
-  declared-implementation dictionary slot interfaces = case interfaces of
-    Nil -> None
-    Cons first rest -> case selected-implementation dictionary slot (method-field "instances" (method-field "exports" (loaded-contract first))) of
-      Some native -> Some native
-      None -> declared-implementation dictionary slot rest
   -- Both the dictionary implementation and its declaring method come from
   -- this complete checked interface set. A body alone cannot authorize a
   -- different method name, owner, class actuals or evidence subject.
-  instance-row :: String -> Json -> Option Json
-  instance-row dictionary rows = case rows of
-    JArr row rest -> if same dictionary (interface-global (method-text (method-field "id" row))) then Some row else instance-row dictionary rest
-    other -> None
   declared-instance :: String -> List LoadedInterface -> Option Json
-  declared-instance dictionary interfaces = case interfaces of
+  declared-instance identity interfaces = case interfaces of
     Nil -> None
-    Cons first rest -> case instance-row dictionary (method-field "instances" (method-field "exports" (loaded-contract first))) of Some row -> Some row; None -> declared-instance dictionary rest
+    Cons first rest -> case loaded-entry first "instance" identity of
+      Some row -> Some row
+      None -> declared-instance identity rest
   factory-owner :: TypeExpr -> Option String
   factory-owner factory = case factory of TName s name -> Some name; TApp s head args -> factory-owner head; other -> None
   declared-member-at :: Nat -> Json -> Option String
@@ -133,14 +122,22 @@ module Bootstrap.BodyContract where
       && binding-matches (binding-name binding) "external" (mono (UFun key (UFun key (UCon "Bool" KType)))) binding
     other -> False
   check-imported-method-binding :: InterfaceSet -> String -> Nat -> Scheme -> Option BodyBinding
-  check-imported-method-binding interfaces dictionary slot sc = case declared-instance dictionary (interface-set-members interfaces) of
+  check-imported-method-binding interfaces dictionary slot sc = case unpack dictionary of
+    Cons prefix (Cons dot rest) | char-code prefix == 105 && char-code dot == 46 ->
+      (case decode-identity rest of
+        Some (identity, Nil) | same (interface-global identity) dictionary ->
+          check-imported-method-binding-by-id interfaces identity slot sc
+        other -> None)
+    other -> None
+  check-imported-method-binding-by-id :: InterfaceSet -> String -> Nat -> Scheme -> Option BodyBinding
+  check-imported-method-binding-by-id interfaces identity slot sc = case declared-instance identity (interface-set-members interfaces) of
     Some row -> (case (method-at slot (method-field "methods" row), resolved-text row, method-field "ctx" row) of
       (Some native, Some text, JArrEnd) -> (case parse-scheme "checked method factory" (string-to-bytes text) of
         Parsed factory Nil -> (case factory-owner factory of
           Some owner -> (case declared-member owner slot (interface-set-members interfaces) of
             Some member -> (case interface-set-body native interfaces of
               Some function -> (case check-body-binding (interface-global native) native "external" sc function of
-                Some body -> Some (VerifiedMethodBody dictionary slot (interface-global owner) (interface-global (string-concat-all [owner, ".", member])) text factory body)
+                Some body -> Some (VerifiedMethodBody (interface-global identity) slot (interface-global owner) (interface-global (string-concat-all [owner, ".", member])) text factory body)
                 None -> None)
               None -> None)
             None -> None)
