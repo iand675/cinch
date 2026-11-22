@@ -38,6 +38,7 @@ module Bootstrap.Load where
   export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known, load-body-interfaces-with-admission
+  export prepare-body-interface-load
   export check-interface-set, interface-set-members
   export contract-nominals, contract-usage-nominals
   export interface-set-body, interface-set-has-body, admitted-packed-function
@@ -163,7 +164,10 @@ module Bootstrap.Load where
   load-checked-body-interface-set-from-documents :: List (String, String, Json) -> Result String InterfaceSet
   load-checked-body-interface-set-from-documents inputs = load-body-interfaces-with-known Nil inputs
   load-body-interfaces-with-known :: List LoadedInterface -> List (String, String, Json) -> Result String InterfaceSet
-  load-body-interfaces-with-known known inputs = case read-interface-inputs (read-known-document (interface-table (reverse known) hash-map-empty)) inputs of
+  load-body-interfaces-with-known known inputs =
+    load-body-interfaces-using (read-known-document (interface-table (reverse known) hash-map-empty)) inputs
+  load-body-interfaces-using :: (String -> String -> Json -> Result String LoadedInterface) -> List (String, String, Json) -> Result String InterfaceSet
+  load-body-interfaces-using load inputs = case read-interface-inputs load inputs of
     Err error -> Err error
     Ok members -> check-interface-set (body-closed-interfaces members)
 
@@ -174,6 +178,17 @@ module Bootstrap.Load where
     MkValidatedInterfaces members closures ordered ->
       if ordered && admitted-body-documents members inputs then Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
       else load-body-interfaces-with-known members inputs
+
+  -- A resident compiler can keep the checked body index and the fallback
+  -- module table together. True attests to the exact document sequence
+  -- for other projections of the same package.
+  prepare-body-interface-load :: ValidatedInterfaces -> (List (String, String, Json) -> (Result String InterfaceSet, Bool))
+  prepare-body-interface-load (MkValidatedInterfaces members closures ordered) =
+    let known = read-known-document (interface-table (reverse members) hash-map-empty) in
+    let fallback = \inputs -> (load-body-interfaces-using known inputs, False) in
+    if not ordered then fallback else
+      let prepared = CheckedInterfaceSet members (index-graph-bodies (set-bodies members)) in
+      \inputs -> if admitted-body-documents members inputs then (Ok prepared, True) else fallback inputs
 
   admitted-body-documents :: List LoadedInterface -> List (String, String, Json) -> Bool
   admitted-body-documents members inputs = case (members, inputs) of

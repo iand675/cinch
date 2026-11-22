@@ -17,7 +17,7 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, module-name-index, Decl, DClass)
-  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, prepare-admitted-check, checked-surface, checked-elaboration, checked-generated, with-generated)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
@@ -254,7 +254,8 @@ module Bootstrap.Pipeline where
         let headers = module-name-index (interface-fixity-headers interfaces) in
         let admitted = canonical-interface-validation checked in
         let resolve = prepare-admitted-resolution admitted in
-        let check = check-object-client-using profile interfaces (checked-admitted-source-using profile interfaces admitted resolve) in
+        let retain = (case admitted of Ok canonical -> prepare-admitted-check canonical; Err message -> check-and-retain-with-interfaces interfaces) in
+        let check = check-object-client-using profile interfaces (checked-admitted-source-using profile interfaces retain resolve) in
         case ioWrite (string-to-bytes "ready\n") of
           _ -> serve-object-builds (string-to-bytes "\n")
             (\unit -> emit-object-client-using inlining debug reclaim profile IrOnly interfaces provider
@@ -381,14 +382,15 @@ module Bootstrap.Pipeline where
   checked-source profile program interfaces = check-source-phase profile interfaces (\input -> resolve-program-with input interfaces) program
   checked-admitted-source :: TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   checked-admitted-source profile checked overlays program =
+    let interfaces = validated-interfaces-members checked in
     let admitted = canonical-interface-validation checked in
-    checked-admitted-source-using profile (validated-interfaces-members checked) admitted
+    let check = (case admitted of
+      Ok canonical -> check-and-retain-with-admitted-interfaces canonical
+      Err message -> check-and-retain-with-interfaces interfaces) in
+    checked-admitted-source-using profile interfaces check
       (\input replacements -> resolve-admitted-signature-overlays input admitted replacements) overlays program
-  checked-admitted-source-using :: TargetProfile -> List LoadedInterface -> Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
-  checked-admitted-source-using profile interfaces admitted resolve overlays program =
-    let check = \resolved -> case admitted of
-          Ok canonical -> check-and-retain-with-admitted-interfaces canonical resolved
-          Err message -> check-and-retain-with-interfaces interfaces resolved in
+  checked-admitted-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> List LoadedInterface -> (Program, List Diagnostic)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
+  checked-admitted-source-using profile interfaces check resolve overlays program =
     check-source-using profile interfaces check (\input -> resolve input overlays) program
   check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase profile interfaces resolve program =

@@ -47,9 +47,10 @@ module Bootstrap.Check where
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Bootstrap.Load (LoadedInterface, ValidatedInterfaces)
-  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaboration-errors, needs-inference, infer-program)
+  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, prepare-admitted-elaboration, elaboration-errors, needs-inference, infer-program)
 
   export check-program, CheckedProgram, checked-generated, with-generated, check-and-retain, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration
+  export prepare-admitted-check
 
   -- The constructor stays private. A backend receives the resolved source
   -- and retained typed declarations only after the current independent
@@ -74,6 +75,10 @@ module Bootstrap.Check where
   check-and-retain-with-interfaces known program = check-and-retain-using (elaborate-with-interfaces known rung) program
   check-and-retain-with-admitted-interfaces :: ValidatedInterfaces -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-with-admitted-interfaces admitted program = check-and-retain-using (elaborate-with-admitted-interfaces admitted rung) program
+  prepare-admitted-check :: ValidatedInterfaces -> (Program -> Result (List Diagnostic) CheckedProgram)
+  prepare-admitted-check admitted =
+    let elaborate = prepare-admitted-elaboration admitted rung in
+    \program -> check-and-retain-using elaborate program
   check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-using elaborate program =
     let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
