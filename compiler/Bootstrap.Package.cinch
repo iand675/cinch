@@ -370,7 +370,7 @@ module Bootstrap.Package where
         5 -> if cursor + 4 > limit then Err "truncated array header" else
           read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil table (digest-token table hash 91)
         6 -> if cursor + 4 > limit then Err "truncated object header" else
-          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None Nil table (digest-token table hash 123)
+          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None JObjEnd table (digest-token table hash 123)
         7 -> (case definitions of
           RecipeDefinitions rows | cursor + 4 <= limit -> (case read-definitions address rows (word address cursor) (cursor + 4) limit 0 Nil of
             Err message -> Err message
@@ -387,19 +387,43 @@ module Bootstrap.Package where
   read-number :: I64 -> Definitions -> Nat -> Nat -> Bool -> Option StringTable -> U64 -> Result String (Json, Nat, U64, Definitions)
   read-number address definitions at limit negative table hash =
     if at + 8 > limit then Err "truncated structured contract integer" else
-      let value = nat-to-int (word address at + word address (at + 4) * 4294967296) in
+      let low = word address at in
+      let high = word address (at + 4) in
+      let value = nat-to-int (if high == 0 then low else low + high * 4294967296) in
       let number = JNum (if negative then 0 - value else value) in
-      Ok (number, at + 8, digest-value table hash number, definitions)
+      let digest = (case table of
+        None -> hash
+        Some _ | high == 0 && low < 100 ->
+          let signed = if negative && low /= 0 then fnv-byte hash 45 else hash in
+          fnv-small-decimal signed (wrapping-i64-to-u64 (machine-offset low))
+        other -> fnv-json-value hash number) in
+      Ok (number, at + 8, digest, definitions)
+
+  -- Exact decimal bytes for a checked magnitude below 100.
+  prim fnv-small-decimal :: U64 -> U64 -> U64 where
+    llvm {
+      %tens = udiv i64 %1, 10
+      %ones = urem i64 %1, 10
+      %leading = add i64 %tens, 48
+      %leading-state = xor i64 %0, %leading
+      %with-leading = mul i64 %leading-state, 1099511628211
+      %two-digits = icmp uge i64 %1, 10
+      %state = select i1 %two-digits, i64 %with-leading, i64 %0
+      %last = add i64 %ones, 48
+      %mixed = xor i64 %state, %last
+      %digest = mul i64 %mixed, 1099511628211
+      ret i64 %digest
+    }
 
   array-from-reverse :: List Json -> Json -> Json
   array-from-reverse items out = case items of
     Nil -> out
     Cons item rest -> array-from-reverse rest (JArr item out)
 
-  object-from-reverse :: List (String, Json) -> Json -> Json
+  object-from-reverse :: Json -> Json -> Json
   object-from-reverse items out = case items of
-    Nil -> out
-    Cons (name, item) rest -> object-from-reverse rest (JObj name item out)
+    JObj name item rest -> object-from-reverse rest (JObj name item out)
+    other -> out
 
   read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
   read-array address strings definitions left at limit depth items table hash =
@@ -414,14 +438,13 @@ module Bootstrap.Package where
     None -> False
     Some earlier -> string-compare earlier name >= 0
 
-  contract-field-projection :: Nat -> String -> Option Json
-  contract-field-projection depth name =
-    if depth /= 255 then None
-    else if string-compare name "compiler" == 0 || string-compare name "source_hash" == 0 then Some (JStr "")
+  contract-field-projection :: String -> Option Json
+  contract-field-projection name =
+    if string-compare name "compiler" == 0 || string-compare name "source_hash" == 0 then Some (JStr "")
     else if string-compare name "units" == 0 then Some JArrEnd
     else None
 
-  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
+  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
   read-object address strings definitions left at limit depth previous items table hash =
     if left == 0 then Ok (object-from-reverse items JObjEnd, at, digest-token table hash 125, definitions)
     else if at + 4 > limit then Err "truncated field key" else
@@ -430,13 +453,13 @@ module Bootstrap.Package where
           None -> Err "field key outside package string table"
           Some name -> if out-of-order previous name then Err "unordered or duplicate structured contract field" else
             (let prefix = digest-token table (digest-string address table hash id name) 58 in
-              let projected = case table of None -> None; Some spans -> contract-field-projection depth name in
+              let projected = case table of Some spans | depth == 255 -> contract-field-projection name; other -> None in
               let field-table = case projected of None -> table; Some placeholder -> None in
               case read-value address strings definitions (at + 4) limit depth field-table prefix of
                 Err message -> Err message
                 Ok (item, end, digest, decoded) ->
                   let next = case projected of None -> digest; Some placeholder -> digest-value table prefix placeholder in
-                  read-object address strings decoded (left - 1) end limit depth (Some name) (Cons (name, item) items)
+                  read-object address strings decoded (left - 1) end limit depth (Some name) (JObj name item items)
                     table (if left == 1 then next else digest-token table next 44)))
 
   read-definitions :: I64 -> Array Json -> Nat -> Nat -> Nat -> Nat -> List Json -> Result String (Json, Nat)

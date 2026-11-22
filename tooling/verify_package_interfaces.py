@@ -66,7 +66,7 @@ module Main where
     document["digest_probe"] = {
         "compiler": "".join(map(chr, range(32))) + '\\"π𐍈',
         "source_hash": "nested fields are part of the contract",
-        "units": [False, None, True, -(2**64 - 1), 2**64 - 1, [], {}],
+        "units": [False, None, True, -(2**64 - 1), 2**64 - 1, 0, 9, 10, 99, 100, -9, -10, -99, -100, [], {}],
     }
     for export in document["exports"]["values"]:
         for definition in export["total_body"]["definitions"]:
