@@ -89,6 +89,7 @@ use crate::core::{
 };
 use crate::types::Scalar;
 use crate::Result;
+use std::borrow::Cow;
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -969,14 +970,14 @@ fn emit_module(
     // reach it, whatever the artifact is: its units are not exported, so
     // nothing outside can need one that nothing here calls.
     let reachable = if prune && !object && emit_modules.is_empty() {
-        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone()), &[]))
+        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.as_str()), &[]))
     } else if !program.private_modules.is_empty() {
-        let own: Vec<String> = units
+        let own: Vec<&str> = units
             .iter()
             .filter(|u| emitted_symbol(&u.name, &shipped_modules) && !private(&u.name))
-            .map(|u| u.name.clone())
+            .map(|u| u.name.as_str())
             .collect();
-        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone()), &own))
+        Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.as_str()), &own))
     } else {
         None
     };
@@ -986,12 +987,13 @@ fn emit_module(
     // pass over the units. A program that only ever calls its functions
     // directly emits no stubs at all, and a stub is the largest single
     // piece of a small unit's output.
-    let mut closure_taken: HashSet<String> = HashSet::new();
+    let mut closure_taken: HashSet<&str> = HashSet::new();
     for u in &units {
-        closure_taken.extend(u.scan.closures_taken.iter().cloned());
+        closure_taken.extend(u.scan.closures_taken.iter().map(String::as_str));
     }
+    let primitive_symbols: HashSet<String> = reg.prims.iter().map(|op| op.symbol()).collect();
     for u in &units {
-        let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
+        let primitive = primitive_symbols.contains(&u.name);
         if !emitted_symbol(&u.name, emit_modules) && !primitive {
             continue;
         }
@@ -999,7 +1001,7 @@ fn emit_module(
             // A subset build keeps every primitive wrapper, as it did before
             // private modules were pruned by reach.
             let kept = primitive && !program.private_modules.is_empty();
-            if !reachable.contains(&u.name) && !kept {
+            if !reachable.contains(u.name.as_str()) && !kept {
                 continue;
             }
         }
@@ -1034,7 +1036,7 @@ fn emit_module(
             // whose closure nothing names needs neither, and `prune`
             // false (`emit`, the inspection entry point) keeps every unit
             // whole.
-            object || !prune || closure_taken.contains(&u.name),
+            object || !prune || closure_taken.contains(u.name.as_str()),
         );
         if object && reg.arity.contains_key(&u.name) && !private(&u.name) {
             // Static closure blocks are module-local. Export an accessor
@@ -1110,7 +1112,7 @@ fn emit_module(
     out.push_str(&reg.finish_meta());
     // Use the same deduplicated IR to compute the ABI identity and to write
     // the object, so the recorded hash describes the bytes actually emitted.
-    let ir = dedupe_static_blocks(&out);
+    let ir = dedupe_static_blocks(out);
     let abi = if object {
         reg.object_abi(program, profile, &ir, shipped, &shipped_modules)?
     } else {
@@ -3704,12 +3706,11 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
 /// that needs its address, and a module can reach that address from more
 /// than one unit (a constructor unit of its own, a prim wrapper, a
 /// specialised copy). LLVM allows one definition, so the assembler keeps the
-/// first and drops the identical repeats; a *differing* repeat is a bug and
-/// is left for the verifier to refuse.
-fn dedupe_static_blocks(text: &str) -> String {
-    use std::collections::HashSet;
+/// first.
+fn dedupe_static_blocks(text: String) -> String {
     let mut seen: HashSet<&str> = HashSet::new();
-    let mut out = String::with_capacity(text.len());
+    let mut duplicates = Vec::new();
+    let mut offset = 0;
     for line in text.split_inclusive('\n') {
         if line.starts_with('@') && line.contains(".blk#h\" = internal constant") {
             let end = line.find('"').map(|first| {
@@ -3719,15 +3720,30 @@ fn dedupe_static_blocks(text: &str) -> String {
                 Some(last) => {
                     let symbol = &line[1..last];
                     if !seen.insert(symbol) {
-                        continue;
+                        duplicates.push(offset..offset + line.len());
                     }
                 }
                 None => {}
             }
         }
-        out.push_str(line);
+        offset += line.len();
     }
-    out
+    let Some(first) = duplicates.first() else {
+        return text;
+    };
+    // Compact the retained ranges in the original buffer. The ranges end
+    // at line boundaries, so the compacted buffer remains UTF-8.
+    let mut bytes = text.into_bytes();
+    let mut write = first.start;
+    let mut read = write;
+    for duplicate in duplicates {
+        bytes.copy_within(read..duplicate.start, write);
+        write += duplicate.start - read;
+        read = duplicate.end;
+    }
+    bytes.copy_within(read.., write);
+    bytes.truncate(write + bytes.len() - read);
+    String::from_utf8(bytes).expect("removing complete lines preserves UTF-8")
 }
 
 fn assemble_unit(
@@ -3741,21 +3757,22 @@ fn assemble_unit(
     // The function attribute group precedes metadata attachments on the
     // `define` line (`define ... #4 !immarg !0 {`).
     let header = match linkage {
-        Some(linkage) => u
-            .header
-            .replacen("define ", &format!("define {linkage} "), 1),
-        None => u.header.clone(),
+        Some(linkage) => Cow::Owned(u.header.replacen("define ", &format!("define {linkage} "), 1)),
+        None => Cow::Borrowed(u.header.as_str()),
     };
     let (head, meta) = match (group.is_some(), header.split_once(" !")) {
-        (true, Some((h, m))) => (h.to_string(), format!(" !{m}")),
-        _ => (header, String::new()),
+        (true, Some((h, m))) => (h, Some(m)),
+        _ => (header.as_ref(), None),
     };
-    out.push_str(&head);
+    out.push_str(head);
     if let Some(group) = &group {
         out.push(' ');
         out.push_str(group);
     }
-    out.push_str(&meta);
+    if let Some(meta) = meta {
+        out.push_str(" !");
+        out.push_str(meta);
+    }
     out.push_str(" {\nentry:\n");
     out.push_str(&u.allocas);
     out.push_str(&u.code);
@@ -3766,24 +3783,23 @@ fn assemble_unit(
         // body does: it carries the body's function attribute group (the
         // memory effects, purity, hints), or a reader of `@X` sees none.
         let wrapper = match &group {
-            Some(group) if u.wrapper_group => u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1),
-            _ => u.wrapper.clone(),
+            Some(group) if u.wrapper_group => Cow::Owned(u.wrapper.replacen(") {\nentry:", &format!(") {group} {{\nentry:"), 1)),
+            _ => Cow::Borrowed(u.wrapper.as_str()),
         };
-        out.push_str(&match linkage {
-            Some(linkage) => with_linkage(&wrapper, linkage),
-            None => wrapper,
-        });
+        match linkage {
+            Some(linkage) => out.push_str(&with_linkage(&wrapper, linkage)),
+            None => out.push_str(&wrapper),
+        }
     }
     // The apply stub and the static closure are only reachable through a
     // use of the unit as a value. A unit called directly and never passed
     // as a function needs neither, and the stub is the largest single
     // piece of a small unit's output.
     if closure_taken {
-        let stub = match linkage {
-            Some(linkage) => with_linkage(&u.stub, linkage),
-            None => u.stub.clone(),
-        };
-        out.push_str(&stub);
+        match linkage {
+            Some(linkage) => out.push_str(&with_linkage(&u.stub, linkage)),
+            None => out.push_str(&u.stub),
+        }
         out.push_str(&u.clo);
     }
 }
@@ -3799,14 +3815,14 @@ fn assemble_unit(
 /// Names that are not units at all (runtime externs, LLVM intrinsics) are
 /// absent from the map and end the walk. That is deliberate: they are
 /// declared, never defined here.
-fn reachable_units(
-    units: &[EmittedUnit],
+fn reachable_units<'a>(
+    units: &'a [EmittedUnit],
     reg: &Registry,
     program: &Program,
-    main: Option<String>,
-    extra: &[String],
-) -> HashSet<String> {
-    let mut callees: HashMap<&str, &BTreeSet<String>> =
+    main: Option<&str>,
+    extra: &[&str],
+) -> HashSet<&'a str> {
+    let callees: HashMap<&str, &BTreeSet<String>> =
         units.iter().map(|u| (u.name.as_str(), &u.scan.refs)).collect();
     // A `prim` declaration's bodies are separate units (`X.llvm`,
     // `X.asm`) that its wrapper calls, and a body's `uses` contract may
@@ -3824,19 +3840,19 @@ fn reachable_units(
                 .collect(),
         );
     }
-    let mut roots: Vec<&str> = extra.iter().map(String::as_str).collect();
-    if let Some(main) = &main {
-        roots.push(main.as_str());
+    let mut roots = extra.to_vec();
+    if let Some(main) = main {
+        roots.push(main);
     }
     for plan in reg.foreigns.values() {
         if plan.export {
             roots.push(plan.unit.as_str());
         }
     }
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut seen: HashSet<&str> = HashSet::new();
     let mut stack: Vec<&str> = roots;
     while let Some(name) = stack.pop() {
-        if !seen.insert(name.to_string()) {
+        if !seen.insert(name) {
             continue;
         }
         if let Some(next) = callees.get(name) {
@@ -3854,8 +3870,9 @@ fn reachable_units(
             }
         }
     }
-    let _ = &mut callees;
-    seen
+    seen.into_iter()
+        .filter_map(|name| callees.get_key_value(name).map(|(&symbol, _)| symbol))
+        .collect()
 }
 
 /// A constructed product result (GHC's CPR property): every return path
@@ -12126,6 +12143,14 @@ impl CoreEmitter<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_block_deduplication_preserves_the_other_ir_in_order() {
+        let first = "@\"Ctor.blk#h\" = internal constant i64 1\n";
+        let other = "@\"Other.blk#h\" = internal constant i64 2\n";
+        let input = format!("; α\n{first}{first}{other}{first}; ω");
+        assert_eq!(dedupe_static_blocks(input), format!("; α\n{first}{other}; ω"));
+    }
     use crate::core::{GlobalId, InstanceDef, IntOp, NatOp};
     use crate::repr::Class;
     use std::process::Command;
