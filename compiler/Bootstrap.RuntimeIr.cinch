@@ -89,14 +89,16 @@ module Bootstrap.RuntimeIr where
     MethodVersion :: String -> Nat -> List Nat -> MethodVersion
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
-  -- The checked bindings with their foreign plans indexed once: every word
-  -- classification asks whether a foreign ABI passes the type opaquely,
-  -- and every call asks whether its target is foreign. The map keeps the
-  -- first binding of each name, as a scan in binding order would.
   data FunctionHints where
     FunctionHints :: String -> Bool -> Option String -> FunctionHints
+  -- Keep the first binding for each identity and the original order inside
+  -- each candidate list. None of these maps determines emission order.
+  data CallableBindings where
+    CallableBindings :: HashMap String (List CheckedBinding) -> HashMap String CheckedBinding -> HashMap String CheckedBinding -> HashMap String TotalFunction -> HashMap String TotalFunction -> CallableBindings
+  data ForeignBindings where
+    ForeignBindings :: HashMap String (Option ForeignPlan) -> HashMap String (List ForeignPlan) -> List UType -> ForeignBindings
   data BindingIndex where
-    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> Option (HashMap String FunctionHints) -> HashMap String CoreDefinition -> BindingIndex
+    BindingIndex :: CallableBindings -> ForeignBindings -> Option (HashMap String FunctionHints) -> HashMap String CoreDefinition -> BindingIndex
   -- Keep declaration order for emitted layouts. The indexes are lookup-only,
   -- so their iteration order cannot affect the output.
   data DataIndex where
@@ -230,21 +232,47 @@ module Bootstrap.RuntimeIr where
   program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
   program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> instances
-  program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> bindings
-  program-foreign-plans :: ProgramInfo -> List ForeignPlan
-  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> plans
-  -- The foreign plan of the first binding named `name`, if that binding is foreign.
+  program-callable-bindings :: ProgramInfo -> CallableBindings
+  program-callable-bindings info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> callable
+  -- The first binding of this name still controls foreign lookup, even if
+  -- a later binding of the same name carries a foreign plan.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
+  foreign-symbol-plans :: String -> ProgramInfo -> List ForeignPlan
+  foreign-symbol-plans symbol info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup symbol symbols of
+      Some plans -> plans
+      None -> Nil
+  foreign-pointer-types :: ProgramInfo -> List UType
+  foreign-pointer-types info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> pointers
   index-bindings :: CheckedProgram -> List CoreDefinition -> BindingIndex
   index-bindings checked definitions =
-    let bindings = elaboration-bindings (checked-elaboration checked) in
-    case foreign-index bindings of
-      (plans, names) -> BindingIndex bindings plans names (collect-function-hints (program-modules (checked-surface checked)) None) (index-definitions (reverse definitions) hash-map-empty)
+    let bindings = reverse (elaboration-bindings (checked-elaboration checked)) in
+    let callable = index-callable bindings (CallableBindings hash-map-empty hash-map-empty hash-map-empty hash-map-empty hash-map-empty) in
+    let foreigns = index-foreign bindings (ForeignBindings hash-map-empty hash-map-empty Nil) in
+    BindingIndex callable foreigns (collect-function-hints (program-modules (checked-surface checked)) None) (index-definitions (reverse definitions) hash-map-empty)
+  prepend-binding :: forall a. String -> a -> HashMap String (List a) -> HashMap String (List a)
+  prepend-binding key value entries = case hash-map-lookup key entries of
+    Some found -> hash-map-insert key (Cons value found) entries
+    None -> hash-map-insert key [value] entries
+  index-callable :: List CheckedBinding -> CallableBindings -> CallableBindings
+  index-callable bindings index = case (bindings, index) of
+    (Nil, index) -> index
+    (Cons binding rest, CallableBindings methods externals instances bodies natives) ->
+      let role = checked-role binding in
+      let name = checked-name binding in
+      let next-methods = if same role "method" then prepend-binding name binding methods else methods in
+      let next-externals = if same role "external" then hash-map-insert name binding externals else externals in
+      let next-instances = if same role "instance" || same role "implicit-instance" then hash-map-insert name binding instances else instances in
+      case checked-body-binding binding of
+        Some body -> let function = binding-function body in
+          index-callable rest (CallableBindings next-methods next-externals next-instances (hash-map-insert name function bodies) (hash-map-insert (binding-native body) function natives))
+        None -> index-callable rest (CallableBindings next-methods next-externals next-instances bodies natives)
   collect-function-hints :: List Module -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
   collect-function-hints modules hints = case modules of
     Nil -> hints
@@ -262,19 +290,28 @@ module Bootstrap.RuntimeIr where
     Cons other rest -> index-function-hints rest hints
   function-hints :: ProgramInfo -> String -> FunctionHints
   function-hints info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
     other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
   llvm-hint :: Writer -> String -> String
   llvm-hint w name = case function-hints (writer-program w) name of
     FunctionHints inline cold loop -> (if same inline "" then "" else " " <> inline) <> (if cold then " cold" else "")
-  foreign-index :: List CheckedBinding -> (List ForeignPlan, HashMap String (Option ForeignPlan))
-  foreign-index bindings = case bindings of
-    Nil -> (Nil, hash-map-empty)
-    Cons binding rest -> case foreign-index rest of
-      (plans, names) -> let plan = checked-foreign-plan binding in
-        ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
+  index-foreign :: List CheckedBinding -> ForeignBindings -> ForeignBindings
+  index-foreign bindings index = case (bindings, index) of
+    (Nil, index) -> index
+    (Cons binding rest, ForeignBindings names symbols pointers) ->
+      let plan = checked-foreign-plan binding in
+      let next = hash-map-insert (checked-name binding) plan names in
+      case plan of
+        None -> index-foreign rest (ForeignBindings next symbols pointers)
+        Some abi -> index-foreign rest (ForeignBindings next (prepend-binding (foreign-symbol abi) abi symbols) (add-pointer-types (foreign-parameters abi) (add-pointer-type (foreign-result abi) pointers)))
+  add-pointer-type :: ForeignParameter -> List UType -> List UType
+  add-pointer-type parameter tail = if same (foreign-class parameter) "ptr" then Cons (foreign-parameter-type parameter) tail else tail
+  add-pointer-types :: List ForeignParameter -> List UType -> List UType
+  add-pointer-types params tail = case params of
+    Nil -> tail
+    Cons first rest -> add-pointer-type first (add-pointer-types rest tail)
   program-versions :: ProgramInfo -> List MethodVersion
   program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
@@ -387,8 +424,15 @@ module Bootstrap.RuntimeIr where
   take-classes count classes = if count == 0 then Nil else case classes of Nil -> Nil; Cons first rest -> Cons first (take-classes (count - 1) rest)
   type-param-count :: List Quant -> Nat
   type-param-count qs = case qs of Nil -> 0; Cons q rest -> (if kind-equal (quant-kind q) KType then 1 else 0) + type-param-count rest
-  method-reference :: String -> String -> Nat -> List CheckedBinding -> Bool
-  method-reference name owner slot bindings = case bindings of Nil -> False; Cons first rest -> checked-method-matches first name owner slot || method-reference name owner slot rest
+  method-reference :: String -> String -> Nat -> ProgramInfo -> Bool
+  method-reference name owner slot info = case program-callable-bindings info of
+    CallableBindings methods externals instances bodies natives -> case hash-map-lookup name methods of
+      Some bindings -> matches-method name owner slot bindings
+      None -> False
+  matches-method :: String -> String -> Nat -> List CheckedBinding -> Bool
+  matches-method name owner slot bindings = case bindings of
+    Nil -> False
+    Cons binding rest -> checked-method-matches binding name owner slot || matches-method name owner slot rest
   data-declaration :: String -> ProgramInfo -> Option CoreData
   data-declaration name info = case data-index-of info of DataIndex datas types constructors unpacked -> hash-map-lookup name types
   type-head :: UType -> UType
@@ -405,14 +449,10 @@ module Bootstrap.RuntimeIr where
   program-info context = case context of RuntimeContext info bounds rigids queue inlining -> info
   foreign-type-equal :: UType -> UType -> Bool
   foreign-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) first second (empty-store "foreign ABI type")) of Nil -> True; other -> False)
-  foreign-parameter-matches :: UType -> ForeignParameter -> Bool
-  foreign-parameter-matches ty parameter = same (foreign-class parameter) "ptr" && foreign-type-equal ty (foreign-parameter-type parameter)
-  opaque-foreign-params :: UType -> List ForeignParameter -> Bool
-  opaque-foreign-params ty params = case params of Nil -> False; Cons first rest -> foreign-parameter-matches ty first || opaque-foreign-params ty rest
-  opaque-foreign-word :: UType -> List ForeignPlan -> Bool
-  opaque-foreign-word ty plans = case plans of
+  opaque-foreign-word :: UType -> List UType -> Bool
+  opaque-foreign-word ty pointers = case pointers of
     Nil -> False
-    Cons plan rest -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan) || opaque-foreign-word ty rest
+    Cons first rest -> foreign-type-equal ty first || opaque-foreign-word ty rest
   checked-string-word :: String -> ProgramInfo -> Bool
   checked-string-word name info = case program-object info of
     Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
@@ -429,7 +469,7 @@ module Bootstrap.RuntimeIr where
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
-  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-foreign-plans (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids queue inlining -> case base ty of
       -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
       UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> Some 0
@@ -873,7 +913,7 @@ module Bootstrap.RuntimeIr where
     Cons d rest -> index-definitions rest (hash-map-insert (core-name d) d table)
   worker-definition :: String -> Writer -> Option CoreDefinition
   worker-definition name w = case writer-program w of
-    ProgramInfo datas descriptions instances (BindingIndex bindings plans names hints definitions) versions provider exposed effects groups reclaim wasm32 -> hash-map-lookup name definitions
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 -> hash-map-lookup name definitions
   join :: List String -> String
   join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
   argument-words :: List String -> List String
@@ -1494,7 +1534,7 @@ module Bootstrap.RuntimeIr where
               (case closed-method-unit w name owner slot actuals factory of
                 Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
                   (let noted = note-version owner slot Nil w in
-                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (program-bindings (writer-program w))) unit (mono function) Nil (arguments term Nil) of
+                   case inline-total definitions locals noted (imported-native-body (unit-symbol unit) (writer-program w)) unit (mono function) Nil (arguments term Nil) of
                      Some lowered -> lowered
                      None -> external-call-unit definitions locals noted sp unit (mono function) Nil (arguments term Nil))
                   else indirect-application definitions locals w f x
@@ -1522,8 +1562,8 @@ module Bootstrap.RuntimeIr where
     (callee, function) -> case expression definitions locals callee x of
       (ready, value) -> apply-one ready function value
   closed-method-unit :: Writer -> String -> String -> Nat -> List UType -> String -> Option RuntimeUnit
-  closed-method-unit w name owner slot actuals factory = case (program-object (writer-program w), find-class owner (program-classes (writer-program w)), instance-binding factory (program-bindings (writer-program w))) of
-    (Some provider, Some description, Some binding) -> if not (method-reference name owner slot (program-bindings (writer-program w))) then None else
+  closed-method-unit w name owner slot actuals factory = case (program-object (writer-program w), find-class owner (program-classes (writer-program w)), instance-binding factory (writer-program w)) of
+    (Some provider, Some description, Some binding) -> if not (method-reference name owner slot (writer-program w)) then None else
       (case (scheme-params (checked-scheme binding), scheme-requirements (checked-scheme binding), class-owner (scheme-body (checked-scheme binding)), method-at slot (class-methods description)) of
         (Nil, Nil, Some actual-owner, Some member) -> if not (same owner actual-owner) then None else
           (case method-own-classes w member actuals of
@@ -2275,7 +2315,7 @@ module Bootstrap.RuntimeIr where
   foreign-abi-coherent :: ForeignPlan -> List ForeignPlan -> Bool
   foreign-abi-coherent plan plans = case plans of
     Nil -> True
-    Cons other rest -> (not (same (foreign-symbol plan) (foreign-symbol other)) || foreign-abi-compatible plan other) && foreign-abi-coherent plan rest
+    Cons other rest -> foreign-abi-compatible plan other && foreign-abi-coherent plan rest
   foreign-export-declarations :: List ForeignParameter -> Nat -> List String
   foreign-export-declarations parameters index = case parameters of
     Nil -> Nil
@@ -2442,7 +2482,7 @@ module Bootstrap.RuntimeIr where
   foreign-call definitions locals w sp name givens args = case program-foreign-binding name (writer-program w) of
     None -> unsupported w sp "foreign call has no checked ABI plan"
     Some plan -> if list-length givens /= 0 || not (foreign-argument-types (foreign-parameters plan) args) then unsupported w sp "foreign call must supply every checked ABI argument"
-      else if not (foreign-abi-coherent plan (program-foreign-plans (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
+      else if not (foreign-abi-coherent plan (foreign-symbol-plans (foreign-symbol plan) (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
       else if not (primitive-immediate-arguments (foreign-inline plan) args) then unsupported w sp "an immarg primitive operand must be an immediate literal"
       else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
         (evaluated, values) -> let boundary = (case foreign-inline plan of None -> True; Some body -> False) in
@@ -2468,8 +2508,9 @@ module Bootstrap.RuntimeIr where
     Nil -> False
     Cons first rest -> if index == 0 then (case first of CInt sp ty text -> True; other -> False)
       else immediate-operand (index - 1) rest
-  external-binding :: String -> List CheckedBinding -> Option CheckedBinding
-  external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
+  external-binding :: String -> ProgramInfo -> Option CheckedBinding
+  external-binding name info = case program-callable-bindings info of
+    CallableBindings methods externals instances bodies natives -> hash-map-lookup name externals
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
   external-shape count ty backwards = if count == 0 then Some (reverse backwards, ty) else case arrow-shape (base ty) of
     UFun domain result -> external-shape (count - 1) result (Cons domain backwards)
@@ -2500,7 +2541,7 @@ module Bootstrap.RuntimeIr where
   external-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   external-call definitions locals w sp name actuals givens args = case program-object (writer-program w) of
     None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
-    Some provider -> (case external-binding name (program-bindings (writer-program w)) of
+    Some provider -> (case external-binding name (writer-program w) of
       Some binding -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
         Some codes -> (let variant = (case checked-conditional-target binding of
           Some (owner, dictionary, slot) -> object-conditional-unit owner dictionary slot name codes provider
@@ -2536,7 +2577,7 @@ module Bootstrap.RuntimeIr where
   -- reaches.
   inline-external :: List CoreDefinition -> List Local -> Writer -> String -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> Option (Writer, String)
   inline-external definitions locals w name unit sc givens args =
-    inline-total definitions locals w (imported-total-body name (program-bindings (writer-program w))) unit sc givens args
+    inline-total definitions locals w (imported-total-body name (writer-program w)) unit sc givens args
   -- The same for a unit whose body was found: a value's by its checked
   -- name, a closed instance method's by the unit it resolved to.
   --
@@ -2568,18 +2609,12 @@ module Bootstrap.RuntimeIr where
         other -> False)
       None -> False)
     other -> False
-  imported-total-body :: String -> List CheckedBinding -> Option TotalFunction
-  imported-total-body name bindings = case bindings of
-    Nil -> None
-    Cons first rest -> (case checked-body-binding first of
-      Some body -> if same name (binding-name body) then Some (binding-function body) else imported-total-body name rest
-      None -> imported-total-body name rest)
-  imported-native-body :: String -> List CheckedBinding -> Option TotalFunction
-  imported-native-body native bindings = case bindings of
-    Nil -> None
-    Cons first rest -> (case checked-body-binding first of
-      Some body -> if same native (binding-native body) then Some (binding-function body) else imported-native-body native rest
-      None -> imported-native-body native rest)
+  imported-total-body :: String -> ProgramInfo -> Option TotalFunction
+  imported-total-body name info = case program-callable-bindings info of
+    CallableBindings methods externals instances bodies natives -> hash-map-lookup name bodies
+  imported-native-body :: String -> ProgramInfo -> Option TotalFunction
+  imported-native-body native info = case program-callable-bindings info of
+    CallableBindings methods externals instances bodies natives -> hash-map-lookup native natives
   inline-sort :: String -> Bool
   inline-sort sort = same sort "I64" || same sort "Nat" || same sort "Int" || same sort "Bool"
   inline-sorts :: List String -> Bool
@@ -2774,7 +2809,7 @@ module Bootstrap.RuntimeIr where
       (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
         (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of
           (done, result) -> (case value-carrier (type-kind input) of Some carrier -> (count-op False carrier bytes done, result); None -> unsupported done sp "byte index input has no actual carrier"))
-    UIndexStringLength (UIndex carrier (IRigid id name level)) -> (case external-binding global-data-string-length (program-bindings (writer-program w)) of
+    UIndexStringLength (UIndex carrier (IRigid id name level)) -> (case external-binding global-data-string-length (writer-program w) of
       Some binding | string-length-function (UCon "Nat" KType) (scheme-body (checked-scheme binding)) (checked-name binding) (checked-role binding) ->
         external-call Nil locals w sp global-data-string-length Nil Nil [CLocal sp carrier id name Nil]
       other -> unsupported w sp "string length needs its defining String -> Nat provider")
@@ -3057,10 +3092,9 @@ module Bootstrap.RuntimeIr where
         None -> unsupported w sp "factory factory needs runtime representation specialization"
       None -> external-evidence definitions locals w sp ty name actuals args
     other -> unsupported w (Span 0 0 1 1) "unresolved dictionary evidence cannot be lowered"
-  instance-binding :: String -> List CheckedBinding -> Option CheckedBinding
-  instance-binding name bindings = case bindings of
-    Nil -> None
-    Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
+  instance-binding :: String -> ProgramInfo -> Option CheckedBinding
+  instance-binding name info = case program-callable-bindings info of
+    CallableBindings methods externals instances bodies natives -> hash-map-lookup name instances
   extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
   extend-context bindings context = case context of RuntimeContext info bounds rigids queue inlining -> RuntimeContext info (bindings <> bounds) rigids queue inlining
   external-field-map :: Writer -> CoreClass -> Scheme -> List Nat -> List (Nat, Nat, List Nat) -> Option (List Nat)
@@ -3076,7 +3110,7 @@ module Bootstrap.RuntimeIr where
         None -> None)
       None -> None)
   external-evidence :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> List UType -> CoreEvidence -> (Writer, String)
-  external-evidence definitions locals w sp ty name actuals args = case (program-object (writer-program w), instance-binding name (program-bindings (writer-program w))) of
+  external-evidence definitions locals w sp ty name actuals args = case (program-object (writer-program w), instance-binding name (writer-program w)) of
     (Some provider, Some binding) -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
       Some codes -> (case object-dictionary name codes provider of
         Some (unit, owner, context-count, fields) ->
@@ -3116,7 +3150,7 @@ module Bootstrap.RuntimeIr where
     other -> None
   static-instance-method-at :: Writer -> String -> String -> Nat -> List UType -> String -> List UType -> Option (List Nat, List Nat, CoreDefinition)
   static-instance-method-at w name owner slot actuals factory factory-actuals =
-      if not (method-reference name owner slot (program-bindings (writer-program w))) then None else
+      if not (method-reference name owner slot (writer-program w)) then None else
       (case instance-named factory (program-instances (writer-program w)) of
         Some candidate -> if (case scheme-requirements (instance-scheme candidate) of Nil -> True; other -> False) then
           (case class-owner (scheme-body (instance-scheme candidate)) of
@@ -3152,7 +3186,7 @@ module Bootstrap.RuntimeIr where
   projected-method-value :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> (Writer, String)
   projected-method-value definitions locals w sp ty name owner slot actuals evidence = case find-class owner (program-classes (writer-program w)) of
     Some description -> case method-at slot (class-methods description) of
-      Some member -> if not (method-reference name owner slot (program-bindings (writer-program w))) then unsupported w sp (cat ["dictionary field does not belong to the checked global method: ", name]) else
+      Some member -> if not (method-reference name owner slot (writer-program w)) then unsupported w sp (cat ["dictionary field does not belong to the checked global method: ", name]) else
         (case method-own-classes w member actuals of
           None -> unsupported w sp "method type arguments need runtime representation classes"
           Some own-codes -> let prepared = note-version owner slot own-codes w in
