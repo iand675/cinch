@@ -1,0 +1,40 @@
+module Life.Browser where
+  import Data.Machine
+  import Life
+
+  to-u32 :: Int -> U32
+  to-u32 value = case checked-int-to-i64 value of
+    Some word -> wrapping-i64-to-u32 word
+    None -> 4294967295
+
+  initial-age :: U32 -> U32 -> U32
+  initial-age age n = to-u32 (next-age (int-from-i64 (u32-to-i64 age)) (int-from-i64 (u32-to-i64 n)))
+
+  initial-neighbours :: U32 -> U32
+  initial-neighbours mask = to-u32 (neighbour-count mask)
+
+  initial-color :: U32 -> U32
+  initial-color age = to-u32 (cell-color (int-from-i64 (u32-to-i64 age)))
+
+  initial-step-ms :: Unit -> U32
+  initial-step-ms () = to-u32 step-ms
+
+  initial-wrap :: Unit -> U32
+  initial-wrap () = if wrap-edges then 1 else 0
+
+  -- The host supplies three packed rows. Bits 0–2 are the row above,
+  -- 3–4 the cells to either side, and 5–7 the row below, left to right.
+  neighbour-mask :: U64 -> U64 -> U64 -> U32 -> U32
+  neighbour-mask above row below column =
+    let top = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 above column) 7) in
+    let mid = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 row column) 5) in
+    let bottom = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 below column) 7) in
+    let sides = bit-or-u32 (bit-and-u32 mid 1) (wrapping-shr-u32 mid 1) in
+    bit-or-u32 top (bit-or-u32 (wrapping-shl-u32 sides 3) (wrapping-shl-u32 bottom 5))
+
+  foreign export ccall "life_initial_age" initial-age :: U32 -> U32 -> U32
+  foreign export ccall "life_initial_neighbours" initial-neighbours :: U32 -> U32
+  foreign export ccall "life_initial_color" initial-color :: U32 -> U32
+  foreign export ccall "life_initial_step_ms" initial-step-ms :: Unit -> U32
+  foreign export ccall "life_initial_wrap" initial-wrap :: Unit -> U32
+  foreign export ccall "life_neighbour_mask" neighbour-mask :: U64 -> U64 -> U64 -> U32 -> U32

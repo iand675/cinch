@@ -1,14 +1,10 @@
 ---
 import CodeExcerpt from './CodeExcerpt.astro';
 import life from '../data/examples/life.cinch?raw';
+import bridge from '../data/examples/life-abi.cinch?raw';
 
-// The editable part: `rule`, from its comment to the end of its last arm, outdented.
-const lines = life.split('\n');
-const start = lines.findIndex((l) => l.trim().startsWith('-- What a cell becomes'));
-const end = lines.findIndex((l, i) => i > start && l.trim() === '');
-const rule = lines.slice(start, end).map((l) => l.replace(/^  /, '')).join('\n');
-if (start < 0 || end < 0) throw new Error('life.cinch: the editable rule declaration is missing');
-const module = life.trim();
+const module = life.trimEnd();
+const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith('foreign export ')).map((line) => line.trimStart()).join('\n');
 ---
 <div class="life-reload" data-life>
   <div class="life-workbench">
@@ -19,17 +15,18 @@ const module = life.trim();
         <button type="button" class="gadget-key" data-life-run disabled aria-pressed="false">Run <span aria-hidden="true">▸</span></button>
         <button type="button" class="gadget-key" data-life-step disabled>Step</button>
         <button type="button" class="gadget-key" data-life-reset disabled>Reset</button>
+        <button type="button" class="gadget-key" data-life-reseed disabled>Reseed</button>
       </div>
     </div>
     <canvas class="life-board" data-life-board role="img" aria-label="A Game of Life board, 40 by 24 cells, starting with Gosper's glider gun. Click a cell to switch it."></canvas>
     <div class="life-editor">
-      <pre class="life-paint" aria-hidden="true"><code data-life-paint>{rule}</code></pre>
-      <textarea class="life-input" data-life-source disabled spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="The rule declaration. Edits reload into the running board when you stop typing." aria-describedby="life-status">{rule}</textarea>
+      <pre class="life-paint" aria-hidden="true"><code data-life-paint>{module}</code></pre>
+      <textarea class="life-input" data-life-source disabled spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Editable Life.cinch source code" aria-describedby="life-status">{module}</textarea>
     </div>
     <p class="life-status" id="life-status" data-life-status aria-live="polite">Loading the precompiled board…</p>
   </div>
-  <p class="life-note">The board runs in WebAssembly. When you edit <code>rule</code>, Cinch checks it in your browser and compiles its results for the 18 possible cell and neighbour combinations. The runtime switches to the new rule between generations, keeping the cells and generation count.</p>
-  <details class="life-module"><summary>Read the whole module</summary><CodeExcerpt code={module} label="LIFE.CINCH" /></details>
+  <p class="life-note">Edit the Life module and Cinch compiles it in your browser. The runtime switches versions between generations, keeping the cells, their ages, and the generation count. Inspired by <a href="https://github.com/indexable-inc/blaze#demo-a-game-of-life-you-can-edit">Blaze’s live-editable Life demo</a>.</p>
+  <details class="life-exports"><summary>WebAssembly exports</summary><CodeExcerpt code={exports} label="LIFE-ABI.CINCH" /></details>
 </div>
 <script>
   import { tokenize } from '../lib/highlight';
@@ -42,6 +39,7 @@ const module = life.trim();
     const canvas = root.querySelector<HTMLCanvasElement>('[data-life-board]')!;
     const source = root.querySelector<HTMLTextAreaElement>('[data-life-source]')!;
     const paint = root.querySelector<HTMLElement>('[data-life-paint]')!;
+    const backdrop = paint.parentElement!;
     const status = root.querySelector<HTMLElement>('[data-life-status]')!;
     const versionLabel = root.querySelector<HTMLElement>('[data-life-version]')!;
     const generationLabel = root.querySelector<HTMLElement>('[data-life-generation]')!;
@@ -54,10 +52,16 @@ const module = life.trim();
     let running = false;
     let visible = true;
     let timer = 0;
+    let frame = 0;
+    let palette: string[] = [];
+
+    const refreshPalette = () => {
+      palette = life?.settings.colors.map((color) => `#${color.toString(16).padStart(6, '0')}`) ?? [];
+    };
 
     const draw = () => {
       if (!life) return;
-      const board = life.state;
+      const ages = life.ages;
       const ratio = window.devicePixelRatio || 1;
       const width = canvas.clientWidth, height = canvas.clientHeight;
       if (canvas.width !== Math.round(width * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
@@ -66,12 +70,12 @@ const module = life.trim();
       ctx.fillStyle = '#1a2117';
       ctx.fillRect(0, 0, width, height);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const live = board[y] & (1n << BigInt(x));
-        ctx.fillStyle = live ? '#e9b071' : '#283222';
-        const inset = live ? size * 0.1 : size * 0.42;
+        const age = ages[y * W + x];
+        ctx.fillStyle = age ? palette[age - 1] : '#283222';
+        const inset = age ? size * 0.1 : size * 0.42;
         ctx.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
       }
-      generationLabel.textContent = `GENERATION ${board[H]}`;
+      generationLabel.textContent = `GENERATION ${life.state[H]}`;
     };
     const advance = () => {
       try {
@@ -82,9 +86,17 @@ const module = life.trim();
         status.textContent = 'The board stopped. Reset it to try again.';
       }
     };
+    const advanceFrame = () => {
+      advance();
+      if (running) frame = window.requestAnimationFrame(advanceFrame);
+    };
     const schedule = () => {
       window.clearInterval(timer);
-      if (running && visible && !document.hidden) timer = window.setInterval(advance, 120);
+      window.cancelAnimationFrame(frame);
+      if (!life || !running || !visible || document.hidden) return;
+      const { stepMs } = life.settings;
+      if (stepMs === 0) frame = window.requestAnimationFrame(advanceFrame);
+      else timer = window.setInterval(advance, stepMs);
     };
     const setRunning = (on: boolean) => {
       running = on;
@@ -101,14 +113,17 @@ const module = life.trim();
     runKey.addEventListener('click', () => setRunning(!running));
     root.querySelector('[data-life-step]')!.addEventListener('click', () => { setRunning(false); advance(); });
     root.querySelector('[data-life-reset]')!.addEventListener('click', () => { life?.reset(); draw(); });
+    root.querySelector('[data-life-reseed]')!.addEventListener('click', () => { life?.reseed(); draw(); });
     canvas.addEventListener('click', (event) => {
       const box = canvas.getBoundingClientRect();
       const x = Math.floor(((event.clientX - box.left) / box.width) * W);
       const y = Math.floor(((event.clientY - box.top) / box.height) * H);
-      if (life && x >= 0 && x < W && y >= 0 && y < H) { life.state[y] ^= 1n << BigInt(x); draw(); }
+      if (life && x >= 0 && x < W && y >= 0 && y < H) { life.toggle(x, y); draw(); }
     });
 
     // The editor: a transparent textarea over a highlighted copy of the same text.
+    const syncScroll = () => { backdrop.scrollTop = source.scrollTop; };
+    source.addEventListener('scroll', syncScroll);
     const repaint = () => {
       paint.replaceChildren(...tokenize(source.value + '\n').map(({ text, kind }) => {
         const span = document.createElement('span');
@@ -116,6 +131,7 @@ const module = life.trim();
         span.textContent = text;
         return span;
       }));
+      syncScroll();
     };
     let worker: Worker | undefined;
     let edit = 0;
@@ -138,7 +154,11 @@ const module = life.trim();
           status.textContent = `Version ${version} is still running. ${reply.error}`;
         } else {
           try {
-            version = life.install(reply.table);
+            const { stepMs } = life.settings;
+            version = life.install(reply.settings);
+            refreshPalette();
+            draw();
+            if (reply.settings.stepMs !== stepMs) schedule();
             loaded = compiled.source;
             versionLabel.textContent = `VERSION ${version}`;
             status.textContent = `Version ${version} loaded at generation ${life.state[H]}. Board state preserved.`;
@@ -196,10 +216,11 @@ const module = life.trim();
     repaint();
     void Life.load(boardUrl).then((board) => {
       life = board;
+      refreshPalette();
       versionLabel.textContent = 'VERSION 1';
       root.querySelectorAll<HTMLButtonElement>('.life-keys button').forEach((button) => { button.disabled = false; });
       source.disabled = false;
-      status.textContent = 'Version 1 is loaded. Edit the rule to compile a new version.';
+      status.textContent = 'Version 1 is loaded. Edit Life.cinch to compile a new version.';
       draw();
     }).catch(() => {
       status.textContent = 'The WebAssembly board could not be loaded. Reload the page to retry.';

@@ -1,51 +1,38 @@
 module Life where
   import Data.Machine
 
-  data Cell where
-    Dead :: Cell
-    Alive :: Cell
+  -- Age 0 is dead. Living cells have ages 1 through 32.
+  -- Try n == 3 || n == 6 in the birth branch for HighLife.
+  next-age :: Int -> Int -> Int
+  next-age age n =
+    if age == 0 then
+      if n == 3 then 1 else 0
+    else
+      if n == 2 || n == 3 then
+        if age < 32 then age + 1 else age
+      else 0
 
-  -- What a cell becomes, given how many of its eight neighbours are alive.
-  rule :: Cell -> Int -> Cell
-  rule cell n = case cell of
-    Alive -> if n == 2 || n == 3 then Alive else Dead
-    Dead -> if n == 3 then Alive else Dead
+  -- Bits 0–2 are above, 3–4 beside, and 5–7 below.
+  neighbour-count :: U32 -> Int
+  neighbour-count mask = count-bits mask
 
-  -- One compiled bit for each pair (cell, neighbour count).
-  cell-bit :: Cell -> U32
-  cell-bit cell = case cell of
-    Alive -> 1
-    Dead -> 0
+  count-bits :: U32 -> Int
+  count-bits mask =
+    if eq-u32 mask 0 then 0 else
+      let bit = if eq-u32 (bit-and-u32 mask 1) 0 then 0 else 1 in
+      bit + count-bits (wrapping-shr-u32 mask 1)
 
-  rule-bits :: Cell -> U32 -> U32
-  rule-bits cell count =
-    if eq-u32 count 9 then 0 else
-      let bit = cell-bit (rule cell (int-from-i64 (u32-to-i64 count))) in
-      bit-or-u32 (wrapping-shl-u32 bit count) (rule-bits cell (wrapping-add-u32 count 1))
+  -- Join the opposite sides of the board.
+  wrap-edges :: Bool
+  wrap-edges = True
 
-  initial-rule :: Unit -> U32
-  initial-rule () = bit-or-u32 (rule-bits Dead 0) (wrapping-shl-u32 (rule-bits Alive 0) 9)
+  -- Live cell colour, as 0xRRGGBB.
+  cell-color :: Int -> Int
+  cell-color age =
+    if age == 1 then 0xffd69c else
+    if age < 4 then 0xe9b071 else
+    if age < 12 then 0xaab680 else 0x829866
 
-  -- Three packed rows slide past the current cell. Bits beyond the board
-  -- are zero, so neighbours beyond the edges count as dead.
-  neighbourhood :: U64 -> U32
-  neighbourhood row = count-ones-u64 (bit-and-u64 row 7)
-
-  scan-row :: U32 -> U32 -> U64 -> U64 -> U64 -> U64 -> U64
-  scan-row rules column above row below next =
-    if eq-u32 column 40 then next else
-      let live = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 row 1) 1) in
-      let total = wrapping-add-u32 (wrapping-add-u32 (neighbourhood above) (neighbourhood row)) (neighbourhood below) in
-      let neighbours = wrapping-sub-u32 total live in
-      let index = wrapping-add-u32 neighbours (wrapping-mul-u32 9 live) in
-      let result = wrapping-u32-to-u64 (bit-and-u32 (wrapping-shr-u32 rules index) 1) in
-      scan-row rules (wrapping-add-u32 column 1)
-        (wrapping-shr-u64 above 1) (wrapping-shr-u64 row 1) (wrapping-shr-u64 below 1)
-        (bit-or-u64 next (wrapping-shl-u64 result column))
-
-  step-row :: U32 -> U64 -> U64 -> U64 -> U64
-  step-row rules above row below =
-    scan-row rules 0 (wrapping-shl-u64 above 1) (wrapping-shl-u64 row 1) (wrapping-shl-u64 below 1) 0
-
-  foreign export ccall "life_initial_rule" initial-rule :: Unit -> U32
-  foreign export ccall "life_step_row" step-row :: U32 -> U64 -> U64 -> U64 -> U64
+  -- Milliseconds per step. Use 0 for one step per frame.
+  step-ms :: Int
+  step-ms = 80

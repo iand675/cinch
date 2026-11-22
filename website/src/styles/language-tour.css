@@ -487,7 +487,7 @@
 .cinch-landing .hot-reload-layout a {
   margin-top: 0.7rem;
 }
-/* Game of Life workbench: a running board, its rule as editable source, and what each reload did. */
+/* Game of Life workbench */
 .cinch-landing .life-reload {
   min-width: 0;
 }
@@ -516,6 +516,7 @@
 }
 .cinch-landing .life-keys {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-left: auto;
 }
@@ -527,6 +528,7 @@
 }
 .cinch-landing .life-editor {
   position: relative;
+  height: clamp(15rem, 42svh, 25rem);
   border-top: 1px solid var(--rule-ink-wash);
   background: var(--ink-excerpt);
 }
@@ -544,9 +546,15 @@
   letter-spacing: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   tab-size: 2;
 }
 .cinch-landing .life-paint {
+  height: 100%;
+  pointer-events: none;
+  scrollbar-color: transparent transparent;
   color: var(--paper-code);
 }
 .cinch-landing .life-input {
@@ -555,7 +563,6 @@
   width: 100%;
   height: 100%;
   resize: none;
-  overflow: hidden;
   color: transparent;
   caret-color: #f0c48a;
   background: transparent;
@@ -578,19 +585,20 @@
   line-height: 1.8;
   color: #9fa48a;
 }
-.cinch-landing .life-note code {
-  font:
-    0.9em var(--font-mono);
+.cinch-landing .life-note a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
 }
-.cinch-landing .life-module {
+.cinch-landing .life-exports {
   margin-top: 1rem;
 }
-.cinch-landing .life-module summary {
+.cinch-landing .life-exports summary {
   cursor: pointer;
   font-size: 0.8rem;
   color: var(--amber-link);
 }
-.cinch-landing .life-module .language-excerpt {
+.cinch-landing .life-exports .language-excerpt {
   margin-top: 1rem;
 }
 .cinch-landing .hot-reload-layout {
