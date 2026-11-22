@@ -1399,10 +1399,23 @@ pub fn parse_source(
     base: &FixityTable,
     tables: &HashMap<String, FixityTable>,
 ) -> Result<ParsedModules> {
+    let tokens = source_tokens(src, file)?;
+    parse_source_tokens(&tokens, file, base, tables)
+}
+
+fn source_tokens(src: &str, file: &str) -> Result<Vec<lexer::Token>> {
     let ctx = |e: Error| Error::plain(format!("{file}: {e}"));
     let tokens = lexer::lex(src).map_err(ctx)?;
-    let tokens = layout::layout(tokens).map_err(ctx)?;
-    parse_modules(&tokens, base, tables).map_err(ctx)
+    layout::layout(tokens).map_err(ctx)
+}
+
+fn parse_source_tokens(
+    tokens: &[lexer::Token],
+    file: &str,
+    base: &FixityTable,
+    tables: &HashMap<String, FixityTable>,
+) -> Result<ParsedModules> {
+    parse_modules(tokens, base, tables).map_err(|e| Error::plain(format!("{file}: {e}")))
 }
 
 /// A source file's module headers and their imports, without full parsing.
@@ -1432,9 +1445,11 @@ pub fn scan_file_for(
     file: &str,
     profile: &crate::core::TargetProfile,
 ) -> Result<ScannedFile> {
-    let ctx = |e: Error| Error::plain(format!("{file}: {e}"));
-    let tokens = lexer::lex(src).map_err(ctx)?;
-    let tokens = layout::layout(tokens).map_err(ctx)?;
+    let tokens = source_tokens(src, file)?;
+    Ok(scan_source_tokens(&tokens, profile))
+}
+
+fn scan_source_tokens(tokens: &[lexer::Token], profile: &crate::core::TargetProfile) -> ScannedFile {
     let mut modules: Vec<(String, Vec<(String, bool)>)> = Vec::new();
     let mut i = 0;
     // The module name is `con_id { "." con_id }`; an import contributes to
@@ -1493,7 +1508,7 @@ pub fn scan_file_for(
                     match &tokens[j].tok {
                         lexer::Tok::Semicolon | lexer::Tok::Eof => break,
                         lexer::Tok::VarId(w) if w == "when" => {
-                            match crate::parser::parse_when_clause(&tokens, j) {
+                            match crate::parser::parse_when_clause(tokens, j) {
                                 Some((term, end)) => {
                                     clauses.push(term);
                                     j = end;
@@ -1523,7 +1538,7 @@ pub fn scan_file_for(
             _ => i += 1,
         }
     }
-    Ok(ScannedFile { modules })
+    ScannedFile { modules }
 }
 
 /// A resolved multi-file project: modules in dependency order (imports
@@ -1579,7 +1594,7 @@ struct HostOnlyImport {
 
 /// Every `module X` declaration beside `dir`, for import resolution when
 /// `X.cinch` does not exist (decision D42).
-fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
+fn index_dir_modules(dir: &Path, loaded: &HashMap<String, String>) -> HashMap<String, Vec<PathBuf>> {
     let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
@@ -1599,7 +1614,9 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
                 }
                 continue;
             }
-            if path.extension().and_then(|s| s.to_str()) != Some("cinch") {
+            if path.extension().and_then(|s| s.to_str()) != Some("cinch")
+                || loaded.contains_key(path.to_string_lossy().as_ref())
+            {
                 continue;
             }
             let Ok(src) = std::fs::read_to_string(&path) else {
@@ -1613,7 +1630,7 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
             }
         }
     }
-    Ok(index)
+    index
 }
 
 /// One contribution to the final link, tagged with where it came from so
@@ -2018,7 +2035,7 @@ fn host_facts(build: &crate::core::BuildProfiles) -> (TargetFacts, bool) {
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
-    load_project_for(entry_path, &crate::core::BuildProfiles::native())
+    load_project_for(entry_path, &crate::core::BuildProfiles::native(), None)
 }
 
 /// [`load_project`] for one build: the target's profile decides which
@@ -2029,7 +2046,11 @@ fn load_project(entry_path: &Path) -> Result<Project> {
 /// rather than a failure the resolver invents (design/base-as-a-package.md,
 /// "Host and target are different questions"; modules specification
 /// section 11).
-fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Result<Project> {
+fn load_project_for(
+    entry_path: &Path,
+    build: &crate::core::BuildProfiles,
+    mut parse_tokens: Option<&mut HashMap<String, Vec<lexer::Token>>>,
+) -> Result<Project> {
     // Emitted code and its modules are the target: the compilation this
     // project describes is the target's.
     let profile = crate::core::condition_context(build, crate::core::BuildContext::Emitted);
@@ -2044,7 +2065,8 @@ fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Re
     let mut entry_modules: Vec<String> = Vec::new();
     let mut host_only: Vec<HostOnlyImport> = Vec::new();
     let mut queue: Vec<PathBuf> = vec![entry_path.to_path_buf()];
-    let dir_index = index_dir_modules(&dir)?;
+    let mut dir_index = None;
+    let prelude_names: HashSet<_> = prelude_module_names().into_iter().collect();
     // Packages: the root project's manifest plus every vendored
     // dependency, resolved for this target, and resolved once more for
     // the host so availability is a per-profile fact rather than a guess
@@ -2119,7 +2141,8 @@ fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Re
         }
         let src = std::fs::read_to_string(&path)
             .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-        let scanned = scan_file_for(&src, &key, profile)?;
+        let tokens = source_tokens(&src, &key)?;
+        let scanned = scan_source_tokens(&tokens, profile);
         if scanned.modules.is_empty() {
             return Err(Error::plain(format!("{key}: no `module` declaration")));
         }
@@ -2141,8 +2164,10 @@ fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Re
             module_file.insert(m.clone(), path.clone());
             imports.insert(m.clone(), imps.iter().map(|(n, _)| n.clone()).collect());
         }
+        if let Some(retained) = parse_tokens.as_deref_mut() {
+            retained.insert(key.clone(), tokens);
+        }
         sources.insert(key, src);
-        let prelude_names = prelude_module_names();
         for (owner_module, imps) in &scanned.modules {
             for (imp, stage) in imps {
                 // A module another package owns is importable only when
@@ -2216,7 +2241,8 @@ fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Re
                     queue.push(direct);
                     continue;
                 }
-                let candidates = dir_index.get(imp).cloned().unwrap_or_default();
+                let index = dir_index.get_or_insert_with(|| index_dir_modules(&dir, &sources));
+                let candidates = index.get(imp).cloned().unwrap_or_default();
                 let not_loaded: Vec<PathBuf> = candidates
                     .into_iter()
                     .filter(|p| !sources.contains_key(&p.display().to_string()))
@@ -2224,7 +2250,7 @@ fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Re
                 match not_loaded.len() {
                     1 => queue.push(not_loaded.into_iter().next().expect("one")),
                     0 => {
-                        if prelude_names.iter().any(|n| n == imp) {
+                        if prelude_names.contains(imp) {
                             continue;
                         }
                         return Err(Error::plain(format!(
@@ -5578,7 +5604,8 @@ pub fn driver_with_profile_opts(
     if !opts.native_objects.is_empty() && !matches!(mode, Mode::Build | Mode::Run) {
         return Err(Error::plain("--native-object applies to build and run"));
     }
-    let project = load_project_for(path, &build)?;
+    let mut parse_tokens = HashMap::new();
+    let project = load_project_for(path, &build, Some(&mut parse_tokens))?;
     // The final link is built from the closure, not from a string: every
     // contribution is tagged with the package that asked for it, raw
     // words need the root project's consent, and machine-local overrides
@@ -5663,7 +5690,10 @@ pub fn driver_with_profile_opts(
                 } else {
                     &empty_fixities
                 };
-                let parsed = parse_source(&project.sources[key], key, base, &exported_fixities)?;
+                let tokens = parse_tokens.remove(key).ok_or_else(|| {
+                    Error::plain(format!("{key}: missing token stream for loaded source"))
+                })?;
+                let parsed = parse_source_tokens(&tokens, key, base, &exported_fixities)?;
                 module_fixities.extend(parsed.fixities);
                 exported_fixities.extend(parsed.exported_fixities);
                 let mut by_name = HashMap::new();
