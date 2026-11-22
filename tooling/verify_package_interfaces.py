@@ -441,6 +441,7 @@ module Main where
 
     environment = {**os.environ, "CINCH_LEAK_CHECK": "1"}
     times = []
+    repeat_times = []
     with (session_dir / "stderr").open("w+") as stderr:
         start = time.perf_counter_ns()
         with subprocess.Popen([*args, ir], cwd=session_dir, env=environment,
@@ -467,11 +468,43 @@ module Main where
                     hello.write_text(initial)
                     assert build() == b"0\n"
                     assert ir.read_bytes() == expected_ir
+                    outputs = (ir, diagnostics)
+                    for output in outputs:
+                        os.utime(output, ns=(1_000_000_000, 1_000_000_000))
+                    timestamps = [output.stat().st_mtime_ns for output in outputs]
+                    for _ in range(repeats):
+                        start = time.perf_counter_ns()
+                        assert build() == b"0\n"
+                        repeat_times.append((time.perf_counter_ns() - start) / 1e6)
+                    assert [output.stat().st_mtime_ns for output in outputs] == timestamps
+
+                    # A source edit that emits the same bytes need not
+                    # invalidate a downstream consumer's file timestamps.
+                    hello.write_text(initial + "\n-- Keep the generated program unchanged.\n")
+                    assert build() == b"0\n"
+                    assert ir.read_bytes() == expected_ir
+                    assert [output.stat().st_mtime_ns for output in outputs] == timestamps
+
+                    ir.write_bytes(b"x" * len(expected_ir))
+                    diagnostics.unlink()
+                    diagnostics.mkdir()
+                    assert build() == b"6\n"
+                    diagnostics.rmdir()
+                    assert build() == b"0\n"
+                    assert ir.read_bytes() == expected_ir and not diagnostics.read_bytes()
 
                     hello.write_text("module Main where\n  main :: Int\n  main = missing-name\n")
                     assert build() == b"4\n"
                     assert not ir.read_bytes()
                     assert "missing-name" in diagnostics.read_text()
+                    refusal = diagnostics.read_bytes()
+                    diagnostics.write_bytes(b"x" * len(refusal))
+                    assert build() == b"4\n"
+                    assert diagnostics.read_bytes() == refusal
+                    hello.unlink()
+                    assert build() == b"2\n"
+                    assert not ir.read_bytes()
+                    assert b"cannot read source" in diagnostics.read_bytes()
                     for edit in (new_import, shadow, guarded):
                         hello.write_text(edit)
                         assert build() == b"0\n"
@@ -495,7 +528,8 @@ module Main where
                     child.kill()
         stderr.seek(0)
         assert "cinch-leak: live=0" in stderr.read()
-    return {"ready_ms": ready_ms, "edit_samples_ms": times, "edit_median_ms": statistics.median(times)}
+    return {"ready_ms": ready_ms, "edit_samples_ms": times, "edit_median_ms": statistics.median(times),
+            "repeat_samples_ms": repeat_times, "repeat_median_ms": statistics.median(repeat_times)}
 
 
 def native(stage, work, repeats):

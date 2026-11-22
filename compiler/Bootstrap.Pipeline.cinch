@@ -41,13 +41,13 @@ module Bootstrap.Pipeline where
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Bootstrap.Document
-  import Data.Bytes (bytes-compare)
+  import Data.Bytes (bytes-compare, bytes-len)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (map, reverse)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem, path-dirname, path-join)
   import Data.String (string-concat, string-to-bytes)
-  import Effect.Fs (fs-metadata, fs-read, fs-rename, fs-write)
+  import Effect.Fs (FsError, FileIsFile, file-meta-kind, file-meta-size, fs-metadata, fs-read, fs-rename, fs-write)
   import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
   import Text.Show (int-to-string)
@@ -111,11 +111,7 @@ module Bootstrap.Pipeline where
   -- Write a refusal's text and answer with the stage's code; a write that
   -- itself fails is its own code, because then the evidence is missing.
   write-failure :: forall r. using (io :: Io r) => Path -> String -> Int ->{IO r} Int
-  write-failure ir text code = case fs-write ir (string-to-bytes "") of
-    Ok cleared -> (case fs-write (refusal-path ir) (string-to-bytes text) of
-      Ok u -> code
-      Err e -> pipeline-write-failed)
-    Err e -> pipeline-write-failed
+  write-failure ir text code = write-runtime-output ir (failure-output text code)
 
   -- A refusal the caller reads where the artifact would have gone: the
   -- diagnostic file beside the IR path, with the stage's code.
@@ -257,17 +253,26 @@ module Bootstrap.Pipeline where
         let retain = (case admitted of Ok canonical -> prepare-admitted-check canonical; Err message -> \retained -> check-and-retain-with-interfaces interfaces) in
         let check = check-object-client-using profile interfaces (checked-prepared-source profile interfaces retain resolve) in
         case ioWrite (string-to-bytes "ready\n") of
-          _ -> serve-object-builds (string-to-bytes "\n")
-            (\unit -> emit-object-client-using inlining debug reclaim profile IrOnly interfaces provider
-              (\name src -> parse-program-with-index name src headers) check source ir)
+          _ -> serve-object-builds (string-to-bytes "\n") (path-from-string source) ir
+            (\src -> case checked-object-bytes profile (\name input -> parse-program-with-index name input headers) check source src of
+              Err (message, status) -> failure-output message status
+              Ok (view, program) -> runtime-module-output (emit-target-program profile inlining debug reclaim program (Some provider)))
+            None
 
-  serve-object-builds :: forall r. using (io :: Io r) => Bytes -> (Unit ->{IO r, Diverge} Int) ->{IO r, Diverge} Int
-  serve-object-builds newline build = case ioRead 1 of
+  serve-object-builds :: forall r. using (io :: Io r) => Bytes -> Path -> Path -> (Bytes -> RuntimeOutput) -> Option (Bytes, RuntimeOutput) ->{IO r, Diverge} Int
+  serve-object-builds newline source ir build previous = case ioRead 1 of
     None -> pipeline-ok
     Some token -> if bytes-compare token newline /= 0 then pipeline-bad-args else
-      case build () of
-        status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
-          _ -> serve-object-builds newline build
+      case fs-read source of
+        Err error -> (case write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed of
+          status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+            _ -> serve-object-builds newline source ir build None)
+        Ok src -> let output = (case previous of
+          Some (old-source, old-output) | bytes-compare old-source src == 0 -> old-output
+          other -> build src) in
+          (case write-resident-output ir previous output of
+            status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+              _ -> serve-object-builds newline source ir build (Some (src, output)))
 
   publish-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
   publish-object-client inlining debug reclaim profile manifest object-config source ir =
@@ -309,20 +314,25 @@ module Bootstrap.Pipeline where
   emit-object-client-using inlining debug reclaim profile mode interfaces provider parse check source ir =
     case fs-read (path-from-string source) of
       Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-      Ok src -> case parse source src of
-        Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-        Parsed program Nil -> case target-view-program profile program of
-          Err message -> write-failure ir message pipeline-check-refused
-          Ok view -> case check src view of
-            Err message -> write-failure ir message pipeline-check-refused
-            Ok checked -> case mode of
-              IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
-              other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
-                let entry = path-stem (path-from-string source) in
-                let exported = export-interfaces-aliased checked admitted src in
-                case serialize-exported checked profile entry admitted Nil exported of
-                  done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
-        Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+      Ok src -> case checked-object-bytes profile parse check source src of
+        Err (message, status) -> write-failure ir message status
+        Ok (view, checked) -> case mode of
+          IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
+          other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
+            let entry = path-stem (path-from-string source) in
+            let exported = export-interfaces-aliased checked admitted src in
+            case serialize-exported checked profile entry admitted Nil exported of
+              done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
+
+  checked-object-bytes :: TargetProfile -> (String -> Bytes -> ParseOutcome Program) -> (Bytes -> Program -> Result String CheckedProgram) -> String -> Bytes -> Result (String, Int) (Program, CheckedProgram)
+  checked-object-bytes profile parse check source src = case parse source src of
+    Failed bundle -> Err (render-bundle bundle, pipeline-parse-failed)
+    Parsed program Nil -> case target-view-program profile program of
+      Err message -> Err (message, pipeline-check-refused)
+      Ok view -> case check src view of
+        Err message -> Err (message, pipeline-check-refused)
+        Ok checked -> Ok (view, checked)
+    Parsed program errors -> Err (render-bundle (Bundle source src errors), pipeline-parse-failed)
 
   -- Interface publication and ordinary compilation share the same checked rows.
   after-object-client :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
@@ -803,16 +813,51 @@ module Bootstrap.Pipeline where
   -- The typed backend emits a complete shared-runtime LLVM module. Linking
   -- is separate in this mode, so an unavailable lowering cannot fall back
   -- to the standalone fragment's representation or run an old artifact.
+  data RuntimeOutput where
+    RuntimeOutput :: Bytes -> Bytes -> Int -> RuntimeOutput
+
+  failure-output :: String -> Int -> RuntimeOutput
+  failure-output text status = RuntimeOutput (string-to-bytes "") (string-to-bytes text) status
+
+  runtime-module-output :: Result (List Diagnostic) String -> RuntimeOutput
+  runtime-module-output result = case result of
+    Err found -> failure-output (render-diagnostics found) pipeline-emit-refused
+    Ok text -> RuntimeOutput (string-to-bytes text) (string-to-bytes "") pipeline-ok
+
+  write-runtime-output :: forall r. using (io :: Io r) => Path -> RuntimeOutput ->{IO r} Int
+  write-runtime-output ir (RuntimeOutput code diagnostics status) = case fs-write ir code of
+    Err error -> pipeline-write-failed
+    Ok done -> case fs-write (refusal-path ir) diagnostics of
+      Err error -> pipeline-write-failed
+      Ok cleared -> status
+
   write-runtime-module :: forall r. using (io :: Io r) => Path -> Result (List Diagnostic) String ->{IO r} Int
-  write-runtime-module ir result = case result of
-    Err found -> case fs-write ir (string-to-bytes "") of
-      Err e -> pipeline-write-failed
-      Ok cleared -> write-failure ir (render-diagnostics found) pipeline-emit-refused
-    Ok text -> case fs-write ir (string-to-bytes text) of
-      Err e -> pipeline-write-failed
-      Ok written -> case fs-write (refusal-path ir) (string-to-bytes "") of
-        Err e -> pipeline-write-failed
-        Ok cleared -> pipeline-ok
+  write-runtime-module ir result = write-runtime-output ir (runtime-module-output result)
+
+  -- Output paths are caller-owned. Check the bytes before treating a repeat
+  -- as done, so a deleted or replaced artifact is restored by the next request.
+  refresh-resident-file :: forall r. using (io :: Io r) => Path -> Bytes -> Bytes ->{IO r} Result FsError Unit
+  refresh-resident-file path previous content =
+    if bytes-compare previous content /= 0 then fs-write path content else
+      case fs-metadata path of
+        Ok meta -> (case file-meta-kind meta of
+          FileIsFile | file-meta-size meta == bytes-len content ->
+            if bytes-len content == 0 then Ok () else
+              (case fs-read path of
+                Ok actual | bytes-compare actual content == 0 -> Ok ()
+                other -> fs-write path content)
+          other -> fs-write path content)
+        Err error -> fs-write path content
+
+  write-resident-output :: forall r. using (io :: Io r) => Path -> Option (Bytes, RuntimeOutput) -> RuntimeOutput ->{IO r} Int
+  write-resident-output ir previous output = case (previous, output) of
+    (Some (source, RuntimeOutput old-code old-diagnostics old-status), RuntimeOutput code diagnostics status) ->
+      (case refresh-resident-file ir old-code code of
+        Err error -> pipeline-write-failed
+        Ok done -> (case refresh-resident-file (refusal-path ir) old-diagnostics diagnostics of
+          Err error -> pipeline-write-failed
+          Ok cleared -> status))
+    other -> write-runtime-output ir output
 
   -- The last stage: the module lands, then the driver rung links it, runs
   -- the artifact and writes the report the caller reads.

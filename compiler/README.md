@@ -319,9 +319,11 @@ the checked source contracts and their indexed bodies.
 memory for a series of edits to one source file. Wait for `ready` on
 stdout, then send one newline on stdin per build after saving `SOURCE`.
 The compiler writes LLVM IR and `IR.diagnostics` as in `--emit-ir-only`
-and replies with the build status on its own line. Close stdin to stop
-the session. Start a new session when the dependency package or object
-changes. Linking an executable is a separate step.
+and replies with the build status on its own line. It reuses the last
+result when the source bytes match. It preserves the timestamps of current
+outputs and restores missing or changed outputs on the next request.
+Close stdin to stop the session. Start a new session when the dependency
+package or object changes. Linking an executable is a separate step.
 
 Check-only runs parsing, resolution and the current source/Core checks, then
 writes `DIAGNOSTICS_BASE.diagnostics` (empty on success). It does not run the
