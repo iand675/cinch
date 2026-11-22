@@ -4218,14 +4218,22 @@ module Bootstrap.Infer where
     Nil -> env
     Cons first rest -> Cons (MkProofBinding origin None first) (prepend-proof-facts origin rest env)
   proof-case-env :: Span -> List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
-  proof-case-env origin env value pattern positive st = let term = map-term-types (normalize st) value in
-    let introduced = scoped-core-case-facts (proof-context env st) (proof-facts env) term (map-pattern-types (normalize st) pattern) positive in
-      proof-env-after-writes (prepend-proof-facts origin introduced env) (core-mutable-writes term) st
+  proof-case-env origin env value pattern positive st =
+    if not (case-pattern-may-prove pattern positive) then proof-env-after-term env value st
+    else let term = map-term-types (normalize st) value in
+      let facts = scoped-core-case-facts (proof-context env st) (proof-facts env) term (map-pattern-types (normalize st) pattern) positive in
+      let introduced = prepend-proof-facts origin facts env in
+      if proof-env-invalidatable introduced then proof-env-after-writes introduced (core-mutable-writes term) st else introduced
   proof-case-rest-env :: Span -> List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
-  proof-case-rest-env origin env value pattern body st = let checked = map-term-types (normalize st) body in
-    let introduced = (scoped-core-case-rest-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
-      (map-pattern-types (normalize st) pattern) checked) in
-        proof-env-after-writes (prepend-proof-facts origin introduced env) (guard-fallthrough-writes checked) st
+  proof-case-rest-env origin env value pattern body st =
+    let candidate = (case body of CGuard sp ty guard rhs -> True; other -> case-pattern-may-prove pattern False) in
+    let facts = (if candidate then
+      normalized-case-rest-facts (normalize st) (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
+        (map-pattern-types (normalize st) pattern) body
+      else Nil) in
+    let introduced = prepend-proof-facts origin facts env in
+    if proof-env-invalidatable introduced then proof-env-after-writes introduced (normalized-fallthrough-writes (normalize st) body) st
+    else introduced
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st = let term = map-term-types (normalize st) value in
     let extended = Cons binding env in
@@ -6947,8 +6955,10 @@ module Bootstrap.Infer where
     EAltsEnd s -> (CAlternativesEnd s, st)
     EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
       (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env s bound scrut pattern True sb) locals body result sb of
-        (rhs, sr) -> case check-alternatives classes kinds families (proof-case-rest-env s env scrut pattern rhs sr) locals scrut result rest sr of
-          (more, ss) -> (CAlternative s pattern rhs more, ss)
+        (rhs, sr) -> case rest of
+          EAltsEnd end -> (CAlternative s pattern rhs (CAlternativesEnd end), sr)
+          other -> case check-alternatives classes kinds families (proof-case-rest-env s env scrut pattern rhs sr) locals scrut result rest sr of
+            (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-alt-body classes kinds families env locals body result st = case body of
@@ -7317,11 +7327,14 @@ module Bootstrap.Infer where
   check-clauses classes kinds families env locals ty earlier cs st = case cs of
     Nil -> (Nil, st)
     Cons (ps, body) rest -> case check-equation classes kinds families env locals earlier Nil ps body ty (URow UEnd) (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
-      (patterns, rhs, sr) ->
-        let writes = if core-alternative-covers rhs then Nil else guard-fallthrough-writes (map-term-types (normalize sr) rhs) in
-        let remaining = proof-env-after-writes env writes sr in
-        case check-clauses classes kinds families remaining locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
-          (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
+      (patterns, rhs, sr) -> case rest of
+        Nil -> ([MkCoreClause (expr-span body) patterns rhs], sr)
+        other ->
+          let remaining = (if not (core-alternative-covers rhs) && proof-env-invalidatable env then
+            proof-env-after-writes env (normalized-fallthrough-writes (normalize sr) rhs) sr
+            else env) in
+          case check-clauses classes kinds families remaining locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
+            (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
   bind-value-parameters :: List Quant -> List (Nat, UType) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   bind-value-parameters params pairs env st = case params of
     Nil -> (env, st)

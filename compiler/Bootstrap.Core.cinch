@@ -19,7 +19,7 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
+  export scoped-core-case-facts, scoped-core-case-rest-facts, normalized-case-rest-facts, case-pattern-may-prove, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPSymbol, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
@@ -34,7 +34,7 @@ module Bootstrap.Core where
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, mutable-borrow, copy-out-type
   export thunk-function-parts
-  export core-mutable-writes, scoped-branch-writes, guard-fallthrough-writes
+  export core-mutable-writes, scoped-branch-writes, guard-fallthrough-writes, normalized-fallthrough-writes
   export mutable-fact-write, mutable-predicate-write, facts-after-writes, proof-after-writes, volatile-borrow-index
   export writes-move-nothing, term-scope
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
@@ -1102,13 +1102,19 @@ module Bootstrap.Core where
       other -> core-mutable-writes term
     other -> core-mutable-writes term
   guard-fallthrough-writes :: CoreTerm -> List (Span, Option UType)
-  guard-fallthrough-writes body = case body of
-    CGuard sp ty condition rhs -> scoped-branch-writes condition False
-    CLet sp ty id name sc rhs inner -> if core-alternative-covers inner then Nil
-      else core-mutable-writes rhs <> guard-fallthrough-writes inner
-    CMemoScope sp ty region inner -> guard-fallthrough-writes inner
-    CRecursiveValues sp ty region members inner -> recursive-value-writes members <> guard-fallthrough-writes inner
-    CRequire sp ty inner -> guard-fallthrough-writes inner
+  guard-fallthrough-writes body = fallthrough-writes-using (\ty -> ty) (\term -> term) body
+  normalized-fallthrough-writes :: (UType -> UType) -> CoreTerm -> List (Span, Option UType)
+  normalized-fallthrough-writes normalize body = fallthrough-writes-using normalize (map-term-types normalize) body
+  -- A successful branch's result cannot contribute writes to a later row.
+  -- Normalize only the guard and any bindings evaluated on the way to it.
+  fallthrough-writes-using :: (UType -> UType) -> (CoreTerm -> CoreTerm) -> CoreTerm -> List (Span, Option UType)
+  fallthrough-writes-using normalize ready body = case body of
+    CGuard sp ty condition rhs -> scoped-branch-writes (ready condition) False
+    CLet sp ty id name sc rhs inner -> if alternative-covers-using normalize inner then Nil
+      else core-mutable-writes (ready rhs) <> fallthrough-writes-using normalize ready inner
+    CMemoScope sp ty region inner -> fallthrough-writes-using normalize ready inner
+    CRecursiveValues sp ty region members inner -> recursive-value-writes (ready members) <> fallthrough-writes-using normalize ready inner
+    CRequire sp ty inner -> fallthrough-writes-using normalize ready inner
     other -> Nil
   child-writes :: List CoreTerm -> List (Span, Option UType)
   child-writes children = case children of Nil -> Nil; Cons first rest -> core-mutable-writes first <> child-writes rest
@@ -2500,6 +2506,18 @@ module Bootstrap.Core where
   -- A case row states facts only about the actual checked scrutinee.
   -- Failure of a guarded row does not refute its pattern: its guard may
   -- have failed. Callers add a refutation only for covering rows.
+  -- These are the pattern forms that can produce facts below. A type
+  -- substitution changes neither their form nor the constructor's name.
+  case-pattern-may-prove :: CorePattern -> Bool -> Bool
+  case-pattern-may-prove pattern positive = case pattern of
+    CPAs sp ty id name inner -> positive || case-pattern-may-prove inner False
+    CPVar sp ty id name -> positive
+    CPInt sp ty text -> True
+    CPConstructor sp ty name actuals constructor fields ->
+      string-compare name "True" == 0 || string-compare name "False" == 0
+        || string-compare name (global-data-core-nil) == 0 || string-compare name (global-data-core-cons) == 0
+        || (case ordering-row-comparison name of Some comparison -> True; None -> False)
+    other -> False
   scoped-core-case-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
   scoped-core-case-facts gamma facts value pattern positive = case pattern of
     CPAs sp ty id name inner ->
@@ -2618,13 +2636,15 @@ module Bootstrap.Core where
         None -> Nil)
       None -> Nil
   core-alternative-covers :: CoreTerm -> Bool
-  core-alternative-covers body = case body of
-    CLet sp ty id name sc rhs inner -> core-alternative-covers inner
-    CMemoScope sp ty region inner -> core-alternative-covers inner
-    CRecursiveValues sp ty region members inner -> core-alternative-covers inner
-    CRequire sp ty inner -> core-alternative-covers inner
+  core-alternative-covers body = alternative-covers-using (\ty -> ty) body
+  alternative-covers-using :: (UType -> UType) -> CoreTerm -> Bool
+  alternative-covers-using normalize body = case body of
+    CLet sp ty id name sc rhs inner -> alternative-covers-using normalize inner
+    CMemoScope sp ty region inner -> alternative-covers-using normalize inner
+    CRecursiveValues sp ty region members inner -> alternative-covers-using normalize inner
+    CRequire sp ty inner -> alternative-covers-using normalize inner
     CGuard sp ty condition rhs -> (case condition of
-      CUse at actual name role Nil -> bool-type actual && string-compare name "True" == 0 && string-compare role "constructor" == 0
+      CUse at actual name role Nil -> bool-type (normalize actual) && string-compare name "True" == 0 && string-compare role "constructor" == 0
       other -> False)
     other -> True
   case-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
@@ -2634,9 +2654,15 @@ module Bootstrap.Core where
   -- guard is false. Read it in the outer scope so no row binding escapes.
   scoped-core-case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
   scoped-core-case-rest-facts gamma facts value pattern body =
-    if core-alternative-covers body then scoped-core-case-facts gamma facts value pattern False
+    case-rest-facts-using (\ty -> ty) (\term -> term) gamma facts value pattern body
+  normalized-case-rest-facts :: (UType -> UType) -> ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
+  normalized-case-rest-facts normalize gamma facts value pattern body =
+    case-rest-facts-using normalize (map-term-types normalize) gamma facts value pattern body
+  case-rest-facts-using :: (UType -> UType) -> (CoreTerm -> CoreTerm) -> ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
+  case-rest-facts-using normalize ready gamma facts value pattern body =
+    if alternative-covers-using normalize body then scoped-core-case-facts gamma facts value pattern False
     else case body of
-      CGuard sp ty condition rhs ->
+      CGuard sp ty guard rhs -> let condition = ready guard in
         if irrefutable-case-pattern (core-type value) pattern && bool-type (core-type condition)
           && contract-equal (core-effects condition) (URow UEnd) && proof-term gamma facts condition then
           (case scoped-core-branch gamma facts condition False of Some fact -> [fact]; None -> Nil)
@@ -2651,7 +2677,11 @@ module Bootstrap.Core where
   extend-equation-prefix patterns body earlier = case body of
     CRequire sp ty inner -> extend-equation-prefix patterns inner earlier
     CError sp -> earlier
-    other -> if core-alternative-covers body then Cons patterns earlier else earlier
+    other -> if core-alternative-covers body && refutable-equation-proofs patterns then Cons patterns earlier else earlier
+  refutable-equation-proofs :: List CorePattern -> Bool
+  refutable-equation-proofs patterns = case patterns of
+    Nil -> False
+    Cons first rest -> case-pattern-may-prove first False || refutable-equation-proofs rest
   single-refutable-column :: List CorePattern -> List CorePattern -> Option (CorePattern, CorePattern) -> Option (CorePattern, CorePattern)
   single-refutable-column before current found = case (before, current) of
     (Nil, Nil) -> found
