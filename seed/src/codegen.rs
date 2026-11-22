@@ -606,6 +606,7 @@ fn emit_module(
         "declare i64 @cinch_fs_mkdir(i64, i64)",
         "declare i64 @cinch_fs_remove(i64, i64)",
         "declare i64 @cinch_fs_temp_dir()",
+        "declare i64 @cinch_map_package_bytes(i64, i64)",
         "declare i64 @cinch_signal_send(i64, i64)",
         // The bump arena (`seed/runtime/src/arena.rs`): a scope enters
         // one, allocates its constructor cells from it uncounted, and
@@ -7561,6 +7562,15 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 ArenaNew | ArenaLeave => {
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     ret(b, &r);
+                }
+                MapPackageBytes => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    let word = freeze_word(b, &r);
+                    ret_result(b, reg, op, &word, |_| word.clone());
                 }
                 FsTempDir => {
                     let r = rt_call(b, k.extern_name(), &[]);

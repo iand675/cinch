@@ -57,6 +57,7 @@ const NAMES: [&[u8]; BUCKETS] = [
     b"columnar",
     b"tvar",
     b"mvar",
+    b"mapped-bytes",
     b"other",
 ];
 

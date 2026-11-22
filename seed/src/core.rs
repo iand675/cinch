@@ -664,6 +664,8 @@ pub enum PlatformOp {
     /// `fsTempDir :: Unit -> Bytes`: the platform temp directory as a
     /// `Bytes` path.
     FsTempDir,
+    /// Map a stable package file as an owned read-only byte buffer.
+    MapPackageBytes,
     /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
     SignalSend,
     /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
@@ -683,6 +685,7 @@ impl PlatformOp {
             PlatformOp::FsMkdir => "fsMkdir",
             PlatformOp::FsRemove => "fsRemove",
             PlatformOp::FsTempDir => "fsTempDir",
+            PlatformOp::MapPackageBytes => "mapPackageBytes",
             PlatformOp::SignalSend => "signalSend",
             PlatformOp::ArenaNew => "arenaNew",
             PlatformOp::ArenaLeave => "arenaLeave",
@@ -696,6 +699,7 @@ impl PlatformOp {
             PlatformOp::FsMkdir => "cinch_fs_mkdir",
             PlatformOp::FsRemove => "cinch_fs_remove",
             PlatformOp::FsTempDir => "cinch_fs_temp_dir",
+            PlatformOp::MapPackageBytes => "cinch_map_package_bytes",
             PlatformOp::SignalSend => "cinch_signal_send",
             PlatformOp::ArenaNew => "cinch_arena_new",
             PlatformOp::ArenaLeave => "cinch_arena_leave",
@@ -1260,6 +1264,7 @@ impl PrimOp {
                 "fsMkdir" => Platform(PlatformOp::FsMkdir),
                 "fsRemove" => Platform(PlatformOp::FsRemove),
                 "fsTempDir" => Platform(PlatformOp::FsTempDir),
+                "mapPackageBytes" => Platform(PlatformOp::MapPackageBytes),
                 "signalSend" => Platform(PlatformOp::SignalSend),
                 "arenaNew" => Platform(PlatformOp::ArenaNew),
                 "arenaLeave" => Platform(PlatformOp::ArenaLeave),
@@ -1520,6 +1525,7 @@ impl PrimOp {
                 (vec![Ty::Bytes, Ty::Bool], i64t)
             }
             Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
+            Platform(PlatformOp::MapPackageBytes) => (vec![i64t.clone(), i64t.clone()], res(Ty::Bytes)),
             Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
             Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),

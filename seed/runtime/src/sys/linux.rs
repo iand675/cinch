@@ -342,6 +342,13 @@ pub(crate) fn mmap_anon(size: usize) -> (i64, i64) {
     split(raw)
 }
 
+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
+    let raw = unsafe {
+        syscall(nr::MMAP, 0, size as i64, i64::from(PROT_READ), i64::from(MAP_PRIVATE), fd, 0)
+    };
+    split(raw)
+}
+
 pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
     let raw = unsafe {
         syscall(

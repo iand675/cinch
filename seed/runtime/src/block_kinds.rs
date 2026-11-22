@@ -101,8 +101,10 @@ pub const KIND_COLUMNAR: u8 = 16;
 pub const KIND_TVAR: u8 = 17;
 /// Native MVar box: Rust-owned mutex, slot and FIFO wait queues.
 pub const KIND_MVAR: u8 = 18;
+/// Read-only bytes backed by a file mapping released with the block.
+pub const KIND_BYTES_MAPPED: u8 = 19;
 /// Last live kind; keep range validation in step with new runtime kinds.
-pub const KIND_LAST: u8 = KIND_MVAR;
+pub const KIND_LAST: u8 = KIND_BYTES_MAPPED;
 /// A freed block (debug poisoning): the largest value the field holds.
 pub const KIND_FREED: u8 = 31;
 

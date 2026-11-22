@@ -7,9 +7,8 @@
 //! constant backing) is the same block shape generated code can emit
 //! directly. The region is owned (heap buffers are allocated here and
 //! released only when `cinch_free` frees their block, [`Bytes::release`])
-//! or read-only constant data
-//! (the `KIND_BYTES_STATIC` block kind: mutation attempts fault instead
-//! of writing). Indexing is bounds-checked; out-of-range indices,
+//! or read-only data (a static constant or a private file mapping).
+//! Mutation attempts against either read-only kind fault. Indexing is bounds-checked; out-of-range indices,
 //! negative lengths, and byte values outside `0..=255` are
 //! [`Error::OutOfBounds`], never undefined behaviour. For generated
 //! code every one of these checks is a compiler-bug trap: a `Bytes`
@@ -64,8 +63,7 @@ impl Bytes {
     /// Write `value` (0..=255) at `index`.
     ///
     /// The caller (`abi::as_bytes_mut`) hands out a mutable borrow only
-    /// for heap buffers; a read-only constant buffer (a string
-    /// literal's backing) faults before reaching here.
+    /// for heap buffers. Read-only buffers fault before reaching here.
     pub fn set(&mut self, index: i64, value: i64) -> Result<()> {
         let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
         let v = u8::try_from(value).map_err(|_| Error::OutOfBounds)?;
@@ -74,6 +72,31 @@ impl Bytes {
         }
         unsafe { *self.data.add(i) = v };
         Ok(())
+    }
+
+    /// Adopt a read-only mapping for a `KIND_BYTES_MAPPED` block.
+    ///
+    /// # Safety
+    ///
+    /// The mapping starts at `data` and spans `len` bytes. Its file stays
+    /// immutable while the mapping is owned, with replacements published
+    /// by renaming a new file.
+    #[cfg(not(target_os = "unknown"))]
+    pub(crate) unsafe fn from_mapping(data: i64, len: i64) -> Self {
+        Bytes { len, data: data as usize as *mut u8 }
+    }
+
+    /// Release the mapping after the last reference to the block is gone.
+    ///
+    /// # Safety
+    ///
+    /// This block owns the mapping and its payload is never read again.
+    pub(crate) unsafe fn unmap(&mut self) {
+        let (result, _) = crate::sys::munmap(self.data as usize as i64, self.len as usize);
+        if result != 0 {
+            crate::abi::panic_exit(b"compiler bug: cannot release mapped bytes");
+        }
+        self.len = 0;
     }
 
     /// Borrow the contents.

@@ -239,8 +239,13 @@ pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
     back::mmap_reserve(size)
 }
 
-/// Release a mapping `mmap_anon` made: 0, or `-1` and the error
-/// number.
+/// Create a private read-only mapping of the first `size` bytes of a file.
+#[cfg(not(target_os = "unknown"))]
+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
+    back::mmap_file_readonly(fd, size)
+}
+
+/// Release a mapping: 0, or `-1` and the error number.
 pub(crate) fn munmap(addr: i64, size: usize) -> (i64, i64) {
     back::munmap(addr, size)
 }

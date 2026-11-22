@@ -214,6 +214,14 @@ pub(crate) fn mmap_anon(size: usize) -> (i64, i64) {
     pair(p as i64)
 }
 
+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
+    let Ok(fd) = i32::try_from(fd) else {
+        return (-1, super::EINVAL);
+    };
+    let p = unsafe { c::mmap(null_mut(), size, PROT_READ, MAP_PRIVATE, fd, 0) };
+    pair(p as i64)
+}
+
 pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
     let p = unsafe { c::mmap(null_mut(), size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0) };
     pair(p as i64)
