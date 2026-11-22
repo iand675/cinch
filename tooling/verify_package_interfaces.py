@@ -413,12 +413,27 @@ module Main where
   main :: Int
   main = marker
 """
+    guarded = """module Main where
+  guarded :: using (n > 0) => (n :: Nat) -> Nat
+  guarded n = n - 1
+  checked :: Nat -> Nat
+  checked n = if n > 0 then guarded n else 0
+  main :: Int
+  main = 0
+"""
+    opaque = guarded.replace("checked :: Nat -> Nat",
+                             "checked :: using (ordering :: Ord Nat) => Nat -> Nat")
     expected_edits = {}
-    for edit in (new_import, shadow, changed):
+    for edit in (new_import, shadow, guarded, changed):
         hello.write_text(edit)
         invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
                 "--objects", config, hello, ir], session_dir, leak=True)
         expected_edits[edit] = ir.read_bytes()
+    hello.write_text(opaque)
+    invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
+            "--objects", config, hello, ir], session_dir, status=4, leak=True)
+    opaque_diagnostics = diagnostics.read_bytes()
+    assert b"precondition is not established" in opaque_diagnostics
     args = [stage / "cinch", "--serve-ir", "--interfaces", package,
             "--objects", config, hello]
     invoke([*args, package], session_dir, status=1, leak=True)
@@ -457,11 +472,15 @@ module Main where
                     assert build() == b"4\n"
                     assert not ir.read_bytes()
                     assert "missing-name" in diagnostics.read_text()
-                    for edit in (new_import, shadow):
+                    for edit in (new_import, shadow, guarded):
                         hello.write_text(edit)
                         assert build() == b"0\n"
                         assert not diagnostics.read_bytes()
                         assert ir.read_bytes() == expected_edits[edit]
+                    hello.write_text(opaque)
+                    assert build() == b"4\n"
+                    assert not ir.read_bytes()
+                    assert diagnostics.read_bytes() == opaque_diagnostics
                     for index in range(repeats):
                         hello.write_text(changed if index % 2 == 0 else initial)
                         start = time.perf_counter_ns()
