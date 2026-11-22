@@ -4,7 +4,7 @@
 -- an index can enter a proof context or be reified for runtime execution.
 module Bootstrap.Index where
 
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-from-int, nat-to-int)
 

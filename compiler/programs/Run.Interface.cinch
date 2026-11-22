@@ -44,14 +44,13 @@ module Main where
   import Bootstrap.Interface
   import Data.Bool
   import Data.Bytes
-  import Data.Json
+  import Bootstrap.Document
   import Data.List
   import Data.Nat
   import Data.Option
   import Data.String
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
-  import Text.Json (ordered-json-bytes)
 
   -- The answers the harness read from the compiler's own model of the
   -- artifact, so every claim here is checked against an independent reader

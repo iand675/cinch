@@ -44,7 +44,7 @@ module Bootstrap.Check where
   import Algebra.Semigroup
   import Bootstrap.Ast
   import Bootstrap.Report
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Bootstrap.Load (LoadedInterface, ValidatedInterfaces)
   import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaboration-errors, needs-inference, infer-program)

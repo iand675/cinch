@@ -14,7 +14,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 

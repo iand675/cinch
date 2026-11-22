@@ -6,8 +6,7 @@ module Main where
   import Bootstrap.Global
   import Bootstrap.Typing
   import Bootstrap.Nominal (interface-global)
-  import Data.Json
-  import Text.Json (parse-json)
+  import Bootstrap.Document
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
   import Data.Path (path-from-string)

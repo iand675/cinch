@@ -8,7 +8,7 @@ module Main where
   import Bootstrap.Type (Quant, quant-kind, kind-text)
   import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Data.Json
+  import Bootstrap.Document
   import Data.List
   import Data.Option
   import Data.String

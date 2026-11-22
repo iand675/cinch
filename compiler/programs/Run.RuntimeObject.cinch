@@ -12,7 +12,7 @@ module Main where
   import Bootstrap.Resolve (resolve-program-with)
   import Bootstrap.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Text.Json (parse-json)
+  import Bootstrap.Document (parse-json)
   import Text.Show (nat-to-string, int-to-string)
   import Algebra.Semigroup
   import Data.Path (path-from-string)

@@ -10,8 +10,8 @@ module Main where
   import Bootstrap.Export (export-interfaces)
   import Bootstrap.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
-  import Text.Json (canonical-json)
-  import Data.Json (Json)
+  import Bootstrap.Document (canonical-json)
+  import Bootstrap.Document (Json)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   rows-text :: List (String, Json) -> String

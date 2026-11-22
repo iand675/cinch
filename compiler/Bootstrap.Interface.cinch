@@ -77,7 +77,7 @@ module Bootstrap.Interface where
   import Data.Bytes
   import Text.Fnv (fnv64a, fnv64a-update)
   import Data.Int
-  import Data.Json
+  import Bootstrap.Document
   import Data.List
   import Data.Machine
   import Data.Nat
@@ -85,7 +85,7 @@ module Bootstrap.Interface where
   import Data.String
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Show (int-to-string, nat-to-string)
-  import Text.Json (parse-json, digest-hex, ordered-json-bytes)
+  import Text.Json (digest-hex)
 
   export iface-schema-version
   export iface-parse, iface-module, iface-schema, iface-source-hash
@@ -326,6 +326,7 @@ module Bootstrap.Interface where
     JArrEnd -> fnv-byte (fnv-byte hash 91) 93
     JObj key entry rest -> fnv-json-fields (fnv-byte hash 123) value
     JObjEnd -> fnv-byte (fnv-byte hash 123) 125
+    JTerm term -> fnv-json-value hash (term-document term)
 
   fnv-json-array :: U64 -> Json -> U64
   fnv-json-array hash rest = case rest of

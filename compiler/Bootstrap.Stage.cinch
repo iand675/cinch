@@ -14,7 +14,7 @@ module Bootstrap.Stage where
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-lookup, hash-map-insert)
   import Data.Char (is-ascii-upper)
-  import Data.Json (JNull)
+  import Bootstrap.Document (JNull)
   import Data.String (string-char-at)
   import Text.Scan (string-starts-with)
   import Data.Int (int-neg)

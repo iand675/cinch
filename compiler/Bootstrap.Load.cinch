@@ -18,9 +18,8 @@ module Bootstrap.Load where
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, decode-identity, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span, bytes-slice)
   import Text.Scan (string-starts-with)
@@ -594,6 +593,9 @@ module Bootstrap.Load where
     (JObjEnd, JObjEnd) -> True
     (JArr x xs, JArr y ys) -> compare-documents canonical x y && compare-documents canonical xs ys
     (JObj k x xs, JObj l y ys) | same k l -> compare-documents canonical x y && compare-documents canonical xs ys
+    (JTerm x, JTerm y) -> json-eq a b || (canonical && compare-documents True (term-document x) (term-document y))
+    (JTerm x, other) -> compare-documents canonical (term-document x) b
+    (other, JTerm y) -> compare-documents canonical a (term-document y)
     other -> canonical && bytes-compare (canonical-bytes a) (canonical-bytes b) == 0
 
   -- | Match an optional private-field proof to the actual public owner, roles and exposed constructors.

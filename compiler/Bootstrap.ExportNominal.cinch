@@ -9,11 +9,10 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Load (LoadedInterface, loaded-contract, contract-nominals)
   import Bootstrap.Nominal (kernel-type-name, interface-global, global-data-core-list)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
-  import Data.Json
+  import Bootstrap.Document
   import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
   import Bootstrap.Contracts (declaration-references)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Text.Json (json-eq)
 
   export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names, binding-source-type
   export sorted, declaration-reference-index, source-effect-contract

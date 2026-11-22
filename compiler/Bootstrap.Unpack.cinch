@@ -8,8 +8,7 @@ module Bootstrap.Unpack where
   import Text.Lex (Span)
   import Text.Scan (string-starts-with, string-ends-with, string-drop, string-take, string-split-on)
   import Data.Bytes (bytes-compare)
-  import Text.Json (canonical-bytes)
-  import Data.Json
+  import Bootstrap.Document
   import Algebra.Semigroup
 
   export check-unpacked-records, unpacked-abi

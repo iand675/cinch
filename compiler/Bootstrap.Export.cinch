@@ -21,9 +21,8 @@ module Bootstrap.Export where
   import Bootstrap.Load (contract-intrinsic, LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-from-int, nat-to-int)
-  import Text.Json (canonical-bytes)
   import Text.Lex (bytes-slice, Span)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 

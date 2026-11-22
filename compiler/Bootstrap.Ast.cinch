@@ -32,7 +32,7 @@ module Bootstrap.Ast where
 
   import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, lt-token, lt-virtual
     , TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF)
-  import Data.Json (Json, JArr, JArrEnd, JStr, JBool, JNull)
+  import Bootstrap.Document (Json, JArr, JArrEnd, JStr, JBool, JNull)
   import Data.String (string-from-bytes, empty-string)
   import Text.Show (nat-to-string)
   import Algebra.Semigroup

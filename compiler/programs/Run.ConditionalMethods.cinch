@@ -1,8 +1,7 @@
 -- Interfaces and source are runtime inputs to this compiled Cinch checker.
 module Main where
   import Bootstrap.Ast
-  import Data.Json
-  import Text.Json (parse-json)
+  import Bootstrap.Document
   import Text.Show (int-to-string)
   import Bootstrap.Inputs (read-interfaces)
   import Bootstrap.Load (LoadedInterface)

@@ -5,7 +5,7 @@ module Main where
   import Bootstrap.Global
   import Bootstrap.BodyContract
   import Bootstrap.Total (total-body, total-function-document)
-  import Data.Json
+  import Bootstrap.Document
   import Text.Lex (Span)
   import Text.Show (nat-to-string)
   import Data.Path (path-from-string)

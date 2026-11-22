@@ -10,7 +10,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Nominal (global-stage-str-nat, interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Data.Json
+  import Bootstrap.Document
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup

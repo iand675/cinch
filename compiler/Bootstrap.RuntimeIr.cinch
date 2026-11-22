@@ -27,7 +27,7 @@ module Bootstrap.RuntimeIr where
   import Text.Scan (string-split-on, string-starts-with)
   import Text.Lex (Span)
   import Data.Array (array-from-list, array-get)
-  import Data.Json
+  import Bootstrap.Document
   import Data.List (split-at)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 

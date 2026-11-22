@@ -390,7 +390,7 @@ fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
     let main = format!(r#"module Main where
   import Bootstrap.Interface (iface-parse)
   import Bootstrap.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
-  import Data.Json (Json)
+  import Bootstrap.Document (Json)
   documents :: List (String, String, String) -> Option (List (String, String, Json))
   documents rows = case rows of
     Nil -> Some Nil

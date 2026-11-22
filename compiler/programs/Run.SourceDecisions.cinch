@@ -8,7 +8,7 @@ module Main where
   import Bootstrap.Type
   import Bootstrap.BodyContract (BodyBinding)
   import Bootstrap.Report (render-diagnostics)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

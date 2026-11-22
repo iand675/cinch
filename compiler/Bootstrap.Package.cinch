@@ -4,30 +4,29 @@ module Bootstrap.Package where
 
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
   import Bootstrap.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
+  import Bootstrap.PackedBody (Region, PackedSignature, region-start, hold-package-source,
+    CheckedBodyTable, PackedTerm, retain-checked-body-table, checked-body-id, checked-definition, checked-term)
   import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
   import Data.Array (array-append, array-from-list, array-get, array-length)
   import Data.Bytes (bytes-data, bytes-len, bytes-new)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Data.Json
+  import Bootstrap.Document
   import Data.List (sort)
   import Data.Machine (u32-to-nat)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int, nat-to-i64)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
   import Text.Fnv (fnv64a-update)
-  import Text.Json (parse-json, json-eq)
   import Text.Lex (bytes-slice)
   import Text.Parse (ParseOutcome, Parsed)
 
   export PackageContract, package-contract, read-package-documents, packaged-abi
   export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
-  export PackedBodyTable, PackedTerm, PackedArguments, packed-definition-for, same-packed-term, packed-node, packed-argument-node
-  export PackedNode, PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm
-  export PackedArgumentNode, NoPackedArguments, NextPackedArgument
+  export PackedBodyTable, packed-definition-for
 
   foreign import ccall "memmove" copy-memory :: forall r. I64 -> I64 -> I64 ->{IO r} I64
 
   -- The caller has checked the word against its containing region. The
-  -- invariant is local to this module and includes the lifetime of the backing bytes.
+  -- validator and checked views keep the backing bytes live through the read.
   prim load-word :: I64 -> I64 -> U32 where
     unsafe llvm {
       %base = inttoptr i64 %0 to ptr
@@ -43,14 +42,10 @@ module Bootstrap.Package where
       ret i32 %value
     } when endian big
 
-  data Region where
-    Region :: Nat -> Nat -> Region
-  data FlatBodies where
-    FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
-  data PackedSignature where
-    PackedSignature :: String -> List String -> String -> Nat -> Region -> PackedSignature
   data PackedTable where
     PackedTable :: I64 -> Array String -> Region -> Region -> Array PackedSignature -> PackedTable
+  data FlatBodies where
+    FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
   data BodyFormat where
     Recipes :: Region -> Region -> BodyFormat
     Indexed :: FlatBodies -> BodyFormat
@@ -64,23 +59,7 @@ module Bootstrap.Package where
   data PackageSnapshot where
     PackageSnapshot :: Bytes -> StringTable -> Array String -> AbiSection -> PackageSnapshot
   data PackedBodyTable where
-    BodyTable :: Bytes -> Array String -> Region -> Region -> Array PackedSignature -> HashMap String Nat -> HashMap String Json -> PackedBodyTable
-  data PackedTerm where
-    PackedTermRef :: PackedBodyTable -> Nat -> PackedTerm
-  data PackedArguments where
-    PackedOperandSpan :: PackedBodyTable -> Nat -> Nat -> PackedArguments
-  data PackedNode where
-    PackedLocal :: Nat -> PackedNode
-    PackedNumber :: String -> String -> PackedNode
-    PackedBool :: Bool -> PackedNode
-    PackedPrimitive :: String -> PackedArguments -> PackedNode
-    PackedCall :: String -> PackedArguments -> PackedNode
-    PackedLet :: PackedTerm -> PackedTerm -> PackedNode
-    PackedIf :: PackedTerm -> PackedTerm -> PackedTerm -> PackedNode
-    InvalidPackedTerm :: PackedNode
-  data PackedArgumentNode where
-    NoPackedArguments :: PackedArgumentNode
-    NextPackedArgument :: PackedTerm -> PackedArguments -> PackedArgumentNode
+    BodyTable :: CheckedBodyTable -> HashMap String Json -> PackedBodyTable
 
   data PackageContract where
     PackageContract :: String -> String -> Json -> String -> Option PackedBodyTable -> PackageContract
@@ -136,13 +115,10 @@ module Bootstrap.Package where
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
-    IndexedDefinitions :: PackedTable -> WireSyntax -> HashMap String Json -> HashMap String PackedClosure -> Definitions
+    IndexedDefinitions :: PackedTable -> CheckedBodyTable -> WireSyntax -> HashMap String Json -> HashMap String PackedClosure -> Definitions
 
   region-size :: Region -> Nat
   region-size region = case region of Region start length -> length
-  region-start :: Region -> Nat
-  region-start region = case region of Region start length -> start
-
   word :: I64 -> Nat -> Nat
   word address at = u32-to-nat (load-word address (machine-offset at))
 
@@ -203,10 +179,6 @@ module Bootstrap.Package where
   packaged-abi path source =
     let size = bytes-len source in
     if size < 8 then Ok None else hold-package-source source (decode-packaged-abi path source (bytes-data source) size)
-
-  -- Keep the owner live until the decoder has finished its raw reads.
-  hold-package-source :: forall a. Bytes -> a -> a
-  hold-package-source source result = case bytes-len source of _ -> result
 
   decode-packaged-abi :: forall r. String -> Bytes -> I64 -> Nat ->{IO r} Result String (Option Json)
   decode-packaged-abi path source address size =
@@ -403,7 +375,7 @@ module Bootstrap.Package where
           other -> Err "invalid shared definition table")
         8 -> read-number address definitions cursor limit True table hash
         9 -> (case definitions of
-          IndexedDefinitions packed syntax rows cache | cursor + 4 <= limit -> (case read-body-closure syntax packed rows cache (word address cursor) table hash of
+          IndexedDefinitions packed checked syntax rows cache | cursor + 4 <= limit -> (case read-body-closure syntax packed checked rows cache (word address cursor) table hash of
             Err message -> Err message
             Ok (body, digest, checked) -> Ok (body, cursor + 4, digest, checked))
           other -> Err "unexpected packed body root")
@@ -659,13 +631,13 @@ module Bootstrap.Package where
     Nil -> tail
     Cons sort rest -> parameter-document rest (JArr (JStr sort) tail)
 
-  check-flat-rows :: PackedTable -> Nat -> Nat -> Result String Definitions
+  check-flat-rows :: PackedTable -> Nat -> Nat -> Result String Unit
   check-flat-rows table index first = case table of
     PackedTable address strings nodes operands signatures ->
       if index == array-length signatures then
         (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
          else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
-         else Ok (IndexedDefinitions table wire-syntax hash-map-empty hash-map-empty))
+         else Ok ())
       else
         (case array-get signatures index of
           None -> Err "packed body definition outside its section"
@@ -779,95 +751,66 @@ module Bootstrap.Package where
               let complete = fnv-byte (fnv-json-string (fnv64a-update arguments (syntax.resultField)) result) 125 in
               hash-wire-rows syntax packed table rest (case rest of Nil -> complete; other -> fnv-byte complete 44)))
 
-  -- Only a compatibility document requests this projection. The packed
-  -- table has already checked the node IDs, spans, sorts and arities.
-  project-flat-term :: PackedTable -> Nat -> Json
-  project-flat-term table id = case table of
-    PackedTable address strings nodes operands signatures ->
-      let at = region-start nodes + id * 16 in
-      let a = word address (at + 4) in
-      let b = word address (at + 8) in
-      let c = word address (at + 12) in
-      case word address at of
-        0 -> JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int a)) JObjEnd)
-        1 -> JObj "decimal" (packed-json-string strings b) (JObj "node" (JStr "number") (JObj "sort" (packed-json-string strings a) JObjEnd))
-        2 -> JObj "node" (JStr "bool") (JObj "value" (JBool (a == 1)) JObjEnd)
-        3 -> project-flat-application table "primitive" "operation" (packed-json-string strings a) b c
-        4 -> (case array-get signatures a of
-          Some (PackedSignature callee parameters result root edges) ->
-            project-flat-application table "call" "target" (JStr callee) b c
-          None -> JNull)
-        5 -> JObj "body" (project-flat-term table b) (JObj "node" (JStr "let") (JObj "value" (project-flat-term table a) JObjEnd))
-        6 -> JObj "condition" (project-flat-term table a) (JObj "no" (project-flat-term table c)
-          (JObj "node" (JStr "if") (JObj "yes" (project-flat-term table b) JObjEnd)))
-        other -> JNull
-
-  packed-json-string :: Array String -> Nat -> Json
-  packed-json-string strings id = case array-get strings id of Some value -> JStr value; None -> JNull
-
-  project-flat-application :: PackedTable -> String -> String -> Json -> Nat -> Nat -> Json
-  project-flat-application table kind key name first count = case table of
-    PackedTable address strings nodes operands signatures ->
-      let start = region-start operands + first * 4 in
-      let arguments = project-flat-operands table address start (start + count * 4) in
-      JObj "arguments" arguments (JObj "node" (JStr kind) (JObj key name JObjEnd))
-
-  project-flat-operands :: PackedTable -> I64 -> Nat -> Nat -> Json
-  project-flat-operands table address at end =
-    if at == end then JArrEnd else JArr (project-flat-term table (word address at)) (project-flat-operands table address (at + 4) end)
-
-  project-body-rows :: PackedTable -> Array PackedSignature -> List Nat -> HashMap String Json -> Json -> Result String (Json, HashMap String Json)
-  project-body-rows packed signatures indices rows tail = case indices of
+  reference-body-rows :: CheckedBodyTable -> Array PackedSignature -> List Nat -> HashMap String Json -> Json -> Result String (Json, HashMap String Json)
+  reference-body-rows checked signatures indices rows tail = case indices of
     Nil -> Ok (body-document tail, rows)
     Cons first rest -> (case array-get signatures first of
       None -> Err "packed body definition outside its section"
       Some (PackedSignature name parameters result root edges) ->
         (case hash-map-lookup name rows of
-          Some row -> project-body-rows packed signatures rest rows (JArr row tail)
+          Some row -> reference-body-rows checked signatures rest rows (JArr row tail)
           None ->
             let arguments = parameter-document (reverse parameters) JArrEnd in
-            let body = project-flat-term packed root in
-            let row = JObj "body" body (JObj "identity" (JStr name) (JObj "parameters" arguments (JObj "result" (JStr result) JObjEnd))) in
-            project-body-rows packed signatures rest (hash-map-insert name row rows) (JArr row tail)))
+            (case checked-term checked first of
+              None -> Err "packed body definition outside its section"
+              Some term ->
+                let row = JObj "body" (JTerm term) (JObj "identity" (JStr name) (JObj "parameters" arguments (JObj "result" (JStr result) JObjEnd))) in
+                reference-body-rows checked signatures rest (hash-map-insert name row rows) (JArr row tail))))
 
-  hash-body-closure :: WireSyntax -> PackedTable -> PackedClosure -> Option StringTable -> U64 -> HashMap String Json -> HashMap String PackedClosure -> Result String (Json, U64, Definitions)
-  hash-body-closure syntax packed (PackedClosure selected document) table hash rows cache =
-    let definitions = IndexedDefinitions packed syntax rows cache in
+  hash-body-closure :: WireSyntax -> PackedTable -> CheckedBodyTable -> PackedClosure -> Option StringTable -> U64 -> HashMap String Json -> HashMap String PackedClosure -> Result String (Json, U64, Definitions)
+  hash-body-closure syntax packed checked (PackedClosure selected document) table hash rows cache =
+    let definitions = IndexedDefinitions packed checked syntax rows cache in
     case table of
       None -> Ok (document, hash, definitions)
       Some spans -> (case hash-wire-rows syntax packed spans selected (fnv64a-update hash (syntax.definitionsArray)) of
         Err message -> Err message
         Ok digest -> Ok (document, digest, definitions))
 
-  read-body-closure :: WireSyntax -> PackedTable -> HashMap String Json -> HashMap String PackedClosure -> Nat -> Option StringTable -> U64 -> Result String (Json, U64, Definitions)
-  read-body-closure syntax packed rows cache root table hash = case packed of
+  read-body-closure :: WireSyntax -> PackedTable -> CheckedBodyTable -> HashMap String Json -> HashMap String PackedClosure -> Nat -> Option StringTable -> U64 -> Result String (Json, U64, Definitions)
+  read-body-closure syntax packed checked rows cache root table hash = case packed of
     PackedTable address strings nodes operands signatures ->
       (case array-get signatures root of
         None -> Err "packed body definition outside its section"
         Some (PackedSignature name parameters result node (Region start length)) ->
           (case hash-map-lookup name cache of
-            Some graph -> hash-body-closure syntax packed graph table hash rows cache
+            Some graph -> hash-body-closure syntax packed checked graph table hash rows cache
             None ->
               let closure = (if length == 0 then Ok [root] else reachable-bodies packed [root] hash-map-empty Nil) in
               (case closure of
                 Err message -> Err message
                 Ok reachable ->
                   let selected = sort reachable in
-                  (case project-body-rows packed signatures (reverse selected) rows JArrEnd of
+                  (case reference-body-rows checked signatures (reverse selected) rows JArrEnd of
                     Err message -> Err message
                     Ok (document, projected) ->
                       let graph = PackedClosure selected document in
-                      hash-body-closure syntax packed graph table hash projected (hash-map-insert name graph cache)))))
+                      hash-body-closure syntax packed checked graph table hash projected (hash-map-insert name graph cache)))))
 
-  read-package-definitions :: forall r. I64 -> Array String -> BodyFormat ->{IO r} Result String Definitions
-  read-package-definitions address strings format = case format of
-    Recipes (Region bodies size) recipes -> (case read-recipes address strings recipes bodies (bodies + size) Nil of
-      Err message -> Err message
-      Ok rows -> Ok (RecipeDefinitions rows))
-    Indexed flat -> case flat of
-      FlatBodies bodies edges nodes operands -> (case read-flat-signatures address strings flat 0 None Nil of
+  read-package-definitions :: forall r. Bytes -> Array String -> BodyFormat ->{IO r} Result String Definitions
+  read-package-definitions source strings format =
+    let address = bytes-data source in
+    case format of
+      Recipes (Region bodies size) recipes -> (case read-recipes address strings recipes bodies (bodies + size) Nil of
         Err message -> Err message
-        Ok signatures -> check-flat-rows (PackedTable address strings nodes operands signatures) 0 0)
+        Ok rows -> Ok (RecipeDefinitions rows))
+      Indexed flat -> case flat of
+        FlatBodies bodies edges nodes operands -> (case read-flat-signatures address strings flat 0 None Nil of
+          Err message -> Err message
+          Ok signatures ->
+            let packed = PackedTable address strings nodes operands signatures in
+            (case check-flat-rows packed 0 0 of
+              Err message -> Err message
+              Ok unit -> Ok (IndexedDefinitions packed (retain-checked-body-table source strings nodes operands signatures) wire-syntax hash-map-empty hash-map-empty)))
 
   read-strings :: forall r. I64 -> Region -> Nat -> Nat -> List String ->{IO r} Result String (Array String)
   read-strings address raw at limit items =
@@ -905,92 +848,24 @@ module Bootstrap.Package where
     StructuredAbi (Region start length) | length >= 4 -> Some (word address start)
     other -> None
 
-  index-packed-signatures :: Array PackedSignature -> Nat -> HashMap String Nat -> HashMap String Nat
-  index-packed-signatures signatures at indexed = case array-get signatures at of
-    None -> indexed
-    Some (PackedSignature name parameters result root edges) ->
-      index-packed-signatures signatures (at + 1) (hash-map-insert name at indexed)
-
-  retain-body-table :: Bytes -> Definitions -> Option PackedBodyTable
-  retain-body-table source definitions = case definitions of
-    IndexedDefinitions (PackedTable address strings nodes operands signatures) syntax rows cache
-      | array-length signatures > 0 ->
-        Some (BodyTable source strings nodes operands signatures (index-packed-signatures signatures 0 hash-map-empty) rows)
+  retain-body-table :: Definitions -> Option PackedBodyTable
+  retain-body-table definitions = case definitions of
+    IndexedDefinitions packed checked syntax rows cache -> case packed of
+      PackedTable address strings nodes operands signatures | array-length signatures > 0 ->
+        Some (BodyTable checked rows)
+      other -> None
     other -> None
 
-  -- A compatibility row may instead come from a legacy JSON value or a
-  -- synthesized declaration. Match its complete definition before using
-  -- the package's proof, signature, and edges.
+  -- A compatibility row may come from a legacy JSON value or a synthesized
+  -- declaration. Match the complete definition before taking package authority.
   packed-definition-for :: PackedBodyTable -> String -> Json -> Option (List String, String, PackedTerm, List String)
-  packed-definition-for table name row = case table of
-    BodyTable source strings nodes operands signatures indexed rows -> (case hash-map-lookup name indexed of
-      None -> None
-      Some id -> (case (hash-map-lookup name rows, array-get signatures id) of
-        (Some original, Some (PackedSignature identity parameters result root (Region start length))) | json-eq original row ->
-          let calls = hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) Nil) in
-          (case calls of
-            Some callees -> Some (parameters, result, PackedTermRef table root, callees)
-            None -> None)
-        other -> None))
-
-  packed-callees :: I64 -> Array PackedSignature -> Nat -> Nat -> List String -> Option (List String)
-  packed-callees address signatures at end backwards =
-    if at == end then Some (reverse backwards) else
-      (case array-get signatures (word address at) of
-        Some (PackedSignature name parameters result root edges) ->
-          packed-callees address signatures (at + 4) end (Cons name backwards)
+  packed-definition-for (BodyTable table rows) name row = case hash-map-lookup name rows of
+    Some original | json-eq original row -> (case checked-body-id table name of
+      Some id -> (case checked-definition table id of
+        Some (identity, parameters, result, term, calls) -> Some (parameters, result, term, calls)
         None -> None)
-
-  -- Node IDs identify a checked definition only within the same retained
-  -- snapshot. Keep both owners live through the address comparison.
-  same-packed-term :: PackedTerm -> PackedTerm -> Bool
-  same-packed-term (PackedTermRef first a) (PackedTermRef second b) =
-    a == b && (case (first, second) of
-      (BodyTable one strings nodes operands signatures indexed rows, BodyTable two texts other-nodes other-operands other-signatures more other-rows) ->
-        hold-package-source one (hold-package-source two (bytes-data one == bytes-data two)))
-
-  packed-node :: PackedTerm -> PackedNode
-  packed-node (PackedTermRef table id) = case table of
-    BodyTable source strings nodes operands signatures indexed rows ->
-      hold-package-source source (packed-node-at table (bytes-data source) strings nodes signatures id)
-
-  packed-node-at :: PackedBodyTable -> I64 -> Array String -> Region -> Array PackedSignature -> Nat -> PackedNode
-  packed-node-at table address strings nodes signatures id =
-    let at = region-start nodes + id * 16 in
-    let a = word address (at + 4) in
-    let b = word address (at + 8) in
-    let c = word address (at + 12) in
-    case word address at of
-      0 -> PackedLocal a
-      1 -> (case (array-get strings a, array-get strings b) of
-        (Some sort, Some decimal) -> PackedNumber sort decimal
-        other -> InvalidPackedTerm)
-      2 -> PackedBool (a == 1)
-      3 -> (case array-get strings a of
-        Some operation -> PackedPrimitive operation (packed-arguments table b c)
-        None -> InvalidPackedTerm)
-      4 -> (case array-get signatures a of
-        Some (PackedSignature name parameters result root edges) -> PackedCall name (packed-arguments table b c)
-        None -> InvalidPackedTerm)
-      5 -> PackedLet (PackedTermRef table a) (PackedTermRef table b)
-      6 -> PackedIf (PackedTermRef table a) (PackedTermRef table b) (PackedTermRef table c)
-      other -> InvalidPackedTerm
-
-  -- These offsets come only from checked nodes and operand ranges. The
-  -- private cursors can advance through that range or follow a checked ID.
-  packed-arguments :: PackedBodyTable -> Nat -> Nat -> PackedArguments
-  packed-arguments table first count = case table of
-    BodyTable source strings nodes operands signatures indexed rows ->
-      let start = region-start operands + first * 4 in
-      PackedOperandSpan table start (start + count * 4)
-
-  packed-argument-node :: PackedArguments -> PackedArgumentNode
-  packed-argument-node (PackedOperandSpan table at end) =
-    if at == end then NoPackedArguments else
-      (case table of
-        BodyTable source strings nodes operands signatures indexed rows ->
-          let id = hold-package-source source (word (bytes-data source) at) in
-          NextPackedArgument (PackedTermRef table id) (PackedOperandSpan table (at + 4) end))
+      None -> None)
+    other -> None
 
   read-rows :: forall r. I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract, Definitions)
   read-rows address raw table strings documents definitions base count index items =
@@ -1021,12 +896,12 @@ module Bootstrap.Package where
             let table = StringTable start count raw in
             case contract-texts address table abi of
               Err message -> Err message
-              Ok texts -> case read-package-definitions address texts format of
+              Ok texts -> case read-package-definitions source texts format of
                 Err message -> Err message
                 Ok definitions -> case read-rows address raw table texts documents definitions modules (module-size / 36) 0 Nil of
                   Err message -> Err message
                   Ok (rows, decoded) ->
-                    let bodies = retain-body-table source decoded in
+                    let bodies = retain-body-table decoded in
                     Ok (map (attach-package-bodies bodies) rows, table, texts, abi)
 
   attach-package-bodies :: Option PackedBodyTable -> PackageContract -> PackageContract

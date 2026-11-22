@@ -13,9 +13,8 @@ module Bootstrap.Core where
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
   import Bootstrap.ExportType (export-global)
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
   import Algebra.Semigroup

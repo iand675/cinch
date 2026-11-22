@@ -4,7 +4,7 @@ module Bootstrap.Type where
 
   import Bootstrap.Report (Diagnostic, MkDiagnostic, MkDeferredDiagnostic)
   import Text.Lex (Span)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-from-int, nat-to-int)
   import Data.Int (int-div, int-rem)
   import Bootstrap.Index

@@ -3,10 +3,9 @@ module Main where
   import Bootstrap.Type
   import Bootstrap.Index
   import Bootstrap.Core
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-from-int)
   import Text.Lex (Span)
-  import Text.Json (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

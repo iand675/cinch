@@ -39,10 +39,9 @@ module Bootstrap.Pipeline where
   import Bootstrap.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-required, profile-features, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Bytes (bytes-compare)
   import Data.List (map)
-  import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
   import Data.String (string-concat, string-to-bytes)

@@ -10,7 +10,7 @@ module Main where
     enter-level, open-scheme, unify, store-errors, value-kind, quant-kind, quant-id, kind-equal, UFun)
   import Bootstrap.Resolve (resolve-program)
   import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

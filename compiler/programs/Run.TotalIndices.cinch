@@ -4,7 +4,7 @@ module Main where
   import Bootstrap.Index
   import Bootstrap.Core
   import Bootstrap.Kinds
-  import Text.Json (parse-json)
+  import Bootstrap.Document (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
   import Data.Path (path-from-string)

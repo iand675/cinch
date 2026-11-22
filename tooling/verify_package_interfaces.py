@@ -339,6 +339,27 @@ def native(stage, work, repeats):
         else:
             assert ir.read_bytes() == legacy_ir
 
+    reexport = work / "Reexport.cinch"
+    reexport.write_text("""module Reexport where
+  import Data.String (utf8-encode-width as width)
+  export width
+module Main where
+  main :: Int
+  main = 0
+""")
+    output = work / "reexport.ll"
+    exported = work / "reexport.ll.Reexport.cinchif"
+    for interfaces in (manifest, indexed):
+        invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", interfaces,
+                "--objects", provider, reexport, output], work, leak=True)
+        emitted = exported.read_bytes()
+        if interfaces == manifest:
+            legacy_export = emitted
+            value, = json.loads(emitted)["exports"]["values"]
+            assert value["total_body"]["definitions"]
+        else:
+            assert emitted == legacy_export
+
     native_indexed_body_nodes(stage, work, manifest, rows)
     verify_native_object_references(stage, work, indexed, legacy_indexed, hello, ir, legacy_ir)
 

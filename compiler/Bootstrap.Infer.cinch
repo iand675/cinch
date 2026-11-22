@@ -26,7 +26,6 @@ module Bootstrap.Infer where
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers)
   import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, ValidatedInterfaces, interface-set-body, interface-set-has-body, admitted-packed-function, contract-usage-nominals, nominal-owner)
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
-  import Text.Json (canonical-bytes, json-eq)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
@@ -35,7 +34,7 @@ module Bootstrap.Infer where
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-data-string-length, global-stage-code, global-stage-str-nat)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
-  import Data.Json
+  import Bootstrap.Document
   import Data.List (sort-by)
   import Data.Ordering (Ordering, LT, EQ, GT)
   import Text.Lex (Span, span-line, span-col)
@@ -2658,9 +2657,15 @@ module Bootstrap.Infer where
         None -> (Cons (MkBodyBinding binding) env, st))
     None -> add-binding sp name sc "external" env st
   byte-length-body :: BodyBinding -> Bool
-  byte-length-body binding = let wanted = (JObj "node" (JStr "primitive") (JObj "operation" (JStr "BytesLen")
-    (JObj "arguments" (JArr (JObj "node" (JStr "local") (JObj "slot" (JNum 0) JObjEnd)) JArrEnd) JObjEnd))) in
-    bytes-compare (canonical-bytes (total-body (binding-function binding))) (canonical-bytes wanted) == 0
+  byte-length-body binding = case total-term (binding-function binding) of
+    Some term -> (case term-node term of
+      PrimitiveTerm operation args | same operation "BytesLen" -> (case argument-node args of
+        NextArgument argument rest -> (case (term-node argument, argument-node rest) of
+          (LocalTerm 0, NoArguments) -> True
+          other -> False)
+        other -> False)
+      other -> False)
+    None -> False
   -- | Register only the checked authority carried by a kernel, class, foreign, or ordinary external declaration.
   register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =

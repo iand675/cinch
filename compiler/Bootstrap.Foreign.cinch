@@ -7,7 +7,7 @@ module Bootstrap.Foreign where
   import Bootstrap.Core (contract-scheme-closed)
   import Bootstrap.ExportType (export-type, export-global, export-display-scheme)
   import Bootstrap.Interface (fnv-source-hash)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-to-int)
   import Data.Char (is-ascii-alpha-numeric, is-ascii-digit)
   import Category.Foldable (all)

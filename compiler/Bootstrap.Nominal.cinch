@@ -5,7 +5,7 @@ module Bootstrap.Nominal where
   import Bootstrap.Ast
   import Bootstrap.Builtin (array-type-name, cell-type-name, cell-effect-name)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
-  import Data.Json
+  import Bootstrap.Document
   import Text.Lex (Span)
   import Algebra.Semigroup
   import Data.Nat (nat-div, nat-rem)

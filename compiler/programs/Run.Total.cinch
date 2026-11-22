@@ -1,8 +1,7 @@
 module Main where
   import Bootstrap.Total
-  import Text.Json (canonical-bytes, parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Show (int-to-string)

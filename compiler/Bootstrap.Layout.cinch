@@ -6,7 +6,7 @@ module Bootstrap.Layout where
   import Bootstrap.Type
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Usage (UsageShape, usage-name, usage-single-field)
-  import Data.Json
+  import Bootstrap.Document
   import Algebra.Semigroup
   import Text.Lex (Span)
   import Text.Show (nat-to-string)

@@ -5,7 +5,7 @@ module Bootstrap.Guarded where
   import Bootstrap.Index
   import Bootstrap.Proof
   import Bootstrap.Nominal (interface-global)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
   import Text.Lex (Span)

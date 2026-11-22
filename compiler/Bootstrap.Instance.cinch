@@ -4,7 +4,7 @@
 module Bootstrap.Instance where
   import Bootstrap.Type
   import Bootstrap.Ast (LawSyntax, source-law-document)
-  import Text.Json (canonical-bytes)
+  import Bootstrap.Document (canonical-bytes)
   import Data.Bytes (bytes-compare)
   import Bootstrap.Core
   import Bootstrap.Guarded (GuardedBinding)

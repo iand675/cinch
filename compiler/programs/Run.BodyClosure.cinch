@@ -3,12 +3,11 @@ module Main where
   import Bootstrap.Load
   import Bootstrap.Interface (iface-parse)
   import Bootstrap.Total (total-body)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-to-int)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Effect.Process (process-args)
-  import Text.Json (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   -- | Read a named observation field without interpreting absent fields as evidence.

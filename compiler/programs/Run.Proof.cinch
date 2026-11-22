@@ -5,8 +5,7 @@ module Main where
   import Data.Path (path-from-string)
   import Data.Nat (nat-from-int)
   import Effect.Fs (fs-read, fs-write)
-  import Data.Json
-  import Text.Json (parse-json)
+  import Bootstrap.Document
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   x :: Arithmetic

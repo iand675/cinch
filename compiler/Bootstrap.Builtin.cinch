@@ -6,7 +6,7 @@ module Bootstrap.Builtin where
   import Bootstrap.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Parse (parse-program, parse-scheme)
-  import Data.Json
+  import Bootstrap.Document
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)

@@ -9,7 +9,7 @@ module Bootstrap.Usage where
   import Bootstrap.Nominal (interface-global, nominal-entry-valid, global-data-core-list, global-data-core-option)
   import Bootstrap.Builtin (cell-type-name)
   import Bootstrap.ExportType (export-global, export-parameters)
-  import Data.Json
+  import Bootstrap.Document
   import Text.Parse (ParseOutcome, Parsed)
   import Text.Lex (Span)
   import Algebra.Semigroup

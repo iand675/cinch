@@ -4,17 +4,17 @@
 -- These standalone version-1 artifacts are not yet admitted by cinchif.
 module Bootstrap.Total where
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, empty-body-scope, push-body-slot, body-slot)
-  import Bootstrap.Package (PackedBodyTable, PackedTerm, PackedArguments, packed-definition-for, same-packed-term, packed-node, packed-argument-node,
+  import Bootstrap.Package (PackedBodyTable, packed-definition-for)
+  import Bootstrap.PackedBody (PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node,
     PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm,
     NoPackedArguments, NextPackedArgument)
   import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
-  import Data.Json
+  import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (sort-by)
   import Data.Ordering (Ordering, LT, EQ, GT)
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
-  import Text.Json (canonical-bytes, json-eq)
 
   export TotalGraph, TotalFunction, check-total-graph, check-total-graph-with-package, check-total-function, check-total-function-with-package, total-function, total-graph-for-roots, total-graph-body
   export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
@@ -71,7 +71,9 @@ module Bootstrap.Total where
   row-name :: TotalRow -> String
   row-name (TotalRow name position original parameters result body targets packed) = name
   row-body :: TotalRow -> Json
-  row-body (TotalRow name position original parameters result body targets packed) = body
+  row-body (TotalRow name position original parameters result body targets packed) = term-value body
+  term-value :: Json -> Json
+  term-value body = case body of JTerm term -> term-document term; other -> other
   row-document :: TotalRow -> Json
   row-document (TotalRow name position original parameters result body targets packed) = original
   row-targets :: TotalRow -> List String
@@ -150,7 +152,8 @@ module Bootstrap.Total where
       None -> (case (definition-name declaration, sorts (field "parameters" declaration)) of
         (Some name, Some parameters) ->
           let result = text (field "result" declaration) in
-          if valid-sort result then Some (TotalRow name position declaration parameters result body (calls-into body Nil) None) else None
+          let expanded = term-value body in
+          if valid-sort result then Some (TotalRow name position declaration parameters result expanded (calls-into expanded Nil) None) else None
         other -> None)
   index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
   index-definitions bodies rows position table indexed = case rows of
@@ -163,7 +166,7 @@ module Bootstrap.Total where
     other -> None
   valid-definition :: TotalRows -> TotalRow -> Bool
   valid-definition all (TotalRow name position original parameters result body targets packed) =
-    case infer all (body-scope-from-list parameters) body of
+    case infer all (body-scope-from-list parameters) (term-value body) of
       Some inferred -> same result inferred
       None -> False
   valid-definitions :: TotalRows -> List TotalRow -> Bool

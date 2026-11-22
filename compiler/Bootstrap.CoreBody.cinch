@@ -31,10 +31,9 @@ module Bootstrap.CoreBody where
   import Bootstrap.Type
   import Bootstrap.Proof
   import Bootstrap.Total (total-identity)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Nat (nat-to-int, nat-from-int)
   import Text.Lex (Span)
-  import Text.Json (canonical-bytes)
   import Algebra.Semigroup
 
   export dense-definition-document, dense-verbose-definition, dense-definition-of-document

@@ -8,8 +8,7 @@ module Main where
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Text.Json (canonical-json, parse-json)
-  import Data.Json
+  import Bootstrap.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Effect.Process (process-args)
