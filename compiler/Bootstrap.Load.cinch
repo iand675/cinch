@@ -16,13 +16,12 @@ module Bootstrap.Load where
   import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
   import Bootstrap.Package (PackageContract, PackedBodyTable, package-contract)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, decode-identity, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
+  import Bootstrap.Nominal (interface-global, raw-interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span, bytes-slice)
-  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
@@ -1036,13 +1035,9 @@ module Bootstrap.Load where
   law-string-names :: Json -> HashMap String String -> HashMap String String
   law-string-names node requested = case node of
     JArr first rest -> law-string-names rest (law-string-names first requested)
-    JStr spelling -> if string-starts-with "i." spelling then
-      (case unpack spelling of
-        Cons prefix (Cons dot rest) -> case decode-identity rest of
-          Some (identity, Nil) | same spelling (interface-global identity) -> hash-map-insert identity spelling requested
-          other -> requested
-        other -> requested)
-      else requested
+    JStr spelling -> (case raw-interface-global spelling of
+      Some identity -> hash-map-insert identity spelling requested
+      None -> requested)
     other -> requested
   index-law-exporters :: List LoadedInterface -> HashMap String String -> HashMap String String -> HashMap String String
   index-law-exporters loaded requested owners = case loaded of
@@ -1362,9 +1357,7 @@ module Bootstrap.Load where
 
   closure-insert :: String -> ModuleClosure -> ModuleClosure
   closure-insert name reachable = case reachable of
-    ModuleClosure size members names -> case hash-map-lookup name members of
-      Some present -> reachable
-      None -> ModuleClosure (size + 1) (hash-map-insert name () members) (Cons name names)
+    ModuleClosure size members names -> ModuleClosure (size + 1) (hash-map-insert name () members) (Cons name names)
 
   -- Dependencies precede importers in this pass. A single import shares
   -- its closure's map with only one insertion. Start with the largest
@@ -1377,27 +1370,44 @@ module Bootstrap.Load where
         if size > bound then largest-dependency rest closures (ModuleClosure size members names)
         else largest-dependency rest closures largest
 
-  include-dependencies :: List (String, String) -> HashMap String ModuleClosure -> ModuleClosure -> ModuleClosure
-  include-dependencies refs closures reachable = case refs of
+  include-dependencies :: List (String, String) -> HashMap String ModuleClosure -> InterfaceIndex -> ModuleClosure -> ModuleClosure
+  include-dependencies refs closures ix reachable = case refs of
     Nil -> reachable
-    Cons (name, hash) rest -> if name-in name reachable then include-dependencies rest closures reachable
-      else case closure-of name closures of
-        ModuleClosure size members names -> include-dependencies rest closures (include-closure names reachable)
+    Cons (name, hash) rest -> if name-in name reachable then include-dependencies rest closures ix reachable
+      else (case (interface-by-name ix name, closure-of name closures) of
+        (Some member, ModuleClosure size members names) ->
+          let merged = visit-imports (loaded-imports member) Nil ix names size (closure-insert name reachable) in
+          include-dependencies rest closures ix merged
+        other -> include-dependencies rest closures ix reachable)
 
-  include-closure :: List String -> ModuleClosure -> ModuleClosure
-  include-closure names reachable = case names of
+  -- A covered module also covers its imports. On dense graphs cap the
+  -- search by the candidate closure's size, then merge its known members.
+  visit-imports :: List (String, String) -> List (List (String, String)) -> InterfaceIndex -> List String -> Nat -> ModuleClosure -> ModuleClosure
+  visit-imports refs pending ix names steps reachable = case refs of
+    Nil -> (case pending of
+      Nil -> reachable
+      Cons next rest -> visit-imports next rest ix names steps reachable)
+    Cons (name, hash) rest -> if steps == 0 then include-members names reachable
+      else if name-in name reachable then visit-imports rest pending ix names (steps - 1) reachable
+      else (case interface-by-name ix name of
+        None -> visit-imports rest pending ix names (steps - 1) reachable
+        Some member -> visit-imports (loaded-imports member) (Cons rest pending) ix names (steps - 1) (closure-insert name reachable))
+
+  include-members :: List String -> ModuleClosure -> ModuleClosure
+  include-members entries reachable = case entries of
     Nil -> reachable
-    Cons name rest -> include-closure rest (closure-insert name reachable)
+    Cons name rest ->
+      include-members rest (if name-in name reachable then reachable else closure-insert name reachable)
 
-  index-closures :: List LoadedInterface -> HashMap String ModuleClosure -> HashMap String ModuleClosure
-  index-closures ordered closures = case ordered of
+  index-closures :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String ModuleClosure
+  index-closures ordered ix closures = case ordered of
     Nil -> closures
     Cons i rest ->
       let home = loaded-module i in
       let refs = loaded-imports i in
       let largest = largest-dependency refs closures (ModuleClosure 0 hash-map-empty Nil) in
-      let reachable = closure-insert home (include-dependencies refs closures largest) in
-      index-closures rest (hash-map-insert home reachable closures)
+      let reachable = closure-insert home (include-dependencies refs closures ix largest) in
+      index-closures rest ix (hash-map-insert home reachable closures)
 
   nominal-owner-reversed :: List Char -> Bool -> String
   nominal-owner-reversed chars has-name = case chars of
@@ -1685,15 +1695,18 @@ module Bootstrap.Load where
     Ok checked -> Ok (validated-interfaces-members checked)
 
   validate-interfaces :: List LoadedInterface -> Result String ValidatedInterfaces
-  validate-interfaces loaded = let ix = index-interfaces loaded in
-    if duplicate-module loaded hash-map-empty then Err "duplicate interface module in resolved context"
-    else case order-interfaces loaded ix of
+  validate-interfaces loaded = case unique-interface-table loaded hash-map-empty of
+    None -> Err "duplicate interface module in resolved context"
+    Some by-name -> validate-indexed-interfaces loaded (MkInterfaceIndex loaded by-name (law-exporters loaded))
+
+  validate-indexed-interfaces :: List LoadedInterface -> InterfaceIndex -> Result String ValidatedInterfaces
+  validate-indexed-interfaces loaded ix = case order-interfaces loaded ix of
       Err message -> case verify-set loaded ix of
         Err dependency -> if missing-dependency loaded ix then Err dependency else Err message
         Ok unit -> Err message
       Ok ordered -> case verify-set loaded ix of
         Err message -> Err message
-        Ok unit -> let closures = index-closures ordered hash-map-empty in
+        Ok unit -> let closures = index-closures ordered ix hash-map-empty in
           case verify-interface-contracts loaded ix closures of
             Err message -> Err message
             Ok unit -> Ok (MkValidatedInterfaces ordered closures (same-interface-order loaded ordered))
@@ -1719,12 +1732,12 @@ module Bootstrap.Load where
         Err message -> Err message
         Ok unit -> Ok (MkValidatedInterfaces members closures True)
 
-  duplicate-module :: List LoadedInterface -> HashMap String () -> Bool
-  duplicate-module loaded seen = case loaded of
-    Nil -> False
+  unique-interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> Option (HashMap String LoadedInterface)
+  unique-interface-table loaded seen = case loaded of
+    Nil -> Some seen
     Cons i rest -> let name = loaded-module i in case hash-map-lookup name seen of
-      Some previous -> True
-      None -> duplicate-module rest (hash-map-insert name () seen)
+      Some previous -> None
+      None -> unique-interface-table rest (hash-map-insert name i seen)
 
   missing-ref :: List (String, String) -> InterfaceIndex -> Bool
   missing-ref refs ix = case refs of
