@@ -36,7 +36,7 @@ permissions:
 
 concurrency:
   group: compiler-distributions-${{ github.workflow }}-${{ (github.event_name == 'schedule' || inputs.publish_nightly) && 'nightly' || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ladder:
@@ -85,37 +85,13 @@ jobs:
         run: nix build -L --accept-flake-config .#cinch-pins --out-link result-pins
       - name: Build and check the self-hosted compiler
         run: nix build -L --accept-flake-config .#cinch-ladder --out-link result-ladder
-      - name: Export the compiler distribution
-        shell: bash
+      - name: Package and verify the native Stage 3 binary
         env:
           CINCH_DIST_SYSTEM: ${{ matrix.system }}
         run: |
-          mkdir -p dist
-          nix path-info --json ./result-pins ./result-ladder > dist/manifest.json
-          nix-store --query --requisites ./result-pins ./result-ladder > dist/store-paths.txt
-          # A ladder contains absolute store paths. Export its entire runtime
-          # closure, rather than an executable that breaks after extraction.
-          store_paths=()
-          while IFS= read -r store_path; do store_paths+=("$store_path"); done < dist/store-paths.txt
-          nix-store --export "${store_paths[@]}" | gzip -1 > "dist/cinch-${CINCH_DIST_SYSTEM}.nar.gz"
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          archive = next(Path('dist').glob('*.nar.gz'))
-          with archive.open('rb') as stream:
-              sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
-          archive.with_name(archive.name + '.sha256').write_text(f'{sha256}  {archive.name}\n')
-          Path(f"dist/build-{os.environ['CINCH_DIST_SYSTEM']}.json").write_text(json.dumps({
-              'revision': os.environ['GITHUB_SHA'],
-              'system': os.environ['CINCH_DIST_SYSTEM'],
-              'ladder': str(Path('result-ladder').resolve()),
-              'pins': str(Path('result-pins').resolve()),
-          }, indent=2) + '\n')
-          PY
-          cp tooling/nix/distribution.md dist/README.md
+          python3 tooling/package-nightly.py --ladder result-ladder \
+            --system "$CINCH_DIST_SYSTEM" --revision "$GITHUB_SHA" --out dist
+          cp tooling/nightly-release.md dist/README.md
       - name: Upload the compiler distribution
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -146,8 +122,8 @@ jobs:
           mkdir -p release
           for system in x86_64-linux aarch64-linux aarch64-darwin; do
             artifact="artifacts/cinch-${system}-${GITHUB_SHA}"
-            (cd "$artifact" && sha256sum --check "cinch-${system}.nar.gz.sha256")
-            cp "$artifact/cinch-${system}.nar.gz" "$artifact/cinch-${system}.nar.gz.sha256" "$artifact/build-${system}.json" release/
+            (cd "$artifact" && sha256sum --check "cinch-${system}.sha256")
+            cp "$artifact/cinch-${system}" "$artifact/cinch-${system}.sha256" "$artifact/build-${system}.json" release/
           done
           cp "artifacts/cinch-x86_64-linux-${GITHUB_SHA}/README.md" release/README.md
           cat release/*.sha256 > release/SHA256SUMS
@@ -156,7 +132,7 @@ jobs:
 
           All three platforms passed the bootstrap fixed point, stage smokes, interface consumption and changed-source checks.
 
-          These are Nix runtime closures, requiring Nix on the matching platform. See README.md for import and Cachix instructions. Each archive has a SHA-256 sidecar; SHA256SUMS covers all three.
+          Download the native Stage 3 executable for your platform and make it executable with chmod +x. See README.md for usage. Each binary has a SHA-256 sidecar; SHA256SUMS covers all three. Linux binaries are statically linked; macOS uses only system libraries.
 
           Build: https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}
           EOF_NOTES

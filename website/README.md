@@ -110,7 +110,7 @@ Package, module, module-source, and download pages share `PlatformLayout.astro`.
 
 `/downloads/` shows real nightly compiler distributions from GitHub
 prereleases. `src/lib/downloads.ts` selects the newest complete nightly
-with all three native Nix archives, SHA-256 digests and checksum sidecars.
+with all three native executables, SHA-256 digests and checksum sidecars.
 The static build includes the current release when GitHub is reachable;
 the browser refreshes the public release list on load, so new nightlies
 appear without redeploying. Failed refreshes preserve the build snapshot
@@ -118,8 +118,8 @@ and explain that it may be stale. Before the first successful nightly,
 the page links to source and releases without offering fake downloads.
 
 The supported targets match `.github/workflows/ladder-cache.yml`: Linux
-x86-64, Linux ARM64 and Apple Silicon macOS. These archives contain full
-Nix runtime closures, not relocatable standalone executables. The page
+x86-64, Linux ARM64 and Apple Silicon macOS. These are standalone Stage 3 binaries; running the compiler requires no
+Nix installation. Linux binaries are statically linked and macOS uses system libraries. The page
 keeps platform, revision, filename, size, digest and download URL aligned.
 Sample ZIP routes have been removed.
 

@@ -10,32 +10,33 @@ const selected = nightly?.artifacts[0];
 <PlatformLayout title="Downloads" description="Download the latest checked Cinch nightly compiler for Linux or macOS, with checksums and source." section="downloads" sample={false}>
   <section class="platform-banner downloads-banner"><h1>Get Cinch.</h1></section>
   <section class="platform-content downloads-content" data-nightly-downloads>
-    <div class="download-controls"><div><span class="section-rule mono">01 / NIGHTLY BUILDS</span><p>Native compiler builds from the latest successful nightly release.</p><p>Requires Nix. Linux x86-64, Linux ARM64, and Apple Silicon macOS.</p></div><a href={project.releases}>All releases ↗</a></div>
+    <div class="download-controls"><div><span class="section-rule mono">01 / NIGHTLY BUILDS</span><p>Native compiler builds from the latest successful nightly release.</p><p>Linux x86-64, Linux ARM64, and Apple Silicon macOS.</p></div><a href={project.releases}>All releases ↗</a></div>
     <p role="status" aria-live="polite" data-release-status>{nightly ? `Published ${new Date(nightly.publishedAt).toLocaleDateString('en-GB', {timeZone: 'UTC'})}. Checking for newer builds…` : 'Checking for the latest nightly release…'}</p>
     <fieldset class="platform-choices"><legend class="section-rule mono">02 / YOUR SYSTEM</legend><div>{targets.map((target, index) => <label class="platform-choice"><input type="radio" name="platform" value={target.id} checked={index === 0}/><span class="platform-symbol" aria-hidden="true">{target.name[0]}</span><span><strong>{target.name}</strong><small>{target.architecture}</small></span><i aria-hidden="true"></i></label>)}</div></fieldset>
     <div class="download-body" data-release-body hidden={!nightly}>
       <article class="download-plate">
-        <div class="download-plate-top mono"><span>Nightly compiler</span><span>NIX DISTRIBUTION</span></div>
+        <div class="download-plate-top mono"><span>Nightly compiler</span><span>NATIVE BINARY</span></div>
         <h2 data-release-version>{nightly?.tag}</h2>
         <p class="download-platform" data-platform-name>{selected ? `${selected.target.name} · ${selected.target.architecture}` : ''}</p>
-        <div class="download-file"><span class="mono">ARCHIVE</span><code data-filename>{selected?.filename}</code><p data-file-size>{selected ? `${(selected.size / 1024 / 1024).toFixed(1)} MiB` : ''}</p></div>
+        <div class="download-file"><span class="mono">EXECUTABLE</span><code data-filename>{selected?.filename}</code><p data-file-size>{selected ? `${(selected.size / 1024 / 1024).toFixed(1)} MiB` : ''}</p></div>
         <a class="download-button" data-download href={selected?.url}>Download compiler <span aria-hidden="true">↓</span></a>
         <p class="nightly-details"><a data-release-link href={nightly?.url}>Release notes ↗</a> · <a data-revision-link href={nightly ? `${project.repository}/commit/${nightly.revision}` : undefined}>Source <span data-revision>{nightly?.revision.slice(0, 12)}</span> ↗</a></p>
       </article>
       <aside class="download-verification">
-        <div class="section-rule mono">03 / VERIFY THE FILE</div><h2>Check the checksum.</h2><p>The hash belongs to the selected compiler archive. Verify it before importing the distribution.</p>
+        <div class="section-rule mono">03 / VERIFY THE FILE</div><h2>Check the checksum.</h2><p>The hash belongs to the selected compiler binary. Verify it before running the compiler.</p>
         <label class="mono" for="archive-hash">SHA-256</label><textarea id="archive-hash" readonly rows="3">{selected?.sha256}</textarea>
         <div class="checksum-actions"><button type="button" data-copy-checksum>Copy checksum</button><a data-checksum href={selected?.checksumUrl}>Checksum file ↗</a></div>
         <div class="verify-commands"><span class="mono">COMPARE IT YOURSELF</span><code data-verify-command>{selected ? `shasum -a 256 -c ${selected.filename}.sha256` : ''}</code></div><span class="copy-status mono" aria-live="polite" data-copy-status></span>
       </aside>
     </div>
     <noscript><p>Enable JavaScript to check for newer nightlies, or <a href={project.releases}>browse releases on GitHub</a>.</p></noscript>
-    <section class="source-build" id="install"><div class="section-rule mono">04 / INSTALL WITH NIX</div><div><h2>Use a nightly.</h2><div><p>Each archive includes the checked Stage 3 compiler and its complete Nix runtime closure. Install Nix, verify the checksum, then import the archive for your system.</p><p>The release README and build metadata identify the compiler's store path. These builds are for development and testing.</p></div></div><pre><code data-install-command>{selected ? `gzip -dc ${selected.filename} | nix-store --import` : 'gzip -dc cinch-SYSTEM.nar.gz | nix-store --import'}</code></pre><p>Multi-user Nix may require an administrator to import an unsigned archive. You can also use the signed Cachix cache to build the release revision:</p><pre><code data-cache-command>{`cachix use cinch
-nix build github:iand675/cinch/${nightly?.revision ?? 'REVISION'}#cinch-ladder`}</code></pre></section>
+    <section class="source-build" id="install"><div class="section-rule mono">04 / RUN THE COMPILER</div><div><h2>Use a nightly.</h2><div><p>Download the executable for your system, verify its checksum, and make it executable. The compiler runs directly on your machine.</p><p>These development builds contain the checked Stage 3 compiler. Linux binaries are statically linked; macOS binaries use system libraries. Linking generated programs also needs Clang 20.</p></div></div><pre><code data-install-command>{selected ? `chmod +x ${selected.filename}
+./${selected.filename} --check Main.cinch check
+./${selected.filename} --emit-ir-only Main.cinch program.ll` : `chmod +x cinch-SYSTEM
+./cinch-SYSTEM --check Main.cinch check`}</code></pre><p>A named refusal writes <code>check.diagnostics</code>. Release notes and build metadata identify the exact source revision.</p></section>
     <section class="source-build" id="source"><div class="section-rule mono">05 / SOURCE CODE</div><div><h2>Build from source.</h2><div><p>The repository contains the compiler, runtime, base library, examples, and language documentation.</p><p>The bootstrap checks the fixed point, stage smokes, interface consumption, and changed-source behavior before a nightly release is published.</p><div class="source-actions"><a href={project.sourceArchive}>Download source archive ↗</a><a href={project.repository}>Open GitHub ↗</a><a href={project.releases}>GitHub releases ↗</a></div></div></div><pre><code>{`git clone https://github.com/iand675/cinch.git
 cd cinch
-cachix use cinch
-nix build --accept-flake-config .#cinch-ladder`}</code></pre></section>
+tooling/bootstrap.sh check`}</code></pre></section>
   </section>
   <script type="application/json" id="nightly-snapshot" set:html={JSON.stringify(nightly).replace(/</g, '\\u003c')} />
 </PlatformLayout>
@@ -64,8 +65,7 @@ function update() {
   field<HTMLAnchorElement>('[data-revision-link]').href = `${project.repository}/commit/${release.revision}`;
   text('[data-revision]', release.revision.slice(0, 12));
   text('[data-verify-command]', `${selected.target.os === 'macos' ? 'shasum -a 256' : 'sha256sum'} -c ${selected.filename}.sha256`);
-  text('[data-install-command]', `gzip -dc ${selected.filename} | nix-store --import`);
-  text('[data-cache-command]', `cachix use cinch\nnix build github:iand675/cinch/${release.revision}#cinch-ladder`);
+  text('[data-install-command]', `chmod +x ${selected.filename}\n./${selected.filename} --check Main.cinch check\n./${selected.filename} --emit-ir-only Main.cinch program.ll`);
   text('[data-copy-status]', '');
 }
 root.querySelectorAll<HTMLInputElement>('input[name="platform"]').forEach(input => input.addEventListener('change', () => {

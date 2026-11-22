@@ -109,7 +109,7 @@ else:
 downloads = (root/'downloads/index.html').read_text()
 assert 'sample bundle' not in downloads.lower(), 'downloads must not advertise sample bundles'
 assert 'nightly-snapshot' in downloads and 'data-nightly-downloads' in downloads
-assert 'nix-store --import' in downloads, 'nightly imports need Nix instructions'
+assert 'chmod +x' in downloads, 'nightly binaries need executable instructions'
 assert 'https://github.com/iand675/cinch/releases' in page(root/'downloads/index.html').links
 assert not list((root/'downloads/files').glob('*.zip')), 'sample archives must not be published'
 

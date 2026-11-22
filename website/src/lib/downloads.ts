@@ -47,7 +47,7 @@ export function selectNightly(releases: GitHubRelease[]): NightlyRelease | null 
   for (const release of nightlies) {
     const artifacts: NightlyArtifact[] = [];
     for (const target of targets) {
-      const filename = `cinch-${target.system}.nar.gz`;
+      const filename = `cinch-${target.system}`;
       const asset = release.assets.find(value => value.name === filename);
       const checksum = release.assets.find(value => value.name === `${filename}.sha256`);
       if (!asset || !checksum || !/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')

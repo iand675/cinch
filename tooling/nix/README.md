@@ -57,15 +57,16 @@ cache-scoped token through `CACHIX_AUTH_TOKEN` to publish local builds.
 Never put a token in the repository.
 
 The same workflow runs nightly at 02:23 UTC. After all three builds pass,
-it publishes a dated GitHub prerelease with full Nix runtime closures,
+it publishes a dated GitHub prerelease with native Stage 3 binaries,
 SHA-256 sidecars, and per-platform build metadata. A draft keeps incomplete
 uploads off the public release list. Manual runs on `main` can publish an
 initial nightly using the `publish_nightly` input. Ordinary pushes produce
 14-day Actions artifacts without creating releases.
 
-See [distribution instructions](distribution.md) for archive verification
-and import. These are Nix distributions: the ladder records absolute store
-paths, so copying just the compiler executable is insufficient. The
+See [nightly instructions](../nightly-release.md) for binary verification
+and usage. The release executables run without Nix. Linux packaging checks
+for an ELF interpreter and relinks the checked Stage 3 objects statically
+when needed; macOS allows only system-library dependencies. The
 website's downloads page reads completed GitHub nightlies at build time
 and refreshes them in the browser; it does not need a redeploy for each
 new release.
