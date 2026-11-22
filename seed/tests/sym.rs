@@ -199,6 +199,25 @@ module Main where
     );
 }
 
+#[test]
+fn wide_symbol_matches_keep_guards_and_the_shared_fallback() {
+    let mut source = String::from(
+        "module Main where\n  choose :: Sym -> Bool -> Int\n  choose symbol flag = case symbol of\n",
+    );
+    for index in (0..65).rev() {
+        source.push_str(&format!("    #[weight(1)] 'item{index:02} -> {index}\n"));
+    }
+    source.push_str(r#"    #[weight(3)] 'guarded | flag -> 100
+    #[weight(2)] 'guarded -> 101
+    #[weight(1)] _ -> 102
+  main :: Int
+  main = if choose 'item00 False == 0 && choose 'item64 False == 64
+    && choose 'guarded True == 100 && choose 'guarded False == 101
+    && choose 'a False == 102 && choose 'z False == 102 then 0 else 1
+"#);
+    run_ok("wide-sym-patterns", &source, 0);
+}
+
 // ------------------------------------------- D123: compile-time interning
 
 #[test]

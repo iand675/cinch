@@ -194,7 +194,7 @@ module Bootstrap.Export where
       else case total-arrow (scheme-body scheme) of
         Some (actual, final) -> if same-sorts actual parameters && same final result then primitive-total-document identity operation parameters result else JNull
         None -> JNull
-  resolved-source-scheme :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> Scheme -> Result String Json
+  resolved-source-scheme :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Scheme -> Result String Json
   resolved-source-scheme typed interfaces references symbol scheme = case (resolved-scheme typed interfaces scheme, binding-refinements (elaboration-declarations typed) references symbol) of
     (Ok resolved, Ok refinements) -> (case merge-nominals refinements (field "nominals" resolved) of
       Ok rows -> Ok (set-field "nominals" rows resolved)
@@ -229,10 +229,10 @@ module Bootstrap.Export where
   applicative-text name words = case words of
     Nil -> name
     other -> string-concat-all ["(", name, " ", (spellings-text words), ")"]
-  alias-source-spelling :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> Scheme -> Option String
+  alias-source-spelling :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Scheme -> Option String
   alias-source-spelling typed interfaces references symbol scheme =
     if list-length (scheme-params scheme) == 0 && list-length (scheme-requirements scheme) == 0 then
-      (case binding-source-type (elaboration-declarations typed) references symbol of
+      (case binding-source-type references symbol of
         Some (TName s name) -> public-alias-name typed interfaces name
         Some applied -> (case applied of
           TApp at (TName hspan head-name) args -> (case (public-alias-name typed interfaces head-name, spelling-args args) of
@@ -260,7 +260,7 @@ module Bootstrap.Export where
       other -> refinement-type-row rest name)
     JArrEnd -> None
     other -> None
-  resolved-value-scheme :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> Scheme -> Result String Json
+  resolved-value-scheme :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Scheme -> Result String Json
   resolved-value-scheme typed interfaces references symbol scheme = case alias-source-spelling typed interfaces references symbol scheme of
     Some spelled -> case resolved-source-scheme typed interfaces references symbol scheme of
       Ok resolved -> Ok (set-field "scheme" (JStr spelled) resolved)
@@ -295,7 +295,7 @@ module Bootstrap.Export where
     Cons first rest -> (case value-carrier (quant-kind first) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
   interface-value-arity :: Scheme -> Nat
   interface-value-arity scheme = scheme-arity scheme + list-length (scheme-requirements scheme) + quantified-value-arity (scheme-params scheme)
-  value-row :: Bool -> Bool -> Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> CheckedBinding -> Result String Json
+  value-row :: Bool -> Bool -> Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> String -> CheckedBinding -> Result String Json
   value-row require-worker alias-display typed interfaces references name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
     else if same (checked-role binding) "foreign" then foreign-value-row require-worker name symbol binding
@@ -314,7 +314,7 @@ module Bootstrap.Export where
         (other, Err error, more) -> Err error
         (other, more, Err error) -> Err error
     else Err (string-concat "unsupported checked value export category: " (checked-role binding))
-  value-display-spelling :: Bool -> Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> Scheme -> String -> String
+  value-display-spelling :: Bool -> Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Scheme -> String -> String
   value-display-spelling alias-display typed interfaces references symbol scheme rendered = if not alias-display then rendered else case alias-source-spelling typed interfaces references symbol scheme of
     Some spelled -> spelled
     None -> rendered
@@ -371,7 +371,7 @@ module Bootstrap.Export where
   constructor-hidden-parameters parameters visible = case parameters of
     Nil -> False
     Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
-  constructor-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> Nat -> String -> Scheme -> Result String Json
+  constructor-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Nat -> String -> Scheme -> Result String Json
   constructor-row typed interfaces references name tag symbol scheme =
     let hidden = constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme))) in
     let resolved = if hidden then Ok JNull else resolved-value-scheme typed interfaces references symbol scheme in
@@ -385,7 +385,7 @@ module Bootstrap.Export where
       (other, Err error, more, spelling) -> Err error
       (other, more, Err error, spelling) -> Err error
       (other, more, resolved, Err error) -> Err error
-  constructor-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> Nat -> List CoreConstructor -> Result String Json
+  constructor-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> Nat -> List CoreConstructor -> Result String Json
   constructor-rows typed interfaces references surface tag constructors = case constructors of
     Nil -> Ok JArrEnd
     Cons first rest -> case public-name (core-constructor-name first) surface of
@@ -425,7 +425,7 @@ module Bootstrap.Export where
       else Err "codata observation storage does not take Unit"
     (JArrEnd, other) -> Ok other
     other -> Err "codata labels disagree with the checked observation scheme"
-  codata-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> Json -> List CoreConstructor -> Result String Json
+  codata-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> String -> Json -> List CoreConstructor -> Result String Json
   codata-rows typed interfaces references name owner labels constructors = case constructors of
     Cons constructor Nil ->
       let storage = core-constructor-scheme constructor in
@@ -441,7 +441,7 @@ module Bootstrap.Export where
     Cons first rest -> case loaded-entry first "type" identity of
       Some row -> if same (text (field "kind" row)) "codata" then Some row else imported-codata-row rest identity
       None -> imported-codata-row rest identity
-  type-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> String -> CoreData -> Result String Json
+  type-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> String -> CoreData -> Result String Json
   type-row typed interfaces references surface name declaration =
     let owner = core-data-name declaration in
     let declarations = elaboration-declarations typed in
@@ -502,7 +502,7 @@ module Bootstrap.Export where
   defining-method-symbol bindings owner slot = case bindings of
     Nil -> None
     Cons first rest -> if checked-method-matches first (checked-name first) owner slot then Some (checked-name first) else defining-method-symbol rest owner slot
-  resolved-method-scheme :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> CoreClass -> CoreClassMethod -> Result String Json
+  resolved-method-scheme :: Elaboration -> List LoadedInterface -> DeclarationReferences -> CoreClass -> CoreClassMethod -> Result String Json
   resolved-method-scheme typed interfaces references description member = case defining-method-symbol (elaboration-bindings typed) (class-name description) (class-method-slot member) of
     Some symbol -> resolved-value-scheme typed interfaces references symbol (class-method-scheme member)
     None -> case (resolved-scheme typed interfaces (class-method-scheme member), export-value-scheme (class-method-scheme member)) of
@@ -723,7 +723,7 @@ module Bootstrap.Export where
     other -> JArrEnd
   with-instance-method-bodies :: Json -> Json -> Json
   with-instance-method-bodies bodies row = case bodies of JArrEnd -> row; other -> set-field "method_bodies" bodies row
-  instance-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> CoreInstance -> Result String Json
+  instance-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> CoreInstance -> Result String Json
   instance-row typed interfaces references declaration = let scheme = instance-scheme declaration in
     case class-head (scheme-body scheme) of
       None -> Err "checked instance has no defining signature head"
@@ -799,7 +799,7 @@ module Bootstrap.Export where
           None -> implementation)
       other -> implementation)
     other -> implementation
-  source-method-contracts :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> String -> List CoreClassMethod -> Result String (Json, Json)
+  source-method-contracts :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> String -> List CoreClassMethod -> Result String (Json, Json)
   source-method-contracts typed interfaces references head identity methods = case methods of
     Nil -> Ok (JArrEnd, JArrEnd)
     Cons member rest -> let name = class-method-name member in let symbol = source-method-symbol identity name in
@@ -816,7 +816,7 @@ module Bootstrap.Export where
             (other, Err error) -> Err error)
         (None, other) -> Err "conditional implementation has no checked definition"
         (other, Err error) -> Err error)
-  conditional-instance-row :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> String -> String -> Bool -> UType -> Result String Json
+  conditional-instance-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> String -> Bool -> UType -> Result String Json
   conditional-instance-row typed interfaces references symbol identity flag head = case class-head head of
     None -> Err "conditional instance has no defining class"
     Some owner -> (case (find-class owner (elaboration-classes typed), export-global owner, resolved-source-scheme typed interfaces references symbol (mono head), export-instance-scheme (mono head)) of
@@ -826,7 +826,7 @@ module Bootstrap.Export where
             (JObj "ctx" JArrEnd (JObj "methods" names (JObj "method_contracts" contracts (JObj "implicit" (JBool flag) JObjEnd))))))))
           Err error -> Err error)
       other -> Err "conditional instance has no checked export head")
-  source-conditional-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List Decl -> Json -> Result String Json
+  source-conditional-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> List Decl -> Json -> Result String Json
   source-conditional-rows typed interfaces references context ds rows = case ds of
     Nil -> Ok rows
     Cons (DInstance sp flag symbol params head members) rest | has-symbol symbol (field "declarations" context) ->
@@ -838,7 +838,7 @@ module Bootstrap.Export where
           None -> Err "conditional instance has no checked methods")
         Err error -> Err error)
     Cons other rest -> source-conditional-rows typed interfaces references context rest rows
-  instance-rows :: Elaboration -> List LoadedInterface -> HashMap String (List String) -> Json -> List Decl -> List CoreInstance -> Result String Json
+  instance-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> List Decl -> List CoreInstance -> Result String Json
   instance-rows typed interfaces references context guarded declarations = case declarations of
     Nil -> source-conditional-rows typed interfaces references context guarded JArrEnd
     Cons declaration rest -> if has-symbol (instance-name declaration) (field "declarations" context) then
@@ -851,7 +851,7 @@ module Bootstrap.Export where
   -- modules: every public row looks its symbol up in both. Each map keeps
   -- the first entry of a name, as find-binding and find-data do.
   data ExportIndex where
-    ExportIndex :: Bool -> Bool -> HashMap String CheckedBinding -> HashMap String CoreData -> HashMap String (List String) -> HashMap String DataLayout -> List Decl -> ExportIndex
+    ExportIndex :: Bool -> Bool -> HashMap String CheckedBinding -> HashMap String CoreData -> DeclarationReferences -> HashMap String DataLayout -> List Decl -> ExportIndex
   export-index :: Bool -> Bool -> Elaboration -> ExportIndex
   export-index require-worker alias-display typed = ExportIndex require-worker alias-display (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
     (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed)) (guarded-instances (elaboration-declarations typed))
@@ -881,7 +881,7 @@ module Bootstrap.Export where
   indexed-binding name index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> hash-map-lookup name bindings
   indexed-data :: String -> ExportIndex -> Option CoreData
   indexed-data name index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> hash-map-lookup name datas
-  indexed-references :: ExportIndex -> HashMap String (List String)
+  indexed-references :: ExportIndex -> DeclarationReferences
   indexed-references index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> references
   -- Source effect labels belong to the handler table. The public interface
   -- exposes their operations as values with display-only schemes.
@@ -904,7 +904,7 @@ module Bootstrap.Export where
             Some description -> case class-nominal description of
               Ok nominal -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
               Err error -> Err error
-            None -> case source-abstract-type (elaboration-declarations typed) symbol of
+            None -> case indexed-abstract-type (elaboration-declarations typed) references symbol of
               Some (Ok nominal) -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
               Some (Err error) -> Err error
               None -> case imported-refinement-type interfaces symbol of

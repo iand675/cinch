@@ -273,6 +273,27 @@ run generates lands in `build/bootstrap-profile` or `build/bootstrap`, both igno
 git, so measuring never edits a source file. The one exception is the
 baseline itself, `compiler/evidence/other/speed-baseline.json`.
 
+## Compiler latency checks
+
+Run the same workloads and sample count for each compiler on the same host.
+The report includes CPU and wall time for Hello World with an empty and a
+warm package store, Clang assembly and linking, a multi-module import graph,
+and symbol matches at increasing widths. Include the `self` workload and
+pass `--bundle` to time self-compilation.
+
+```sh
+python3 tooling/bench_compiler.py --compiler /path/to/stage3/cinch \
+  --bundle /path/to/stage1/compiler.cinch \
+  --workloads hello graph symbols self > baseline.json
+python3 tooling/bench_compiler.py --compiler /path/to/candidate/stage3/cinch \
+  --bundle /path/to/stage1/compiler.cinch \
+  --workloads hello graph symbols self --baseline baseline.json
+```
+
+For the Rust compiler, pass its matching `--runtime` archive. Set
+`CINCH_CLANG` in both runs to compare the same Clang executable. The
+comparison defaults to a 15 percent CPU tolerance per workload.
+
 ## Drift check (CI)
 
 ```sh

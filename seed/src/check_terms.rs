@@ -8879,7 +8879,10 @@ impl Checker {
                     )
                 })?;
                 branch_maps.push(m);
-                let mut rest_w = default_sum.first().copied().unwrap_or(None);
+                let default_weight = default_sum[0];
+                let mut rest_w = default_weight;
+                let wide_symbol_match = matches!(inner_ty, Ty::Sym) && literals.len() >= 64;
+                let mut symbols = Vec::new();
                 for (i, (v, node, mut branch)) in literals.into_iter().enumerate().rev() {
                     if numeric {
                         self.refine_proof_rows(&mut branch, &col0, ITerm::Num(v.clone().into()), &[]);
@@ -8898,6 +8901,10 @@ impl Checker {
                         )
                     })?;
                     branch_maps.push(m);
+                    if wide_symbol_match {
+                        symbols.push(SymbolBranch { name: v, body, weight: lit_sums[i] });
+                        continue;
+                    }
                     let cmp = literal_eq_cond(&inner_ty, observed.clone(), node);
                     // One binary decision point per comparison: the
                     // literal's alternative against everything left.
@@ -8913,6 +8920,11 @@ impl Checker {
                     };
                 }
                 self.merge_branches(branch_maps);
+                if wide_symbol_match {
+                    let selected = self.fresh_local();
+                    self.note_local_ty(selected, &Ty::Prim(Scalar::I64));
+                    return Ok(compile_symbol_dispatch(observed, selected, symbols, chain, default_weight));
+                }
                 Ok(chain)
             }
             Ty::Bool => {
@@ -12575,6 +12587,92 @@ fn literal_eq_cond(ty: &Ty, col: ECore, lit: ECore) -> ECore {
         Ty::Sym => app_spine(ECore::Prim(PrimOp::Sym(SymOp::Eq)), vec![col, lit]),
         _ => i64eq(col, lit),
     }
+}
+
+struct SymbolBranch {
+    name: String,
+    body: ECore,
+    weight: Option<u32>,
+}
+
+/// Find the matching name, then dispatch on its ordinal. Separating the
+/// search from the bodies keeps guards in their selected branch and gives
+/// all failed searches one shared fallback. Both trees have bounded depth
+/// relative to the number of alternatives, even during checked Core walks.
+fn compile_symbol_dispatch(
+    value: ECore,
+    selected: LocalId,
+    mut branches: Vec<SymbolBranch>,
+    fallback: ECore,
+    fallback_weight: Option<u32>,
+) -> ECore {
+    fn less(left: ECore, right: i64) -> ECore {
+        app_spine(
+            ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Lt }),
+            vec![left, ECore::Int(right)],
+        )
+    }
+
+    fn search(value: &ECore, branches: &[SymbolBranch], base: i64) -> ECore {
+        let middle = branches.len() / 2;
+        let literal = ECore::ConstSym(branches[middle].name.clone());
+        if branches.len() == 1 {
+            let equal = literal_eq_cond(&Ty::Sym, value.clone(), literal);
+            return ECore::If(
+                Box::new(equal),
+                CBranch::new(ECore::Int(base)),
+                CBranch::new(ECore::Int(-1)),
+            );
+        }
+        let order = app_spine(ECore::Prim(PrimOp::Sym(SymOp::Cmp)), vec![value.clone(), literal]);
+        let (left, right) = branches.split_at(middle);
+        ECore::If(
+            Box::new(less(order, 0)),
+            CBranch::new(search(value, left, base)),
+            CBranch::new(search(value, right, base + middle as i64)),
+        )
+    }
+
+    fn select(
+        selected: LocalId,
+        base: i64,
+        length: usize,
+        branches: &mut impl Iterator<Item = SymbolBranch>,
+    ) -> (ECore, Option<u32>) {
+        if length == 1 {
+            let branch = branches.next().expect("one body for each symbol ordinal");
+            return (branch.body, branch.weight);
+        }
+        let middle = length / 2;
+        let cut = base + middle as i64;
+        let (left, left_weight) = select(selected, base, middle, branches);
+        let (right, right_weight) = select(selected, cut, length - middle, branches);
+        let weight = left_weight.zip(right_weight).map(|(left, right)| left.saturating_add(right));
+        let (left_weight, right_weight) = pair_weights(left_weight, right_weight);
+        (
+            ECore::If(
+                Box::new(less(ECore::Var(selected), cut)),
+                CBranch::weighted(left_weight, left),
+                CBranch::weighted(right_weight, right),
+            ),
+            weight,
+        )
+    }
+
+    // The runtime compares UTF-8 bytes, which agrees with Rust's string order.
+    branches.sort_unstable_by(|left, right| left.name.cmp(&right.name));
+    let ordinal = search(&value, &branches, 0);
+    let (body, body_weight) = select(selected, 0, branches.len(), &mut branches.into_iter());
+    let (fallback_weight, body_weight) = pair_weights(fallback_weight, body_weight);
+    ECore::Let(
+        selected,
+        Box::new(ordinal),
+        Box::new(ECore::If(
+            Box::new(less(ECore::Var(selected), 0)),
+            CBranch::weighted(fallback_weight, fallback),
+            CBranch::weighted(body_weight, body),
+        )),
+    )
 }
 
 /// The code point of a character literal (section 6: one Unicode scalar
