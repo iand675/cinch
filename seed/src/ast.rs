@@ -1879,12 +1879,16 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             }
         }
         Decl::ValueSig { ty, .. } => collect_type_refs(ty, out),
-        Decl::Equation { eq, .. } => {
-            for term in eq.terms() { collect_term_refs(term, out); }
-            for l in &eq.locals {
-                collect_local_refs(l, out);
-            }
-        }
+        Decl::Equation { eq, .. } => collect_equation_refs(eq, out),
+    }
+}
+
+pub(crate) fn collect_equation_refs(eq: &Equation, out: &mut Vec<RefSite>) {
+    for term in eq.terms() {
+        collect_term_refs(term, out);
+    }
+    for local in &eq.locals {
+        collect_local_refs(local, out);
     }
 }
 

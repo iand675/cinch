@@ -5779,6 +5779,12 @@ impl Checker {
             .unwrap_or_default()
     }
 
+    fn top_equations(&self, module: &str, name: &str) -> impl Iterator<Item = &ast::Equation> {
+        self.top_equation_indices(module, name)
+            .iter()
+            .map(|&position| &self.top_eqs[position].2)
+    }
+
     fn prepare_task_forwarders(&mut self) {
         let candidates: Vec<_> = self.top_eqs.iter().filter_map(|(module, name, eq)| {
             let [ast::Pat::Var(token, _), ast::Pat::Var(callback, _)] = eq.pats.as_slice() else {
@@ -19433,27 +19439,14 @@ impl Checker {
         let unit_refs = |key: &UnitKey, checker: &Checker| -> Vec<ast::RefSite> {
             let mut out = Vec::new();
             match key {
-                UnitKey::Def(m, n) => {
-                    for (mod_, name, eq) in &checker.top_eqs {
-                        if mod_ == m && name == n {
-                            ast::collect_decl_refs(&ast::Decl::Equation {
-                                modifier: None,
-                                eq: eq.clone(),
-                            }, &mut out);
+                UnitKey::Def(module, name) | UnitKey::Ord(module, name) => {
+                    if matches!(key, UnitKey::Ord(..)) {
+                        if let Some((header, _)) = checker.deferred_headers.get(&(module.clone(), name.clone())) {
+                            ast::collect_decl_refs(header, &mut out);
                         }
                     }
-                }
-                UnitKey::Ord(m, n) => {
-                    if let Some((header, _)) = checker.deferred_headers.get(&(m.clone(), n.clone())) {
-                        ast::collect_decl_refs(header, &mut out);
-                    }
-                    for (mod_, name, eq) in &checker.top_eqs {
-                        if mod_ == m && name == n {
-                            ast::collect_decl_refs(&ast::Decl::Equation {
-                                modifier: None,
-                                eq: eq.clone(),
-                            }, &mut out);
-                        }
+                    for equation in checker.top_equations(module, name) {
+                        ast::collect_equation_refs(equation, &mut out);
                     }
                 }
                 UnitKey::Gen(i) => {
@@ -19492,10 +19485,11 @@ impl Checker {
             // A local binder may share a name with a top-level definition;
             // a reference that could be local adds no edge (missed edges
             // only weaken this check, never reject a valid program).
-            let mut bound: Vec<String> = Vec::new();
+            let mut bound = HashSet::new();
             collect_unit_binders(&key, self, &mut bound);
             refs.retain(|r| !bound.contains(&r.name));
-            let mut deps: Vec<UnitKey> = Vec::new();
+            let mut deps = Vec::new();
+            let mut seen_deps = HashSet::new();
             for r in &refs {
                 let ref_key = if r.quals.is_empty() {
                     (module.clone(), r.name.clone())
@@ -19509,7 +19503,7 @@ impl Checker {
                 });
                 let Some((tm, tn)) = target else { continue };
                 if let Some(u) = self.unit_of(&tm, &tn, &produced) {
-                    if u != key && !deps.contains(&u) {
+                    if u != key && seen_deps.insert(u.clone()) {
                         deps.push(u);
                     }
                 }
@@ -19764,12 +19758,7 @@ impl Checker {
         if cx.fns.contains_key(&id.0) {
             return Ok(());
         }
-        let eqs: Vec<ast::Equation> = self
-            .top_eqs
-            .iter()
-            .filter(|(m, n, _)| m == module && n == name)
-            .map(|(_, _, e)| e.clone())
-            .collect();
+        let eqs: Vec<ast::Equation> = self.top_equations(module, name).cloned().collect();
         let scheme = self
             .top_schemes
             .get(&(module.to_string(), name.to_string()))
@@ -21319,45 +21308,46 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
 
 /// Binder names of a unit's syntax, for the dependency graph's local-name
 /// filter.
-fn collect_unit_binders(key: &UnitKey, checker: &Checker, out: &mut Vec<String>) {
-    let mut push_pat = |p: &ast::Pat, out: &mut Vec<String>| {
+fn collect_unit_binders(key: &UnitKey, checker: &Checker, out: &mut HashSet<String>) {
+    let push_pat = |pat: &ast::Pat, out: &mut HashSet<String>| {
         let mut names = Vec::new();
-        pat_names(p, &mut names);
+        pat_names(pat, &mut names);
         out.extend(names);
     };
     match key {
-        UnitKey::Def(m, n) | UnitKey::Ord(m, n) => {
-            for (mod_, name, eq) in &checker.top_eqs {
-                if mod_ == m && name == n {
-                    for p in &eq.pats {
-                        push_pat(p, out);
-                    }
-                    for l in &eq.locals {
-                        match l {
-                            ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
-                            ast::LocalDecl::Eq { name, pats, .. } => {
-                                out.push(name.text.clone());
-                                for p in pats {
-                                    push_pat(p, out);
-                                }
+        UnitKey::Def(module, name) | UnitKey::Ord(module, name) => {
+            for equation in checker.top_equations(module, name) {
+                for pat in &equation.pats {
+                    push_pat(pat, out);
+                }
+                for local in &equation.locals {
+                    match local {
+                        ast::LocalDecl::Sig { name, .. } => {
+                            out.insert(name.text.clone());
+                        }
+                        ast::LocalDecl::Eq { name, pats, .. } => {
+                            out.insert(name.text.clone());
+                            for pat in pats {
+                                push_pat(pat, out);
                             }
-                            ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
-                                push_pat(pat, out)
-                            }
+                        }
+                        ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
+                            push_pat(pat, out);
                         }
                     }
                 }
             }
         }
-        UnitKey::Gen(i) => {
-            for stmt in &checker.generate_blocks[*i].stmts {
+        UnitKey::Gen(index) => {
+            for stmt in &checker.generate_blocks[*index].stmts {
                 match stmt {
                     ast::DoStmt::Bind { pat, .. } => push_pat(pat, out),
                     ast::DoStmt::Let { decls, .. } => {
                         for decl in decls {
                             match decl {
-                                ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
-                                ast::LocalDecl::Eq { name, .. } => out.push(name.text.clone()),
+                                ast::LocalDecl::Sig { name, .. } | ast::LocalDecl::Eq { name, .. } => {
+                                    out.insert(name.text.clone());
+                                }
                                 ast::LocalDecl::Bind { pat, .. }
                                 | ast::LocalDecl::Lazy { pat, .. } => push_pat(pat, out),
                             }
@@ -21847,12 +21837,7 @@ impl Checker {
         if self.staging.contains(&key) {
             return self.compile_unit(cx, module, name);
         }
-        let mut eqs: Vec<ast::Equation> = self
-            .top_eqs
-            .iter()
-            .filter(|(m, n, _)| m == module && n == name)
-            .map(|(_, _, e)| e.clone())
-            .collect();
+        let mut eqs: Vec<ast::Equation> = self.top_equations(module, name).cloned().collect();
         if eqs.is_empty() {
             return Err(Error::plain(format!("no definition for {name}")));
         }
