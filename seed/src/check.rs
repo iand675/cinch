@@ -3084,6 +3084,7 @@ struct Checker {
     class_law_contracts: HashMap<(String, String), Vec<crate::interface::ClassLawExport>>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
+    instance_declarations: HashMap<GlobalId, Vec<usize>>,
     declaration_seed: Option<Vec<InstanceInfo>>,
     collecting_declarations: bool,
     // Ordinary headers that depend on names produced by staging are kept as
@@ -3933,6 +3934,7 @@ impl Checker {
             class_law_contracts: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
+            instance_declarations: HashMap::new(),
             declaration_seed: None,
             collecting_declarations: false,
             defer_generated_headers: false,
@@ -12426,12 +12428,11 @@ mod index_substitution_tests {
         let mut checker = Checker::new();
         checker.collecting_declarations = true;
         let class = ClassApp { class: "SampleMeasure".into(), args: vec![Ty::Int] };
-        checker.instance_list.push(InstanceInfo {
+        checker.register_instance(InstanceInfo {
             module: "Library".into(), name: "MeasureInt".into(), params: vec![], ctx: vec![], target: class.clone(),
             base_id: GlobalId("Library.MeasureInt".into()), implicit: true, base: false,
             method_obligs: vec![], method_contracts: vec![],
         });
-        checker.instances.insert(class.class.clone(), vec![0]);
         let request = |checker: &Checker| {
             let mut inference = IndexInference::new(&checker.uni);
             let witness = inference.uni.fresh_idx_term();

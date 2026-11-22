@@ -5970,16 +5970,24 @@ impl Checker {
         }
     }
 
+    fn register_instance(&mut self, info: InstanceInfo) {
+        let index = self.instance_list.len();
+        self.instances.entry(info.target.class.clone()).or_default().push(index);
+        self.instance_declarations.entry(info.base_id.clone()).or_default().push(index);
+        self.instance_list.push(info);
+    }
+
     fn check_instance(&mut self, module: &str, inst: &ast::InstDecl) -> Result<()> {
         // An instance's method bodies are the instance declaration's own
         // work, so the searches they perform are its dependencies.
-        let saved_declaration = self.enter_declaration(&format!("{module}.{}", inst.name.text));
-        let result = self.check_instance_inner(module, inst);
+        let declaration = fn_id(module, &inst.name.text);
+        let saved_declaration = self.enter_declaration(&declaration.0);
+        let result = self.check_instance_inner(module, inst, &declaration);
         self.current_declaration = saved_declaration;
         result
     }
 
-    fn check_instance_inner(&mut self, module: &str, inst: &ast::InstDecl) -> Result<()> {
+    fn check_instance_inner(&mut self, module: &str, inst: &ast::InstDecl, declaration: &GlobalId) -> Result<()> {
         let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
         let (class, args) = self.class_app_of(&inst.target, &params)?;
         let sig = self
@@ -5989,15 +5997,14 @@ impl Checker {
             .cloned()
             .ok_or_else(|| Error::plain(crate::diagnostic!("unknown signature {}", crate::spelling::Nominal(&class))))?;
 
-        // Make this instance visible to its own method bodies even when it is
-        // not `implicit`.
-        let self_idx = self
-            .instances
-            .get(&class)
-            .and_then(|idxs| {
-                idxs.iter()
-                    .copied()
-                    .find(|&i| self.instance_list[i].name == inst.name.text && self.instance_list[i].module == module)
+        // Make this instance visible to its own method bodies even when it
+        // is explicit. Check the full identity if two spellings share a key.
+        let self_idx = self.instance_declarations[declaration]
+            .iter()
+            .copied()
+            .find(|&index| {
+                let info = &self.instance_list[index];
+                info.module == module && info.name == inst.name.text && info.target.class == class
             })
             .unwrap();
         self.self_instance = Some(self_idx);
@@ -6024,7 +6031,7 @@ impl Checker {
         }
         let mut method_fns = Vec::new();
         let mut method_own: Vec<usize> = Vec::new();
-        let mut seen: Vec<String> = Vec::new();
+        let mut seen = HashSet::new();
         let mut pres_methods: Vec<(String, GlobalId, Ty)> = Vec::new();
         let equations = (sig.methods.len() > 8).then(|| {
             let mut by_method: HashMap<&str, Vec<&ast::Equation>> = HashMap::new();
@@ -6033,15 +6040,26 @@ impl Checker {
             }
             by_method
         });
-        for (mname, mscheme) in sig.methods.clone() {
+        let default_equations = (sig.defaults.len() > 8).then(|| {
+            let mut defaults = HashMap::new();
+            for (name, equations) in &sig.defaults {
+                defaults.entry(name.as_str()).or_insert(equations);
+            }
+            defaults
+        });
+        for (mname, mscheme) in &sig.methods {
             let mut eqs: Vec<ast::Equation> = match &equations {
                 Some(by_method) => by_method.get(mname.as_str()).into_iter().flatten().copied().cloned().collect(),
-                None => inst.methods.iter().filter(|equation| equation.name.text == mname).cloned().collect(),
+                None => inst.methods.iter().filter(|equation| equation.name.text == mname.as_str()).cloned().collect(),
             };
             let from_default = eqs.is_empty();
             if from_default {
-                match sig.defaults.iter().find(|(m, _)| *m == mname) {
-                    Some((_, d)) => eqs = d.clone(),
+                let default = match &default_equations {
+                    Some(defaults) => defaults.get(mname.as_str()).copied(),
+                    None => sig.defaults.iter().find_map(|(name, equations)| (name == mname).then_some(equations)),
+                };
+                match default {
+                    Some(default) => eqs = default.clone(),
                     None => {
                         return Err(Error::at(
                             inst.span,
@@ -6117,7 +6135,7 @@ impl Checker {
             // class method's at this instance. The obligations hold in
             // the body (the caller discharged them at the call).
             let mut own_obligs: Vec<PropOblig> = Vec::new();
-            if let Some((sname, sty)) = inst.method_sigs.iter().find(|(n, _)| n.text == mname) {
+            if let Some((sname, sty)) = inst.method_sigs.iter().find(|(n, _)| n.text == mname.as_str()) {
                 if transfer {
                     return Err(Error::at(
                         sname.span,
@@ -6199,7 +6217,7 @@ impl Checker {
             if from_default {
                 self.method_annotation_aliases = Some(body_map.clone());
             }
-            let checked = self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new());
+            let checked = self.check_equations(mname, &gid, &scheme, &eqs, Vec::new());
             self.method_annotation_aliases = saved_aliases;
             self.method_tparams = None;
             if from_default {
@@ -6225,10 +6243,10 @@ impl Checker {
                 self.interface_method_schemes.insert(gid.clone(), scheme.clone());
             }
             method_fns.push(gid);
-            seen.push(mname);
+            seen.insert(mname.as_str());
         }
         for e in &inst.methods {
-            if !seen.contains(&e.name.text) {
+            if !seen.contains(e.name.text.as_str()) {
                 return Err(Error::at(
                     e.span,
                     crate::diagnostic!("{} is not a method of {}", e.name.text, crate::spelling::Nominal(&class)),
@@ -6655,8 +6673,7 @@ impl Checker {
             let mut unit_insts = Vec::new();
             for bi in base_insts {
                 let uid = GlobalId(format!("{}.{}", unit.text, bi.name));
-                let idx = self.instance_list.len();
-                self.instance_list.push(InstanceInfo {
+                self.register_instance(InstanceInfo {
                     module: unit.text.clone(),
                     name: bi.name.clone(),
                     params: bi.params.clone(),
@@ -6668,7 +6685,6 @@ impl Checker {
                     method_obligs: bi.method_obligs.clone(),
                     method_contracts: bi.method_contracts.clone(),
                 });
-                self.instances.entry(bi.target.class.clone()).or_default().push(idx);
                 unit_insts.push(UnitInst { inst_name: bi.name.clone() });
             }
             let param_sigs: Vec<String> = params.iter().map(|p| p.sig.clone()).collect();
@@ -6699,22 +6715,27 @@ impl Checker {
     /// wrappers. Instantiation is representation: the wrappers sit beside
     /// the target module's unchanged units.
     fn emit_unit_wrappers(&mut self) -> Result<()> {
-        let units = self.units.clone();
+        if self.units.is_empty() {
+            return Ok(());
+        }
+        let targets: HashSet<_> = self.units.iter().map(|unit| unit.target.as_str()).collect();
+        let mut names_by_module: HashMap<&str, Vec<&str>> = HashMap::new();
+        for value in self.values.values().flatten() {
+            if matches!(value.kind, ValueKind::TopFn) && targets.contains(value.module.as_str()) {
+                names_by_module.entry(&value.module).or_default().push(&value.name);
+            }
+        }
+        let mut functions = HashMap::with_capacity(self.fns.len());
+        for function in &self.fns {
+            functions.entry(&function.id).or_insert(function);
+        }
         let mut wrappers: Vec<FnDef> = Vec::new();
-        for u in &units {
+        for u in &self.units {
             let k = self.module_params.get(&u.target).map(|p| p.len()).unwrap_or(0);
-            let names: Vec<String> = self
-                .values
-                .values()
-                .flatten()
-                .filter(|v| v.module == u.target && matches!(v.kind, ValueKind::TopFn))
-                .map(|v| v.name.clone())
-                .collect();
-            for name in names {
-                let gid = fn_id(&u.target, &name);
-                // A logical definition is erased and emits no unit; its
-                // references are erased with it.
-                let Some(fd) = self.fns.iter().find(|f| f.id == gid).cloned() else {
+            for &name in names_by_module.get(u.target.as_str()).into_iter().flatten() {
+                let gid = fn_id(&u.target, name);
+                // A logical definition is erased and emits no unit.
+                let Some(&fd) = functions.get(&gid) else {
                     continue;
                 };
                 let n = fd.arity() - k;
@@ -6727,7 +6748,7 @@ impl Checker {
                 // target's beyond the module parameters.
                 let tp = fd.repr.tparams;
                 wrappers.push(FnDef {
-                    id: fn_id(&u.name, &name),
+                    id: fn_id(&u.name, name),
                     params: (0..n).map(|i| format!("p{i}")).collect(),
                     body: crate::core::Core::App(
                         Box::new(crate::core::Core::Global(gid, crate::repr::identity(tp))),
@@ -6749,7 +6770,6 @@ impl Checker {
                 let base = self
                     .param_inst_defs
                     .get(&(u.target.clone(), ui.inst_name.clone()))
-                    .cloned()
                     .ok_or_else(|| {
                         Error::plain(format!(
                             "internal error: instance {} of {} has no dictionary unit",
@@ -6757,20 +6777,15 @@ impl Checker {
                         ))
                     })?;
                 let mut methods = Vec::new();
+                let prefix = format!("{}.{}.", u.target, ui.inst_name);
                 for mth in &base.methods {
-                    let fd = self
-                        .fns
-                        .iter()
-                        .find(|f| f.id == *mth)
-                        .cloned()
-                        .ok_or_else(|| {
-                            Error::plain(format!(
-                                "internal error: instance method {} has no unit",
-                                mth.0
-                            ))
-                        })?;
+                    let fd = functions.get(mth).ok_or_else(|| {
+                        Error::plain(format!(
+                            "internal error: instance method {} has no unit",
+                            mth.0
+                        ))
+                    })?;
                     let n = fd.arity() - k;
-                    let prefix = format!("{}.{}.", u.target, ui.inst_name);
                     let suffix = mth.0.strip_prefix(&prefix).unwrap_or(&mth.0);
                     let wid = GlobalId(format!("{}.{}.{}", u.name, ui.inst_name, suffix));
                     let mut args = u.args.clone();
@@ -17382,7 +17397,6 @@ impl Checker {
                 method_contracts.push((midx, mname.text.clone(), s));
             }
             let base_id = fn_id(&module, &inst.name.text);
-            let idx = self.instance_list.len();
             let info = InstanceInfo {
                 module: module.clone(),
                 name: inst.name.text.clone(),
@@ -17399,8 +17413,7 @@ impl Checker {
                 method_contracts,
             };
             self.remember_interface_instance(&inst, &info, &head_notes);
-            self.instance_list.push(info);
-            self.instances.entry(class).or_default().push(idx);
+            self.register_instance(info);
         }
         Ok(())
     }
