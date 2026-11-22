@@ -147,6 +147,7 @@ let
   pinSources = select [
       (src + "/tooling/bootstrap.py") (src + "/tooling/bootstrap_objects.py")
       (src + "/tooling/bootstrap_interfaces.py") (src + "/tooling/build_slots.py")
+      (src + "/tooling/pack_interfaces.py")
       (src + "/tooling/pgo.py") (src + "/tooling/shard_ir.py")
       (src + "/compiler/pins/stage0.lock.json") (src + "/compiler/pins/library-provider.lock.json")
       (src + "/compiler/pins/library-object-roots.json") (src + "/compiler/seed")
