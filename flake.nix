@@ -1,6 +1,11 @@
 {
   description = "Cinch: the bootstrap ladder as cacheable outputs";
 
+  nixConfig = {
+    extra-substituters = [ "https://cinch.cachix.org" ];
+    extra-trusted-public-keys = [ "cinch.cachix.org-1:XHvabr/CyPVM5udysOe7CNfkqfaExPWQPUiICjI7Bdk=" ];
+  };
+
   # flake.lock holds the same nixpkgs revision as devenv.lock, so both entry
   # points build with one toolchain. Move them together.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

@@ -1,8 +1,4 @@
-name: Bootstrap ladder cache
-
-# Builds the bootstrap ladder as Nix outputs and pushes them to a Cachix
-# binary cache, so a later session substitutes the stages for its commit
-# instead of rebuilding them. tooling/nix/README.md has the consumer side.
+name: Compiler distributions
 
 on:
   push:
@@ -14,43 +10,164 @@ on:
       - "examples/compiler/fib.cinch"
       - "flake.nix"
       - "flake.lock"
+      - "devenv.nix"
       - ".github/workflows/ladder-cache.yml"
+  pull_request:
+    paths:
+      - "compiler/**"
+      - "tooling/**"
+      - "seed/prelude/**"
+      - "examples/compiler/fib.cinch"
+      - "flake.nix"
+      - "flake.lock"
+      - "devenv.nix"
+      - ".github/workflows/ladder-cache.yml"
+  schedule:
+    - cron: "23 2 * * *"
   workflow_dispatch:
+    inputs:
+      publish_nightly:
+        description: Publish a nightly prerelease after all platform builds pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ladder-cache-${{ github.ref }}
+  group: compiler-distributions-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   ladder:
-    runs-on: ubuntu-latest
+    name: Compiler (${{ matrix.system }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: aarch64-darwin
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     env:
-      CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+      CACHIX_AUTH_TOKEN: ${{ github.event_name != 'pull_request' && secrets.CACHIX_AUTH_TOKEN || '' }}
     steps:
-      - name: Explain the missing cache
-        if: env.CACHIX_CACHE == ''
-        run: echo "Set the CACHIX_CACHE repository variable and the CACHIX_AUTH_TOKEN secret to publish the ladder."
-      - uses: actions/checkout@v4
-        if: env.CACHIX_CACHE != ''
-      - name: Fetch the pinned seed and library producer revisions
-        if: env.CACHIX_CACHE != ''
-        run: |
-          git fetch --depth=1 origin \
-            "$(jq -r .revision compiler/pins/stage0.lock.json)" \
-            "$(jq -r .revision compiler/pins/library-provider.lock.json)"
-      - uses: cachix/install-nix-action@v31
-        if: env.CACHIX_CACHE != ''
-      - uses: cachix/cachix-action@v16
-        if: env.CACHIX_CACHE != ''
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: ${{ vars.CACHIX_CACHE }}
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      # The pin-keyed tree first: it is the part every commit shares, so it
-      # is worth having in the cache even when the ladder below fails.
-      - name: Build the pin-keyed tree
-        if: env.CACHIX_CACHE != ''
-        run: nix build --impure -L -f tooling/nix/local.nix pins
-      - name: Build and check the ladder
-        if: env.CACHIX_CACHE != ''
-        run: nix build --impure -L -f tooling/nix/local.nix ladder
+          persist-credentials: false
+      - name: Require cache publishing credentials on trusted builds
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if [[ -z "$CACHIX_AUTH_TOKEN" ]]; then
+            echo '::error::Set the CACHIX_AUTH_TOKEN repository secret to a cinch cache read/write token.'
+            exit 1
+          fi
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
+      - name: Pull from Cachix and publish trusted builds
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: cinch
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ github.event_name == 'pull_request' }}
+      - name: Check the native platform
+        shell: bash
+        env:
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+        run: test "$(nix eval --impure --raw --expr builtins.currentSystem)" = "$EXPECTED_SYSTEM"
+      # Preserve the expensive pin-keyed outputs even if the current
+      # compiler fails its fixed-point or smoke checks.
+      - name: Build the pinned compilers and runtime
+        run: nix build -L --accept-flake-config .#cinch-pins --out-link result-pins
+      - name: Build and check the self-hosted compiler
+        run: nix build -L --accept-flake-config .#cinch-ladder --out-link result-ladder
+      - name: Export the compiler distribution
+        shell: bash
+        env:
+          CINCH_DIST_SYSTEM: ${{ matrix.system }}
+        run: |
+          mkdir -p dist
+          nix path-info --json ./result-pins ./result-ladder > dist/manifest.json
+          nix-store --query --requisites ./result-ladder > dist/store-paths.txt
+          # A ladder contains absolute store paths. Export its entire runtime
+          # closure, rather than an executable that breaks after extraction.
+          store_paths=()
+          while IFS= read -r store_path; do store_paths+=("$store_path"); done < dist/store-paths.txt
+          nix-store --export "${store_paths[@]}" | gzip -1 > "dist/cinch-${CINCH_DIST_SYSTEM}.nar.gz"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          archive = next(Path('dist').glob('*.nar.gz'))
+          with archive.open('rb') as stream:
+              sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
+          archive.with_name(archive.name + '.sha256').write_text(f'{sha256}  {archive.name}\n')
+          Path(f"dist/build-{os.environ['CINCH_DIST_SYSTEM']}.json").write_text(json.dumps({
+              'revision': os.environ['GITHUB_SHA'],
+              'system': os.environ['CINCH_DIST_SYSTEM'],
+              'ladder': str(Path('result-ladder').resolve()),
+              'pins': str(Path('result-pins').resolve()),
+          }, indent=2) + '\n')
+          PY
+          cp tooling/nix/distribution.md dist/README.md
+      - name: Upload the compiler distribution
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cinch-${{ matrix.system }}-${{ github.sha }}
+          path: dist/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+  nightly:
+    name: Publish nightly release
+    needs: ladder
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_nightly))
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download the three checked distributions
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: gh run download "$RUN_ID" --pattern 'cinch-*' --dir artifacts
+      - name: Prepare release assets and checksums
+        run: |
+          mkdir -p release
+          for system in x86_64-linux aarch64-linux aarch64-darwin; do
+            artifact="artifacts/cinch-${system}-${GITHUB_SHA}"
+            (cd "$artifact" && sha256sum --check "cinch-${system}.nar.gz.sha256")
+            cp "$artifact/cinch-${system}.nar.gz" "$artifact/cinch-${system}.nar.gz.sha256" "$artifact/build-${system}.json" release/
+          done
+          cp "artifacts/cinch-x86_64-linux-${GITHUB_SHA}/README.md" release/README.md
+          cat release/*.sha256 > release/SHA256SUMS
+          cat > notes.md <<EOF_NOTES
+          Native compiler distributions built from ${GITHUB_SHA}.
+
+          All three platforms passed the bootstrap fixed point, stage smokes, interface consumption and changed-source checks.
+
+          These are Nix runtime closures, requiring Nix on the matching platform. See README.md for import and Cachix instructions. Each archive has a SHA-256 sidecar; SHA256SUMS covers all three.
+
+          Build: https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}
+          EOF_NOTES
+      - name: Publish a complete dated prerelease
+        run: |
+          tag="nightly-$(date -u +%Y%m%d)-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
+          # Stage all assets on a draft, then expose the complete release.
+          # Re-running this job resumes the same draft or completed release.
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease \
+              --title "Cinch nightly $(date -u +%Y-%m-%d) (${GITHUB_SHA:0:8})" --notes-file notes.md
+          fi
+          gh release upload "$tag" release/* --clobber
+          gh release edit "$tag" --draft=false --prerelease --latest=false

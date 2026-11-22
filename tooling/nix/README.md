@@ -14,7 +14,7 @@ invalidates each.
 ## Using a cache
 
 ```sh
-cachix use <cache>                      # once per machine
+cachix use cinch                      # once per machine
 
 # Everything the pins determine, copied into a writable build tree. The next
 # `tooling/bootstrap.py build` starts at stage 1.
@@ -42,16 +42,39 @@ pins, so a tree built for other pins is rebuilt, never trusted.
 
 ## Filling a cache
 
-`.github/workflows/ladder-cache.yml` builds `pins` and `ladder` on every push
-that touches their inputs and pushes them with `cachix-action`. It needs the
-`CACHIX_CACHE` repository variable and the `CACHIX_AUTH_TOKEN` secret, and
-does nothing without them.
+`.github/workflows/ladder-cache.yml` builds and checks native distributions
+for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin` on relevant
+pushes, pull requests, and manual runs. Every job pulls from the public
+`cinch` cache. Trusted push/manual/scheduled jobs publish through the
+cache-scoped `CACHIX_AUTH_TOKEN` repository secret; pull requests receive
+no write token. A missing token fails trusted jobs instead of silently
+skipping the compiler build. No repository variable is required.
+
+The flake advertises the cache and public signing key. Accept its config
+with `--accept-flake-config`, or run `cachix use cinch` once. The devenv
+configuration also pulls from and pushes to `cinch`; provide a personal
+cache-scoped token through `CACHIX_AUTH_TOKEN` to publish local builds.
+Never put a token in the repository.
+
+The same workflow runs nightly at 02:23 UTC. After all three builds pass,
+it publishes a dated GitHub prerelease with full Nix runtime closures,
+SHA-256 sidecars, and per-platform build metadata. A draft keeps incomplete
+uploads off the public release list. Manual runs on `main` can publish an
+initial nightly using the `publish_nightly` input. Ordinary pushes produce
+14-day Actions artifacts without creating releases.
+
+See [distribution instructions](distribution.md) for archive verification
+and import. These are Nix distributions: the ladder records absolute store
+paths, so copying just the compiler executable is insufficient. The
+website's downloads page reads completed GitHub nightlies at build time
+and refreshes them in the browser; it does not need a redeploy for each
+new release.
 
 By hand, from a checkout that has the pinned revisions
 (`git fetch origin <revision>` in a shallow clone):
 
 ```sh
-nix build --impure -f tooling/nix/local.nix ladder | cachix push <cache>
+nix build --impure -f tooling/nix/local.nix ladder | cachix push cinch
 ```
 
 `local.nix` reads the pinned revisions from the checkout's own git objects.

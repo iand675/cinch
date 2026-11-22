@@ -4,6 +4,9 @@ let
   npmRegistry = "https://registry.npmjs.org/";
 in
 {
+  cachix.pull = [ "cinch" ];
+  cachix.push = "cinch";
+
   # Rust toolchain for the compiler in compiler/.
   languages.rust = {
     enable = true;
