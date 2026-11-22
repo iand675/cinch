@@ -8,8 +8,10 @@ module Bootstrap.Nominal where
   import Bootstrap.Document
   import Text.Lex (Span)
   import Algebra.Semigroup
+  import Data.Bytes (bytes-get, bytes-len, bytes-new, bytes-set)
   import Data.Nat (nat-div, nat-rem)
   import Data.Char (char-from-code)
+  import Data.String (string-from-bytes, string-to-bytes)
 
   export interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
@@ -137,8 +139,41 @@ module Bootstrap.Nominal where
       else if code >= 97 && code <= 102 then Some (code - 87, rest)
       else None
     Nil -> None
+  -- The identity escape is defined per UTF-8 byte. Read the existing
+  -- encoding without unpacking its scalars or allocating a character list.
+  identity-byte-size :: Bytes -> Nat -> Nat -> Nat
+  identity-byte-size input at size = if at < bytes-len input then
+    identity-byte-size input (at + 1) (size + (if plain-code (bytes-get input at) then 1 else 3))
+    else size
+  identity-hex-byte :: InRange 0 15 Nat -> InRange 48 102 Nat
+  identity-hex-byte code = if code < 10 then 48 + code else 87 + code
+  write-identity-bytes :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  write-identity-bytes input at output pos = if at < bytes-len input then
+    let code = bytes-get input at in
+    if plain-code code then
+      (if pos < bytes-len output then
+        let written = bytes-set output pos code in write-identity-bytes input (at + 1) output (pos + 1)
+       else False)
+    else
+      (if pos + 2 < bytes-len output then
+        let dollar = bytes-set output pos 36 in
+        let high = bytes-set output (pos + 1) (identity-hex-byte (nat-rem (nat-div code 16) 16)) in
+        let low = bytes-set output (pos + 2) (identity-hex-byte (nat-rem code 16)) in
+        write-identity-bytes input (at + 1) output (pos + 3)
+       else False)
+    else pos == bytes-len output
+  identity-global-bytes :: Bytes -> Option String
+  identity-global-bytes input =
+    let output = bytes-new (identity-byte-size input 0 2) in
+    if 1 < bytes-len output then
+      let first = bytes-set output 0 105 in
+      let second = bytes-set output 1 46 in
+      if write-identity-bytes input 0 output 2 then string-from-bytes output else None
+    else None
   interface-global :: String -> String
-  interface-global identity = pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
+  interface-global identity = case identity-global-bytes (string-to-bytes identity) of
+    Some name -> name
+    None -> pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
   -- The encoded global of each identity the compiler compares against, in
   -- the spelling `interface-global` defines. A literal is one read-only
   -- constant; `interface-global` of a literal re-encodes it on every
