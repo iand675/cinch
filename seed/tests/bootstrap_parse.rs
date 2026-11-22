@@ -55,6 +55,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Core", 0),
     ("Bootstrap.CoreBody", 0),
     ("Bootstrap.Dictionary", 0),
+    ("Bootstrap.Document", 0),
     ("Bootstrap.Eager", 0),
     ("Bootstrap.Driver", 0),
     ("Bootstrap.Eval", 0),
@@ -83,6 +84,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Nominal", 0),
     ("Bootstrap.Object", 0),
     ("Bootstrap.Package", 0),
+    ("Bootstrap.PackedBody", 0),
     ("Bootstrap.Parse", 0),
     ("Bootstrap.Pipeline", 0),
     ("Bootstrap.Proof", 0),
@@ -348,11 +350,12 @@ fn compiler_names(
 /// `.cinch` beside the entry joins the project (and corpus copies named like
 /// prelude modules would shadow the embedded family).
 fn built_program(tag: &str) -> (PathBuf, PathBuf) {
-    let dir = common::project(tag, &[]);
+    let dir = common::project(tag, &[
+        ("Bootstrap.Ast.cinch", AST_SRC),
+        ("Bootstrap.Report.cinch", REPORT_SRC),
+        ("Bootstrap.Parse.cinch", PARSE_SRC),
+    ]);
     let lit = format!("{:?}", dir.to_string_lossy());
-    std::fs::write(dir.join("Bootstrap.Ast.cinch"), AST_SRC).expect("write ast");
-    std::fs::write(dir.join("Bootstrap.Report.cinch"), REPORT_SRC).expect("write report");
-    std::fs::write(dir.join("Bootstrap.Parse.cinch"), PARSE_SRC).expect("write parse module");
     std::fs::write(dir.join("Main.cinch"), RUN.replace("__DIR__", &lit)).expect("write run");
     let exe = common::build_executable(&dir, "Main.cinch", "parse")
         .unwrap_or_else(|e| panic!("building the parse program failed: {e}"));
