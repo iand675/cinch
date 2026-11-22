@@ -8,26 +8,37 @@ impl Sort {
     pub fn name(self) -> &'static str { match self { Self::Nat => "Nat", Self::Int => "Int", Self::Bool => "Bool", Self::Bytes => "Bytes", Self::I64 => "I64" } }
     pub(crate) fn parse(name: &str) -> Option<Self> { Some(match name { "Nat" => Self::Nat, "Int" => Self::Int, "Bool" => Self::Bool, "Bytes" => Self::Bytes, "I64" => Self::I64, _ => return None }) }
 }
+macro_rules! operation_names {
+    ($($operation:ident),+ $(,)?) => {
+        pub(crate) fn name(self) -> &'static str {
+            match self {
+                $(Self::$operation => stringify!($operation)),+
+            }
+        }
+
+        pub(crate) fn parse(name: &str) -> Option<Self> {
+            match name {
+                $(stringify!($operation) => Some(Self::$operation),)+
+                _ => None,
+            }
+        }
+    };
+}
+
 impl Op {
-    pub(crate) fn parse(name: &str) -> Option<Self> {
-        Some(match name {
-            "NatAdd" => Self::NatAdd, "NatMul" => Self::NatMul, "NatCmp" => Self::NatCmp,
-            "IntAdd" => Self::IntAdd, "IntSub" => Self::IntSub, "IntMul" => Self::IntMul,
-            "IntNeg" => Self::IntNeg, "IntCmp" => Self::IntCmp, "IntFromNat" => Self::IntFromNat, "IntFromI64" => Self::IntFromI64,
-            "I64Eq" => Self::I64Eq, "I64Ne" => Self::I64Ne, "I64Lt" => Self::I64Lt,
-            "I64Le" => Self::I64Le, "I64Gt" => Self::I64Gt, "I64Ge" => Self::I64Ge,
-            "BoolEq" => Self::BoolEq, "BoolNe" => Self::BoolNe, "BoolNot" => Self::BoolNot,
-            "BoolAnd" => Self::BoolAnd, "BoolOr" => Self::BoolOr, "BytesLen" => Self::BytesLen,
-            _ => return None,
-        })
-    }
+    operation_names!(
+        NatAdd, NatMul, NatCmp,
+        IntAdd, IntSub, IntMul, IntNeg, IntCmp, IntFromNat, IntFromI64,
+        I64Eq, I64Ne, I64Lt, I64Le, I64Gt, I64Ge,
+        BoolEq, BoolNe, BoolNot, BoolAnd, BoolOr, BytesLen,
+    );
 }
 fn expr_json(expression: &Expr) -> J {
     match expression {
         Expr::Local(slot) => J::obj([("node", "local".into()), ("slot", J::Num(*slot as u64))]),
         Expr::Number { sort, decimal } => J::obj([("node", "number".into()), ("sort", sort.name().into()), ("decimal", decimal.into())]),
         Expr::Bool(value) => J::obj([("node", "bool".into()), ("value", (*value).into())]),
-        Expr::Primitive(operation, arguments) => J::obj([("node", "primitive".into()), ("operation", format!("{operation:?}").into()), ("arguments", J::arr(arguments, expr_json))]),
+        Expr::Primitive(operation, arguments) => J::obj([("node", "primitive".into()), ("operation", operation.name().into()), ("arguments", J::arr(arguments, expr_json))]),
         Expr::Call { target, arguments } => J::obj([("node", "call".into()), ("target", target.into()), ("arguments", J::arr(arguments, expr_json))]),
         Expr::Let { value, body } => J::obj([("node", "let".into()), ("value", expr_json(value)), ("body", expr_json(body))]),
         Expr::If { condition, yes, no } => J::obj([("node", "if".into()), ("condition", expr_json(condition)), ("yes", expr_json(yes)), ("no", expr_json(no))]),

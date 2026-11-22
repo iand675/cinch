@@ -79,13 +79,16 @@ type Definitions = Arc<BTreeMap<Arc<str>, Arc<CheckedDefinition>>>;
 enum BodyStorage {
     // A clone shares its membership index. Distinct closures also share
     // checked definitions and their direct edges.
-    Owned(Definitions),
+    Owned {
+        definitions: Definitions,
+        projected_root: Option<Arc<str>>,
+    },
     Packed(PackedClosure),
 }
 
 impl Default for CheckedGraph {
     fn default() -> Self {
-        Self { storage: BodyStorage::Owned(Arc::default()) }
+        Self { storage: BodyStorage::Owned { definitions: Arc::default(), projected_root: None } }
     }
 }
 
@@ -160,33 +163,37 @@ impl CheckedGraph {
     pub(crate) fn write_packed(&self, out: &mut impl fmt::Write) -> fmt::Result {
         match &self.storage {
             BodyStorage::Packed(closure) => closure.write_canonical(out),
-            BodyStorage::Owned(_) => Err(fmt::Error),
+            BodyStorage::Owned { .. } => Err(fmt::Error),
         }
     }
 
     fn from_owned(definitions: BTreeMap<Arc<str>, Arc<CheckedDefinition>>) -> Self {
-        Self { storage: BodyStorage::Owned(Arc::new(definitions)) }
+        Self { storage: BodyStorage::Owned { definitions: Arc::new(definitions), projected_root: None } }
     }
 
     fn owned(&self) -> &Definitions {
         match &self.storage {
-            BodyStorage::Owned(definitions) => definitions,
+            BodyStorage::Owned { definitions, .. } => definitions,
             BodyStorage::Packed(closure) => closure.materialized().owned(),
         }
     }
 
     fn owned_mut(&mut self) -> &mut BTreeMap<Arc<str>, Arc<CheckedDefinition>> {
         if let BodyStorage::Packed(closure) = &self.storage {
-            self.storage = BodyStorage::Owned(Arc::clone(closure.materialized().owned()));
+            self.storage = BodyStorage::Owned {
+                definitions: Arc::clone(closure.materialized().owned()),
+                projected_root: None,
+            };
         }
-        let BodyStorage::Owned(definitions) = &mut self.storage else { unreachable!() };
+        let BodyStorage::Owned { definitions, projected_root } = &mut self.storage else { unreachable!() };
+        *projected_root = None;
         Arc::make_mut(definitions)
     }
 
     pub(crate) fn signature(&self, name: &str) -> Option<(&[Sort], Sort)> {
         match &self.storage {
             BodyStorage::Packed(closure) => closure.signature(name),
-            BodyStorage::Owned(_) => self.get(name).map(|entry| (entry.parameters.as_slice(), entry.result)),
+            BodyStorage::Owned { .. } => self.get(name).map(|entry| (entry.parameters.as_slice(), entry.result)),
         }
     }
 
@@ -286,6 +293,10 @@ impl CheckedGraph {
         }
         let definitions = self.owned();
         let mut pending = roots.into_iter().collect::<Vec<_>>();
+        let single_root = match pending.as_slice() {
+            [root] => Some(*root),
+            _ => None,
+        };
         let mut selected = BTreeMap::new();
         while let Some(identity) = pending.pop() {
             if selected.contains_key(identity) {
@@ -298,15 +309,22 @@ impl CheckedGraph {
         }
         // A subgraph of an already checked DAG remains checked when every
         // referenced callee is retained. It cannot introduce new semantics.
-        Ok(Self::from_owned(selected))
+        let projected_root = single_root.and_then(|root| {
+            selected.get_key_value(root).map(|(name, _)| Arc::clone(name))
+        });
+        Ok(Self {
+            storage: BodyStorage::Owned { definitions: Arc::new(selected), projected_root },
+        })
     }
     /// Check whether every definition belongs to this root's closure.
     /// This walks an already checked graph without copying any of its bodies.
     pub(crate) fn closure_is_whole(&self, identity: &str) -> Result<bool, Invalid> {
-        if let BodyStorage::Packed(closure) = &self.storage {
-            return closure.closure_is_whole(identity);
-        }
-        let definitions = self.owned();
+        let definitions = match &self.storage {
+            BodyStorage::Packed(closure) => return closure.closure_is_whole(identity),
+            // Projection already walked this root's complete dependency graph.
+            BodyStorage::Owned { projected_root: Some(root), .. } if root.as_ref() == identity => return Ok(true),
+            BodyStorage::Owned { definitions, .. } => definitions,
+        };
         let mut pending = vec![identity];
         let mut seen = BTreeSet::new();
         while let Some(name) = pending.pop() {
@@ -554,5 +572,9 @@ mod tests {
         assert!(graph.closure_is_whole("end").unwrap());
         assert!(!graph.closure_is_whole("middle").unwrap());
         assert_eq!(graph.closure_is_whole("missing").unwrap_err().0, "missing total-body root: missing");
+        let mut projected = graph.closure(["end"]).unwrap();
+        assert!(projected.closure_is_whole("end").unwrap());
+        projected.define("other".into(), Vec::new(), zero()).unwrap();
+        assert!(!projected.closure_is_whole("end").unwrap());
     }
 }

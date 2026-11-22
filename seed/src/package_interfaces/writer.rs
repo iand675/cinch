@@ -2,7 +2,8 @@
 use super::{invalid, Decode, HEADER, MAX_DEPTH};
 use crate::interface::{Iface, JsonValue as Value};
 use crate::total::{CheckedGraph, Definition, Expr};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::borrow::Cow;
+use std::collections::{hash_map::Entry, BTreeSet, HashMap};
 use std::io::Write;
 use std::path::Path;
 
@@ -17,14 +18,26 @@ fn put(out: &mut Vec<u8>, words: impl IntoIterator<Item = u32>) {
 }
 
 #[derive(Default)]
-struct Strings {
-    ids: HashMap<String, u32>,
+struct Strings<'a> {
+    ids: HashMap<Cow<'a, str>, u32>,
     spans: Vec<[u32; 2]>,
     bytes: Vec<u8>,
 }
 
-impl Strings {
-    fn id(&mut self, text: &str) -> Decode<u32> {
+impl<'a> Strings<'a> {
+    fn id(&mut self, text: &'a str) -> Decode<u32> {
+        self.intern(text, Cow::Borrowed)
+    }
+
+    fn copied_id(&mut self, text: &str) -> Decode<u32> {
+        self.intern(text, |text| Cow::Owned(text.to_owned()))
+    }
+
+    fn intern<'text>(
+        &mut self,
+        text: &'text str,
+        retain: impl FnOnce(&'text str) -> Cow<'a, str>,
+    ) -> Decode<u32> {
         if let Some(&id) = self.ids.get(text) {
             return Ok(id);
         }
@@ -32,11 +45,11 @@ impl Strings {
         self.spans
             .push([word(self.bytes.len())?, word(text.len())?]);
         self.bytes.extend_from_slice(text.as_bytes());
-        self.ids.insert(text.into(), id);
+        self.ids.insert(retain(text), id);
         Ok(id)
     }
 
-    fn span(&mut self, text: &str) -> Decode<[u32; 2]> {
+    fn span(&mut self, text: &'a str) -> Decode<[u32; 2]> {
         let id = self.id(text)?;
         Ok(self.spans[id as usize])
     }
@@ -52,17 +65,21 @@ impl Strings {
 
 fn collect_definitions<'a>(
     value: &'a Value,
-    definitions: &mut BTreeMap<&'a str, &'a Definition>,
+    definitions: &mut HashMap<&'a str, &'a Definition>,
 ) -> Decode<()> {
     match value {
         Value::PackedGraph(graph) => {
             for definition in graph.definitions() {
-                if let Some(prior) = definitions.get(definition.identity.as_str()) {
-                    if !std::ptr::eq(*prior, definition) && *prior != definition {
-                        return Err(invalid("conflicting checked body definitions"));
+                match definitions.entry(&definition.identity) {
+                    Entry::Vacant(entry) => {
+                        entry.insert(definition);
                     }
-                } else {
-                    definitions.insert(&definition.identity, definition);
+                    Entry::Occupied(entry) => {
+                        let prior = *entry.get();
+                        if !std::ptr::eq(prior, definition) && prior != definition {
+                            return Err(invalid("conflicting checked body definitions"));
+                        }
+                    }
                 }
             }
         }
@@ -83,14 +100,15 @@ fn collect_definitions<'a>(
 
 #[derive(Default)]
 struct Writer<'a> {
-    strings: Strings,
+    strings: Strings<'a>,
     body_ids: HashMap<&'a str, u32>,
     nodes: Vec<u8>,
     operands: Vec<u8>,
+    argument_ids: Vec<u32>,
     edges: Vec<u8>,
 }
 
-impl Writer<'_> {
+impl<'a> Writer<'a> {
     fn body_id(&self, name: &str) -> Decode<u32> {
         self.body_ids
             .get(name)
@@ -98,13 +116,7 @@ impl Writer<'_> {
             .ok_or_else(|| invalid("checked body references a missing definition"))
     }
 
-    fn operands(&mut self, words: Vec<u32>) -> Decode<(u32, u32)> {
-        let span = (word(self.operands.len() / 4)?, word(words.len())?);
-        put(&mut self.operands, words);
-        Ok(span)
-    }
-
-    fn expr(&mut self, expression: &Expr, edges: &mut BTreeSet<u32>, depth: usize) -> Decode<u32> {
+    fn expr(&mut self, expression: &'a Expr, edges: &mut BTreeSet<u32>, depth: usize) -> Decode<u32> {
         if depth >= MAX_DEPTH {
             return Err(invalid("over-nested packed body"));
         }
@@ -120,7 +132,7 @@ impl Writer<'_> {
             Expr::Bool(value) => [2, u32::from(*value), 0, 0],
             Expr::Primitive(op, arguments) => {
                 let (at, len) = self.arguments(arguments, edges, next)?;
-                [3, self.strings.id(&format!("{op:?}"))?, at, len]
+                [3, self.strings.id(op.name())?, at, len]
             }
             Expr::Call { target, arguments } => {
                 let callee = self.body_id(target)?;
@@ -148,24 +160,29 @@ impl Writer<'_> {
 
     fn arguments(
         &mut self,
-        arguments: &[Expr],
+        arguments: &'a [Expr],
         edges: &mut BTreeSet<u32>,
         depth: usize,
     ) -> Decode<(u32, u32)> {
-        let ids = arguments
-            .iter()
-            .map(|argument| self.expr(argument, edges, depth))
-            .collect::<Decode<Vec<_>>>()?;
-        self.operands(ids)
+        // A nested expression drains only its own suffix. The earlier
+        // sibling roots stay in place until this argument list is complete.
+        let start = self.argument_ids.len();
+        for argument in arguments {
+            let id = self.expr(argument, edges, depth)?;
+            self.argument_ids.push(id);
+        }
+        let at = word(self.operands.len() / 4)?;
+        let len = word(self.argument_ids.len() - start)?;
+        put(&mut self.operands, self.argument_ids.drain(start..));
+        Ok((at, len))
     }
 
-    fn definition(&mut self, definition: &Definition, rows: &mut Vec<u8>) -> Decode<()> {
-        let parameters = definition
-            .parameters
-            .iter()
-            .map(|sort| self.strings.id(sort.name()))
-            .collect::<Decode<Vec<_>>>()?;
-        let (params, arity) = self.operands(parameters)?;
+    fn definition(&mut self, definition: &'a Definition, rows: &mut Vec<u8>) -> Decode<()> {
+        let params = word(self.operands.len() / 4)?;
+        let arity = word(definition.parameters.len())?;
+        for sort in &definition.parameters {
+            put(&mut self.operands, [self.strings.id(sort.name())?]);
+        }
         let mut edges = BTreeSet::new();
         let root = self.expr(&definition.body, &mut edges, 0)?;
         put(
@@ -197,12 +214,13 @@ impl Writer<'_> {
         self.body_id(name)
     }
 
-    fn value(
+    fn value<'text>(
         &mut self,
-        value: &Value,
+        value: &'text Value,
         out: &mut Vec<u8>,
         use_body_ids: bool,
         depth: usize,
+        intern: impl Fn(&mut Strings<'a>, &'text str) -> Decode<u32> + Copy,
     ) -> Decode<()> {
         if depth > MAX_DEPTH {
             return Err(invalid("over-nested interface document"));
@@ -212,17 +230,17 @@ impl Writer<'_> {
             Value::Null => put(out, [0]),
             Value::Bool(value) => put(out, [1 + u32::from(*value)]),
             Value::Num(value) => put(out, [3, *value as u32, (*value >> 32) as u32]),
-            Value::Str(text) => put(out, [4, self.strings.id(text)?]),
+            Value::Str(text) => put(out, [4, intern(&mut self.strings, text)?]),
             Value::Arr(items) => {
                 put(out, [5, word(items.len())?]);
                 for item in items {
-                    self.value(item, out, use_body_ids, next)?;
+                    self.value(item, out, use_body_ids, next, intern)?;
                 }
             }
             Value::Obj(fields) => {
                 put(out, [6, word(fields.len())?]);
                 for (name, field) in fields {
-                    put(out, [self.strings.id(name)?]);
+                    put(out, [intern(&mut self.strings, name)?]);
                     if use_body_ids && name == "total_body" {
                         if let Value::PackedGraph(graph) = field {
                             let root = fields
@@ -235,11 +253,12 @@ impl Writer<'_> {
                             continue;
                         }
                     }
-                    self.value(field, out, use_body_ids, next)?;
+                    self.value(field, out, use_body_ids, next, intern)?;
                 }
             }
             Value::PackedGraph(graph) if !use_body_ids => {
-                self.value(&graph.materialized_json_value(), out, false, depth)?;
+                // Temporary ABI graph documents cannot borrow their strings.
+                self.value(&graph.materialized_json_value(), out, false, depth, Strings::copied_id)?;
             }
             _ => return Err(invalid("unsupported value in packed interface document")),
         }
@@ -285,16 +304,18 @@ fn encode(rows: &[(&Iface, &str)], abi: Option<&Value>) -> Decode<EncodedPackage
         input_to_sorted[*input] = word(pos)?;
         documents.push(iface.packed_document());
     }
-    let mut definitions = BTreeMap::new();
+    let mut definitions = HashMap::new();
     for document in &documents {
         collect_definitions(document, &mut definitions)?;
     }
+    let mut definitions: Vec<_> = definitions.into_values().collect();
+    definitions.sort_unstable_by_key(|definition| definition.identity.as_str());
     let mut writer = Writer::default();
-    for (pos, &id) in definitions.keys().enumerate() {
-        writer.body_ids.insert(id, word(pos)?);
+    for (pos, definition) in definitions.iter().enumerate() {
+        writer.body_ids.insert(&definition.identity, word(pos)?);
     }
     let mut bodies = Vec::new();
-    for definition in definitions.into_values() {
+    for definition in definitions {
         writer.definition(definition, &mut bodies)?;
     }
     let mut modules = Vec::new();
@@ -302,7 +323,7 @@ fn encode(rows: &[(&Iface, &str)], abi: Option<&Value>) -> Decode<EncodedPackage
     let mut contracts = Vec::new();
     for (pos, ((_, (iface, digest)), document)) in ordered.iter().zip(&documents).enumerate() {
         let start = word(contracts.len())?;
-        writer.value(document, &mut contracts, true, 0)?;
+        writer.value(document, &mut contracts, true, 0, Strings::id)?;
         let mut values: Vec<_> = iface.exports.values.iter().collect();
         values.sort_unstable_by_key(|value| &value.name);
         if values.windows(2).any(|pair| pair[0].name == pair[1].name) {
@@ -346,7 +367,7 @@ fn encode(rows: &[(&Iface, &str)], abi: Option<&Value>) -> Decode<EncodedPackage
     let mut packed_abi = Vec::new();
     if let Some(abi) = abi {
         put(&mut packed_abi, [word(writer.strings.spans.len())?]);
-        writer.value(abi, &mut packed_abi, false, 0)?;
+        writer.value(abi, &mut packed_abi, false, 0, Strings::id)?;
     }
     let sections = [
         writer.strings.section()?,
@@ -411,10 +432,16 @@ mod tests {
                 Op::NatAdd,
                 vec![
                     Expr::Local(0),
-                    Expr::Number {
-                        sort: Sort::Nat,
-                        decimal: "2".into(),
-                    },
+                    Expr::Primitive(
+                        Op::NatMul,
+                        vec![
+                            Expr::Local(0),
+                            Expr::Number {
+                                sort: Sort::Nat,
+                                decimal: "2".into(),
+                            },
+                        ],
+                    ),
                 ],
             ),
         };
