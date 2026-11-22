@@ -7755,11 +7755,14 @@ impl Checker {
             .iter()
             .enumerate()
             .map(|(i, e)| {
-                let guard = e.guard.as_ref().filter(|term| !guard_always_true(term)).cloned();
+                use std::borrow::Cow;
+                let guard = e.guard.as_ref().filter(|term| !guard_always_true(term));
                 let (guard_locals, body) = if guard.is_some() {
-                    (e.locals.clone(), e.body.clone())
+                    (e.locals.as_slice(), Cow::Borrowed(&e.body))
+                } else if e.locals.is_empty() {
+                    (&[][..], Cow::Borrowed(&e.body))
                 } else {
-                    (Vec::new(), wrap_eq_body(e))
+                    (&[][..], Cow::Owned(ast::Term::Let(e.locals.clone(), Box::new(e.body.clone()), e.span)))
                 };
                 Ok(Row {
                     pats: e
@@ -12178,14 +12181,6 @@ fn crossing(t: &Ty, types: &dyn crate::repr::TypeReprs) -> Option<crate::core::C
     }
 }
 
-fn wrap_eq_body(e: &ast::Equation) -> ast::Term {
-    if e.locals.is_empty() {
-        e.body.clone()
-    } else {
-        ast::Term::Let(e.locals.clone(), Box::new(e.body.clone()), e.span)
-    }
-}
-
 // --------------------------------------- attribute annotations (P17)
 
 use crate::core::{InlineHint, UnrollHint};
@@ -16329,62 +16324,27 @@ impl Checker {
     /// decision point unweighted, section 3.2).
     fn decision_weights(
         &mut self,
-        branches: &[Vec<Row>],
+        branches: &[BranchWeights],
         what: &str,
         span: ast::Span,
     ) -> Result<Vec<Option<u32>>> {
-        let mut sums: Vec<u32> = Vec::new();
-        let mut contrib: HashMap<usize, usize> = HashMap::new();
-        let mut any = false;
-        let mut mixed = false;
-        for rows in branches {
-            let mut sum: u32 = 0;
-            for (j, r) in rows.iter().enumerate() {
-                // An earlier unguarded row whose patterns cover this
-                // one's shadows it: its right-hand side is unreachable
-                // through this alternative (section 2.3).
-                let reachable = rows[..j].iter().all(|earlier| {
-                    !(earlier.guard.is_none()
-                        && earlier.pats.len() == r.pats.len()
-                        && earlier
-                            .pats
-                            .iter()
-                            .zip(r.pats.iter())
-                            .all(|(x, y)| pats_cover(x, y)))
-                });
-                if !reachable {
-                    continue;
-                }
-                *contrib.entry(r.idx).or_insert(0) += 1;
-                match r.weight {
-                    Some(w) => {
-                        any = true;
-                        sum = sum.saturating_add(w);
-                    }
-                    None => mixed = true,
-                }
-            }
-            sums.push(sum);
+        if branches.iter().any(|branch| branch.unweighted)
+            || branches.iter().all(|branch| branch.contributors.is_empty())
+        {
+            return Ok(vec![None; branches.len()]);
         }
-        if !any || mixed {
-            return Ok(sums.iter().map(|_| None).collect());
+        let mut seen = HashSet::new();
+        if branches.iter().flat_map(|branch| &branch.contributors).any(|index| !seen.insert(*index)) {
+            self.report(
+                "incoherent-weights",
+                format!(
+                    "{what} counts a weighted clause at more than one path (wildcard, or-pattern, or guard fallthrough): the weights remain usable per decision point (attribute annotations specification section 2.3)"
+                ),
+                span,
+                true,
+            )?;
         }
-        for rows in branches {
-            for r in rows {
-                if r.weight.is_some() && contrib.get(&r.idx).copied().unwrap_or(0) > 1 {
-                    self.report(
-                        "incoherent-weights",
-                        format!(
-                            "{what} counts a weighted clause at more than one path (wildcard, or-pattern, or guard fallthrough): the weights remain usable per decision point (attribute annotations specification section 2.3)"
-                        ),
-                        span,
-                        true,
-                    )?;
-                    return Ok(sums.into_iter().map(Some).collect());
-                }
-            }
-        }
-        Ok(sums.into_iter().map(Some).collect())
+        Ok(branches.iter().map(|branch| Some(branch.sum)).collect())
     }
 
     /// Record one function declaration's hints (attribute annotations

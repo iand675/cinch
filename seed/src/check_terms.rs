@@ -6871,7 +6871,7 @@ impl Checker {
             self.check(&mut env2, body, &rest)
         } else {
             self.compile_rows(
-                vec![Row { pats: match_pats, guard: None, guard_locals: Vec::new(), body: body.as_ref().clone(), env: env2,
+                vec![Row { pats: match_pats, guard: None, guard_locals: &[], body: std::borrow::Cow::Borrowed(body), env: env2,
                     idx: 0, consumed: Vec::new(), weight: None, guard_weight: None, proof: None }],
                 match_cols, match_types, &rest, span, "a lambda argument combination",
             )
@@ -8437,9 +8437,9 @@ impl Checker {
         for (i, a) in alts.iter().enumerate() {
             rows.push(Row {
                 pats: vec![self.expand_pat(&a.pat)?],
-                guard: a.guard.clone(),
-                guard_locals: Vec::new(),
-                body: a.body.clone(),
+                guard: a.guard.as_ref(),
+                guard_locals: &[],
+                body: std::borrow::Cow::Borrowed(&a.body),
                 env: env.clone(),
                 idx: i,
                 consumed: Vec::new(),
@@ -8523,7 +8523,7 @@ impl Checker {
         let (binds, group) = if row.guard_locals.is_empty() {
             (Vec::new(), None)
         } else {
-            self.elab_locals(&mut scope, &row.guard_locals, LocalForm::Plain)?
+            self.elab_locals(&mut scope, row.guard_locals, LocalForm::Plain)?
         };
         let (test, reading) = self.cond_reading(&mut scope.clone(), guard)?;
         let guard_span = guard.span();
@@ -8626,7 +8626,7 @@ impl Checker {
         }
         if types.is_empty() {
             let first = &rows[0];
-            if let Some(guard) = first.guard.as_ref().filter(|guard| !guard_always_true(guard)) {
+            if let Some(guard) = first.guard.filter(|guard| !guard_always_true(guard)) {
                 let compile = |checker: &mut Self| {
                     checker.compile_guarded_row(first, guard, &rows[1..], expected, ctx_span, uncovered)
                 };
@@ -8770,9 +8770,9 @@ impl Checker {
                 // types specification section 9). The comparison is
                 // built here in the match compiler, so it can move to the
                 // primitive table later.
-                let mut literals: Vec<(String, ECore)> = Vec::new();
-                let mut defaults: Vec<Row> = Vec::new();
-                let mut lit_rows: Vec<(String, Row)> = Vec::new();
+                let mut literals: Vec<(String, ECore, Vec<Row<'_>>)> = Vec::new();
+                let mut literal_index = HashMap::new();
+                let mut defaults = Vec::new();
                 for mut r in rows.into_iter() {
                     let p0 = r.pats[0].clone();
                     match &p0 {
@@ -8809,14 +8809,19 @@ impl Checker {
                                     crate::diagnostic!("pattern does not match type {}", inner_ty),
                                 ));
                             }
-                            let node = self.literal_const(&inner_ty, v, p0.span())?;
-                            if !literals.iter().any(|(x, _)| x == v) {
-                                literals.push((v.clone(), node));
-                            }
+                            let position = match literal_index.get(v) {
+                                Some(&position) => position,
+                                None => {
+                                    let position = literals.len();
+                                    let node = self.literal_const(&inner_ty, v, p0.span())?;
+                                    literals.push((v.clone(), node, Vec::new()));
+                                    literal_index.insert(v.clone(), position);
+                                    position
+                                }
+                            };
                             self.mark_consumed(&mut r, &col0);
-                            let mut a = r;
-                            a.pats.remove(0);
-                            lit_rows.push((v.clone(), a));
+                            r.pats.remove(0);
+                            literals[position].2.push(r);
                         }
                         other => {
                             return Err(Error::at(
@@ -8834,31 +8839,32 @@ impl Checker {
                 // section 2.2) marginalize over the literal alternatives
                 // and the default; the nested comparisons see the rest
                 // as their other alternative.
-                let mut branch_lists: Vec<Vec<Row>> = Vec::new();
-                for (v, _) in &literals {
-                    let mut branch = defaults.clone();
-                    branch.extend(
-                        lit_rows.iter().filter(|(x, _)| x == v).map(|(_, r)| r.clone()),
-                    );
-                    branch.sort_by_key(|r| r.idx);
-                    branch_lists.push(branch);
+                let mut branch_weights = Vec::with_capacity(literals.len() + 1);
+                for (_, _, rows) in &mut literals {
+                    if !defaults.is_empty() {
+                        let mut branch = defaults.clone();
+                        branch.append(rows);
+                        *rows = branch;
+                    }
+                    rows.sort_by_key(|r| r.idx);
+                    branch_weights.push(BranchWeights::of(rows));
                 }
-                branch_lists.push(defaults.clone());
-                let sums = self.decision_weights(&branch_lists, "this literal match", ctx_span)?;
+                branch_weights.push(BranchWeights::of(&defaults));
+                let sums = self.decision_weights(&branch_weights, "this literal match", ctx_span)?;
                 let (lit_sums, default_sum) = sums.split_at(literals.len());
                 let mut branch_maps = Vec::new();
                 let default_space = if literals.is_empty() {
                     uncovered.to_string()
                 } else {
-                    let lits: Vec<&str> = literals.iter().map(|(v, _)| v.as_str()).collect();
+                    let lits: Vec<&str> = literals.iter().map(|(v, _, _)| v.as_str()).collect();
                     format!("a value other than {}", lits.join(", "))
                 };
                 // A numeric column's branches state its value: the
                 // default branch is none of the literals, a literal's
                 // branch is that literal.
                 let numeric = fact_numeric(&ty0);
-                let lit_names: Vec<String> = literals.iter().map(|(v, _)| v.clone()).collect();
-                let mut default_rows = defaults.clone();
+                let lit_names: Vec<String> = literals.iter().map(|(v, _, _)| v.clone()).collect();
+                let mut default_rows = defaults;
                 if numeric {
                     self.bind_column_facts(&mut default_rows, &col0, &BranchKey::Default(lit_names), ctx_span)?;
                 }
@@ -8874,8 +8880,7 @@ impl Checker {
                 })?;
                 branch_maps.push(m);
                 let mut rest_w = default_sum.first().copied().unwrap_or(None);
-                for (i, (v, node)) in literals.into_iter().enumerate().rev() {
-                    let mut branch = branch_lists[i].clone();
+                for (i, (v, node, mut branch)) in literals.into_iter().enumerate().rev() {
                     if numeric {
                         self.refine_proof_rows(&mut branch, &col0, ITerm::Num(v.clone().into()), &[]);
                     }
@@ -8976,7 +8981,7 @@ impl Checker {
                 // section 2.2): each side's weight is the sum of the
                 // weights of the rows reachable through it.
                 let sums = self.decision_weights(
-                    &[true_rows.clone(), false_rows.clone()],
+                    &[BranchWeights::of(&true_rows), BranchWeights::of(&false_rows)],
                     "this `Bool` match",
                     ctx_span,
                 )?;
@@ -9194,8 +9199,8 @@ impl Checker {
                 let mut alts: Vec<ECore> = Vec::new();
                 let mut alt_maps = Vec::new();
                 let mut alt_pats: Vec<CPat> = Vec::new();
-                let mut branch_lists: Vec<Vec<Row>> = Vec::new();
-                // Which `branch_lists` entry each alternative's weight sums.
+                let mut branch_weights = Vec::new();
+                // Which entry holds each alternative's weight.
                 let mut alt_branch: Vec<usize> = Vec::new();
                 // Constructors no row names are reached by the variable and
                 // wildcard rows alone, and those rows see the same matrix
@@ -9213,6 +9218,10 @@ impl Checker {
                     && !matches!(column_reading.as_ref().map(|r| &r.kind), Some(ReadingKind::Order(..)))
                     && var_rows.iter().all(|r| r.proof.is_none())
                     && info.ctors.iter().filter(|(_, tag)| ctor_rows[*tag].is_empty()).count() >= 2;
+                let shared_weights = share_default.then(|| {
+                    var_rows.sort_by_key(|row| row.idx);
+                    BranchWeights::of(&var_rows)
+                });
                 let mut default_alt: Option<(ECore, HashMap<LocalId, UseNode>, usize)> = None;
                 for (name, tag) in info.ctors.clone() {
                     // A constructor with no explicit arm may still run
@@ -9236,15 +9245,12 @@ impl Checker {
                         .map(|(b, t, _)| (b.clone(), t.clone()))
                         .collect();
                     let arity = runtime_fields.len();
-                    if share_default && ctor_rows[tag].is_empty() {
-                        // Weights still count the shared rows once per
-                        // constructor, exactly as separate branches did.
-                        let mut shared = var_rows.clone();
-                        shared.sort_by_key(|r| r.idx);
-                        let branch_index = branch_lists.len();
+                    if let Some(weights) = shared_weights.as_ref().filter(|_| ctor_rows[tag].is_empty()) {
+                        // Count the shared rows once per possible constructor.
+                        let branch_index = branch_weights.len();
                         if default_alt.is_none() {
                             let key = BranchKey::Ctor { name: name.clone(), arity, list: list_shaped };
-                            let mut branch_rows = shared.clone();
+                            let mut branch_rows = var_rows.clone();
                             self.bind_column_facts(&mut branch_rows, &col0, &key, ctx_span)?;
                             let (core, m) = self.isolate(|s| {
                                 s.compile_rows(
@@ -9258,7 +9264,7 @@ impl Checker {
                             })?;
                             default_alt = Some((core, m, branch_index));
                         }
-                        branch_lists.push(shared);
+                        branch_weights.push(weights.clone());
                         continue;
                     }
                     let fields: Vec<LocalId> = (0..arity).map(|_| self.fresh_local()).collect();
@@ -9299,7 +9305,8 @@ impl Checker {
                         self.note_local_ty(*f, t);
                     }
                     branch_tys.extend(types[1..].iter().cloned());
-                    let mut branch_rows = branch.clone();
+                    let weights = BranchWeights::of(&branch);
+                    let mut branch_rows = branch;
                     let constructor = self.ctor_of_type(&info, &name)?;
                     let mut field_values = Vec::new();
                     let mut operands = Vec::new();
@@ -9372,8 +9379,8 @@ impl Checker {
                     } else {
                         (fields, core)
                     };
-                    alt_branch.push(branch_lists.len());
-                    branch_lists.push(branch);
+                    alt_branch.push(branch_weights.len());
+                    branch_weights.push(weights);
                     alt_maps.push(m);
                     let (slots, core) = if let Some(plan) = self.unpacked_record(&info).cloned() {
                         plan.pattern(slots, core, self)
@@ -9405,7 +9412,7 @@ impl Checker {
                 // Branch weights (attribute annotations specification
                 // section 2.2): each constructor's alternative sums the
                 // weights of the rows reachable through it.
-                let sums = self.decision_weights(&branch_lists, "this `case`", ctx_span)?;
+                let sums = self.decision_weights(&branch_weights, "this `case`", ctx_span)?;
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)
@@ -12305,12 +12312,12 @@ struct ProofPatternScope {
 }
 
 #[derive(Clone)]
-struct Row {
+struct Row<'a> {
     proof: Option<ProofPatternScope>,
     pats: Vec<ast::Pat>,
-    guard: Option<ast::Term>,
-    guard_locals: Vec<ast::LocalDecl>,
-    body: ast::Term,
+    guard: Option<&'a ast::Term>,
+    guard_locals: &'a [ast::LocalDecl],
+    body: std::borrow::Cow<'a, ast::Term>,
     env: Env,
     /// Source position among the match's rows, for fall-through order.
     idx: usize,
@@ -12324,6 +12331,42 @@ struct Row {
     /// The guard's weight: its pass outcome, with the reference base 1
     /// completing the pair for the fallthrough (sections 2.1 and 3).
     guard_weight: Option<u32>,
+}
+
+/// The weights of reachable rows, independent of the branch's syntax
+/// and checker state. Unannotated branches need no subsumption walk.
+#[derive(Clone, Default)]
+struct BranchWeights {
+    sum: u32,
+    contributors: Vec<usize>,
+    unweighted: bool,
+}
+
+impl BranchWeights {
+    fn of(rows: &[Row<'_>]) -> Self {
+        if rows.iter().all(|row| row.weight.is_none()) {
+            return Self { unweighted: !rows.is_empty(), ..Self::default() };
+        }
+        let mut weights = Self::default();
+        for (index, row) in rows.iter().enumerate() {
+            // A covering unguarded row shadows this row in the same branch.
+            if rows[..index].iter().any(|earlier| {
+                earlier.guard.is_none()
+                    && earlier.pats.len() == row.pats.len()
+                    && earlier.pats.iter().zip(&row.pats).all(|(a, b)| pats_cover(a, b))
+            }) {
+                continue;
+            }
+            match row.weight {
+                Some(weight) => {
+                    weights.sum = weights.sum.saturating_add(weight);
+                    weights.contributors.push(row.idx);
+                }
+                None => weights.unweighted = true,
+            }
+        }
+        weights
+    }
 }
 
 /// A row's patterns must bind every variable at most once; duplicate
