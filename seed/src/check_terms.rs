@@ -1210,18 +1210,17 @@ impl Checker {
                 self.note_opaque_write_from(&core, *span);
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
                 for (position, a) in args.iter().enumerate() {
-                    ty = self.uni.zonk(&ty);
+                    ty = self.uni.zonk_arrow_head(ty);
                     if matches!(ty, Ty::Forall(_)) {
                         let (c, t) = self.poly_elim_all(core, ty);
                         core = c;
                         ty = t;
                     }
-                    let prefix_ty = ty.clone();
                     // Only a direct global carries a temporal call-step identity.
                     // Do not copy an arbitrarily large partial application.
                     let write_core = matches!(&core, ECore::Global(..)).then(|| core.clone());
                     let mut apply_erased = false;
-                    let (arg_core, cod) = match ty {
+                    let (arg_core, cod, effects) = match ty {
                         Ty::Fun(dom, m, eff, cod) => {
                             self.perform(&eff)?;
                             let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
@@ -1230,7 +1229,8 @@ impl Checker {
                                 (None, self.check_erased_value_argument(env, a, &dom, false)?)
                             } else {
                                 let (c, reading) = self.check_call_argument(
-                                    env, a, &dom, &prefix_ty, &mut core,
+                                    env, a, &dom,
+                                    &|| Ty::Fun(dom.clone(), m, eff.clone(), cod.clone()), &mut core,
                                     &mut call_binds, &mut retained_method, !callee_obligs.is_empty(),
                                 )?;
                                 (if logical { None } else { Some(c) }, reading)
@@ -1243,7 +1243,7 @@ impl Checker {
                             if !apply_erased {
                                 self.check_handle_param(&dom, m, a.span())?;
                             }
-                            (c, *cod)
+                            (c, *cod, eff)
                         }
                         Ty::Pi { var, dom, mult, eff, cod } => {
                             self.perform(&eff)?;
@@ -1253,7 +1253,8 @@ impl Checker {
                                 (None, self.check_erased_value_argument(env, a, &dom, true)?)
                             } else {
                                 let (c, reading) = self.check_call_argument(
-                                    env, a, &dom, &prefix_ty, &mut core,
+                                    env, a, &dom,
+                                    &|| Ty::Pi { var: var.clone(), dom: dom.clone(), mult, eff: eff.clone(), cod: cod.clone() }, &mut core,
                                     &mut call_binds, &mut retained_method, true,
                                 )?;
                                 (if logical { None } else { Some(c) }, reading)
@@ -1264,7 +1265,7 @@ impl Checker {
                                 a.span(), "this argument has no index reading (this function's result type mentions its argument)",
                             ))?;
                             call_args.push((Some(subst.clone()), self.uni.zonk(&dom), a.span()));
-                            (c, cod.subst_idx(&var, &subst))
+                            (c, cod.subst_idx(&var, &subst), eff)
                         }
                         Ty::Meta(_) => {
                             let dom = self.uni.fresh();
@@ -1274,7 +1275,7 @@ impl Checker {
                                 .unify(&ty, &Ty::fun_mult(dom.clone(), Mult::Flex, eff.clone(), cod.clone()))
                                 .map_err(|m| Error::at(f.span(), m))?;
                             self.perform(&eff)?;
-                            (Some(self.check(env, a, &dom)?), cod)
+                            (Some(self.check(env, a, &dom)?), cod, eff)
                         }
                         other => {
                             return Err(Error::at(
@@ -1315,10 +1316,7 @@ impl Checker {
                     // An effectful arrow completes before the next argument is evaluated.
                     // Retain that application as a strict binding: flattening it into an
                     // over-application would evaluate all excess arguments before this call.
-                    let effectful_stage = match self.uni.zonk(&prefix_ty) {
-                        Ty::Fun(_, _, eff, _) | Ty::Pi { eff, .. } => !self.uni.resolve_row(&eff).is_pure(),
-                        _ => false,
-                    };
+                    let effectful_stage = !self.uni.resolve_row(&effects).is_pure();
                     if effectful_stage && position + 1 < args.len() {
                         if retained_method.is_none() {
                             retained_method = callee_want(&core).map(|want|
@@ -1335,17 +1333,14 @@ impl Checker {
                 // call could change under the fact): otherwise, and for a
                 // partial application, it drops to the container.
                 {
-                    let zty = self.uni.zonk(&ty);
-                    if Checker::has_positional_result(&zty) {
+                    ty = self.uni.zonk(&ty);
+                    if Checker::has_positional_result(&ty) {
                         let readings: Vec<Option<ITerm>> = args.iter().enumerate()
                             .map(|(i, a)| call_args.get(i).and_then(|(reading, _, _)| reading.clone())
                                 .filter(|it| matches!(it, ITerm::Var(name) if name.starts_with("$call-argument:")))
                                 .or_else(|| if self.fact_term_ok(env, a) { self.idx_of_term(a, env).ok() } else { None }))
                             .collect();
-                        let resolved = Checker::resolve_positional_result(&zty, &readings);
-                        if resolved != zty {
-                            ty = resolved;
-                        }
+                        ty = Checker::resolve_positional_result(&ty, &readings);
                     }
                 }
                 // A signature's refinement obligations discharge at the
@@ -2496,7 +2491,7 @@ impl Checker {
         env: &mut Env,
         argument: &ast::Term,
         expected: &Ty,
-        prefix_ty: &Ty,
+        prefix_ty: &dyn Fn() -> Ty,
         prefix: &mut ECore,
         binds: &mut Vec<(LocalId, ECore)>,
         retained_method: &mut Option<(usize, Option<usize>)>,
@@ -2515,7 +2510,7 @@ impl Checker {
         env: &mut Env,
         argument: &ast::Term,
         expected: &Ty,
-        prefix_ty: &Ty,
+        prefix_ty: &dyn Fn() -> Ty,
         prefix: &mut ECore,
         binds: &mut Vec<(LocalId, ECore)>,
         retained_method: &mut Option<(usize, Option<usize>)>,
@@ -2549,7 +2544,10 @@ impl Checker {
                 (want, head_method(prefix).filter(|(w, _)| *w == want).map(|(_, i)| i)));
         }
         let function = self.fresh_local();
-        self.note_local_ty(function, prefix_ty);
+        // Only a temporary for the application prefix needs the whole
+        // callable type. Normal arguments keep moving through the arrows.
+        let ty = self.uni.zonk(&prefix_ty());
+        self.note_local_ty(function, &ty);
         binds.push((function, std::mem::replace(prefix, ECore::Var(function))));
         let value = self.fresh_local();
         let name = format!("$call-argument:{}", value.0);
@@ -6776,7 +6774,7 @@ impl Checker {
         let mut effs = Vec::new();
         let mut recursive_domains = Vec::new();
         for p in pats {
-            rest = self.uni.zonk(&rest);
+            rest = self.uni.zonk_arrow_head(rest);
             let (dom, mult, eff) = match rest {
                 Ty::Fun(a, m, eff, b) => {
                     let d = *a;
@@ -6853,6 +6851,9 @@ impl Checker {
                 params.push(if computational_erased { None } else { Some(l) });
             }
             effs.push(eff);
+        }
+        if !pats.is_empty() {
+            rest = self.uni.zonk(&rest);
         }
         // Curried semantics: the body runs at the last application, so the
         // body's effects belong to the last arrow and intermediate arrows

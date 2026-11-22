@@ -7690,7 +7690,7 @@ impl Checker {
         let mut effs = Vec::new();
         let mut rest = ty;
         for i in 0..n_pats {
-            rest = self.uni.zonk(&rest);
+            rest = self.uni.zonk_arrow_head(rest);
             // A dependent parameter binds its name in the remaining type;
             // the equation's pattern names it at runtime (the surface
             // shares term syntax, so the names link the two).
@@ -7732,6 +7732,9 @@ impl Checker {
                 }
             }
         }
+        if n_pats != 0 {
+            rest = self.uni.zonk(&rest);
+        }
         // Remaining arrows are the result type: an equation may return a
         // closure just as a nullary equation already can. The body below
         // checks against that exact type; unit arity is its actual patterns.
@@ -7743,6 +7746,7 @@ impl Checker {
         // binder instead separates two application stages without
         // contributing an argument word.
         let mut source_params = Vec::new();
+        let mut value_positions = vec![None; n_pats];
         let mut ghost_columns = HashSet::new();
         for (i, local) in value_params.iter().enumerate() {
             let domain = self.uni.zonk(&doms[i]);
@@ -7764,11 +7768,13 @@ impl Checker {
                 ghost_columns.insert(i);
                 source_params.push(None);
             } else {
+                if ghost_columns.is_empty() {
+                    value_positions[i] = Some(param_ids.len());
+                    param_ids.push(*local);
+                }
                 source_params.push(Some(*local));
             }
         }
-        let runtime_prefix = source_params.iter().take_while(|param| param.is_some());
-        param_ids.extend(runtime_prefix.flatten().copied());
         let erased_suffix = source_params.iter().position(Option::is_none)
             .map(|first| &source_params[first..]);
         // Usage obligations for the parameters: the arrow's declared
@@ -7844,8 +7850,8 @@ impl Checker {
         // JIT specification sections 3-4). The unit's own purity is set
         // once the body's performed effects are known.
         let mut meta = crate::core::FnMeta::default();
-        for (i, l) in value_params.iter().enumerate() {
-            if let Some(pos) = param_ids.iter().position(|p| p == l) {
+        for (i, position) in value_positions.iter().copied().enumerate() {
+            if let Some(pos) = position {
                 if matches!(mults[i], Mult::One | Mult::Aff) {
                     meta.linear.push((pos, mults[i]));
                 }
@@ -7942,8 +7948,8 @@ impl Checker {
                 meta.contract.result_narrow = sig_tys.last().and_then(|t| crossing(t, self));
             }
             let mut pcs = vec![crate::core::ParamContract::default(); param_ids.len()];
-            for (i, l) in value_params.iter().enumerate() {
-                if let Some(pos) = param_ids.iter().position(|p| p == l) {
+            for (i, position) in value_positions.iter().copied().enumerate() {
+                if let Some(pos) = position {
                     if let Some(t) = sig_tys.get(i) {
                         pcs[pos] = self.param_contract(t);
                     }

@@ -4805,6 +4805,19 @@ impl Unifier {
         self.zonk_in(ty, None)
     }
 
+    /// Resolve the ordinary arrow being consumed and leave its result for
+    /// the next step. Dependent arrows still resolve the whole type before
+    /// substituting an index into the result.
+    pub(crate) fn zonk_arrow_head(&self, ty: Ty) -> Ty {
+        match ty {
+            Ty::Fun(mut domain, multiplicity, effects, result) => {
+                *domain = self.zonk(&domain);
+                Ty::Fun(domain, multiplicity, self.resolve_row(&effects), result)
+            }
+            other => self.zonk(&other),
+        }
+    }
+
     /// Resolve all metavar bindings, then replace the unbound
     /// metavariables `map` names by their types (themselves resolved):
     /// one instantiation of a let-generalized local's quantified
