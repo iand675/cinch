@@ -52,7 +52,7 @@ module Bootstrap.Parse where
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export parse-program, parse-program-with, parse-scheme, exported-fixities, indexed-exported-fixities
+  export parse-program, parse-program-with, parse-program-with-index, parse-scheme, exported-fixities, indexed-exported-fixities
   export macro-argument-groups, parse-tree-value-fields, parse-tree-record-fields, parse-tree-term, module-scope-fixes, indexed-module-scope-fixes
   export Ps, POk, PBad, Fix, MkFix, parse-expr
 
@@ -653,11 +653,14 @@ module Bootstrap.Parse where
   parse-program name src = parse-program-with name src Nil
 
   parse-program-with :: String -> Bytes -> List Module -> ParseOutcome Program
-  parse-program-with name src interfaces = case lex-source src of
+  parse-program-with name src interfaces = parse-program-with-index name src (module-name-index interfaces)
+
+  parse-program-with-index :: String -> Bytes -> HashMap String Module -> ParseOutcome Program
+  parse-program-with-index name src interfaces = case lex-source src of
     LexedFail s k -> Failed (Bundle name src (Cons (EFail s (lex-error-message k)) Nil))
     LexedTokens toks ->
       case parse-modules toks src hash-map-empty (Cons ("$bootstrap-header", MkFix "header" 0) (scan-fixities toks)) Nil of
-        POk headers rest -> case parse-modules toks src (module-name-index (headers <> interfaces)) Nil Nil of
+        POk headers rest -> case parse-modules toks src (index-module-names (reverse headers) interfaces) Nil Nil of
           POk ms tail -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
           PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
         PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil

@@ -10,7 +10,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (embedded-library-home)
-  import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, imported-class-references, kernel-references)
+  import Bootstrap.Contracts (public-global, interface-fixity-header, interface-declarations, overload-references, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (indexed-exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
@@ -22,6 +22,7 @@ module Bootstrap.Resolve where
   export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle
   export source-import-closure
   export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces
+  export prepare-admitted-resolution
 
   -- Visible spelling, defining module, internal global spelling.
   data Binding where
@@ -1476,13 +1477,30 @@ module Bootstrap.Resolve where
 
   -- Only explicit imports and the implicit Prelude look up a lexical
   -- surface. Keep every admitted contract for defining identities and laws.
-  interface-scopes :: HashMap String Bool -> List LoadedInterface -> List Scoped
-  interface-scopes targets interfaces = case interfaces of
-    Nil -> Nil
-    Cons i rest -> let home = loaded-module i in
-      let surface = (if referenced home targets then
-        map (\name -> MkBinding name home (public-global i name)) (loaded-names i) else Nil) in
-      Cons (MkScoped home surface (interface-declarations i)) (interface-scopes targets rest)
+  interface-bindings :: LoadedInterface -> List Binding
+  interface-bindings i = let home = loaded-module i in
+    map (\name -> MkBinding name home (public-global i name)) (loaded-names i)
+
+  interface-scope :: LoadedInterface -> Bool -> (Scoped, Module)
+  interface-scope i exposed =
+    (MkScoped (loaded-module i) (if exposed then interface-bindings i else Nil) (interface-declarations i), interface-fixity-header i)
+
+  index-interface-scopes :: List LoadedInterface -> HashMap String (Scoped, Module) -> HashMap String (Scoped, Module)
+  index-interface-scopes interfaces indexed = case interfaces of
+    Nil -> indexed
+    Cons i rest -> index-interface-scopes rest (hash-map-insert (loaded-module i) (interface-scope i True) indexed)
+
+  indexed-interface-scope :: HashMap String (Scoped, Module) -> LoadedInterface -> Bool -> (Scoped, Module)
+  indexed-interface-scope indexed i exposed = case hash-map-lookup (loaded-module i) indexed of
+    Some (scope, header) -> if exposed then (scope, header) else
+      (case scope of MkScoped home surface body -> (MkScoped home Nil body, header))
+    None -> interface-scope i exposed
+
+  interface-contexts :: (LoadedInterface -> Bool -> (Scoped, Module)) -> HashMap String Bool -> List LoadedInterface -> (List Scoped, List Module)
+  interface-contexts scope targets interfaces = case interfaces of
+    Nil -> (Nil, Nil)
+    Cons i rest -> case (scope i (referenced (loaded-module i) targets), interface-contexts scope targets rest) of
+      ((built, header), (more, headers)) -> (Cons built more, Cons header headers)
 
   export-references :: List Scoped -> List String
   export-references scopes = case scopes of
@@ -1507,6 +1525,15 @@ module Bootstrap.Resolve where
     Ok ready -> case canonical-interface-validation ready of
       Err message -> (p, fail (program-span p) message)
       Ok ordered -> resolve-ordered-interfaces p (validated-interfaces-members ordered) checked
+  -- The declarations and outbound names of a validated package are fixed
+  -- for the session. Resolve each edit's own imports and source shadowing.
+  prepare-admitted-resolution :: Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic))
+  prepare-admitted-resolution admitted = case admitted of
+    Err message -> \p checked -> (p, fail (program-span p) message)
+    Ok ready -> let ordered = validated-interfaces-members ready in
+      let scopes = index-interface-scopes ordered hash-map-empty in
+      \p checked -> resolve-context-with (indexed-interface-scope scopes) p
+        (unshadowed-interfaces (program-modules p) ordered) Nil checked
   resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-ordered-interfaces p ordered checked =
     let available = unshadowed-interfaces (program-modules p) ordered in
@@ -1568,7 +1595,10 @@ module Bootstrap.Resolve where
     Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
 
   resolve-context :: Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
-  resolve-context p available base checked = case p of
+  resolve-context p available base checked = resolve-context-with interface-scope p available base checked
+
+  resolve-context-with :: (LoadedInterface -> Bool -> (Scoped, Module)) -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-context-with scope p available base checked = case p of
     MkProgram sp modules ->
       let sources = reference-index (map module-name modules) in
       let imported = reference-index (map loaded-module available) in
@@ -1576,10 +1606,10 @@ module Bootstrap.Resolve where
         Nil -> case module-order modules imported of
           (ordered, blocked) ->
             let targets = import-target-index modules (reference-index ["Prelude"]) in
-            let interfaces = interface-scopes targets available in
-            finish-resolution p sp modules sources
-              (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
-              (interface-fixity-headers available) base
+            case interface-contexts scope targets available of
+              (interfaces, headers) -> finish-resolution p sp modules sources
+                (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
+                headers base
         errors -> (p, errors)
 
   finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
@@ -1592,8 +1622,11 @@ module Bootstrap.Resolve where
       let record-index = reference-index records in
       let prelude-available = (case hash-map-lookup "Prelude" indexed of Some prelude -> True; None -> False) in
       let contexts = source-contexts (module-name-index (modules <> headers)) indexed source-surfaces prelude-available (records, record-index) base in
-      let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
-      let reference-set = reference-index references in
+      -- Package scopes contain only DExternal, DInterface and refusal
+      -- stubs. Their syntax contributes no source references.
+      let references = declaration-references builtin-declarations <> scoped-references source-surfaces in
+      let scopes-references = export-references source-surfaces <> record-context-references contexts in
+      let reference-set = reference-index-from scopes-references (reference-index references) in
       let record-references = (case imported-records of
         Nil -> Nil
         other -> imported-record-references reference-set (reference-index imported-records) declarations) in
@@ -1623,6 +1656,11 @@ module Bootstrap.Resolve where
   source-scopes sources done = case done of
     Nil -> Nil
     Cons s rest -> if referenced (scoped-name s) sources then Cons s (source-scopes sources rest) else source-scopes sources rest
+
+  scoped-references :: List Scoped -> List String
+  scoped-references scopes = case scopes of
+    Nil -> Nil
+    Cons (MkScoped home surface body) rest -> declaration-references body <> scoped-references rest
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
@@ -1656,13 +1694,15 @@ module Bootstrap.Resolve where
     Cons (DCodata sp name params observations) rest -> Cons (global-name home name) (declared-record-symbols home rest)
     Cons other rest -> declared-record-symbols home rest
   imported-record-symbols :: List Decl -> List String
-  imported-record-symbols declarations = case declarations of
-    Nil -> Nil
+  imported-record-symbols declarations = collect-imported-record-symbols (reverse declarations) hash-map-empty Nil
+  collect-imported-record-symbols :: List Decl -> HashMap String Bool -> List String -> List String
+  collect-imported-record-symbols declarations seen found = case declarations of
+    Nil -> found
     Cons (DExternal sp name category syntax metadata) rest ->
-      let more = imported-record-symbols rest in
       if same category "type" && (case context-field "kind" metadata of JStr kind -> same kind "record" || same kind "codata"; other -> False)
-        && not (has-name name more) then Cons name more else more
-    Cons other rest -> imported-record-symbols rest
+        && not (referenced name seen) then collect-imported-record-symbols rest (hash-map-insert name True seen) (Cons name found)
+      else collect-imported-record-symbols rest seen found
+    Cons other rest -> collect-imported-record-symbols rest seen found
   context-field :: String -> Json -> Json
   context-field wanted doc = case doc of
     JObj key value rest -> if same wanted key then value else context-field wanted rest

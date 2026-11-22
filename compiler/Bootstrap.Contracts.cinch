@@ -15,7 +15,7 @@ module Bootstrap.Contracts where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
 
-  export interface-headers, interface-fixity-headers, interface-declarations, public-global
+  export interface-headers, interface-fixity-header, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, expr-references, imported-class-references, kernel-references
   export ImportedClasses, imported-classes, imported-class-rows, imported-class-row
 
@@ -54,10 +54,11 @@ module Bootstrap.Contracts where
   -- those without a declared fixity that shadow an inherited spelling.
   -- Staged name resolution separately asks for the complete headers.
   interface-fixity-headers :: List LoadedInterface -> List Module
-  interface-fixity-headers interfaces = case interfaces of
-    Nil -> Nil
-    Cons i rest -> Cons (MkModule zero (loaded-module i) (decl-spine zero
-      (operator-entries i (loaded-exports i) <> fixities (loaded-fixities i)))) (interface-fixity-headers rest)
+  interface-fixity-headers interfaces = map interface-fixity-header interfaces
+
+  interface-fixity-header :: LoadedInterface -> Module
+  interface-fixity-header i = MkModule zero (loaded-module i) (decl-spine zero
+    (operator-entries i (loaded-exports i) <> fixities (loaded-fixities i)))
 
   operator-entries :: LoadedInterface -> List (String, String, String) -> List Decl
   operator-entries i names = case names of

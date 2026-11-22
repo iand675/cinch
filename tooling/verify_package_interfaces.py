@@ -379,6 +379,17 @@ def native_object_session(stage, work, source, expected_ir, repeats):
     hello = session_dir / source.name
     initial = source.read_text()
     changed = initial.replace("Hello, world!", "Hello, again!")
+    new_import = initial.replace(
+        "  import Effect.Fs (fs-write)",
+        "  import Effect.Fs (fs-write)\n  import Data.String (string-concat as join-message)",
+    ).replace(
+        'string-to-bytes "Hello, world!\\n"',
+        'string-to-bytes (join-message "Hello, " "library!\\n")',
+    )
+    hello.write_text(new_import)
+    invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
+            "--objects", config, hello, ir], session_dir, leak=True)
+    expected_new_import = ir.read_bytes()
     hello.write_text(changed)
     invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
             "--objects", config, hello, ir], session_dir, leak=True)
@@ -421,6 +432,10 @@ def native_object_session(stage, work, source, expected_ir, repeats):
                     assert build() == b"4\n"
                     assert not ir.read_bytes()
                     assert "missing-name" in diagnostics.read_text()
+                    hello.write_text(new_import)
+                    assert build() == b"0\n"
+                    assert not diagnostics.read_bytes()
+                    assert ir.read_bytes() == expected_new_import
                     for index in range(repeats):
                         hello.write_text(changed if index % 2 == 0 else initial)
                         start = time.perf_counter_ns()
