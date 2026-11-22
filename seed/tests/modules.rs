@@ -139,6 +139,33 @@ fn instance_coherence_across_modules() {
 }
 
 #[test]
+fn instance_coherence_keeps_generic_heads_in_nominal_buckets() {
+    let header = "module Main where\n\
+        \x20 data Alpha where\n\
+        \x20   MkAlpha :: Alpha\n\
+        \x20 data Beta where\n\
+        \x20   MkBeta :: Beta\n\
+        \x20 signature Echo a where\n\
+        \x20   echo :: a -> a\n\
+        \x20 main :: Int\n\
+        \x20 main = 0\n";
+    let alpha = "  implicit instance EchoAlpha :: Echo Alpha where\n    echo x = x\n";
+    let beta = "  implicit instance EchoBeta :: Echo Beta where\n    echo x = x\n";
+    let generic = "  implicit instance EchoAny a :: Echo a where\n    echo x = x\n";
+    for (first, second, conflict) in [(alpha, beta, false), (alpha, generic, true), (generic, beta, true)] {
+        let source = format!("{header}{first}{second}");
+        let dir = write_project(&[("Main.cinch", &source)]);
+        let result = check_entry(&dir, "Main.cinch");
+        if conflict {
+            let err = result.expect_err("the generic head overlaps the nominal head");
+            assert!(err.contains("ambiguous instance"), "{err}");
+        } else {
+            result.expect("distinct nominal heads coexist");
+        }
+    }
+}
+
+#[test]
 fn import_cycle_is_rejected() {
     let dir = write_project(&[
         (

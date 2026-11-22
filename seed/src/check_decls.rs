@@ -17422,12 +17422,37 @@ impl Checker {
     /// ambiguous. The metadata-level check in `interface.rs` is the fast
     /// path; this is the authoritative check with real type machinery.
     fn check_instance_coherence(&mut self) -> Result<()> {
+        #[derive(Default)]
+        struct ClassPeers<'a> {
+            all: Vec<usize>,
+            other: Vec<usize>,
+            by_nominal: HashMap<&'a str, Vec<usize>>,
+        }
+
+        // Unification and conversion preserve a nominal type's outer name.
+        // On a unary head with different nominal names the probe would fail
+        // before unifying any arguments, so it cannot leave solver changes.
+        fn unary_nominal(target: &ClassApp) -> Option<&str> {
+            match target.args.as_slice() {
+                [Ty::Adt(name, _)] => Some(name.as_str()),
+                _ => None,
+            }
+        }
+
         // Preserve the original (a, b) diagnostic order while excluding
         // pairs that default resolution can never compare.
-        let mut candidates: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut candidates = HashMap::<&str, ClassPeers<'_>>::new();
         for (index, instance) in self.instance_list.iter().enumerate() {
             if instance.implicit && !instance.base {
-                candidates.entry(instance.target.class.as_str()).or_default().push(index);
+                candidates.entry(instance.target.class.as_str()).or_default().all.push(index);
+            }
+        }
+        for peers in candidates.values_mut().filter(|peers| peers.all.len() > 1) {
+            for &index in &peers.all {
+                match unary_nominal(&self.instance_list[index].target) {
+                    Some(name) => peers.by_nominal.entry(name).or_default().push(index),
+                    None => peers.other.push(index),
+                }
             }
         }
         for (a, first) in self.instance_list.iter().enumerate() {
@@ -17436,8 +17461,18 @@ impl Checker {
             }
             let class = first.target.class.as_str();
             let peers = &candidates[class];
-            let following = peers.partition_point(|&b| b <= a);
-            for &b in &peers[following..] {
+            let (matched, other) = match unary_nominal(&first.target) {
+                Some(name) => (peers.by_nominal.get(name).map_or(&[][..], Vec::as_slice), peers.other.as_slice()),
+                None => (peers.all.as_slice(), &[][..]),
+            };
+            let mut matched = &matched[matched.partition_point(|&b| b <= a)..];
+            let mut other = &other[other.partition_point(|&b| b <= a)..];
+            while let Some(b) = matched.first().into_iter().chain(other.first()).min().copied() {
+                if matched.first() == Some(&b) {
+                    matched = &matched[1..];
+                } else {
+                    other = &other[1..];
+                }
                 let second = &self.instance_list[b];
                 let mut map_a: HashMap<String, Ty> = HashMap::new();
                 for param in &first.params {
