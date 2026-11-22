@@ -3150,7 +3150,7 @@ struct Checker {
     /// Finished instance dictionaries.
     instance_defs: Vec<InstanceDef>,
     /// Instances awaiting body checking, keyed by module.
-    instance_defs_pending: Vec<(String, ast::InstDecl)>,
+    instance_defs_pending: HashMap<String, Vec<ast::InstDecl>>,
     /// Instance heads awaiting conversion, in declaration order: an
     /// instance head names a class and a target type, and both may live
     /// in modules collected later (the prelude split's family), so the
@@ -3286,7 +3286,7 @@ struct Checker {
     cur_mod_params: Vec<(String, LocalId, Ty)>,
     /// Instantiation declarations (`import M (args) as N`) awaiting their
     /// owner's body pass, by owner module.
-    unit_decls: Vec<(String, ast::Import)>,
+    unit_decls: HashMap<String, Vec<ast::Import>>,
     /// Processed instantiation units, in declaration order.
     units: Vec<UnitRec>,
     /// Declared instantiation unit names (globally unique: they name code
@@ -3963,7 +3963,7 @@ impl Checker {
             top_eqs_by_name: HashMap::new(),
             top_recursion_groups: RefCell::new(HashMap::new()),
             instance_defs: Vec::new(),
-            instance_defs_pending: Vec::new(),
+            instance_defs_pending: HashMap::new(),
             pending_instance_heads: Vec::new(),
             embedded_modules: std::collections::HashSet::new(),
             shadowed_modules: std::collections::HashSet::new(),
@@ -4006,7 +4006,7 @@ impl Checker {
             mod_param_asts: HashMap::new(),
             module_params: HashMap::new(),
             cur_mod_params: Vec::new(),
-            unit_decls: Vec::new(),
+            unit_decls: HashMap::new(),
             units: Vec::new(),
             unit_names: std::collections::HashSet::new(),
             module_names: std::collections::HashSet::new(),
@@ -6361,7 +6361,9 @@ impl Checker {
                 .map(|ss| ss.iter().any(|s| s.module == module))
                 .unwrap_or(false)
             || self.effect_bindings.contains_key(&(module.to_string(), name.to_string()))
-            || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
+            || self.instance_defs_pending.get(module).is_some_and(|instances| {
+                instances.iter().any(|instance| instance.name.text == name)
+            })
             || self.instance_list.iter().any(|i| i.module == module && i.name == name)
             || self.deferred_headers.contains_key(&(module.to_string(), name.to_string()));
         if declared {

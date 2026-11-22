@@ -725,6 +725,12 @@ enum GuardMode {
     Ordinary { diverge: bool },
 }
 
+#[derive(Default)]
+struct ModuleBodyHeaders {
+    types: Vec<TypeKind>,
+    defaults: Vec<SigInfo>,
+}
+
 impl Checker {
     /// Methods and laws classify quantified binders by the same native kind
     /// rules as ordinary signatures. Class indices are erased dictionary
@@ -3533,7 +3539,7 @@ impl Checker {
                     // a unit of this module (module parameters as module
                     // arguments); its arguments check in the body pass.
                     if !i.args.is_empty() {
-                        self.unit_decls.push((module.clone(), i.clone()));
+                        self.unit_decls.entry(module.clone()).or_default().push(i.clone());
                     }
                 }
                 ast::Decl::ImportData(d) => {
@@ -5328,7 +5334,7 @@ impl Checker {
                     // queue for `check_bodies` as before.
                     self.pending_instance_heads
                         .push((module.clone(), inst.clone()));
-                    self.instance_defs_pending.push((module.clone(), inst.clone()));
+                    self.instance_defs_pending.entry(module.clone()).or_default().push(inst.clone());
                 }
                 ast::Decl::Attributed { .. } => {
                     // Attributes are validated and unwrapped before the
@@ -5805,9 +5811,44 @@ impl Checker {
         self.scope_views = views;
     }
 
-    fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
+    fn check_module_bodies<'a>(
+        &mut self,
+        modules: impl Iterator<Item = &'a str> + Clone,
+        phase_trace: Option<std::time::Instant>,
+    ) -> Result<()> {
+        // Staging can add declarations between the embedded and source
+        // passes. Snapshot just the headers for each pass in module order.
+        let selected: HashSet<_> = modules.clone().collect();
+        let mut headers: HashMap<&str, ModuleBodyHeaders> = HashMap::new();
+        for ty in self.types.values().flatten() {
+            if let Some(&module) = selected.get(ty.module.as_str()) {
+                headers.entry(module).or_default().types.push(ty.clone());
+            }
+        }
+        for signature in self.sigs.values().flatten() {
+            if signature.defaults.is_empty() {
+                continue;
+            }
+            if let Some(&module) = selected.get(signature.module.as_str()) {
+                headers.entry(module).or_default().defaults.push(signature.clone());
+            }
+        }
+        for module in headers.values_mut() {
+            module.types.sort_by(|a, b| a.name.cmp(&b.name));
+            module.defaults.sort_by(|a, b| a.name.cmp(&b.name));
+        }
+        let empty = ModuleBodyHeaders::default();
+        for name in modules {
+            trace_checker_phase(phase_trace, "prepare", "source_body.begin", Some(name));
+            self.check_bodies(name, headers.get(name).unwrap_or(&empty))
+                .map_err(|error| in_named_module(&self.module_files, name, error))?;
+            trace_checker_phase(phase_trace, "prepare", "source_body.end", Some(name));
+        }
+        Ok(())
+    }
+
+    fn check_bodies(&mut self, module: &str, headers: &ModuleBodyHeaders) -> Result<()> {
         self.build_scope(module, true);
-        let _ = prelude_name;
 
         // Instantiation declarations (`import M (args) as N`) check their
         // static arguments and register the unit's values before this
@@ -5859,15 +5900,7 @@ impl Checker {
         // Constructors as code generation units: the block stores the
         // non-erased fields only (core specification section 3). The
         // type order is fixed so the emitted units are reproducible.
-        let mut type_ks: Vec<TypeKind> = self
-            .types
-            .values()
-            .flatten()
-            .filter(|t| t.module == module)
-            .cloned()
-            .collect();
-        type_ks.sort_by(|a, b| a.name.cmp(&b.name));
-        for t in type_ks {
+        for t in &headers.types {
             for (cname, tag) in &t.ctors {
                 let v = self
                     .qualified
@@ -5888,12 +5921,12 @@ impl Checker {
                     }
                     _ => unreachable!(),
                 };
-                if let Some(plan) = self.unpacked_record(&t) {
+                if let Some(plan) = self.unpacked_record(t) {
                     let (builder, storage) = plan.units(fn_id(module, cname), fields.0, self);
                     self.fns.extend([builder, storage]);
                     continue;
                 }
-                if self.unboxed_payload(&t).is_some() {
+                if self.unboxed_payload(t).is_some() {
                     self.fns.push(FnDef {
                         id: fn_id(module, cname),
                         params: vec!["payload".into()],
@@ -5937,15 +5970,7 @@ impl Checker {
         // takes it. The elaborated unit is span-free, and its hash is the
         // default's identity in the interface: instances inline the
         // default, so a changed default must change the class's contract.
-        let mut with_defaults: Vec<SigInfo> = self
-            .sigs
-            .values()
-            .flatten()
-            .filter(|s| s.module == module && !s.defaults.is_empty())
-            .cloned()
-            .collect();
-        with_defaults.sort_by(|a, b| a.name.cmp(&b.name));
-        for sig in with_defaults {
+        for sig in &headers.defaults {
             for (mname, eqs) in &sig.defaults {
                 let scheme = sig
                     .methods
@@ -5963,23 +5988,17 @@ impl Checker {
         }
 
         // Instances of this module.
-        let pending: Vec<(String, ast::InstDecl)> = self
-            .instance_defs_pending
-            .iter()
-            .filter(|(m, _)| m == module)
-            .cloned()
-            .collect();
-        for (m, inst) in pending {
-            match self.check_instance(&m, &inst) {
+        let pending = self.instance_defs_pending.get(module).cloned().unwrap_or_default();
+        for inst in pending {
+            match self.check_instance(module, &inst) {
                 Ok(()) => {}
                 Err(e) => {
                     // A family instance whose body the shadowed copy of
                     // a home cannot satisfy drops instead of failing the
                     // program (see `shadowed_modules`); anything else
                     // stays loud.
-                    if self.embedded_modules.contains(&m) && !self.shadowed_modules.is_empty() {
-                        self.instance_defs_pending
-                            .retain(|(mm, i)| !(mm == &m && i.name.text == inst.name.text));
+                    if self.embedded_modules.contains(module) && !self.shadowed_modules.is_empty() {
+                        self.discard_pending_instance(module, &inst.name.text);
                         continue;
                     }
                     return Err(e);
@@ -5987,6 +6006,12 @@ impl Checker {
             }
         }
         Ok(())
+    }
+
+    fn discard_pending_instance(&mut self, module: &str, name: &str) {
+        if let Some(instances) = self.instance_defs_pending.get_mut(module) {
+            instances.retain(|instance| instance.name.text != name);
+        }
     }
 
     fn check_instance(&mut self, module: &str, inst: &ast::InstDecl) -> Result<()> {
@@ -6544,12 +6569,7 @@ impl Checker {
     /// dictionaries are distinct units; the target module's own contract
     /// is unchanged (instantiation is representation).
     fn process_units(&mut self, module: &str) -> Result<()> {
-        let pending: Vec<ast::Import> = self
-            .unit_decls
-            .iter()
-            .filter(|(m, _)| m == module)
-            .map(|(_, i)| i.clone())
-            .collect();
+        let pending = self.unit_decls.get(module).cloned().unwrap_or_default();
         for imp in pending {
             let span = imp.span;
             let mut target = imp.path.parts().join(".");
@@ -14188,7 +14208,7 @@ impl Checker {
     fn surface_value(&self, module: &str, name: &str) -> bool {
         match self.module_surface.get(module) {
             Some(sm) => sm.iter().any(|(_, d)| d.name == name),
-            None => self.declared_names(module).iter().any(|n| n == name),
+            None => self.declared_surface_def(module, name).is_some(),
         }
     }
 
@@ -17469,8 +17489,7 @@ impl Checker {
         if !self.embedded_modules.contains(module) {
             return false;
         }
-        self.instance_defs_pending
-            .retain(|(m, i)| !(m == module && i.name.text == inst.name.text));
+        self.discard_pending_instance(module, &inst.name.text);
         true
     }
 
@@ -18839,10 +18858,7 @@ fn check_program_multi_full_prepared_impl(
     trace_checker_phase(phase_trace, "prepare", "embedded_bodies.begin", None);
     // The prelude family compiles first: its functions and instances run
     // during compile-time evaluation.
-    for p in &family {
-        c.check_bodies(&p.name.text, &prelude_name)
-            .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
-    }
+    c.check_module_bodies(family.iter().map(|module| module.name.text.as_str()), None)?;
     trace_checker_phase(phase_trace, "prepare", "embedded_bodies.end", None);
     trace_checker_phase(phase_trace, "prepare", "staging.begin", None);
     // The staging phase (modules specification sections 7-10): compile
@@ -18875,12 +18891,7 @@ fn check_program_multi_full_prepared_impl(
     c.prepare_task_forwarders();
     trace_checker_phase(phase_trace, "prepare", "generated_layout.end", None);
     trace_checker_phase(phase_trace, "prepare", "source_bodies.begin", None);
-    for m in modules {
-        trace_checker_phase(phase_trace, "prepare", "source_body.begin", Some(&m.name.text));
-        c.check_bodies(&m.name.text, &prelude_name)
-            .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
-        trace_checker_phase(phase_trace, "prepare", "source_body.end", Some(&m.name.text));
-    }
+    c.check_module_bodies(modules.iter().map(|module| module.name.text.as_str()), phase_trace)?;
     trace_checker_phase(phase_trace, "prepare", "source_bodies.end", None);
     trace_checker_phase(phase_trace, "prepare", "post_body.begin", None);
     // The guarded-letrec rule over the top-level value bindings (the
@@ -20050,8 +20061,8 @@ impl Checker {
         for (home, name) in self.deferred_headers.keys() {
             if home == module && seen.insert(name.as_str()) { out.push(name.clone()); }
         }
-        for (home, instance) in &self.instance_defs_pending {
-            if home == module && seen.insert(instance.name.text.as_str()) { out.push(instance.name.text.clone()); }
+        for instance in self.instance_defs_pending.get(module).into_iter().flatten() {
+            if seen.insert(instance.name.text.as_str()) { out.push(instance.name.text.clone()); }
         }
         for instance in &self.instance_list {
             if instance.module == module && seen.insert(instance.name.as_str()) { out.push(instance.name.clone()); }
@@ -21854,12 +21865,11 @@ impl Checker {
         if self.instance_defs.iter().any(|i| i.id == base) {
             return Ok(());
         }
-        let pending = self
-            .instance_defs_pending
-            .iter()
-            .position(|(m, i)| m == module && i.name.text == name)
-            .map(|i| self.instance_defs_pending.remove(i));
-        let Some((m, mut inst)) = pending else {
+        let pending = self.instance_defs_pending.get_mut(module).and_then(|instances| {
+            instances.iter().position(|instance| instance.name.text == name)
+                .map(|position| instances.remove(position))
+        });
+        let Some(mut inst) = pending else {
             return Err(Error::plain(format!(
                 "compile-time evaluation needs the instance {module}.{name}, which is not available"
             )));
@@ -21872,7 +21882,7 @@ impl Checker {
         }
         self.set_scope(module);
         let before = self.fns.len();
-        self.check_instance(&m, &inst)?;
+        self.check_instance(module, &inst)?;
         for f in self.fns[before..].iter() {
             cx.fns.insert(f.id.0.clone(), f.clone());
         }
