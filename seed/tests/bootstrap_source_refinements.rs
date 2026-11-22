@@ -109,12 +109,17 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
     }
     // The monomorphic wrapper cannot be checked in a total-body retry that
     // omits its polymorphic callee. An independent body still proves its range.
-    for (upper, wanted) in [(4, 0), (9, 4)] {
+    for (wrapper, upper, wanted) in [
+        ("hidden n", 4, 0),
+        ("hidden n", 9, 4),
+        ("let temporary = hidden n in if n < 8 then temporary else 6", 4, 0),
+        ("if n < 8 then hidden n else 6", 9, 4),
+    ] {
         let source = format!(r#"module Main where
   hidden :: forall a. a -> Nat
   hidden value = 6
   wrap :: Nat -> Nat
-  wrap n = hidden n
+  wrap n = {wrapper}
   bounds :: Nat -> Nat
   bounds n = if n < 128 then 1 else {upper}
   use-bounds :: Nat -> refined (out >= 1 && out <= 4) Nat

@@ -42,6 +42,7 @@ module Bootstrap.Load where
   export check-interface-set, interface-set-members
   export contract-nominals, contract-usage-nominals
   export interface-set-body, interface-set-has-body, admitted-packed-function
+  export interface-set-instance, interface-set-signature
 
   data ImportedValue where
     MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
@@ -84,13 +85,31 @@ module Bootstrap.Load where
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
   data InterfaceSet where
-    CheckedInterfaceSet :: List LoadedInterface -> HashMap String (List TotalGraph) -> InterfaceSet
+    CheckedInterfaceSet :: List LoadedInterface -> HashMap String (List TotalGraph)
+      -> HashMap String Json -> HashMap String Json -> InterfaceSet
   interface-set-members :: InterfaceSet -> List LoadedInterface
-  interface-set-members set = case set of CheckedInterfaceSet members bodies -> members
+  interface-set-members set = case set of CheckedInterfaceSet members bodies instances signatures -> members
   interface-set-body :: String -> InterfaceSet -> Option TotalFunction
-  interface-set-body native set = case set of CheckedInterfaceSet members bodies -> set-body native (body-graphs native bodies)
+  interface-set-body native set = case set of CheckedInterfaceSet members bodies instances signatures -> set-body native (body-graphs native bodies)
   interface-set-has-body :: String -> InterfaceSet -> Bool
-  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies -> (case hash-map-lookup native bodies of Some graphs -> True; None -> False)
+  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies instances signatures -> (case hash-map-lookup native bodies of Some graphs -> True; None -> False)
+  interface-set-instance :: String -> InterfaceSet -> Option Json
+  interface-set-instance identity set = case set of CheckedInterfaceSet members bodies instances signatures -> hash-map-lookup identity instances
+  interface-set-signature :: String -> InterfaceSet -> Option Json
+  interface-set-signature identity set = case set of CheckedInterfaceSet members bodies instances signatures -> hash-map-lookup identity signatures
+
+  -- The first definition in interface and row order is also the one
+  -- returned by the ordered lookup of a defining dictionary or signature.
+  checked-interface-set :: List LoadedInterface -> InterfaceSet
+  checked-interface-set members =
+    let (instances, signatures) = method-owners (reverse members) hash-map-empty hash-map-empty in
+    CheckedInterfaceSet members (index-graph-bodies (set-bodies members)) instances signatures
+  method-owners :: List LoadedInterface -> HashMap String Json -> HashMap String Json -> (HashMap String Json, HashMap String Json)
+  method-owners members instances signatures = case members of
+    Nil -> (instances, signatures)
+    Cons first rest -> let exports = field "exports" (loaded-contract first) in
+      method-owners rest (row-table-into "id" (field "instances" exports) instances)
+        (row-table-into "identity" (field "signatures" exports) signatures)
   body-graphs :: String -> HashMap String (List TotalGraph) -> List TotalGraph
   body-graphs native bodies = case hash-map-lookup native bodies of Some graphs -> graphs; None -> Nil
   set-body :: String -> List TotalGraph -> Option TotalFunction
@@ -112,7 +131,7 @@ module Bootstrap.Load where
   -- Match the complete closure before taking authority from a package.
   -- A synthesized declaration may have the same symbol and a different body.
   admitted-packed-function :: String -> Json -> InterfaceSet -> Option TotalFunction
-  admitted-packed-function native doc (CheckedInterfaceSet members bodies) =
+  admitted-packed-function native doc (CheckedInterfaceSet members bodies instances signatures) =
     match-packed-function native doc (body-graphs native bodies)
 
   match-packed-function :: String -> Json -> List TotalGraph -> Option TotalFunction
@@ -147,15 +166,15 @@ module Bootstrap.Load where
       graphs <> set-bodies rest
 
   check-interface-set :: List LoadedInterface -> Result String InterfaceSet
-  check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+  check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (checked-interface-set members)
   load-checked-interface-set :: List (String, String, Bytes) -> Result String InterfaceSet
-  load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+  load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (checked-interface-set members)
   -- The same set from contracts a caller already holds parsed, each with
   -- the identity its own first load derived and checked.
   load-checked-interface-set-from-contracts :: List (String, String, Json) -> Result String InterfaceSet
   load-checked-interface-set-from-contracts inputs = case load-interface-set-from-contracts inputs of
     Err error -> Err error
-    Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+    Ok members -> Ok (checked-interface-set members)
 
   -- | Validate every document and its claimed identity before retaining optional
   -- body authority from complete, unchanged dependency closures. Source-replaced
@@ -176,7 +195,7 @@ module Bootstrap.Load where
   load-body-interfaces-with-admission :: ValidatedInterfaces -> List (String, String, Json) -> Result String InterfaceSet
   load-body-interfaces-with-admission checked inputs = case checked of
     MkValidatedInterfaces members closures ordered ->
-      if ordered && admitted-body-documents members inputs then Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+      if ordered && admitted-body-documents members inputs then Ok (checked-interface-set members)
       else load-body-interfaces-with-known members inputs
 
   -- A resident compiler keeps the checked body index and the fallback
@@ -187,7 +206,7 @@ module Bootstrap.Load where
     let known = read-known-document (interface-table (reverse members) hash-map-empty) in
     let fallback = \inputs -> (load-body-interfaces-using known inputs, False) in
     if not ordered || not (verified-body-documents members) then (None, fallback) else
-      let prepared = CheckedInterfaceSet members (index-graph-bodies (set-bodies members)) in
+      let prepared = checked-interface-set members in
       (Some prepared, \inputs -> if admitted-body-documents members inputs then (Ok prepared, True) else fallback inputs)
 
   verified-body-documents :: List LoadedInterface -> Bool
@@ -428,9 +447,11 @@ module Bootstrap.Load where
     Cons (name, kind, sought) rest -> (same identity sought) || identity-held identity rest
 
   row-table :: String -> Json -> HashMap String Json
-  row-table key rows = case rows of
-    JArr row rest -> hash-map-insert (text (field key row)) row (row-table key rest)
-    other -> hash-map-empty
+  row-table key rows = row-table-into key rows hash-map-empty
+  row-table-into :: String -> Json -> HashMap String Json -> HashMap String Json
+  row-table-into key rows indexed = case rows of
+    JArr row rest -> hash-map-insert (text (field key row)) row (row-table-into key rest indexed)
+    other -> indexed
 
   constructor-table :: Json -> HashMap String Json
   constructor-table rows = case rows of
