@@ -1,5 +1,5 @@
 module Life where
-  import Data.List
+  import Data.Machine
 
   data Cell where
     Dead :: Cell
@@ -11,45 +11,41 @@ module Life where
     Alive -> if n == 2 || n == 3 then Alive else Dead
     Dead -> if n == 3 then Alive else Dead
 
-  alive :: Cell -> Int
-  alive cell = case cell of
+  -- One compiled bit for each pair (cell, neighbour count).
+  cell-bit :: Cell -> U32
+  cell-bit cell = case cell of
     Alive -> 1
     Dead -> 0
 
-  -- Each position takes its neighbour's value; the edge takes the filler.
-  shift-down :: forall a . a -> List a -> List a
-  shift-down fill xs = Cons fill (drop-last xs)
+  rule-bits :: Cell -> U32 -> U32
+  rule-bits cell count =
+    if eq-u32 count 9 then 0 else
+      let bit = cell-bit (rule cell (int-from-i64 (u32-to-i64 count))) in
+      bit-or-u32 (wrapping-shl-u32 bit count) (rule-bits cell (wrapping-add-u32 count 1))
 
-  shift-up :: forall a . a -> List a -> List a
-  shift-up fill xs = case xs of
-    Nil -> Nil
-    Cons x rest -> snoc rest fill
+  initial-rule :: Unit -> U32
+  initial-rule () = bit-or-u32 (rule-bits Dead 0) (wrapping-shl-u32 (rule-bits Alive 0) 9)
 
-  drop-last :: forall a . List a -> List a
-  drop-last xs = case xs of
-    Nil -> Nil
-    Cons x rest -> case rest of
-      Nil -> Nil
-      Cons y more -> Cons x (drop-last rest)
+  -- Three packed rows slide past the current cell. Bits beyond the board
+  -- are zero, so neighbours beyond the edges count as dead.
+  neighbourhood :: U64 -> U32
+  neighbourhood row = count-ones-u64 (bit-and-u64 row 7)
 
-  snoc :: forall a . List a -> a -> List a
-  snoc xs y = case xs of
-    Nil -> Cons y Nil
-    Cons x rest -> Cons x (snoc rest y)
+  scan-row :: U32 -> U32 -> U64 -> U64 -> U64 -> U64 -> U64
+  scan-row rules column above row below next =
+    if eq-u32 column 40 then next else
+      let live = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 row 1) 1) in
+      let total = wrapping-add-u32 (wrapping-add-u32 (neighbourhood above) (neighbourhood row)) (neighbourhood below) in
+      let neighbours = wrapping-sub-u32 total live in
+      let index = wrapping-add-u32 neighbours (wrapping-mul-u32 9 live) in
+      let result = wrapping-u32-to-u64 (bit-and-u32 (wrapping-shr-u32 rules index) 1) in
+      scan-row rules (wrapping-add-u32 column 1)
+        (wrapping-shr-u64 above 1) (wrapping-shr-u64 row 1) (wrapping-shr-u64 below 1)
+        (bit-or-u64 next (wrapping-shl-u64 result column))
 
-  add-rows :: List Int -> List Int -> List Int
-  add-rows a b = zip-with (\x y -> x + y) a b
+  step-row :: U32 -> U64 -> U64 -> U64 -> U64
+  step-row rules above row below =
+    scan-row rules 0 (wrapping-shl-u64 above 1) (wrapping-shl-u64 row 1) (wrapping-shl-u64 below 1) 0
 
-  -- A cell and its left and right neighbours, summed.
-  across :: List Int -> List Int
-  across row = add-rows (add-rows (shift-down 0 row) row) (shift-up 0 row)
-
-  -- One generation. Cells beyond the edge of the board count as dead.
-  step :: List (List Cell) -> List (List Cell)
-  step board = case board of
-    Nil -> Nil
-    Cons first rest ->
-      let wide = map across (map (map alive) board) in
-      let zero = map (\c -> 0) first in
-      let block = zip-with add-rows (zip-with add-rows (shift-down zero wide) wide) (shift-up zero wide) in
-      zip-with (zip-with (\cell total -> rule cell (total - alive cell))) board block
+  foreign export ccall "life_initial_rule" initial-rule :: Unit -> U32
+  foreign export ccall "life_step_row" step-row :: U32 -> U64 -> U64 -> U64 -> U64

@@ -1084,6 +1084,7 @@ pub fn run() -> io::Result<()> {
     let stdin = io::stdin();
     let stdout = io::stdout();
     if stdin.is_terminal() && stdout.is_terminal() {
+        #[cfg(not(target_os = "wasi"))]
         return crate::repl_tui::run();
     }
     run_with_root(

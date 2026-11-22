@@ -42,7 +42,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Agent session (LLM section teletype) | `src/components/AgentLoop.astro`, `.agent-*` rules in `src/styles/language-tour.css` |
 | Compiler printout (rejected example on form paper) | `src/components/CompilerPrintout.astro`, `.printout` rules in `landing.css` |
 | Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
-| Live-editable Game of Life (simulated hot reload) | `src/components/LifeReload.astro`, `src/lib/life.ts` (board step and rule reader), `src/data/examples/life.cinch`, `.life-*` rules in `language-tour.css` |
+| Live-editable Game of Life | `src/components/LifeReload.astro`, `src/lib/life.ts` (Wasm board and runtime activation), `src/lib/life-compiler.worker.ts`, `src/data/examples/life.cinch`, `.life-*` rules in `language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Registry-backed package catalogue | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/`, `scripts/verify-preview.py`, `scripts/verify-catalogue.mjs` |
 | Nightly compiler releases and downloads | `src/lib/downloads.ts`, `src/pages/downloads/` |

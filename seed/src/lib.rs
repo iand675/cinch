@@ -35,6 +35,7 @@ pub mod pkg;
 pub mod provenance;
 pub mod rc;
 pub mod repl;
+#[cfg(not(target_os = "wasi"))]
 pub mod repl_tui;
 pub mod repr;
 pub mod simplify;

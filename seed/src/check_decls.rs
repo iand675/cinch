@@ -18842,6 +18842,7 @@ fn check_program_multi_full_prepared_impl(
     // preservation witness at `length xs <= 200` is a 200-element
     // list): the interpreter's per-call frames size the stack it runs
     // on, not the default one.
+    #[cfg(not(target_os = "wasi"))]
     let law = std::thread::scope(|s| {
         std::thread::Builder::new()
             .stack_size(512 * 1024 * 1024)
@@ -18849,6 +18850,7 @@ fn check_program_multi_full_prepared_impl(
             .expect("the law layer's thread")
             .join()
     });
+    #[cfg(not(target_os = "wasi"))]
     match law {
         Ok(r) => r?,
         Err(_) => {
@@ -18857,6 +18859,9 @@ fn check_program_multi_full_prepared_impl(
             ))
         }
     }
+    // WASI runs the same checks on the compiler worker’s WebAssembly stack.
+    #[cfg(target_os = "wasi")]
+    c.check_laws()?;
     trace_checker_phase(phase_trace, "prepare", "laws.end", None);
     trace_checker_phase(phase_trace, "prepare", "rewrites.begin", None);
     // Rewrite rules are checked after every module's declarations (their

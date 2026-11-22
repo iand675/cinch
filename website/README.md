@@ -52,6 +52,21 @@ loader and navigation read Markdown from the repository's parent directories.
 Cloudflare remains the authoritative DNS provider; web records point to the
 project-specific DNS target returned by Vercel with proxying disabled.
 
+## Live Life demo
+
+The landing page ships a precompiled Cinch board and loads the seed compiler
+in a worker on the first edit. The compiler checks each rule against
+`Cell -> Int -> Cell` and specializes it over the 18 possible inputs. The
+Cinch runtime activates the result between generations. Failed or stale edits
+leave the active rule and the board intact.
+
+After changing the demo's Cinch source, compiler, or runtime, regenerate its
+checked-in Wasm assets with `bash website/scripts/build-life-wasm.sh`. Set
+`WASI_SDK_PATH` for the worker build and use Clang 20 or newer and `wasm-ld`
+for the board (`CINCH_CLANG` and `CINCH_WASM_LD` can point to those tools).
+The script needs Rust's `wasm32-wasip1` and `wasm32-unknown-unknown` targets.
+Run `npm run verify:life` from `website/` to check both assets together.
+
 ## Hero type study
 
 `/type-study/` compares Archivo, Newsreader, Grenze, Domaine Sans Display, and Founders Grotesk. The first three use self-hosted SIL OFL fonts in `public/fonts/study/` with their licences. The paid specimens are screenshots of the supplied headline entered into Klim’s official type testers; no commercial font binaries are included.

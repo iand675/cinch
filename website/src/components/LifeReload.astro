@@ -1,19 +1,14 @@
 ---
-// Conway's Game of Life as a running service whose `rule` the reader edits.
-// The module is src/data/examples/life.cinch, checked by scripts/record-examples.py.
-// Until the browser build of the compiler exists, src/lib/life.ts reads the edited
-// rule and swaps it in; the board and generation count survive each reload.
 import CodeExcerpt from './CodeExcerpt.astro';
 import life from '../data/examples/life.cinch?raw';
-import { loadRule } from '../lib/life';
 
 // The editable part: `rule`, from its comment to the end of its last arm, outdented.
 const lines = life.split('\n');
 const start = lines.findIndex((l) => l.trim().startsWith('-- What a cell becomes'));
 const end = lines.findIndex((l, i) => i > start && l.trim() === '');
 const rule = lines.slice(start, end).map((l) => l.replace(/^  /, '')).join('\n');
-if (start < 0 || !loadRule(rule).ok) throw new Error('life.cinch: the rule declaration is missing or outside what src/lib/life.ts reads');
-const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
+if (start < 0 || end < 0) throw new Error('life.cinch: the editable rule declaration is missing');
+const module = life.trim();
 ---
 <div class="life-reload" data-life>
   <div class="life-workbench">
@@ -21,28 +16,29 @@ const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
       <span class="mono" data-life-version>VERSION 1</span>
       <span class="mono" data-life-generation>GENERATION 0</span>
       <div class="life-keys">
-        <button type="button" class="gadget-key" data-life-run aria-pressed="false">Run <span aria-hidden="true">▸</span></button>
-        <button type="button" class="gadget-key" data-life-step>Step</button>
-        <button type="button" class="gadget-key" data-life-reset>Reset</button>
+        <button type="button" class="gadget-key" data-life-run disabled aria-pressed="false">Run <span aria-hidden="true">▸</span></button>
+        <button type="button" class="gadget-key" data-life-step disabled>Step</button>
+        <button type="button" class="gadget-key" data-life-reset disabled>Reset</button>
       </div>
     </div>
     <canvas class="life-board" data-life-board role="img" aria-label="A Game of Life board, 40 by 24 cells, starting with Gosper's glider gun. Click a cell to switch it."></canvas>
     <div class="life-editor">
       <pre class="life-paint" aria-hidden="true"><code data-life-paint>{rule}</code></pre>
-      <textarea class="life-input" data-life-source spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="The rule declaration. Edits reload into the running board when you stop typing." aria-describedby="life-status">{rule}</textarea>
+      <textarea class="life-input" data-life-source disabled spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="The rule declaration. Edits reload into the running board when you stop typing." aria-describedby="life-status">{rule}</textarea>
     </div>
-    <p class="life-status" id="life-status" data-life-status aria-live="polite">Version 1 is loaded. Edit the rule and it reloads into the board when you stop typing.</p>
+    <p class="life-status" id="life-status" data-life-status aria-live="polite">Loading the precompiled board…</p>
   </div>
-  <p class="life-note">The reload is simulated in the browser until the compiler runs here. It reads the rule’s conditions and swaps them into the running board. The whole module, <code>step</code> included, checks with the Rust compiler.</p>
+  <p class="life-note">The board runs in WebAssembly. When you edit <code>rule</code>, Cinch checks it in your browser and compiles its results for the 18 possible cell and neighbour combinations. The runtime switches to the new rule between generations, keeping the cells and generation count.</p>
   <details class="life-module"><summary>Read the whole module</summary><CodeExcerpt code={module} label="LIFE.CINCH" /></details>
 </div>
 <script>
   import { tokenize } from '../lib/highlight';
-  import { loadRule, step, gliderGun, type Rule } from '../lib/life';
+  import { Life, width as W, height as H } from '../lib/life';
+  import boardUrl from '../data/examples/life-board.wasm?url';
+  import type { CompileReply, CompileRequest } from '../lib/life-compiler.worker';
 
   const root = document.querySelector<HTMLElement>('[data-life]');
   if (root) {
-    const W = 40, H = 24;
     const canvas = root.querySelector<HTMLCanvasElement>('[data-life-board]')!;
     const source = root.querySelector<HTMLTextAreaElement>('[data-life-source]')!;
     const paint = root.querySelector<HTMLElement>('[data-life-paint]')!;
@@ -52,16 +48,16 @@ const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
     const runKey = root.querySelector<HTMLButtonElement>('[data-life-run]')!;
     const ctx = canvas.getContext('2d')!;
 
-    let board = gliderGun(W, H);
-    let generation = 0;
+    let life: Life | undefined;
     let version = 1;
-    let rule: Rule = (loadRule(source.value) as { rule: Rule }).rule;
     let loaded = source.value;
     let running = false;
     let visible = true;
     let timer = 0;
 
     const draw = () => {
+      if (!life) return;
+      const board = life.state;
       const ratio = window.devicePixelRatio || 1;
       const width = canvas.clientWidth, height = canvas.clientHeight;
       if (canvas.width !== Math.round(width * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
@@ -70,14 +66,22 @@ const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
       ctx.fillStyle = '#1a2117';
       ctx.fillRect(0, 0, width, height);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const live = board[y * W + x];
+        const live = board[y] & (1n << BigInt(x));
         ctx.fillStyle = live ? '#e9b071' : '#283222';
         const inset = live ? size * 0.1 : size * 0.42;
         ctx.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
       }
-      generationLabel.textContent = `GENERATION ${generation}`;
+      generationLabel.textContent = `GENERATION ${board[H]}`;
     };
-    const advance = () => { board = step(board, W, H, rule); generation++; draw(); };
+    const advance = () => {
+      try {
+        life?.step();
+        draw();
+      } catch {
+        setRunning(false);
+        status.textContent = 'The board stopped. Reset it to try again.';
+      }
+    };
     const schedule = () => {
       window.clearInterval(timer);
       if (running && visible && !document.hidden) timer = window.setInterval(advance, 120);
@@ -96,12 +100,12 @@ const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
 
     runKey.addEventListener('click', () => setRunning(!running));
     root.querySelector('[data-life-step]')!.addEventListener('click', () => { setRunning(false); advance(); });
-    root.querySelector('[data-life-reset]')!.addEventListener('click', () => { board = gliderGun(W, H); generation = 0; draw(); });
+    root.querySelector('[data-life-reset]')!.addEventListener('click', () => { life?.reset(); draw(); });
     canvas.addEventListener('click', (event) => {
       const box = canvas.getBoundingClientRect();
       const x = Math.floor(((event.clientX - box.left) / box.width) * W);
       const y = Math.floor(((event.clientY - box.top) / box.height) * H);
-      if (x >= 0 && x < W && y >= 0 && y < H) { board[y * W + x] ^= 1; draw(); }
+      if (life && x >= 0 && x < W && y >= 0 && y < H) { life.state[y] ^= 1n << BigInt(x); draw(); }
     });
 
     // The editor: a transparent textarea over a highlighted copy of the same text.
@@ -113,31 +117,92 @@ const module = lines.map((l) => l.replace(/^  /, '')).join('\n').trim();
         return span;
       }));
     };
-    const reload = () => {
-      if (source.value === loaded) return;
-      const result = loadRule(source.value);
-      if (result.ok) {
-        rule = result.rule;
-        loaded = source.value;
-        version++;
-        versionLabel.textContent = `VERSION ${version}`;
-        status.textContent = `Version ${version} loaded at generation ${generation}. Only the body of rule changed, so the board kept its cells and its count.`;
-      } else if (result.reason === 'interface') {
-        status.textContent = `The type or name of rule changed, and step depends on it. A running board would need a state migration first, so version ${version} keeps running.`;
-      } else if (result.reason === 'missing') {
-        status.textContent = `The case does not cover ${result.constructor}, so this would not check. Version ${version} keeps running.`;
-      } else {
-        status.textContent = `The preview cannot read this edit, so it is not loaded. Version ${version} keeps running.`;
-      }
-    };
+    let worker: Worker | undefined;
+    let edit = 0;
     let pending = 0;
+    let request: CompileRequest | undefined;
+    let active: CompileRequest | undefined;
+    let deadline = 0;
+
+    const finish = (reply: CompileReply) => {
+      if (reply.id !== active?.id) return;
+      const compiled = active;
+      active = undefined;
+      window.clearTimeout(deadline);
+      if ('error' in reply && reply.restart) {
+        worker?.terminate();
+        worker = undefined;
+      }
+      if (compiled.id === edit && life) {
+        if ('error' in reply) {
+          status.textContent = `Version ${version} is still running. ${reply.error}`;
+        } else {
+          try {
+            version = life.install(reply.table);
+            loaded = compiled.source;
+            versionLabel.textContent = `VERSION ${version}`;
+            status.textContent = `Version ${version} loaded at generation ${life.state[H]}. Board state preserved.`;
+          } catch (error) {
+            status.textContent = error instanceof Error ? error.message : 'The runtime refused the update.';
+          }
+        }
+      }
+      dispatch();
+    };
+
+    function getWorker(): Worker {
+      if (!worker) {
+        worker = new Worker(new URL('../lib/life-compiler.worker.ts', import.meta.url), { type: 'module' });
+        worker.onmessage = ({ data }: MessageEvent<CompileReply>) => finish(data);
+        worker.onerror = () => {
+          if (active) finish({ id: active.id, error: 'Could not start the Cinch compiler.', restart: true });
+          else { worker?.terminate(); worker = undefined; }
+        };
+      }
+      return worker;
+    }
+
+    function dispatch() {
+      if (active || !request || request.id !== edit) return;
+      const candidate = request;
+      request = undefined;
+      active = candidate;
+      status.textContent = `Compiling. Version ${version} continues to run.`;
+      try {
+        getWorker().postMessage(candidate);
+        deadline = window.setTimeout(() => finish({
+          id: candidate.id, error: 'This edit took too long to compile.', restart: true,
+        }), 15000);
+      } catch {
+        finish({ id: candidate.id, error: 'Could not start the Cinch compiler.', restart: true });
+      }
+    }
+
     source.addEventListener('input', () => {
       repaint();
+      const id = ++edit;
       window.clearTimeout(pending);
-      pending = window.setTimeout(reload, 600);
+      request = undefined;
+      if (source.value === loaded) {
+        status.textContent = `Version ${version} is running.`;
+        return;
+      }
+      pending = window.setTimeout(() => {
+        request = { id, source: source.value };
+        dispatch();
+      }, 350);
     });
 
     repaint();
-    draw();
+    void Life.load(boardUrl).then((board) => {
+      life = board;
+      versionLabel.textContent = 'VERSION 1';
+      root.querySelectorAll<HTMLButtonElement>('.life-keys button').forEach((button) => { button.disabled = false; });
+      source.disabled = false;
+      status.textContent = 'Version 1 is loaded. Edit the rule to compile a new version.';
+      draw();
+    }).catch(() => {
+      status.textContent = 'The WebAssembly board could not be loaded. Reload the page to retry.';
+    });
   }
 </script>
