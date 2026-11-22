@@ -295,12 +295,16 @@ The driver also has separate frontend and build modes:
 
     cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
     cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
-    cinch --emit-interfaces [--interfaces MANIFEST] SOURCE PREFIX
+    cinch --emit-interfaces [--interfaces PACKAGE] SOURCE PREFIX
     cinch --emit-ir-only --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT PACKAGE.cpk
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
+
+Interface-only mode writes `PREFIX.cpk`. Combined LLVM and interface
+emission writes `IR.cpk` alongside the LLVM file. Both packages contain
+the checked source contracts and their indexed bodies.
 
 Check-only runs parsing, resolution and the current source/Core checks, then
 writes `DIAGNOSTICS_BASE.diagnostics` (empty on success). It does not run the

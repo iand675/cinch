@@ -432,7 +432,8 @@ def shard_identity() -> dict:
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
     if inputs.get("built_by_stage", 0) > 0:
-        return ("compiler.ll", "link-report.txt", "base.cpk", "base-objects.json")
+        required = ("compiler.ll", "link-report.txt", "base.cpk", "base-objects.json")
+        return (*required, "compiler.ll.cpk") if inputs.get("interface_output") == "checked-package" else required
     if "source_sha256" in inputs:
         return ("compiler.cinch", "sources/build/Main.manifest.json")
     return ()
@@ -743,7 +744,7 @@ def bundle(files: dict[str, bytes]) -> bytes:
 def prepare_outputs(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     for name in ("cinch", "cinch.instrumented", "compiler.ll", "compiler.ll.diagnostics",
-                 "link-report.txt", "requested-roots.json", "seed-link.json",
+                 "link-report.txt", "requested-roots.json", "seed-link.json", "compiler.ll.cpk",
                  "base-interfaces.json", "objects.json"):
         (directory / name).unlink(missing_ok=True)
     for shard in directory.glob("compiler.shard*"):
@@ -925,7 +926,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
               "interface_set_sha256": package_hash, "frontend_mode": "typed-ir-packed-objects",
               "interface_package_sha256": package_hash,
               "packed_object_configuration_sha256": config_hash,
-              "interface_output": "checked-schema10" if publish_interfaces else "none",
+              "interface_output": "checked-package" if publish_interfaces else "none",
               "library_provider": provider["identity"], "object_configuration_sha256": config_hash,
               "runtime_archive_sha256": file_hash(runtime)}
     # Normal stages keep the existing -O2 cache identity. A one-shot
@@ -1105,66 +1106,44 @@ def check_fixed_point() -> None:
         raise BootstrapError("stage-2 and stage-3 compiler executables differ")
     if not same_file_bytes(second / "compiler.ll", third / "compiler.ll"):
         raise BootstrapError("stage-2 and stage-3 LLVM IR differ")
-    interfaces = {str(p.relative_to(second)): file_hash(p) for p in compiler_interface_paths(second)}
-    rebuilt = {str(p.relative_to(third)): file_hash(p) for p in compiler_interface_paths(third)}
-    require_compiler_interfaces(second, compiler_sources())
-    if not interfaces or interfaces != rebuilt:
-        raise BootstrapError("canonical stage-2/stage-3 interfaces are missing or differ")
+    if not same_file_bytes(second / "compiler.ll.cpk", third / "compiler.ll.cpk"):
+        raise BootstrapError("canonical stage-2/stage-3 interface packages differ")
     # The consumer validates the third stage's contracts before using them.
     check_interface_consumer(third, compiler_sources())
     check_changed_source()
     print("bootstrap: stages 2 and 3 reached a fixed point", flush=True)
 
 
-def compiler_interface_paths(directory: Path):
-    """The emitter's canonical per-module interfaces.
-
-    A checked build also leaves the admitted closure in `build/`: the
-    library's interfaces plus a second copy of every source module. Those
-    are not canonical and would read as duplicates of the emitted set.
-    """
-    for path in sorted(directory.rglob("*.cinchif")):
-        if "build" in path.relative_to(directory).parts:
-            continue
-        yield path
-
-
-def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> None:
-    from bootstrap_interfaces import interface_hash, read_contract, validate_contract, verify_dependencies
+def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> list[tuple[str, str, dict]]:
+    from bootstrap_interfaces import interface_hash, validate_contract, verify_dependencies
     from pack_interfaces import PackedInterfaces
 
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
-    documents = {}
-    for path in compiler_interface_paths(directory):
-        header = read_json(path)
-        if not isinstance(header, dict) or not isinstance(header.get("module"), str):
-            raise BootstrapError(f"invalid actual compiler interface header: {path}")
-        name = header["module"]
-        if name in expected:
-            if name in documents:
-                raise BootstrapError(f"duplicate canonical compiler interface for {name}: {directory}")
-            documents[name] = path
-    if set(documents) != expected:
-        raise BootstrapError(f"{directory.name} is missing actual compiler interfaces: {', '.join(sorted(expected - set(documents)))}")
-    contracts = {}
     runtime_abi = library_provider_lock()["runtime_abi"]
-    for name, path in documents.items():
-        try:
-            doc = read_contract(path)
-            validate_contract(doc, runtime_abi)
-            if not any(doc["exports"][key] for key in ("values", "types", "signatures", "instances")):
-                raise ValueError("compiler module has an empty checked export surface")
-            contracts[name] = doc
-        except (OSError, KeyError, TypeError, ValueError) as error:
-            raise BootstrapError(f"invalid actual compiler interface {name}: {error}") from error
+    package = directory / "compiler.ll.cpk"
+    if not package.is_file():
+        raise BootstrapError(f"missing actual compiler interface package: {package}")
     try:
-        base = {}
-        for name, identity, doc in PackedInterfaces((directory / "base.cpk").read_bytes()).documents:
-            validate_contract(doc, runtime_abi)
-            if doc["module"] != name or interface_hash(doc) != identity or name in base:
-                raise ValueError("base interface identity disagrees with its package")
-            base[name] = doc
+        def checked_rows(path):
+            rows = PackedInterfaces(path.read_bytes()).documents
+            seen = set()
+            for name, identity, doc in rows:
+                validate_contract(doc, runtime_abi)
+                if doc["module"] != name or interface_hash(doc) != identity or name in seen:
+                    raise ValueError(f"invalid packed interface identity: {name}")
+                seen.add(name)
+            return rows
+
+        produced = checked_rows(package)
+        contracts = {name: doc for name, _, doc in produced}
+        if set(contracts) != expected:
+            raise ValueError(f"compiler interface modules differ: {sorted(set(contracts) ^ expected)}")
+        for name, doc in contracts.items():
+            if not any(doc["exports"][key] for key in ("values", "types", "signatures", "instances")):
+                raise ValueError(f"compiler module has an empty checked export surface: {name}")
+        base = {name: doc for name, _, doc in checked_rows(directory / "base.cpk")}
         verify_dependencies(contracts, base)
+        return produced
     except (OSError, KeyError, TypeError, ValueError) as error:
         raise BootstrapError(f"invalid compiler interface dependency chain: {error}") from error
 
@@ -1176,21 +1155,16 @@ def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
     artifacts. A structurally valid but unusable contract cannot pass merely
     because the next writer repeats the same bytes.
     """
-    from bootstrap_interfaces import interface_hash, read_contract
-    from pack_interfaces import PackedInterfaces, canonical, pack, publish
+    from pack_interfaces import PackedInterfaces, pack, publish
 
-    require_compiler_interfaces(directory, files)
+    compiled = require_compiler_interfaces(directory, files)
     case = directory / "interface-consumer"
     case.mkdir(exist_ok=True)
     source = case / "Main.cinch"
     source.write_bytes(files["Main.cinch"])
-    rows = {name: (name, identity, canonical(doc))
+    rows = {name: (name, identity, doc)
             for name, identity, doc in PackedInterfaces((directory / "base.cpk").read_bytes()).documents}
-    expected = {name[:-6] for name in files if name.endswith(".cinch")}
-    for path in compiler_interface_paths(directory):
-        doc = read_contract(path)
-        if doc["module"] in expected:
-            rows[doc["module"]] = (doc["module"], interface_hash(doc), path.read_bytes())
+    rows.update({name: (name, identity, doc) for name, identity, doc in compiled})
     # Main is the source client in this check, not an imported module.
     rows.pop("Main", None)
     manifest = case / "interfaces.cpk"

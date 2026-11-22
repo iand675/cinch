@@ -254,7 +254,7 @@ class BootstrapContract(unittest.TestCase):
                 directory.mkdir()
                 (directory / "cinch").write_bytes(stage.encode())
                 (directory / "compiler.ll").write_bytes(b"identical IR")
-                (directory / "Main.cinchif").write_bytes(b"identical interface")
+                (directory / "compiler.ll.cpk").write_bytes(b"identical interface package")
             with patch.object(bootstrap, "BUILD", build), \
                     patch.object(bootstrap, "build_seed", return_value=build / "stage0/cinch") as seed, \
                     patch.object(bootstrap, "build_next_stage", side_effect=lambda n, previous: build / f"stage{n}/cinch") as step, \
@@ -281,31 +281,37 @@ class BootstrapContract(unittest.TestCase):
                                  [(n, build / f"stage{n - 1}/cinch") for n in (1, 2, 3)])
 
     def test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts(self):
+        from bootstrap_interfaces import interface_hash
+        from pack_interfaces import pack
+
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            files = {"Main.cinch": b"source", "Bootstrap.Check.cinch": b"source"}
-            bootstrap.write_json(root / "Data.Core.cinchif", {"module": "Data.Core"})
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "missing actual compiler interfaces"):
-                bootstrap.require_compiler_interfaces(root, files)
-            for name in ["Main", "Bootstrap.Check"]:
-                bootstrap.write_json(root / (name + ".cinchif"), {"module": name})
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid actual compiler interface"):
-                bootstrap.require_compiler_interfaces(root, files)
+            module_names = ("Main", "Bootstrap.Check")
+            files = {name + ".cinch": b"source" for name in module_names}
             template = bootstrap.read_json(Path(__file__).parent / "fixtures/checked-interface.json")
             runtime_abi = bootstrap.library_provider_lock()["runtime_abi"]
-            for name in ["Main", "Bootstrap.Check"]:
-                doc = {**template, "module": name, "runtime_abi": runtime_abi}
-                (root / (name + ".cinchif")).write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            from pack_interfaces import pack
-            (root / "base.cpk").write_bytes(pack([]))
+
+            def contract(name, abi=runtime_abi):
+                doc = {**template, "module": name, "runtime_abi": abi}
+                return name, interface_hash(doc), doc
+
+            base = root / "base.cpk"
+            produced = root / "compiler.ll.cpk"
+            base.write_bytes(pack([contract("Data.Core")]))
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "missing actual compiler interface package"):
+                bootstrap.require_compiler_interfaces(root, files)
+            produced.write_bytes(pack([contract("Main")]))
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "compiler interface modules differ"):
+                bootstrap.require_compiler_interfaces(root, files)
+            produced.write_bytes(pack([contract(name) for name in module_names]))
             bootstrap.require_compiler_interfaces(root, files)
             wrong_abi = 5 if runtime_abi == 6 else 6
-            (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": wrong_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            produced.write_bytes(pack([contract("Main", wrong_abi), contract("Bootstrap.Check")]))
             with self.assertRaisesRegex(bootstrap.BootstrapError, "wrong runtime ABI"):
                 bootstrap.require_compiler_interfaces(root, files)
-            (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": runtime_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            bootstrap.write_json(root / "extra.cinchif", {"module": "Bootstrap.Check"})
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
+            name, _, doc = contract("Main")
+            produced.write_bytes(pack([(name, "incorrect", doc), contract("Bootstrap.Check")]))
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid packed interface identity"):
                 bootstrap.require_compiler_interfaces(root, files)
 
     def test_packed_base_excludes_compiler_implementation_dependencies(self):
@@ -478,6 +484,7 @@ class BootstrapContract(unittest.TestCase):
                     self.assertEqual(compact["metadata"], str(args[3].resolve()))
                     self.assertEqual(compact["metadata_sha256"], bootstrap.file_hash(args[3]))
                     Path(args[-1]).write_text("typed IR")
+                    (directory / "compiler.ll.cpk").write_bytes(b"checked interface package")
                     return 0
                 if str(args[0]) == "selected-clang":
                     self.assertTrue(append)
@@ -505,7 +512,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
                 inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
                 self.assertEqual(inputs["frontend_mode"], "typed-ir-packed-objects")
-                self.assertEqual(inputs["interface_output"], "checked-schema10")
+                self.assertEqual(inputs["interface_output"], "checked-package")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
                 self.assertEqual(inputs["interface_package_sha256"], bootstrap.file_hash(directory / "base.cpk"))
                 self.assertFalse((directory / "base-interfaces.json").exists())

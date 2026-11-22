@@ -171,8 +171,8 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
     let source = "module Host where\n  export Handle, open, read-handle, probe\n  opaque type Handle :: Type\n  foreign import ccall \"ffi_open\" open :: Unit ->{Foreign Host, IO} Borrowed Handle\n  foreign import ccall \"h_read\" read-handle :: Borrowed Handle ->{Foreign Host, IO} I64\n  foreign import ccall \"ffi_i64\" probe :: I64 ->{Foreign Host, IO} I64\n";
     std::fs::write(&host, source).unwrap();
     assert!(run(compiler, &[&host, &prefix], "--emit-interfaces", manifest, objects).status.success(), "{}", std::fs::read_to_string(prefix.with_extension("diagnostics")).unwrap_or_default());
-    let iface_path = host_dir.join("host.Host.cinchif");
-    let actual = cinch::interface::Iface::from_json(&std::fs::read_to_string(&iface_path).unwrap()).unwrap();
+    let document = common::interface_package_contract(&prefix.with_extension("cpk"), "Host");
+    let actual = cinch::interface::Iface::from_json(&document).unwrap();
     // Native is an independent metadata oracle, never the client frontend.
     let (_, oracle) = cinch::driver::check_sources_ifaces(source, "foreign-interface-oracle.cinch").unwrap();
     // Compare actual file contracts. Native keeps source order internally,
@@ -182,6 +182,8 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
     assert_eq!(actual.exports.foreign, expected.exports.foreign);
     assert_eq!(actual.exports.values, expected.exports.values);
     assert_eq!(actual.assumptions.foreign, expected.assumptions.foreign);
+    // The editable manifests below also support the identity-refusal fixture.
+    std::fs::write(host_dir.join("Host.cinchif"), document).unwrap();
     let host_manifest = root.join("host.interfaces.json");
     interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
     let direct = format!("module Main where\n  import Host\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (read-handle (open ())) 42 then 0 else 1\n");
@@ -190,6 +192,8 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
     let facade = facade_dir.join("Facade.cinch");
     std::fs::write(&facade, "module Facade where\n  import Host (Handle as H, open as acquire, read-handle as inspect)\n  export H, acquire, inspect\n").unwrap();
     assert!(run(compiler, &[&facade, &facade_dir.join("facade")], "--emit-interfaces", &host_manifest, objects).status.success());
+    let document = common::interface_package_contract(&facade_dir.join("facade.cpk"), "Facade");
+    std::fs::write(facade_dir.join("Facade.cinchif"), document).unwrap();
     let facade_manifest = root.join("facade.interfaces.json");
     interfaces(&facade_manifest, &[&provider.join("build"), &host_dir, &facade_dir]);
     let facade_client = format!("module Main where\n  import Facade\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (inspect (acquire ())) 42 then 0 else 1\n");
@@ -304,7 +308,7 @@ fn resolved_application_contracts(compiler: &Path, dir: &Path, manifest: &Path, 
     let prefix = root.join("written");
     std::fs::write(&input, source).unwrap();
     assert!(run(compiler, &[&input, &prefix], "--emit-interfaces", manifest, objects).status.success());
-    let actual = cinch::interface::Iface::from_json(&std::fs::read_to_string(root.join("written.ContractShapes.cinchif")).unwrap()).unwrap();
+    let actual = cinch::interface::Iface::from_json(&common::interface_package_contract(&prefix.with_extension("cpk"), "ContractShapes")).unwrap();
     for name in ["identity", "inspect", "pending"] {
         let value = actual.exports.values.iter().find(|value| value.name == name).unwrap();
         let reference = expected.exports.values.iter().find(|value| value.name == name).unwrap();

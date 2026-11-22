@@ -30,8 +30,9 @@ def publish_interfaces(manifest, source, prefix):
     else:
         for name, _, path in json.loads(data)["interfaces"]:
             shutil.copyfile(path, build / (name + ".cinchif"))
-    for path in prefix.parent.glob(prefix.name + ".*.cinchif"):
-        shutil.copyfile(path, build / path.name.removeprefix(prefix.name + "."))
+    package = prefix.with_name(prefix.name + ".cpk")
+    for name, _, doc in PackedInterfaces(package.read_bytes()).documents:
+        (build / (name + ".cinchif")).write_bytes(canonical(doc))
 
 
 # Target profile flags the staged compiler accepts in any position before its

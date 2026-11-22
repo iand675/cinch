@@ -119,11 +119,12 @@ class CompilerInterfaceGate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "cinch").write_bytes(b"self-built compiler")
-            (root / "Main.cinchif").write_text(contracts.canonical(doc))
             dependency = {**doc, "module": "Bootstrap.Check"}
-            path = root / "Bootstrap.Check.cinchif"
-            path.write_text(contracts.canonical(dependency))
             from pack_interfaces import PackedInterfaces, pack
+            (root / "compiler.ll.cpk").write_bytes(pack([
+                ("Main", contracts.interface_hash(doc), doc),
+                ("Bootstrap.Check", contracts.interface_hash(dependency), dependency),
+            ]))
             (root / "base.cpk").write_bytes(pack([]))
             files = {"Main.cinch": b"module Main where\n  import Bootstrap.Check\n", "Bootstrap.Check.cinch": b"checked source"}
 

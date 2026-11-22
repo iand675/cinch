@@ -300,6 +300,8 @@ class FrozenVerification(unittest.TestCase):
                 objects.write_text(json.dumps({"object": str(root / "library.o")}))
                 source, ir, exe, report = [work / name for name in ("source.cinch", "output.ll", "program", "link-report")]
                 manifest = b'{"entry":"Entry.Project","runtime_abi":7}\n'
+                from pack_interfaces import pack
+                (work / "output.ll.cpk").write_bytes(pack([]))
                 (work / "output.ll.manifest.json").write_bytes(manifest)
                 args = ["--compile-only", "--interfaces", *(str(path) for path in (interfaces, source, ir, exe, report))]
                 with patch.object(verify_stage3.subprocess, "call", side_effect=[0, link_code]), \

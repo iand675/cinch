@@ -22,16 +22,20 @@ pub mod source_frontend;
 
 /// Read the ABI recorded by the selected test frontend.
 pub fn object_metadata(path: &Path) -> String {
-    inspect_package(&path.with_extension("cpk"), None)
+    inspect_package(&path.with_extension("cpk"), "metadata", None)
 }
 
 /// Some native compiler fixtures mutate individual contracts or metadata rows.
 /// Project the packed object into editable files for those tests only.
 pub fn editable_object_fixture(path: &Path, contracts: &Path) -> String {
-    inspect_package(&path.with_extension("cpk"), Some(contracts))
+    inspect_package(&path.with_extension("cpk"), "editable", Some(contracts.as_os_str()))
 }
 
-fn inspect_package(path: &Path, contracts: Option<&Path>) -> String {
+pub fn interface_package_contract(path: &Path, module: &str) -> String {
+    inspect_package(path, "module", Some(std::ffi::OsStr::new(module)))
+}
+
+fn inspect_package(path: &Path, projection: &str, argument: Option<&std::ffi::OsStr>) -> String {
     let tooling = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tooling");
     let output = std::process::Command::new("python3")
         .args(["-c", r#"
@@ -40,16 +44,22 @@ import sys
 sys.path.insert(0, sys.argv[1])
 from pack_interfaces import PackedInterfaces, canonical
 package = PackedInterfaces(Path(sys.argv[2]).read_bytes())
-if len(sys.argv) == 4:
-    contracts = Path(sys.argv[3])
-    contracts.mkdir(parents=True, exist_ok=True)
-    for name, _, document in package.documents:
-        (contracts / (name + '.cinchif')).write_bytes(canonical(document))
-sys.stdout.buffer.write(canonical(package.full_metadata()))
+mode = sys.argv[3]
+if mode == "module":
+    [document] = [doc for name, _, doc in package.documents if name == sys.argv[4]]
+else:
+    if mode == "editable":
+        contracts = Path(sys.argv[4])
+        contracts.mkdir(parents=True, exist_ok=True)
+        for name, _, doc in package.documents:
+            (contracts / (name + '.cinchif')).write_bytes(canonical(doc))
+    document = package.full_metadata()
+sys.stdout.buffer.write(canonical(document))
 "#])
         .arg(tooling)
         .arg(path)
-        .args(contracts)
+        .arg(projection)
+        .args(argument)
         .output()
         .expect("inspect packed object");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

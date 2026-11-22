@@ -45,6 +45,39 @@ def words(data, offset, count):
     return struct.unpack_from(f"<{count}I", data, offset)
 
 
+def unpack_contract(prefix, module):
+    package = prefix.with_name(prefix.name + ".cpk")
+    [document] = [doc for name, _, doc in PackedInterfaces(package.read_bytes()).documents if name == module]
+    return document
+
+
+def native_interface_only_publication(stage, work, base):
+    source = work / "InterfaceOnly.cinch"
+    target = work / "interface-only"
+    source.write_text("""module InterfaceOnly where
+  export answer
+  answer :: Int
+  answer = 42
+""")
+    command = [stage / "cinch", "--emit-interfaces", "--interfaces", base, source, target]
+    invoke(command, work, leak=True)
+    document = unpack_contract(target, "InterfaceOnly")
+    [value] = document["exports"]["values"]
+    assert value["name"] == "answer"
+    assert value["total_body"]["definitions"][0]["body"]["decimal"] == "42"
+    assert not target.exists()
+    output = target.with_suffix(".cpk")
+    source.write_text("module InterfaceOnly where\n  answer :: Int\n  answer = False\n")
+    invoke(command, work, status=4, leak=True)
+    assert output.read_bytes() == b""
+
+
+def body_definitions(document, identity):
+    # The packed reader can share one definition among several root closures.
+    return {id(row): row for value in document["exports"]["values"]
+            for row in value["total_body"]["definitions"] if row["identity"] == identity}.values()
+
+
 def native_indexed_body_nodes(stage, work, package, rows):
     source = work / "Probe.cinch"
     source.write_text("""module PackedProbe where
@@ -60,7 +93,7 @@ module Main where
     ir = work / "probe.ll"
     invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", package,
             "--objects", stage / "base-objects.json", source, ir], work, leak=True)
-    document = json.loads((work / "probe.ll.PackedProbe.cinchif").read_bytes())
+    document = unpack_contract(ir, "PackedProbe")
     document["compiler"] = "producer metadata with a quote \" and a newline \n"
     document["source_hash"] = "producer metadata with a backslash \\"
     document["digest_probe"] = {
@@ -68,15 +101,13 @@ module Main where
         "source_hash": "nested fields are part of the contract",
         "units": [False, None, True, -(2**64 - 1), 2**64 - 1, 0, 9, 10, 99, 100, -9, -10, -99, -100, [], {}],
     }
-    for export in document["exports"]["values"]:
-        for definition in export["total_body"]["definitions"]:
-            if definition["identity"] == "PackedProbe.branch":
-                # Keep the producer's meaning while exercising a literal Bool
-                # node that its optimizations can otherwise fold away.
-                definition["body"] = {
-                    "node": "if", "condition": {"node": "bool", "value": True},
-                    "yes": definition["body"], "no": {"node": "number", "sort": "Nat", "decimal": "1"},
-                }
+    for definition in body_definitions(document, "PackedProbe.branch"):
+        # Keep the producer's meaning while exercising a literal Bool node
+        # that optimizations can otherwise fold away.
+        definition["body"] = {
+            "node": "if", "condition": {"node": "bool", "value": True},
+            "yes": definition["body"], "no": {"node": "number", "sort": "Nat", "decimal": "1"},
+        }
     # Two export rows can point to the same checked graph. Each has its
     # own canonical digest position even when its closure is shared.
     branch = next(row for row in document["exports"]["values"] if row["name"] == "branch")
@@ -105,10 +136,8 @@ module Main where
     # Both imported declarations return Nat. The client can prove its
     # refinement only by evaluating the admitted body and following its call.
     changed = deepcopy(document)
-    for export in changed["exports"]["values"]:
-        for definition in export["total_body"]["definitions"]:
-            if definition["identity"] == "PackedProbe.branch":
-                definition["body"]["yes"]["body"]["no"]["decimal"] = "9"
+    for definition in body_definitions(changed, "PackedProbe.branch"):
+        definition["body"]["yes"]["body"]["no"]["decimal"] = "9"
     changed_digest = interface_hash(changed)
     publish(package, pack([*rows, ("PackedProbe", changed_digest, canonical(changed).encode())]))
     invoke(command, work, status=4, leak=True)
@@ -255,8 +284,7 @@ def native_shared_body_ranges(stage, work, package, rows):
     ir = work / "shared.ll"
     invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", package,
             "--objects", stage / "base-objects.json", source, ir], work, leak=True)
-    contract = work / "shared.ll.SharedBodies.cinchif"
-    document = json.loads(contract.read_bytes())
+    document = unpack_contract(ir, "SharedBodies")
     graphs = [row["total_body"]["definitions"] for row in document["exports"]["values"]]
     assert sum(map(len, graphs)) > 800
     digest = interface_hash(document)
@@ -430,23 +458,25 @@ module Main where
   main = 0
 """)
     output = work / "reexport.ll"
-    exported = work / "reexport.ll.Reexport.cinchif"
+    exported = output.with_name(output.name + ".cpk")
     for interfaces in (package, indexed):
         invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", interfaces,
                 "--objects", provider, reexport, output], work, leak=True)
         emitted = exported.read_bytes()
         if interfaces == package:
             produced_export = emitted
-            value, = json.loads(emitted)["exports"]["values"]
+            value, = unpack_contract(output, "Reexport")["exports"]["values"]
             assert value["total_body"]["definitions"]
         else:
             assert emitted == produced_export
 
+    native_interface_only_publication(stage, work, package)
     native_indexed_body_nodes(stage, work, package, rows)
     native_shared_body_ranges(stage, work, package, rows)
     verify_native_object_references(stage, work, package, rows, hello, ir, produced_ir)
     native_packed_object_publication(stage, work, package, rows)
 
+    assert not list(work.rglob("*.cinchif"))
     times = {name: [] for name in cases}
     order = list(cases)
     for i in range(repeats):

@@ -25,7 +25,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
   import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
-  import Bootstrap.PackageWrite (encode-object-package)
+  import Bootstrap.PackageWrite (encode-interface-package, encode-object-package)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
@@ -47,7 +47,7 @@ module Bootstrap.Pipeline where
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
   import Data.String (string-concat, string-to-bytes)
-  import Effect.Fs (fs-read, fs-rename, fs-write)
+  import Effect.Fs (fs-metadata, fs-read, fs-rename, fs-write)
   import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
 
@@ -168,7 +168,7 @@ module Bootstrap.Pipeline where
   compile-manifest-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-manifest-profile-mode inlining reclaim selection mode manifest source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
-    Ok profile -> case read-validated-interfaces manifest of
+    Ok profile -> if interface-output-conflict mode ir manifest then pipeline-bad-args else case read-validated-interfaces manifest of
       Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
       Ok admitted ->
         let interfaces = validated-interfaces-members admitted in
@@ -230,7 +230,8 @@ module Bootstrap.Pipeline where
   publish-object-client inlining debug reclaim profile manifest object-config source ir =
     let output = build-manifest-path ir in
     let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
-    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output] in
+    let package = interface-output-path ir in
+    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output, path-to-string package, path-to-string package <> ".new"] in
     let direct = map normalize-name [manifest, object-config, source] in
     if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
       let references = read-interface-inputs manifest in
@@ -238,13 +239,15 @@ module Bootstrap.Pipeline where
       let interface-inputs = (case references of Err message -> Nil; Ok rows -> interface-input-files rows) in
       let object-inputs = (case configuration of Err message -> Nil; Ok config -> runtime-object-input-files config) in
       if object-input-overlaps outputs (map normalize-name (interface-inputs <> object-inputs)) then pipeline-bad-args else
-        (case fs-write output (string-to-bytes "") of
-          Err error -> pipeline-write-failed
-          Ok cleared -> case load-object-client reclaim references configuration of
-            Err message -> write-failure ir message pipeline-interface-failed
-            Ok (checked, provider, metadata, object-path, code) ->
-              if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-                emit-object-client inlining debug reclaim profile EmitWithInterfaces checked provider source ir)
+        (case invalidate-interface-package package of
+          Err message -> pipeline-write-failed
+          Ok ready -> (case fs-write output (string-to-bytes "") of
+            Err error -> pipeline-write-failed
+            Ok cleared -> case load-object-client reclaim references configuration of
+              Err message -> write-failure ir message pipeline-interface-failed
+              Ok (checked, provider, metadata, object-path, code) ->
+                if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
+                  emit-object-client inlining debug reclaim profile EmitWithInterfaces checked provider source ir))
 
   object-input-overlaps :: List String -> List String -> Bool
   object-input-overlaps outputs inputs = case inputs of
@@ -479,7 +482,13 @@ module Bootstrap.Pipeline where
       Ok result -> Ok result
 
   compile-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
-  compile-source-interfaces profile interfaces source prefix = case fs-read (path-from-string source) of
+  compile-source-interfaces profile interfaces source prefix =
+    if interface-output-conflict InterfacesOnly prefix source then pipeline-bad-args else
+    case invalidate-interface-package (interface-output-path prefix) of
+      Err message -> write-failure prefix ("bootstrap.export: " <> message) pipeline-write-failed
+      Ok ready -> emit-source-interfaces profile interfaces source prefix
+  emit-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
+  emit-source-interfaces profile interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
     Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
@@ -495,16 +504,31 @@ module Bootstrap.Pipeline where
                 Err message -> write-interface-output prefix (Err message)
                 Ok rows -> write-interface-output prefix (Ok (replaced <> rows)))
       Parsed program errors -> write-failure prefix (render-bundle (Bundle source src errors)) pipeline-parse-failed
-  write-interface-files :: forall r. using (io :: Io r) => Path -> List (String, Json) ->{IO r} Result String Unit
-  write-interface-files prefix rows = case rows of
-    Nil -> Ok ()
-    Cons (name, doc) rest -> case fs-write (path-from-string (string-concat (path-to-string prefix) (string-concat "." (string-concat name ".cinchif")))) (canonical-bytes doc) of
-      Err error -> Err "cannot write checked interface"
-      Ok done -> write-interface-files prefix rest
-  write-interface-output :: forall r. using (io :: Io r) => Path -> Result String (List (String, Json)) ->{IO r} Int
+  interface-output-path :: Path -> Path
+  interface-output-path prefix = path-from-string (path-to-string prefix <> ".cpk")
+  interface-output-conflict :: PipelineMode -> Path -> String -> Bool
+  interface-output-conflict mode prefix input = case mode of
+    InterfacesOnly ->
+      let package = path-to-string (interface-output-path prefix) in
+      let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
+      object-path-member (normalize-name input)
+        (map normalize-name [path-to-string prefix, path-to-string (refusal-path prefix), package, package <> ".new"])
+    other -> False
+  invalidate-interface-package :: forall r. using (io :: Io r) => Path ->{IO r} Result String Unit
+  invalidate-interface-package path = case fs-metadata path of
+    Err absent -> Ok ()
+    Ok previous -> replace-object-package path (string-to-bytes "")
+  write-interface-package :: forall r. using (io :: Io r) => Path -> List (String, String, Json) ->{IO r, Diverge} Result String Unit
+  write-interface-package path rows = case encode-interface-package rows of
+    Err message -> Err message
+    Ok bytes -> replace-object-package path bytes
+
+  write-interface-output :: forall r. using (io :: Io r) => Path -> Result String (List (String, Json)) ->{IO r, Diverge} Int
   write-interface-output prefix output = case output of
     Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-emit-refused
-    Ok rows -> case write-interface-files prefix rows of
+    Ok rows -> case (case rows of
+      Nil -> Ok ()
+      other -> write-interface-package (interface-output-path prefix) (map object-package-row rows)) of
       Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-write-failed
       Ok done -> case fs-write (refusal-path prefix) (string-to-bytes "") of
         Err error -> pipeline-write-failed
@@ -560,10 +584,10 @@ module Bootstrap.Pipeline where
     other -> False
 
   -- A checked check, build or run leaves the driver's artifacts in the
-  -- working directory's `build/`: one `<Module>.cinchif` per admitted and
-  -- per checked source interface, and `<entry>.manifest.json` naming the
-  -- checked module identities. Source rows are written last, so a checked
-  -- source module replaces an admitted interface of the same name.
+  -- working directory's `build/`: the checked interface closure in
+  -- `<entry>.cpk` and the target and module identities in
+  -- `<entry>.manifest.json`. A checked source module supersedes the
+  -- admitted interface of the same name.
   after-check-artifacts :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> String -> Bytes -> List LoadedInterface -> List (String, Json) -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-check-artifacts profile inlining reclaim mode name src interfaces replaced result ir exe report = case (mode, result) of
     (InterfacesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
@@ -624,7 +648,8 @@ module Bootstrap.Pipeline where
   write-build-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
   write-build-artifacts generated primitives profile entry interfaces rows =
     case process-run (command (path-from-string "mkdir") ["-p", "build"]) "" of
-      Ok (0, output) -> (case write-build-interfaces (admitted-rows interfaces <> rows) of
+      Ok (0, output) -> (case write-interface-package (path-from-string ("build/" <> entry <> ".cpk"))
+          (complete-build-interfaces interfaces rows) of
         Err message -> Err message
         Ok done -> case fs-write (path-from-string (string-concat "build/" (string-concat entry ".manifest.json")))
             (canonical-bytes (build-generated-manifest generated primitives entry (manifest-target profile) interfaces rows)) of
@@ -632,15 +657,20 @@ module Bootstrap.Pipeline where
           Err error -> Err "cannot write build manifest")
       other -> Err "cannot create the build directory"
 
-  admitted-rows :: List LoadedInterface -> List (String, Json)
-  admitted-rows interfaces = map (\entry -> (loaded-module entry, loaded-contract entry)) interfaces
-
-  write-build-interfaces :: forall r. using (io :: Io r) => List (String, Json) ->{IO r} Result String Unit
-  write-build-interfaces rows = case rows of
-    Nil -> Ok ()
-    Cons (name, doc) rest -> case fs-write (path-from-string (string-concat "build/" (string-concat name ".cinchif"))) (canonical-bytes doc) of
-      Err error -> Err "cannot write checked interface"
-      Ok done -> write-build-interfaces rest
+  complete-build-interfaces :: List LoadedInterface -> List (String, Json) -> List (String, String, Json)
+  complete-build-interfaces interfaces rows =
+    let compiled = overlay-build-interface-names rows hash-map-empty in
+    map object-package-row rows <> admitted-build-interfaces compiled interfaces
+  overlay-build-interface-names :: List (String, Json) -> HashMap String Unit -> HashMap String Unit
+  overlay-build-interface-names rows names = case rows of
+    Nil -> names
+    Cons (name, doc) rest -> overlay-build-interface-names rest (hash-map-insert name () names)
+  admitted-build-interfaces :: HashMap String Unit -> List LoadedInterface -> List (String, String, Json)
+  admitted-build-interfaces compiled interfaces = case interfaces of
+    Nil -> Nil
+    Cons entry rest -> let name = loaded-module entry in (case hash-map-lookup name compiled of
+      Some present -> admitted-build-interfaces compiled rest
+      None -> Cons (name, loaded-hash entry, loaded-contract entry) (admitted-build-interfaces compiled rest))
 
   capability-array :: List String -> Json
   capability-array values = case values of

@@ -11,7 +11,7 @@ module Bootstrap.PackageWrite where
   import Data.List (list-length, reverse, sort, sort-by)
   import Data.Nat (nat-from-int, nat-to-i64, saturating-sub)
 
-  export encode-object-package
+  export encode-interface-package, encode-object-package
 
   data Tape where
     Tape :: Nat -> List Nat -> Tape
@@ -417,7 +417,13 @@ module Bootstrap.PackageWrite where
 
   -- The caller supplies checked contracts in dependency visitation order.
   encode-object-package :: List (String, String, Json) -> Json -> Result String Bytes
-  encode-object-package rows abi =
+  encode-object-package rows abi = encode-package rows (Some abi)
+
+  encode-interface-package :: List (String, String, Json) -> Result String Bytes
+  encode-interface-package rows = encode-package rows None
+
+  encode-package :: List (String, String, Json) -> Option Json -> Result String Bytes
+  encode-package rows abi =
     let sorted = sort-by compare-modules rows in
     case (module-indices sorted 0 hash-map-empty, collect-modules sorted (Definitions hash-map-empty Nil)) of
       (Err error, other) -> Err error
@@ -430,7 +436,13 @@ module Bootstrap.PackageWrite where
           Ok (bodies, edges, Nodes body-strings nodes operands targets) ->
             (case emit-modules indices body-ids sorted rows (Directories empty-tape empty-tape empty-tape body-strings) of
               Err error -> Err error
-              Ok (Directories modules values contracts strings) -> (case strings of
-                Strings index count size spans chunks -> (case emit-value None 256 abi (append-words [count] empty-tape) strings of
-                  Err error -> Err error
-                  Ok (metadata, final) -> assemble final [modules, values, bodies, edges, nodes, operands, contracts, metadata]))))
+              Ok (Directories modules values contracts strings) ->
+                encode-abi abi strings [modules, values, bodies, edges, nodes, operands, contracts]))
+
+  encode-abi :: Option Json -> Strings -> List Tape -> Result String Bytes
+  encode-abi abi (Strings index count size spans chunks) sections = case abi of
+    None -> assemble (Strings index count size spans chunks) (sections <> [empty-tape])
+    Some document ->
+      (case emit-value None 256 document (append-words [count] empty-tape) (Strings index count size spans chunks) of
+        Err error -> Err error
+        Ok (metadata, strings) -> assemble strings (sections <> [metadata]))

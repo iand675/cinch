@@ -274,7 +274,7 @@ fn interface_output(dir: &Path, exe: &Path) {
     let (code, stderr) = run_built(exe, dir, &args);
     assert_eq!(code, Some(0), "{stderr}; {}", std::fs::read_to_string(prefix.with_extension("diagnostics")).unwrap_or_default());
     let interfaces: Vec<_> = ["A", "Main"].into_iter().map(|name| {
-        let bytes = std::fs::read_to_string(dir.join(format!("interfaces-only.{name}.cinchif"))).unwrap();
+        let bytes = common::interface_package_contract(&prefix.with_extension("cpk"), name);
         let iface = cinch::interface::Iface::from_json(&bytes).unwrap();
         assert_eq!(iface.to_json(), bytes);
         iface
@@ -293,7 +293,7 @@ fn interface_output(dir: &Path, exe: &Path) {
     let args = vec!["--emit-interfaces".into(), source.display().to_string(), prefix.display().to_string()];
     let (code, stderr) = run_built(exe, dir, &args);
     assert_eq!(code, Some(0), "{stderr}; {}", common::read_output(dir, "refinement-interface.diagnostics"));
-    let bytes = common::read_output(dir, "refinement-interface.Main.cinchif");
+    let bytes = common::interface_package_contract(&prefix.with_extension("cpk"), "Main");
     let interface = cinch::interface::Iface::from_json(&bytes).expect("independent refinement interface readback");
     assert_eq!(interface.to_json(), bytes, "canonical refinement interface");
     let positive = interface.exports.types.iter().find(|row| row.name == "Positive").unwrap();
@@ -311,7 +311,7 @@ fn interface_output(dir: &Path, exe: &Path) {
     let args = vec!["--emit-interfaces".into(), source.display().to_string(), dir.join("unsupported-interface").display().to_string()];
     assert_eq!(run_built(exe, dir, &args).0, Some(4));
     assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("foreign import needs a function type, closed explicit rows and accounted result effects"));
-    assert!(!dir.join("unsupported-interface.Main.cinchif").exists(), "unsupported contract silently produced an interface");
+    assert!(!dir.join("unsupported-interface.cpk").exists(), "unsupported contract silently produced an interface");
     // Typed FFI is supported, with explicit effects and a representable ABI.
     // The pure unaccounted declaration above must still refuse and leave no
     // interface; a valid foreign declaration must retain its actual contract.
@@ -320,7 +320,7 @@ fn interface_output(dir: &Path, exe: &Path) {
     let args = vec!["--emit-interfaces".into(), source.display().to_string(), checked.display().to_string()];
     let (code, stderr) = run_built(exe, dir, &args);
     assert_eq!(code, Some(0), "{stderr}; {}", common::read_output(dir, "checked-foreign-interface.diagnostics"));
-    let bytes = common::read_output(dir, "checked-foreign-interface.Main.cinchif");
+    let bytes = common::interface_package_contract(&checked.with_extension("cpk"), "Main");
     let iface = cinch::interface::Iface::from_json(&bytes).expect("checked typed foreign interface");
     assert_eq!(iface.to_json(), bytes, "canonical typed foreign interface");
     assert_eq!(iface.exports.foreign.len(), 1);
@@ -498,10 +498,12 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let changed_source = format!("{edited}\n{main}");
     assert_eq!(invoke("--emit-interfaces", &changed_source, "core-source-emit"), (Some(0), String::new()));
     let load = |path: &Path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let load_packed = |prefix: &str, module: &str|
+        Iface::from_json(&common::interface_package_contract(&dir.join(prefix).with_extension("cpk"), module)).unwrap();
     let previous = load(&library.join("Data.Core.cinchif"));
-    let replacement = load(&dir.join("core-source-emit.Data.Core.cinchif"));
+    let replacement = load_packed("core-source-emit", "Data.Core");
     let native_consumer = load(&library.join("Data.Nat.cinchif"));
-    let source_consumer = load(&dir.join("core-source-emit.Main.cinchif"));
+    let source_consumer = load_packed("core-source-emit", "Main");
     assert_ne!(replacement.source_hash, previous.source_hash, "the replacement must come from the supplied source");
     assert_eq!(replacement.iface_hash(), previous.iface_hash(), "retain the exact checked compatibility contract");
     assert!(replacement.imports.is_empty(), "Data.Core must not gain a Prelude back edge");
@@ -516,8 +518,8 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     assert_eq!(status, Some(0), "{diagnostics}");
     let (status, diagnostics) = invoke("--emit-interfaces", implicit_core, "early-implicit-core");
     assert_eq!(status, Some(0), "{diagnostics}");
-    let implicit = load(&dir.join("early-implicit-core.Data.Set.cinchif"));
-    let explicit = load(&dir.join("early-explicit-core.Data.Set.cinchif"));
+    let implicit = load_packed("early-implicit-core", "Data.Set");
+    let explicit = load_packed("early-explicit-core", "Data.Set");
     assert_eq!(implicit.iface_hash(), explicit.iface_hash());
     assert_ne!(implicit.source_hash, explicit.source_hash);
     assert_eq!(implicit.imports.len(), 1);
@@ -543,12 +545,12 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let class_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law identity :: (x :: a) -> Eq (restore x) x\n";
     let (status, diagnostics) = invoke("--emit-interfaces", class_law, "unchecked-class-law");
     assert_eq!(status, Some(0), "{diagnostics}");
-    assert!(load(&dir.join("unchecked-class-law.LawExample.cinchif")).laws.is_empty());
+    assert!(load_packed("unchecked-class-law", "LawExample").laws.is_empty());
     let different = class_law.replace("Eq (restore x) x", "Eq (restore x) True");
     let (status, diagnostics) = invoke("--emit-interfaces", &different, "wrong-law-carrier");
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("type mismatch"), "{diagnostics}");
-    assert!(!dir.join("wrong-law-carrier.LawExample.cinchif").exists());
+    assert!(!dir.join("wrong-law-carrier.cpk").exists());
     let unresolved = class_law.replace("restore x", "not-in-law-scope x");
     let (status, diagnostics) = invoke("--check", &unresolved, "unresolved-class-law");
     assert_eq!(status, Some(4), "{diagnostics}");
@@ -574,7 +576,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let boolean_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law involution :: (x :: a) -> Eq (restore (restore x)) x\n  implicit instance Restore_Bool :: Restore Bool where\n    restore x = if x then False else True\n";
     let (status, diagnostics) = invoke("--emit-interfaces", boolean_law, "sampled-boolean-law");
     assert_eq!(status, Some(0), "{diagnostics}");
-    let sampled = load(&dir.join("sampled-boolean-law.LawExample.cinchif"));
+    let sampled = load_packed("sampled-boolean-law", "LawExample");
     assert_eq!(sampled.laws.len(), 1);
     assert_eq!(sampled.laws[0].instance, "LawExample.Restore_Bool");
     assert_eq!(sampled.laws[0].status, "checked (2 samples)");
@@ -582,7 +584,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let (status, diagnostics) = invoke("--emit-interfaces", &unlawful, "refused-boolean-law");
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("instance `Restore_Bool` breaks class law `LawExample.Restore.involution` on a Boolean sample"), "{diagnostics}");
-    assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
+    assert!(!dir.join("refused-boolean-law.cpk").exists());
     let finite_law = r#"module EnumLaw where
   data Comparison where
     Less :: Comparison
@@ -601,7 +603,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
 "#;
     let (status, diagnostics) = invoke("--emit-interfaces", finite_law, "sampled-finite-law");
     assert_eq!(status, Some(0), "{diagnostics}");
-    let sampled = load(&dir.join("sampled-finite-law.EnumLaw.cinchif"));
+    let sampled = load_packed("sampled-finite-law", "EnumLaw");
     let law = |name: &str| sampled.laws.iter().find(|item| item.law == name).unwrap().status.as_str();
     assert_eq!(law("associate"), "checked (27 samples)");
     assert_eq!(law("left-unit"), "checked (3 samples)");
@@ -609,11 +611,11 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let (status, diagnostics) = invoke("--emit-interfaces", &wrong_unit, "refused-finite-law");
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("instance `UnitComparison` breaks class law `EnumLaw.UnitOf.left-unit` on a finite constructor sample"), "{diagnostics}");
-    assert!(!dir.join("refused-finite-law.EnumLaw.cinchif").exists());
+    assert!(!dir.join("refused-finite-law.cpk").exists());
     let function_law = format!("{class_law}  implicit instance Restore_Function :: Restore (Int -> Int) where\n    restore f = f\n");
     let (status, diagnostics) = invoke("--emit-interfaces", &function_law, "unsampled-function-law");
     assert_eq!(status, Some(0), "{diagnostics}");
-    let unsampled = load(&dir.join("unsampled-function-law.LawExample.cinchif"));
+    let unsampled = load_packed("unsampled-function-law", "LawExample");
     assert_eq!(unsampled.laws.len(), 1);
     assert_eq!(unsampled.laws[0].instance, "LawExample.Restore_Function");
     assert_eq!(unsampled.laws[0].status, "not checked (no samples for the law binder `x :: (Int -> Int)`)");
@@ -623,8 +625,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("stale interface dependency: Data.Core"), "{diagnostics}");
-    assert!(!dir.join("stale-core-source.Data.Core.cinchif").exists());
-    assert!(!dir.join("stale-core-source.Main.cinchif").exists());
+    assert!(!dir.join("stale-core-source.cpk").exists());
     let (status, diagnostics) = invoke("--check", "module Lib where\n  answer :: Int\n  answer = 42\n", "ordinary-collision");
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("source module conflicts with a loaded interface"), "{diagnostics}");
