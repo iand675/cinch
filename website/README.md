@@ -55,10 +55,12 @@ project-specific DNS target returned by Vercel with proxying disabled.
 ## Live Life demo
 
 The landing page ships a precompiled Cinch board and loads the seed compiler
-in a worker on the first edit. The compiler checks each rule against
-`Cell -> Int -> Cell` and specializes it over the 18 possible inputs. The
-Cinch runtime activates the result between generations. Failed or stale edits
-leave the active rule and the board intact.
+in a worker on the first edit. The entire `life.cinch` module is editable.
+The compiler checks and specializes the cell-age rule, neighbour counting,
+edge behaviour, palette, and generation interval. The Cinch runtime activates
+those settings together between generations, retaining the cells, ages, and
+generation. The fixed WebAssembly bridge lives in `life-abi.cinch`.
+The example is based on [Blaze’s Life demo](https://github.com/indexable-inc/blaze#demo-a-game-of-life-you-can-edit).
 
 After changing the demo's Cinch source, compiler, or runtime, regenerate its
 checked-in Wasm assets with `bash website/scripts/build-life-wasm.sh`. Set

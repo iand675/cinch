@@ -15,10 +15,13 @@ if [[ -z "${CINCH:-}" ]]; then
 fi
 cinch="${CINCH:-$root/seed/target/release/cinch}"
 cargo build --locked --release --manifest-path seed/runtime/Cargo.toml --target wasm32-unknown-unknown
-"$cinch" emit-ir --target wasm32-unknown-unknown "$assets/life.cinch" -o "$scratch/life.ll"
+cp "$assets/life.cinch" "$scratch/Life.cinch"
+cp "$assets/life-abi.cinch" "$scratch/Browser.cinch"
+"$cinch" emit-ir --target wasm32-unknown-unknown "$scratch/Browser.cinch" -o "$scratch/life.ll"
 "$clang" --target=wasm32-unknown-unknown -O2 -c "$scratch/life.ll" -o "$scratch/life.o"
 exports=(
-  life_initial_rule life_step_row cinch_alloc
+  life_initial_age life_initial_neighbours life_initial_color life_initial_step_ms
+  life_initial_wrap life_neighbour_mask cinch_alloc
   cinch_evo_module_new cinch_evo_state_seed cinch_evo_state_payload
   cinch_evo_current_version cinch_evo_version_new cinch_evo_update_begin
   cinch_evo_add_replacement cinch_evo_mark_complete cinch_evo_activate
