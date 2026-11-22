@@ -77,28 +77,19 @@ module Bootstrap.Nominal where
   -- the first character outside the grammar, which is how a name embedded in
   -- a longer spelling keeps its suffix.
   decode-identity :: List Char -> Option (String, List Char)
-  decode-identity chars = case decode-run False chars Nil of
+  decode-identity chars = case decode-run chars Nil of
     Some (reversed, rest) -> Some (pack (reverse reversed), rest)
     None -> None
-  -- The object index uses the producer's spelling. Its lookups still
-  -- admit only the complete canonical global name.
-  raw-interface-global :: String -> Option String
-  raw-interface-global name = case unpack name of
-    Cons prefix (Cons dot tail) | char-code prefix == 105 && char-code dot == 46 -> (case decode-run True tail Nil of
-      Some (reversed, Nil) -> Some (pack (reverse reversed))
-      other -> None)
-    other -> None
-
-  decode-run :: Bool -> List Char -> List Char -> Option (List Char, List Char)
-  decode-run canonical chars reversed = case chars of
+  decode-run :: List Char -> List Char -> Option (List Char, List Char)
+  decode-run chars reversed = case chars of
     Nil -> Some (reversed, Nil)
     Cons c rest -> let code = char-code c in
-      if plain-code code then decode-run canonical rest (Cons c reversed)
+      if plain-code code then decode-run rest (Cons c reversed)
       else if code == 36 then (case hex-byte rest of
-        Some (lead, more) | not (canonical && plain-code lead) -> (case decode-scalar lead more of
-          Some (scalar, after) -> decode-run canonical after (Cons scalar reversed)
+        Some (lead, more) -> (case decode-scalar lead more of
+          Some (scalar, after) -> decode-run after (Cons scalar reversed)
           None -> None)
-        other -> None)
+        None -> None)
       else Some (reversed, chars)
   -- Each admitted lead and continuation byte's payload is taken modulo its
   -- field width, which is the same number for every value its width admits:
@@ -183,6 +174,42 @@ module Bootstrap.Nominal where
   interface-global identity = case identity-global-bytes (string-to-bytes identity) of
     Some name -> name
     None -> pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
+
+  -- Object admission indexes producer symbols. Accept the complete
+  -- canonical global spelling before looking up its decoded UTF-8 name.
+  raw-interface-global :: String -> Option String
+  raw-interface-global name =
+    let input = string-to-bytes name in
+    if 1 < bytes-len input && bytes-get input 0 == 105 && bytes-get input 1 == 46 then
+      (let output = bytes-new (raw-identity-size input 2 0) in
+        if write-raw-identity input 2 output 0 then string-from-bytes output else None)
+    else None
+  raw-identity-size :: Bytes -> Nat -> Nat -> Nat
+  raw-identity-size input at size = if at < bytes-len input then
+    raw-identity-size input (at + (if bytes-get input at == 36 then 3 else 1)) (size + 1)
+    else size
+  raw-identity-hex :: Nat -> InRange 0 16 Nat
+  raw-identity-hex code = if code >= 48 && code <= 57 then code - 48
+    else if code >= 97 && code <= 102 then code - 87 else 16
+  write-raw-identity :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  write-raw-identity input at output pos =
+    if at < bytes-len input then
+      (if pos < bytes-len output then
+        (let code = bytes-get input at in
+        if plain-code code then
+          (let written = bytes-set output pos code in write-raw-identity input (at + 1) output (pos + 1))
+        else if code == 36 && at + 2 < bytes-len input then
+          (let high = raw-identity-hex (bytes-get input (at + 1)) in
+          let low = raw-identity-hex (bytes-get input (at + 2)) in
+          if high < 16 && low < 16 then
+            (let byte = high * 16 + low in
+            if plain-code byte then False
+            else let written = bytes-set output pos byte in write-raw-identity input (at + 3) output (pos + 1))
+          else False)
+        else False)
+      else False)
+    else pos == bytes-len output
+
   -- The encoded global of each identity the compiler compares against, in
   -- the spelling `interface-global` defines. A literal is one read-only
   -- constant; `interface-global` of a literal re-encodes it on every
