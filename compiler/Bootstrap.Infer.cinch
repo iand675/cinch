@@ -4188,6 +4188,10 @@ module Bootstrap.Infer where
   proof-env-after-writes env writes st = case writes of
     Nil -> env
     other -> if proof-env-invalidatable env then invalidate-proof-bindings (proof-context env st) env writes st else env
+  live-proof-env-after-writes :: List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
+  live-proof-env-after-writes env writes st = case writes of
+    Nil -> env
+    other -> invalidate-proof-bindings (proof-context env st) env writes st
   invalidate-proof-bindings :: ProofScope -> List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
   invalidate-proof-bindings gamma env writes st = case env of
     Cons (MkBodyContext context names index cache) rest -> env
@@ -4205,14 +4209,15 @@ module Bootstrap.Infer where
   -- rebuilds such an environment entry for entry.
   proof-env-after-term :: List CheckedBinding -> CoreTerm -> Store -> List CheckedBinding
   proof-env-after-term env term st = if proof-env-invalidatable env then
-    proof-env-after-writes env (core-mutable-writes (map-term-types (normalize st) term)) st
+    live-proof-env-after-writes env (core-mutable-writes (map-term-types (normalize st) term)) st
     else env
   proof-branch :: Span -> List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
   proof-branch origin env condition positive st = let term = map-term-types (normalize st) condition in
     let introduced = (case scoped-core-branch (proof-context env st) (proof-facts env) term positive of
       Some fact -> Cons (MkProofBinding origin None fact) env
       None -> env) in
-        proof-env-after-writes introduced (scoped-branch-writes term positive) st
+    if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (scoped-branch-writes term positive) st
+    else introduced
   prepend-proof-facts :: Span -> List Proposition -> List CheckedBinding -> List CheckedBinding
   prepend-proof-facts origin facts env = case facts of
     Nil -> env
@@ -4223,7 +4228,7 @@ module Bootstrap.Infer where
     else let term = map-term-types (normalize st) value in
       let facts = scoped-core-case-facts (proof-context env st) (proof-facts env) term (map-pattern-types (normalize st) pattern) positive in
       let introduced = prepend-proof-facts origin facts env in
-      if proof-env-invalidatable introduced then proof-env-after-writes introduced (core-mutable-writes term) st else introduced
+      if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (core-mutable-writes term) st else introduced
   proof-case-rest-env :: Span -> List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
   proof-case-rest-env origin env value pattern body st =
     let candidate = (case body of CGuard sp ty guard rhs -> True; other -> case-pattern-may-prove pattern False) in
@@ -4232,15 +4237,22 @@ module Bootstrap.Infer where
         (map-pattern-types (normalize st) pattern) body
       else Nil) in
     let introduced = prepend-proof-facts origin facts env in
-    if proof-env-invalidatable introduced then proof-env-after-writes introduced (normalized-fallthrough-writes (normalize st) body) st
+    if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (normalized-fallthrough-writes (normalize st) body) st
     else introduced
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
-  proof-let-env env binding id sc value st = let term = map-term-types (normalize st) value in
+  proof-let-env env binding id sc value st =
     let extended = Cons binding env in
-    let introduced = (case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) term of
-      Some fact -> Cons (MkProofBinding zero None fact) extended
-      None -> extended) in
-        proof-env-after-writes introduced (core-mutable-writes term) st
+    case (scheme-params sc, scheme-requirements sc) of
+      (Nil, Nil) ->
+        let ty = normalize st (scheme-body sc) in
+        if let-type-may-prove ty then
+          let term = map-term-types (normalize st) value in
+          let introduced = (case scoped-core-let-fact (proof-context env st) (proof-facts env) id (mono ty) term of
+            Some fact -> Cons (MkProofBinding zero None fact) extended
+            None -> extended) in
+          if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (core-mutable-writes term) st else introduced
+        else proof-env-after-term extended value st
+      other -> proof-env-after-term extended value st
   stale-evidence-message :: Span -> Span -> String
   stale-evidence-message origin write = string-concat-all
     ["stale evidence: evidence derived at ", proof-position origin, " is invalidated by the write at ", proof-position write]
@@ -7331,7 +7343,7 @@ module Bootstrap.Infer where
         Nil -> ([MkCoreClause (expr-span body) patterns rhs], sr)
         other ->
           let remaining = (if not (core-alternative-covers rhs) && proof-env-invalidatable env then
-            proof-env-after-writes env (normalized-fallthrough-writes (normalize sr) rhs) sr
+            live-proof-env-after-writes env (normalized-fallthrough-writes (normalize sr) rhs) sr
             else env) in
           case check-clauses classes kinds families remaining locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
             (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)

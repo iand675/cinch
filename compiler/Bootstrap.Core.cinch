@@ -49,7 +49,7 @@ module Bootstrap.Core where
   export CRefine, CForget, forgotten-tuple-fields, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, guarded-call-spine, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation, numeric-method-for-types, selected-method-function
-  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
+  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, let-type-may-prove, scoped-prove-subtraction, scoped-prove-division
   export scoped-refinement-predicate
   export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
@@ -1102,19 +1102,21 @@ module Bootstrap.Core where
       other -> core-mutable-writes term
     other -> core-mutable-writes term
   guard-fallthrough-writes :: CoreTerm -> List (Span, Option UType)
-  guard-fallthrough-writes body = fallthrough-writes-using (\ty -> ty) (\term -> term) body
+  guard-fallthrough-writes body = fallthrough-writes-using (\ty -> ty) (\term -> term) False body
   normalized-fallthrough-writes :: (UType -> UType) -> CoreTerm -> List (Span, Option UType)
-  normalized-fallthrough-writes normalize body = fallthrough-writes-using normalize (map-term-types normalize) body
+  normalized-fallthrough-writes normalize body = fallthrough-writes-using normalize (map-term-types normalize) False body
   -- A successful branch's result cannot contribute writes to a later row.
   -- Normalize only the guard and any bindings evaluated on the way to it.
-  fallthrough-writes-using :: (UType -> UType) -> (CoreTerm -> CoreTerm) -> CoreTerm -> List (Span, Option UType)
-  fallthrough-writes-using normalize ready body = case body of
+  -- Once a binding sees that its tail can fall through, the nested
+  -- bindings on that same path share the result.
+  fallthrough-writes-using :: (UType -> UType) -> (CoreTerm -> CoreTerm) -> Bool -> CoreTerm -> List (Span, Option UType)
+  fallthrough-writes-using normalize ready can-fall-through body = case body of
     CGuard sp ty condition rhs -> scoped-branch-writes (ready condition) False
-    CLet sp ty id name sc rhs inner -> if alternative-covers-using normalize inner then Nil
-      else core-mutable-writes (ready rhs) <> fallthrough-writes-using normalize ready inner
-    CMemoScope sp ty region inner -> fallthrough-writes-using normalize ready inner
-    CRecursiveValues sp ty region members inner -> recursive-value-writes (ready members) <> fallthrough-writes-using normalize ready inner
-    CRequire sp ty inner -> fallthrough-writes-using normalize ready inner
+    CLet sp ty id name sc rhs inner -> if not can-fall-through && alternative-covers-using normalize inner then Nil
+      else core-mutable-writes (ready rhs) <> fallthrough-writes-using normalize ready True inner
+    CMemoScope sp ty region inner -> fallthrough-writes-using normalize ready can-fall-through inner
+    CRecursiveValues sp ty region members inner -> recursive-value-writes (ready members) <> fallthrough-writes-using normalize ready can-fall-through inner
+    CRequire sp ty inner -> fallthrough-writes-using normalize ready can-fall-through inner
     other -> Nil
   child-writes :: List CoreTerm -> List (Span, Option UType)
   child-writes children = case children of Nil -> Nil; Cons first rest -> core-mutable-writes first <> child-writes rest
@@ -2749,6 +2751,12 @@ module Bootstrap.Core where
     CRefine sp ty certificate body -> scalar-copy body
     CRefineProof sp ty witness body -> scalar-copy body
     other -> False
+  -- A monomorphic let contributes either a list length or an integer
+  -- equality. The full check also establishes that the RHS supports it.
+  let-type-may-prove :: UType -> Bool
+  let-type-may-prove ty = case core-list-element ty of
+    Some element -> True
+    None -> integer-carrier (numeric-carrier-view ty)
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) | (case core-list-element (scheme-body sc) of Some element -> True; None -> False) ->
