@@ -53,6 +53,23 @@ module Main where
         , (case close-globals-with-definitions globals definitions of Some context -> not (global-definition-closed context (definition "helper" (id + 1) constant)); None -> False)
         , (case core-source-body Nil [root, definition "helper" (id + 1) (CApply sp nat (CUse sp arrow "width" "value" Nil) (local (id + 1)))] Nil "width" of None -> True; Some forged -> False)
         ]
+  lookup-order-checks :: Nat -> List Bool
+  lookup-order-checks id =
+    let identity = definition "width" id (local id) in
+    let replacement = definition "width" id constant in
+    let alias = definition "i.width" id constant in
+    case core-source-body Nil [identity] Nil "width" of
+      None -> [False]
+      Some body -> let globals = [associated body] in
+        [ (case close-globals-with-definitions globals [replacement, identity] of
+            Some context -> global-definition-closed context replacement
+            None -> False)
+        , refused globals [identity, replacement]
+        , (case close-globals-with-definitions (Cons (GlobalValue "i.width" "value" (mono arrow)) globals) [identity, alias] of
+            Some context -> global-definition-closed context alias
+            None -> False)
+        , refused globals [alias, identity]
+        ]
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
   branch-name :: Nat -> String
@@ -84,5 +101,5 @@ module Main where
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
     Ok nonce -> let id = bytes-len nonce + 340282366920938463463374607431768211456 in
-      verdict (identity-checks id <> dependency-checks id <> [wildcard-check id, shared-dependency-check id]) 1
+      verdict (identity-checks id <> dependency-checks id <> lookup-order-checks id <> [wildcard-check id, shared-dependency-check id]) 1
     Err error -> 90

@@ -29,7 +29,7 @@ module Bootstrap.Global where
     GlobalBody :: CoreGlobal -> BodyBinding -> CoreGlobal
     GlobalGuardedBody :: CoreGlobal -> GuardedBinding -> CoreGlobal
   data CoreGlobals where
-    ClosedGlobals :: List CoreGlobal -> HashMap String CoreGlobal -> List CoreDefinition -> List CoreData -> BodyBindings -> List GuardedBinding -> HashMap String (List BodyBinding) -> CoreGlobals
+    ClosedGlobals :: List CoreGlobal -> HashMap String CoreGlobal -> Option TotalCoreSources -> List CoreData -> BodyBindings -> List GuardedBinding -> HashMap String (List BodyBinding) -> CoreGlobals
   globals-declarations :: CoreGlobals -> List CoreGlobal
   globals-declarations globals = case globals of ClosedGlobals declarations index definitions datas bodies guarded dependents -> declarations
   global-name :: CoreGlobal -> String
@@ -238,9 +238,9 @@ module Bootstrap.Global where
       None -> None
       Some index -> if guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
         (case check-body-bindings bindings of
-          Some bodies -> if bodies-match bindings bindings definitions datas None then
-            Some (ClosedGlobals declarations index definitions datas bodies guarded (body-dependents bindings hash-map-empty))
-            else None
+          Some bodies -> (case check-source-bindings bindings bindings definitions datas of
+            Some sources -> Some (ClosedGlobals declarations index sources datas bodies guarded (body-dependents bindings hash-map-empty))
+            None -> None)
           None -> None)
         else None
   -- Index the already validated graphs. Replacing any member requires
@@ -255,33 +255,32 @@ module Bootstrap.Global where
     Nil -> table
     Cons name rest -> let prior = case hash-map-lookup name table of Some members -> members; None -> Nil in
       add-body-dependencies binding rest (hash-map-insert name (Cons binding prior) table)
-  bodies-match :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Option TotalCoreSources -> Bool
-  bodies-match all bindings definitions datas index = case bindings of
+  check-source-bindings :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Option (Option TotalCoreSources)
+  check-source-bindings all bindings definitions datas = case bindings of
+    Nil -> Some None
+    Cons binding rest -> if same (binding-role binding) "value" then
+      let sources = total-core-sources definitions in
+      if bodies-match all bindings sources datas then Some (Some sources) else None
+      else check-source-bindings all rest definitions datas
+  bodies-match :: List BodyBinding -> List BodyBinding -> TotalCoreSources -> List CoreData -> Bool
+  bodies-match all bindings sources datas = case bindings of
     Nil -> True
     Cons binding rest -> if not (same (binding-role binding) "value") then
-      bodies-match all rest definitions datas index
-      else case source-definition (binding-name binding) definitions of
+      bodies-match all rest sources datas
+      else case indexed-source-definition sources (binding-name binding) of
         Some definition -> scheme-equivalent (binding-scheme binding) (core-scheme definition)
-          && (let table = (case index of Some table -> table; None -> total-core-sources definitions) in
-              (case indexed-source-function all table datas (binding-native binding) of
-                Some actual -> total-function-equal actual (binding-function binding) && bodies-match all rest definitions datas (Some table)
-                None -> False))
+          && (case indexed-source-function all sources datas (binding-native binding) of
+            Some actual -> total-function-equal actual (binding-function binding) && bodies-match all rest sources datas
+            None -> False)
         None -> False
-  changed-bodies-match :: HashMap String (List BodyBinding) -> List BodyBinding -> CoreDefinition -> List CoreDefinition -> List CoreData -> Bool
-  changed-bodies-match dependents bindings definition definitions datas = case export-global (core-name definition) of
-    Ok native -> (case hash-map-lookup native dependents of
-      Some uses -> let replaced = source-definition-replace definition definitions in
-        bodies-match bindings uses replaced datas None
-      None -> True)
-    Err error -> True
-  source-definition :: String -> List CoreDefinition -> Option CoreDefinition
-  source-definition name definitions = case definitions of
-    Nil -> None
-    Cons first rest -> if same name (core-name first) then Some first else source-definition name rest
-  source-definition-replace :: CoreDefinition -> List CoreDefinition -> List CoreDefinition
-  source-definition-replace definition definitions = case definitions of
-    Nil -> [definition]
-    Cons first rest -> if same (core-name definition) (core-name first) then Cons definition rest else Cons first (source-definition-replace definition rest)
+  changed-bodies-match :: HashMap String (List BodyBinding) -> List BodyBinding -> CoreDefinition -> Option TotalCoreSources -> List CoreData -> Bool
+  changed-bodies-match dependents bindings definition sources datas = case sources of
+    None -> True
+    Some indexed -> case export-global (core-name definition) of
+      Ok native -> (case hash-map-lookup native dependents of
+        Some uses -> bodies-match bindings uses (replace-source-definition indexed definition native) datas
+        None -> True)
+      Err error -> True
 
   -- Substitution checks kinds in declaration order, including a value
   -- parameter whose carrier mentions an earlier type parameter.
@@ -505,12 +504,12 @@ module Bootstrap.Global where
       && declared-givens rest more (Cons name names)
     other -> False
   global-definition-closed :: CoreGlobals -> CoreDefinition -> Bool
-  global-definition-closed context definition = case context of ClosedGlobals declarations globals definitions datas bodies guarded dependents -> (case lookup-base-global (core-name definition) globals of
+  global-definition-closed context definition = case context of ClosedGlobals declarations globals sources datas bodies guarded dependents -> (case lookup-base-global (core-name definition) globals of
     Some (GlobalValue name role sc) -> (same role "value" || same role "instance-method") && scheme-equivalent sc (core-scheme definition)
       && definition-openings (scheme-params (core-scheme definition)) (core-openings definition) Nil Nil
       && declared-givens (map-requirements (substitute-bound (core-openings definition)) (scheme-requirements (core-scheme definition))) (core-givens definition) Nil
       && core-definition-result-types definition
-      && changed-bodies-match dependents (body-bindings-members bodies) definition definitions datas
+      && changed-bodies-match dependents (body-bindings-members bodies) definition sources datas
       && clause-references-with globals (value-local-schemes (opening-value-types (core-openings definition))) (core-givens definition) (core-clauses definition)
     other -> False)
   declaration-guarded-bodies :: List CoreGlobal -> List GuardedBinding

@@ -59,6 +59,7 @@ module Bootstrap.Core where
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
   export TotalCoreSources, total-core-sources, indexed-source-function
+  export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEInstance
@@ -4060,15 +4061,41 @@ module Bootstrap.Core where
   core-source-function bindings definitions datas native = case total-core-native-definition native definitions of
     Some definition -> source-function-for-definition bindings (total-core-index definitions) datas definition native
     None -> None
-  -- Keep the ordered definitions and lookup index tied to the same source
-  -- snapshot. Native-name lookup still chooses the first matching definition.
+  -- Source checks use the first definition under either spelling. Graph
+  -- gathering uses the last resolved definition. Track duplicate resolved
+  -- names so replacing the first row leaves the graph winner intact.
   data TotalCoreSources where
-    MkTotalCoreSources :: List CoreDefinition -> TotalCoreIndex -> TotalCoreSources
+    MkTotalCoreSources :: HashMap String (CoreDefinition, Bool) -> HashMap String CoreDefinition -> TotalCoreIndex -> TotalCoreSources
   total-core-sources :: List CoreDefinition -> TotalCoreSources
-  total-core-sources definitions = MkTotalCoreSources definitions (total-core-index definitions)
+  total-core-sources definitions =
+    index-source-definitions (reverse definitions) hash-map-empty hash-map-empty hash-map-empty
+  index-source-definitions :: List CoreDefinition -> HashMap String (CoreDefinition, Bool) -> HashMap String CoreDefinition -> HashMap String CoreDefinition -> TotalCoreSources
+  index-source-definitions definitions resolved native index = case definitions of
+    Nil -> MkTotalCoreSources resolved native (MkTotalCoreIndex index)
+    Cons definition rest -> let name = core-name definition in
+      let duplicate = case hash-map-lookup name resolved of Some entry -> True; None -> False in
+      let exported = (case export-global name of
+        Ok spelling -> hash-map-insert spelling definition native
+        Err error -> native) in
+      index-source-definitions rest (hash-map-insert name (definition, duplicate) resolved) exported
+        (if duplicate then index else hash-map-insert name definition index)
+  indexed-source-definition :: TotalCoreSources -> String -> Option CoreDefinition
+  indexed-source-definition (MkTotalCoreSources resolved native index) name = case hash-map-lookup name resolved of
+    Some (definition, duplicate) -> Some definition
+    None -> None
+  replace-source-definition :: TotalCoreSources -> CoreDefinition -> String -> TotalCoreSources
+  replace-source-definition (MkTotalCoreSources resolved native (MkTotalCoreIndex index)) definition spelling =
+    let name = core-name definition in
+    let duplicate = case hash-map-lookup name resolved of Some (prior, repeated) -> repeated; None -> False in
+    let replace-native = (case hash-map-lookup spelling native of
+      Some prior -> string-compare name (core-name prior) == 0
+      None -> True) in
+    MkTotalCoreSources (hash-map-insert name (definition, duplicate) resolved)
+      (if replace-native then hash-map-insert spelling definition native else native)
+      (MkTotalCoreIndex (if duplicate then index else hash-map-insert name definition index))
   indexed-source-function :: List BodyBinding -> TotalCoreSources -> List CoreData -> String -> Option TotalFunction
   indexed-source-function bindings source datas native = case source of
-    MkTotalCoreSources definitions index -> (case total-core-native-definition native definitions of
+    MkTotalCoreSources resolved exported index -> (case hash-map-lookup native exported of
       Some definition -> source-function-for-definition bindings index datas definition native
       None -> None)
   source-function-for-definition :: List BodyBinding -> TotalCoreIndex -> List CoreData -> CoreDefinition -> String -> Option TotalFunction
@@ -4077,7 +4104,7 @@ module Bootstrap.Core where
     None -> core-field-projection datas definition native
   core-source-body :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option BodyBinding
   core-source-body bindings definitions datas native = case total-core-native-definition native definitions of
-    Some definition -> (case core-source-function bindings definitions datas native of
+    Some definition -> (case source-function-for-definition bindings (total-core-index definitions) datas definition native of
       Some function -> check-source-body-binding (core-name definition) native (core-scheme definition) function
       None -> None)
     None -> None
