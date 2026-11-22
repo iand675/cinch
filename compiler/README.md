@@ -302,6 +302,14 @@ The driver also has separate frontend and build modes:
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT PACKAGE.cpk
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
+    cinch --interfaces PACKAGE.cpk --objects CONFIG build [--clang PATH] RUNTIME PREFIX SOURCE
+    cinch --interfaces PACKAGE.cpk --objects CONFIG run [--clang PATH] RUNTIME PREFIX SOURCE [-- ARGS...]
+
+The packed `build` and `run` commands check against the prebuilt contracts
+and link against the authenticated base object. Both write `PREFIX.exe`
+for the host. `build` stops after linking. `run` executes that binary and
+returns its exit status. Use `--clang PATH` to select an installed clang
+directly, for example to bypass the macOS toolchain dispatcher.
 
 Interface-only mode writes `PREFIX.cpk`. Combined LLVM and interface
 emission writes `IR.cpk` alongside the LLVM file. Both packages contain

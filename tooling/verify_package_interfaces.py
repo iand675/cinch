@@ -250,6 +250,25 @@ def verify_native_object_references(stage, work, package, rows, source, ir, expe
     assert prefix.with_suffix(".ll").read_bytes() == expected
     assert not (run_directory / "build").exists()
 
+    # Build shares the packed run's normal admission but does not launch the
+    # program. A custom toolchain path is passed as a single literal argument.
+    linker = run_directory / "toolchain clang"
+    linker.write_text('#!/bin/sh\n: > selected-clang\nexec clang "$@"\n')
+    linker.chmod(0o755)
+    build = [stage / "cinch", "--interfaces", package, "--objects", configuration, "build"]
+    build_prefix = run_directory / "build-only"
+    linked = invoke([*build, "--clang", linker, runtime, build_prefix, source],
+                    run_directory, leak=True)
+    assert not linked.stdout and (run_directory / "selected-clang").is_file()
+    assert build_prefix.with_suffix(".ll").read_bytes() == expected
+    built = invoke([build_prefix.with_suffix(".exe")], run_directory, leak=True)
+    assert built.stdout == run.stdout
+    refused_prefix = run_directory / "refused-build"
+    invoke([*build, "--clang", run_directory / "missing clang", runtime, refused_prefix, source],
+           run_directory, status=5, leak=True)
+    assert not refused_prefix.with_suffix(".exe").exists()
+    assert "could not link executable" in refused_prefix.with_suffix(".ll.diagnostics").read_text()
+
     use_embedded_abi(package, b"not the package bytes")
     invoke(command, work, status=7, leak=True)
     assert "bootstrap.object: runtime object artifact digest mismatch" in ir.with_suffix(".ll.diagnostics").read_text()

@@ -344,6 +344,10 @@ module Bootstrap.Pipeline where
 
   run-source-with-object-at :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
   run-source-with-object-at inlining debug reclaim profile manifest config runtime prefix source words =
+    link-source-with-object inlining debug reclaim profile manifest config runtime prefix source "clang" (Some words)
+
+  link-source-with-object :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
+  link-source-with-object inlining debug reclaim profile manifest config runtime prefix source clang run =
     let ir = path-from-string (prefix <> ".ll") in
     let executable = prefix <> ".exe" in
     let object-copy = prefix <> ".library.o" in
@@ -355,21 +359,23 @@ module Bootstrap.Pipeline where
       Ok (checked, provider, metadata, object-path, object-bytes) ->
         if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
         else if object-path-member (normalize-path object-path) paths then pipeline-bad-args
-        -- A run needs LLVM and the authenticated object snapshot.
+        -- Link the emitted IR against the authenticated object snapshot.
         else case emit-object-client inlining debug reclaim profile IrOnly checked provider source ir of
           0 -> (case fs-write (path-from-string object-copy) object-bytes of
             Err error -> pipeline-write-failed
-            Ok written -> link-object-client ir executable object-copy runtime metadata words)
+            Ok written -> link-object-client ir executable object-copy runtime metadata clang run)
           code -> code
-  link-object-client :: forall r. using (io :: Io r) => Path -> String -> String -> String -> Json -> List String ->{IO r, Diverge} Int
-  link-object-client ir executable object-copy runtime metadata words =
+  link-object-client :: forall r. using (io :: Io r) => Path -> String -> String -> String -> Json -> String -> Option (List String) ->{IO r, Diverge} Int
+  link-object-client ir executable object-copy runtime metadata clang run =
     let arguments = ["-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] <> object-client-system-libs metadata in
-    case process-run (command (path-from-string "clang") arguments) "" of
-      Ok (0, output) -> let program = path-from-string executable in
-        let program-path = if path-is-absolute program then program else path-from-string ("./" <> executable) in
-        (case process-run (command program-path words) "" of
-          Ok (status, output) -> case ioWrite output of _ -> nat-to-int status
-          Err error -> write-failure ir "bootstrap.driver: cannot execute linked program" pipeline-emit-refused)
+    case process-run (command (path-from-string clang) arguments) "" of
+      Ok (0, output) -> (case run of
+        None -> pipeline-ok
+        Some words -> let program = path-from-string executable in
+          let program-path = if path-is-absolute program then program else path-from-string ("./" <> executable) in
+          (case process-run (command program-path words) "" of
+            Ok (status, output) -> case ioWrite output of _ -> nat-to-int status
+            Err error -> write-failure ir "bootstrap.driver: cannot execute linked program" pipeline-emit-refused))
       other -> write-failure ir "bootstrap.driver: could not link executable and runtime objects" pipeline-emit-refused
   object-client-system-libs :: Json -> List String
   object-client-system-libs metadata = case object-field "target" metadata of

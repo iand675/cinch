@@ -16,8 +16,9 @@
 -- stage compiler it builds checks the toolkit 0.6 % faster inside the noise
 -- while the emitter itself spends 2 % more, so the default keeps the
 -- emitter's time.
--- With both compiled inputs selected, run takes RUNTIME PREFIX SOURCE
--- followed by the program's argument words. --rc-debug, in any position
+-- With both compiled inputs selected, build and run take RUNTIME PREFIX
+-- SOURCE, preceded by an optional --clang PATH. Run takes trailing program
+-- argument words. --rc-debug, in any position
 -- before the paths, emits the program's count operations as calls to the
 -- runtime's checked out-of-line entries (the rc_debug target profile).
 module Main where
@@ -25,7 +26,7 @@ module Main where
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
   import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode, compile-manifest-profile-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (ServeIr, run-source-with-object-at, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
+  import Bootstrap.Pipeline (ServeIr, link-source-with-object, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
   import Bootstrap.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
@@ -118,14 +119,10 @@ module Main where
         case wanted of
           (triple, False, required, features) -> run-options roots mode manifest object-config (triple, True, required, features) debug reclaim inlining selected rest
           other -> pipeline-bad-args
-      else if string-compare flag "run" == 0 then
-        case (roots, selected, manifest, object-config, rest) of
-          (None, False, Some contracts, Some provider, Cons runtime (Cons prefix (Cons source words))) ->
-            (case resolve-platform mode wanted of
-              Err message -> report-target-refusal (path-from-string prefix) message
-              Ok profile -> if string-compare (profile-triple profile) (profile-triple host-profile) == 0 then
-                run-source-with-object-at inlining debug reclaim profile contracts provider runtime prefix source (program-words words)
-                else report-target-refusal (path-from-string prefix) "a foreign target cannot run on this host")
+      else if string-compare flag "run" == 0 || string-compare flag "build" == 0 then
+        case (roots, selected, manifest, object-config) of
+          (None, False, Some contracts, Some provider) ->
+            link-words (string-compare flag "run" == 0) inlining debug reclaim (resolve-platform mode wanted) contracts provider rest
           other -> pipeline-bad-args
       else case (roots, mode, debug, reclaim, manifest, object-config, ws) of
         (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected mode manifest object-config (resolve-platform mode wanted) debug reclaim inlining ws
@@ -135,6 +132,26 @@ module Main where
             Ok profile -> compile-requested-library-object inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi))
         other -> pipeline-bad-args
     Nil -> pipeline-bad-args
+
+  link-words :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> List String ->{IO r, Diverge} Int
+  link-words run inlining debug reclaim profile contracts provider words =
+    case words of
+      Cons flag rest | string-compare flag "--clang" == 0 -> (case rest of
+        Cons clang paths | string-compare clang "" /= 0 ->
+          link-paths run inlining debug reclaim profile contracts provider clang paths
+        other -> pipeline-bad-args)
+      other -> link-paths run inlining debug reclaim profile contracts provider "clang" words
+
+  link-paths :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> String -> List String ->{IO r, Diverge} Int
+  link-paths run inlining debug reclaim wanted contracts provider clang paths = case paths of
+    Cons runtime (Cons prefix (Cons source words)) -> case (run, words) of
+      (False, Cons extra rest) -> pipeline-bad-args
+      other -> (case wanted of
+        Err message -> report-target-refusal (path-from-string prefix) message
+        Ok profile -> if string-compare (profile-triple profile) (profile-triple host-profile) == 0 then
+          link-source-with-object inlining debug reclaim profile contracts provider runtime prefix source clang (if run then Some (program-words words) else None)
+          else report-target-refusal (path-from-string prefix) (if run then "a foreign target cannot run on this host" else "native build requires a host target"))
+    other -> pipeline-bad-args
 
   program-words :: List String -> List String
   program-words words = case words of
