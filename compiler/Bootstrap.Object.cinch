@@ -31,7 +31,7 @@ module Bootstrap.Object where
   export read-object-unit-roots
   export llvm-object-symbol
   export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
-  export object-string-layout, llvm-data-bytes
+  export object-string-layout, llvm-data-bytes, object-has-unit-symbol
 
   data RuntimeUnit where
     RuntimeUnit :: String -> String -> List Nat -> Option Nat -> RuntimeUnit
@@ -45,6 +45,12 @@ module Bootstrap.Object where
   unit-params value = case value of RuntimeUnit name closure params result -> params
   unit-result :: RuntimeUnit -> Option Nat
   unit-result value = case value of RuntimeUnit name closure params result -> result
+  -- Keep output collision checks separate from source export authorization.
+  object-has-unit-symbol :: String -> RuntimeObject -> Bool
+  object-has-unit-symbol symbol value = case value of
+    RuntimeObject units exports instances dictionaries families constructors -> case hash-map-lookup symbol units of
+      Some unit -> True
+      None -> False
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json

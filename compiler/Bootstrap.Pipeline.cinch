@@ -24,7 +24,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
-  import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode)
+  import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
@@ -779,62 +779,82 @@ module Bootstrap.Pipeline where
       if string-compare key "interface_refs" == 0 || string-compare key "private_interfaces" == 0 then without-object-interface-refs rest
       else JObj key value (without-object-interface-refs rest)
     other -> other
-  object-interface-present :: String -> Json -> Option String
-  object-interface-present name rows = case rows of
+  object-interface-hashes :: Json -> HashMap String String -> HashMap String String
+  object-interface-hashes rows hashes = case rows of
     JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
-      (JStr actual, JStr hash) -> if string-compare name actual == 0 then Some hash else object-interface-present name rest
-      other -> None)
-    other -> None
+      (JStr name, JStr hash) -> (case hash-map-lookup name hashes of
+        Some previous -> object-interface-hashes rest hashes
+        None -> object-interface-hashes rest (hash-map-insert name hash hashes))
+      other -> hashes)
+    other -> hashes
   object-interface-closure :: List (String, Json) -> Json -> Result String Json
-  object-interface-closure rows old = case rows of
+  object-interface-closure rows old = add-object-interfaces rows (object-interface-hashes old hash-map-empty) old
+  add-object-interfaces :: List (String, Json) -> HashMap String String -> Json -> Result String Json
+  add-object-interfaces rows hashes old = case rows of
     Nil -> Ok old
     Cons (name, doc) rest -> let hash = interface-hash doc in
-      case object-interface-present name old of
-        Some actual -> if string-compare actual hash == 0 then object-interface-closure rest old else Err "object source disagrees with an admitted interface identity"
-        None -> object-interface-closure rest (JArr (object-interface-row name hash doc) old)
-  object-unit-present :: String -> Json -> Bool
-  object-unit-present name rows = case rows of
-    JArr row rest -> (case object-field "symbol" row of JStr actual -> string-compare name actual == 0 || object-unit-present name rest; other -> True)
-    JArrEnd -> False
-    other -> True
-  object-distinct-units :: Json -> Json -> Bool
-  object-distinct-units rows old = case rows of
+      case hash-map-lookup name hashes of
+        Some actual -> if string-compare actual hash == 0 then add-object-interfaces rest hashes old else Err "object source disagrees with an admitted interface identity"
+        None -> add-object-interfaces rest (hash-map-insert name hash hashes) (JArr (object-interface-row name hash doc) old)
+  -- The admitted provider already indexes its physical symbols. Index only
+  -- the generated units and share that map with conditional method lookup.
+  index-object-output-units :: Json -> RuntimeObject -> HashMap String Json -> Option (HashMap String Json)
+  index-object-output-units rows provider indexed = case rows of
     JArr row rest -> (case object-field "symbol" row of
-      JStr name -> not (object-unit-present name old) && object-distinct-units rest (JArr row old)
-      other -> False)
-    JArrEnd -> True
-    other -> False
+      JStr name | not (object-has-unit-symbol name provider) -> (case hash-map-lookup name indexed of
+        Some prior -> None
+        None -> index-object-output-units rest provider (hash-map-insert name row indexed))
+      other -> None)
+    JArrEnd -> Some indexed
+    other -> None
   object-merge-fields :: Json -> Json -> Json
   object-merge-fields newer older = case newer of
     JObj key value rest -> object-merge-fields rest (object-set key value older)
     JObjEnd -> older
     other -> JNull
-  object-family-remove :: String -> Json -> Json
-  object-family-remove name rows = case rows of
+  keep-old-families :: HashMap String Nat -> Json -> Json
+  keep-old-families updated rows = case rows of
     JArr row rest -> (case object-field "class" row of
-      JStr actual -> if string-compare name actual == 0 then object-family-remove name rest else JArr row (object-family-remove name rest)
-      other -> JArr row (object-family-remove name rest))
+      JStr name -> (case hash-map-lookup name updated of
+        Some index -> keep-old-families updated rest
+        None -> JArr row (keep-old-families updated rest))
+      other -> JArr row (keep-old-families updated rest))
     other -> JArrEnd
+  latest-family-rows :: Json -> Nat -> HashMap String Nat -> Option (HashMap String Nat)
+  latest-family-rows rows index updated = case rows of
+    JArr row rest -> (case object-field "class" row of
+      JStr name -> latest-family-rows rest (index + 1) (hash-map-insert name index updated)
+      other -> None)
+    JArrEnd -> Some updated
+    other -> None
+  prepend-new-families :: Json -> Nat -> HashMap String Nat -> Json -> Json
+  prepend-new-families rows index updated merged = case rows of
+    JArr row rest -> (case object-field "class" row of
+      JStr name -> (case hash-map-lookup name updated of
+        Some latest | latest == index -> prepend-new-families rest (index + 1) updated (JArr row merged)
+        other -> prepend-new-families rest (index + 1) updated merged)
+      other -> JNull)
+    JArrEnd -> merged
+    other -> JNull
+  -- Later rows replace earlier rows of the same class. Surviving new rows
+  -- are prepended in the original visitation order, leaving old rows ordered.
   object-merge-families :: Json -> Json -> Json
   object-merge-families newer older = case newer of
-    JArr row rest -> (case object-field "class" row of
-      JStr name -> object-merge-families rest (JArr row (object-family-remove name older))
-      other -> JNull)
     JArrEnd -> older
-    other -> JNull
+    other -> (case latest-family-rows newer 0 hash-map-empty of
+      Some updated -> prepend-new-families newer 0 updated (keep-old-families updated older)
+      None -> JNull)
   -- Conditional instances have private physical method entries and no
   -- unrestricted constructor. Publish the checked slot order alongside
   -- the object units so a separately checked client can call those entries.
-  object-method-field :: String -> Json -> Option Json
-  object-method-field name units = case units of
-    JArr row rest -> (case object-field "symbol" row of
-      JStr actual | string-compare name actual == 0 -> (case (object-field "params" row, object-field "result" row) of
-        (JArr first more, result) -> Some (JStr "O")
-        (JArrEnd, JStr result) -> Some (JStr result)
-        other -> None)
-      other -> object-method-field name rest)
-    other -> None
-  object-method-fields :: Json -> Json -> Result String Json
+  object-method-field :: String -> HashMap String Json -> Option Json
+  object-method-field name units = case hash-map-lookup name units of
+    Some row -> (case (object-field "params" row, object-field "result" row) of
+      (JArr first more, result) -> Some (JStr "O")
+      (JArrEnd, JStr result) -> Some (JStr result)
+      other -> None)
+    None -> None
+  object-method-fields :: Json -> HashMap String Json -> Result String Json
   object-method-fields methods units = case methods of
     JArrEnd -> Ok JArrEnd
     JArr (JStr name) rest -> (case (object-method-field name units, object-method-fields rest units) of
@@ -842,7 +862,7 @@ module Bootstrap.Pipeline where
       (None, other) -> Err ("conditional method has no compiled object unit: " <> name)
       (other, Err error) -> Err error)
     other -> Err "invalid conditional method list"
-  object-instance-methods :: Json -> Json -> Json -> Result String Json
+  object-instance-methods :: Json -> HashMap String Json -> Json -> Result String Json
   object-instance-methods rows units acc = case rows of
     JArr row rest -> (case (object-field "resolved" row, object-field "method_contracts" row) of
       (JNull, JArr first more) -> (case (object-field "id" row, object-field "class" row, object-field "ctx" row) of
@@ -854,7 +874,7 @@ module Bootstrap.Pipeline where
       other -> object-instance-methods rest units acc)
     JArrEnd -> Ok acc
     other -> Err "invalid instance inventory"
-  object-conditional-methods :: List (String, Json) -> Json -> Json -> Result String Json
+  object-conditional-methods :: List (String, Json) -> HashMap String Json -> Json -> Result String Json
   object-conditional-methods interfaces units acc = case interfaces of
     Nil -> Ok acc
     Cons (name, doc) rest -> (case object-instance-methods (object-field "instances" (object-field "exports" doc)) units acc of
@@ -937,10 +957,12 @@ module Bootstrap.Pipeline where
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
         Ok closure -> case emit-runtime-library-artifact-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) False inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
-          Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else if not (object-distinct-units units (object-field "units" document)) then write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused else
-            case object-conditional-methods exported units JObjEnd of
-              Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-              Ok rows -> write-library-object profile document closure exported prefix text units (object-set "dictionaries" rows facts) provider-code ir object abi
+          Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else
+            case index-object-output-units units provider hash-map-empty of
+              None -> write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused
+              Some indexed -> case object-conditional-methods exported indexed JObjEnd of
+                Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
+                Ok rows -> write-library-object profile document closure exported prefix text units (object-set "dictionaries" rows facts) provider-code ir object abi
   write-library-object :: forall r. using (io :: Io r) => TargetProfile -> Json -> Json -> List (String, Json) -> String -> String -> Json -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
   write-library-object profile document closure exported prefix text units facts provider-code ir object abi =
     case fs-write ir (string-to-bytes text) of
