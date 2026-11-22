@@ -58,7 +58,7 @@ fn two_instantiations_observe_different_dictionaries() {
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally (StepUp) as Up\n\
-             \x20 import Tally (StepDown) as Down\n\
+             \x20 import Tally (Api.StepDown) as Down\n\
              \x20 main :: Int\n\
              \x20 main = if Up.bump 1 == 2 && Down.bump 1 == 0 then 0 else 1\n",
         ),

@@ -322,15 +322,12 @@ fn method_site(s: &Scheme, ptys: &[Ty]) -> Option<(String, Vec<Ty>)> {
 
 impl Checker {
     fn resolution_instances(&self) -> &[InstanceInfo] {
-        self.declaration_seed.as_deref().unwrap_or(&self.instance_list)
+        self.declaration_seed.as_deref().map_or(&self.instance_list, |seed| &seed.instances)
     }
 
-    fn resolution_class_indices(&self, class: &str) -> Option<Vec<usize>> {
-        match &self.declaration_seed {
-            Some(instances) => Some(instances.iter().enumerate().filter_map(|(index, instance)|
-                (instance.target.class == class).then_some(index)).collect()),
-            None => self.instances.get(class).cloned(),
-        }
+    fn resolution_class_indices(&self, class: &str) -> Option<&[usize]> {
+        let classes = self.declaration_seed.as_deref().map_or(&self.instances, |seed| &seed.classes);
+        classes.get(class).map(Vec::as_slice)
     }
     fn runtime_method_site(&self, module: &str, scheme: &Scheme, ptys: &[Ty]) -> Result<Option<(String, Vec<Ty>)>> {
         let Some((class, own)) = method_site(scheme, ptys) else { return Ok(None) };
@@ -2045,6 +2042,21 @@ struct InstanceInfo {
     method_contracts: Vec<(usize, String, Scheme)>,
 }
 
+struct DeclarationInstanceSeed {
+    instances: Vec<InstanceInfo>,
+    classes: HashMap<String, Vec<usize>>,
+}
+
+impl DeclarationInstanceSeed {
+    fn new(instances: Vec<InstanceInfo>) -> Self {
+        let mut classes = HashMap::<String, Vec<usize>>::new();
+        for (index, instance) in instances.iter().enumerate() {
+            classes.entry(instance.target.class.clone()).or_default().push(index);
+        }
+        Self { instances, classes }
+    }
+}
+
 impl InstanceInfo {
     fn closed_declaration_header(&self) -> bool {
         let empty = Unifier::new();
@@ -3084,8 +3096,9 @@ struct Checker {
     class_law_contracts: HashMap<(String, String), Vec<crate::interface::ClassLawExport>>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
+    instances_by_name: HashMap<String, Vec<usize>>,
     instance_declarations: HashMap<GlobalId, Vec<usize>>,
-    declaration_seed: Option<Vec<InstanceInfo>>,
+    declaration_seed: Option<Arc<DeclarationInstanceSeed>>,
     collecting_declarations: bool,
     // Ordinary headers that depend on names produced by staging are kept as
     // source AST, never as provisional checked types or evidence.
@@ -3934,6 +3947,7 @@ impl Checker {
             class_law_contracts: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
+            instances_by_name: HashMap::new(),
             instance_declarations: HashMap::new(),
             declaration_seed: None,
             collecting_declarations: false,
@@ -12424,6 +12438,31 @@ mod index_substitution_tests {
     use super::*;
 
     #[test]
+    fn coherence_probes_release_their_type_variables() {
+        let mut checker = Checker::new();
+        let snapshot = checker.uni.snapshot();
+        let next_type_variable = checker.uni.fresh();
+        checker.uni.rollback_to(snapshot);
+        for (name, other) in [("First", Ty::Nat), ("Second", Ty::Int)] {
+            let carrier = Ty::Adt("Library.Carrier".into(), vec![Ty::Param("a".into())]);
+            checker.register_instance(InstanceInfo {
+                module: "Library".into(),
+                name: name.into(),
+                params: vec!["a".into()],
+                ctx: vec![],
+                target: ClassApp { class: "Library.PairClass".into(), args: vec![carrier, other] },
+                base_id: fn_id("Library", name),
+                implicit: true,
+                base: false,
+                method_obligs: vec![],
+                method_contracts: vec![],
+            });
+        }
+        checker.check_instance_coherence().unwrap();
+        assert_eq!(checker.uni.fresh(), next_type_variable);
+    }
+
+    #[test]
     fn index_headers_wait_for_complete_instances_even_when_one_matches() {
         let mut checker = Checker::new();
         checker.collecting_declarations = true;
@@ -12444,7 +12483,7 @@ mod index_substitution_tests {
         let (mut incomplete, _) = request(&checker);
         assert!(checker.finish_index_inference(&mut incomplete).is_err());
         assert!(checker.declaration_needs_headers.get());
-        checker.declaration_seed = Some(checker.instance_list.clone());
+        checker.declaration_seed = Some(Arc::new(DeclarationInstanceSeed::new(checker.instance_list.clone())));
         let (mut complete, witness) = request(&checker);
         checker.finish_index_inference(&mut complete).unwrap();
         assert!(matches!(complete.uni.resolve_idx(&witness), ITerm::Inst(call)

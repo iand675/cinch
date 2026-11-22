@@ -5973,6 +5973,7 @@ impl Checker {
     fn register_instance(&mut self, info: InstanceInfo) {
         let index = self.instance_list.len();
         self.instances.entry(info.target.class.clone()).or_default().push(index);
+        self.instances_by_name.entry(info.name.clone()).or_default().push(index);
         self.instance_declarations.entry(info.base_id.clone()).or_default().push(index);
         self.instance_list.push(info);
     }
@@ -6382,21 +6383,7 @@ impl Checker {
             (None, ast::ModuleArg::Name { quals, name }) => {
                 // A dictionary named where a value is wanted gets a
                 // precise error rather than an unknown name.
-                let mut cands = 0;
-                for inst in &self.instance_list {
-                    if inst.name != name.text {
-                        continue;
-                    }
-                    let named = match &quals[..] {
-                        [] => true,
-                        [q] => inst.module == q.text,
-                        _ => false,
-                    };
-                    if named {
-                        cands += 1;
-                    }
-                }
-                if cands > 0 {
+                if !self.named_instances(quals, &name.text).is_empty() {
                     return Err(Error::at(
                         span,
                         crate::diagnostic!(
@@ -6418,6 +6405,15 @@ impl Checker {
         }
     }
 
+    fn named_instances(&self, quals: &[ast::Name], name: &str) -> &[usize] {
+        let entries = match quals {
+            [] => self.instances_by_name.get(name),
+            [owner] => self.instance_declarations.get(&fn_id(&owner.text, name)),
+            _ => None,
+        };
+        entries.map_or(&[], Vec::as_slice)
+    }
+
     /// A named dictionary argument: an `instance` of the parameter's
     /// signature, selected explicitly by name (any instance, implicit or
     /// explicit: a module argument is explicit dictionary selection). Its
@@ -6430,18 +6426,7 @@ impl Checker {
         wanted: &Ty,
         span: ast::Span,
     ) -> Result<(ECore, String)> {
-        let mut cands: Vec<usize> = Vec::new();
-        for (i, inst) in self.instance_list.iter().enumerate() {
-            if inst.name != name.text {
-                continue;
-            }
-            match quals {
-                [] => cands.push(i),
-                [q] if inst.module == q.text => cands.push(i),
-                _ => {}
-            }
-        }
-        let idx = match cands.as_slice() {
+        let idx = match self.named_instances(quals, &name.text) {
             [] => {
                 return Err(Error::at(
                     span,
@@ -17436,20 +17421,19 @@ impl Checker {
     /// path; this is the authoritative check with real type machinery.
     fn check_instance_coherence(&mut self) -> Result<()> {
         #[derive(Default)]
-        struct ClassPeers<'a> {
-            all: Vec<usize>,
+        struct ArgumentPeers<'a> {
             other: Vec<usize>,
             by_nominal: HashMap<&'a str, Vec<usize>>,
         }
 
-        // Unification and conversion preserve a nominal type's outer name.
-        // On a unary head with different nominal names the probe would fail
-        // before unifying any arguments, so it cannot leave solver changes.
-        fn unary_nominal(target: &ClassApp) -> Option<&str> {
-            match target.args.as_slice() {
-                [Ty::Adt(name, _)] => Some(name.as_str()),
-                _ => None,
-            }
+        #[derive(Default)]
+        struct ClassPeers<'a> {
+            all: Vec<usize>,
+            positions: Vec<ArgumentPeers<'a>>,
+        }
+
+        fn later(indices: &[usize], first: usize) -> &[usize] {
+            &indices[indices.partition_point(|&second| second <= first)..]
         }
 
         // Preserve the original (a, b) diagnostic order while excluding
@@ -17462,24 +17446,39 @@ impl Checker {
         }
         for peers in candidates.values_mut().filter(|peers| peers.all.len() > 1) {
             for &index in &peers.all {
-                match unary_nominal(&self.instance_list[index].target) {
-                    Some(name) => peers.by_nominal.entry(name).or_default().push(index),
-                    None => peers.other.push(index),
+                let args = &self.instance_list[index].target.args;
+                if peers.positions.len() < args.len() {
+                    peers.positions.resize_with(args.len(), ArgumentPeers::default);
+                }
+                for (arg, position) in args.iter().zip(&mut peers.positions) {
+                    match arg {
+                        Ty::Adt(name, _) => position.by_nominal.entry(name.as_str()).or_default().push(index),
+                        _ => position.other.push(index),
+                    }
                 }
             }
         }
+        let rows = HashMap::new();
+        let regs = HashMap::new();
         for (a, first) in self.instance_list.iter().enumerate() {
             if first.base || !first.implicit {
                 continue;
             }
             let class = first.target.class.as_str();
             let peers = &candidates[class];
-            let (matched, other) = match unary_nominal(&first.target) {
-                Some(name) => (peers.by_nominal.get(name).map_or(&[][..], Vec::as_slice), peers.other.as_slice()),
-                None => (peers.all.as_slice(), &[][..]),
-            };
-            let mut matched = &matched[matched.partition_point(|&b| b <= a)..];
-            let mut other = &other[other.partition_point(|&b| b <= a)..];
+            let (mut matched, mut other) = (later(&peers.all, a), &[][..]);
+            // Unification preserves an ADT's outer name. Select the
+            // narrowest position with a rigid head, keeping every peer
+            // whose head at that position may still be flexible.
+            for (arg, position) in first.target.args.iter().zip(&peers.positions) {
+                if let Ty::Adt(name, _) = arg {
+                    let same = later(position.by_nominal.get(name.as_str()).map_or(&[][..], Vec::as_slice), a);
+                    let flexible = later(&position.other, a);
+                    if same.len() + flexible.len() < matched.len() + other.len() {
+                        (matched, other) = (same, flexible);
+                    }
+                }
+            }
             while let Some(b) = matched.first().into_iter().chain(other.first()).min().copied() {
                 if matched.first() == Some(&b) {
                     matched = &matched[1..];
@@ -17487,6 +17486,9 @@ impl Checker {
                     other = &other[1..];
                 }
                 let second = &self.instance_list[b];
+                // Coherence probes decide only whether a pair can overlap.
+                // Roll back bindings and temporary variables after each probe.
+                let trial = self.uni.snapshot();
                 let mut map_a: HashMap<String, Ty> = HashMap::new();
                 for param in &first.params {
                     map_a.insert(param.clone(), self.uni.fresh());
@@ -17495,14 +17497,13 @@ impl Checker {
                 for param in &second.params {
                     map_b.insert(param.clone(), self.uni.fresh());
                 }
-                let rows = HashMap::new();
-                let regs = HashMap::new();
                 let ca = Checker::subst_full_class(&first.target, &map_a, &rows, &regs);
                 let cb = Checker::subst_full_class(&second.target, &map_b, &rows, &regs);
                 let conflict = self.uni.unify(
                     &Ty::Adt(ca.class.into(), ca.args),
                     &Ty::Adt(cb.class.into(), cb.args),
                 ).is_ok();
+                self.uni.rollback_to(trial);
                 if conflict {
                     let name_a = &first.name;
                     let name_b = &second.name;
@@ -18776,8 +18777,8 @@ fn check_program_multi_full_prepared_impl(
             // Only programs whose headers need global index evidence take
             // this path. Provisional checkers never elaborate bodies or emit
             // interfaces. Every successful result is rebuilt strictly.
-            let mut seed: Option<Vec<InstanceInfo>> = None;
-            let mut seen: Vec<Vec<InstanceInfo>> = Vec::new();
+            let mut seed: Option<Arc<DeclarationInstanceSeed>> = None;
+            let mut seen: Vec<Arc<DeclarationInstanceSeed>> = Vec::new();
             let mut checked = None;
             let limit = prelude.iter().chain(modules).map(|module| module.decls.len()).sum::<usize>() + 2;
             for _ in 0..limit {
@@ -18787,24 +18788,25 @@ fn check_program_multi_full_prepared_impl(
                 provisional.declaration_seed = seed.clone();
                 collect_headers(&mut provisional)?;
                 let headers = provisional.instance_list;
-                if seed.as_ref() == Some(&headers) {
+                if seed.as_deref().is_some_and(|prior| prior.instances == headers) {
                     if !headers.iter().all(InstanceInfo::closed_declaration_header) {
                         return Err(Error::plain("cyclic or undetermined declaration evidence in instance headers"));
                     }
                     let mut strict = make_checker()?;
-                    strict.declaration_seed = Some(headers.clone());
+                    strict.declaration_seed = seed.clone();
                     let family = collect_headers(&mut strict)?;
                     if strict.instance_list == headers {
                         strict.declaration_seed = None;
                         checked = Some((strict, family));
                         break;
                     }
-                    seed = Some(strict.instance_list);
+                    seed = Some(Arc::new(DeclarationInstanceSeed::new(strict.instance_list)));
                 } else {
-                    if seen.contains(&headers) {
+                    if seen.iter().any(|prior| prior.instances == headers) {
                         return Err(Error::plain("cyclic declaration evidence: instance headers do not stabilize"));
                     }
-                    seen.push(headers.clone());
+                    let headers = Arc::new(DeclarationInstanceSeed::new(headers));
+                    seen.push(Arc::clone(&headers));
                     seed = Some(headers);
                 }
             }

@@ -146,7 +146,7 @@ impl DictionaryResolver<'_> {
             .unwrap_or_else(|| "*".to_string());
         self.checker.record_instance_search(&class, &bucket_head);
         if let Some(idxs) = self.checker.resolution_class_indices(&class) {
-            for i in idxs {
+            for &i in idxs {
                 if !self.checker.resolution_instances()[i].implicit && Some(i) != self.checker.self_instance
                 {
                     continue;

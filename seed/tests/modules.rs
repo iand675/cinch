@@ -166,6 +166,31 @@ fn instance_coherence_keeps_generic_heads_in_nominal_buckets() {
 }
 
 #[test]
+fn instance_coherence_checks_flexible_peers_in_later_argument_positions() {
+    let header = r#"module Main where
+  data Alpha a where
+    MkAlpha :: a -> Alpha a
+  data Beta a where
+    MkBeta :: a -> Beta a
+  signature Fit a b where
+    fits :: a -> b -> Bool
+  implicit instance FitAlpha a :: Fit (List a) (Alpha a) where
+    fits x y = True
+  implicit instance FitBeta a :: Fit (List a) (Beta a) where
+    fits x y = True
+  main :: Int
+  main = 0
+"#;
+    let dir = write_project(&[("Main.cinch", header)]);
+    check_entry(&dir, "Main.cinch").expect("the later nominal argument distinguishes the instances");
+
+    let generic = "  implicit instance FitAny a b :: Fit (List a) b where\n    fits x y = True\n";
+    std::fs::write(dir.join("Main.cinch"), format!("{header}{generic}")).unwrap();
+    let err = check_entry(&dir, "Main.cinch").expect_err("the flexible later argument can overlap");
+    assert!(err.contains("FitAlpha and FitAny have unifiable targets"), "{err}");
+}
+
+#[test]
 fn import_cycle_is_rejected() {
     let dir = write_project(&[
         (
