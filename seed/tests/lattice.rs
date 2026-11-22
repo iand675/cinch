@@ -777,6 +777,42 @@ module Main where
 }
 
 #[test]
+fn a_long_collection_fills_dictionary_holes_on_the_cli_stack() {
+    let elements = vec!["combine a b"; 256].join(", ");
+    let src = format!(
+        r#"module Main where
+  import Data.Sorted
+  signature Combiner a where
+    combine :: a -> a -> a
+  implicit instance CombinerList :: using (Sorted xs) => Combiner (List Nat) where
+    combine a b = a
+  collect :: List Nat -> List Nat -> List (List Nat)
+  collect a b = case decide (Ordered a) of
+    Yes wa -> case decide (Ordered b) of
+      Yes wb -> [{elements}]
+      No _ -> []
+    No _ -> []
+  main :: Int
+  main = 0
+"#
+    );
+    let project = tempfile::tempdir().expect("temporary project");
+    std::fs::write(project.path().join("Main.cinch"), src).expect("write source");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"))
+        .current_dir(project.path())
+        .env("CINCH_STORE", project.path().join("store"))
+        .args(["check", "Main.cinch", "--dump-core", "checked"])
+        .output()
+        .expect("run the compiler on its normal process stack");
+    assert!(
+        output.status.success(),
+        "checking the flat list exited with {}: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn signature_obligations_constrain_callers_identically() {
     // A signature's `using (Sorted xs, Sorted ys)` obligations bind its
     // dependent arguments and constrain callers exactly like the

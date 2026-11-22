@@ -6383,7 +6383,7 @@ impl Checker {
             || self.instance_defs_pending.get(module).is_some_and(|instances| {
                 instances.iter().any(|instance| instance.name.text == name)
             })
-            || self.instance_list.iter().any(|i| i.module == module && i.name == name)
+            || self.named_instance_header(module, name).is_some()
             || self.deferred_headers.contains_key(&(module.to_string(), name.to_string()));
         if declared {
             Some(SurfaceName {
@@ -11818,6 +11818,7 @@ impl Checker {
         // Wants whose method was applied directly (the call's head), the
         // only uses an instance's per-method obligations allow.
         let mut direct: HashSet<usize> = HashSet::new();
+        let mut wants_by_id = None;
         for call in calls {
             seen.insert(call.want);
             let Some(sol) = solutions.get(&call.want) else {
@@ -11829,12 +11830,7 @@ impl Checker {
                 // supplier's callers establish them).
                 continue;
             };
-            let Some(inst) = self
-                .instance_list
-                .iter()
-                .find(|i| i.base_id == *base_id)
-                .cloned()
-            else {
+            let Some(inst) = self.instance_header(base_id) else {
                 continue;
             };
             // Per-method obligations over the method's own arguments
@@ -11842,61 +11838,63 @@ impl Checker {
             // application only: its arguments are the method's. A want
             // found elsewhere in a call (a dictionary or a method passed
             // to another function) is checked as an indirect use below.
-            if let Some(midx) = call.method {
+            let method = call.method.and_then(|midx| {
                 direct.insert(call.want);
-                if let Some((_, mname, preds)) =
-                    inst.method_obligs.iter().find(|(i, _, _)| *i == midx)
-                {
-                    for p in preds {
-                        let mut fv = Vec::new();
-                        p.free_vars(&mut fv);
-                        let mut obl = p.clone();
-                        for v in &fv {
-                            let arg = v
-                                .strip_prefix("$a")
-                                .and_then(|i| i.parse::<usize>().ok())
-                                .and_then(|i| call.args.get(i));
-                            match arg {
-                                Some((Some(it), _, _)) => obl = obl.subst(v, it),
-                                Some((None, _, aspan)) => {
-                                    return Err(Error::at(
-                                        *aspan,
-                                        format!(
-                                            "`{mname}` of instance `{}` needs `{p}` of its arguments, so this argument must be a value the checker can name (a variable, a numeral, arithmetic over them); bind it with `let` first",
-                                            inst.name
-                                        ),
-                                    ))
-                                }
-                                None => {
-                                    return Err(Error::at(
-                                        call.span,
-                                        format!(
-                                            "`{mname}` of instance `{}` carries the obligation `{p}` over its arguments: apply it to all of them here (its obligation discharges at a full application)",
-                                            inst.name
-                                        ),
-                                    ))
-                                }
-                            }
-                        }
-                        if self.decide_closed_oblig(&obl, call.span)? {
-                            continue;
-                        }
-                        if call.args.iter().any(|(_, ty, _)| self.static_discharge(ty, &obl)) {
-                            continue;
-                        }
-                        let evidence = call.evidence.clone();
-                        self.discharge_oblig(&evidence, &obl, call.span)?;
-                    }
-                }
-            }
+                inst.method_obligs.iter().find(|(i, _, _)| *i == midx)
+            });
             let obligs: Vec<PTerm> = inst
                 .ctx
                 .iter()
-                .filter_map(|i| match i {
-                    InstCtx::Oblig(PropOblig::Pred(p)) => Some(p.clone()),
+                .filter_map(|item| match item {
+                    InstCtx::Oblig(PropOblig::Pred(pred)) => Some(pred.clone()),
                     _ => None,
                 })
                 .collect();
+            if method.is_none() && obligs.is_empty() {
+                continue;
+            }
+            let instance_name = inst.name.clone();
+            if let Some((_, mname, preds)) = method.cloned() {
+                for p in &preds {
+                    let mut fv = Vec::new();
+                    p.free_vars(&mut fv);
+                    let mut obl = p.clone();
+                    for v in &fv {
+                        let arg = v
+                            .strip_prefix("$a")
+                            .and_then(|i| i.parse::<usize>().ok())
+                            .and_then(|i| call.args.get(i));
+                        match arg {
+                            Some((Some(it), _, _)) => obl = obl.subst(v, it),
+                            Some((None, _, aspan)) => {
+                                return Err(Error::at(
+                                    *aspan,
+                                    format!(
+                                        "`{mname}` of instance `{}` needs `{p}` of its arguments, so this argument must be a value the checker can name (a variable, a numeral, arithmetic over them); bind it with `let` first",
+                                        instance_name
+                                    ),
+                                ))
+                            }
+                            None => {
+                                return Err(Error::at(
+                                    call.span,
+                                    format!(
+                                        "`{mname}` of instance `{}` carries the obligation `{p}` over its arguments: apply it to all of them here (its obligation discharges at a full application)",
+                                        instance_name
+                                    ),
+                                ))
+                            }
+                        }
+                    }
+                    if self.decide_closed_oblig(&obl, call.span)? {
+                        continue;
+                    }
+                    if call.args.iter().any(|(_, ty, _)| self.static_discharge(ty, &obl)) {
+                        continue;
+                    }
+                    self.discharge_oblig(&call.evidence, &obl, call.span)?;
+                }
+            }
             if obligs.is_empty() {
                 continue;
             }
@@ -11905,16 +11903,21 @@ impl Checker {
                     call.span,
                     format!(
                         "the methods of instance `{}` carry refinement obligations ({}): apply the method to all of its arguments here (its obligations discharge at its call's arguments)",
-                        inst.name,
+                        instance_name,
                         obligs.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
                     ),
                 ));
             }
             // The obligations apply to every argument of the carrier.
-            let carrier = wants
-                .iter()
-                .find(|w| w.id == call.want)
-                .map(|w| self.uni.zonk_class(&w.class))
+            let classes_by_id = wants_by_id.get_or_insert_with(|| {
+                let mut classes = HashMap::with_capacity(wants.len());
+                for want in wants {
+                    classes.entry(want.id).or_insert(&want.class);
+                }
+                classes
+            });
+            let carrier = classes_by_id.get(&call.want)
+                .map(|class| self.uni.zonk_class(class))
                 .and_then(|c| c.args.into_iter().next());
             for p in &obligs {
                 let binder = pred_binder(p);
@@ -11936,8 +11939,7 @@ impl Checker {
                     if self.static_discharge(ty, &obl) {
                         continue;
                     }
-                    let evidence = call.evidence.clone();
-                    self.discharge_oblig(&evidence, &obl, call.span)?;
+                    self.discharge_oblig(&call.evidence, &obl, call.span)?;
                 }
             }
         }
@@ -11950,12 +11952,7 @@ impl Checker {
             let Some(DictExpr::Instance(base_id, _, _)) = solutions.get(&w.id) else {
                 continue;
             };
-            let Some(inst) = self
-                .instance_list
-                .iter()
-                .find(|i| i.base_id == *base_id)
-                .cloned()
-            else {
+            let Some(inst) = self.instance_header(base_id) else {
                 continue;
             };
             let obligs: Vec<PTerm> = inst
@@ -11991,7 +11988,7 @@ impl Checker {
             let Some(DictExpr::Instance(base_id, _, _)) = solutions.get(&w.id) else {
                 continue;
             };
-            let Some(inst) = self.instance_list.iter().find(|i| i.base_id == *base_id) else {
+            let Some(inst) = self.instance_header(base_id) else {
                 continue;
             };
             if inst.method_obligs.is_empty() {
@@ -12159,114 +12156,61 @@ impl Checker {
         Ok(())
     }
 
-    fn fill_holes(&mut self, e: &ECore, sol: &HashMap<usize, DictExpr>) -> Result<ECore> {
-        Ok(match e {
-            ECore::LitFold { idx, body } => ECore::LitFold {
-                idx: *idx,
-                body: Box::new(self.fill_holes(body, sol)?),
-            },
-            ECore::Hole(id) => match sol.get(id) {
-                Some(d) => dict_expr_ecore(d),
-                None => return Err(Error::plain("internal error: unsolved dictionary hole")),
-            },
-            ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
-            | ECore::Unit | ECore::Var(_) | ECore::Global(..)
-            | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
-            | ECore::IdxPending(_) | ECore::Fault
-            | ECore::SyntaxLit(..) | ECore::StrLit(_) => e.clone(),
-            ECore::BoxAlloc => ECore::BoxAlloc,
-            ECore::BoxInit(l, v, t) => {
-                ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?), t.clone())
+    fn fill_holes(body: &mut ECore, solutions: &HashMap<usize, DictExpr>) -> Result<()> {
+        // Elaboration already owns the tree. Substitute only the holes
+        // and keep deeply nested constructor spines off the call stack.
+        let mut pending = vec![body];
+        while let Some(node) = pending.pop() {
+            match node {
+                ECore::Hole(id) => {
+                    let solution = solutions.get(id)
+                        .ok_or_else(|| Error::plain("internal error: unsolved dictionary hole"))?;
+                    *node = dict_expr_ecore(solution);
+                }
+                ECore::LitFold { body, .. }
+                | ECore::Lam { body, .. }
+                | ECore::PolyIntro { body, .. }
+                | ECore::DictProj(body, ..)
+                | ECore::Proj(body, ..)
+                | ECore::Demand(body, ..)
+                | ECore::LazyInit(_, body)
+                | ECore::BoxInit(_, body, _)
+                | ECore::BoxGet(body, _)
+                | ECore::BoxClear(body, _)
+                | ECore::RefSet(_, body, _) => pending.push(body),
+                ECore::Quote { holes, body, .. } => {
+                    pending.push(body);
+                    pending.extend(holes.iter_mut().rev());
+                }
+                ECore::DeclsQuote { holes, .. }
+                | ECore::MkClos { env: holes, .. }
+                | ECore::InstDict(_, holes, ..) => pending.extend(holes.iter_mut().rev()),
+                ECore::App(head, args) => {
+                    pending.extend(args.iter_mut().rev());
+                    pending.push(head);
+                }
+                ECore::Let(_, value, body) => {
+                    pending.push(body);
+                    pending.push(value);
+                }
+                ECore::If(cond, yes, no) => {
+                    pending.push(&mut no.body);
+                    pending.push(&mut yes.body);
+                    pending.push(cond);
+                }
+                ECore::Case { scrut, alts } => {
+                    pending.extend(alts.iter_mut().rev().map(|alt| alt.body.as_mut()));
+                    pending.push(scrut);
+                }
+                ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. }
+                | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
+                | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+                | ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_)
+                | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
+                | ECore::SyntaxLit(..) | ECore::StrLit(_) | ECore::BoxAlloc | ECore::LazyAlloc => {}
             }
-            ECore::RefSet(l, v, ty) => ECore::RefSet(*l, Box::new(self.fill_holes(v, sol)?), ty.clone()),
-            ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?), t.clone()),
-            ECore::BoxClear(v, t) => ECore::BoxClear(Box::new(self.fill_holes(v, sol)?), t.clone()),
-            ECore::Quote { template, holes, body } => ECore::Quote {
-                template: template.clone(),
-                holes: holes
-                    .iter()
-                    .map(|h| self.fill_holes(h, sol))
-                    .collect::<Result<Vec<_>>>()?,
-                body: Box::new(self.fill_holes(body, sol)?),
-            },
-            ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
-                template: template.clone(),
-                holes: holes
-                    .iter()
-                    .map(|h| self.fill_holes(h, sol))
-                    .collect::<Result<Vec<_>>>()?,
-                name_holes: name_holes.clone(),
-            },
-            ECore::DictProj(d, i, s, t) => {
-                ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone(), t.clone())
-            }
-            ECore::Proj(d, i, t, before) => {
-                ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone(), before.clone())
-            }
-            ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
-                g.clone(),
-                args.iter()
-                    .map(|a| self.fill_holes(a, sol))
-                    .collect::<Result<Vec<_>>>()?,
-                t.clone(),
-                *explicit,
-            ),
-            ECore::App(f, args) => ECore::App(
-                Box::new(self.fill_holes(f, sol)?),
-                args.iter()
-                    .map(|a| self.fill_holes(a, sol))
-                    .collect::<Result<Vec<_>>>()?,
-            ),
-            ECore::Lam { params, body } => ECore::Lam {
-                params: params.clone(),
-                body: Box::new(self.fill_holes(body, sol)?),
-            },
-            ECore::PolyIntro { skolems, body, ty } => ECore::PolyIntro {
-                skolems: skolems.clone(),
-                body: Box::new(self.fill_holes(body, sol)?),
-                ty: ty.clone(),
-            },
-            ECore::MkClos { fn_id, env } => ECore::MkClos {
-                fn_id: fn_id.clone(),
-                env: env.iter()
-                    .map(|a| self.fill_holes(a, sol))
-                    .collect::<Result<Vec<_>>>()?,
-            },
-            ECore::Let(l, v, body) => ECore::Let(
-                *l,
-                Box::new(self.fill_holes(v, sol)?),
-                Box::new(self.fill_holes(body, sol)?),
-            ),
-            ECore::If(c, t, f) => ECore::If(
-                Box::new(self.fill_holes(c, sol)?),
-                CBranch {
-                    weight: t.weight,
-                    body: Box::new(self.fill_holes(&t.body, sol)?),
-                },
-                CBranch {
-                    weight: f.weight,
-                    body: Box::new(self.fill_holes(&f.body, sol)?),
-                },
-            ),
-            ECore::Demand(d, t) => ECore::Demand(Box::new(self.fill_holes(d, sol)?), t.clone()),
-            ECore::LazyAlloc => ECore::LazyAlloc,
-            ECore::LazyInit(l, t) => {
-                ECore::LazyInit(*l, Box::new(self.fill_holes(t, sol)?))
-            }
-            ECore::Case { scrut, alts } => ECore::Case {
-                scrut: Box::new(self.fill_holes(scrut, sol)?),
-                alts: alts
-                    .iter()
-                    .map(|a| {
-                        Ok(CAlt {
-                            pat: a.pat.clone(),
-                            weight: a.weight,
-                            body: Box::new(self.fill_holes(&a.body, sol)?),
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?,
-            },
-        })
+        }
+        Ok(())
     }
 }
 

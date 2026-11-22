@@ -5983,6 +5983,17 @@ impl Checker {
         }
     }
 
+    fn instance_header(&self, id: &GlobalId) -> Option<&InstanceInfo> {
+        let &first = self.instance_declarations.get(id)?.first()?;
+        Some(&self.instance_list[first])
+    }
+
+    fn named_instance_header(&self, module: &str, name: &str) -> Option<&InstanceInfo> {
+        self.instances_by_name.get(name)?.iter()
+            .map(|&index| &self.instance_list[index])
+            .find(|info| info.module == module)
+    }
+
     fn register_instance(&mut self, info: InstanceInfo) {
         let index = self.instance_list.len();
         self.instances.entry(info.target.class.clone()).or_default().push(index);
@@ -6593,8 +6604,8 @@ impl Checker {
             }
             let sol = self.solve_wants()?;
             let mut filled: Vec<(ECore, String)> = Vec::new();
-            for (c, text) in arg_cores.into_iter().zip(&arg_texts) {
-                let c = self.fill_holes(&c, &sol)?;
+            for (mut c, text) in arg_cores.into_iter().zip(&arg_texts) {
+                Self::fill_holes(&mut c, &sol)?;
                 filled.push((c, text.clone()));
             }
             // Deferred literal words and index arguments resolve
@@ -8154,14 +8165,15 @@ impl Checker {
         // Temporal contracts (core specification section 10): the
         // per-step obligations read the same resolved write log.
         self.check_temporal(&id)?;
-        body = self.fill_holes(&body, &sol)?;
-        for (module, span, expression) in std::mem::take(&mut self.pending_erasure_checks) {
-            let expression = self.fill_holes(&expression, &sol)?;
+        Self::fill_holes(&mut body, &sol)?;
+        for (module, span, mut expression) in std::mem::take(&mut self.pending_erasure_checks) {
+            Self::fill_holes(&mut expression, &sol)?;
             self.erasure_checks.entry(module).or_default().push((span, expression));
         }
         let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
-        for (mid, core) in std::mem::take(&mut self.pending_rec) {
-            recs.push((mid, self.fill_holes(&core, &sol)?));
+        for (mid, mut core) in std::mem::take(&mut self.pending_rec) {
+            Self::fill_holes(&mut core, &sol)?;
+            recs.push((mid, core));
         }
         // Deferred literal words and implicit index arguments resolve
         // positionally across the body and its `letrec` member units at
@@ -10596,10 +10608,10 @@ impl Checker {
         let mut m = match_ec;
         let mut rp = replace_ec;
         let mut req_ec = require_pair.as_ref().map(|p| p.0.clone());
-        m = self.fill_holes(&m, &sol)?;
-        rp = self.fill_holes(&rp, &sol)?;
+        Self::fill_holes(&mut m, &sol)?;
+        Self::fill_holes(&mut rp, &sol)?;
         if let Some(req) = &mut req_ec {
-            *req = self.fill_holes(req, &sol)?;
+            Self::fill_holes(req, &sol)?;
         }
         let lit_pends = std::mem::take(&mut self.literal_pends);
         let mut lits: Vec<ECore> = Vec::with_capacity(lit_pends.len());
@@ -19572,7 +19584,7 @@ impl Checker {
     fn syntax_value_declared(&self, owner: &str, name: &str) -> bool {
         self.deferred_headers.contains_key(&(owner.to_string(), name.to_string()))
             || self.values.get(name).is_some_and(|values| values.iter().any(|value| value.module == owner && value.name == name))
-            || self.instance_list.iter().any(|instance| instance.module == owner && instance.name == name)
+            || self.named_instance_header(owner, name).is_some()
             || self.pending_instance_heads.iter().any(|(module, instance)| module == owner && instance.name.text == name)
     }
 
@@ -24738,7 +24750,8 @@ impl Checker {
         // solving, literal resolution, the collection fold, lambda
         // hoisting) and run it through the evaluator.
         let id = GlobalId(format!("{}.probe", p.module));
-        let mut body = self.fill_holes(&ecore, &sol)?;
+        let mut body = ecore;
+        Self::fill_holes(&mut body, &sol)?;
         let lits = self.resolved_literals()?;
         let vals = self.resolved_idx_args()?;
         resolve_lit_words(&mut body, &lits);

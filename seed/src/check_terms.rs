@@ -12008,7 +12008,7 @@ impl Checker {
             }
         };
         let Some(inst) = candidates.iter().find_map(|(module, name)| {
-            self.instance_list.iter().find(|i| i.module == *module && i.name == *name).cloned()
+            self.named_instance_header(module, name).cloned()
         }) else { return Ok(None); };
         if !inst.method_obligs.is_empty() {
             return Err(Error::at(path.span(), Self::method_oblig_refusal(&inst, &inst.target)));
