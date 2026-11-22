@@ -4711,33 +4711,15 @@ impl<'a> CoreDump<'a> {
     fn new(
         opts: &DriverOptions,
         profile: &'a crate::core::TargetProfile,
-        ifaces: &[crate::interface::Iface],
         entry_modules: &[String],
-        path: &Path,
         out_dir: &Path,
         stem: &str,
     ) -> CoreDump<'a> {
-        use sha2::{Digest, Sha256};
-        let signatures = crate::coretext::Signatures::from_ifaces(ifaces);
-        let modules: std::collections::BTreeSet<String> = entry_modules.iter().cloned().collect();
-        // The source identity is the checked sources of the dumped modules,
-        // not a file list: sorted, so a directory walk cannot reorder it.
-        let mut identity = String::new();
-        for iface in ifaces {
-            if modules.contains(&iface.module) {
-                identity.push_str(&iface.module);
-                identity.push('\0');
-                identity.push_str(&iface.source_hash);
-                identity.push('\n');
-            }
-        }
-        let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
-        let _ = path;
         CoreDump {
             stage: opts.dump_core,
             out: opts.core_out.clone(),
             profile,
-            modules,
+            modules: entry_modules.iter().cloned().collect(),
             dir: out_dir.to_path_buf(),
             stem: stem.to_string(),
             opt_level: opts.opt_level.unwrap_or(0),
@@ -5823,7 +5805,7 @@ pub fn driver_with_profile_opts(
     // Core dumps (design/core-output.md section 2): the checked program
     // prints here, and the ownership stage prints the count pass applied to
     // that same program, which is why the two are target independent.
-    let dump = CoreDump::new(opts, profile, &ifaces, &project.entry_modules, path, &out_dir, &entry_stem);
+    let dump = CoreDump::new(opts, profile, &project.entry_modules, &out_dir, &entry_stem);
     let mut core_rows: Vec<CoreRow> = Vec::new();
     if dump.wants(crate::coretext::Stage::Checked)
         || (mode == Mode::Check && dump.stage().is_some())
@@ -5885,7 +5867,14 @@ pub fn driver_with_profile_opts(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     trace_driver_phase(phase_trace, "optimization.begin");
-    let (mut program, mut opt, method_families) = if mode == Mode::EmitObject {
+    let (mut program, mut opt, method_families) = if mode == Mode::Check
+        && !opts.emit_interface_optimisations
+        && opts.interface_optimisations.is_none()
+    {
+        // Contract and checked-Core output use the checked program. Only
+        // a request to publish or consume unfoldings needs residual IR.
+        (program, crate::core::OptReport::default(), Vec::new())
+    } else if mode == Mode::EmitObject {
         crate::specialize::optimize_object_with_foreign(
             &program,
             profile,
