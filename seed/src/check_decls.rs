@@ -5371,7 +5371,7 @@ impl Checker {
                 if let Some(index) = self.top_eqs_by_symbol.get_mut() {
                     index.entry(fn_id(&module, &name).0).or_default().push(position);
                 }
-                self.top_eqs.push((module.clone(), name, eq));
+                self.top_eqs.push((module.clone(), name, Arc::new(eq)));
             }
         }
         // A module parameter is an ordinary binding of the module scope:
@@ -5715,7 +5715,7 @@ impl Checker {
             .unwrap_or_default()
     }
 
-    fn top_equations(&self, module: &str, name: &str) -> impl Iterator<Item = &ast::Equation> {
+    fn top_equations(&self, module: &str, name: &str) -> impl Iterator<Item = &Arc<ast::Equation>> {
         self.top_equation_indices(module, name)
             .iter()
             .map(|&position| &self.top_eqs[position].2)
@@ -5757,13 +5757,21 @@ impl Checker {
             }
             Some((module.clone(), fn_id(module, name), (**head).clone()))
         }).collect();
-        let current = self.current_module.clone();
-        let visible = self.visible.clone();
-        let views = self.scope_views.clone();
         self.task_forwarders.clear();
+        if candidates.is_empty() {
+            return;
+        }
+        let current = std::mem::take(&mut self.current_module);
+        let visible = std::mem::take(&mut self.visible);
+        let views = std::mem::take(&mut self.scope_views);
+        let env = Env::default();
+        let mut installed_module = None;
         for (module, id, head) in candidates {
-            self.build_scope(&module, true);
-            if self.conc_builtin(&Env::default(), &head)
+            if installed_module.as_deref() != Some(module.as_str()) {
+                self.build_scope(&module, true);
+                installed_module = Some(module);
+            }
+            if self.conc_builtin(&env, &head)
                 .is_some_and(|value| matches!(value.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))))
             {
                 self.task_forwarders.insert(id);
@@ -5820,12 +5828,12 @@ impl Checker {
         self.cur_mod_params.clear();
         self.process_units(module)?;
 
-        // Check bindings in the order of their first equation.
-        let first_equations: Vec<_> = self.top_eqs_by_module.get(module).into_iter()
-            .flat_map(|equations| equations.groups.iter().map(|group| group[0]))
-            .collect();
-        for first in first_equations {
-            let key = (module.to_owned(), self.top_eqs[first].1.clone());
+        // Groups are appended in the order of their first equation.
+        let group_count = self.top_eqs_by_module.get(module)
+            .map_or(0, |equations| equations.groups.len());
+        for group in 0..group_count {
+            let positions = &self.top_eqs_by_module[module].groups[group];
+            let key = (module.to_owned(), self.top_eqs[positions[0]].1.clone());
             let name = &key.1;
             // Staging (P9): `stage`/`macro` definitions are compile-time
             // only, and code compiled on demand for compile-time evaluation
@@ -5833,8 +5841,12 @@ impl Checker {
             if self.checked_early.contains(&key) || self.staging.contains(&key) {
                 continue;
             }
-            let eqs: Vec<ast::Equation> = self.top_equation_indices(module, name)
-                .iter().map(|&position| self.top_eqs[position].2.clone()).collect();
+            // Retain the syntax while the mutable checker can compile
+            // other definitions on demand.
+            let equations: Vec<_> = positions.iter()
+                .map(|&position| Arc::clone(&self.top_eqs[position].2))
+                .collect();
+            let eqs: Vec<_> = equations.iter().map(Arc::as_ref).collect();
             let scheme = self.top_schemes[&key].clone();
             let id = fn_id(module, name);
             // An ordinary top-level definition is a top-level value
@@ -5935,7 +5947,8 @@ impl Checker {
                     .map(|(_, s)| s.clone())
                     .expect("a default names a declared method (checked at collection)");
                 let gid = GlobalId(format!("{module}.{}.{mname}.default", sig.name));
-                self.check_equations(mname, &gid, &scheme, eqs, Vec::new())?;
+                let equation_refs: Vec<_> = eqs.iter().collect();
+                self.check_equations(mname, &gid, &scheme, &equation_refs, Vec::new())?;
                 let body = self.portable_default_body(eqs).ok_or_else(|| {
                     Error::at(eqs[0].span, format!("class default `{mname}` uses unsupported interface syntax"))
                 })?;
@@ -6218,7 +6231,8 @@ impl Checker {
             if from_default {
                 self.method_annotation_aliases = Some(body_map.clone());
             }
-            let checked = self.check_equations(mname, &gid, &scheme, &eqs, Vec::new());
+            let equation_refs: Vec<_> = eqs.iter().collect();
+            let checked = self.check_equations(mname, &gid, &scheme, &equation_refs, Vec::new());
             self.method_annotation_aliases = saved_aliases;
             self.method_tparams = None;
             if from_default {
@@ -7015,7 +7029,7 @@ impl Checker {
 
     /// Does this definition produce codata (its result type is codata, or
     /// its body builds a codata value)?
-    fn produces_codata(&self, scheme: &Scheme, eqs: &[ast::Equation]) -> bool {
+    fn produces_codata(&self, scheme: &Scheme, eqs: &[&ast::Equation]) -> bool {
         let mut t = &scheme.ty;
         loop {
             match t {
@@ -7052,7 +7066,7 @@ impl Checker {
     /// not certified, so any unguarded recursion must be reflected in its
     /// type (`Diverge` on the arrows) or refused where no row can carry
     /// the loss of productivity.
-    fn check_productivity(&self, name: &str, scheme: &Scheme, eqs: &[ast::Equation]) -> Result<()> {
+    fn check_productivity(&self, name: &str, scheme: &Scheme, eqs: &[&ast::Equation]) -> Result<()> {
         let key = (self.current_module.clone(), name.to_string());
         if self.corec.contains(&key) {
             let group = self.rec_group(name);
@@ -7420,7 +7434,7 @@ impl Checker {
         name: &str,
         id: &GlobalId,
         scheme: &Scheme,
-        eqs: &[ast::Equation],
+        eqs: &[&ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
     ) -> Result<()> {
         let saved = self.code_quantifiers.clone();
@@ -7453,7 +7467,7 @@ impl Checker {
         name: &str,
         id: &GlobalId,
         scheme: &Scheme,
-        eqs: &[ast::Equation],
+        eqs: &[&ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
         annotation_aliases: Option<HashMap<String, Ty>>,
     ) -> Result<()> {
@@ -13765,7 +13779,7 @@ fn collect_pat_names(p: &ast::Pat, out: &mut Vec<String>) {
 fn collect_body_facts(
     self_mod: &str,
     self_name: &str,
-    eqs: &[ast::Equation],
+    eqs: &[&ast::Equation],
     foreign: &ForeignMarks,
 ) -> BodyFacts {
     let mut facts = BodyFacts::default();
@@ -13994,7 +14008,7 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
 /// recursive call steps the counter down a literal. The bound is the
 /// deepest chain of nested self-call frames from any entry counter.
 /// Returns `None` when no conservative bound applies.
-fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u64> {
+fn literal_ladder(eqs: &[&ast::Equation], self_calls: &[SelfCallRec]) -> Option<u64> {
     if self_calls.is_empty() {
         return None;
     }
@@ -14074,7 +14088,7 @@ fn bounded_proof(rec: &SafetyRecord) -> Result<(String, Established)> {
 /// subcomponent chains, extended with the well-founded measure decrease
 /// of core specification section 8).
 fn structural_proof_for(
-    eqs: &[ast::Equation],
+    eqs: &[&ast::Equation],
     doms: &[Ty],
     facts: &BodyFacts,
     def_span: ast::Span,
@@ -14210,7 +14224,7 @@ impl Checker {
         key: &str,
         module: &str,
         name: &str,
-        eqs: &[ast::Equation],
+        eqs: &[&ast::Equation],
         doms: &[Ty],
         logical: bool,
         def_span: ast::Span,
@@ -14639,7 +14653,7 @@ impl Checker {
         &mut self,
         module: &str,
         name: &str,
-        eqs: &[ast::Equation],
+        eqs: &[&ast::Equation],
         sig_tys: &[Ty],
     ) -> Result<()> {
         let key = (module.to_string(), name.to_string());
@@ -14704,7 +14718,7 @@ impl Checker {
             name: name.to_string(),
             id: fn_id(module, name),
             contracts,
-            eqs: eqs.to_vec(),
+            eqs: eqs.iter().map(|&equation| equation.clone()).collect(),
             doms,
             params,
             def_span: eqs[0].span,
@@ -15174,7 +15188,8 @@ impl Checker {
             ));
         }
         let marks = self.foreign_marks();
-        let facts = collect_body_facts(&pending.module, &pending.name, &pending.eqs, &marks);
+        let equations: Vec<_> = pending.eqs.iter().collect();
+        let facts = collect_body_facts(&pending.module, &pending.name, &equations, &marks);
         let has = |k: &str| facts.conc_sites.iter().any(|(k2, _)| k2 == k);
         if !has("scope") || !has("spawn") {
             return Err(Error::at(
@@ -15229,7 +15244,8 @@ impl Checker {
             ));
         }
         let marks = self.foreign_marks();
-        let facts = collect_body_facts(&pending.module, &pending.name, &pending.eqs, &marks);
+        let equations: Vec<_> = pending.eqs.iter().collect();
+        let facts = collect_body_facts(&pending.module, &pending.name, &equations, &marks);
         if facts.self_calls.is_empty() {
             return Err(Error::at(
                 contract.span,
@@ -15239,7 +15255,7 @@ impl Checker {
             ));
         }
         let Some((report, _)) = structural_proof_for(
-            &pending.eqs,
+            &equations,
             &pending.doms,
             &facts,
             pending.def_span,
@@ -19709,7 +19725,8 @@ impl Checker {
         if cx.fns.contains_key(&id.0) {
             return Ok(());
         }
-        let eqs: Vec<ast::Equation> = self.top_equations(module, name).cloned().collect();
+        let equations: Vec<_> = self.top_equations(module, name).cloned().collect();
+        let eqs: Vec<_> = equations.iter().map(Arc::as_ref).collect();
         let scheme = self
             .top_schemes
             .get(&(module.to_string(), name.to_string()))
@@ -20474,7 +20491,7 @@ impl Checker {
         self.set_scope(&module);
         let before = self.fns.len();
         self.compile_time = true;
-        let r = self.check_equations(&name, &id, &scheme, std::slice::from_ref(&eq), Vec::new());
+        let r = self.check_equations(&name, &id, &scheme, &[&eq], Vec::new());
         self.compile_time = false;
         r?;
         for f in self.fns.drain(before..) {
@@ -20629,11 +20646,12 @@ impl Checker {
             let globals = std::sync::Arc::new((*self.syntax_global_scope(&module)).clone().with_dictionary_bindings(dictionaries));
             let values = implicit_values.into_iter().chain(context_values).collect::<Vec<_>>();
             let positions = self.top_equation_indices(&module, &name).to_vec();
-            let mut eqs: Vec<_> = positions.iter()
-                .map(|&position| self.top_eqs[position].2.clone())
+            let originals: Vec<_> = positions.iter()
+                .map(|&position| Arc::clone(&self.top_eqs[position].2))
                 .collect();
-            for eq in &mut eqs {
-                *eq = ast::scope_equation(eq, &values, globals.clone())?;
+            let mut expanded = Vec::with_capacity(originals.len());
+            for original in originals {
+                let mut eq = ast::scope_equation(&original, &values, globals.clone())?;
                 for term in eq.terms_mut() { self.expand_macros_in_term(cx, &module, term)?; }
                 for l in &mut eq.locals {
                     if let ast::LocalDecl::Eq { body, .. }
@@ -20643,9 +20661,10 @@ impl Checker {
                         self.expand_macros_in_term(cx, &module, body)?;
                     }
                 }
+                expanded.push(Arc::new(eq));
             }
             self.top_recursion_groups.get_mut().remove(&module);
-            for (position, equation) in positions.into_iter().zip(eqs) {
+            for (position, equation) in positions.into_iter().zip(expanded) {
                 self.top_eqs[position].2 = equation;
             }
         }
@@ -21788,7 +21807,9 @@ impl Checker {
         if self.staging.contains(&key) {
             return self.compile_unit(cx, module, name);
         }
-        let mut eqs: Vec<ast::Equation> = self.top_equations(module, name).cloned().collect();
+        let mut eqs: Vec<_> = self.top_equations(module, name)
+            .map(|equation| equation.as_ref().clone())
+            .collect();
         if eqs.is_empty() {
             return Err(Error::plain(format!("no definition for {name}")));
         }
@@ -21804,7 +21825,8 @@ impl Checker {
         self.set_scope(module);
         let id = fn_id(module, name);
         let before = self.fns.len();
-        self.check_equations(name, &id, &scheme, &eqs, Vec::new())?;
+        let equation_refs: Vec<_> = eqs.iter().collect();
+        self.check_equations(name, &id, &scheme, &equation_refs, Vec::new())?;
         for f in self.fns[before..].iter() {
             cx.fns.insert(f.id.0.clone(), f.clone());
         }

@@ -3158,7 +3158,7 @@ struct Checker {
     syntax_implicit_values: HashMap<(String, String), Vec<ast::Name>>,
     syntax_context_values: HashMap<(String, String), Vec<ast::Name>>,
     /// Top-level equations in declaration order, with positions stable across macro expansion.
-    top_eqs: Vec<(String, String, ast::Equation)>,
+    top_eqs: Vec<(String, String, Arc<ast::Equation>)>,
     top_eqs_by_module: HashMap<String, ModuleEquations>,
     /// Built only if index reduction needs the source equations for a symbol.
     top_eqs_by_symbol: std::cell::OnceCell<HashMap<String, Vec<usize>>>,
