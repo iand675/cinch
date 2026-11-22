@@ -29,10 +29,10 @@
 -- part of the implicit surface exactly as when they appended to the
 -- old single module.
 --
--- The fixity table below is the operator table the old prelude
--- declared (decision D90's order): it is the base table every module
--- parses against, and the operator-owning homes declare the same
--- fixities per-module (decision D2's style).
+-- The operator table (decision D90's order) is inherited through these
+-- exports from the defining homes. Only an operator's declaring module
+-- may declare its fixity; this facade carries those facts without
+-- redeclaring them (user direction, 2026-10-30).
 module Prelude where
 
   import Data.Option
@@ -66,20 +66,8 @@ module Prelude where
   import Prelude.Generated
 
 
-  -- Operator precedence follows the Rust reference table (decision D90),
-  -- laid onto the 0-9 scale; every new binary operator is left
-  -- associative like Rust's. The relative order of the existing
-  -- operators is unchanged, so no previously valid program re-parses.
-  infixl 9 *, /, %
-  infixl 8 +, -
-  infixl 7 <<, >>
-  infixl 6 &
-  infixl 5 ^
-  infixl 4 |
-  infix 3 ==, /=
-  infix 3 <, <=, >, >=
-  infixr 2 &&
-  infixr 1 ||
+  -- Operator fixities are inherited from their defining modules, with
+  -- the exported bindings. The facade does not redeclare them.
 
   export module Data.Option
   export module Data.Result

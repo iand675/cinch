@@ -1,0 +1,92 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  good :: UType -> UType -> Bool
+  good a b = case store-errors (unify sp a b (empty-store "proof-type")) of Nil -> True; other -> False
+  bad :: UType -> UType -> Bool
+  bad a b = not (good a b)
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in
+    let other = nonce + 2 in
+    let index = UIndex nat (IBound id "n") in
+    let zero = UIndex nat (IInteger 0) in
+    let p = UCompare ">" index zero in
+    let q = UCompare ">=" index zero in
+    let required = URequire (UArg p UEnd) nat in
+    let arrow = UPi id "n" nat (URow UEnd) required in
+    let renamed = UPi other "different" nat (URow UEnd) (URequire (UArg (UCompare ">" (UIndex nat (IBound other "different")) zero) UEnd) nat) in
+    let instantiated = substitute-bound [(id, UIndex nat (IInteger 3))] required in
+    let literal = URequire (UArg (UCompare ">" (UIndex nat (IInteger 3)) zero) UEnd) nat in
+    let capture = substitute-bound [(other, UIndex nat (IBound id "free"))] (UPi id "bound" nat (URow UEnd) (URequire (UArg (UCompare "==" (UIndex nat (IBound other "x")) index) UEnd) nat)) in
+    let capture-avoided = case capture of UPi fresh name domain row result -> not (fresh == id); value -> False in
+    let roundtrip = case value-carrier (value-kind arrow) of Some value -> good arrow value; None -> False in
+    let (meta, store) = fresh-meta KProp (empty-store "proposition-meta") in
+    let closed-p = UCompare ">" (UIndex nat (IInteger 3)) zero in
+    let solved = unify sp meta closed-p store in
+    let meta-solved = case store-errors solved of Nil -> good (normalize solved meta) closed-p; value -> False in
+    let wrong-kind = case store-errors (unify sp meta nat store) of Nil -> False; value -> True in
+    let escaped = case store-errors (unify sp meta (UCompare "==" (UIndex nat (IRigid id "inner" 3)) zero) store) of Nil -> False; value -> True in
+    let capture-meta-left = UPi id "n" nat (URow UEnd) (URequire (UArg meta UEnd) nat) in
+    let capture-meta-right = UPi other "n" nat (URow UEnd) (URequire (UArg (UCompare ">" (UIndex nat (IBound other "n")) zero) UEnd) nat) in
+    let no-meta-capture = case store-errors (unify sp capture-meta-left capture-meta-right store) of Nil -> False; value -> True in
+    let occurs = case store-errors (unify sp meta (UPropNot meta) store) of Nil -> False; value -> True in
+    let complex = UPi id "n" nat (URow UEnd) (URequire (UArg (UPropAnd (UPropLit True) (UPropOr p (UPropNot q))) UEnd) nat) in
+    let complex-codec = case value-carrier (value-kind complex) of Some value -> good complex value; None -> False in
+    let family = UApp (UCon "Dec" (KFun KProp KType)) (UPropLit True) in
+    let kind-codec = case value-carrier (value-kind family) of Some value -> good family value; None -> False in
+    let metadata = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono arrow)] in
+    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono required)] in
+    let runtime-prop = MkCoreDefinition sp "bad" (mono (UCon "Bool" KType)) Nil Nil Nil [MkCoreClause sp Nil (CUse sp (UPropLit True) "fabricated" "value" Nil)] in
+    let unchecked-required = MkCoreDefinition sp "bad" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CUse sp literal "fabricated" "value" Nil)] in
+    [ kind-equal (type-kind p) KProp
+    , not (kind-equal KProp KType)
+    , valid-type p
+    , valid-type required
+    , valid-type arrow
+    , good arrow renamed
+    , good instantiated literal
+    , capture-avoided
+    , roundtrip
+    , meta-solved
+    , wrong-kind
+    , escaped
+    , no-meta-capture
+    , occurs
+    , complex-codec
+    , kind-codec
+    , core-data-closed metadata
+    , not (core-data-closed leaked)
+    , not (core-definition-closed runtime-prop)
+    , not (core-definition-closed unchecked-required)
+    , bad required nat
+    , bad nat required
+    , bad p q
+    , bad (UPropAnd p q) (UPropAnd q p)
+    , bad (UPropLit True) (UPropLit False)
+    , not (valid-type (UCompare "invented" index zero))
+    , not (valid-type (UCompare ">" index (UIndex integer (IInteger 0))))
+    , not (valid-type (UPropAnd nat p))
+    , not (valid-type (URequire (UArg nat UEnd) nat))
+    , not (valid-type (URequire (UArg p UEnd) p))
+    , not (valid-type (UFun p nat))
+    , not (valid-kind (value-kind p))
+    , bad (UCompare "invented" index zero) (UCompare "invented" index zero)
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict checks next = case checks of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict (checks (bytes-len bytes + 340282366920938463463374607431768211456)) 1

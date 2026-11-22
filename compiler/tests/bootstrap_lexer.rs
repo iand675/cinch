@@ -340,7 +340,6 @@ fn lexer_reads_the_corpus_and_agrees_with_the_compiler() {
 /// module (55 and up), both example trees, the `prim` fixtures, the toolkit
 /// and the synthetics, one bounded program run per source.
 #[test]
-#[ignore = "not green yet: the sweep stops at prelude/Data/BigDecimal.cinch, where the compiled program dies on SIGSEGV (a runtime crash, not a LexedFail), and it needs minutes for the rest"]
 fn the_whole_prelude_lexes_and_agrees_with_the_compiler() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let corpus = whole_corpus(root);

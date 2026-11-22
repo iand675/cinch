@@ -1,0 +1,58 @@
+-- Load checked interfaces once, then process runtime-fed source inputs.
+-- Batch mode writes an independent status, diagnostic and IR for every input.
+-- This kernel fixture imports no operators: arithmetic uses parse-program's
+-- kernel syntax. The actual CLI tests use checked interface fixity headers.
+module Main where
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.RuntimeIr (emit-runtime-program)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Show (nat-to-string, int-to-string)
+  import Algebra.Semigroup
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  compile :: List LoadedInterface -> Bytes -> (Int, String, String)
+  compile interfaces bytes = case parse-program "input.source" bytes of
+    Failed errors -> (3, "", "parse failed")
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, "", render-diagnostics errors)
+        Ok checked -> case emit-runtime-program checked of
+          Err errors -> (5, "", render-diagnostics errors)
+          Ok ir -> (0, ir, "")
+      (resolved, errors) -> (4, "", render-diagnostics errors)
+    Parsed program errors -> (3, "", "parse produced recovery errors")
+  store :: forall r. using (io :: Io r) => String -> (Int, String, String) ->{IO r} Int
+  store prefix result = case result of
+    (status, ir, diagnostics) -> case fs-write (path-from-string (prefix <> ".ll")) (string-to-bytes ir) of
+      Err error -> 6
+      Ok _ -> case fs-write (path-from-string (prefix <> ".diagnostics")) (string-to-bytes diagnostics) of
+        Err error -> 6
+        Ok _ -> case fs-write (path-from-string (prefix <> ".status")) (string-to-bytes (int-to-string status)) of
+          Err error -> 6
+          Ok _ -> 0
+  batch :: forall r. using (io :: Io r) => List LoadedInterface -> Nat ->{IO r} Int
+  batch interfaces count = if count == 0 then 0 else
+    let index = count - 1 in
+    let suffix = nat-to-string index in
+    case fs-read (path-from-string ("input-" <> suffix <> ".source")) of
+      Err error -> 2
+      Ok bytes -> case store ("output-" <> suffix) (compile interfaces bytes) of
+        0 -> batch interfaces index
+        code -> code
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err error -> 2
+    Ok interfaces -> case fs-read (path-from-string "batch.count") of
+      Ok counter -> batch interfaces (bytes-len counter)
+      Err absent -> case fs-read (path-from-string "input.source") of
+        Err error -> 2
+        Ok bytes -> let result = compile interfaces bytes in
+          case store "output" result of
+            0 -> case result of (status, ir, diagnostics) -> status
+            code -> code

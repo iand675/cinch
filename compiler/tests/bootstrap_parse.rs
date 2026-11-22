@@ -23,13 +23,8 @@
 //!     module has an unmodeled node to account for the miss. A missing
 //!     name with no unmodeled node is the silent drop this catches.
 //!
-//! What is still unmodeled (named, so the boundary is honest): the
-//! refinement `type R = refine (x :: T) with p` declarations (including
-//! `InRange`'s `Nat`/`Int` index parameters), the class `law` members of
-//! the class homes, the few `do`/`with` terms, the anonymous `refined P
-//! T` result types and the predicate `using` contexts of the range-carrying
-//! signatures (`nat-from-i64`, the widening conversions and integer bounds
-//! in `Data.Machine`, the clock readings, the bytes primitives), and any
+//! What is still unmodeled (named, so the boundary is honest): class `law`
+//! members, the remaining `do`/`with` terms, and any
 //! form only `examples/source` (the surface proposals, "not compiled")
 //! uses. `EXPECTED_UNMODELED` is the measured residual per module.
 
@@ -50,57 +45,93 @@ const CLASSES: &str = include_str!("../../examples/compiler/classes.cinch");
 /// purpose: the table is the record of what the parser covers, and the
 /// failure message prints the whole measured table to replace this one.
 const EXPECTED_UNMODELED: &[(&str, usize)] = &[
+    ("Bootstrap.Ast", 0),
+    ("Bootstrap.Builtin", 0),
+    ("Bootstrap.BodyContract", 0),
+    ("Bootstrap.Check", 0),
+    ("Bootstrap.Contracts", 0),
+    ("Bootstrap.Core", 0),
+    ("Bootstrap.Dictionary", 0),
+    ("Bootstrap.Driver", 0),
+    ("Bootstrap.Eval", 0),
+    ("Bootstrap.Index", 0),
+    ("Bootstrap.Infer", 0),
+    ("Bootstrap.Inputs", 0),
+    ("Bootstrap.Instance", 0),
+    ("Bootstrap.Global", 0),
+    ("Bootstrap.Guarded", 0),
+    ("Bootstrap.Kinds", 0),
+    ("Bootstrap.Typing", 0),
+    ("Bootstrap.Interface", 0),
+    ("Bootstrap.Ir", 0),
+    ("Bootstrap.Load", 0),
+    ("Bootstrap.Manifest", 0),
+    ("Bootstrap.Nominal", 0),
+    ("Bootstrap.Parse", 0),
+    ("Bootstrap.Pipeline", 0),
+    ("Bootstrap.Proof", 0),
+    ("Bootstrap.Report", 0),
+    ("Bootstrap.Resolve", 0),
+    ("Bootstrap.Test", 0),
+    ("Bootstrap.Total", 0),
+    ("Bootstrap.TotalSemantics", 0),
+    ("Bootstrap.Type", 0),
+    ("Text.Lex", 0),
+    ("Text.Scan", 0),
+    ("Text.Parse", 0),
+    ("Text.Json", 0),
+    ("Text.Builder", 0),
     ("Data.Core", 0),
     ("Data.Ordering", 0),
     ("Relation.Eq", 0),
     ("Relation.Ord", 0),
-    ("Algebra.Arithmetic", 2),
+    ("Algebra.Arithmetic", 0),
     ("Algebra.Bits", 0),
     ("Function.Combinators", 0),
-    ("Data.Nat", 7),
-    ("Data.Int", 2),
-    ("Data.Option", 3),
-    ("Data.Result", 1),
-    ("Data.List", 7),
+    ("Data.Nat", 0),
+    ("Data.Int", 0),
+    ("Data.Option", 0),
+    ("Data.Result", 0),
+    ("Data.List", 0),
     ("Data.Enum", 0),
-    ("Data.Char", 2),
+    ("Data.Char", 0),
     ("Data.Bool", 0),
-    ("Data.Machine", 52),
-    ("Data.Bytes", 10),
+    ("Data.Machine", 0),
+    ("Data.Bytes", 0),
     ("Data.Map", 0),
-    ("Data.String", 8),
+    ("Data.String", 0),
     ("Data.Json", 0),
     ("Data.Producer", 0),
     ("Data.Target", 0),
     ("Data.Path", 0),
     ("Effect.Sequencing", 0),
     ("Effect.Concurrent", 0),
-    ("Effect.Clock", 6),
+    ("Effect.Clock", 4),
     ("Effect.Fs", 0),
-    ("Effect.Process", 3),
+    ("Effect.Process", 0),
     ("Effect.Io", 0),
     ("Data.FromList", 0),
     ("Data.FromMap", 0),
-    ("Text.Show", 1),
+    ("Text.Show", 0),
     ("Data.Sym", 0),
     ("Prelude", 0),
-    ("Algebra.Semigroup", 8),
+    ("Algebra.Semigroup", 1),
     ("Algebra.Group", 0),
     ("Algebra.Semiring", 0),
-    ("Algebra.Monoid", 4),
+    ("Algebra.Monoid", 2),
     ("Category.Functor", 3),
-    ("Category.Applicative", 2),
-    ("Category.Monad", 3),
+    ("Category.Applicative", 1),
+    ("Category.Monad", 1),
     ("Category.Alternative", 0),
     ("Category.Foldable", 0),
     ("Category.Traversable", 0),
     ("Data.Identity", 0),
-    ("Data.Const", 2),
+    ("Data.Const", 0),
     ("Data.Compose", 0),
-    ("Data.NonEmpty", 2),
-    ("Data.Sorted", 1),
+    ("Data.NonEmpty", 0),
+    ("Data.Sorted", 0),
     ("Data.NonZero", 0),
-    ("Data.Ascii", 2),
+    ("Data.Ascii", 0),
     ("Data.Set", 0),
     ("Data.Hash", 0),
     ("Text.Codec", 0),
@@ -111,7 +142,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("04-productive-stream", 5),
     ("05-schema-generator", 3),
     ("06-counter-upgrade", 6),
-    ("07-rejected-programs", 3),
+    ("07-rejected-programs", 2),
     ("08-platform-simd", 1),
     ("09-foreign-codec", 2),
     ("10-wasm-component", 2),
@@ -126,6 +157,24 @@ fn corpus() -> Vec<(String, String, String)> {
     for (path, src) in cinch::driver::prelude_sources() {
         let name = module_name(src).unwrap_or_else(|| path.to_string());
         out.push((name, path.to_string(), src.to_string()));
+    }
+    // Self-hosting starts with reading the actual compiler sources, not
+    // only its examples. Keep this directory-driven as the ladder grows.
+    let bootstrap = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../bootstrap");
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&bootstrap)
+        .expect("read bootstrap sources")
+        .map(|e| e.expect("bootstrap source").path())
+        .filter(|p| p.extension().is_some_and(|e| e == "cinch"))
+        .collect();
+    sources.sort();
+    for path in sources {
+        let src = std::fs::read_to_string(&path).expect("read bootstrap module");
+        let name = module_name(&src).expect("bootstrap module name");
+        out.push((name.clone(), format!("bootstrap/{name}"), src));
+    }
+    for (path, src) in common::TOOLKIT {
+        let name = module_name(src).expect("toolkit module name");
+        out.push((name, format!("toolkit/{path}"), src.to_string()));
     }
     let exdir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../examples/source");
     let mut entries: Vec<PathBuf> = std::fs::read_dir(&exdir)
@@ -337,7 +386,7 @@ fn the_parser_reads_the_examples_and_agrees_on_the_corpus() {
         // 3. agreement with the compiler's own parser as a subset relation:
         // a name the compiler finds and the ladder misses must be accounted
         // for by an unmodeled node, or it is a silent drop.
-        if let Some(want) = compiler_names(&prelude.base, &prelude.fixities, src, name) {
+        if let Some(want) = compiler_names(&prelude.base, &prelude.exported_fixities, src, name) {
             let missing: Vec<&String> = want.difference(&m.decls).collect();
             if missing.len() > m.unmodeled {
                 problems.push(format!(

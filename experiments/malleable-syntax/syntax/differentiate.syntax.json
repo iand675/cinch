@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "name": "differentiate",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        "at",
+        {
+          "capture": "point",
+          "of": {
+            "host": true
+          }
+        },
+        "of",
+        {
+          "capture": "body",
+          "of": {
+            "ref": "sum"
+          }
+        },
+        "}"
+      ],
+      "emit": "(let ${!point} = (${point}) in ${body})"
+    },
+    "sum": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "addition"
+          },
+          {
+            "ref": "product"
+          }
+        ]
+      }
+    },
+    "addition": {
+      "pattern": [
+        {
+          "capture": "left",
+          "of": {
+            "ref": "product"
+          }
+        },
+        "+",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "sum"
+          }
+        }
+      ],
+      "emit": "(${@add} ${left} ${right})"
+    },
+    "product": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "multiplication"
+          },
+          {
+            "ref": "atom"
+          }
+        ]
+      }
+    },
+    "multiplication": {
+      "pattern": [
+        {
+          "capture": "left",
+          "of": {
+            "ref": "atom"
+          }
+        },
+        "*",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "product"
+          }
+        }
+      ],
+      "emit": "(${@multiply} ${left} ${right})"
+    },
+    "atom": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "variable"
+          },
+          {
+            "ref": "constant"
+          },
+          {
+            "ref": "parenthesized"
+          }
+        ]
+      }
+    },
+    "variable": {
+      "pattern": "x",
+      "emit": "(${@variable} ${!point})"
+    },
+    "constant": {
+      "pattern": {
+        "capture": "value",
+        "of": {
+          "regex": "[0-9]+"
+        }
+      },
+      "emit": "(${@constant} ${value})"
+    },
+    "parenthesized": {
+      "pattern": [
+        "(",
+        {
+          "capture": "body",
+          "of": {
+            "ref": "sum"
+          }
+        },
+        ")"
+      ],
+      "emit": "${body}"
+    }
+  },
+  "helpers": {
+    "add": "Dual.add",
+    "multiply": "Dual.multiply",
+    "variable": "Dual.variable",
+    "constant": "Dual.constant"
+  }
+}

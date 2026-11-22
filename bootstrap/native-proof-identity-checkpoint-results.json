@@ -1,0 +1,124 @@
+{
+  "actual_stages": {
+    "last_published_seed_stage2_diagnostics": 215,
+    "new_seed366_stages": "not yet run; prior private f3 seed passes six smokes and actual stage2 continues/refuses",
+    "scope": "No new final-seed stage2 compiler or fixed point claimed."
+  },
+  "byte_observation_fixture": {
+    "fixed": "Ordinary same-spelled measure is checked against its own private identity, complete Nat->Nat declaration and Local0 body; it supplies no primitive b.bytesLen or public source name.",
+    "runtime_consumer_cases": 8,
+    "scope": "Complete target passes on the immediately preceding Native proof fix; the later producer difference separates hidden logical handles from ordinary source lookup. No complete current-suite claim.",
+    "source_sha256": "aeb25546dd3379330adcd47da26a2fe4c8c843e227ea5e2408acfe169fb71327",
+    "whole_target": {
+      "command": [
+        "cargo",
+        "test",
+        "--no-fail-fast",
+        "--target-dir",
+        "/tmp/cinch-native-proof-public-validation-1/cargo",
+        "--test",
+        "interface_byte_observations",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T09:14:31.241804+00:00",
+      "lane": "shared worker slot0; constructor prototype owns sole fifth lane",
+      "pid": 47353,
+      "source_sha256": "aeb25546dd3379330adcd47da26a2fe4c8c843e227ea5e2408acfe169fb71327",
+      "started": "2026-11-02T09:06:48.072244+00:00",
+      "status": "passed"
+    }
+  },
+  "fixes": [
+    "Erased constructor witnesses retain the value bindings from their derivation scope, rather than reinterpreting old names in the current scope.",
+    "Direct strict-let aliases preserve actual runtime value identity, including chains and an original value retained across shadowing.",
+    "Private logical value handles grant no ordinary source names.",
+    "Mutable evidence-footprint checking still resolves the actual older value when a source spelling is shadowed."
+  ],
+  "limits": [
+    "Current full Native-assisted suite, full self-built frontend suite and final-seed stage chain remain unproven.",
+    "Conditional method implementation authority, selected numeric method bodies, handler elaboration, complete independent proof/usage/totality and typed runtime lowering remain required.",
+    "The earlier anonymous Bytes refinement elaboration discrepancy remains to investigate and fix in Rust if it violates the intended binder rules."
+  ],
+  "native_seed_sources_sha256": "366704380d06ceab798c0b5db18ed7699b8579ee518eef92a7649f2de8f9fb2e",
+  "native_unit_tests": 141,
+  "new_native_source_regression_cases": 8,
+  "owned_code": [
+    "compiler/src/check.rs",
+    "compiler/src/check_terms.rs",
+    "compiler/tests/proof_value_identity.rs",
+    "compiler/tests/interface_byte_observations.rs",
+    "bootstrap/stage0.lock.json",
+    "bootstrap/seed/stage0.patch"
+  ],
+  "previous_collection_matrix": {
+    "directory": "/tmp/cinch-collections-full-2/complete-matrix",
+    "general_gates": 5,
+    "integration_targets": 178,
+    "observed_counts": {
+      "failed": 1,
+      "passed": 85,
+      "pending": 96
+    },
+    "self_built_frontend": false,
+    "status": "failed at obsolete primitive-observation refusal assertion; fixture strengthened, not ignored"
+  },
+  "private_cinch_constructor": {
+    "published": false,
+    "source": "/tmp/cinch-refinement-constructors-work-1/source",
+    "status": "Explicit proof Core form and constructor functions under validation; last run18of20sourcecases match; strict-let expectation fix now running.",
+    "validation6": "/tmp/cinch-refinement-constructors-validation-6"
+  },
+  "recorded_at": "2026-11-02T09:24:38.919038+00:00",
+  "seed_update": {
+    "abi": 5,
+    "archive_plus_patch_reproduces_tested_native_sources": true,
+    "candidate_evidence": "/tmp/cinch-proof-identity-seed-candidate-2",
+    "interface_schema": 8,
+    "new_source_sha256": "366704380d06ceab798c0b5db18ed7699b8579ee518eef92a7649f2de8f9fb2e",
+    "patch_sha256": "e11ae17ae7f50ea087890d0b048e623d87965157401aab500a566c41ece0e1aa",
+    "previous_public_source_sha256": "8c1bfb54673babf60601eb3bc594cd6a19c44d1fff5688d4f58d5a8c32bddff5",
+    "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c"
+  },
+  "self_hosting_achieved": false,
+  "status": "Rust constructor witness scope and direct-alias bugs fixed; focused Native validation passes",
+  "validation_source_sha256": "db14769107c27b6e0da714b014068f44c78cc4da7234546d4a46bd48267946ee",
+  "whole_native_validation": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-native-proof-validation-2/cargo",
+      "--lib",
+      "--test",
+      "proof_value_identity",
+      "--test",
+      "refinements",
+      "--test",
+      "evidence_invalidation",
+      "--test",
+      "case_evidence",
+      "--test",
+      "incremental",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T09:21:02.237584+00:00",
+    "lane": "sole named outside fifth worker; all matrix, stage and measure gates use four shared slots",
+    "pid": 61211,
+    "source_sha256": "db14769107c27b6e0da714b014068f44c78cc4da7234546d4a46bd48267946ee",
+    "started": "2026-11-02T09:17:25.972618+00:00",
+    "status": "passed"
+  },
+  "whole_regression_targets": [
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental"
+  ]
+}

@@ -1,0 +1,100 @@
+-- Interfaces and source are runtime inputs to this compiled Cinch checker.
+module Main where
+  import Bootstrap.Ast
+  import Data.Json
+  import Text.Json (parse-json)
+  import Text.Show (int-to-string)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.BodyContract (BodyBinding)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  bindings-bodies :: List CheckedBinding -> List BodyBinding
+  bindings-bodies bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> (case checked-body-binding binding of Some body -> Cons body (bindings-bodies rest); None -> bindings-bodies rest)
+  closed :: List BodyBinding -> List CoreDefinition -> Bool
+  closed bodies definitions = case definitions of Nil -> True; Cons d rest -> core-definition-bodies-closed bodies d && closed bodies rest
+  run :: List LoadedInterface -> Bytes -> String -> (Int, String)
+  run interfaces source element = case parse-program-with "refinement-constructors" source (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> let result = elaborate-program "refinement-constructors" resolved in
+        case elaboration-errors result of
+          Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
+          errors -> (4, render-diagnostics errors)
+      (resolved, errors) -> (4, render-diagnostics errors)
+    Failed bundle -> (2, render-bundle bundle)
+    other -> (2, "recoverable parse errors")
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  nz :: Nat -> UType
+  nz id = UPropNonZero (UIndex int (IRigid id "payload" 0))
+  exact :: Nat -> UType
+  exact id = URefine id "result" int (UPropNonZero (UIndex int (IBound id "result")))
+  core-definition :: Nat -> CoreTerm -> CoreDefinition
+  core-definition id body =
+    let required = UPropNonZero (UIndex int (IBound id "first")) in
+    let ty = UPi id "first" int (URow UEnd) (UPi (id + 1) "second" int (URow UEnd) (UProofFun required (URow UEnd) (exact (id + 10)))) in
+    MkCoreDefinition sp "explicit" (mono ty) Nil Nil Nil [MkCoreClause sp
+      [CPVar sp int id "first", CPVar sp int (id + 1) "second", CPProof sp (nz id) (id + 2) "witness"] body]
+  typed :: CoreDefinition -> Bool
+  typed definition = case close-typing-context [("Int", KType)] [GlobalValue "explicit" "value" (core-scheme definition)] of
+    Some context -> typing-definition-closed context definition
+    None -> False
+  core-checks :: Nat -> Bool
+  core-checks id =
+    let desired = exact (id + 10) in
+    let value = CLocal sp int id "first" Nil in
+    let other = CLocal sp int (id + 1) "second" Nil in
+    let witness = CProofRef sp (nz id) (id + 2) "witness" in
+    let accepted = core-definition id (CRefineProof sp desired witness value) in
+    typed accepted && core-definition-closed accepted
+      && typed (seal-definition (empty-store "explicit sealing") accepted)
+      && not (typed (core-definition id (CRefineProof sp desired witness other)))
+      && not (typed (core-definition id (CRefineProof sp desired (CProofRef sp (nz (id + 1)) (id + 2) "witness") other)))
+      && not (typed (core-definition id (CRefineProof sp desired (CProofRef sp (nz id) (id + 3) "unbound") value)))
+      && not (typed (core-definition id (CRefineProof sp desired (CInt sp int "1") value)))
+      && not (typed (core-definition id (CRefineProof sp desired witness witness)))
+      && not (typed (core-definition id (CRefineProof sp (URefine (id + 10) "result" int (UCompare ">" (UIndex int (IBound (id + 10) "result")) (UIndex int (IInteger 1)))) witness value)))
+      && not (typed (seal-definition (empty-store "no repair") (core-definition id (CRefineProof sp desired witness other))))
+
+  all-core-checks :: Nat -> Bool
+  all-core-checks id = core-checks id && core-checks (id + 1) && core-checks (id + 256) && core-checks (id + 65536) && core-checks (id + 340282366920938463463374607431768211456)
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  cases :: List LoadedInterface -> Json -> (Int, String)
+  cases interfaces rows = case rows of
+    JArr row rest -> (case (field "name" row, field "source" row, field "wanted" row) of
+      (JStr name, JStr source, JNum wanted) -> let element = case field "element" row of JStr name -> name; other -> "" in
+        let (actual, report) = run interfaces (string-to-bytes source) element in
+        (case cases interfaces rest of
+          (failed, more) -> (failed + (if actual == wanted then 0 else 1), string-concat-all [name, ": wanted ", int-to-string wanted, ", actual ", int-to-string actual, "\n", report, "\n", more]))
+      other -> (1, "malformed collection case"))
+    JArrEnd -> (0, "")
+    other -> (1, "invalid collection cases")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> (case fs-write (path-from-string "refinement-constructor-report.txt") (string-to-bytes message) of Ok _ -> 90; Err error -> 92)
+    Ok interfaces -> (case fs-read (path-from-string "cases.json") of
+      Err error -> 91
+      Ok contents -> (case parse-json "refinement-constructor-cases" contents of
+        Parsed document Nil -> let (failed, report) = cases interfaces document in
+          (case fs-write (path-from-string "refinement-constructor-report.txt") (string-to-bytes report) of
+            Err error -> 92
+            Ok _ -> if failed == 0 && all-core-checks (340282366920938463463374607431768211456 + bytes-len contents) then 0 else 1)
+        other -> 93))

@@ -1,0 +1,17 @@
+-- A leaf is one typed array. Zip composes any number of heterogeneous
+-- columns as nested pairs, sharing their buffers. Length mismatch is None.
+module Data.Columnar where
+  import Data.Core
+  import Data.Array
+
+  export columnar-column, columnar-zip, columnar-rows, columnar-columns, columnar-get
+  foreign import ccall "cinch.runtime.columnarColumn" columnar-column :: forall a. Array a -> Columnar a
+  foreign import ccall "cinch.runtime.columnarZip" columnar-zip :: forall a b. Columnar a -> Columnar b -> Option (Columnar (a, b))
+  foreign import ccall "cinch.runtime.columnarRows" columnar-rows :: forall a. Columnar a -> Nat
+  foreign import ccall "cinch.runtime.columnarColumns" columnar-columns :: forall a. Columnar a -> Nat
+  foreign import ccall "cinch.runtime.columnarGet" columnar-get :: forall a. Columnar a -> Nat -> Option a
+
+  export columnar-left, columnar-right, columnar-array
+  foreign import ccall "cinch.runtime.columnarLeft" columnar-left :: forall a b. Columnar (a, b) -> Option (Columnar a)
+  foreign import ccall "cinch.runtime.columnarRight" columnar-right :: forall a b. Columnar (a, b) -> Option (Columnar b)
+  foreign import ccall "cinch.runtime.columnarArray" columnar-array :: forall a. Columnar a -> Option (Array a)

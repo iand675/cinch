@@ -1,0 +1,214 @@
+-- Checked interfaces become parsing headers and external declarations.
+-- The defining identity is independent of an importer's alias. Full
+-- module contracts remain in the resolved program for later consumers.
+module Bootstrap.Contracts where
+
+  import Bootstrap.Ast
+  import Bootstrap.Load
+  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Data.Json
+  import Text.Lex (Span)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  export interface-headers, interface-declarations, public-global
+  export materialize-externals, declaration-references
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  zero :: Span
+  zero = Span 0 0 1 1
+
+  encode :: List Char -> String
+  encode chars = case chars of
+    Nil -> ""
+    Cons c rest -> string-concat-all [nat-to-string (char-code c), "_", encode rest]
+
+  public-global :: LoadedInterface -> String -> String
+  public-global i name = case identities name (loaded-exports i) Nil of
+    Cons identity Nil -> interface-global identity
+    other -> string-concat-all ["o.", encode (unpack (loaded-module i)), ".", encode (unpack name)]
+
+  identities :: String -> List (String, String, String) -> List String -> List String
+  identities name exports seen = case exports of
+    Nil -> seen
+    Cons (n, kind, identity) rest -> if same name n && not (has identity seen) then identities name rest (Cons identity seen)
+      else identities name rest seen
+
+  entries :: LoadedInterface -> List (String, String, String) -> List Decl
+  entries i names = case names of
+    Nil -> Nil
+    Cons (name, kind, identity) rest -> case loaded-entry i kind identity of
+      Some metadata -> Cons (DExternal zero name kind None metadata) (entries i rest)
+      None -> Cons (DUnmodeled zero (string-concat "missing exported metadata for " identity)) (entries i rest)
+
+  fixities :: List (String, String, Nat) -> List Decl
+  fixities rows = case rows of
+    Nil -> Nil
+    Cons (op, assoc, prec) rest -> Cons (DFixity zero
+      (if same assoc "left" then "infixl" else if same assoc "right" then "infixr" else "infix")
+      prec (Cons op Nil)) (fixities rest)
+
+  interface-headers :: List LoadedInterface -> List Module
+  interface-headers interfaces = case interfaces of
+    Nil -> Nil
+    Cons i rest -> Cons (MkModule zero (loaded-module i) (decl-spine zero
+      (entries i (loaded-exports i) <> fixities (loaded-fixities i)))) (interface-headers rest)
+
+  declarations :: LoadedInterface -> List (String, String, String) -> List Decl
+  declarations i exports = case exports of
+    Nil -> Nil
+    Cons (name, kind, identity) rest -> case loaded-entry i kind identity of
+      None -> Cons (DUnmodeled zero (string-concat "missing exported metadata for " identity)) (declarations i rest)
+      Some metadata -> Cons (DExternal zero (interface-global identity) kind None metadata) (declarations i rest)
+
+  interface-declarations :: LoadedInterface -> List Decl
+  interface-declarations i = Cons (DInterface zero (loaded-module i) (loaded-hash i) (loaded-contract i))
+    (declarations i (loaded-exports i) <> overloads i (loaded-exports i) Nil)
+
+  overloads :: LoadedInterface -> List (String, String, String) -> List String -> List Decl
+  overloads i exports seen = case exports of
+    Nil -> Nil
+    Cons (name, kind, identity) rest -> if has name seen then overloads i rest seen
+      else (case identities name (loaded-exports i) Nil of
+        Cons first (Cons second more) -> Cons (DExternal zero (public-global i name) "overload" None
+          (candidate-json (identities name (loaded-exports i) Nil))) Nil
+        other -> Nil) <> overloads i rest (Cons name seen)
+
+  candidate-json :: List String -> Json
+  candidate-json candidates = case candidates of Nil -> JArrEnd; Cons id rest -> JArr (JStr id) (candidate-json rest)
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if same name key then value else field name rest
+    other -> JNull
+
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+
+  materialize-externals :: List String -> List Decl -> List (String, String) -> (List Decl, List Diagnostic)
+  materialize-externals references ds seen = case ds of
+    Nil -> (Nil, Nil)
+    Cons d rest -> case d of
+      DExternal s name kind scheme metadata ->
+        if not (has name references) || seen-entry name kind seen then materialize-externals references rest seen
+        else case external-type s name kind metadata of
+          (ty, errors) -> case materialize-externals references rest (Cons (name, kind) seen) of
+            (others, more) -> (Cons (DExternal s name kind ty metadata) others, errors <> more)
+      other -> case materialize-externals references rest seen of
+        (others, errors) -> (Cons d others, errors)
+
+  seen-entry :: String -> String -> List (String, String) -> Bool
+  seen-entry name kind seen = case seen of
+    Nil -> False
+    Cons (n, k) rest -> (same name n && same kind k) || seen-entry name kind rest
+
+  external-type :: Span -> String -> String -> Json -> (Option TypeExpr, List Diagnostic)
+  external-type s name kind metadata =
+    if same kind "value" || same kind "constructor" || same kind "method" then case resolved-text metadata of
+      Some text -> case parse-scheme name (string-to-bytes text) of
+        Parsed ty Nil -> case qualify-resolved metadata ty of (resolved, errors) -> (Some resolved, errors)
+        other -> (None, [MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse resolved scheme for " name)])
+      None -> display-type s name kind metadata
+    else display-type s name kind metadata
+
+  display-type :: Span -> String -> String -> Json -> (Option TypeExpr, List Diagnostic)
+  display-type s name kind metadata =
+    if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
+      JStr text -> case parse-scheme name (string-to-bytes text) of
+        Parsed ty Nil -> (Some ty, Nil)
+        other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
+      other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)) Nil)
+    else (None, Nil)
+
+  type-references :: TypeExpr -> List String
+  type-references ty = case ty of
+    TName s name -> Cons name Nil
+    TNegate s x -> type-references x
+    TInfix s op a b -> type-references a <> type-references b
+    TRefined s p t -> type-references p <> type-references t
+    TApp s f args -> type-references f <> type-references args
+    TFun s a b -> type-references a <> type-references b
+    TFunEff s a row b -> type-references a <> type-references row <> type-references b
+    TRow s labels tail -> type-references labels
+    TTuple s args -> type-references args
+    TForall s binders body -> type-references binders <> type-references body
+    TQuantifier s name only kind rest -> type-references kind <> type-references rest
+    TUsing s bounds body -> type-references bounds <> type-references body
+    TArg s x rest -> type-references x <> type-references rest
+    TBound s name kind rest -> type-references kind <> type-references rest
+    other -> Nil
+
+  pat-references :: Pat -> List String
+  pat-references p = case p of
+    PCon s name args -> Cons name (pat-references args)
+    PTuple s args -> pat-references args
+    PList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> pat-references args
+    PAs s name inner -> pat-references inner
+    PAnn s inner ty -> pat-references inner <> type-references ty
+    PArg s x rest -> pat-references x <> pat-references rest
+    other -> Nil
+
+  patterns-references :: List Pat -> List String
+  patterns-references ps = case ps of Nil -> Nil; Cons p rest -> pat-references p <> patterns-references rest
+
+  expr-references :: Expr -> List String
+  expr-references e = case e of
+    EVar s name -> Cons name Nil
+    ECon s name args -> Cons name (expr-references args)
+    ETuple s args -> expr-references args
+    EList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons", interface-global "Data.FromList.FromList.from-list"] <> expr-references args
+    EApp s f a -> expr-references f <> expr-references a
+    EBin s op a b -> expr-references a <> expr-references b
+    ENeg s x -> expr-references x
+    ELam s ps body -> patterns-references ps <> expr-references body
+    ELet s bs body -> expr-references bs <> expr-references body
+    EIf s c a b -> expr-references c <> expr-references a <> expr-references b
+    ECase s value alts -> expr-references value <> expr-references alts
+    EGuarded s guard body -> expr-references guard <> expr-references body
+    EAnn s body ty -> expr-references body <> type-references ty
+    EWith s bs body -> expr-references bs <> expr-references body
+    EHandle s body handled-by -> expr-references body <> expr-references handled-by
+    EHandler s label clauses -> type-references label <> expr-references clauses
+    EHandlerClause s name pats continuation body rest -> (if same name "return" then Nil else Cons name Nil)
+      <> patterns-references pats <> expr-references body <> expr-references rest
+    EArg s x rest -> expr-references x <> expr-references rest
+    EBinding s name rhs rest -> expr-references rhs <> expr-references rest
+    EAlt s pat rhs rest -> pat-references pat <> expr-references rhs <> expr-references rest
+    other -> Nil
+
+  clause-references :: List (List Pat, Expr) -> List String
+  clause-references clauses = case clauses of
+    Nil -> Nil
+    Cons (ps, body) rest -> patterns-references ps <> expr-references body <> clause-references rest
+
+  ctor-references :: List (String, TypeExpr) -> List String
+  ctor-references ctors = case ctors of Nil -> Nil; Cons (name, ty) rest -> type-references ty <> ctor-references rest
+
+  param-references :: List TypeParam -> List String
+  param-references params = case params of
+    Nil -> Nil
+    Cons p rest -> (case param-kind p of None -> Nil; Some ty -> type-references ty) <> param-references rest
+
+  -- Keep the recursive list frame small. Putting this declaration match
+  -- inside the traversal reserves every branch's native slots for every
+  -- declaration still on the stack while collecting the following ones.
+  declaration-reference :: Decl -> List String
+  declaration-reference d = case d of
+    DSig s name ty -> type-references ty
+    DMethod s label name ty -> type-references ty
+    DClass s name params members -> param-references params <> declaration-references (decls-of members)
+    DFun s name clauses -> clause-references clauses
+    DData s name params ctors -> param-references params <> ctor-references ctors
+    DEffect s name params ops -> param-references params <> ctor-references ops
+    DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
+    DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
+    other -> Nil
+
+  declaration-references :: List Decl -> List String
+  declaration-references ds = case ds of
+    Nil -> Nil
+    Cons d rest -> declaration-reference d <> declaration-references rest

@@ -43,6 +43,7 @@
 module Bootstrap.Ir where
 
   import Bootstrap.Ast
+  import Bootstrap.Check (CheckedProgram, checked-surface)
   import Bootstrap.Report
   import Data.List
   import Data.Nat
@@ -57,6 +58,16 @@ module Bootstrap.Ir where
   -- decision states, so the generator's internals cannot collide with
   -- another rung's names.
   export emit-program, emit-diagnostics
+  export emit-checked-program, emit-checked-diagnostics
+
+  -- The pipeline preserves typed Core across this boundary. The existing
+  -- scalar renderer still consumes the associated surface here; shared
+  -- runtime lowering will consume the retained checked elaboration.
+  emit-checked-program :: CheckedProgram -> String
+  emit-checked-program program = emit-program (checked-surface program)
+
+  emit-checked-diagnostics :: CheckedProgram -> List Diagnostic
+  emit-checked-diagnostics program = emit-diagnostics (checked-surface program)
 
   -- ------------------------------------------------------------- the writer
 
@@ -167,7 +178,8 @@ module Bootstrap.Ir where
     Some slot ->
       let (g1, v) = fresh-val g in
       (gen-line g1 (cat ["  ", v, " = load i64, i64* ", slot]), v)
-    None -> (gen-text g (cat ["  ; unsupported name `", name, "` in value position\n"]), "0")
+    None -> if name-in name (gen-fns g) then gen-call g name Nil
+      else (gen-text g (cat ["  ; unsupported name `", name, "` in value position\n"]), "0")
 
   -- `True` and `False` are the fragment's only lowered constructors; they
   -- are `i64` 1 and 0.
@@ -345,24 +357,20 @@ module Bootstrap.Ir where
     let g7 = gen-line g6 (cat ["  ret i64 ", rv]) in
     gen-line g7 "}"
 
-  -- The fragment's `main :: Int`: the same body, truncated to the `i32`
-  -- the C entry expects.
-  gen-main-clause :: Gen -> List Pat -> Expr -> Gen
-  gen-main-clause g pats body = case pats of
-    Nil ->
-      let g1 = gen-line g "define i32 @main() {" in
-      let g2 = gen-line g1 "entry:" in
-      let (g3, rv) = gen-expr g2 body in
-      let (g4, tv) = fresh-val g3 in
-      let g5 = gen-line g4 (cat ["  ", tv, " = trunc i64 ", rv, " to i32"]) in
-      let g6 = gen-line g5 (cat ["  ret i32 ", tv]) in
-      gen-line g6 "}"
-    other -> g
+  -- `main` has an ordinary language worker, so references to its value
+  -- use the same ABI as other nullary definitions. The C entry is a
+  -- separate wrapper that truncates its result to the process exit code.
+  gen-entry-wrapper :: Gen -> Gen
+  gen-entry-wrapper g =
+    let g1 = gen-line g "define i32 @main() {" in
+    let g2 = gen-line g1 "entry:" in
+    let g3 = gen-line g2 "  %result = call i64 @cinch_main()" in
+    let g4 = gen-line g3 "  %exit = trunc i64 %result to i32" in
+    let g5 = gen-line g4 "  ret i32 %exit" in
+    gen-line g5 "}"
 
   gen-fun-clause :: Gen -> String -> List Pat -> Expr -> Gen
-  gen-fun-clause g name pats body =
-    if string-compare name "main" == 0 then gen-main-clause g pats body
-    else gen-define-clause g name pats body
+  gen-fun-clause g name pats body = gen-define-clause g name pats body
 
   gen-decl :: Gen -> Decl -> Gen
   gen-decl g d = case d of
@@ -402,7 +410,7 @@ module Bootstrap.Ir where
   decls-fn-names ds acc = case ds of
     Nil -> acc
     Cons d rest -> case d of
-      DFun s name clauses -> if string-compare name "main" == 0 then decls-fn-names rest acc else decls-fn-names rest (Cons name acc)
+      DFun s name clauses -> decls-fn-names rest (Cons name acc)
       other -> decls-fn-names rest acc
 
   ir-header :: String
@@ -414,7 +422,7 @@ module Bootstrap.Ir where
   -- The rung's entry point: the whole program as one LLVM module.
   emit-program :: Program -> String
   emit-program p =
-    builder-run (gen-code (gen-modules (MkGen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (program-modules p)))
+    builder-run (gen-code (gen-entry-wrapper (gen-modules (MkGen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (program-modules p))))
 
   -- ------------------------------------------------------------ diagnostics
 
@@ -428,11 +436,97 @@ module Bootstrap.Ir where
     Nil -> b
     Cons x rest -> Cons x (append-diags rest b)
 
+  function-arities :: List Module -> List (String, Nat)
+  function-arities modules = case modules of
+    Nil -> Nil
+    Cons m rest -> decl-arities (module-decls m) (function-arities rest)
+
+  decl-arities :: List Decl -> List (String, Nat) -> List (String, Nat)
+  decl-arities ds acc = case ds of
+    Nil -> acc
+    Cons d rest -> case d of
+      DFun s name (Cons (ps, body) more) -> decl-arities rest (Cons (name, list-length ps) acc)
+      other -> decl-arities rest acc
+
+  lookup-arity :: String -> List (String, Nat) -> Option Nat
+  lookup-arity name fns = case fns of
+    Nil -> None
+    Cons (n, arity) rest -> if string-compare name n == 0 then Some arity else lookup-arity name rest
+
+  entry-refusal :: Span -> List (String, Nat) -> List Diagnostic
+  entry-refusal sp fns = case lookup-arity "main" fns of
+    None -> Cons (diag sp "the program has no main definition") Nil
+    Some arity -> Nil
+
+  local-pats :: List Pat -> List String
+  local-pats ps = case ps of
+    Nil -> Nil
+    Cons p rest -> case p of
+      PVar s name -> Cons name (local-pats rest)
+      other -> local-pats rest
+
+  module-value-refusals :: List (String, Nat) -> List Module -> List Diagnostic
+  module-value-refusals fns ms = case ms of
+    Nil -> Nil
+    Cons m rest -> append-diags (decl-value-refusals fns (module-decls m)) (module-value-refusals fns rest)
+
+  decl-value-refusals :: List (String, Nat) -> List Decl -> List Diagnostic
+  decl-value-refusals fns ds = case ds of
+    Nil -> Nil
+    Cons d rest -> append-diags (case d of
+      DFun s name clauses -> clause-value-refusals fns clauses
+      other -> Nil) (decl-value-refusals fns rest)
+
+  clause-value-refusals :: List (String, Nat) -> List (List Pat, Expr) -> List Diagnostic
+  clause-value-refusals fns clauses = case clauses of
+    Nil -> Nil
+    Cons (ps, body) rest -> append-diags (value-refusals fns (local-pats ps) body) (clause-value-refusals fns rest)
+
+  -- A global value is a nullary worker call. A non-nullary function in
+  -- value position or a partial application needs closure lowering.
+  value-refusals :: List (String, Nat) -> List String -> Expr -> List Diagnostic
+  value-refusals fns locals e = case e of
+    EVar s name -> if name-in name locals then Nil else case lookup-arity name fns of
+      None -> Cons (diag s (cat ["unknown value in emitted code: ", name])) Nil
+      Some arity -> if arity == 0 then Nil else Cons (diag s (cat ["function value `", name, "` needs closure lowering"])) Nil
+    EApp s head arg -> append-diags (call-value-refusal fns locals e) (argument-value-refusals fns locals (app-args e))
+    EBin s op a b -> append-diags (value-refusals fns locals a) (value-refusals fns locals b)
+    ENeg s x -> value-refusals fns locals x
+    EIf s c a b -> append-diags (value-refusals fns locals c) (append-diags (value-refusals fns locals a) (value-refusals fns locals b))
+    EAnn s x ty -> value-refusals fns locals x
+    ELet s bs body -> case binding-value-refusals fns locals bs of
+      (names, errors) -> append-diags errors (value-refusals fns names body)
+    other -> Nil
+
+  call-value-refusal :: List (String, Nat) -> List String -> Expr -> List Diagnostic
+  call-value-refusal fns locals e = case app-head e of
+    EVar s name -> if name-in name locals then Cons (diag s "a local function application needs closure lowering") Nil
+      else case lookup-arity name fns of
+        None -> Nil
+        Some arity -> if arity == list-length (app-args e) then Nil
+          else Cons (diag s (cat ["application of `", name, "` must supply all ", nat-to-string arity, " arguments before lowering"])) Nil
+    other -> Nil
+
+  argument-value-refusals :: List (String, Nat) -> List String -> List Expr -> List Diagnostic
+  argument-value-refusals fns locals args = case args of
+    Nil -> Nil
+    Cons arg rest -> append-diags (value-refusals fns locals arg) (argument-value-refusals fns locals rest)
+
+  binding-value-refusals :: List (String, Nat) -> List String -> Expr -> (List String, List Diagnostic)
+  binding-value-refusals fns locals bs = case bs of
+    EBindingsEnd s -> (locals, Nil)
+    EBinding s name rhs rest -> case binding-value-refusals fns (Cons name locals) rest of
+      (names, more) -> (names, append-diags (value-refusals fns locals rhs) more)
+    other -> (locals, Cons (diag (expr-span bs) "malformed binding spine in emitted code") Nil)
+
   -- What the emitter cannot lower, named with its span. Empty means the
   -- program is in the fragment and `emit-program` produces its IR.
   emit-diagnostics :: Program -> List Diagnostic
   emit-diagnostics p = case p of
-    MkProgram s ms -> module-refusals (program-function-names p) ms
+    MkProgram s ms -> case ms of
+      Cons first (Cons second rest) -> Cons (diag s "multiple modules need qualified symbols, which this emitter does not lower yet") Nil
+      other -> append-diags (module-refusals (program-function-names p) ms)
+        (append-diags (entry-refusal s (function-arities ms)) (module-value-refusals (function-arities ms) ms))
 
   module-refusals :: List String -> List Module -> List Diagnostic
   module-refusals fns ms = case ms of
@@ -446,29 +540,51 @@ module Bootstrap.Ir where
 
   decl-refusal :: List String -> List Decl -> Decl -> List Diagnostic
   decl-refusal fns ds d = case d of
+    DData s name (Cons p ps) ctors -> Cons (diag s "parameterized data needs typed constructor lowering") Nil
+    DExternal s name kind scheme metadata -> Cons (diag s (cat ["imported ", kind, " needs the shared uniform-word ABI and layout registry before lowering: ", name])) Nil
+    DRefine s name params binder predicate -> Cons (diag s "a named refinement needs proof checking before lowering") Nil
     DSig s name t -> sig-refusal s name t
     DFun s name clauses -> fun-refusal fns ds s name clauses
     DClass s name params members -> Cons (diag s (cat ["class `", name, "` is not in the fragment"])) Nil
-    DInstance s i name t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
-    DEffect s name ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
-    DForeign s conv fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
+    DMethod s label name ty -> Cons (diag s "resolved signature methods require the typed backend") Nil
+    DInstance s i name params t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
+    DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
+    DForeign s direction conv symbol fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
     DUnmodeled s text -> Cons (diag s "an unmodeled declaration is not in the fragment") Nil
     other -> Nil
 
   sig-refusal :: Span -> String -> TypeExpr -> List Diagnostic
-  sig-refusal s name t = case sig-unsupported t of
-    None -> Nil
-    Some why -> Cons (diag s (cat ["signature for `", name, "` carries ", why])) Nil
+  sig-refusal s name t = append-diags (if string-compare name "main" == 0 then main-type-refusal s t else Nil)
+    (case sig-unsupported t of
+      None -> Nil
+      Some why -> Cons (diag s (cat ["signature for `", name, "` carries ", why])) Nil)
+
+  main-type-refusal :: Span -> TypeExpr -> List Diagnostic
+  main-type-refusal sp t = case t of
+    TName s name -> if string-compare name "Int" == 0 then Nil else Cons (diag sp "main must return Int in the fragment") Nil
+    other -> Cons (diag sp "main must have type Int in the fragment") Nil
 
   -- A signature's arrow spine is the lowered shape; `using` (dictionary
   -- passing) and `forall` (type abstraction) are outside the fragment.
   sig-unsupported :: TypeExpr -> Option String
   sig-unsupported t = case t of
+    TRefined s predicate carrier -> Some "a refined result the fragment does not lower"
+    TIndex s n -> Some "an index literal the fragment does not lower"
+    TNegate s x -> Some "an index negation the fragment does not lower"
+    TInfix s op a b -> Some "a predicate or index operation the fragment does not lower"
     TUsing s a b -> Some "a using constraint the fragment does not lower"
     TForall s vs body -> Some "a forall the fragment does not lower"
-    TFun s a b -> sig-unsupported b
-    TFunEff s a row b -> sig-unsupported b
-    other -> None
+    TFun s a b -> case word-type a of
+      None -> sig-unsupported b
+      Some why -> Some why
+    TFunEff s a row b -> Some "an effect arrow the fragment does not lower"
+    other -> word-type t
+
+  word-type :: TypeExpr -> Option String
+  word-type t = case t of
+    TName s name -> if name-in name ["Int", "Bool", "Unit", "()"] then None
+      else Some (cat ["a type without a fragment representation: ", name])
+    other -> Some "a type without a fragment representation"
 
   sig-arity :: TypeExpr -> Nat
   sig-arity t = case t of
@@ -533,7 +649,9 @@ module Bootstrap.Ir where
   expr-refusals fns e = case e of
     EVar s name -> Nil
     ELitInt s text -> Nil
-    ECon s name args -> con-refusal s name
+    ECon s name args -> append-diags (con-refusal s name) (case exprs-of args of
+      Nil -> Nil
+      Cons arg rest -> Cons (diag s "the fragment's Boolean constructors take no arguments") Nil)
     EApp s f a -> app-refusal fns e
     EBin s op l r -> append-diags (op-refusal s op) (append-diags (expr-refusals fns l) (expr-refusals fns r))
     ENeg s x -> expr-refusals fns x
@@ -603,12 +721,16 @@ module Bootstrap.Ir where
     ELet s bs body -> "let"
     EIf s c t f -> "if"
     ECase s scrut alts -> "case"
+    EGuarded s guard body -> "guarded alternative"
     EAnn s x t -> "ascription"
     EForall s vs body -> "forall expression"
     EUsing s bounds body -> "using expression"
     EBind s n rhs -> "binding"
     EDo s stmts -> "do block"
     EHandle s body h -> "handle"
+    EHandler s label clauses -> "handler"
+    EHandlerClause s name pats continuation body rest -> "handler clause"
+    EHandlerEnd s -> "handler clause end"
     EWith s bs body -> "with"
     EArg s x rest -> "argument spine"
     EArgsEnd s -> "argument spine end"

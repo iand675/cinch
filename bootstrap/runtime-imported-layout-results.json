@@ -1,0 +1,268 @@
+{
+  "actual_case_results": [
+    "huge: exit 37; cinch-leak: live=0 immortal=0 leaked=0",
+    "alias: exit 39; cinch-leak: live=0 immortal=0 leaked=0",
+    "call: exit 41; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch: exit 43; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive: exit 47; cinch-leak: live=0 immortal=0 leaked=0",
+    "negative: exit 53; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural: exit 59; cinch-leak: live=0 immortal=0 leaked=0",
+    "wildcard: exit 61; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-field: exit 67; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-case: exit 71; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-tuple: exit 73; cinch-leak: live=0 immortal=0 leaked=0",
+    "dropped-tuple: exit 79; cinch-leak: live=0 immortal=0 leaked=0",
+    "full-inline-map: exit 83; cinch-leak: live=0 immortal=0 leaked=0",
+    "nullary-constructors: exit 89; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive-tree: exit 97; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-nested-pattern: exit 101; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-constructor-root: exit 103; cinch-leak: live=0 immortal=0 leaked=0",
+    "raw-bool-patterns: exit 107; cinch-leak: live=0 immortal=0 leaked=0",
+    "numeric-equations: exit 109; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-case-guards: exit 113; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-case-guard: exit 127; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural-literal-pattern: exit 131; cinch-leak: live=0 immortal=0 leaked=0",
+    "last-regular-tag: exit 137; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-identity-classes: exit 151; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-tobj: exit 157; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-obj: exit 163; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-tuple-fields: exit 167; cinch-leak: live=0 immortal=0 leaked=0",
+    "polymorphic-recursion: exit 173; cinch-leak: live=0 immortal=0 leaked=0",
+    "class-swapping-recursion: exit 179; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-classes: exit 181; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-recursive-data: exit 191; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-growing-recursion: exit 193; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-owned-result: exit 197; cinch-leak: live=0 immortal=0 leaked=0",
+    "lambda-argument: exit 199; cinch-leak: live=0 immortal=0 leaked=0",
+    "escaping-capture: exit 201; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-closure: exit 203; cinch-leak: live=0 immortal=0 leaked=0",
+    "global-function-value: exit 205; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-function: exit 207; cinch-leak: live=0 immortal=0 leaked=0",
+    "dynamic-partial-application: exit 209; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-constructor: exit 211; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-escaping-closures: exit 213; cinch-leak: live=0 immortal=0 leaked=0",
+    "unused-capture: exit 215; cinch-leak: live=0 immortal=0 leaked=0",
+    "shadowed-capture: exit 217; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-capture-classes: exit 219; cinch-leak: live=0 immortal=0 leaked=0",
+    "higher-order-generic-map: exit 221; cinch-leak: live=0 immortal=0 leaked=0",
+    "borrowed-field-capture: exit 223; cinch-leak: live=0 immortal=0 leaked=0",
+    "closure-constructor-field: exit 225; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch-returned-closure: exit 227; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-object-capture: exit 229; cinch-leak: live=0 immortal=0 leaked=0",
+    "lambda-tuple-pattern: exit 231; cinch-leak: live=0 immortal=0 leaked=0",
+    "function-captures: exit 233; cinch-leak: live=0 immortal=0 leaked=0",
+    "selected-dictionary: exit 101; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-slot-order: exit 103; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-value: exit 107; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-object-value: exit 109; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-factory-context: exit 113; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-self-method: exit 127; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-self-escaping: exit 131; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-evidence-capture: exit 137; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-extra-evidence: exit 139; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-raw-value: exit 149; cinch-leak: live=0 immortal=0 leaked=0",
+    "dictionary-shared-evidence: exit 151; cinch-leak: live=0 immortal=0 leaked=0",
+    "erased-region-identity: exit 157; cinch-leak: live=0 immortal=0 leaked=0",
+    "io-unit-entry: exit 163; cinch-leak: live=0 immortal=0 leaked=0",
+    "io-cancellation: exit 167; cinch-leak: live=0 immortal=0 leaked=0",
+    "io-evidence-capture: exit 173; cinch-leak: live=0 immortal=0 leaked=0",
+    "io-observable-bytes: exit 179; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-tagged-fields: exit 181; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-raw-fields: exit 191; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-object-fields: exit 193; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-nullary-tag: exit 197; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-declaration-order: exit 199; cinch-leak: live=0 immortal=0 leaked=0",
+    "imported-constructor-closure: exit 201; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "bootstrap_achieved": false,
+  "cinch_source_check": {
+    "bootstrap_achieved": false,
+    "cinch_exit": 0,
+    "compiler_implementation_interfaces": false,
+    "compiler_sha256": "b0228c6ad1000a9c5d0d242a98456b9fd04d46868fdeef23ebeb514410f9d9f6",
+    "diagnostics": 0,
+    "first_diagnostics": [],
+    "module_count": 25,
+    "native_preflight": "/tmp/cinch-runtime-imported-layouts-preflight-1/result.json",
+    "source_sha256": "a1f833d5d9a2044d1e8a69acc5078a27c06da2b1763d9e45c05926c8a6ac9eae",
+    "status": "passed"
+  },
+  "interface_authority": "A complete checked table must match the defining nominal constructor identities in order; validate actual tags, resolved schemes, field arity, erasure and regular family shape. Method/class source scope remains unchanged.",
+  "meaning": "Retain actual imported public constructor layouts for typed runtime compilation; abstract carriers remain owned objects without guessing hidden layouts",
+  "partial_table": "A data family with hidden constructors retains an owned object carrier but supplies no invented constructor fields or tags; the attempted public constructor emits status5 and no IR.",
+  "published_file_hashes": {
+    "bootstrap/Bootstrap.Infer.cinch": "9fe8166b54a5729d316a5bdbba67c6853a5bd55b31a0674fe69b2dfb282182a4",
+    "compiler/tests/bootstrap_runtime_ir.rs": "2a071acc50e2255bca6bb8a551551f0eca4ff2b46b52e7dc5b4a35da973d8b89"
+  },
+  "remaining": [
+    "Executable imported/base library implementations and private layout authority, including Data.String",
+    "Source-declared signature namespace and scheme elaboration, identified by the actual 25-module String source probe",
+    "Complete current Native/self-built suites and correctness gates",
+    "A genuine Stage2 executable, Stage3 fixed point, canonical interfaces and changed-source behavior"
+  ],
+  "runtime_tests": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-imported-layouts-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:38:09.398776+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 86125,
+      "started": "2026-11-03T04:32:42.708012+00:00",
+      "status": "passed"
+    }
+  ],
+  "seed_changed": false,
+  "source_check_difference": [
+    "compiler/tests/bootstrap_runtime_ir.rs"
+  ],
+  "source_sha256": "8ac862fc410ad94419fe6aff4acfc64a11a1d70ac2a041df9ac15d898fa1cb2c",
+  "source_unchanged": true,
+  "stage_check_directory": "/tmp/cinch-runtime-imported-layouts-stages-1",
+  "stage_check_state": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tooling/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:39:24.272961+00:00",
+      "name": "tooling",
+      "pid": 91261,
+      "started": "2026-11-03T04:39:23.793441+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:40:30.346230+00:00",
+      "name": "stage0-smoke",
+      "pid": 91270,
+      "started": "2026-11-03T04:39:24.273327+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:45:10.226903+00:00",
+      "name": "stage1-smoke",
+      "pid": 91949,
+      "started": "2026-11-03T04:40:30.346614+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "/tmp/cinch-runtime-imported-layouts-stages-1/wait-tests.py"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:49:55.755775+00:00",
+      "name": "focused-prerequisites",
+      "pid": 94880,
+      "started": "2026-11-03T04:45:10.227249+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "check"
+      ],
+      "name": "self-hosting",
+      "pid": 97710,
+      "started": "2026-11-03T04:49:55.756217+00:00",
+      "status": "running"
+    }
+  ],
+  "stage_summary_status": "still running at checkpoint; no bootstrap success claim",
+  "status": "passed",
+  "whole_boundaries": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-imported-layouts-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_emit",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:45:04.030869+00:00",
+      "name": "bootstrap_runtime_emit",
+      "pid": 91084,
+      "started": "2026-11-03T04:39:08.106417+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-imported-layouts-validation-2/cargo",
+        "--test",
+        "bootstrap_nominals",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:49:55.469946+00:00",
+      "name": "bootstrap_nominals",
+      "pid": 91083,
+      "started": "2026-11-03T04:39:08.105871+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-imported-layouts-validation-2/cargo",
+        "--test",
+        "bootstrap_source_constructors",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:44:10.781099+00:00",
+      "name": "bootstrap_source_constructors",
+      "pid": 91085,
+      "started": "2026-11-03T04:39:08.108753+00:00",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "schema",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "{",
+        {
+          "capture": "fields",
+          "of": {
+            "many": {
+              "ref": "field"
+            },
+            "min": 1,
+            "join": "; "
+          }
+        },
+        "}",
+        "}"
+      ],
+      "emit": "record ${name} where { ${fields} }"
+    },
+    "field": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[a-z][a-zA-Z0-9-]*"
+          }
+        },
+        ":",
+        {
+          "capture": "type",
+          "of": {
+            "regex": "String|Nat|Int|Bool"
+          }
+        },
+        ";"
+      ],
+      "emit": "${name} :: ${type}"
+    }
+  },
+  "helpers": {}
+}

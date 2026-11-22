@@ -1,0 +1,41 @@
+-- The checked pipeline boundary retains typed declarations from runtime input.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Check (check-and-retain, checked-elaboration)
+  import Bootstrap.Infer (elaboration-core, elaboration-data)
+  import Bootstrap.Core (CoreDefinition, core-scheme)
+  import Bootstrap.Type (scheme-params)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Ir (emit-checked-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case fs-read (path-from-string "input.cinch") of
+    Err e -> 2
+    Ok bytes -> case parse-program "input.cinch" bytes of
+      Failed bundle -> 3
+      Parsed program Nil -> case resolve-program program of
+        (resolved, Nil) -> case check-and-retain resolved of
+          Err errors -> 4
+          Ok checked ->
+            let typed = checked-elaboration checked in
+            let definitions = elaboration-core typed in
+            let datas = elaboration-data typed in
+            if list-length definitions /= 3 then 11
+            else if list-length datas /= 1 then 12
+            else if not (has-polymorphism definitions) then 13
+            else case emit-checked-diagnostics checked of
+              Nil -> 14
+              Cons d rest -> 0
+        (resolved, errors) -> 5
+      Parsed program errors -> 6
+
+  has-polymorphism :: List CoreDefinition -> Bool
+  has-polymorphism definitions = case definitions of
+    Nil -> False
+    Cons definition rest -> case scheme-params (core-scheme definition) of
+      Nil -> has-polymorphism rest
+      Cons q more -> True

@@ -246,6 +246,14 @@ fn multi_module_file_links_and_runs() {
 }
 
 #[test]
+fn a_module_can_import_a_signature_declared_later_in_the_same_file() {
+    let dir = write_project(&[("Main.cinch", "module Main where\n  import LocalSignature (Echo, echo)\n  implicit instance IntEcho :: Echo Int where\n    echo x = x + 1\n  main :: Int\n  main = if echo 18446744073709551616 == 18446744073709551617 then 213 else 1\nmodule LocalSignature where\n  export Echo, echo\n  signature Echo a where\n    echo :: a -> a\n")]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("dependency before its importer"), 213);
+    let main = cinch::interface::Iface::from_json(&std::fs::read_to_string(dir.join("build/Main.cinchif")).unwrap()).unwrap();
+    assert!(main.imports.iter().any(|dependency| dependency.module == "LocalSignature"));
+}
+
+#[test]
 fn imported_instance_is_used_by_the_importer() {
     // The instance lives in Lib; Main resolves `==` on Lib's type through it.
     let dir = write_project(&[

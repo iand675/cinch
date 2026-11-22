@@ -21,7 +21,6 @@ module Data.Ascii where
   import Data.String
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   type Ascii = refine (s :: String) with Ascii s
 

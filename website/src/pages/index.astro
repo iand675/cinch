@@ -2,7 +2,13 @@
 import Brand from '../components/Brand.astro';
 import HeroHeadline from '../components/HeroHeadline.astro';
 import ContractConsole from '../components/ContractConsole.astro';
-import TechnicalFigure from '../components/TechnicalFigure.astro';
+import AverageFigure from '../components/AverageFigure.astro';
+import averageSource from '../data/examples/average-report.cinch?raw';
+import RunnableSource from '../components/RunnableSource.astro';
+import CompilerPrintout from '../components/CompilerPrintout.astro';
+import AgentLoop from '../components/AgentLoop.astro';
+import FeedbackToolbar from '../components/FeedbackToolbar.astro';
+import uncheckedSource from '../data/examples/average-unchecked.cinch?raw';
 import LanguageTour from '../components/LanguageTour.astro';
 import LiveEvolution from '../components/LiveEvolution.astro';
 import SiteNavigation from '../components/SiteNavigation.astro';
@@ -12,22 +18,36 @@ import FreePagePreview from '../components/FreePagePreview.astro';
 import '../styles/custom.css';
 import '../styles/landing.css';
 const tutorial = '/learn/01-first-program/';
+// Why an agent does better in Cinch. Each claim is backed by the compiler or the design documents linked.
+const agentReasons = [
+  { title: 'Errors that say what to do next', text: 'A rejection names the missing fact and lists the ways to supply it. The agent reads one message and makes one fix, instead of guessing from a stack trace after the code has shipped.', href: '/reference/06-refinements/', link: 'Refinements and obligations' },
+  { title: 'Start loose, tighten as you go', text: 'Begin with plain lists and <code>Option</code>s. When a guarantee pays off, add it to one type, such as <code>NonEmpty</code>, and the compiler points to each caller that now has to supply it, one at a time.', href: '/learn/13-refinements-and-safe-operations/', link: 'Refine values step by step' },
+  { title: 'Nothing to fake', text: 'Whatever the automation concludes is checked again by a small kernel, and no annotation switches a check off. An agent cannot satisfy the compiler by bluffing, so passing the build means the code is right.', href: '/design/proof-automation/', link: 'How checking works' },
+  { title: 'The signature is the context', text: 'A type lists the effects a function performs, the data it borrows, and what it requires of its inputs. Compiled <code>.cinchif</code> interfaces hand an agent a module’s whole contract without its bodies, so less of the context window goes on reading code.', href: '/reference/18-artifacts-and-incremental/', link: 'Compiled interfaces' },
+  { title: 'Effects you can review', text: 'Generated code can perform only the effects its type lists. A function typed without <code>IO</code> cannot open a file or a socket, so reviewing what an agent wrote starts, and often ends, at the signature.', href: '/learn/10-effects-and-io/', link: 'Effects and capabilities' },
+  { title: 'Fast without a rewrite', text: 'Ownership instead of a garbage collector, native code through LLVM, specialized layouts, and checked SIMD. The first correct version an agent writes can also be the fast one, with the same guarantees.', href: '/learn/19-rewrites-and-performance/', link: 'Laws, rewrites, and performance' },
+];
+// What each remedy in the compiler's message means for this code (all three are checked examples).
+const printoutLegend = [
+  { title: 'Decide it', text: 'Test at run time and keep the evidence. <code>report</code> does this with <code>non-empty</code>, which returns <code>None</code> for an empty list.' },
+  { title: 'Branch on it', text: 'Match on the list. In the <code>Cons</code> branch the compiler knows it has an element.' },
+  { title: 'Pass it in', text: 'Ask for a <code>NonEmpty Int</code> in <code>report</code>’s own type, and let its caller decide.' },
+];
 const features = [
-  { n: '01', title: 'Ownership and effects', text: 'Borrow data, transfer ownership, and make effects visible in function signatures. A higher-order function carries the effects of its callback; resource lifetimes constrain which references and facts remain valid.', href: '/learn/12-ownership-and-regions/', link: 'Ownership and effects' },
-  { n: '02', title: 'Structured concurrency', text: 'Tasks live inside scopes. Bounded channels transfer ownership and expose backpressure; cancellation, joining, and cleanup have distinct contracts. Concurrency uses ordinary functions with explicit effects.', href: '/learn/17-structured-concurrency/', link: 'Tasks, channels, and cancellation' },
-  { n: '03', title: 'Temporal contracts', text: 'Describe what a service must always preserve and what must eventually happen. Connect concrete operations to an abstract state machine, with scheduler and environment assumptions made explicit.', href: '/learn/21-upgrades-and-contracts/', link: 'Processes and temporal reasoning' },
-  { n: '04', title: 'Compatible hot upgrades', text: 'Replace a running module with a checked state migration, ownership transfer, and compatibility argument. Track specialized dependents and keep old code resident while live execution still needs it.', href: '/learn/21-upgrades-and-contracts/', link: 'State migration and live replacement' },
-  { n: '05', title: 'Productive streams', text: 'Work with infinite data through delayed observations and productivity checking. Distinguish producing the next element from searching indefinitely for a match, and carry the corresponding guarantee in the interface.', href: '/learn/15-streams-and-producers/', link: 'Streams and coinduction' },
-  { n: '06', title: 'Foreign code and Wasm', text: 'Give foreign calls explicit ABI, ownership, effect, and callback contracts. Component interfaces describe resource handles and failure boundaries so cross-language calls have obligations you can inspect.', href: '/learn/20-foreign-code-and-targets/', link: 'Foreign libraries and deployment interfaces' },
+  { n: '01', title: 'Ownership and effects', text: 'A signature lists the effects a function can perform and the data it borrows. A higher-order function takes on the effects of its callback, so mapping a logging function over a list is a logging computation, and the type says so.', href: '/learn/12-ownership-and-regions/', link: 'Tutorial 12: Ownership, borrowing, and regions' },
+  { n: '02', title: 'Structured concurrency', text: 'Every task belongs to a scope and finishes before the scope does, so a request handler cannot leak background work. Channels are bounded and move ownership of what they carry, which means a full channel slows its sender down. Cancellation, joining, and cleanup each have their own contract.', href: '/learn/17-structured-concurrency/', link: 'Tutorial 17: Structured tasks and cancellation' },
+  { n: '03', title: 'Temporal contracts', text: 'State what a service must never do and what it must eventually do: a payment is never captured twice, and every accepted order is eventually shipped or refunded. Assumptions about the scheduler and the network are written into the contract, where a reviewer can see them.', href: '/learn/21-upgrades-and-contracts/', link: 'Tutorial 21: State evolution and temporal contracts' },
+  { n: '04', title: 'Productive streams', text: 'A stream can be infinite, like a feed of log lines or market ticks. The compiler checks that each stream always produces its next element, so a consumer never hangs waiting. A search that might never find a match gets a weaker type, because it might never return.', href: '/learn/15-streams-and-producers/', link: 'Tutorial 15: Productive streams and partial producers' },
+  { n: '05', title: 'Foreign code and Wasm', text: 'Keep the C and Rust libraries you already depend on. A foreign call declares its ABI, who owns each pointer, and how it fails, so the unsafe boundary is written down in one place. WebAssembly component interfaces carry the same information.', href: '/learn/20-foreign-code-and-targets/', link: 'Tutorial 20: Foreign code, layouts, and target profiles' },
 ];
 ---
 <!doctype html>
 <html lang="en" class="cinch-landing" data-theme="dark">
   <head>
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
-    <title>Cinch — Power, with proof.</title>
+    <title>Cinch — Bulletproof code.</title>
     <link rel="canonical" href={new URL('/', Astro.site)} />
-    <meta name="description" content="Cinch is a strict functional language with dependent types, explicit effects, resource ownership, and checked contracts for running software." />
+    <meta name="description" content="Bulletproof code. Cinch is a functional language for the programs you ship. If a Cinch program compiles, it does not crash, and anything that can still go wrong shows up in its type." />
     <meta name="theme-color" content="#191a17" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="/fonts/momo-trust-display.ttf" as="font" type="font/ttf" crossorigin />
@@ -36,63 +56,57 @@ const features = [
   <body>
     <a class="landing-skip" href="#main">Skip to content</a>
     <header class="landing-header">
-      <div class="header-identity"><Brand /><span class="header-name mono">THE CINCH<br />PROGRAMMING LANGUAGE</span></div>
+      <div class="header-identity"><Brand /></div>
       <SiteNavigation />
     </header>
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-topline mono"><span><i class="status-lamp" aria-hidden="true"></i> LANGUAGE DESIGN / IN DEVELOPMENT</span><span class="hero-edition">TYPES · EFFECTS · OWNERSHIP</span></div>
-        <div class="hero-grid">
+                <div class="hero-grid">
           <div class="hero-copy">
-            <div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="hero-runhead"><div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div><p class="mono">Software from the future we were promised</p></div>
             <HeroHeadline />
-            <p class="hero-description">Dependent types.<br />Explicit effects. Resource control.</p>
-            <p class="hero-detail">Cinch is a strict functional language for programs with contracts about their data, resources, and runtime behavior.</p>
-            <div class="hero-actions"><a class="button button-primary" href="/downloads/">Get Cinch <span>↗</span></a><a class="text-link" href={tutorial}>Start the tutorial <span>→</span></a></div>
+            <p class="hero-description">A functional language for the programs you ship.</p>
+            <p class="hero-detail">If a Cinch program compiles, it does not crash. Anything that can still go wrong, like a missing file or a dropped connection, shows up in its type. The compiler works out most guarantees from your types and pattern matches, and when one is missing it tells you how to supply it.</p>
+            <div class="hero-actions"><a class="button button-primary" href="/downloads/">Get Cinch <span>↗</span></a><a class="text-link" href={tutorial}>Write your first program <span>→</span></a></div>
+            <p class="hero-note">Prebuilt for macOS, Linux, and Windows. The tutorial assumes no Haskell.</p>
           </div>
           <ContractConsole />
         </div>
-        <div class="hero-baseline mono"><span>STRICT FUNCTIONAL LANGUAGE</span><span class="baseline-track" aria-hidden="true"></span><a href="#why-cinch">INSIDE THE LANGUAGE <span>↓</span></a></div>
+        <div class="hero-baseline mono"><a href="#why-cinch">INSIDE THE LANGUAGE <span>↓</span></a></div>
       </section>
       <section class="manifesto light-section" id="why-cinch" aria-labelledby="manifesto-title">
-        <div class="section-index mono"><span>01 / LANGUAGE DESIGN</span><span>CINCH / DESIGN NOTES</span></div>
-        <div class="manifesto-grid"><h2 id="manifesto-title">Functional code.<br /><span>Explicit contracts.</span></h2><div class="manifesto-copy"><p>A function’s type can describe the length of its result, the effects it performs, and the resources it borrows.</p><p>Cinch uses algebraic data types, pattern matching, and higher-order functions. Dependent types and ownership extend that foundation so you can specify properties of your code and check the evidence for them.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
-        <div class="principle-strip mono"><span>STRICT EVALUATION</span><span>DEPENDENT TYPES</span><span>EXPLICIT EFFECTS</span><span>RESOURCE CONTROL</span></div>
-        <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Proofs and refinements ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Verified optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
+        <div class="manifesto-grid"><h2 id="manifesto-title">Familiar code.<br /><span>Stronger types.</span></h2><div class="manifesto-copy"><p>If you have written Haskell or OCaml, most Cinch code will look familiar. What changes is how much a type can say, and that the compiler holds the code to it.</p><p>Algebraic data types, pattern matching, higher-order functions, and instances work as you would expect. Evaluation is strict, and ownership and borrowing manage memory, files, and sockets without a tracing garbage collector.</p><p>When you need a stronger guarantee, such as an index that is in bounds or a list that is never empty, you write it in the type and the compiler checks it. Linear arithmetic like <code>i + 1 &lt;= length xs</code> is checked for you.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
+        <nav class="language-jump" aria-label="Explore language features"><a href="#agents">For language models ↓</a><a href="#proofs">Checked data ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
-      <section class="proof-section" aria-labelledby="proof-title">
-        <div class="section-index mono"><span>02 / DEPENDENT TYPES IN USE</span><span>THE CONTRACT IN CODE</span></div>
+      <section class="proof-section" id="average" aria-labelledby="proof-title">
         <div class="proof-grid">
-          <div class="proof-copy"><h2 id="proof-title">A first element<br />requires<br /><em>a nonempty vector.</em></h2><p>The input has length n + 1. An empty vector has length 0, so it cannot be passed to this function.</p><p class="muted">Pattern matching leaves one constructor to handle. The returned reference borrows from the input and cannot outlive it.</p><a class="text-link" href="/learn/14-dependent-types-and-proofs/#vectors-retain-a-length">Read the example in context <span>↗</span></a></div>
-          <div class="code-window"><div class="code-toolbar mono"><span><i></i> first.cinch</span><span>DESIGN EXAMPLE</span></div><pre aria-label="Cinch dependent type example"><code><span class="code-comment">-- Borrow the first element of a nonempty vector.</span>
-<span class="code-name">first</span> <span class="code-punct">::</span> <span class="code-keyword">forall</span> a n region.
-  <span class="code-type">Ref</span> region (<span class="code-type">Vec</span> (n + <span class="code-number">1</span>) a)
-  <span class="code-punct">-&gt;</span> <span class="code-type">Ref</span> region a
-
-<span class="code-name">first</span> xs = <span class="code-keyword">case</span> xs <span class="code-keyword">of</span>
-  <span class="code-type">Cons</span> x rest <span class="code-punct">-&gt;</span> x</code></pre><div class="code-note"><span class="proof-check">↳</span><p><strong>Why there is no Nil branch</strong><br /><code>Nil</code> has length 0. This input requires <code>n + 1</code>.</p></div><div class="code-caption mono">DESIGN EXAMPLE / NONEMPTY VECTORS</div></div>
+          <div class="proof-copy"><h2 id="proof-title">Crashing code<br /><em>never ships.</em></h2><p>Every codebase has a function like this: average order value, mean response time, the failure rate of last night’s jobs. It passes every test. Then a customer with no orders opens the dashboard and it divides by zero.</p><p class="muted">In Cinch, division takes a divisor that cannot be zero. <code>average</code> asks for a <code>NonEmpty</code> list, whose length is never zero, so it needs no check of its own. Code holding an ordinary list has to decide, once, what an empty history means.</p><a class="text-link" href="/learn/13-refinements-and-safe-operations/">Refinements and safe operations <span>↗</span></a></div>
+          <RunnableSource file="average-report.cinch" source={averageSource}><div class="code-note"><span class="proof-check">↳</span><p><strong>Hand it an ordinary list</strong><br /><code>report orders = average orders</code> asks for a fact the compiler cannot see.</p><button type="button" class="gadget-key" data-print aria-pressed="false">Check it <span aria-hidden="true">▸</span></button></div><CompilerPrintout file="average-unchecked.cinch" source={uncheckedSource} legend={printoutLegend} /></RunnableSource>
         </div>
-        <TechnicalFigure id="landing-vector-figure" />
+        <AverageFigure id="landing-average-figure" />
+      </section>
+      <section class="agents-section language-section" id="agents" aria-labelledby="agents-title">
+        <div class="tour-heading"><h2 id="agents-title">Your LLM’s new<br />favorite language.</h2><p>An agent writes code, runs the compiler, reads the result, and tries again. Cinch makes every turn of that loop count. The compiler says exactly what is missing and how to supply it, and nothing it accepts can crash in production.</p></div>
+        <AgentLoop />
+        <div class="agent-reasons">{agentReasons.map(r => <article><h3>{r.title}</h3><p set:html={r.text} /><a class="text-link" href={r.href}>{r.link} <span>↗</span></a></article>)}</div>
       </section>
       <LanguageTour />
       <LiveEvolution />
       <section class="feature-section light-section" id="runtime-contracts" aria-labelledby="features-title">
-        <div class="section-index mono"><span>08 / RUNTIME CONTRACTS</span><span>RESOURCES / PROCESSES / EVOLUTION</span></div>
         <h2 id="features-title">Carry the contract<br />into a running system.</h2>
-        <div class="feature-list">{features.map(feature => <article class="feature-row"><span class="feature-number mono" aria-hidden="true">{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
+        <div class="feature-list">{features.map((feature, i) => <article class="feature-row"><span class="feature-number mono" aria-hidden="true" style={`--filled:${i + 1};--total:${features.length}`}>{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
       </section>
       <section class="reading-section" aria-labelledby="reading-title">
-        <div class="section-index mono"><span>09 / DOCUMENTATION</span><span>CONTENTS</span></div>
-        <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>Start with a working program.<br />Keep the compiler guide nearby.</p></div>
-        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters with worked programs, exercises, and a complete project.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, checking rules, commands, runtime controls, and planned features.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Real checked APIs for the built-in and source-distributed modules.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
-        <aside class="design-status"><span class="mono">IMPLEMENTATION STATUS</span><p>This page follows the Cinch language design, including features still being implemented. The examples explain the intended contracts; they are not a browser compiler. <a href="/design/next-steps/">Implementation plan ↗</a></p></aside>
+        <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>One idea per chapter, each with an exercise and an answer. It assumes you can program, not that you know a dependently typed language.</p></div>
+        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to concurrency and live upgrades, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, commands, and the checking rule behind each error the compiler reports.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
+        
       </section>
-      <section class="ecosystem-section light-section" aria-labelledby="ecosystem-title"><div class="section-index mono"><span>10 / TOOLS AND LIBRARIES</span><span>DEVELOPER RESOURCES</span></div><h2 id="ecosystem-title">Downloads<br />and packages.</h2><div class="ecosystem-links"><a href="/downloads/"><span class="mono">TOOLCHAIN</span><h3>Get Cinch</h3><p>Choose a platform, inspect release information, or get the source.</p><span aria-hidden="true">↗</span></a><a href="/packages/"><span class="mono">LIBRARY INDEX / PREVIEW</span><h3>Browse packages</h3><p>Explore libraries, read module references, and follow linked types into the API.</p><span aria-hidden="true">↗</span></a></div></section>
-      <section class="closing"><div class="mono">TUTORIAL 01 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Read the<br /><span>first tutorial.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><div class="closing-bottom mono"><span>FIRST PROGRAM → LANGUAGE TUTORIAL → COMPILER REFERENCE</span></div></section>
+      <section class="closing"><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗<span class="closing-orbit"><i></i></span></span></a></section>
     </main>
     <footer class="landing-footer"><Brand /><div><a href="/documentation/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
     <PremiumPagePreview />
     <FreePagePreview />
+    <FeedbackToolbar />
   </body>
 </html>

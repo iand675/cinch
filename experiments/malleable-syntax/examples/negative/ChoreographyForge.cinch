@@ -1,0 +1,6 @@
+module Main where
+  import Checkout
+  bad :: Thunk {} CheckoutBuyerP1
+  bad = delay (\() -> Checkout.MkCheckoutBuyerP1 0)
+  main :: Int
+  main = 0

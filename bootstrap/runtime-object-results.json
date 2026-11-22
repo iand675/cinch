@@ -1,0 +1,205 @@
+{
+  "bootstrap_achieved": false,
+  "content_hash_note": "IR and object content hashes inside the manifest are existing FNV identities, not cryptographic hashes. This evidence additionally records SHA256 artifact digests.",
+  "gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-object-validation-7/cargo",
+        "--lib",
+        "codegen::tests::object_",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:22:12.522603+00:00",
+      "name": "object-tests",
+      "pid": 57902,
+      "started": "2026-11-03T06:21:22.109493+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-object-validation-7/cargo",
+        "--lib",
+        "--test",
+        "dependent",
+        "--test",
+        "ownership",
+        "--test",
+        "reclamation",
+        "--test",
+        "repr_classes",
+        "--test",
+        "modules",
+        "--test",
+        "incremental",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:26:36.338982+00:00",
+      "name": "native-regressions",
+      "pid": 58430,
+      "started": "2026-11-03T06:22:12.522916+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--target-dir",
+        "/tmp/cinch-object-validation-7/cargo",
+        "--bin",
+        "cinch"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:26:51.553751+00:00",
+      "name": "native-bin",
+      "pid": 62676,
+      "started": "2026-11-03T06:26:36.339365+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/tmp/cinch-object-validation-7/cargo/debug/cinch",
+        "emit-object",
+        "/tmp/cinch-object-validation-7/CliLibrary.cinch",
+        "-o",
+        "/tmp/cinch-object-validation-7/cli.o"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:26:56.516108+00:00",
+      "name": "object-cli",
+      "pid": 62820,
+      "started": "2026-11-03T06:26:51.554152+00:00",
+      "status": "passed"
+    }
+  ],
+  "linked_artifact_probes": [
+    {
+      "directory": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_object_58824",
+      "exit_code": 0,
+      "indexed_units": [
+        {
+          "arity": 2,
+          "closure_entry": "<builtin>.Cons@T.object-closure",
+          "params": [
+            "T",
+            "O"
+          ],
+          "result": "O",
+          "symbol": "<builtin>.Cons@T"
+        },
+        {
+          "arity": 1,
+          "closure_entry": "Library.Indexed@T.object-closure",
+          "params": [
+            "T"
+          ],
+          "result": "O",
+          "symbol": "Library.Indexed@T"
+        }
+      ],
+      "layout_word_count": 385,
+      "sha256": {
+        "consumer.ll": "03bc637f2f8dddb1a25ec3e46265806271a06284ddf0617719b5069d1a05b937",
+        "library.abi.json": "11a9273a1430f43bb63fcc1d7819d08be07c2a4c8da93d8c6f76cbd69e784e0c",
+        "library.ll": "255b6ed2ccbe9d0922a63fe78891fa98bdacdaeada9c6dad9e7b7e5aaf96ff47",
+        "library.o": "79e7a3bc388d8383a465b638e69d13c7a16d211586035adbe206e1e3b06d43dd",
+        "main.c": "69bcb9a3596c9fd7f3ce3d141f916b56d83692fb639947dab009de91dc815c70",
+        "program": "2326ba09a7d65e348bdd0147455071b01e1357bfa9cf2e13bf625ed551a1ae9f"
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "unit_count": 43
+    },
+    {
+      "directory": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_object_driver_58824",
+      "exit_code": 0,
+      "interface_count": 56,
+      "layout_word_count": 3776,
+      "sha256": {
+        "base.abi.json": "a476a3f5fa9ba56c41300739f2ac754ffe7b50ef510227cb67b2d92ba829a19e",
+        "base.ll": "c6662c76bf20d2f65b91ffa7eef4df4c3a4a0e866473c8d1da5dd27f6bc7a4a3",
+        "base.o": "c21fe9c3edb195043da896911e37129664746ea8bebe1845ceca518e27f0954d",
+        "consumer.ll": "6e7f9ac5fb3f72613507a54253743aec78c1a872f6f0d652ea36e5120a2ea4b8",
+        "main.c": "aed224e1f9503db60ca72430fcfa2a87f82b98f4ad4d6544c8c71bf878400076",
+        "program": "616b2ae0f03ec5e6c27c489afdb3b305945826a250dd0bac356ab6c0c1b838ef"
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "unit_count": 961
+    }
+  ],
+  "manifest": "Canonical schema1 physical manifest contains actual units, arities, parameter and known result classes, constructor descriptors, dictionary fields/order, exact packed layout words including extensions, target/runtime and checked interface closure",
+  "meaning": "Closed executable library objects with actual physical layout authority and checked interface closure; no compiler fallback",
+  "native_checks": {
+    "dependent": 14,
+    "incremental": 10,
+    "modules": 12,
+    "ownership": 21,
+    "reclamation": 18,
+    "representation": 3,
+    "unit": 146
+  },
+  "native_repair": "Built-in indexed constructors previously had missing field maps. Built-in and source data fields now use constructor Scheme.params vector order; erased index parameters no longer shift the counted element slot. Actual heap integers in Vec1Int and Indexed1Int are released.",
+  "negative_checks": [
+    "object with process entry rejected",
+    "missing checked parameter map rejected",
+    "unresolved representation parameter rejected",
+    "closure accessor collision rejected"
+  ],
+  "producer": "Real emit-object CLI checks and specializes a library dependency bundle; no process entry, apply definition or table registration; exports explicit static closure accessors",
+  "published_file_hashes": {
+    "compiler/README.md": "63d013705b0a67a53ee1875c698906f35ac714331f7077e70b4dc64d6a3051f1",
+    "compiler/src/check_decls.rs": "49a4c28b225b241aca48369ccc14f1c1a5d02fe0b724c807ead4892f7904a8e0",
+    "compiler/src/codegen.rs": "b32a417fe04f6e4b65efc3a481d33618c0adeec01c8152748f0fa731b086e83c",
+    "compiler/src/driver.rs": "ed904949f79bf9c4ef83b25e157376af51bf9256fca93455f255e243d79d4a4d",
+    "compiler/src/main.rs": "c389c35fa0cf7b1a8f41b4e0b7fa1da653b9be2eb09d364e287602b14d476460",
+    "design/runtime-object-linkage.md": "e6cf3987b7b969a6bc86b7baf439c378ec8ca6a391724e0c011e6459c6b68002"
+  },
+  "remaining": [
+    "Cinch manifest admission and exact checked source-export/variant authority",
+    "Preseed the Cinch layout allocator and preserve the entire provider prefix",
+    "External calls, factory context ABI, shared class method families and explicit specialization roots",
+    "Private String and scalar/pattern/extended runtime lowering",
+    "Genuine Stage2 executable and Stage3 fixed point, changed-source behavior, all current Native/self-built suites and correctness obligations"
+  ],
+  "seed_changed": false,
+  "shared_adapter_followup": {
+    "checks": 2,
+    "meaning": "Shared test adapter compiles with EmitObject; selecting a self-built compiler explicitly refuses unsupported object emission without a Native fallback",
+    "source_sha256": "3857a5f505bd45da684f250c9dc81f8bf2ec8645d77b4afefd753cd91b469f69",
+    "status": "passed",
+    "validation": {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-2/cargo",
+        "--test",
+        "bootstrap_external_frontend",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:38:21.004316+00:00",
+      "name": "bootstrap_external_frontend",
+      "pid": 69230,
+      "started": "2026-11-03T06:37:34.969839+00:00",
+      "status": "passed"
+    }
+  },
+  "source_sha256": "6d227b3a9d1f635328b6a885a78a3063993cfde70b240a97e5f922aab2451a2c",
+  "source_unchanged": true,
+  "status": "passed",
+  "total_native_checks": 224
+}

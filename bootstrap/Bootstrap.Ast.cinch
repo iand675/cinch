@@ -31,6 +31,7 @@
 module Bootstrap.Ast where
 
   import Text.Lex (Span, span-start, span-end, span-line, span-col)
+  import Data.Json (Json)
 
   -- ------------------------------------------------------------------ spans
 
@@ -84,11 +85,19 @@ module Bootstrap.Ast where
 
   data TypeExpr where
     TName :: Span -> String -> TypeExpr
+    TIndex :: Span -> String -> TypeExpr
+    TNegate :: Span -> TypeExpr -> TypeExpr
+    TInfix :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
+    TRefined :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TApp :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TFun :: Span -> TypeExpr -> TypeExpr -> TypeExpr
-    TFunEff :: Span -> TypeExpr -> String -> TypeExpr -> TypeExpr
+    TFunEff :: Span -> TypeExpr -> TypeExpr -> TypeExpr -> TypeExpr
+    TRow :: Span -> TypeExpr -> Option String -> TypeExpr
     TTuple :: Span -> TypeExpr -> TypeExpr
-    TForall :: Span -> List String -> TypeExpr -> TypeExpr
+    TForall :: Span -> TypeExpr -> TypeExpr -> TypeExpr
+    TQuantifier :: Span -> String -> Bool -> TypeExpr -> TypeExpr -> TypeExpr
+    TQuantifiersEnd :: Span -> TypeExpr
+    TNoKind :: Span -> TypeExpr
     TUsing :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TArg :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TArgsEnd :: Span -> TypeExpr
@@ -122,17 +131,70 @@ module Bootstrap.Ast where
   type-expr-span :: TypeExpr -> Span
   type-expr-span t = case t of
     TName s n -> s
+    TIndex s n -> s
+    TNegate s x -> s
+    TInfix s op a b -> s
+    TRefined s predicate carrier -> s
     TApp s h args -> s
     TFun s a b -> s
     TFunEff s a row b -> s
+    TRow s labels tail -> s
     TTuple s xs -> s
     TForall s vs body -> s
+    TQuantifier s name is-implicit kind rest -> s
+    TQuantifiersEnd s -> s
+    TNoKind s -> s
     TUsing s bounds body -> s
     TArg s x rest -> s
     TArgsEnd s -> s
     TBound s name ty rest -> s
     TBoundsEnd s -> s
     TUnmodeled s text -> s
+
+  -- Declaration binders retain their kinds and implicitness. Throwing
+  -- these away would make indexed and generic declarations indistinguishable.
+  data TypeParam where
+    MkTypeParam :: Span -> String -> Option TypeExpr -> Bool -> TypeParam
+
+  param-name :: TypeParam -> String
+  param-name p = case p of
+    MkTypeParam s name kind is-implicit -> name
+
+  param-span :: TypeParam -> Span
+  param-span p = case p of
+    MkTypeParam s name kind is-implicit -> s
+
+  param-kind :: TypeParam -> Option TypeExpr
+  param-kind p = case p of
+    MkTypeParam s name kind is-implicit -> kind
+
+  param-implicit :: TypeParam -> Bool
+  param-implicit p = case p of
+    MkTypeParam s name kind is-implicit -> is-implicit
+
+  -- A direct recursive spine satisfies the seed's positivity discipline.
+  -- The temporary parameter list must not appear nested in TypeExpr.
+  forall-param-spine :: Span -> List TypeParam -> TypeExpr
+  forall-param-spine sp params = case params of
+    Nil -> TQuantifiersEnd sp
+    Cons (MkTypeParam s name kind is-implicit) rest -> TQuantifier s name is-implicit (case kind of
+      None -> TNoKind s
+      Some annotation -> annotation) (forall-param-spine sp rest)
+
+  forall-params-of :: TypeExpr -> List TypeParam
+  forall-params-of binders = case binders of
+    TQuantifiersEnd s -> Nil
+    TQuantifier s name is-implicit kind rest -> Cons (MkTypeParam s name (case kind of
+      TNoKind k -> None
+      annotation -> Some annotation) is-implicit) (forall-params-of rest)
+    other -> Nil
+
+  params-unmodeled :: List TypeParam -> Nat
+  params-unmodeled ps = case ps of
+    Nil -> 0
+    Cons p rest -> case param-kind p of
+      None -> params-unmodeled rest
+      Some ty -> type-unmodeled-count ty + params-unmodeled rest
 
   -- ---------------------------------------------------------------- patterns
 
@@ -197,12 +259,16 @@ module Bootstrap.Ast where
     ELet :: Span -> Expr -> Expr -> Expr
     EIf :: Span -> Expr -> Expr -> Expr -> Expr
     ECase :: Span -> Expr -> Expr -> Expr
+    EGuarded :: Span -> Expr -> Expr -> Expr
     EAnn :: Span -> Expr -> TypeExpr -> Expr
     EForall :: Span -> List String -> Expr -> Expr
     EUsing :: Span -> TypeExpr -> Expr -> Expr
     EBind :: Span -> String -> Expr -> Expr
     EDo :: Span -> Expr -> Expr
     EHandle :: Span -> Expr -> Expr -> Expr
+    EHandler :: Span -> TypeExpr -> Expr -> Expr
+    EHandlerClause :: Span -> String -> List Pat -> Option String -> Expr -> Expr -> Expr
+    EHandlerEnd :: Span -> Expr
     EWith :: Span -> Expr -> Expr -> Expr
     EArg :: Span -> Expr -> Expr -> Expr
     EArgsEnd :: Span -> Expr
@@ -265,12 +331,16 @@ module Bootstrap.Ast where
     ELet s bs body -> s
     EIf s c t f -> s
     ECase s scrut alts -> s
+    EGuarded s guard body -> s
     EAnn s x t -> s
     EForall s vs body -> s
     EUsing s bounds body -> s
     EBind s n rhs -> s
     EDo s stmts -> s
     EHandle s body h -> s
+    EHandler s label clauses -> s
+    EHandlerClause s name pats continuation body rest -> s
+    EHandlerEnd s -> s
     EWith s bs body -> s
     EArg s x rest -> s
     EArgsEnd s -> s
@@ -286,18 +356,28 @@ module Bootstrap.Ast where
   -- clause is not a recursive position of `Decl`, so it stays a `List`. A
   -- clause's own `where` locals and a declaration's modifiers are not
   -- modeled yet: they arrive as `DUnmodeled` when a corpus uses them.
+  data ExportItem where
+    ExportName :: Span -> List String -> ExportItem
+    ExportModule :: Span -> String -> ExportItem
+
   data Decl where
+    DSource :: Span -> String -> Json -> Decl
+    DInterface :: Span -> String -> String -> Json -> Decl
+    DExternal :: Span -> String -> String -> Option TypeExpr -> Json -> Decl
     DSig :: Span -> String -> TypeExpr -> Decl
+    -- Resolved source method: slot label and actual module binding.
+    DMethod :: Span -> String -> String -> TypeExpr -> Decl
     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
-    DData :: Span -> String -> List (String, TypeExpr) -> Decl
-    DClass :: Span -> String -> List String -> Decl -> Decl
-    DInstance :: Span -> Bool -> String -> TypeExpr -> Decl -> Decl
+    DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DRefine :: Span -> String -> List TypeParam -> TypeParam -> TypeExpr -> Decl
+    DClass :: Span -> String -> List TypeParam -> Decl -> Decl
+    DInstance :: Span -> Bool -> String -> List TypeParam -> TypeExpr -> Decl -> Decl
     DFixity :: Span -> String -> Nat -> List String -> Decl
-    DImport :: Span -> String -> Decl
-    DExport :: Span -> String -> Decl
-    DRecord :: Span -> String -> List (String, TypeExpr) -> Decl
-    DEffect :: Span -> String -> List (String, TypeExpr) -> Decl
-    DForeign :: Span -> String -> String -> TypeExpr -> Decl
+    DImport :: Span -> String -> List String -> Option String -> List (String, Option String) -> List Expr -> Decl
+    DExport :: Span -> String -> List ExportItem -> Decl
+    DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
@@ -315,17 +395,22 @@ module Bootstrap.Ast where
 
   decl-span :: Decl -> Span
   decl-span d = case d of
+    DSource s name metadata -> s
+    DInterface s name hash metadata -> s
+    DExternal s name kind scheme metadata -> s
     DSig s n t -> s
+    DMethod s label name t -> s
     DFun s n clauses -> s
-    DData s n ctors -> s
+    DData s n params ctors -> s
+    DRefine s n params binder predicate -> s
     DClass s n params members -> s
-    DInstance s is-implicit name class-app members -> s
+    DInstance s is-implicit name params class-app members -> s
     DFixity s assoc prec ops -> s
-    DImport s path -> s
-    DExport s text -> s
-    DRecord s n fields -> s
-    DEffect s n ops -> s
-    DForeign s conv foreign-name t -> s
+    DImport s path mods alias members args -> s
+    DExport s text items -> s
+    DRecord s n params fields -> s
+    DEffect s n params ops -> s
+    DForeign s direction conv symbol foreign-name t -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DUnmodeled s text -> s
@@ -333,17 +418,22 @@ module Bootstrap.Ast where
   -- A declaration's name, where it has one a consumer registers.
   decl-name :: Decl -> Option String
   decl-name d = case d of
+    DSource s name metadata -> None
+    DInterface s name hash metadata -> None
+    DExternal s name kind scheme metadata -> Some name
     DSig s n t -> Some n
+    DMethod s label name t -> Some name
     DFun s n clauses -> Some n
-    DData s n ctors -> Some n
+    DData s n params ctors -> Some n
+    DRefine s n params binder predicate -> Some n
     DClass s n params members -> Some n
-    DInstance s is-implicit name class-app members -> Some name
+    DInstance s is-implicit name params class-app members -> Some name
     DFixity s assoc prec ops -> None
-    DImport s path -> Some path
-    DExport s text -> None
-    DRecord s n fields -> Some n
-    DEffect s n ops -> Some n
-    DForeign s conv foreign-name t -> Some foreign-name
+    DImport s path mods alias members args -> Some path
+    DExport s text items -> None
+    DRecord s n params fields -> Some n
+    DEffect s n params ops -> Some n
+    DForeign s direction conv symbol foreign-name t -> Some foreign-name
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnmodeled s text -> None
@@ -382,11 +472,19 @@ module Bootstrap.Ast where
   type-unmodeled-count :: TypeExpr -> Nat
   type-unmodeled-count t = case t of
     TName s n -> 0
+    TIndex s n -> 0
+    TNegate s x -> type-unmodeled-count x
+    TInfix s op a b -> type-unmodeled-count a + type-unmodeled-count b
+    TRefined s predicate carrier -> type-unmodeled-count predicate + type-unmodeled-count carrier
     TApp s h args -> type-unmodeled-count h + type-unmodeleds (type-args-of args)
     TFun s a b -> type-unmodeled-count a + type-unmodeled-count b
-    TFunEff s a row b -> type-unmodeled-count a + type-unmodeled-count b
+    TFunEff s a row b -> type-unmodeled-count a + type-unmodeled-count row + type-unmodeled-count b
+    TRow s labels tail -> type-unmodeled-count labels
     TTuple s xs -> type-unmodeleds (type-args-of xs)
-    TForall s vs body -> type-unmodeled-count body
+    TForall s vs body -> type-unmodeled-count vs + type-unmodeled-count body
+    TQuantifier s name is-implicit kind rest -> type-unmodeled-count kind + type-unmodeled-count rest
+    TQuantifiersEnd s -> 0
+    TNoKind s -> 0
     TUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + type-unmodeled-count body
     TArg s x rest -> type-unmodeled-count x + type-unmodeled-count rest
     TArgsEnd s -> 0
@@ -447,12 +545,16 @@ module Bootstrap.Ast where
     ELet s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
     EIf s c t f -> expr-unmodeled-count c + expr-unmodeled-count t + expr-unmodeled-count f
     ECase s scrut alts -> expr-unmodeled-count scrut + alts-unmodeled (alts-of alts)
+    EGuarded s guard body -> expr-unmodeled-count guard + expr-unmodeled-count body
     EAnn s x t -> expr-unmodeled-count x + type-unmodeled-count t
     EForall s vs body -> expr-unmodeled-count body
     EUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + expr-unmodeled-count body
     EBind s n rhs -> expr-unmodeled-count rhs
     EDo s stmts -> exprs-unmodeled (exprs-of stmts)
     EHandle s body h -> expr-unmodeled-count body + expr-unmodeled-count h
+    EHandler s label clauses -> type-unmodeled-count label + expr-unmodeled-count clauses
+    EHandlerClause s name pats continuation body rest -> pats-unmodeled pats + expr-unmodeled-count body + expr-unmodeled-count rest
+    EHandlerEnd s -> 0
     EWith s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
     EArg s x rest -> expr-unmodeled-count x + expr-unmodeled-count rest
     EArgsEnd s -> 0
@@ -505,17 +607,22 @@ module Bootstrap.Ast where
 
   decl-unmodeled-count :: Decl -> Nat
   decl-unmodeled-count d = case d of
+    DSource s name metadata -> 0
+    DInterface s name hash metadata -> 0
+    DExternal s name kind scheme metadata -> 0
     DSig s n t -> type-unmodeled-count t
+    DMethod s label name t -> type-unmodeled-count t
     DFun s n clauses -> clauses-unmodeled clauses
-    DData s n ctors -> ctors-unmodeled ctors
-    DClass s n params members -> decls-unmodeled (decls-of members)
-    DInstance s is-implicit name class-app members -> type-unmodeled-count class-app + decls-unmodeled (decls-of members)
+    DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
+    DRefine s n params binder predicate -> params-unmodeled (Cons binder params) + type-unmodeled-count predicate
+    DClass s n params members -> params-unmodeled params + decls-unmodeled (decls-of members)
+    DInstance s is-implicit name params class-app members -> params-unmodeled params + type-unmodeled-count class-app + decls-unmodeled (decls-of members)
     DFixity s assoc prec ops -> 0
-    DImport s path -> 0
-    DExport s text -> 0
-    DRecord s n fields -> ctors-unmodeled fields
-    DEffect s n ops -> ctors-unmodeled ops
-    DForeign s conv foreign-name t -> type-unmodeled-count t
+    DImport s path mods alias members args -> exprs-unmodeled args
+    DExport s text items -> 0
+    DRecord s n params fields -> params-unmodeled params + ctors-unmodeled fields
+    DEffect s n params ops -> params-unmodeled params + ctors-unmodeled ops
+    DForeign s direction conv symbol foreign-name t -> type-unmodeled-count t
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1

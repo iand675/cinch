@@ -1,0 +1,103 @@
+/* Cinch design tokens.
+ *
+ * One place for the material palette, the type stack, the label scale and the
+ * recurring shapes. Page stylesheets should not repeat raw hex values for
+ * anything that is part of the palette; component-local shades and alpha
+ * variants may stay literal, beside the rule that needs them.
+ *
+ * The palette follows the design handbook: charcoal ink fields, cream paper,
+ * orange signal, amber instrument light, olive print. Values are exact; this
+ * layer reorganises the palette, it does not restyle it.
+ */
+
+:root {
+  /* ---- Ink: page fields, housings, screens ---------------------------- */
+  --ink: #191a17; /* page field, hero, reading section, footer */
+  --ink-field: #22291e; /* staging and evolution fields */
+  --ink-proof: #252a21; /* checked-data field */
+  --ink-housing: #272c21; /* teletype, bezel body */
+  --ink-workbench: #1c2319; /* recessed workbenches (Life, dependency) */
+  --ink-excerpt: #242c1f; /* code excerpts */
+  --ink-screen: #191f17; /* code window */
+  --ink-code: #0f130d; /* run output well */
+  --ink-plate: #1c211a; /* display bezel */
+  --ink-tab: #333d2b; /* selected tab */
+  --ink-bit: #38432b; /* lit bit, warm chip */
+  --ink-type: #23251e; /* type on cream */
+  --ink-type-field: #28271c; /* type on orange fields */
+  --ink-console: #29251c; /* type on the console housing */
+
+  /* ---- Paper: cream fields, print and keys ---------------------------- */
+  --paper: #eee6d5; /* cream field, type on dark */
+  --paper-bright: #fff0d0; /* closing type and planet ring */
+  --paper-print: #f4efdd; /* continuous form paper */
+  --paper-print-rule: #e2e9d0; /* printout line rule */
+  --paper-print-dash: #b8b296; /* printout perforation */
+  --paper-code: #e3d9bd; /* code type on ink excerpts */
+  --paper-key: #d9ceaf; /* console keycaps */
+  --paper-key-type: #2e3325; /* type printed on keycaps */
+  --paper-label: #e2dfbd; /* bright technical labels on ink */
+
+  /* ---- Orange: signal and fields -------------------------------------- */
+  --orange: #ff8546; /* signal: hero accent, primary action */
+  --orange-hover: #ffa270;
+  --orange-line: #ff985b; /* link hover on ink */
+  --orange-bright: #ff975b; /* emphasis on proof headings */
+  --orange-field: #e58b4e; /* agents and specialization fields */
+  --orange-closing: #f68240; /* closing field */
+  --orange-housing: #de8149; /* console housing */
+  --orange-edge: #9e613b; /* housing seams and borders */
+  --rust: #a64b27; /* numerals and marks on cream */
+
+  /* ---- Amber: instrument light ---------------------------------------- */
+  --amber: #e9b071; /* lamps, arrows, rules on ink */
+  --amber-link: #e7b47b; /* links on ink fields */
+  --amber-muted: #cca576; /* labels on ink */
+  --amber-deep: #8d6848; /* labels on cream */
+  --amber-code: #f0d29a; /* code type on ink */
+  --amber-code-soft: #e5c28a;
+  --amber-warn: #f4ac75; /* failed state */
+  --amber-key-edge: #a37043; /* keycap edge */
+  --amber-readout: #e4b575; /* dial readouts */
+
+  /* ---- Olive: print and body copy ------------------------------------- */
+  --olive: #555e3e; /* equation type on cream */
+  --olive-deep: #5d4a33; /* pips and pins */
+  --olive-label: #77724f; /* micro labels on cream */
+  --olive-copy: #70634e; /* body copy on cream */
+  --olive-copy-ink: #b9b9a3; /* body copy on ink fields */
+  --olive-copy-quiet: #a9a99a; /* secondary copy on ink */
+  --olive-copy-soft: #c4c3a6; /* tertiary copy on ink */
+
+  /* ---- Rules, screens and print ---------------------------------------- */
+  --rule-cream: #b9b098; /* hairline on cream */
+  --rule-ink: #707658; /* hairline on ink */
+  --rule-ink-strong: #707951;
+  --rule-ink-soft: #72765a80;
+  --rule-ink-wash: #70765880; /* softer hairline inside workbenches */
+  --screen-type: #e9bb75; /* display type */
+  --lamp-green: #c6d391; /* passing lamp */
+  --printout-ink: #34352a; /* printed type */
+  --code-comment: #a6ae8e;
+  --selection: #f78c4760;
+
+  /* ---- Fonts ----------------------------------------------------------- */
+  --font-display: 'Momo Trust Display', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* ---- Label scale: technical mono text --------------------------------- */
+  --label: 0.62rem; /* default .mono */
+  --label-strong: 0.64rem; /* section and figure labels */
+  --label-figure: 0.6rem; /* labels inside diagrams */
+  --label-micro: 0.58rem; /* dense rows */
+  --label-key: 0.52rem; /* keycaps and stamped detail */
+  --label-tracking: 0.055em;
+
+  /* ---- Section curves --------------------------------------------------- */
+  --curve-hero: clamp(70px, 10vw, 155px);
+  --curve-section: clamp(65px, 8vw, 120px);
+
+  /* ---- Materials -------------------------------------------------------- */
+  --grain: url('/textures/surface-grain.svg');
+}

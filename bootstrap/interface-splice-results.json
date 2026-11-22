@@ -1,0 +1,245 @@
+{
+  "status": "whole source, interface reader and loader regressions, and six stage smokes passed",
+  "recorded_at": "2026-11-02T20:40:45.712019+00:00",
+  "source_sha256": "c406bd95a104adc99e929362ebd206a744dea6e9479e93f29161df9e769df068",
+  "implementation_file_sha256": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+  "implementation": "Inside the original lo<=hi<=bytes-len hay guard, bind the actual checked Nat suffix once. Use that value in allocation arithmetic and the final copy. Keep the existing three copy bounds; do not admit unchecked symbolic Nat subtraction or invented body equations.",
+  "independent_microprobes": {
+    "directory": "/tmp/cinch-interface-splice-probes-2",
+    "before_current_and_earlier_cinch": {
+      "native_exit": 0,
+      "cinch_exit": 4
+    },
+    "strict_suffix": {
+      "native_exit": 0,
+      "cinch_exit": 5
+    },
+    "length_alias_variant": "not selected; rejected by both pinned and current Rust, leading to the separately published refined-Nat alias repair"
+  },
+  "whole_module_source_probe": {
+    "directory": "/tmp/cinch-interface-splice-validation-1",
+    "before": {
+      "native_exit": 0,
+      "cinch_exit": 4
+    },
+    "after": {
+      "native_exit": 0,
+      "cinch_exit": 5
+    },
+    "after_boundary": "only named uniform-word ABI/layout emitter refusals",
+    "all_five_toolkit_sources_supplied": true,
+    "only_checked_base_interfaces": true,
+    "native_compiler_implementation_interfaces_supplied": false
+  },
+  "whole_runtime_regressions": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-interface-splice-validation-1/cargo",
+        "--test",
+        "bootstrap_interface",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:36:37.021716+00:00",
+      "name": "bootstrap_interface",
+      "pid": 91446,
+      "started": "2026-11-02T20:35:11.011188+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-interface-splice-validation-1/cargo",
+        "--test",
+        "bootstrap_load",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:38:20.374785+00:00",
+      "name": "bootstrap_load",
+      "pid": 92952,
+      "started": "2026-11-02T20:36:37.022580+00:00",
+      "status": "passed"
+    }
+  ],
+  "stage_smokes": {
+    "bootstrap_achieved": false,
+    "builder_sha256": "6ecb6abb740394e8e750c57f57d165ff2b74a514bb858e2b766a60fdfb805ad3",
+    "source_sha256": "c406bd95a104adc99e929362ebd206a744dea6e9479e93f29161df9e769df068",
+    "status": "six stage0/1 smokes passed"
+  },
+  "previous_json_stage2": {
+    "diagnostic_categories": {
+      "conditional argument needs checked defining body authority": 1,
+      "effect inclusion needs resolved rows": 3,
+      "ill-sorted, partial or unchecked typed source index": 2,
+      "invalid dependent application input": 5,
+      "malformed effect row": 5,
+      "non-exhaustive patterns": 1178,
+      "type mismatch: expected Nat, found Int": 1,
+      "with binding needs a checked signature value": 1
+    },
+    "diagnostics": 1196,
+    "exit_code": 4,
+    "first_diagnostics": [
+      "bootstrap.check:9377:17: conditional argument needs checked defining body authority",
+      "bootstrap.check:9377:17: ill-sorted, partial or unchecked typed source index",
+      "bootstrap.check:9377:17: ill-sorted, partial or unchecked typed source index",
+      "bootstrap.check:9421:21: invalid dependent application input",
+      "bootstrap.check:9421:27: malformed effect row",
+      "bootstrap.check:9428:18: invalid dependent application input",
+      "bootstrap.check:9428:20: malformed effect row",
+      "bootstrap.check:9428:22: effect inclusion needs resolved rows",
+      "bootstrap.check:9434:12: invalid dependent application input",
+      "bootstrap.check:9434:14: malformed effect row"
+    ],
+    "inputs": {
+      "builder_sha256": "51be4c08fdf08bc3f31afcf9d799ca673de6df16181a3d4c5678af1f71b6df6a",
+      "built_by_stage": 1,
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "246156fa1fa793af31c2a515755e7bb785feb7fa7c356e20816837f59dfacff3",
+      "protocol": 2,
+      "source_sha256": "5a1badd47e9aea605178ec42dfed298c563dd7cc724614ead5079d90bb2ef7f8"
+    },
+    "log": "/private/tmp/cinch-json-cursor-validation-1/source/build/bootstrap/stage2/build.log",
+    "status": "failed"
+  },
+  "actual_stage_chain": {
+    "directory": "/tmp/cinch-interface-splice-actual-stages-2",
+    "results_at_publication": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "name": "self-hosting",
+        "pid": 91966,
+        "started": "2026-11-02T20:35:43.153149+00:00",
+        "status": "running"
+      }
+    ],
+    "stage_summary_at_publication": null,
+    "runtime_input_differences_from_json_candidate": [
+      "bootstrap/Bootstrap.Interface.cinch"
+    ],
+    "all_manifest_differences": [
+      "bootstrap/Bootstrap.Interface.cinch",
+      "bootstrap/argument-witness-results.json",
+      "bootstrap/handler-core-results.json",
+      "bootstrap/hypothesis-full-suite-results.json",
+      "bootstrap/native-fold-ownership-results.json",
+      "bootstrap/native-handler-results.json",
+      "bootstrap/parser-handler-seed-results.json",
+      "bootstrap/refined-argument-results.json",
+      "design/next-steps.md",
+      "design/self-hosting.md",
+      "experiments/malleable-syntax/.gitignore",
+      "experiments/malleable-syntax/INTEGRATION.md",
+      "experiments/malleable-syntax/PLAN.md",
+      "experiments/malleable-syntax/PROGRESS.md",
+      "experiments/malleable-syntax/README.md",
+      "experiments/malleable-syntax/SECOND_PASS.md",
+      "experiments/malleable-syntax/TACTICS.md",
+      "experiments/malleable-syntax/editor/README.md",
+      "experiments/malleable-syntax/editor_generate.py",
+      "experiments/malleable-syntax/editor_lsp.py",
+      "experiments/malleable-syntax/engine.py",
+      "experiments/malleable-syntax/examples/Audio.cinch",
+      "experiments/malleable-syntax/examples/Choreography.cinch",
+      "experiments/malleable-syntax/examples/Circuit.cinch",
+      "experiments/malleable-syntax/examples/Differentiate.cinch",
+      "experiments/malleable-syntax/examples/Format.cinch",
+      "experiments/malleable-syntax/examples/Html.cinch",
+      "experiments/malleable-syntax/examples/Proof.cinch",
+      "experiments/malleable-syntax/examples/Protocol.cinch",
+      "experiments/malleable-syntax/examples/Query.cinch",
+      "experiments/malleable-syntax/examples/Reactive.cinch",
+      "experiments/malleable-syntax/examples/Tactics.cinch",
+      "experiments/malleable-syntax/examples/Tasks.cinch",
+      "experiments/malleable-syntax/examples/TensorAD.cinch",
+      "experiments/malleable-syntax/examples/negative/Audio.cinch",
+      "experiments/malleable-syntax/examples/negative/ChoreographyBranch.cinch",
+      "experiments/malleable-syntax/examples/negative/ChoreographyForge.cinch",
+      "experiments/malleable-syntax/examples/negative/ChoreographyReplay.cinch",
+      "experiments/malleable-syntax/examples/negative/ChoreographyState.cinch",
+      "experiments/malleable-syntax/examples/negative/ChoreographyWire.cinch",
+      "experiments/malleable-syntax/examples/negative/Circuit.cinch",
+      "experiments/malleable-syntax/examples/negative/Differentiate.cinch",
+      "experiments/malleable-syntax/examples/negative/Format.cinch",
+      "experiments/malleable-syntax/examples/negative/Html.cinch",
+      "experiments/malleable-syntax/examples/negative/Once.cinch",
+      "experiments/malleable-syntax/examples/negative/Proof.cinch",
+      "experiments/malleable-syntax/examples/negative/Protocol.cinch",
+      "experiments/malleable-syntax/examples/negative/Query.cinch",
+      "experiments/malleable-syntax/examples/negative/Reactive.cinch",
+      "experiments/malleable-syntax/examples/negative/TacticsMissing.cinch",
+      "experiments/malleable-syntax/examples/negative/TacticsShadow.cinch",
+      "experiments/malleable-syntax/examples/negative/TacticsStale.cinch",
+      "experiments/malleable-syntax/examples/negative/Tasks.cinch",
+      "experiments/malleable-syntax/examples/negative/TensorADShape.cinch",
+      "experiments/malleable-syntax/examples/negative/TensorPrivate.cinch",
+      "experiments/malleable-syntax/integration-verification.json",
+      "experiments/malleable-syntax/libraries/Audio.cinch",
+      "experiments/malleable-syntax/libraries/Binary.cinch",
+      "experiments/malleable-syntax/libraries/Checkout.cinch",
+      "experiments/malleable-syntax/libraries/Circuit.cinch",
+      "experiments/malleable-syntax/libraries/Dual.cinch",
+      "experiments/malleable-syntax/libraries/LocalWire.cinch",
+      "experiments/malleable-syntax/libraries/Query.cinch",
+      "experiments/malleable-syntax/libraries/Tasks.cinch",
+      "experiments/malleable-syntax/libraries/Tensor.cinch",
+      "experiments/malleable-syntax/libraries/TensorAD.cinch",
+      "experiments/malleable-syntax/libraries/Ui.cinch",
+      "experiments/malleable-syntax/poc.py",
+      "experiments/malleable-syntax/source-snapshot.json",
+      "experiments/malleable-syntax/syntax/audio.syntax.json",
+      "experiments/malleable-syntax/syntax/by.syntax.json",
+      "experiments/malleable-syntax/syntax/choreography.syntax.json",
+      "experiments/malleable-syntax/syntax/circuit.syntax.json",
+      "experiments/malleable-syntax/syntax/differentiate.syntax.json",
+      "experiments/malleable-syntax/syntax/format.syntax.json",
+      "experiments/malleable-syntax/syntax/html.syntax.json",
+      "experiments/malleable-syntax/syntax/machine.syntax.json",
+      "experiments/malleable-syntax/syntax/once.syntax.json",
+      "experiments/malleable-syntax/syntax/protocol.syntax.json",
+      "experiments/malleable-syntax/syntax/query.syntax.json",
+      "experiments/malleable-syntax/syntax/schema.syntax.json",
+      "experiments/malleable-syntax/syntax/spawn.syntax.json",
+      "experiments/malleable-syntax/syntax/tensor-ad.syntax.json",
+      "experiments/malleable-syntax/tests/test_editor.py",
+      "experiments/malleable-syntax/tests/test_engine.py",
+      "experiments/malleable-syntax/tests/test_lsp.py",
+      "experiments/malleable-syntax/tests/test_native.py",
+      "experiments/malleable-syntax/verification.json",
+      "experiments/malleable-syntax/verify.py",
+      "tooling/tests/test_verify_malleable.py",
+      "tooling/verify_bootstrap.py",
+      "tooling/verify_malleable.py"
+    ]
+  },
+  "validation_harness_limit": "The first stage runner rejected unrelated new experiment/verifier/report inputs before starting any compiler command. Its failure is preserved in /tmp/cinch-interface-splice-actual-stages-1. The replacement verifies all compiler and seed inputs separately and records every manifest difference.",
+  "publication_native_scope": "The frozen Cinch candidate predates the separately tested Rust refined-Nat alias repair f0f99c7. Publication retains that repair; all staged compilers still use the intentionally unchanged c774 seed.",
+  "remaining": [
+    "Full current-source Native and self-built frontend suites.",
+    "Complete independent usage/totality checks and removal of remaining class/slot-only numeric reflection.",
+    "Typed Core runtime lowering, shared layouts/base linking and canonical source interfaces.",
+    "Stage 2 executable, Stage 3 fixed point and changed-source behavior proof."
+  ],
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

@@ -88,7 +88,7 @@
 (constructor) @type
 (type_variable) @variable
 (type_name_literal) @type
-(qualified_value (constructor) @type (identifier) @function)
+(qualified_value (constructor_path (constructor) @type) (identifier) @function)
 (variable (identifier) @function)
 
 (int_literal) @number

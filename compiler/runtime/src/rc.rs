@@ -130,7 +130,7 @@ fn is_block_word(word: i64) -> bool {
 /// Whether `kind` is the kind of a live block.
 #[inline]
 fn live_kind(kind: u8) -> bool {
-    (block::KIND_CTOR..=block::KIND_RAW).contains(&kind)
+    (block::KIND_CTOR..=block::KIND_LAST).contains(&kind)
 }
 
 /// The compiler-bug trap of a count operation on a header no live block

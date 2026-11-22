@@ -1,0 +1,134 @@
+-- Runtime-derived identities exercise erased arrows through the real type
+-- engine and independent scopes. No runtime term may impersonate a proof.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Kinds
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  integer :: UType
+  integer = UCon "Int" KType
+  nat :: UType
+  nat = UCon "Nat" KType
+  empty-row :: UType
+  empty-row = URow UEnd
+  effects :: UType
+  effects = URow (UArg (UCon "Diverge" KEffect) UEnd)
+  kinds :: List (String, Kind)
+  kinds = [("Int", KType), ("Nat", KType), ("Diverge", KEffect), ("Dec", KFun KProp KType)]
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  equal :: UType -> UType -> Bool
+  equal first second = clean (unify sp first second (empty-store "proof arrow conversion"))
+  roundtrip :: UType -> Bool
+  roundtrip ty = valid-kind (value-kind ty) && (case value-carrier (value-kind ty) of Some actual -> equal ty actual; None -> False)
+  contains :: Nat -> List Nat -> Bool
+  contains id ids = case ids of Nil -> False; Cons key rest -> id == key || contains id rest
+  prepared :: Nat -> Store
+  prepared nonce = case fresh-for-types [URigid nonce "seed" 0 KProp] (empty-store "proof arrows") of (id, st) -> st
+  solved :: Nat -> Bool
+  solved nonce = case fresh-meta KProp (prepared nonce) of
+    (predicate, first) -> case fresh-meta KRow first of
+      (row, second) -> case fresh-meta KType second of
+        (result, before) -> let ty = UProofFun predicate row result in
+          let after = unify sp ty (UProofFun (UPropLit True) effects integer) before in
+          clean after && equal (normalize after ty) (UProofFun (UPropLit True) effects integer)
+            && (case free-metas after ty of Nil -> True; other -> False)
+  generalized :: Nat -> Bool
+  generalized nonce = case fresh-meta KProp (enter-level (prepared nonce)) of
+    (predicate, first) -> case fresh-meta KRow first of
+      (row, second) -> case fresh-meta KType second of
+        (result, before) -> let sc = generalize 0 Nil (UProofFun predicate row result) before in
+          list-length (scheme-params sc) == 3 && scheme-well-formed kinds empty-type-scope sc
+            && (case open-scheme False sc before of
+              (opened, pairs, done) -> clean (unify sp opened (UProofFun (UPropLit True) effects integer) done))
+  occurs :: Nat -> Bool
+  occurs nonce = case fresh-meta KType (prepared nonce) of
+    (result, before) -> not (clean (unify sp result (UProofFun (UPropLit True) empty-row result) before))
+  escapes :: Nat -> Bool
+  escapes nonce = case fresh-meta KType (prepared nonce) of
+    (result, before) -> not (clean (unify sp result (UProofFun (URigid (nonce + 1) "inner" 1 KProp) empty-row integer) (enter-level before)))
+  lexical :: Nat -> Bool
+  lexical nonce =
+    let q = MkQuant nonce "p" KProp False in let p = UBound nonce "p" KProp in
+    let r = MkQuant (nonce + 1) "r" KRow False in let row = UBound (nonce + 1) "r" KRow in
+    let a = MkQuant (nonce + 2) "a" KType False in let result = UBound (nonce + 2) "a" KType in
+    let sc = MkScheme [q, r, a] (UProofFun p row result) in
+    scheme-well-formed kinds empty-type-scope sc && contract-scheme-closed sc
+      && not (scheme-well-formed kinds empty-type-scope (MkScheme [r, a] (UProofFun p row result)))
+      && not (scheme-well-formed kinds empty-type-scope (MkScheme [q, a] (UProofFun p row result)))
+      && not (scheme-well-formed kinds empty-type-scope (MkScheme [q, r] (UProofFun p row result)))
+      && (case open-scheme True sc (enter-level (prepared (nonce + 10))) of
+        (UProofFun condition latent output, pairs, done) -> clean done
+          && (case (condition, latent, output) of
+            (URigid id name level KProp, URigid key display outer KRow, URigid number label scope KType) -> id > nonce + 10 && id < key && key < number
+            other -> False)
+        other -> False)
+  refuses-runtime-proofs :: Nat -> Bool
+  refuses-runtime-proofs nonce =
+    let ty = UProofFun (UPropLit True) empty-row integer in
+    let term = CUse sp ty "requires" "external" Nil in
+    let value = CInt sp integer "1" in
+    let declaration = MkCoreDefinition sp "answer" (mono integer) Nil Nil Nil [MkCoreClause sp Nil (CApply sp integer term value)] in
+    let context-kinds = [("Int", KType)] in
+    case close-typing-context context-kinds [GlobalValue "requires" "external" (mono ty), GlobalValue "answer" "value" (mono integer)] of
+      Some context -> not (typing-definition-closed context declaration)
+        && (case arrow-result (make-proof-scope Nil Nil) Nil ty value of None -> True; Some other -> False)
+        && (case pattern-result ty (CPVar sp (UPropLit True) nonce "forged") of None -> True; Some other -> False)
+      None -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let p = UPropLit True in let q = UPropLit False in
+    let ty = UProofFun p empty-row integer in
+    let effectful = UProofFun p effects integer in
+    let at = UIndex nat (IBound nonce "n") in
+    let predicate = UPropNonZero at in
+    let generic = UProofFun (UBound nonce "p" KProp) (UBound (nonce + 1) "r" KRow) (UBound (nonce + 2) "a" KType) in
+    [ valid-type ty && valid-type effectful && kind-equal (type-kind ty) KType
+    , roundtrip ty && roundtrip effectful && roundtrip generic
+    , equal ty ty && equal effectful effectful
+    , not (equal ty effectful) && not (equal effectful ty)
+    , not (equal ty (UProofFun q empty-row integer))
+    , not (equal ty (UFun (UCon "Unit" KType) integer))
+    , not (equal (UFun (UCon "Unit" KType) integer) ty)
+    , not (equal ty (UFun p integer)) && not (equal (UFun p integer) ty)
+    , not (equal ty (UPi nonce "x" nat empty-row integer))
+    , not (equal (UPi nonce "x" nat empty-row integer) ty)
+    , not (valid-type (UProofFun integer empty-row integer))
+    , not (valid-type (UProofFun p integer integer))
+    , not (valid-type (UProofFun p empty-row p))
+    , not (valid-type (UProofFun p empty-row UEnd))
+    , not (valid-type (UProofFun p empty-row (UArg integer UEnd)))
+    , not (equal (UProofFun integer empty-row integer) (UProofFun integer empty-row integer))
+    , not (valid-kind (value-kind (UProofFun p empty-row p)))
+    , equal (UProofFun p (URow (UArg (UCon "Diverge" KEffect) (UArg (UCon "Diverge" KEffect) UEnd))) integer) effectful
+    , scheme-arity (mono (UFun nat (UProofFun p effects (UProofFun q empty-row (UFun integer integer))))) == 4
+    , scheme-runtime-arity (mono (UFun nat (UProofFun p effects (UProofFun q empty-row (UFun integer integer))))) == 2
+    , scheme-arity (mono effectful) == 1 && scheme-runtime-arity (mono effectful) == 0
+    , solved nonce && generalized nonce && occurs nonce && escapes nonce
+    , lexical nonce
+    , contains nonce (type-all-ids generic) && contains (nonce + 1) (type-all-ids generic) && contains (nonce + 2) (type-all-ids generic)
+    , equal (substitute-bound [(nonce, p), (nonce + 1, effects), (nonce + 2, integer)] generic) effectful
+    , not (valid-type (substitute-bound [(nonce, integer)] generic))
+    , not (scheme-closed (mono (UProofFun (UMeta nonce KProp) empty-row integer)))
+    , not (scheme-closed (mono (UProofFun p (UMeta nonce KRow) integer)))
+    , not (scheme-closed (mono (UProofFun p empty-row (UMeta nonce KType))))
+    , not (contract-scheme-closed (mono generic))
+    , contract-scheme-closed (MkScheme [MkQuant nonce "n" (value-kind nat) False] (UProofFun predicate empty-row integer))
+    , not (contract-scheme-closed (mono (UProofFun predicate empty-row integer)))
+    , not (valid-type (substitute-bound [(nonce, UIndex integer (IInteger 1))] (UProofFun predicate empty-row integer)))
+    , refuses-runtime-proofs nonce
+    ]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

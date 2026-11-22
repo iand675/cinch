@@ -1,0 +1,130 @@
+-- Runtime checks of the type engine. The input determines rigid region
+-- identities after compilation, so the row solver runs in the executable.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Dictionary (resolve-dictionary-term)
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  equal :: UType -> UType -> Bool
+  equal a b = clean (unify sp a b (empty-store "effect-types"))
+  row :: List UType -> UType
+  row labels = URow (spine labels)
+  spine :: List UType -> UType
+  spine labels = case labels of Nil -> UEnd; Cons label rest -> UArg label (spine rest)
+  io :: UType -> UType
+  io r = UApp (UCon "kernel.IO" (KFun KRegion KEffect)) r
+  async :: UType -> UType
+  async r = UApp (UCon "kernel.Async" (KFun KRegion KEffect)) r
+  divergence :: UType
+  divergence = UCon "kernel.Diverge" KEffect
+  capability :: UType -> UType
+  capability r = UApp (UCon "b.Io" (KFun KRegion KType)) r
+
+  basic :: UType -> UType -> Bool
+  basic r s =
+    let unit = UCon "Unit" KType in
+    equal (row [io r, divergence]) (row [divergence, io r])
+      && equal (row [io r, io r]) (row [io r])
+      && not (equal (row [io r]) (row [io s]))
+      && equal (UFun unit unit) (UFunEff unit (row Nil) unit)
+      && not (equal (UFun unit unit) (UFunEff unit (row [io r]) unit))
+      && not (equal (UFunEff unit (row [io r]) unit) (UFun unit unit))
+      && not (equal (row [io unit]) (row [io unit]))
+      && not (equal r unit)
+      && clean (include-effects sp (row [io r]) (row [io r, divergence]) (empty-store "effect-types"))
+      && not (clean (include-effects sp (row [io r, divergence]) (row [io r]) (empty-store "effect-types")))
+      && not (clean (include-effects sp (row [io r]) (row [io s]) (empty-store "effect-types")))
+      && equal (union-effects (row [io r]) (row [divergence, io r])) (row [io r, divergence])
+      && not (valid-type (UTuple (UArg r UEnd)))
+
+  transactional :: UType -> UType -> Bool
+  transactional r s = case fresh-meta KRegion (empty-store "effect-types") of
+    (unknown, start) ->
+      let rejected = unify sp (row [io unknown, async unknown]) (row [io r, async s]) start in
+      not (clean rejected) && (case normalize rejected unknown of UMeta id KRegion -> True; other -> False)
+  coalescing :: UType -> UType -> Bool
+  coalescing r s = case fresh-meta KRegion (empty-store "effect-types") of
+    (a, first) -> case fresh-meta KRegion first of
+      (b, start) ->
+        let together = unify sp (row [io a, io b]) (row [io r]) start in
+        let apart = unify sp (row [io a, io b]) (row [io r, io s]) start in
+        clean together && equal (normalize together a) r && equal (normalize together b) r
+          && clean apart && not (equal (normalize apart a) (normalize apart b))
+          && equal (normalize apart (row [io a, io b])) (row [io r, io s])
+  scope-check :: Nat -> Bool
+  scope-check id = case fresh-meta KRow (empty-store "effect-types") of
+    (outer, start) ->
+      let inner = URigid id "private" 1 KRegion in
+      let rejected = unify sp outer (row [io inner]) (enter-level start) in
+      not (clean rejected) && (case normalize rejected outer of UMeta n KRow -> True; other -> False)
+  opening :: UType -> Bool
+  opening r =
+    let region = UBound 0 "r" KRegion in
+    let effects = UBound 1 "e" KRow in
+    let scheme = qualified [MkQuant 0 "r" KRegion False, MkQuant 1 "e" KRow False]
+          [MkRequirement "io" (capability region)] (UFunEff (UCon "Unit" KType) effects (capability region)) in
+    case open-qualified False scheme (empty-store "effect-types") of
+      (UFunEff arg actual-row result, Cons requirement Nil, pairs, start) ->
+        let checked = unify sp result (capability r) (unify sp actual-row (row [io r]) start) in
+        clean checked && equal (normalize checked (requirement-type requirement)) (capability r)
+          && equal (normalize checked actual-row) (row [io r]) && scheme-arity scheme == 1
+      other -> False
+  generalization :: Bool
+  generalization = case fresh-meta KRegion (enter-level (empty-store "effect-types")) of
+    (region, first) -> case fresh-meta KRow first of
+      (effects, start) ->
+        let ty = UFunEff (UCon "Unit" KType) effects (capability region) in
+        let scheme = generalize 0 Nil ty start in
+        list-length (scheme-params scheme) == 2 && (case instantiate scheme start of
+          (UFunEff arg actual-row result, done) -> clean done && kind-equal (type-kind actual-row) KRow
+            && (case result of UApp head actual-region -> kind-equal (type-kind actual-region) KRegion; other -> False)
+          other -> False)
+  core-check :: UType -> Bool
+  core-check r =
+    let unit = UCon "Unit" KType in
+    let effects = row [io r] in
+    let given = CGiven sp "#runtime" (capability r) in
+    let request = CQualifiedUse sp (UFunEff unit effects unit) "b.operation" "builtin" [r] [CENeeded sp (capability r) [given]] in
+    let call = CApplyEff sp unit effects request (CUnit sp unit) in
+    let supplied = CWith sp unit given (CUse sp (capability r) "argument" "local" Nil) call in
+    let classes = [("b.Io", KFun KRegion KType)] in
+    let (resolved, checked) = resolve-dictionary-term classes Nil supplied (empty-store "effect-types") in
+    let (outside, refused) = resolve-dictionary-term classes Nil call (empty-store "effect-types") in
+    let (duplicate, duplicate-store) = resolve-dictionary-term classes [given] supplied (empty-store "effect-types") in
+    let forged = CWith sp (UCon "Bool" KType) given (CUse sp (capability r) "argument" "local" Nil) call in
+    let (wrong-result, wrong-store) = resolve-dictionary-term classes Nil forged (empty-store "effect-types") in
+    let closure = CLambda sp (UFunEff unit effects unit) (CPWild sp unit) resolved in
+    clean checked && not (clean refused) && not (clean duplicate-store) && not (clean wrong-store) && equal (core-effects resolved) effects
+      && equal (core-effects closure) (row Nil)
+      && not (clean (include-effects sp (core-effects resolved) (row Nil) (empty-store "effect-types")))
+      && (case resolved of
+        CWith s ty scope value (CApplyEff a result actual-row (CQualifiedUse c function name role actuals (Cons (CEGiven e goal symbol) Nil)) argument) -> string-compare symbol (given-symbol scope) == 0
+        other -> False)
+  joined-meta :: UType -> Bool
+  joined-meta r = case fresh-meta KRow (empty-store "effect-types") of
+    (unknown, start) ->
+      let joined = union-effects unknown (row [io r]) in
+      let solved = unify sp unknown (row [divergence]) start in
+      clean solved && equal (normalize solved joined) (row [io r, divergence])
+        && not (clean (include-effects sp (normalize solved joined) (row [io r]) solved))
+
+  tests :: Nat -> Bool
+  tests id =
+    let r = URigid id "r" 0 KRegion in
+    let s = URigid (id + 1) "s" 0 KRegion in
+    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization && core-check r && joined-meta r
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
+    Err error -> 250
+    Ok bytes -> let ok = tests (bytes-len bytes) in
+      case fs-write (path-from-string "effect-report.txt") (string-to-bytes (if ok then "ok" else "failed")) of
+        Err error -> 251
+        Ok unit -> if ok then 0 else 1

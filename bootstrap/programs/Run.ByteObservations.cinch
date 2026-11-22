@@ -1,0 +1,104 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  bytes :: UType
+  bytes = UCon "Bytes" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  good :: UType -> UType -> Bool
+  good a b = clean (unify sp a b (empty-store "byte-observer"))
+  family :: UType -> UType
+  family value = UApp (UCon "Mark" (KFun (value-kind nat) KType)) value
+  codec :: UType -> Bool
+  codec value = case value-carrier (value-kind (family value)) of Some (UApp f decoded) -> good value decoded; other -> False
+  provable :: List (Nat, UType) -> UType -> Bool
+  provable gamma predicate = case prove-predicates gamma Nil (URequire (UArg predicate UEnd) nat) of Some evidence -> True; None -> False
+  condition :: List (Nat, UType) -> String -> String -> UType -> UType -> Nat -> Bool
+  condition gamma symbol role function carrier id =
+    let arg = CLocal sp carrier id "buffer" Nil in
+    let len = CApply sp nat (CUse sp function symbol role Nil) arg in
+    let test = CPrimitive sp bool ">" (CArgument sp len (CArgument sp (CInt sp nat "0") (CArgumentsEnd sp))) in
+    case core-condition gamma Nil test of Some predicate -> True; None -> False
+  -- An elaborator witness may help construct a certificate. The final Core
+  -- checker must derive the alias from its retained RHS, not that hint.
+  alias-closure :: Nat -> Bool -> Bool
+  alias-closure nonce change =
+    let id = nonce + 101 in let other = nonce + 102 in let alias = nonce + 103 in let binder = nonce + 104 in
+    let local = CLocal sp bytes id "buffer" Nil in
+    let different = CLocal sp bytes other "other" Nil in
+    let use = CLocal sp bytes alias "alias" Nil in
+    let function = CUse sp (UFun bytes nat) "cinch.runtime.bytesLen" "intrinsic" Nil in
+    let size = CApply sp nat function local in
+    let aliased = CApply sp nat function use in
+    let zero = CInt sp nat "0" in let one = CInt sp nat "1" in
+    let test = CPrimitive sp bool ">" (CArgument sp size (CArgument sp zero (CArgumentsEnd sp))) in
+    let positive = URefine binder "out" nat (UCompare ">" (UIndex nat (IBound binder "out")) (UIndex nat (IInteger 0))) in
+    let scope = make-proof-scope [(id, bytes), (other, bytes), (alias, bytes)] [(alias, UIndex bytes (IRigid id "buffer" 0))] in
+    case (core-condition [(id, bytes), (other, bytes)] Nil test, prove-refinement Nil Nil positive one) of
+      (Some fact, Some fallback) -> case scoped-prove-refinement scope [fact] positive aliased of
+        Some evidence ->
+          let rhs = if change then different else local in
+          let body = CIf sp positive test (CLet sp positive alias "alias" (mono bytes) rhs (CRefine sp positive evidence aliased)) (CRefine sp positive fallback one) in
+          core-definition-closed (MkCoreDefinition sp "alias-rhs-rechecked" (mono (UFun bytes (UFun bytes positive))) Nil Nil Nil [MkCoreClause sp [CPVar sp bytes id "buffer", CPVar sp bytes other "other"] body])
+        None -> False
+      other -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in let other = nonce + 2 in
+    let input = UIndex bytes (IBound id "buffer") in
+    let observed = UIndexByteLength input in
+    let rigid = UIndex bytes (IRigid id "buffer" 0) in
+    let length = UIndexByteLength rigid in
+    let formal = UIndexByteLength (UIndex bytes (IBound other "formal")) in
+    let function = UFun bytes nat in
+    let (meta, store) = fresh-meta (value-kind bytes) (empty-store "buffer-meta") in
+    let solved = unify sp meta input store in
+    let late = UIndexByteLength (UIndex bytes (IRigid id "late" 3)) in
+    let (outer, os) = fresh-meta (value-kind nat) (empty-store "scope") in
+    [ alias-closure nonce False
+    , not (alias-closure nonce True)
+    , valid-type observed
+    , typed-index-admissible observed
+    , kind-equal (type-kind observed) (value-kind nat)
+    , not (valid-type (UIndexByteLength (UIndex nat (IBound id "wrong"))))
+    , not (valid-type (UIndexByteLength (UIndex bool (IBound id "wrong"))))
+    , not (valid-type (UIndexByteLength bytes))
+    , not (typed-index-admissible (UIndexByteLength meta))
+    , not (typed-index-admissible (UIndexByteLength (UIndex bytes (IGlobal "unverified"))))
+    , not (typed-index-admissible (UIndexByteLength (UIndex bytes (IApply (IGlobal "unknown") (IBound id "x")))))
+    , not (typed-index-admissible (UIndex nat (IApply (IGlobal "<intrinsic>.bytes-length") (IBound id "buffer"))))
+    , good observed (substitute-bound [(other, input)] formal)
+    , not (valid-type (substitute-bound [(other, UIndex nat (IBound id "wrong"))] formal))
+    , not (good observed (UIndexByteLength (UIndex bytes (IBound other "different"))))
+    , codec observed
+    , codec (UIndexMath "+" observed (UIndex nat (IInteger 1)))
+    , clean solved && good (normalize solved (UIndexByteLength meta)) observed
+    , not (clean (unify sp outer late os))
+    , provable [(id, bytes)] (UCompare "==" length length)
+    , not (provable [(id, nat)] (UCompare "==" length length))
+    , not (provable [(other, bytes)] (UCompare "==" length length))
+    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [MkCoreConstructor sp "Mk" (mono (family observed))]))
+    , condition [(id, bytes)] "cinch.runtime.bytesLen" "intrinsic" function bytes id
+    , not (condition [(id, nat)] "cinch.runtime.bytesLen" "intrinsic" function bytes id)
+    , not (condition [(id, bytes)] "Main.bytes-len" "external" function bytes id)
+    , not (condition [(id, bytes)] "cinch.runtime.bytesLen" "external" function bytes id)
+    , not (condition [(id, bytes)] "cinch.runtime.bytesGet" "intrinsic" function bytes id)
+    , not (condition [(id, bytes)] "cinch.runtime.bytesLen" "intrinsic" (UFun nat nat) bytes id)
+    , not (condition [(id, bytes)] "cinch.runtime.bytesLen" "intrinsic" function nat id)
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok raw -> verdict (checks (bytes-len raw + 340282366920938463463374607431768211456)) 1

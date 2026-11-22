@@ -1,0 +1,6 @@
+module Main where
+  import syntax "../../syntax/by.syntax.json" as by
+  unsafe-index :: (i :: Nat) -> (n :: Nat) -> Fin n
+  unsafe-index i n = Fin i (by!{ linear })
+  main :: Int
+  main = 0

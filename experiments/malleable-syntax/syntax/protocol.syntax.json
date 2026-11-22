@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "name": "protocol",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "states",
+          "of": {
+            "many": {
+              "ref": "state"
+            },
+            "min": 1,
+            "join": "; "
+          }
+        },
+        {
+          "capture": "steps",
+          "of": {
+            "many": {
+              "ref": "step"
+            },
+            "min": 1,
+            "join": "; "
+          }
+        },
+        "}"
+      ],
+      "emit": "${states}; ${steps}"
+    },
+    "state": {
+      "pattern": [
+        "state",
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ";"
+      ],
+      "emit": "data ${name} where { ${name} :: Nat -> ${name} }"
+    },
+    "step": {
+      "pattern": [
+        "send",
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[a-z][a-zA-Z0-9-]*"
+          }
+        },
+        ":",
+        {
+          "capture": "from",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "->",
+        {
+          "capture": "to",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ";"
+      ],
+      "emit": "${name} :: ${from} %1 -> ${to}; ${name} ${!endpoint} = case ${!endpoint} of { ${from} ${!count} -> ${to} (${!count} + 1) }"
+    }
+  },
+  "helpers": {}
+}

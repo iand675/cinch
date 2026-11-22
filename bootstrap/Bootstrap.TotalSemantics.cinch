@@ -1,0 +1,93 @@
+-- Recognize arithmetic only from the actual checked executable body.
+-- A class name, a slot or a function's spelling supplies no equation.
+module Bootstrap.TotalSemantics where
+  import Bootstrap.Total
+  import Data.Json
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Algebra.Semigroup
+
+  export total-numeric-operation, total-numeric-comparison
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  local :: Nat -> Json
+  local index = JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int index)) JObjEnd)
+  formals :: List String -> Nat -> List Json
+  formals sorts next = case sorts of Nil -> Nil; Cons sort rest -> Cons (local next) (formals rest (next + 1))
+  at :: Nat -> List Json -> Option Json
+  at index values = case values of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
+  values :: Json -> Option (List Json)
+  values rows = case rows of JArr first rest -> (case values rest of Some more -> Some (Cons first more); None -> None); JArrEnd -> Some Nil; other -> None
+  primitive :: String -> Json -> Json
+  primitive operation arguments = JObj "node" (JStr "primitive") (JObj "operation" (JStr operation) (JObj "arguments" arguments JObjEnd))
+  expand-arguments :: TotalGraph -> List Json -> Json -> Nat -> (Option Json, Nat)
+  expand-arguments graph scope arguments fuel = case arguments of
+    JArrEnd -> (Some JArrEnd, fuel)
+    JArr first rest -> (case expand graph scope first fuel of
+      (Some value, left) -> (case expand-arguments graph scope rest left of (Some more, remaining) -> (Some (JArr value more), remaining); other -> other)
+      other -> other)
+    other -> (None, fuel)
+  -- Shared fuel bounds expansion through reused callees. Only straight-line
+  -- equations are recognized here; conditionals and unsupported shapes stay
+  -- opaque. Eliminated strict lets already have checked total, pure RHSs.
+  expand :: TotalGraph -> List Json -> Json -> Nat -> (Option Json, Nat)
+  expand graph scope term fuel = if fuel == 0 then (None, 0) else
+    let left = fuel - 1 in let node = text (field "node" term) in
+    if same node "local" then (case field "slot" term of JNum index -> if index >= 0 then (at (nat-from-int index) scope, left) else (None, left); other -> (None, left))
+    else if same node "number" || same node "bool" then (Some term, left)
+    else if same node "primitive" then (case expand-arguments graph scope (field "arguments" term) left of
+      (Some arguments, remaining) -> (Some (primitive (text (field "operation" term)) arguments), remaining)
+      other -> other)
+    else if same node "call" then (case total-function graph (text (field "target" term)) of
+      Some callee -> (case expand-arguments graph scope (field "arguments" term) left of
+        (Some arguments, remaining) -> (case values arguments of Some inputs -> expand graph inputs (total-body callee) remaining; None -> (None, remaining))
+        other -> other)
+      None -> (None, left))
+    else if same node "let" then (case expand graph scope (field "value" term) left of
+      (Some value, remaining) -> expand graph (scope <> [value]) (field "body" term) remaining
+      other -> other)
+    else (None, left)
+  expanded :: TotalFunction -> Option Json
+  expanded function = case check-total-graph (total-function-document function) of
+    Some graph -> (case expand graph (formals (total-parameters function) 0) (total-body function) 4096 of (result, remaining) -> result)
+    None -> None
+  is-local :: Nat -> Json -> Bool
+  is-local id term = same (text (field "node" term)) "local" && (case field "slot" term of JNum index -> index == nat-to-int id; other -> False)
+  binary-formals :: Json -> Bool
+  binary-formals arguments = case arguments of JArr first (JArr second JArrEnd) -> is-local 0 first && is-local 1 second; other -> False
+  same-parameters :: String -> TotalFunction -> Bool
+  same-parameters sort function = case total-parameters function of [first, second] -> same first sort && same second sort; other -> False
+  total-numeric-operation :: TotalFunction -> Option String
+  total-numeric-operation function = case expanded function of
+    Some body -> if not (same (text (field "node" body)) "primitive" && binary-formals (field "arguments" body)) then None else
+      let op = text (field "operation" body) in
+      if same-parameters "Nat" function && same (total-result function) "Nat" then
+        (if same op "NatAdd" then Some "+" else if same op "NatMul" then Some "*" else None)
+      else if same-parameters "Int" function && same (total-result function) "Int" then
+        (if same op "IntAdd" then Some "+" else if same op "IntMul" then Some "*" else if same op "IntSub" then Some "-" else None)
+      else None
+    None -> None
+  relation :: String -> Option String
+  relation op = if same op "I64Eq" then Some "==" else if same op "I64Ne" then Some "/=" else if same op "I64Lt" then Some "<"
+    else if same op "I64Le" then Some "<=" else if same op "I64Gt" then Some ">" else if same op "I64Ge" then Some ">=" else None
+  zeros :: List Char -> Bool
+  zeros chars = case chars of Nil -> True; Cons char rest -> char-code char == 48 && zeros rest
+  i64-zero :: Json -> Bool
+  i64-zero term = same (text (field "node" term)) "number" && same (text (field "sort" term)) "I64" && (case unpack (text (field "decimal" term)) of
+    Nil -> False
+    Cons char rest -> if char-code char == 45 then (case rest of Nil -> False; other -> zeros rest) else zeros (Cons char rest))
+  comparison-inputs :: TotalFunction -> Json -> Bool
+  comparison-inputs function arguments = if same-parameters "I64" function then binary-formals arguments else case arguments of
+    JArr compared (JArr zero JArrEnd) -> same (text (field "node" compared)) "primitive" && i64-zero zero
+      && binary-formals (field "arguments" compared)
+      && ((same-parameters "Nat" function && same (text (field "operation" compared)) "NatCmp")
+       || (same-parameters "Int" function && same (text (field "operation" compared)) "IntCmp"))
+    other -> False
+  total-numeric-comparison :: TotalFunction -> Option String
+  total-numeric-comparison function = if not (same (total-result function) "Bool") then None else case expanded function of
+    Some body -> if same (text (field "node" body)) "primitive" && comparison-inputs function (field "arguments" body) then relation (text (field "operation" body)) else None
+    None -> None

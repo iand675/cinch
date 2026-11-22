@@ -1,0 +1,231 @@
+{
+  "actual_stages": {
+    "directory": "/tmp/cinch-conditional-stages-1",
+    "first_error": "Text.Builder copy-bytes-into precondition needs actual subtraction result equation",
+    "scope_note": "Most later coverage/type/row errors follow an existing Store error; diagnostic count is not a completion measure.",
+    "source": "preceding14case consumer snapshot3, before the private measure/nominal scope extensions",
+    "stage0_1_smokes": 6,
+    "stage2_body_diagnostics": 1687,
+    "stage2_compiler": false,
+    "stage2_exit_code": 4
+  },
+  "behavior": [
+    "Resolve class identity from the actual canonical checked head; legacy class text remains display only.",
+    "Try lexical/ordinary dictionaries before a closed conditional fallback.",
+    "Call the actual private implementation with its complete dependent URequire contract and checked argument identities.",
+    "Refuse underflow, missing guards, wrong branches, conditional dictionary escape and erasure of effects.",
+    "Retain declaring nominal/refinement/private measure closure without granting public source names."
+  ],
+  "body_authority": "Conditional calls receive no mathematical equation merely from a method/class name or slot. Selected actual numeric body reflection remains required.",
+  "focus_reason": "Only the separately rerun schema fixture differs; all Native/Cinch implementation, shared harness and seven own fixtures match.",
+  "focus_source_differences": [
+    "compiler/tests/interface_refinement_closure.rs"
+  ],
+  "full_suite": {
+    "directory": "/tmp/cinch-conditional-full-2/complete-matrix",
+    "exact_input_whole_gates": 12,
+    "fresh_gates": 175,
+    "general_gates": 5,
+    "integration_targets": 182,
+    "self_built_frontend": false,
+    "status": "running"
+  },
+  "independent_core_checks": 40,
+  "limits": [
+    "No complete current or self-built frontend suite pass claimed.",
+    "Actual guarded/selected numeric implementation-body authority, handler elaboration, complete independent proof/usage/totality, typed runtime lowering and stage2/3 fixed point remain required."
+  ],
+  "native_seed_source_sha256": "c12617b095f00a74fec557d896137182de5c88590b45e66292052f2853d2bf5f",
+  "owned_code": [
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Load.cinch",
+    "bootstrap/programs/Run.ConditionalMethods.cinch",
+    "compiler/tests/bootstrap_conditional_methods.rs"
+  ],
+  "recorded_at": "2026-11-02T11:51:57.062749+00:00",
+  "scope": "Imported implicit closed monomorphic implementations without captured module/dictionary context; source-defined conditional instances and broader quantifiers remain unfinished.",
+  "self_hosting_achieved": false,
+  "source_cases": 19,
+  "source_sha256": "5c14c542c3360529c67ae493b4d2a9dd06415e1f60b263ece981504da4e9cc2b",
+  "status": "checked imported conditional calls pass19source+40Core and seven whole regression targets",
+  "validation": {
+    "evidence": "Whole consumer5 target reused after exact relevant-input comparison",
+    "independent_core_checks": 40,
+    "original_result": {
+      "command": [
+        "cargo",
+        "test",
+        "--no-fail-fast",
+        "--target-dir",
+        "/tmp/cinch-conditional-consumer-validation-5/cargo",
+        "--test",
+        "bootstrap_conditional_methods",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T11:20:04.909363+00:00",
+      "lane": "sole named outside fifth worker; all matrix, stage and measure gates use four shared slots",
+      "phase": "independent-cinch-target",
+      "pid": 44521,
+      "source_sha256": "554c1de3a77fd028f44fbf05d2a2d5374cb4b8f0d4a0674aa698593324b98299",
+      "started": "2026-11-02T11:08:14.597769+00:00",
+      "status": "passed"
+    },
+    "reason": "Only a separate Native fixture changed. Every Native source, prelude, runtime, Cinch implementation and this target's own fixture/runner is byte-identical.",
+    "source_cases": 19,
+    "source_differences": [
+      "compiler/tests/interface_refinement_closure.rs"
+    ],
+    "source_sha256": "5c14c542c3360529c67ae493b4d2a9dd06415e1f60b263ece981504da4e9cc2b",
+    "status": "passed"
+  },
+  "whole_regressions": {
+    "results": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_instance_resolution",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:26:37.533948+00:00",
+        "name": "bootstrap_instance_resolution",
+        "pid": 64723,
+        "started": "2026-11-02T11:25:08.776843+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_source_instances",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:40:35.234279+00:00",
+        "name": "bootstrap_source_instances",
+        "pid": 64725,
+        "started": "2026-11-02T11:25:08.780493+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_infer",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:29:54.441294+00:00",
+        "name": "bootstrap_infer",
+        "pid": 64724,
+        "started": "2026-11-02T11:25:08.777653+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_effects",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:29:05.867008+00:00",
+        "name": "bootstrap_effects",
+        "pid": 64726,
+        "started": "2026-11-02T11:25:08.784216+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_function_preconditions",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:30:39.408847+00:00",
+        "name": "bootstrap_function_preconditions",
+        "pid": 67315,
+        "started": "2026-11-02T11:26:37.534576+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_refinement_constructors",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:38:16.976118+00:00",
+        "name": "bootstrap_refinement_constructors",
+        "pid": 76724,
+        "started": "2026-11-02T11:29:05.867640+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-conditional-consumer-validation-5/cargo",
+          "--test",
+          "bootstrap_pipeline",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T11:38:18.535277+00:00",
+        "name": "bootstrap_pipeline",
+        "pid": 81590,
+        "started": "2026-11-02T11:29:54.441902+00:00",
+        "status": "passed"
+      }
+    ],
+    "source_sha256": "554c1de3a77fd028f44fbf05d2a2d5374cb4b8f0d4a0674aa698593324b98299",
+    "source_unchanged": true,
+    "status": "passed"
+  }
+}

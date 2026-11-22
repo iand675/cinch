@@ -279,6 +279,7 @@ fn open_and_change_produce_diagnostics_with_correct_spans() {
     did_open(&mut client, "file:///project/A.cinch", A_SRC);
     // Read the initial publishes (no errors anywhere).
     let note = client.wait_note(|m| published_uri(m).ends_with("A.cinch"));
+    assert_eq!(note.get("method").and_then(Json::as_str), Some("textDocument/publishDiagnostics"));
     assert!(published_diagnostics(&note).is_empty(), "{note:?}");
     did_open(&mut client, "file:///project/B.cinch", B_SRC);
     let note = client.wait_note(|m| published_uri(m).ends_with("B.cinch"));

@@ -1,0 +1,8 @@
+module Main where
+  import syntax "../../syntax/by.syntax.json" as by
+  unsafe-index :: Nat -> (n :: Nat) -> Option (Fin n)
+  unsafe-index i n = case decide (i < n) of
+    Yes bound -> let i = n in Some (Fin i (by!{ assumption or linear }))
+    No _ -> None
+  main :: Int
+  main = 0

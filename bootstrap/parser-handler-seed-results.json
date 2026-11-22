@@ -1,0 +1,132 @@
+{
+  "status": "parser, producer and verification checkpoint validated",
+  "source_sha256": "99ba205dd8dff15f69cf78f70fbfbee5789b0ef4912ed1b2a813121c80b805f6",
+  "parser_fix": "Bind the span endpoint before its original guard and the start only in the guarded branch; preserve the existing guard and evaluation order.",
+  "parser_probes": {
+    "inline_native": 0,
+    "inline_cinch": 4,
+    "bound_native": 0,
+    "bound_cinch": 5,
+    "missing_guard_native": 1,
+    "missing_guard_cinch": 4,
+    "whole_parser_native": 0,
+    "whole_parser_cinch": 5,
+    "compiler_source_interfaces_supplied": false
+  },
+  "parser_corpus": "whole target passed on the exact joint compiler sources",
+  "pipeline": {
+    "status": "whole target passed",
+    "source_sha256": "a0026deb187826ec6120893886bbc6f443633d1ba6cea3860a79b2bca90e4790",
+    "update": "valid handler reaches named emitter refusal5; a clause introducing an unhandled effect is rejected by checker4"
+  },
+  "seed": {
+    "source_sha256": "c77484d26d293178f2a37efde10da2e1c15155e2dc825715a8d4ca8f30fd98a0",
+    "patch_sha256": "781522241690ae5e4e12085b8ecfd336e3827e78be81e7282d2e3795fe4fb189",
+    "runtime_abi": 5,
+    "interface_schema": 8,
+    "archive_reproduces_tested_sources": true,
+    "units": 142,
+    "effects": 16,
+    "ownership": 20,
+    "folded_ownership": 2,
+    "total": 180,
+    "scope": "b16 plus only duplicate handler clause and universal operation type parameter repairs; no prototype syntax or staged ABI6 changes"
+  },
+  "verification": {
+    "source_sha256": "3f5b080deb07112cc5c1abff36e3e97695a309fcbf4b2bcbbb20a0532de53348",
+    "tooling_tests": 23,
+    "syntax_tests": 39,
+    "syntax_skipped": 0,
+    "positive_programs": 13,
+    "negative_programs": 21,
+    "syntax_libraries": 14,
+    "frozen_inputs_unchanged": true,
+    "behavior": "capture experiment inputs and run generated editor/parser/native tests in an external copy using the explicitly built frozen compiler"
+  },
+  "actual_stages": {
+    "0": {
+      "exit_code": 0,
+      "inputs": {
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 2,
+        "seed": {
+          "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic, schema-8 closed executable total-body contracts with exact defining declarations, private first-order measure dependencies and definition-site argument identities, acyclic FromList class dependencies retain complete List and Bytes factory schemes, lexical constructor-witness value provenance, strict-let alias identity and source namespace separation, scope-aware anonymous refinement value binders and capture-free refinement rendering, optional closed conditional implementation declarations from actual checked dictionary slots, checked guarded Nat body equations, strict let result equations with original lexical value identities, corrected multi-term equality proof search, checked byte-length observations and actual selected arithmetic bodies in strict Nat let equations, typed collection constant reification with actual constructor instantiations and checked field types, declining unresolved generalized result types; changed only by an intentional seed update. Rejects duplicate handler operation clauses and checks operation type parameters universally without clause-scope escape; no ABI or prototype syntax change.",
+          "patch": "bootstrap/seed/stage0.patch",
+          "patch_sha256": "781522241690ae5e4e12085b8ecfd336e3827e78be81e7282d2e3795fe4fb189",
+          "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+          "runtime_abi": 5,
+          "schema": 1,
+          "source_sha256": "c77484d26d293178f2a37efde10da2e1c15155e2dc825715a8d4ca8f30fd98a0"
+        }
+      },
+      "log": "/private/tmp/cinch-parser-span-seed-validation-1/source/build/bootstrap/stage0/build.log",
+      "status": "built"
+    },
+    "1": {
+      "exit_code": 0,
+      "inputs": {
+        "builder_sha256": "415f33ba7da1f620677c5bae51e018fef51db3a12f5598ba87037236d9af1c0d",
+        "built_by_stage": 0,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 2,
+        "source_sha256": "fee8f7dc260053f5eeece685d0fe1591f309448a9ebbba1ec0d4dfb8a8f0eae9"
+      },
+      "log": "/private/tmp/cinch-parser-span-seed-validation-1/source/build/bootstrap/stage1/build.log",
+      "status": "built"
+    },
+    "2": {
+      "diagnostic_categories": {
+        "argument index needs checked pure total reification": 1,
+        "effect inclusion needs resolved rows": 11,
+        "invalid dependent application input": 10,
+        "invalid type in type inference": 6,
+        "malformed effect row": 10,
+        "non-exhaustive patterns": 1227,
+        "type mismatch: expected Nat, found Int": 1,
+        "with binding needs a checked signature value": 1
+      },
+      "diagnostics": 1267,
+      "exit_code": 4,
+      "first_diagnostics": [
+        "bootstrap.check:18278:48: argument index needs checked pure total reification",
+        "bootstrap.check:18285:12: invalid dependent application input",
+        "bootstrap.check:18285:16: malformed effect row",
+        "bootstrap.check:18354:5: non-exhaustive patterns",
+        "bootstrap.check:18356:27: non-exhaustive patterns",
+        "bootstrap.check:18362:35: invalid type in type inference",
+        "bootstrap.check:18362:34: non-exhaustive patterns",
+        "bootstrap.check:18375:5: non-exhaustive patterns",
+        "bootstrap.check:18409:38: non-exhaustive patterns",
+        "bootstrap.check:18419:23: non-exhaustive patterns"
+      ],
+      "inputs": {
+        "builder_sha256": "4a6fbd1067f52831f6728e7cc1572f74d2b6be1fbf5a88e4e1bbdd0c78272b32",
+        "built_by_stage": 1,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_set_sha256": "4bfff0b9d5aba0886280788d7abfc26456dcf8b1c5a2edc65231bad1efc703fa",
+        "protocol": 2,
+        "source_sha256": "fee8f7dc260053f5eeece685d0fe1591f309448a9ebbba1ec0d4dfb8a8f0eae9"
+      },
+      "log": "/private/tmp/cinch-parser-span-seed-validation-1/source/build/bootstrap/stage2/build.log",
+      "status": "failed"
+    }
+  },
+  "full_matrix": {
+    "status": "running",
+    "integration_targets": 191,
+    "general_gates": 6,
+    "source_sha256": "3f5b080deb07112cc5c1abff36e3e97695a309fcbf4b2bcbbb20a0532de53348",
+    "scope": "Native-assisted, including syntax experiments; predates unvalidated argument-witness scope work"
+  },
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

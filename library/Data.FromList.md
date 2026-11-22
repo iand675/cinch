@@ -10,7 +10,7 @@ Import with `import Data.FromList`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.List](Data.List.md).
+[Data.Core](Data.Core.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -56,4 +56,4 @@ from-list :: forall c e . using (dict :: FromList c e) => (List e -> c)
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/FromList.cinch`. Source SHA-256: `79adbec390aabbf362dc551bdc475da29e2721656cd005dbf263bbab88ba17c4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/FromList.cinch`. Source SHA-256: `62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

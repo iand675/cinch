@@ -1,4 +1,6 @@
+@import './tokens.css';
 @import './scrollbars.css';
+@import './base.css';
 @font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-400.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-500.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
 @font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-600.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
@@ -7,7 +9,7 @@
 @font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-400.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
 :root {
-  --cinch-font-display: 'Momo Trust Display', sans-serif; --sl-font: 'DM Sans', sans-serif; --sl-font-mono: 'IBM Plex Mono', monospace;
+  --sl-font: var(--font-body); --sl-font-mono: var(--font-mono);
   --sl-color-white: #f5f0e7; --sl-color-gray-1: #e4dfd5; --sl-color-gray-2: #c9c5bb; --sl-color-gray-3: #a49c8e; --sl-color-gray-4: #797469; --sl-color-gray-5: #45443c; --sl-color-gray-6: #252621; --sl-color-black: #191a17;
   --sl-color-accent-low: #3f291c; --sl-color-accent: #f78c47; --sl-color-accent-high: #ffb780;
   --sl-color-bg-nav: #171815; --sl-color-bg-sidebar: #1d1e1a; --sl-color-hairline-shade: #393a31;
@@ -21,7 +23,7 @@
   --sl-color-bg-nav: #f3eee4; --sl-color-bg-sidebar: #f1ece1; --sl-color-hairline-shade: #d9d1c2; --sl-color-bg-inline-code: #ede4d5;
   --sl-color-orange-low: #f6e5cc; --sl-color-orange-high: #794012;
 }
-::selection { background: #f78c4760; color: inherit; }
+::selection { background: var(--selection); color: inherit; }
 a, button, select { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid #d27535; outline-offset: 5px; }
 .cinch-brand { display: inline-flex; width: 120px; align-items: center; flex-shrink: 0; }
@@ -42,9 +44,9 @@ a, button, select { -webkit-tap-highlight-color: transparent; }
 .sidebar-content a[aria-current='page'] { background: var(--sl-color-accent-low); color: var(--sl-color-text-accent); border-inline-start: 2px solid var(--sl-color-accent); }
 .doc-eyebrow { display: flex; align-items: center; gap: .8rem; font-family: var(--sl-font-mono); font-size: .6rem; letter-spacing: .055em; text-transform: uppercase; color: var(--sl-color-gray-3); margin-top: 1.7rem; }
 .doc-eyebrow a { text-decoration: none; color: var(--sl-color-text-accent); }.doc-draft { margin-left: auto; font-size: .52rem; border: 1px solid var(--sl-color-gray-5); padding: .2rem .5rem; white-space: nowrap; }
-h1#_top { font-family: var(--cinch-font-display); font-size: clamp(2.4rem,4.3vw,3.6rem); letter-spacing: -.035em; font-weight: 400; font-synthesis: none; line-height: 1.1; margin-top: 1.6rem; text-wrap: balance; }
+h1#_top { font-family: var(--font-display); font-size: clamp(2.4rem,4.3vw,3.6rem); letter-spacing: -.035em; font-weight: 400; font-synthesis: none; line-height: 1.1; margin-top: 1.6rem; text-wrap: balance; }
 .doc-provenance { margin: 1.1rem 0 .5rem; font-size: .67rem; color: var(--sl-color-gray-3); }.doc-provenance .separator { margin: 0 .5rem; }.doc-provenance a { color: inherit; text-underline-offset: 3px; }
-.sl-markdown-content h2, .sl-markdown-content h3, .sl-markdown-content h4 { font-family: var(--cinch-font-display); font-weight: 400; font-synthesis: none; letter-spacing: -.025em; }
+.sl-markdown-content h2, .sl-markdown-content h3, .sl-markdown-content h4 { font-family: var(--font-display); font-weight: 400; font-synthesis: none; letter-spacing: -.025em; }
 .sl-markdown-content h2 { margin-top: 3rem; padding-top: 1.6rem; border-top: 1px solid var(--sl-color-gray-5); font-size: 1.8rem; }.sl-markdown-content h3 { font-size: 1.35rem; }
 .sl-markdown-content p, .sl-markdown-content li { font-size: .96rem; }
 .sl-markdown-content a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
@@ -52,7 +54,7 @@ h1#_top { font-family: var(--cinch-font-display); font-size: clamp(2.4rem,4.3vw,
 .sl-markdown-content pre { border: 1px solid var(--sl-color-gray-5); border-radius: 3px; padding: 1.4rem; font-size: .79rem; line-height: 1.9; }
 .sl-markdown-content table { font-size: .8rem; width: 100%; }.sl-markdown-content th { background: var(--sl-color-bg-sidebar); font-family: var(--sl-font-mono); font-size: .7rem; font-weight: 500; }.sl-markdown-content td, .sl-markdown-content th { padding: .8rem 1rem; border-color: var(--sl-color-gray-5); }.sl-markdown-content strong { font-weight: 600; }
 .right-sidebar-panel h2 { font-family: var(--sl-font-mono); font-size: .65rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }.right-sidebar-panel a { font-size: .72rem; }.right-sidebar-panel { padding-top: 2.6rem; }
-.pagination-links a { border-radius: 2px; box-shadow: none; border-color: var(--sl-color-gray-5); }.pagination-links .link-title { font-family: var(--cinch-font-display); font-weight: 400; font-synthesis: none; font-size: 1.1rem; }
+.pagination-links a { border-radius: 2px; box-shadow: none; border-color: var(--sl-color-gray-5); }.pagination-links .link-title { font-family: var(--font-display); font-weight: 400; font-synthesis: none; font-size: 1.1rem; }
 @media (min-width: 72rem) { :root { --sl-content-pad-x: 2.5rem; } }
 @media (max-width: 799px) { .cinch-doc-header .cinch-brand { width: 105px; }.doc-label { font-size: .65rem; padding-left: 1rem; gap: .7rem; }.cinch-doc-identity { gap: 1rem; }.cinch-doc-tools { gap: .5rem; }.cinch-doc-tools starlight-theme-select { display: none; }.doc-eyebrow { margin-top: 1rem; }.doc-draft { display: none; } }
 @media (max-width: 390px) { .doc-label { display: none; } }

@@ -29,7 +29,6 @@ module Data.NonZero where
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  infixr 6 <>
 
   export non-zero, non-zero-nat
 

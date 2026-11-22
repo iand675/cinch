@@ -1,0 +1,28 @@
+{
+  "problem": "An annotated linear lambda parameter was registered at the enclosing lambda depth and rejected as a capture in its own body.",
+  "before": "1\ncinch: 5:13: multiplicity %1: token must be used exactly once on every path, but is used under a lambda or thunk body (zero or unboundedly many times) (in /tmp/cinch-linear-parameter-root-repro/Main.cinch)\n",
+  "repair": "Register each lambda parameter obligation at the depth entered by that lambda body. Further nested lambdas retain capture checks.",
+  "ownership_gate": {
+    "executable_sha256": "288ed0fb171faba8711ebf26c66e229c961795ebb9457ea9a4f0f8bcc2b8061e",
+    "exit_code": 0,
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "tests_passed": 23,
+  "new_positive_cases": [
+    "annotated variable parameter consumed in body",
+    "annotated constructor-pattern parameter consumed in body"
+  ],
+  "new_refusals": [
+    "nested lambda capture",
+    "duplicate parameter consumption",
+    "dropped linear parameter"
+  ],
+  "source_sha256": "cb8999e860ece10b71a73a72f73812d55a8da9bd02db3105b6ef867c6c421f5e",
+  "files": {
+    "compiler/src/check_terms.rs": "60c8b124c067a4a6096ea073043f4d69c5a90a0b9c1344c3d0442e209eb215d3",
+    "compiler/tests/ownership.rs": "fd0755b48ab9f9f5330a3d050aa772a2e7f4f8ed67b2e81aaad626b92b713d28"
+  },
+  "bootstrap_compiler_source_changed": false,
+  "full_current_suite": "must be refreshed for this Rust checker change"
+}

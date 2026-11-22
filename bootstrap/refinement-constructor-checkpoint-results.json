@@ -1,0 +1,76 @@
+{
+  "actual_stages": {
+    "directory": "/tmp/cinch-refinement-stages-1",
+    "status": "running; fresh stage0 smokes passed, stage1 building"
+  },
+  "full_suite": {
+    "directory": "/tmp/cinch-refinement-full-1/complete-matrix",
+    "general_gates": 5,
+    "integration_targets": 180,
+    "self_built_frontend": false,
+    "status": "running"
+  },
+  "identity_scope": "10 Core checks at each of five runtime identities above 2^128",
+  "implementation": [
+    "Named refinement constructors derive typed payload/proof lambdas from actual checked defining templates.",
+    "CRefineProof retains actual erased witness and payload identities through elaboration, scope/closure checking, effects and independent Core typing.",
+    "Strict lets propagate expected result structure; generic numeric carrier constraints use the actual inference store.",
+    "Certificate refresh cannot replace incorrect explicit evidence with ambient facts."
+  ],
+  "independent_core_checks": 50,
+  "limits": [
+    "No complete current or self-built frontend suite pass claimed.",
+    "Partial constructor application is supported structurally by ordinary typed lambdas but has no separate source regression.",
+    "Conditional method contracts/implementation authority, handler elaboration, complete independent proof/usage/totality, typed runtime lowering and stage2/3 fixed point remain unfinished.",
+    "The Rust anonymous Bytes refinement binder bug has a private candidate fix awaiting regression validation."
+  ],
+  "native_seed_source_sha256": "366704380d06ceab798c0b5db18ed7699b8579ee518eef92a7649f2de8f9fb2e",
+  "owned_code": [
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Global.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "bootstrap/Bootstrap.Type.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "compiler/tests/bootstrap_refinement_constructors.rs",
+    "bootstrap/programs/Run.RefinementConstructors.cinch"
+  ],
+  "self_hosting_achieved": false,
+  "source_cases": 20,
+  "source_sha256": "41e5421c39d40e55148ffeb377fa430cde50a85ca62593827bbb104d838d0a11",
+  "status": "targeted constructor source and independent Core checks passed; full suite and stages running",
+  "validation": {
+    "evidence": "whole source/Core constructor target reused after exact relevant-input comparison",
+    "identities": "five runtime IDs above2^128",
+    "independent_core_checks": 50,
+    "original_result": {
+      "command": [
+        "cargo",
+        "test",
+        "--no-fail-fast",
+        "--target-dir",
+        "/tmp/cinch-refinement-constructors-validation-6/cargo",
+        "--test",
+        "bootstrap_refinement_constructors",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T09:30:16.410716+00:00",
+      "lane": "sole named outside fifth worker; all matrix, stage and measure gates use four shared slots",
+      "pid": 66736,
+      "source_sha256": "ed66d27d118af5f1f20a11e299021d73da6f23511cef07fce58c9eec3b0b4d57",
+      "started": "2026-11-02T09:21:10.131567+00:00",
+      "status": "passed"
+    },
+    "reason": "Seed lock/patch and a separate Rust fixture are not read by this target. Every Native source, prelude, runtime, Cinch compiler and own fixture/runner input is identical.",
+    "source_cases": 20,
+    "source_differences": [
+      "bootstrap/seed/stage0.patch",
+      "bootstrap/stage0.lock.json"
+    ],
+    "source_sha256": "41e5421c39d40e55148ffeb377fa430cde50a85ca62593827bbb104d838d0a11",
+    "status": "passed"
+  }
+}

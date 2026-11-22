@@ -13,7 +13,8 @@ use cinchruntime::abi::{
 use cinchruntime::task::{JOIN_FAILED, TASK_ERR_TAG, TASK_OK_TAG};
 
 /// The body's observed the cancellation request.
-static OBSERVED: AtomicBool = AtomicBool::new(false);
+static JOIN_OBSERVED: AtomicBool = AtomicBool::new(false);
+static SCOPE_OBSERVED: AtomicBool = AtomicBool::new(false);
 
 /// A `Result` block word (`{ payload }` with the tag in the header's
 /// layout id), as the task outcome ABI defines it.
@@ -44,10 +45,18 @@ unsafe extern "C" fn stub_err_9(_self: i64, _argc: i64, _argv: *mut i64) -> i64 
 /// A long-running body: it only returns after observing its
 /// cancellation request (section 4's cooperative points).
 unsafe extern "C" fn stub_until_canceled(_self: i64, _argc: i64, _argv: *mut i64) -> i64 {
+    wait_for_cancel(&JOIN_OBSERVED)
+}
+
+unsafe extern "C" fn stub_scope_until_canceled(_self: i64, _argc: i64, _argv: *mut i64) -> i64 {
+    wait_for_cancel(&SCOPE_OBSERVED)
+}
+
+fn wait_for_cancel(observed: &AtomicBool) -> i64 {
     while cinch_task_poll_cancel() == 0 {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    OBSERVED.store(true, Ordering::SeqCst);
+    observed.store(true, Ordering::SeqCst);
     result_block(TASK_OK_TAG, 0)
 }
 
@@ -78,7 +87,7 @@ fn a_spawned_task_result_joins_correctly() {
 
 #[test]
 fn join_all_or_cancel_cancels_the_siblings_on_failure() {
-    OBSERVED.store(false, Ordering::SeqCst);
+    JOIN_OBSERVED.store(false, Ordering::SeqCst);
     let scope = cinch_scope_open();
     // The failing body and the sibling that only returns once canceled.
     let fail = unsafe { cinch_task_spawn(scope, closure(stub_err_9)) };
@@ -97,19 +106,19 @@ fn join_all_or_cancel_cancels_the_siblings_on_failure() {
     // join waited for the sibling's cleanup acknowledgment.
     assert_eq!(status, JOIN_FAILED);
     assert_eq!(unsafe { *(out[0] as *const i64) }, 9);
-    assert!(OBSERVED.load(Ordering::SeqCst), "the sibling never observed its cancellation request");
+    assert!(JOIN_OBSERVED.load(Ordering::SeqCst), "the sibling never observed its cancellation request");
     unsafe { cinch_scope_close(scope) };
 }
 
 #[test]
 fn scope_close_cancels_and_joins_unfinished_children() {
-    OBSERVED.store(false, Ordering::SeqCst);
+    SCOPE_OBSERVED.store(false, Ordering::SeqCst);
     let scope = cinch_scope_open();
-    let _h = unsafe { cinch_task_spawn(scope, closure(stub_until_canceled)) };
+    let _h = unsafe { cinch_task_spawn(scope, closure(stub_scope_until_canceled)) };
     // Leaving the scope follows the cancellation-and-join protocol for
     // the child no join has observed (section 2).
     unsafe { cinch_scope_close(scope) };
-    assert!(OBSERVED.load(Ordering::SeqCst), "the child never observed its cancellation request");
+    assert!(SCOPE_OBSERVED.load(Ordering::SeqCst), "the child never observed its cancellation request");
 }
 
 #[test]

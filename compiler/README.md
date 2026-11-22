@@ -34,6 +34,25 @@ cinch-test       # cargo test
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
 
+`cinch emit-object Library.cinch -o library.o` emits a library dependency
+object, its LLVM text (`library.ll`) and physical ABI (`library.abi.json`).
+The object includes the checked dependency closure. It has no process entry
+and does not register a layout table. A consumer must supply `__apply` and
+register one combined table containing the exact recorded layout prefix
+before calling library code. Ordinary `build` does not yet consume these
+objects. See [the object linkage contract](../design/runtime-object-linkage.md).
+Use `--object-roots roots.json` to request concrete generic function, dictionary
+and method variants needed by a separate consumer. The manifest records the
+actual class method slot families used by the resulting object.
+
+The Cinch stage compiler consumes a matching bundle through
+`--emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR`. Admission checks
+artifact SHA256 identities, exact configured ABI and checked interfaces, then
+emission preserves the provider's layout prefix and actual method slot plan.
+This flag belongs to the Cinch stage CLI; the Rust development CLI uses the
+subcommands above. The stage driver builds and links its pinned library bundle
+automatically, without routing compiler implementation sources through Rust.
+
 ## Pipeline
 
 ```
@@ -47,6 +66,13 @@ The closure and dictionary ABI is documented in `src/core.rs`.
 
 ## What is implemented
 
+- **Array primitives (Native, ABI6 candidate)**: opaque `Array a`,
+  row-major `Tensor a`, and composable heterogeneous `Columnar row`;
+  checked reads, persistent updates, shape validation, packed scalar
+  buffers, and counted object/bignum elements. The explicit source modules
+  are `Data.Array`, `Data.Array.Packed`, `Data.Tensor` and `Data.Columnar`.
+  See [array semantics and the self-hosting integration boundary](../design/arrays.md).
+  The pinned ABI5 Cinch compiler does not yet implement these operations.
 - **Layout syntax** per the draft 0.2 rules (`where`, `of`, `let`, `in`,
   explicit-brace shielding, tab rejection, nested `{- -}` comments).
 - **Declarations**: `module`, `import` (prelude only), `data`, `record`

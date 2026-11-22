@@ -1,0 +1,175 @@
+-- All arithmetic inputs are supplied after this executable is built.
+module Main where
+
+  import Bootstrap.Proof
+  import Data.Path (path-from-string)
+  import Data.Nat (nat-from-int)
+  import Effect.Fs (fs-read, fs-write)
+  import Data.Json
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  x :: Arithmetic
+  x = AVariable "x"
+  y :: Arithmetic
+  y = AVariable "y"
+  k :: Arithmetic
+  k = AVariable "k"
+  zero :: Arithmetic
+  zero = AInteger 0
+  le :: Arithmetic -> Arithmetic -> Proposition
+  le a b = PCompare AtMost a b
+  lt :: Arithmetic -> Arithmetic -> Proposition
+  lt a b = PCompare Less a b
+  accepted :: List Proposition -> Proposition -> Bool
+  accepted facts goal = case prove facts goal of Some evidence -> check-proof facts goal evidence; None -> False
+  refused :: List Proposition -> Proposition -> Bool
+  refused facts goal = case prove facts goal of None -> True; Some evidence -> False
+
+  cases :: Int -> List (String, Bool)
+  cases input =
+    let n = AInteger input in
+    let bounds = [le zero x, le zero k, le (APlus x k) n] in
+    let disjunction = PEither (lt x zero) (lt zero x) in
+    let neq = PCompare Unequal x zero in
+    let left = Farkas [(1, Alternative 0 0), (1, NegatedGoal 1)] in
+    let right = Farkas [(1, Alternative 0 0), (1, NegatedGoal 0)] in
+    let split = Refutation (Split (Hypothesis 0 0) left right) in
+    let large = AInteger (340282366920938463463374607431768211456 + input) in
+    [ ("three-term bound", accepted bounds (le x n))
+    , ("three-term substitution", accepted [le (APlus x k) n, le y x] (le (APlus y k) n))
+    , ("strict transitivity", accepted [lt x y, le y n] (lt x n))
+    , ("equality conjuncts", accepted [PCompare Equal x y] (PCompare Equal (APlus x n) (APlus y n)))
+    , ("conjunction goal", accepted bounds (PBoth (le zero x) (le x n)))
+    , ("integer disjunction", accepted Nil (PEither (le x n) (lt n x)))
+    , ("disequality split", accepted [PCompare Unequal x y, le x y] (lt x y))
+    , ("literal decision", accepted Nil (lt n (APlus n (AInteger 1))))
+    , ("unbounded integer", accepted [le x large, lt large x] PFalsehood)
+    , ("nonlinear identity", accepted Nil (PCompare Equal (ATimes x y) (ATimes x y)))
+    , ("opaque application", accepted [le (ACall "bytes-len" (AArgument x AArgumentsEnd)) n]
+          (le (ACall "bytes-len" (AArgument x AArgumentsEnd)) n))
+    , ("truth", check-proof Nil PTruth Trivial)
+    , ("false is not truth", not (check-proof Nil PFalsehood Trivial))
+    , ("unsupported claim", refused bounds (lt n x))
+    , ("no ambient natural domain", refused Nil (le zero x))
+    , ("valid split certificate", check-proof [disjunction] neq split)
+    , ("both alternatives required", not (check-proof [disjunction] neq (Refutation (Split (Hypothesis 0 0) left (Farkas Nil)))))
+    , ("sibling evidence rejected", not (check-proof [disjunction] neq (Refutation (Split (Hypothesis 0 0) left left))))
+    , ("non-disjunction split rejected", not (check-proof [le x zero] neq split))
+    , ("negative multiplier rejected", not (check-proof [le x zero, le x (AInteger 1)] PFalsehood
+          (Refutation (Farkas [(1, Hypothesis 0 0), (-1, Hypothesis 1 0)]))))
+    , ("zero multiplier rejected", not (check-proof [PFalsehood] PTruth
+          (Refutation (Farkas [(1, Hypothesis 0 0), (0, NegatedGoal 0)]))))
+    , ("empty certificate rejected", not (check-proof [PFalsehood] PTruth (Refutation (Farkas Nil))))
+    , ("missing hypothesis rejected", not (check-proof Nil PTruth (Refutation (Farkas [(1, Hypothesis 0 0)]))))
+    , ("out-of-scope branch rejected", not (check-proof Nil PTruth (Refutation (Farkas [(1, Alternative 0 0)]))))
+    , ("changed fact invalidates certificate", not (check-proof [le x (APlus n (AInteger 1))] (le x n)
+          (Refutation (Farkas [(1, Hypothesis 0 0), (1, NegatedGoal 0)]))))
+    , ("actual goal is rechecked", not (check-proof [le x n] (lt x n)
+          (Refutation (Farkas [(1, Hypothesis 0 0), (1, NegatedGoal 0)]))))
+    , ("missing conjunct rejected", not (check-proof [le x n] (le x n)
+          (Refutation (Farkas [(1, Hypothesis 0 1), (1, NegatedGoal 0)]))))
+    , ("malformed arithmetic rejected", not (check-proof [PFalsehood] (le AArgumentsEnd zero) (Refutation (Farkas [(1, Hypothesis 0 0)]))))
+    , ("structural symbols stay distinct", refused [le (AVariable "x+y") zero] (le (APlus x y) zero))
+    ]
+
+  failures :: List (String, Bool) -> String
+  failures tests = case tests of
+    Nil -> ""
+    Cons (label, ok) rest -> string-concat (if ok then "" else string-concat label "\n") (failures rest)
+
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  natural :: Json -> Option Nat
+  natural doc = case doc of JNum n -> if n < 0 then None else Some (nat-from-int n); other -> None
+  arithmetic :: Json -> Option Arithmetic
+  arithmetic doc = case doc of
+    JArr (JStr tag) (JArr (JNum n) JArrEnd) -> if same tag "int" then Some (AInteger n) else None
+    JArr (JStr tag) (JArr (JStr name) JArrEnd) -> if same tag "var" then Some (AVariable name) else None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
+      if same tag "call" then call a b
+      else case (arithmetic a, arithmetic b) of
+        (Some x, Some y) -> if same tag "+" then Some (APlus x y) else if same tag "-" then Some (AMinus x y) else if same tag "*" then Some (ATimes x y) else None
+        other -> None
+    other -> None
+  call :: Json -> Json -> Option Arithmetic
+  call head args = case head of
+    JStr name -> case arguments args of Some xs -> Some (ACall name xs); None -> None
+    other -> None
+  arguments :: Json -> Option Arithmetic
+  arguments doc = case doc of
+    JArrEnd -> Some AArgumentsEnd
+    JArr x rest -> case (arithmetic x, arguments rest) of (Some a, Some more) -> Some (AArgument a more); other -> None
+    other -> None
+  relation :: String -> Option Comparison
+  relation tag = if same tag "le" then Some AtMost else if same tag "lt" then Some Less
+    else if same tag "eq" then Some Equal else if same tag "ne" then Some Unequal
+    else if same tag "ge" then Some AtLeast else if same tag "gt" then Some Greater else None
+  proposition :: Json -> Option Proposition
+  proposition doc = case doc of
+    JBool value -> Some (if value then PTruth else PFalsehood)
+    JArr (JStr tag) (JArr a JArrEnd) -> if same tag "not" then (case proposition a of Some p -> Some (PNegate p); None -> None) else None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
+      if same tag "and" || same tag "or" then (case (proposition a, proposition b) of
+        (Some x, Some y) -> Some (if same tag "and" then PBoth x y else PEither x y)
+        other -> None)
+      else case (relation tag, arithmetic a, arithmetic b) of
+        (Some op, Some x, Some y) -> Some (PCompare op x y)
+        other -> None
+    other -> None
+  hypotheses :: Json -> Option (List Proposition)
+  hypotheses doc = case doc of
+    JArrEnd -> Some Nil
+    JArr p rest -> case (proposition p, hypotheses rest) of (Some h, Some more) -> Some (Cons h more); other -> None
+    other -> None
+  citation :: Json -> Option Citation
+  citation doc = case doc of
+    JArr (JStr tag) (JArr c JArrEnd) -> if same tag "goal" then (case natural c of Some n -> Some (NegatedGoal n); None -> None) else None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) -> case (natural a, natural b) of
+      (Some x, Some y) -> if same tag "hyp" then Some (Hypothesis x y) else if same tag "case" then Some (Alternative x y) else None
+      other -> None
+    other -> None
+  weights :: Json -> Option (List (Int, Citation))
+  weights doc = case doc of
+    JArrEnd -> Some Nil
+    JArr (JArr (JNum by) (JArr reference JArrEnd)) rest -> case (citation reference, weights rest) of
+      (Some ref, Some more) -> Some (Cons (by, ref) more)
+      other -> None
+    other -> None
+  certificate :: Json -> Option Certificate
+  certificate doc = case doc of
+    JArr (JStr tag) (JArr rows JArrEnd) -> if same tag "farkas" then (case weights rows of Some xs -> Some (Farkas xs); None -> None) else None
+    JArr (JStr tag) (JArr reference (JArr left (JArr right JArrEnd))) -> if same tag "split" then
+      (case (citation reference, certificate left, certificate right) of (Some ref, Some a, Some b) -> Some (Split ref a b); other -> None)
+      else None
+    other -> None
+  decode-evidence :: Json -> Option Proof
+  decode-evidence doc = case doc of
+    JArr (JStr tag) JArrEnd -> if same tag "trivial" then Some Trivial else None
+    JArr (JStr tag) (JArr cert JArrEnd) -> if same tag "refute" then (case certificate cert of Some c -> Some (Refutation c); None -> None) else None
+    JArr (JStr tag) (JArr left (JArr right JArrEnd)) -> if same tag "both" then
+      (case (decode-evidence left, decode-evidence right) of (Some a, Some b) -> Some (Conjunction a b); other -> None)
+      else None
+    other -> None
+  request :: Json -> (Int, String)
+  request doc = case field "mode" doc of
+    JStr mode -> if same mode "selftest" then (case field "input" doc of
+      JNum n -> let report = failures (cases n) in (if string-length report == 0 then 0 else 4, report)
+      other -> (2, "invalid input"))
+      else case (hypotheses (field "facts" doc), proposition (field "goal" doc)) of
+        (Some hs, Some goal) -> if same mode "search" then (case prove hs goal of Some result -> (if check-proof hs goal result then 0 else 4, "search result"); None -> (4, "no checked proof"))
+          else if same mode "check" then (case decode-evidence (field "proof" doc) of Some result -> (if check-proof hs goal result then 0 else 4, "certificate result"); None -> (2, "invalid proof"))
+          else (2, "invalid mode")
+        other -> (2, "invalid proposition")
+    other -> (2, "missing mode")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
+    Err error -> 90
+    Ok bytes -> let (status, report) = parse-request bytes in
+      case fs-write (path-from-string "proof-report.txt") (string-to-bytes report) of
+        Err error -> 91
+        Ok _ -> status
+  parse-request :: Bytes -> (Int, String)
+  parse-request bytes = case parse-json "proof-input" bytes of Parsed packet Nil -> request packet; other -> (2, "invalid JSON")

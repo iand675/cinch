@@ -1,0 +1,604 @@
+{
+  "version": 1,
+  "name": "choreography",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "protocol",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "roles",
+        "{",
+        {
+          "capture": "roles",
+          "of": {
+            "many": {
+              "ref": "role"
+            },
+            "min": 2
+          }
+        },
+        "}",
+        "prefix",
+        "{",
+        {
+          "capture": "messages",
+          "of": {
+            "many": {
+              "ref": "message"
+            },
+            "min": 1
+          }
+        },
+        "}",
+        "choice",
+        {
+          "capture": "decider",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "{",
+        {
+          "capture": "branches",
+          "of": {
+            "many": {
+              "ref": "branch"
+            },
+            "min": 2
+          }
+        },
+        "}",
+        "}"
+      ],
+      "emit": {
+        "code": {
+          "trim": [
+            "export ",
+            {
+              "trim": [
+                {
+                  "each": "messages",
+                  "as": "message",
+                  "emit": "${protocol}Wire${message.label}, ",
+                  "join": ""
+                },
+                {
+                  "each": "branches",
+                  "as": "branch",
+                  "emit": {
+                    "each": "branch.messages",
+                    "as": "message",
+                    "emit": "${protocol}Wire${branch.label}${message.label}, ",
+                    "join": ""
+                  },
+                  "join": ""
+                },
+                {
+                  "each": "roles",
+                  "as": "role",
+                  "emit": [
+                    "${protocol}${role.name}P0, start-${protocol}-${role.name}, ",
+                    {
+                      "let": {
+                        "local": {
+                          "select": "messages",
+                          "as": "message",
+                          "where": {
+                            "or": [
+                              {
+                                "eq": [
+                                  "message.sender",
+                                  "role.name"
+                                ]
+                              },
+                              {
+                                "eq": [
+                                  "message.receiver",
+                                  "role.name"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "emit": [
+                        {
+                          "each": "local",
+                          "as": "message",
+                          "emit": [
+                            "${protocol}${role.name}P${next}, ",
+                            {
+                              "if": {
+                                "eq": [
+                                  "message.sender",
+                                  "role.name"
+                                ]
+                              },
+                              "then": "send-",
+                              "else": "receive-"
+                            },
+                            "${protocol}-${role.name}-${message.label}, "
+                          ],
+                          "join": ""
+                        },
+                        {
+                          "if": {
+                            "eq": [
+                              "role.name",
+                              "decider"
+                            ]
+                          },
+                          "then": {
+                            "each": "branches",
+                            "as": "branch",
+                            "emit": "choose-${protocol}-${branch.label}, ",
+                            "join": ""
+                          },
+                          "else": [
+                            "${protocol}ChoiceWire${role.name}, ${protocol}Offer${role.name}, offer-${protocol}-${role.name}, ",
+                            {
+                              "each": "branches",
+                              "as": "branch",
+                              "emit": "${protocol}${branch.label}${role.name}, ",
+                              "join": ""
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "each": "branches",
+                      "as": "branch",
+                      "emit": {
+                        "let": {
+                          "local": {
+                            "select": "branch.messages",
+                            "as": "message",
+                            "where": {
+                              "or": [
+                                {
+                                  "eq": [
+                                    "message.sender",
+                                    "role.name"
+                                  ]
+                                },
+                                {
+                                  "eq": [
+                                    "message.receiver",
+                                    "role.name"
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "emit": [
+                          "${protocol}${role.name}${branch.label}S0, close-${protocol}-${branch.label}-${role.name}, ",
+                          {
+                            "each": "local",
+                            "as": "message",
+                            "emit": [
+                              "${protocol}${role.name}${branch.label}S${next}, ",
+                              {
+                                "if": {
+                                  "eq": [
+                                    "message.sender",
+                                    "role.name"
+                                  ]
+                                },
+                                "then": "send-",
+                                "else": "receive-"
+                              },
+                              "${protocol}-${branch.label}-${role.name}-${message.label}, "
+                            ],
+                            "join": ""
+                          }
+                        ]
+                      },
+                      "join": ""
+                    }
+                  ],
+                  "join": ""
+                }
+              ],
+              "characters": ", "
+            },
+            "; ",
+            [
+              [
+                {
+                  "each": "messages",
+                  "as": "message",
+                  "emit": "data ${protocol}Wire${message.label} where { Mk${protocol}Wire${message.label} :: Nat -> ${protocol}Wire${message.label} }; ",
+                  "join": ""
+                },
+                {
+                  "each": "branches",
+                  "as": "branch",
+                  "emit": {
+                    "each": "branch.messages",
+                    "as": "message",
+                    "emit": "data ${protocol}Wire${branch.label}${message.label} where { Mk${protocol}Wire${branch.label}${message.label} :: Nat -> ${protocol}Wire${branch.label}${message.label} }; ",
+                    "join": ""
+                  },
+                  "join": ""
+                }
+              ],
+              {
+                "each": "roles",
+                "as": "role",
+                "emit": [
+                  "data ${protocol}${role.name}P0 where { Mk${protocol}${role.name}P0 :: Nat -> ${protocol}${role.name}P0 }; ",
+                  {
+                    "let": {
+                      "local": {
+                        "select": "messages",
+                        "as": "message",
+                        "where": {
+                          "or": [
+                            {
+                              "eq": [
+                                "message.sender",
+                                "role.name"
+                              ]
+                            },
+                            {
+                              "eq": [
+                                "message.receiver",
+                                "role.name"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "emit": {
+                      "each": "local",
+                      "as": "message",
+                      "emit": "data ${protocol}${role.name}P${next} where { Mk${protocol}${role.name}P${next} :: Nat -> ${protocol}${role.name}P${next} }; ",
+                      "join": ""
+                    }
+                  },
+                  {
+                    "each": "branches",
+                    "as": "branch",
+                    "emit": [
+                      "data ${protocol}${role.name}${branch.label}S0 where { Mk${protocol}${role.name}${branch.label}S0 :: Nat -> ${protocol}${role.name}${branch.label}S0 }; ",
+                      {
+                        "let": {
+                          "local": {
+                            "select": "branch.messages",
+                            "as": "message",
+                            "where": {
+                              "or": [
+                                {
+                                  "eq": [
+                                    "message.sender",
+                                    "role.name"
+                                  ]
+                                },
+                                {
+                                  "eq": [
+                                    "message.receiver",
+                                    "role.name"
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "emit": {
+                          "each": "local",
+                          "as": "message",
+                          "emit": "data ${protocol}${role.name}${branch.label}S${next} where { Mk${protocol}${role.name}${branch.label}S${next} :: Nat -> ${protocol}${role.name}${branch.label}S${next} }; ",
+                          "join": ""
+                        }
+                      }
+                    ],
+                    "join": ""
+                  }
+                ],
+                "join": ""
+              },
+              {
+                "each": "roles",
+                "as": "role",
+                "emit": {
+                  "if": {
+                    "not": {
+                      "eq": [
+                        "role.name",
+                        "decider"
+                      ]
+                    }
+                  },
+                  "then": [
+                    "data ${protocol}ChoiceWire${role.name} where { ",
+                    {
+                      "each": "branches",
+                      "as": "branch",
+                      "emit": "${protocol}${branch.label}Wire${role.name} :: Nat -> ${protocol}ChoiceWire${role.name}",
+                      "join": "; "
+                    },
+                    " }; data ${protocol}Offer${role.name} where { ",
+                    {
+                      "each": "branches",
+                      "as": "branch",
+                      "emit": "${protocol}${branch.label}${role.name} :: Thunk {} ${protocol}${role.name}${branch.label}S0 -> ${protocol}Offer${role.name}",
+                      "join": "; "
+                    },
+                    " }; "
+                  ],
+                  "else": ""
+                },
+                "join": ""
+              },
+              {
+                "each": "roles",
+                "as": "role",
+                "emit": [
+                  "start-${protocol}-${role.name} :: Unit -> Thunk {} ${protocol}${role.name}P0; start-${protocol}-${role.name} u = ${@suspend} (\\() -> Mk${protocol}${role.name}P0 0); ",
+                  {
+                    "let": {
+                      "local": {
+                        "select": "messages",
+                        "as": "message",
+                        "where": {
+                          "or": [
+                            {
+                              "eq": [
+                                "message.sender",
+                                "role.name"
+                              ]
+                            },
+                            {
+                              "eq": [
+                                "message.receiver",
+                                "role.name"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "emit": [
+                      {
+                        "each": "local",
+                        "as": "message",
+                        "emit": {
+                          "if": {
+                            "eq": [
+                              "message.sender",
+                              "role.name"
+                            ]
+                          },
+                          "then": "send-${protocol}-${role.name}-${message.label} :: Thunk {} ${protocol}${role.name}P${index} %1 -> Nat -> (Thunk {} ${protocol}${role.name}P${next}, Thunk {} ${protocol}Wire${message.label}); send-${protocol}-${role.name}-${message.label} ${!endpoint} ${!payload} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}P${index} ${!count} -> (${@suspend} (\\() -> Mk${protocol}${role.name}P${next} (${!count} + 1)), ${@suspend} (\\() -> Mk${protocol}Wire${message.label} ${!payload})) }; ",
+                          "else": "receive-${protocol}-${role.name}-${message.label} :: Thunk {} ${protocol}${role.name}P${index} %1 -> Thunk {} ${protocol}Wire${message.label} %1 -> (Thunk {} ${protocol}${role.name}P${next}, Nat); receive-${protocol}-${role.name}-${message.label} ${!endpoint} ${!packet} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}P${index} ${!count} -> case ${@take} ${!packet} of { Mk${protocol}Wire${message.label} ${!payload} -> (${@suspend} (\\() -> Mk${protocol}${role.name}P${next} (${!count} + 1)), ${!payload}) } }; "
+                        },
+                        "join": ""
+                      },
+                      {
+                        "if": {
+                          "eq": [
+                            "role.name",
+                            "decider"
+                          ]
+                        },
+                        "then": {
+                          "each": "branches",
+                          "as": "branch",
+                          "emit": [
+                            "choose-${protocol}-${branch.label} :: Thunk {} ${protocol}${role.name}P${local.count} %1 -> (Thunk {} ${protocol}${role.name}${branch.label}S0",
+                            {
+                              "each": "roles",
+                              "as": "peer",
+                              "emit": {
+                                "if": {
+                                  "not": {
+                                    "eq": [
+                                      "peer.name",
+                                      "decider"
+                                    ]
+                                  }
+                                },
+                                "then": ", Thunk {} ${protocol}ChoiceWire${peer.name}",
+                                "else": ""
+                              },
+                              "join": ""
+                            },
+                            "); choose-${protocol}-${branch.label} ${!endpoint} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}P${local.count} ${!count} -> (${@suspend} (\\() -> Mk${protocol}${role.name}${branch.label}S0 ${!count})",
+                            {
+                              "each": "roles",
+                              "as": "peer",
+                              "emit": {
+                                "if": {
+                                  "not": {
+                                    "eq": [
+                                      "peer.name",
+                                      "decider"
+                                    ]
+                                  }
+                                },
+                                "then": ", ${@suspend} (\\() -> ${protocol}${branch.label}Wire${peer.name} ${!count})",
+                                "else": ""
+                              },
+                              "join": ""
+                            },
+                            ") }; "
+                          ],
+                          "join": ""
+                        },
+                        "else": [
+                          "offer-${protocol}-${role.name} :: Thunk {} ${protocol}${role.name}P${local.count} %1 -> Thunk {} ${protocol}ChoiceWire${role.name} %1 -> ${protocol}Offer${role.name}; offer-${protocol}-${role.name} ${!endpoint} ${!packet} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}P${local.count} ${!count} -> case ${@take} ${!packet} of { ",
+                          {
+                            "each": "branches",
+                            "as": "branch",
+                            "emit": "${protocol}${branch.label}Wire${role.name} ${!decision} -> ${protocol}${branch.label}${role.name} (${@suspend} (\\() -> Mk${protocol}${role.name}${branch.label}S0 ${!count}))",
+                            "join": "; "
+                          },
+                          " } }; "
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "each": "branches",
+                    "as": "branch",
+                    "emit": {
+                      "let": {
+                        "local": {
+                          "select": "branch.messages",
+                          "as": "message",
+                          "where": {
+                            "or": [
+                              {
+                                "eq": [
+                                  "message.sender",
+                                  "role.name"
+                                ]
+                              },
+                              {
+                                "eq": [
+                                  "message.receiver",
+                                  "role.name"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "emit": [
+                        {
+                          "each": "local",
+                          "as": "message",
+                          "emit": {
+                            "if": {
+                              "eq": [
+                                "message.sender",
+                                "role.name"
+                              ]
+                            },
+                            "then": "send-${protocol}-${branch.label}-${role.name}-${message.label} :: Thunk {} ${protocol}${role.name}${branch.label}S${index} %1 -> Nat -> (Thunk {} ${protocol}${role.name}${branch.label}S${next}, Thunk {} ${protocol}Wire${branch.label}${message.label}); send-${protocol}-${branch.label}-${role.name}-${message.label} ${!endpoint} ${!payload} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}${branch.label}S${index} ${!count} -> (${@suspend} (\\() -> Mk${protocol}${role.name}${branch.label}S${next} (${!count} + 1)), ${@suspend} (\\() -> Mk${protocol}Wire${branch.label}${message.label} ${!payload})) }; ",
+                            "else": "receive-${protocol}-${branch.label}-${role.name}-${message.label} :: Thunk {} ${protocol}${role.name}${branch.label}S${index} %1 -> Thunk {} ${protocol}Wire${branch.label}${message.label} %1 -> (Thunk {} ${protocol}${role.name}${branch.label}S${next}, Nat); receive-${protocol}-${branch.label}-${role.name}-${message.label} ${!endpoint} ${!packet} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}${branch.label}S${index} ${!count} -> case ${@take} ${!packet} of { Mk${protocol}Wire${branch.label}${message.label} ${!payload} -> (${@suspend} (\\() -> Mk${protocol}${role.name}${branch.label}S${next} (${!count} + 1)), ${!payload}) } }; "
+                          },
+                          "join": ""
+                        },
+                        "close-${protocol}-${branch.label}-${role.name} :: Thunk {} ${protocol}${role.name}${branch.label}S${local.count} %1 -> Nat; close-${protocol}-${branch.label}-${role.name} ${!endpoint} = case ${@take} ${!endpoint} of { Mk${protocol}${role.name}${branch.label}S${local.count} ${!count} -> ${!count} }; "
+                      ]
+                    },
+                    "join": ""
+                  }
+                ],
+                "join": ""
+              }
+            ]
+          ],
+          "characters": "; "
+        }
+      },
+      "distinct": [
+        "roles.*.name",
+        "messages.*.label",
+        "branches.*.label"
+      ],
+      "members": [
+        [
+          "decider",
+          "roles.*.name"
+        ],
+        [
+          "messages.*.sender",
+          "roles.*.name"
+        ],
+        [
+          "messages.*.receiver",
+          "roles.*.name"
+        ],
+        [
+          "branches.*.messages.*.sender",
+          "roles.*.name"
+        ],
+        [
+          "branches.*.messages.*.receiver",
+          "roles.*.name"
+        ]
+      ]
+    },
+    "role": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ";"
+      ]
+    },
+    "message": {
+      "pattern": [
+        {
+          "capture": "sender",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "->",
+        {
+          "capture": "receiver",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ":",
+        {
+          "capture": "label",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ";"
+      ]
+    },
+    "branch": {
+      "pattern": [
+        {
+          "capture": "label",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "{",
+        {
+          "capture": "messages",
+          "of": {
+            "many": {
+              "ref": "message"
+            },
+            "min": 1
+          }
+        },
+        "}"
+      ]
+    }
+  },
+  "helpers": {
+    "suspend": "LocalWire.suspend",
+    "take": "LocalWire.take"
+  },
+  "editor": {
+    "highlights": {
+      "sender": "type",
+      "receiver": "type",
+      "label": "type",
+      "name": "type",
+      "decider": "type",
+      "protocol": "type"
+    }
+  }
+}

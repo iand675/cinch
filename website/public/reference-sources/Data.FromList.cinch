@@ -7,7 +7,7 @@
 -- Data.Set).
 module Data.FromList where
 
-  import Data.List
+  import Data.Core
   export FromList, from-list
 
 

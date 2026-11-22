@@ -1,0 +1,197 @@
+-- Index syntax shared by dependent types and proof reification. Numeric
+-- identities, not display names, determine binding. The typed elaborator
+-- must still check carriers, application types, purity and totality before
+-- an index can enter a proof context or be reified for runtime execution.
+module Bootstrap.Index where
+
+  import Data.Json
+  import Data.Nat (nat-from-int, nat-to-int)
+
+  export IndexTerm, IInteger, IBound, IRigid, IGlobal, IMeta, IApply, ILambda
+  export IAdd, ISubtract, IMultiply
+  export index-tree, index-from-tree
+  export index-equal, index-free-bound, index-free-metas, index-occurs
+  export index-scoped, index-escapes, substitute-index, substitute-index-metas
+
+  data IndexTerm where
+    IInteger :: Int -> IndexTerm
+    IBound :: Nat -> String -> IndexTerm
+    IRigid :: Nat -> String -> Nat -> IndexTerm
+    IGlobal :: String -> IndexTerm
+    IMeta :: Nat -> IndexTerm
+    IApply :: IndexTerm -> IndexTerm -> IndexTerm
+    ILambda :: Nat -> String -> IndexTerm -> IndexTerm
+    IAdd :: IndexTerm -> IndexTerm -> IndexTerm
+    ISubtract :: IndexTerm -> IndexTerm -> IndexTerm
+    IMultiply :: IndexTerm -> IndexTerm -> IndexTerm
+
+  has :: Nat -> List Nat -> Bool
+  has id ids = case ids of Nil -> False; Cons first rest -> id == first || has id rest
+  merge :: List Nat -> List Nat -> List Nat
+  merge first second = case first of Nil -> second; Cons id rest -> merge rest (if has id second then second else Cons id second)
+  without :: Nat -> List Nat -> List Nat
+  without id ids = case ids of Nil -> Nil; Cons first rest -> if id == first then without id rest else Cons first (without id rest)
+
+  index-free-bound :: IndexTerm -> List Nat
+  index-free-bound term = case term of
+    IBound id name -> [id]
+    ILambda id name body -> without id (index-free-bound body)
+    IApply f x -> merge (index-free-bound f) (index-free-bound x)
+    IAdd a b -> merge (index-free-bound a) (index-free-bound b)
+    ISubtract a b -> merge (index-free-bound a) (index-free-bound b)
+    IMultiply a b -> merge (index-free-bound a) (index-free-bound b)
+    other -> Nil
+  index-free-metas :: IndexTerm -> List Nat
+  index-free-metas term = case term of
+    IMeta id -> [id]
+    ILambda id name body -> index-free-metas body
+    IApply f x -> merge (index-free-metas f) (index-free-metas x)
+    IAdd a b -> merge (index-free-metas a) (index-free-metas b)
+    ISubtract a b -> merge (index-free-metas a) (index-free-metas b)
+    IMultiply a b -> merge (index-free-metas a) (index-free-metas b)
+    other -> Nil
+  index-occurs :: Nat -> IndexTerm -> Bool
+  index-occurs id term = has id (index-free-metas term)
+
+  -- Both sides of the correspondence are checked: a free identity must
+  -- not match a bound one, including under nested shadowing.
+  left-name :: Nat -> List (Nat, Nat) -> Option Nat
+  left-name id pairs = case pairs of Nil -> None; Cons (left, right) rest -> if id == left then Some right else left-name id rest
+  right-name :: Nat -> List (Nat, Nat) -> Option Nat
+  right-name id pairs = case pairs of Nil -> None; Cons (left, right) rest -> if id == right then Some left else right-name id rest
+  equal-bound :: List (Nat, Nat) -> Nat -> Nat -> Bool
+  equal-bound pairs a b = case (left-name a pairs, right-name b pairs) of
+    (Some right, Some left) -> right == b && left == a
+    (None, None) -> a == b
+    other -> False
+  equal-under :: List (Nat, Nat) -> IndexTerm -> IndexTerm -> Bool
+  equal-under pairs first second = case (first, second) of
+    (IInteger a, IInteger b) -> a == b
+    (IBound a name, IBound b other) -> equal-bound pairs a b
+    (IRigid a name level, IRigid b other depth) -> a == b && level == depth
+    (IGlobal first, IGlobal second) -> string-compare first second == 0
+    (IMeta a, IMeta b) -> a == b
+    (ILambda a name body, ILambda b other rhs) -> equal-under (Cons (a, b) pairs) body rhs
+    (IApply f x, IApply g y) -> equal-under pairs f g && equal-under pairs x y
+    (IAdd a b, IAdd c d) -> equal-under pairs a c && equal-under pairs b d
+    (ISubtract a b, ISubtract c d) -> equal-under pairs a c && equal-under pairs b d
+    (IMultiply a b, IMultiply c d) -> equal-under pairs a c && equal-under pairs b d
+    other -> False
+  index-equal :: IndexTerm -> IndexTerm -> Bool
+  index-equal first second = equal-under Nil first second
+
+  has-global :: String -> List String -> Bool
+  has-global name names = case names of Nil -> False; Cons first rest -> string-compare name first == 0 || has-global name rest
+  -- Scope membership is separate from carrier checking and the
+  -- purity/totality of applications. It does not license proof use.
+  -- Unsolved index metas cannot become invented runtime witnesses.
+  index-scoped :: List Nat -> List Nat -> List String -> IndexTerm -> Bool
+  index-scoped bound rigid globals term = case term of
+    IInteger value -> True
+    IBound id name -> has id bound
+    IRigid id name level -> has id rigid
+    IGlobal identity -> has-global identity globals
+    IMeta id -> False
+    ILambda id name body -> index-scoped (Cons id bound) rigid globals body
+    IApply f x -> index-scoped bound rigid globals f && index-scoped bound rigid globals x
+    IAdd a b -> index-scoped bound rigid globals a && index-scoped bound rigid globals b
+    ISubtract a b -> index-scoped bound rigid globals a && index-scoped bound rigid globals b
+    IMultiply a b -> index-scoped bound rigid globals a && index-scoped bound rigid globals b
+  index-escapes :: Nat -> IndexTerm -> Bool
+  index-escapes level term = case term of
+    IRigid id name depth -> depth > level
+    ILambda id name body -> index-escapes level body
+    IApply f x -> index-escapes level f || index-escapes level x
+    IAdd a b -> index-escapes level a || index-escapes level b
+    ISubtract a b -> index-escapes level a || index-escapes level b
+    IMultiply a b -> index-escapes level a || index-escapes level b
+    other -> False
+
+  replacement :: Nat -> List (Nat, IndexTerm) -> Option IndexTerm
+  replacement id pairs = case pairs of Nil -> None; Cons (key, value) rest -> if id == key then Some value else replacement id rest
+  mask :: Nat -> List (Nat, IndexTerm) -> List (Nat, IndexTerm)
+  mask id pairs = case pairs of Nil -> Nil; Cons (key, value) rest -> if id == key then mask id rest else Cons (key, value) (mask id rest)
+  captures :: Nat -> List (Nat, IndexTerm) -> Bool
+  captures id pairs = case pairs of Nil -> False; Cons (key, value) rest -> has id (index-free-bound value) || captures id rest
+  greater :: Nat -> Nat -> Nat
+  greater a b = if a > b then a else b
+  maximum-id :: IndexTerm -> Nat
+  maximum-id term = case term of
+    IBound id name -> id
+    IRigid id name level -> id
+    IMeta id -> id
+    ILambda id name body -> greater id (maximum-id body)
+    IApply f x -> greater (maximum-id f) (maximum-id x)
+    IAdd a b -> greater (maximum-id a) (maximum-id b)
+    ISubtract a b -> greater (maximum-id a) (maximum-id b)
+    IMultiply a b -> greater (maximum-id a) (maximum-id b)
+    other -> 0
+  maximum-pairs :: List (Nat, IndexTerm) -> Nat
+  maximum-pairs pairs = case pairs of Nil -> 0; Cons (key, value) rest -> greater key (greater (maximum-id value) (maximum-pairs rest))
+
+  -- Substitutions are simultaneous. Inserted replacements are not
+  -- recursively substituted, so even a cyclic supplied map terminates.
+  -- An inference store must separately reject cyclic solutions by occurs.
+  substitute-worker :: Bool -> List (Nat, IndexTerm) -> IndexTerm -> IndexTerm
+  substitute-worker metas pairs term = case term of
+    IBound id name -> if metas then term else (case replacement id pairs of Some value -> value; None -> term)
+    IMeta id -> if metas then (case replacement id pairs of Some value -> value; None -> term) else term
+    IApply f x -> IApply (substitute-worker metas pairs f) (substitute-worker metas pairs x)
+    IAdd a b -> IAdd (substitute-worker metas pairs a) (substitute-worker metas pairs b)
+    ISubtract a b -> ISubtract (substitute-worker metas pairs a) (substitute-worker metas pairs b)
+    IMultiply a b -> IMultiply (substitute-worker metas pairs a) (substitute-worker metas pairs b)
+    ILambda id name body ->
+      let kept = if metas then pairs else mask id pairs in
+      if captures id kept then
+        let fresh = greater (maximum-id term) (maximum-pairs kept) + 1 in
+        let renamed = substitute-worker False [(id, IBound fresh name)] body in
+        ILambda fresh name (substitute-worker metas kept renamed)
+      else ILambda id name (substitute-worker metas kept body)
+    other -> term
+  substitute-index :: List (Nat, IndexTerm) -> IndexTerm -> IndexTerm
+  substitute-index pairs term = substitute-worker False pairs term
+  substitute-index-metas :: List (Nat, IndexTerm) -> IndexTerm -> IndexTerm
+  substitute-index-metas pairs term = substitute-worker True pairs term
+
+
+  -- Complete structural trees retain binding identity and rigid levels.
+  -- Decoding establishes syntax only; index-scoped and typed admissibility
+  -- remain separate checks before a term may enter a proof context.
+  index-fields :: List Json -> Json
+  index-fields fields = case fields of Nil -> JArrEnd; Cons field rest -> JArr field (index-fields rest)
+  index-node :: String -> List Json -> Json
+  index-node tag fields = JArr (JStr tag) (index-fields fields)
+  index-tree :: IndexTerm -> Json
+  index-tree term = case term of
+    IInteger value -> index-node "int" [JNum value]
+    IBound id name -> index-node "bound" [JNum (nat-to-int id), JStr name]
+    IRigid id name level -> index-node "rigid" [JNum (nat-to-int id), JStr name, JNum (nat-to-int level)]
+    IGlobal identity -> index-node "global" [JStr identity]
+    IMeta id -> index-node "meta" [JNum (nat-to-int id)]
+    IApply f x -> index-node "apply" [index-tree f, index-tree x]
+    ILambda id name body -> index-node "lambda" [JNum (nat-to-int id), JStr name, index-tree body]
+    IAdd a b -> index-node "add" [index-tree a, index-tree b]
+    ISubtract a b -> index-node "sub" [index-tree a, index-tree b]
+    IMultiply a b -> index-node "mul" [index-tree a, index-tree b]
+  same-index-tag :: String -> String -> Bool
+  same-index-tag a b = string-compare a b == 0
+  index-natural :: Json -> Option Nat
+  index-natural doc = case doc of JNum n -> if n < 0 then None else Some (nat-from-int n); other -> None
+  index-from-tree :: Json -> Option IndexTerm
+  index-from-tree doc = case doc of
+    JArr (JStr tag) (JArr value JArrEnd) ->
+      if same-index-tag tag "int" then (case value of JNum n -> Some (IInteger n); other -> None)
+      else if same-index-tag tag "meta" then (case index-natural value of Some n -> Some (IMeta n); None -> None)
+      else if same-index-tag tag "global" then (case value of JStr identity -> Some (IGlobal identity); other -> None)
+      else None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
+      if same-index-tag tag "bound" then (case (index-natural a, b) of (Some id, JStr name) -> Some (IBound id name); other -> None)
+      else case (index-from-tree a, index-from-tree b) of
+        (Some left, Some right) -> if same-index-tag tag "apply" then Some (IApply left right) else if same-index-tag tag "add" then Some (IAdd left right)
+          else if same-index-tag tag "sub" then Some (ISubtract left right) else if same-index-tag tag "mul" then Some (IMultiply left right) else None
+        other -> None
+    JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) -> case (index-natural a, b) of
+      (Some id, JStr name) -> if same-index-tag tag "lambda" then (case index-from-tree c of Some body -> Some (ILambda id name body); None -> None)
+        else if same-index-tag tag "rigid" then (case index-natural c of Some level -> Some (IRigid id name level); None -> None) else None
+      other -> None
+    other -> None

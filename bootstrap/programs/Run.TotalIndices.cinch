@@ -1,0 +1,79 @@
+module Main where
+  import Bootstrap.Total
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Kinds
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  int :: UType
+  int = UCon "Int" KType
+  clean :: Store -> Bool
+  clean store = case store-errors store of Nil -> True; other -> False
+  good :: UType -> UType -> Bool
+  good first second = clean (unify sp first second (empty-store "checked-call conversion"))
+  family :: UType -> UType
+  family value = UApp (UCon "At" (KFun (value-kind nat) KType)) value
+  codec :: UType -> Bool
+  codec value = case value-carrier (value-kind (family value)) of Some (UApp head restored) -> good value restored; other -> False
+  has :: Nat -> List Nat -> Bool
+  has id ids = case ids of Nil -> False; Cons first rest -> id == first || has id rest
+  call :: TotalFunction -> UType -> UType
+  call function input = UIndexCall function (UArg input UEnd)
+  checks :: Nat -> TotalFunction -> TotalFunction -> List Bool
+  checks id function changed =
+    let other = id + 1 in
+    let input = UIndex nat (IBound id "n") in
+    let observed = call function input in
+    let formal = call function (UIndex nat (IBound other "formal")) in
+    let (meta, store) = fresh-meta (value-kind nat) (empty-store "call input") in
+    let solved = unify sp meta input store in
+    let late = call function (UIndex nat (IRigid id "late" 3)) in
+    let (outer, os) = fresh-meta (value-kind nat) (empty-store "call escape") in
+    let scope = MkTypeScope [(id, value-kind nat)] Nil Nil in
+    let kinds = [("Nat", KType), ("Int", KType), ("At", KFun (value-kind nat) KType)] in
+    [ valid-type observed
+    , typed-index-admissible observed
+    , kind-equal (type-kind observed) (value-kind nat)
+    , codec observed
+    , codec (UIndexMath "+" observed (UIndex nat (IInteger 1)))
+    , good observed (substitute-bound [(other, input)] formal)
+    , not (good observed formal)
+    , not (good observed (call changed input))
+    , not (valid-type (call function (UIndex int (IBound id "wrong carrier"))))
+    , not (valid-type (call function nat))
+    , not (valid-type (UIndexCall function UEnd))
+    , not (valid-type (UIndexCall function (UArg input (UArg input UEnd))))
+    , valid-type (call function meta)
+    , not (typed-index-admissible (call function meta))
+    , clean solved && good (normalize solved (call function meta)) observed
+    , not (clean (unify sp outer late os))
+    , has id (type-all-ids observed)
+    , type-well-formed kinds scope observed
+    , not (type-well-formed kinds empty-type-scope observed)
+    , not (type-well-formed kinds (MkTypeScope [(id, value-kind int)] Nil Nil) observed)
+    , valid-type (call function observed) && typed-index-admissible (call function observed)
+    , not (typed-index-admissible (UIndex nat (IApply (IGlobal (total-identity function)) (IBound id "n"))))
+    , (case index-of-type observed of None -> True; other -> False)
+    , not (core-data-closed (MkCoreData sp "Unscoped" KType Nil [MkCoreConstructor sp "Mk" (mono (family observed))]))
+    ]
+  read-function :: Bytes -> Option TotalFunction
+  read-function source = case parse-json "total-call-body" source of
+    Parsed doc Nil -> (case check-total-graph doc of Some graph -> total-function graph "Main.width"; None -> None)
+    other -> None
+  verdict :: List Bool -> Int -> Int
+  verdict values next = case values of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case (fs-read (path-from-string "bodies.json"), fs-read (path-from-string "changed.json"), fs-read (path-from-string "nonce.txt")) of
+    (Ok first, Ok second, Ok nonce) -> (case (read-function first, read-function second) of
+      (Some function, Some changed) -> verdict (checks (bytes-len nonce + 340282366920938463463374607431768211456) function changed) 1
+      other -> 91)
+    other -> 90

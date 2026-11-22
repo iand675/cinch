@@ -1,0 +1,136 @@
+{
+  "actual_full_compiler_stage2": {
+    "compiler_bundle_sha256": "2d1932053364a68a849902b54dadbc63970ad714e7f5f3d846208d768c32b3dd",
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18402:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.114_117_110_45_99_108_105_",
+      "bootstrap.runtime-ir:18399:3: definition needs polymorphic, dictionary or aggregate lowering: main",
+      "bootstrap.runtime-ir:18394:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.114_117_110_45_115_111_117_114_99_101_",
+      "bootstrap.runtime-ir:18382:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.114_117_110_45_115_101_108_101_99_116_101_100_",
+      "bootstrap.runtime-ir:18366:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.114_117_110_45_111_112_116_105_111_110_115_",
+      "bootstrap.runtime-ir:18363:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.114_117_110_45_119_111_114_100_115_",
+      "bootstrap.runtime-ir:14588:3: definition needs polymorphic, dictionary or aggregate lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_109_111_100_117_108_101_",
+      "bootstrap.runtime-ir:14575:3: definition needs polymorphic, dictionary or aggregate lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_114_117_110_116_105_109_101_45_109_111_100_117_108_101_"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "bd2b7a0ba9b0e4803b5b84ac5ede9333c2528df701c4088140e5434b1908aab8",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "55e460d79e7e77be4553ab6bdfbac89b3909cdc75e865ef2422f8ea03ab8f7fc",
+      "protocol": 3,
+      "runtime_archive_sha256": "8cd09ad470c7fb6ca587fa16e6db43278e12ce8e0188488268c80b41b8e85705",
+      "source_sha256": "f1006c725fc8efc43b32f3cc414182cd4c7a8fe95b5b9e52fd9da465ca2a1d4f"
+    },
+    "typed_runtime_emitter_diagnostics": 2830
+  },
+  "bootstrap_achieved": false,
+  "implementation_paths": [
+    "tooling/bootstrap.py",
+    "tooling/tests/test_bootstrap.py"
+  ],
+  "invariants": [
+    "only preceding Cinch compiler reads and emits source",
+    "platform clang links against runtime built from unchanged pinned seed sources",
+    "runtime archive SHA participates in cache identity",
+    "produced compiler must execute and return bad-arguments status1",
+    "frontend refusal does not link or fall back",
+    "linker errors remain visible when frontend diagnostics are empty"
+  ],
+  "protocol": 3,
+  "real_runtime_link_probe": {
+    "bootstrap_achieved": false,
+    "compiler_sha256": "bd2b7a0ba9b0e4803b5b84ac5ede9333c2528df701c4088140e5434b1908aab8",
+    "runtime_archive_sha256": "8cd09ad470c7fb6ca587fa16e6db43278e12ce8e0188488268c80b41b8e85705",
+    "scope": "numeric source through actual Cinch emit mode plus pinned runtime linkage and executable entry; not a self-built compiler",
+    "source_sha256": "6d9c341424db726a1453c3e547a90ed16d2a377b0a45be17844c8542e9645c6a",
+    "status": "passed"
+  },
+  "scope": "actual stage snapshot contains numeric RuntimeIr and emit CLI before tuple checkpoint; Python runner implementation matches published files",
+  "source_sha256": "759703d33e595f8f4cdd1e7348a7aa34f1ed7e34a470d79eba897abad3786013",
+  "source_unchanged": true,
+  "stage2_executable": false,
+  "stage2_ir": false,
+  "stage2_ir_file_bytes": 0,
+  "stage3_fixed_point": false,
+  "status": "typed stage driver, six smokes and actual pinned-runtime linkage probe pass; full compiler needs richer runtime lowering",
+  "validation_commands": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tooling/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:10:55.056104+00:00",
+      "name": "tooling",
+      "pid": 74503,
+      "started": "2026-11-02T23:10:54.746052+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:11:54.224795+00:00",
+      "name": "stage0-smoke",
+      "pid": 74508,
+      "started": "2026-11-02T23:10:55.056461+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:15:34.287424+00:00",
+      "name": "stage1-smoke",
+      "pid": 75236,
+      "started": "2026-11-02T23:11:54.225153+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "/tmp/cinch-typed-stage-driver-validation-1/runtime-link-probe.py"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:15:59.055081+00:00",
+      "name": "runtime-link-probe",
+      "pid": 77747,
+      "started": "2026-11-02T23:15:34.287784+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "check"
+      ],
+      "exit_code": 1,
+      "finished": "2026-11-02T23:21:41.005970+00:00",
+      "name": "self-hosting",
+      "pid": 78007,
+      "started": "2026-11-02T23:15:59.055397+00:00",
+      "status": "failed"
+    }
+  ],
+  "whole_tooling_tests": 27
+}

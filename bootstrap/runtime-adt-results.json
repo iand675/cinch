@@ -1,0 +1,247 @@
+{
+  "actual_case_results": [
+    "huge: exit 37; cinch-leak: live=0 immortal=0 leaked=0",
+    "alias: exit 39; cinch-leak: live=0 immortal=0 leaked=0",
+    "call: exit 41; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch: exit 43; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive: exit 47; cinch-leak: live=0 immortal=0 leaked=0",
+    "negative: exit 53; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural: exit 59; cinch-leak: live=0 immortal=0 leaked=0",
+    "wildcard: exit 61; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-field: exit 67; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-case: exit 71; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-tuple: exit 73; cinch-leak: live=0 immortal=0 leaked=0",
+    "dropped-tuple: exit 79; cinch-leak: live=0 immortal=0 leaked=0",
+    "full-inline-map: exit 83; cinch-leak: live=0 immortal=0 leaked=0",
+    "nullary-constructors: exit 89; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive-tree: exit 97; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-nested-pattern: exit 101; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-constructor-root: exit 103; cinch-leak: live=0 immortal=0 leaked=0",
+    "raw-bool-patterns: exit 107; cinch-leak: live=0 immortal=0 leaked=0",
+    "numeric-equations: exit 109; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-case-guards: exit 113; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-case-guard: exit 127; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural-literal-pattern: exit 131; cinch-leak: live=0 immortal=0 leaked=0",
+    "last-regular-tag: exit 137; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "bootstrap_achieved": false,
+  "cinch_own_source_check": {
+    "bootstrap_achieved": false,
+    "compiler_bundle_sha256": "eb1b6f996696d985a658de2a32407d974452a86a8d353bce116efdaa22beec4b",
+    "compiler_implementation_interfaces": false,
+    "compiler_sha256": "355fa7f0e1eaeef96ba584bffadeaefcd1ca718e0dda12220e49e16f52170e42",
+    "diagnostics": 0,
+    "exit_code": 0,
+    "first_diagnostics": [],
+    "status": "passed"
+  },
+  "constructor_literal_repair": "keep unresolved KType carrier pending until constructor result determines it; existing literal carrier/range checks still reject Bool and I8 overflow",
+  "genuine_stage2": {
+    "bootstrap_achieved": false,
+    "compiler_executable_exists": false,
+    "compiler_executable_verified": false,
+    "diagnostic_categories": {
+      "constructor needs polymorphic, dependent or extended runtime lowering": 189,
+      "constructor pattern needs a specialized runtime representation": 613,
+      "declarations need shared runtime layout and dictionary lowering": 1,
+      "definition needs polymorphic, dictionary or unsupported runtime lowering": 2309,
+      "external runtime implementation is unavailable": 104,
+      "indirect or polymorphic application needs closure lowering": 273,
+      "parameterized data needs runtime representation specialization": 6,
+      "partial or polymorphic constructor needs runtime lowering": 171,
+      "partial, overapplied or polymorphic call needs runtime lowering": 409,
+      "pattern needs typed runtime match lowering": 253,
+      "polymorphic or aggregate let needs runtime lowering": 8,
+      "reference operation needs a checked runtime representation": 253,
+      "runtime entry must be main :": 1,
+      "runtime local is absent from its lexical scope": 452,
+      "tuple fields need an extended or polymorphic runtime layout": 8
+    },
+    "diagnostics": 5050,
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18660:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_99_108_105_",
+      "bootstrap.runtime-ir:18657:3: definition needs polymorphic, dictionary or unsupported runtime lowering: main",
+      "bootstrap.runtime-ir:18652:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_115_111_117_114_99_101_",
+      "bootstrap.runtime-ir:18640:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_115_101_108_101_99_116_101_100_",
+      "bootstrap.runtime-ir:18624:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_111_112_116_105_111_110_115_",
+      "bootstrap.runtime-ir:18621:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_119_111_114_100_115_",
+      "bootstrap.runtime-ir:14589:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_109_111_100_117_108_101_",
+      "bootstrap.runtime-ir:14576:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_114_117_110_116_105_109_101_45_109_111_100_117_108_101_"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "355fa7f0e1eaeef96ba584bffadeaefcd1ca718e0dda12220e49e16f52170e42",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "3c49fc92686d42556befcf4480f32c35dc8bc79b6eeec7410db6b750144a20f6",
+      "protocol": 3,
+      "runtime_archive_sha256": "2eb45cd5aa6da0a45677f4f49b6b118652806a050c7dc7365101f88dd6dadcab",
+      "source_sha256": "871802072a94045ae32fa6310775740dee763314da421a184a1affe8f88614f1"
+    },
+    "runtime_ir_bytes": 0,
+    "source_sha256": "d1e3c18860df8a87dbda9c232473202c07e22f2e9cb56c2d645adef3564a0018",
+    "status": "typed emission refused full compiler"
+  },
+  "implementation_paths": [
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "bootstrap/programs/Run.Infer.cinch",
+    "compiler/tests/bootstrap_runtime_ir.rs",
+    "compiler/tests/bootstrap_runtime_emit.rs"
+  ],
+  "layout": "ABI5 regular named family groups plus separate tuple cache in one program registry; exact Raw/Obj/TObj maps, 64tags/16fields/1022groups",
+  "limits": [
+    "source data monomorphic only; existential/dependent/parametric data and class specialization unfinished",
+    "closures, partial calls, dictionaries, effects, foreign and executable base implementations unfinished",
+    "complete independent usage/totality/kernel and current Native/self-built suites unfinished",
+    "no verified Stage2 executable, usable full compiler IR or Stage3 fixed point"
+  ],
+  "negative_cases": [
+    "polymorphic calls explicitly refuse lowering with empty IR",
+    "17-field tuples explicitly refuse extended layouts",
+    "65-constructor families explicitly refuse extended descriptors",
+    "Bool numeric patterns and I8 out-of-range patterns fail source checking"
+  ],
+  "ownership": "arguments transfer into constructors; matching borrows fields while holding owning roots; failed patterns/guards continue without losing roots; successful returns preserve results before dropping roots",
+  "physical_abi": "C probe verifies named tag1 versus tuple tag0 with identical scan maps, leaf tag0, actual pointer sharing, and zero leaks",
+  "runtime_and_inference_source_sha256": "d1e3c18860df8a87dbda9c232473202c07e22f2e9cb56c2d645adef3564a0018",
+  "source_sha256": "05a358cc2a1a019038720f1271993e9a0d982958274e7adc2436c6760dd58e75",
+  "source_unchanged": true,
+  "stage_gates": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tooling/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:00:35.648283+00:00",
+      "name": "tooling",
+      "pid": 9257,
+      "started": "2026-11-03T00:00:35.150607+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:01:38.328743+00:00",
+      "name": "stage0-smoke",
+      "pid": 9268,
+      "started": "2026-11-03T00:00:35.648673+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:05:27.836251+00:00",
+      "name": "stage1-smoke",
+      "pid": 10081,
+      "started": "2026-11-03T00:01:38.329092+00:00",
+      "status": "passed"
+    }
+  ],
+  "status": "monomorphic source ADTs and refutable matches validated",
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-adts-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:59:02.766211+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 4491,
+      "started": "2026-11-02T23:54:21.764769+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-adts-validation-2/cargo",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:03:01.048274+00:00",
+      "name": "bootstrap_infer",
+      "pid": 8091,
+      "started": "2026-11-02T23:59:02.766671+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-adts-validation-3/cargo",
+        "--test",
+        "bootstrap_runtime_emit",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:10:03.122537+00:00",
+      "name": "bootstrap_runtime_emit",
+      "pid": 12181,
+      "started": "2026-11-03T00:04:42.291998+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-adts-validation-3/cargo",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:15:20.765493+00:00",
+      "name": "bootstrap_pipeline",
+      "pid": 12182,
+      "started": "2026-11-03T00:04:42.292502+00:00",
+      "status": "passed"
+    }
+  ]
+}

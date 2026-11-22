@@ -7,7 +7,7 @@ function nightly(day: string, suffix: string) {
   return {tag_name: tag, target_commitish: 'a'.repeat(40), html_url: `${repo}/releases/tag/${tag}`,
     published_at: `2026-11-${day}T03:00:00Z`, draft: false, prerelease: true,
     assets: targets.flatMap(target => {
-      const name = `cinch-${target.system}.nar.gz`;
+      const name = `cinch-${target.system}`;
       return [name, `${name}.sha256`].map(filename => ({name: filename,
         browser_download_url: `${repo}/releases/download/${tag}/${filename}`,
         digest: `sha256:${'b'.repeat(64)}`, size: 1234}));

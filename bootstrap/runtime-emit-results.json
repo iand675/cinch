@@ -1,0 +1,133 @@
+{
+  "bootstrap_achieved": false,
+  "complete_cinch_source_check": {
+    "bootstrap_achieved": false,
+    "compiler_source_bundle_sha256": "2d1932053364a68a849902b54dadbc63970ad714e7f5f3d846208d768c32b3dd",
+    "exit_code": 0,
+    "first_diagnostics": [],
+    "frontend_diagnostics": 0,
+    "source_sha256": "603a1ebd951285e794689fa0860babb69ede6a5b512caa8409e562f646f88d07",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "implementation_paths": [
+    "bootstrap/Bootstrap.Pipeline.cinch",
+    "bootstrap/programs/Run.Pipeline.cinch",
+    "compiler/tests/common/mod.rs",
+    "compiler/tests/bootstrap_runtime_emit.rs"
+  ],
+  "remaining": [
+    "stage runner still uses old compile/link/run route; switch genuine later-stage builds to typed emission plus runtime linking",
+    "aggregate, closure, dictionary, foreign, effect and full base ABI lowering",
+    "complete correctness checks, current Native/selfbuilt suites, Stage2/3 fixed point"
+  ],
+  "source_check_plan": {
+    "base_manifest_sha256": "fae7befce4b1b2368adf99feee6c73394d6dfb78ee2b4307c97dc65507e8f53b",
+    "bootstrap_achieved": false,
+    "builder_sha256": "34bb8645bc66560bc70b5f1ec6b02d70a56b4a53f748e564e670d4b823599426",
+    "command": [
+      "/tmp/cinch-check-arity-validation-1/source/build/bootstrap/stage1/cinch",
+      "--check",
+      "--interfaces",
+      "/tmp/cinch-check-arity-validation-1/source/build/bootstrap/stage2/base-interfaces.json",
+      "/tmp/cinch-runtime-emit-source-validation-1/compiler.cinch",
+      "/tmp/cinch-runtime-emit-source-validation-1/checked"
+    ],
+    "compiler_implementation_interfaces": false,
+    "compiler_source_bundle_sha256": "2d1932053364a68a849902b54dadbc63970ad714e7f5f3d846208d768c32b3dd",
+    "scope": "actual complete compiler source bundle including RuntimeIr and new --emit-ir CLI; existing Cinch frontend only; no emitter/linker/fallback",
+    "source_files": [
+      "Bootstrap.Ast.cinch",
+      "Bootstrap.BodyContract.cinch",
+      "Bootstrap.Builtin.cinch",
+      "Bootstrap.Check.cinch",
+      "Bootstrap.Contracts.cinch",
+      "Bootstrap.Core.cinch",
+      "Bootstrap.Dictionary.cinch",
+      "Bootstrap.Driver.cinch",
+      "Bootstrap.Eval.cinch",
+      "Bootstrap.Global.cinch",
+      "Bootstrap.Guarded.cinch",
+      "Bootstrap.Index.cinch",
+      "Bootstrap.Infer.cinch",
+      "Bootstrap.Inputs.cinch",
+      "Bootstrap.Instance.cinch",
+      "Bootstrap.Interface.cinch",
+      "Bootstrap.Ir.cinch",
+      "Bootstrap.Kinds.cinch",
+      "Bootstrap.Load.cinch",
+      "Bootstrap.Manifest.cinch",
+      "Bootstrap.Nominal.cinch",
+      "Bootstrap.Parse.cinch",
+      "Bootstrap.Pipeline.cinch",
+      "Bootstrap.Proof.cinch",
+      "Bootstrap.Report.cinch",
+      "Bootstrap.Resolve.cinch",
+      "Bootstrap.RuntimeIr.cinch",
+      "Bootstrap.Test.cinch",
+      "Bootstrap.Total.cinch",
+      "Bootstrap.TotalSemantics.cinch",
+      "Bootstrap.Type.cinch",
+      "Bootstrap.Typing.cinch",
+      "Main.cinch",
+      "Text.Builder.cinch",
+      "Text.Json.cinch",
+      "Text.Lex.cinch",
+      "Text.Parse.cinch",
+      "Text.Scan.cinch"
+    ],
+    "source_sha256": "603a1ebd951285e794689fa0860babb69ede6a5b512caa8409e562f646f88d07"
+  },
+  "source_sha256": "603a1ebd951285e794689fa0860babb69ede6a5b512caa8409e562f646f88d07",
+  "source_unchanged": true,
+  "status": "real typed IR compiler mode, complete pipeline regression and complete compiler source check passed",
+  "tests": [
+    "actual CLI emits ABI5 bignum IR, clang links it and binary returns67 with zero leaks",
+    "interface manifest accepted before and after mode flag",
+    "check-only accepts polymorphism but unsupported lowering refuses5 and clears stale IR",
+    "conflicting modes refused1",
+    "existing whole compile/check/link/run pipeline passes"
+  ],
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-emit-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_emit",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:52:37.380907+00:00",
+      "name": "bootstrap_runtime_emit",
+      "pid": 58297,
+      "started": "2026-11-02T22:47:41.906389+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-emit-validation-2/cargo",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:01:58.006309+00:00",
+      "name": "bootstrap_pipeline",
+      "pid": 61675,
+      "started": "2026-11-02T22:52:37.381335+00:00",
+      "status": "passed"
+    }
+  ]
+}

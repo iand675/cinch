@@ -1,0 +1,66 @@
+module Main where
+  import Bootstrap.Guarded
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Text.Lex (Span)
+  import Bootstrap.Nominal (interface-global)
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Show (int-to-string)
+  import Algebra.Semigroup
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  method :: Json -> Json
+  method rows = case rows of JArr row rest -> (case field "id" row of JStr name -> if string-compare name "Data.Nat.Sub_Nat" == 0 then (case field "method_contracts" row of JArr entry more -> field "implementation" (field "checked" entry); other -> JNull) else method rest; other -> method rest); other -> JNull
+  nat :: UType
+  nat = UCon "Nat" KType
+  header :: Nat -> Nat -> Scheme
+  header id mode =
+    let first = UBound id "x" (value-kind nat) in
+    let second = UBound (id + 1) "y" (value-kind nat) in
+    let condition = if mode == 1 then UCompare "<=" first second else if mode == 2 then UPropLit True else if mode == 3 then UCompare "<=" (UIndexMath "+" second (UIndex nat (IInteger 1))) first else UCompare "<=" second first in
+    mono (UPi id "x" nat (URow UEnd) (UPi (id + 1) "y" nat (URow UEnd) (URequire (UArg condition UEnd) nat)))
+  absent :: Option GuardedBinding -> Bool
+  absent value = case value of None -> True; Some binding -> False
+  present :: Option GuardedBinding -> Bool
+  present value = case value of None -> False; Some binding -> True
+  arg :: Int -> Json
+  arg n = JObj "node" (JStr "argument") (JObj "slot" (JNum n) JObjEnd)
+  subtract :: Json -> Json -> Json
+  subtract first second = JObj "node" (JStr "nat-subtract") (JObj "left" first (JObj "right" second JObjEnd))
+  document :: Int -> Json -> Json
+  document arity body = JObj "schema" (JNum 1) (JObj "parameters" (JNum arity) (JObj "root" body JObjEnd))
+  same-index :: UType -> UType -> Bool
+  same-index a b = case store-errors (unify (Span 0 0 1 1) a b (empty-store "guarded result")) of Nil -> True; other -> False
+  checks :: Nat -> String -> Json -> List (String, Bool)
+  checks id native body = let name = interface-global native in
+    let ten = UIndex nat (IInteger 10) in let three = UIndex nat (IInteger 3) in
+    [ ("actual defining body", present (check-guarded-binding name native (header id 0) body))
+    , ("missing guard", absent (check-guarded-binding name native (header id 2) body))
+    , ("reverse guard", absent (check-guarded-binding name native (header id 1) body))
+    , ("stronger guard", present (check-guarded-binding name native (header id 3) body))
+    , ("reversed actual body", absent (check-guarded-binding name native (header id 0) (document 2 (subtract (arg 1) (arg 0)))))
+    , ("unbound body slot", absent (check-guarded-binding name native (header id 0) (document 2 (arg 2))))
+    , ("different actual arity", absent (check-guarded-binding name native (header id 0) (document 3 (arg 0))))
+    , ("actual body equation", case check-guarded-binding name native (header id 0) body of Some binding -> (case guarded-index binding [ten, three] of Some value -> same-index value (UIndexMath "-" ten three); None -> False); None -> False)
+    , ("changed body keeps changed equation", case check-guarded-binding name native (header id 0) (document 2 (arg 0)) of Some binding -> (case guarded-index binding [ten, three] of Some value -> same-index value ten; None -> False); None -> False)
+    , ("wrong input carrier", case check-guarded-binding name native (header id 0) body of Some binding -> (case guarded-index binding [UIndex (UCon "Int" KType) (IInteger 10), three] of None -> True; Some value -> False); None -> False)
+    ]
+  results :: List (String, Bool) -> (Int, String)
+  results checks = case checks of Nil -> (0, ""); Cons (name, value) rest -> let (failed, report) = results rest in (failed + (if value then 0 else 1), string-concat-all [name, ": ", if value then "ok" else "FAILED", "\n", report])
+  all-checks :: Nat -> String -> Json -> (Int, String)
+  all-checks id native body = results (checks id native body <> checks (id + 17) native body <> checks (id + 1009) native body <> checks (id + 10007) native body <> checks (id + 100003) native body)
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "interface.json") of
+    Err error -> 90
+    Ok bytes -> case parse-json "guarded body interface" bytes of
+      Parsed doc Nil -> (case method (field "instances" (field "exports" doc)) of
+        entry -> (case field "identity" entry of
+          JStr native -> let (failed, report) = all-checks (340282366920938463463374607431768211456 + bytes-len bytes) native (field "body" entry) in
+            (case fs-write (path-from-string "guarded-body-report.txt") (string-to-bytes report) of Ok _ -> if failed == 0 then 0 else 1; Err error -> 92)
+          other -> 93))
+      other -> 91

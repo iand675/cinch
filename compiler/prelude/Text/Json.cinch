@@ -339,7 +339,9 @@ module Text.Json where
 
   peek-byte :: JState -> Option Nat
   peek-byte s =
-    if state-off s < bytes-len (state-src s) then Some (bytes-get (state-src s) (state-off s))
+    let off = state-off s in
+    let src = state-src s in
+    if off < bytes-len src then Some (bytes-get src off)
     else None
 
   -- Step one byte. The end of input is a fixed point, as `Text.Lex`'s
@@ -744,8 +746,11 @@ module Text.Json where
   -- carry that as a fact; an end past the source is a number error.
   scan-number-done :: JState -> JState -> JReply Json
   scan-number-done origin s =
-    if state-off s <= bytes-len (state-src s) then
-      let raw = bytes-slice (state-src s) (state-off origin) (state-off s) in
+    let off = state-off s in
+    let src = state-src s in
+    if off <= bytes-len src then
+      let begin = state-off origin in
+      let raw = bytes-slice src begin off in
       JOk True (number-value raw) s Nil
     else num-err origin s None
 

@@ -1,0 +1,8 @@
+module Main where
+  import Tensor (Matrix, matrix22, scalar)
+  import TensorAD
+  import syntax "../../syntax/tensor-ad.syntax.json" as tensor-ad
+  bad :: Diff 1 1 2 2
+  bad = tensor-ad!{ at {Tensor.matrix22 1 2 3 4} of sum (x @ {Tensor.scalar 3}) }
+  main :: Int
+  main = 0

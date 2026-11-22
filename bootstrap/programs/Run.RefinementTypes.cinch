@@ -1,0 +1,90 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  good :: UType -> UType -> Bool
+  good a b = case store-errors (unify sp a b (empty-store "refinement-types")) of Nil -> True; other -> False
+  bad :: UType -> UType -> Bool
+  bad a b = not (good a b)
+  bound :: Nat -> UType
+  bound id = UIndex nat (IBound id "value")
+  positive :: Nat -> UType
+  positive id = UCompare ">" (bound id) (UIndex nat (IInteger 0))
+  succeeds :: Store -> Bool
+  succeeds st = case store-errors st of Nil -> True; other -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in
+    let other = nonce + 2 in
+    let refined = URefine id "x" nat (positive id) in
+    let renamed = URefine other "different" nat (positive other) in
+    let literal = UCompare ">" (UIndex nat (IInteger 3)) (UIndex nat (IInteger 0)) in
+    let opened = case open-refinement sp refined (UIndex nat (IInteger 3)) (empty-store "open") of (p, st) -> succeeds st && good p literal in
+    let wrong-carrier = case open-refinement sp refined (UIndex integer (IInteger 3)) (empty-store "wrong-sort") of (p, st) -> not (succeeds st) in
+    let escaped = case open-refinement sp refined (UIndex nat (IRigid other "inner" 3)) (empty-store "escape") of (p, st) -> not (succeeds st) in
+    let self-carrier = URefine id "x" (UApp (UCon "Family" (KFun (value-kind nat) KType)) (bound id)) (UPropLit True) in
+    let wrong-binder = URefine id "x" nat (UCompare ">" (UIndex integer (IBound id "x")) (UIndex integer (IInteger 0))) in
+    let capture-input = URefine id "bound" nat (UCompare "==" (bound other) (bound id)) in
+    let captured = substitute-bound [(other, bound id)] capture-input in
+    let capture-avoided = case captured of URefine fresh name carrier predicate -> not (fresh == id) && good predicate (UCompare "==" (bound id) (bound fresh)); value -> False in
+    let masked = substitute-bound [(id, UIndex nat (IInteger 5))] refined in
+    let simultaneous = substitute-bound [(other, bound id), (id, UIndex nat (IInteger 9))] capture-input in
+    let simultaneous-ok = case simultaneous of URefine fresh name carrier predicate -> good predicate (UCompare "==" (bound id) (bound fresh)); value -> False in
+    let nested = URefine id "outer" nat (UCompare "==" (UIndex (URefine id "shadow" nat (positive id)) (IRigid other "inner" 4)) (UIndex (URefine id "shadow" nat (positive id)) (IRigid other "inner" 4))) in
+    let nested-codec = case value-carrier (value-kind nested) of Some decoded -> good nested decoded; None -> False in
+    let codec = case value-carrier (value-kind refined) of Some decoded -> good refined decoded; None -> False in
+    let (predicate-meta, ps) = fresh-meta KProp (empty-store "predicate-meta") in
+    let meta-refined = URefine id "x" nat predicate-meta in
+    let meta-capture = not (succeeds (unify sp meta-refined renamed ps)) in
+    let closed-meta = succeeds (unify sp meta-refined (URefine other "x" nat (UPropLit True)) ps) in
+    let (type-meta, ts) = fresh-meta KType (empty-store "type-meta") in
+    let occurs = not (succeeds (unify sp type-meta (URefine id "x" type-meta (UPropLit True)) ts)) in
+    let type-escape = not (succeeds (unify sp type-meta (URefine id "x" nat (UCompare "==" (bound id) (UIndex nat (IRigid other "inner" 3)))) ts)) in
+    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono refined)] in
+    let forged = MkCoreDefinition sp "forged" (mono refined) Nil Nil Nil [MkCoreClause sp Nil (CInt sp refined "3")] in
+    [ valid-type refined
+    , kind-equal (type-kind refined) KType
+    , good refined renamed
+    , bad refined nat
+    , bad nat refined
+    , bad refined (URefine other "x" nat (UCompare ">=" (bound other) (UIndex nat (IInteger 0))))
+    , bad refined (URequire (UArg (positive id) UEnd) nat)
+    , opened
+    , wrong-carrier
+    , escaped
+    , not (valid-type self-carrier)
+    , not (valid-type wrong-binder)
+    , not (valid-type (URefine id "x" nat nat))
+    , not (valid-type (URefine id "x" (UPropLit True) (UPropLit True)))
+    , bad wrong-binder wrong-binder
+    , capture-avoided
+    , good masked refined
+    , simultaneous-ok
+    , codec
+    , kind-equal (value-kind refined) (value-kind renamed)
+    , not (valid-kind (value-kind wrong-binder))
+    , not (kind-equal (value-kind refined) (value-kind nat))
+    , nested-codec
+    , meta-capture
+    , closed-meta
+    , occurs
+    , type-escape
+    , core-data-closed leaked
+    , not (core-definition-closed forged)
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict (checks (bytes-len bytes + 340282366920938463463374607431768211456)) 1

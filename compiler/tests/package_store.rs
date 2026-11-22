@@ -702,3 +702,22 @@ fn the_cli_repairs_a_corrupt_entry_and_accepts_rebuild() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+
+#[test]
+fn abi5_artifacts_cannot_load_into_the_array_runtime() {
+    let store = Store::at(scratch("abi5_arrays"));
+    let pkg = base_package();
+    let Outcome::Wrote(key) = store.write(pkg, &TargetProfile::native(), &[], &BASE_IFACES, false).unwrap() else {
+        panic!("cold write");
+    };
+    let path = store.entry_dir(pkg, &key).join(ENTRY_MANIFEST);
+    let current = cinch::interface::RUNTIME_ABI_VERSION;
+    assert!(current >= 6);
+    let text = std::fs::read_to_string(&path).unwrap();
+    let old = text.replace(&format!("\"runtime_abi\":{current}"), "\"runtime_abi\":5");
+    assert_ne!(old, text);
+    std::fs::write(path, old).unwrap();
+    let error = store.load(pkg, &key).expect_err("ABI5 does not describe the array block kinds");
+    assert!(matches!(error, StoreError::IdentityMismatch { field: "runtime ABI", .. }), "{error}");
+}

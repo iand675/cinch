@@ -1,0 +1,58 @@
+---
+// The compiler's own message for a rejected example, fed out on continuous
+// form paper below a code window. The message text is the recording from
+// scripts/record-examples.py, printed verbatim; the numbered callouts mark
+// the three remedies the message itself names.
+import recordings from '../data/examples/recordings.json';
+interface Props { file: string; source: string; legend: { title: string; text: string }[]; }
+const { file, source, legend } = Astro.props;
+const recording = (recordings as Record<string, { command: string; stderr: string; exit: number }>)[file];
+if (!recording || recording.exit === 0) throw new Error(`${file} needs a recorded rejection: run scripts/record-examples.py`);
+const message = recording.stderr.replace(/^cinch:\s*/, '');
+const at = /^(\d+):(\d+):\s*/.exec(message);
+const line = at ? Number(at[1]) : 0;
+const column = at ? Number(at[2]) : 0;
+const body = at ? message.slice(at[0].length) : message;
+const sourceLine = line ? source.split('\n')[line - 1].replace(/^  /, '') : '';
+const caretAt = Math.max(0, column - 3);
+// The remedies, in the order the compiler lists them. Unmatched text prints unmarked.
+const marks = [/discharge it in the `Dec`\/`decide` world: `[^`]*`/, /under a branch condition that implies it \([^)]*\)/, /pass an argument whose refinement implies it/];
+type Part = { text: string; mark?: number };
+let parts: Part[] = [{ text: body }];
+marks.forEach((pattern, i) => {
+  parts = parts.flatMap((part) => {
+    if (part.mark !== undefined) return [part];
+    const m = pattern.exec(part.text);
+    if (!m) return [part];
+    return [{ text: part.text.slice(0, m.index) }, { text: m[0], mark: i + 1 }, { text: part.text.slice(m.index + m[0].length) }];
+  });
+});
+---
+<div class="printout" data-printout>
+  <div class="printout-slot" aria-hidden="true"></div>
+  <div class="printout-paper" data-paper>
+    <div class="printout-feed" aria-hidden="true"></div>
+    <div class="printout-sheet">
+      <p class="printout-command">$ {recording.command}</p>
+      {sourceLine && <pre class="printout-source" aria-label={`Line ${line}`}><span>{line}</span> {sourceLine}{'\n'}<span>{' '.repeat(String(line).length)}</span> {' '.repeat(caretAt)}^</pre>}
+      <p class="printout-message"><span class="printout-at">{at ? `${line}:${column}` : ''}</span> {parts.map((part) => part.mark ? <mark><b aria-hidden="true">{part.mark}</b>{part.text}</mark> : part.text)}</p>
+      <p class="printout-exit">exit {recording.exit}</p>
+    </div>
+    <div class="printout-feed" aria-hidden="true"></div>
+  </div>
+  <ol class="printout-legend">{legend.map((item) => <li><span>{item.title}</span><p set:html={item.text} /></li>)}</ol>
+</div>
+<script>
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll<HTMLElement>('[data-printout]').forEach((box) => {
+    const key = box.closest('[data-runnable]')?.querySelector<HTMLButtonElement>('[data-print]');
+    if (!key) return;
+    box.classList.add('is-loaded');
+    key.addEventListener('click', () => {
+      const fed = box.classList.toggle('is-fed');
+      key.setAttribute('aria-pressed', String(fed));
+      key.firstChild!.textContent = fed ? 'Tear it off ' : 'Check it ';
+      if (fed && !calm()) box.querySelector('[data-paper]')?.animate([{ clipPath: 'inset(0 0 100% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 900, easing: 'steps(14, end)' });
+    });
+  });
+</script>

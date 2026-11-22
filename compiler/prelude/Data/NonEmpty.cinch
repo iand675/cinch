@@ -32,7 +32,6 @@ module Data.NonEmpty where
   import Category.Applicative
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   type NonEmpty a = refine (xs :: List a) with NotNull xs
 

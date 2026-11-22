@@ -1,0 +1,35 @@
+{
+  "actual_stages": "six stage0/1 smokes passed; actualstage2exit4 with1649 diagnostics, first atText.Lex.attr-name-valid; noIR/compiler",
+  "after_fix_regression": "all19 body/declaration checks pass at each of5 large ID choices",
+  "before_fix_regression": "new hypothesis-only bound check fails at nonce0 with exit2; whole Rust target exits101",
+  "body_binding_checks_per_nonce": 19,
+  "body_binding_ids": "above2^128",
+  "body_binding_nonce_runs": 5,
+  "bootstrap_achieved": false,
+  "current_full_suite": "188integration+5general running on the same frozen snapshot;5focused whole gates reused,188fresh gates",
+  "fix": "derive bounds of declaration-bound checked total calls from existing hypotheses as well as requested goals; bind each character codepoint once in Text.Lex",
+  "guarded_call_core_checks": 40,
+  "interface_schema": 8,
+  "negative_checks": [
+    "stronger unproved result rejected",
+    "absent body authority rejected",
+    "changed defining body rejected",
+    "undersized character buffer rejected",
+    "existing wrong offsets, missing guards, scope and stale proof refusals retained"
+  ],
+  "pinned_seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "runtime_abi": 5,
+  "seed_changed": false,
+  "seed_note": "Text.Lex is a toolkit source compiled by the pinned stage0, not an embedded seed prelude module; the fixed producer remains intentionally unchanged",
+  "self_built_frontend_suite": false,
+  "source_cases": 37,
+  "source_sha256": "3ecd572f81e7a7edd32fcebc2310c1fb1660955e80ae219eeee78ec8e95fd64a",
+  "status": "passed focused checkpoint",
+  "whole_targets": [
+    "bootstrap_body_bindings",
+    "bootstrap_guarded_calls",
+    "bootstrap_parse",
+    "bootstrap_function_preconditions",
+    "bootstrap_refinement_constructors"
+  ]
+}

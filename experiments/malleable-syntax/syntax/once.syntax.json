@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "name": "once",
+  "entry": "root",
+  "helpers": {},
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "value",
+          "of": {
+            "host": true
+          }
+        },
+        "as",
+        {
+          "capture": "binder",
+          "of": {
+            "regex": "[a-z][a-zA-Z0-9_-]*"
+          }
+        },
+        "in",
+        {
+          "capture": "body",
+          "of": {
+            "host": true
+          }
+        },
+        "}"
+      ],
+      "emit": "(let ${!once} = (${value}) in let ${binder} = ${!once} in (${body}))"
+    }
+  },
+  "editor": {
+    "highlights": {
+      "binder": "variable"
+    },
+    "bindings": [
+      {
+        "binder": "binder",
+        "scope": "body"
+      }
+    ]
+  }
+}

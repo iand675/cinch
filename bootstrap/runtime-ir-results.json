@@ -1,0 +1,144 @@
+{
+  "actual_execution_cases": [
+    {
+      "actual_exit": 37,
+      "compiler_exit": 0,
+      "expected_exit": 37,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "huge",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 39,
+      "compiler_exit": 0,
+      "expected_exit": 39,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "alias",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 41,
+      "compiler_exit": 0,
+      "expected_exit": 41,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "call",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 43,
+      "compiler_exit": 0,
+      "expected_exit": 43,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "branch",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 47,
+      "compiler_exit": 0,
+      "expected_exit": 47,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "recursive",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 53,
+      "compiler_exit": 0,
+      "expected_exit": 53,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "negative",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 59,
+      "compiler_exit": 0,
+      "expected_exit": 59,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "natural",
+      "status": "passed"
+    },
+    {
+      "actual_exit": 61,
+      "compiler_exit": 0,
+      "expected_exit": 61,
+      "leak_report": "cinch-leak: live=0 immortal=0 leaked=0",
+      "link_exit": 0,
+      "name": "wildcard",
+      "status": "passed"
+    },
+    {
+      "compiler_exit": 5,
+      "diagnostics": "bootstrap.runtime-ir:5:19: indirect or polymorphic application needs closure lowering\nbootstrap.runtime-ir:3:3: definition needs polymorphic, dictionary or aggregate lowering: m.77_97_105_110_.105_100_101_110_116_105_116_121_\n",
+      "name": "unsupported-polymorphism",
+      "status": "passed"
+    }
+  ],
+  "actual_execution_plan": {
+    "bootstrap_achieved": false,
+    "compiler_project_source_files_verified": true,
+    "compiler_sha256": "9085cb445fe26873df74eedafd1e531eb591ad7b71aedf78a54f3d265daac9ab",
+    "note": "Reuse actual compiler built by validation3; its first emitted binary ran37 correctly, then Rust assertion mistakenly rejected normal leaked0 report; all8actualcases and explicitunsupportedpolyrefusal here use exact unchanged implementation",
+    "runtime_sha256": "faa7ef3763dd2dcb0d29acfcb1a3e55b37c371015d93b4f747a8144287104e31",
+    "source_sha256": "916697d50ba4384c12f98249bd02f6f54a6b68cfc3e5098d2c518e87dd6fa108"
+  },
+  "bootstrap_achieved": false,
+  "cinch_source_check": {
+    "cinch_exit": 0,
+    "compiler_implementation_interfaces": false,
+    "module_count": 25,
+    "native_exit": 0,
+    "note": "exact same implementation; only corrected Rust leak assertion/output differs",
+    "source_sha256": "916697d50ba4384c12f98249bd02f6f54a6b68cfc3e5098d2c518e87dd6fa108"
+  },
+  "implementation_paths": [
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "bootstrap/programs/Run.RuntimeIr.cinch",
+    "compiler/tests/bootstrap_runtime_ir.rs"
+  ],
+  "remaining": [
+    "real compiler CLI route under separate validation; default pipeline still standalone scalar path",
+    "ADTs, tuples, closures, partial/polymorphic calls, dictionaries, foreign and effect lowering",
+    "one compatible whole-program base/runtime layout registry and canonical executable base boundary",
+    "complete independent usage/totality/kernel checking and selected numeric method body authority",
+    "complete current-source Native and self-built suites",
+    "Stage2 executable and Stage3 fixed point"
+  ],
+  "rust_whole_target": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-ir-validation-4/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:43:14.863638+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 51604,
+      "started": "2026-11-02T22:38:21.042152+00:00",
+      "status": "passed"
+    }
+  ],
+  "source_sha256": "9941c8ae1d773fa6a04582a7dd2096fff5fbf3cb48b92153c602ab892bd443eb",
+  "source_unchanged": true,
+  "status": "initial typed shared-runtime scalar backend validated",
+  "supported": [
+    "monomorphic Int/Nat/Bool/Unit workers",
+    "mathematical numeric literals, addition, subtraction, multiplication, comparison and integer negation",
+    "direct calls, lexical let bindings, if branches and recursion",
+    "ABI5 owned words; local reads duplicate, scope/function exits drop; discarded arguments retain owning roots",
+    "native argv and reserved-stack entry glue; explicit zero-leak reports"
+  ]
+}

@@ -1,0 +1,24 @@
+module Main where
+  import LocalWire
+  import syntax "../../syntax/choreography.syntax.json" as choreography
+  choreography!{
+    Checkout roles { Buyer; Shop; Bank; }
+    prefix {
+      Buyer -> Shop : Order;
+      Shop -> Bank : Payment;
+    }
+    choice Bank {
+      Approved {
+        Bank -> Shop : Receipt;
+        Shop -> Buyer : Confirmation;
+      }
+      Declined {
+        Bank -> Shop : Reason;
+        Shop -> Buyer : Rejection;
+      }
+    }
+  }
+  bad :: Thunk {} CheckoutShopDeclinedS0 %1 -> Thunk {} CheckoutWireApprovedReceipt %1 -> (Thunk {} CheckoutShopApprovedS1, Nat)
+  bad endpoint packet = receive-Checkout-Approved-Shop-Receipt endpoint packet
+  main :: Int
+  main = 0

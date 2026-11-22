@@ -1,0 +1,253 @@
+-- Checked physical library objects. Source visibility still comes exclusively
+-- from the independently loaded interface set, never from this unit inventory.
+module Bootstrap.Object where
+  import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-interface-set, loaded-values, imported-symbol)
+  import Bootstrap.Interface (fnv-source-hash, sha256-hex)
+  import Bootstrap.RuntimeAbi (runtime-abi-int)
+  import Bootstrap.Nominal (interface-global)
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Text.Json (parse-json, canonical-bytes)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
+  export object-words, object-unit, unit-symbol, unit-closure, unit-params, unit-result
+  export llvm-object-symbol
+  export object-variant, object-dictionary, object-family, object-conditional-unit
+  export object-string-layout, llvm-data-bytes
+
+  data RuntimeUnit where
+    RuntimeUnit :: String -> String -> String -> List Nat -> Option Nat -> RuntimeUnit
+  data RuntimeObject where
+    RuntimeObject :: List Nat -> List RuntimeUnit -> List String -> List String -> Json -> Json -> Json -> Json -> RuntimeObject
+  object-words :: RuntimeObject -> List Nat
+  object-words value = case value of RuntimeObject words units exports instances dictionaries families constructors types -> words
+  unit-symbol :: RuntimeUnit -> String
+  unit-symbol value = case value of RuntimeUnit name key closure params result -> name
+  unit-key :: RuntimeUnit -> String
+  unit-key value = case value of RuntimeUnit name key closure params result -> key
+  unit-closure :: RuntimeUnit -> String
+  unit-closure value = case value of RuntimeUnit name key closure params result -> closure
+  unit-params :: RuntimeUnit -> List Nat
+  unit-params value = case value of RuntimeUnit name key closure params result -> params
+  unit-result :: RuntimeUnit -> Option Nat
+  unit-result value = case value of RuntimeUnit name key closure params result -> result
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons first rest -> same name first || has name rest
+  find-unit :: String -> List RuntimeUnit -> Option RuntimeUnit
+  find-unit name units = case units of
+    Nil -> None
+    Cons first rest -> if same name (unit-key first) then Some first else find-unit name rest
+  -- Inventory membership is insufficient: require an actual loaded value
+  -- export as well. Private helpers and dictionary workers do not bind names.
+  object-unit :: String -> RuntimeObject -> Option RuntimeUnit
+  object-unit name value = object-variant name Nil value
+  encoded-classes :: List Nat -> String
+  encoded-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "82_" else if code == 1 then "79_" else "84_") <> encoded-classes rest
+  encoded-variant :: List Nat -> String
+  encoded-variant codes = case codes of Nil -> ""; other -> "64_" <> encoded-classes codes
+  object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
+  object-variant name codes value = case value of
+    RuntimeObject words units exports instances dictionaries families constructors types -> if has name exports then find-unit (name <> encoded-variant codes) units else None
+  instance-symbols :: Json -> List String
+  instance-symbols rows = case rows of
+    JArr row rest -> (case field "id" row of JStr name -> Cons (interface-global name) (instance-symbols rest); other -> instance-symbols rest)
+    other -> Nil
+  exported-instances :: List LoadedInterface -> List String
+  exported-instances interfaces = case interfaces of
+    Nil -> Nil
+    Cons first rest -> instance-symbols (field "instances" (field "exports" (loaded-contract first))) <> exported-instances rest
+  dictionary-row :: String -> Json -> Option (String, Json)
+  dictionary-row name rows = case rows of
+    JObj key value rest -> if same name key then Some (key, value) else dictionary-row name rest
+    other -> None
+  -- Factory workers do not bind ordinary source values. Their authority is
+  -- a checked instance export and its actual selected native inventory row.
+  object-dictionary :: String -> List Nat -> RuntimeObject -> Option (RuntimeUnit, String, Nat, List Nat)
+  object-dictionary name codes value = case value of
+    RuntimeObject words units exports instances dictionaries families constructors types -> if not (has name instances) then None else
+      (case dictionary-row (name <> encoded-variant codes) dictionaries of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row), find-unit (key <> "46_109_107_") units) of
+          (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
+          other -> None)
+        None -> None)
+  conditional-method-at :: Nat -> Json -> Option String
+  conditional-method-at index rows = case rows of
+    JArr (JStr name) rest -> if index == 0 then Some name else conditional-method-at (index - 1) rest
+    other -> None
+  -- A closed conditional method is callable through its actual exported
+  -- instance and checked declaring slot, never through ordinary value scope.
+  object-conditional-unit :: String -> String -> Nat -> String -> List Nat -> RuntimeObject -> Option RuntimeUnit
+  object-conditional-unit owner dictionary slot name codes value = case (codes, value) of
+    (Nil, RuntimeObject words units exports instances dictionaries families constructors types) -> if not (has dictionary instances) then None else
+      (case dictionary-row dictionary dictionaries of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
+          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then find-unit name units else None
+          other -> None)
+        None -> None)
+    other -> None
+  own-classes :: String -> Nat -> Option (List Nat)
+  own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
+    (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 then None else
+      case own-classes text (index + 1) of Some rest -> Some (Cons (if byte == 82 then 0 else if byte == 79 then 1 else 2) rest); None -> None)
+    else if index == bytes-len bytes then Some Nil else None
+  family-slots :: Json -> Nat -> Nat -> Option (List (Nat, Nat, List Nat))
+  family-slots rows declared next = case rows of
+    JArr row rest -> (case (field "logical" row, field "physical" row, field "own" row) of
+      (JNum logical, JNum physical, JStr text) -> if logical < 0 || nat-from-int logical >= declared || physical /= nat-to-int next then None else
+        (case (own-classes text 0, family-slots rest declared (next + 1)) of
+          (Some codes, Some more) -> Some (Cons (nat-from-int logical, next, codes) more)
+          other -> None)
+      other -> None)
+    JArrEnd -> Some Nil
+    other -> None
+  find-family :: String -> Json -> Option (Nat, List (Nat, Nat, List Nat))
+  find-family owner rows = case rows of
+    JArr row rest -> (case (field "class" row, field "declared_methods" row) of
+      (JStr name, JNum count) -> if not (same owner name) then find-family owner rest else
+        if count < 0 then None else case family-slots (field "slots" row) (nat-from-int count) 0 of
+          Some slots -> Some (nat-from-int count, slots)
+          None -> None
+      other -> None)
+    other -> None
+  object-family :: String -> RuntimeObject -> Option (Nat, List (Nat, Nat, List Nat))
+  object-family owner value = case value of RuntimeObject words units exports instances dictionaries families constructors types -> find-family owner families
+  -- Runtime String is the defining library's private one-Bytes wrapper.
+  -- Check the actual descriptor and map; this does not bind StrBuf in source.
+  object-string-layout :: String -> RuntimeObject -> Option Nat
+  object-string-layout name value = case value of
+    RuntimeObject prefix units exports instances dictionaries families constructors types -> if not (same name (interface-global "Data.String.String")) then None else
+      (case (field "group" (field "Data.String.String" types), field "descriptor" (field "Data.String.StrBuf" constructors), field "arity" (field "Data.String.StrBuf" constructors), field "tag" (field "Data.String.StrBuf" constructors)) of
+        (JNum group, JNum descriptor, JNum 1, JNum 0) -> if group < 0 || descriptor /= 64 * group then None else
+          (case at (nat-from-int descriptor) prefix of Some packed -> if packed == 4294967297 then Some (nat-from-int descriptor) else None; None -> None)
+        other -> None)
+  class-code :: Json -> Option Nat
+  class-code doc = case doc of
+    JStr name -> if same name "R" then Some 0 else if same name "O" then Some 1 else if same name "T" then Some 2 else None
+    other -> None
+  classes :: Json -> Option (List Nat)
+  classes doc = case doc of
+    JArr first rest -> (case (class-code first, classes rest) of (Some code, Some more) -> Some (Cons code more); other -> None)
+    JArrEnd -> Some Nil
+    other -> None
+  units :: Json -> List String -> Result String (List RuntimeUnit)
+  units doc seen = case doc of
+    JArr row rest -> (case (field "symbol" row, field "closure_entry" row, field "arity" row, classes (field "params" row)) of
+      (JStr name, JStr closure, JNum arity, Some params) -> if string-length name == 0 || not (same closure (name <> ".object-closure")) || has name seen || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
+        (case (field "result" row, class-code (field "result" row)) of
+          (JNull, other) -> add-unit name closure params None rest seen
+          (other, Some result) -> add-unit name closure params (Some result) rest seen
+          other -> Err "invalid runtime object result class")
+      other -> Err "malformed runtime object unit")
+    JArrEnd -> Ok Nil
+    other -> Err "malformed runtime object units"
+  add-unit :: String -> String -> List Nat -> Option Nat -> Json -> List String -> Result String (List RuntimeUnit)
+  add-unit name closure params result rest seen = case units rest (Cons name seen) of
+    Err message -> Err message
+    Ok more -> Ok (Cons (RuntimeUnit name (interface-global name) closure params result) more)
+  -- Canonical names are encoded once at admission. Re-encoding the entire
+  -- inventory on every call repeatedly scans UTF-8 strings in large builds.
+  encode-dictionary-keys :: Json -> Json
+  encode-dictionary-keys rows = case rows of
+    JObj key value rest -> JObj (interface-global key) value (encode-dictionary-keys rest)
+    other -> other
+  encode-family-row :: Json -> Json
+  encode-family-row row = case row of
+    JObj key (JStr value) rest -> JObj key (JStr (if same key "class" then interface-global value else value)) (encode-family-row rest)
+    JObj key value rest -> JObj key value (encode-family-row rest)
+    other -> other
+  encode-families :: Json -> Json
+  encode-families rows = case rows of JArr row rest -> JArr (encode-family-row row) (encode-families rest); other -> other
+  words :: Json -> Option (List Nat)
+  words doc = case doc of
+    JArr (JNum first) rest -> if first < 0 || first > 18446744073709551615 then None else
+      (case words rest of Some more -> Some (Cons (nat-from-int first) more); None -> None)
+    JArrEnd -> Some Nil
+    other -> None
+  at :: Nat -> List Nat -> Option Nat
+  at index items = case items of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
+  scan-map :: Nat -> Nat -> Bool
+  scan-map count bits = if count == 0 then bits == 0 else bits % 4 <= 2 && scan-map (count - 1) (bits / 4)
+  extended-map :: Nat -> Nat -> List Nat -> Bool
+  extended-map count index prefix = if count == 0 then True else case at index prefix of
+    None -> False
+    Some bits -> if count <= 32 then scan-map count bits else scan-map 32 bits && extended-map (count - 32) (index + 1) prefix
+  layout-rows :: Nat -> Nat -> List Nat -> List Nat -> Bool
+  layout-rows count entries rows prefix = if count == 0 then True else case rows of
+    Nil -> False
+    Cons first rest -> let size = first % 4294967296 in let map = first / 4294967296 in
+      (if size <= 16 then scan-map size map else map >= entries && map + ((size + 31) / 32) <= list-length prefix && extended-map size map prefix)
+      && layout-rows (count - 1) entries rest prefix
+  interface-files :: Json -> Result String (List (String, String, Bytes))
+  interface-files doc = case doc of
+    JArr row rest -> (case (field "module" row, field "iface_hash" row, field "interface" row) of
+      (JStr name, JStr hash, JObj key value tail) -> (case interface-files rest of
+        Err message -> Err message
+        Ok more -> Ok (Cons (name, hash, canonical-bytes (field "interface" row)) more))
+      other -> Err "malformed object interface closure")
+    JArrEnd -> Ok Nil
+    other -> Err "missing object interface closure"
+  matching-interface :: LoadedInterface -> List LoadedInterface -> Bool
+  matching-interface wanted actual = case actual of
+    Nil -> False
+    Cons first rest -> if same (loaded-module wanted) (loaded-module first) then same (loaded-hash wanted) (loaded-hash first) else matching-interface wanted rest
+  matching-interfaces :: List LoadedInterface -> List LoadedInterface -> Bool
+  matching-interfaces wanted actual = case wanted of Nil -> True; Cons first rest -> matching-interface first actual && matching-interfaces rest actual
+  exported-symbols :: List LoadedInterface -> List String
+  exported-symbols interfaces = case interfaces of
+    Nil -> Nil
+    Cons first rest -> value-symbols (loaded-values first) <> exported-symbols rest
+  value-symbols :: List ImportedValue -> List String
+  value-symbols values = case values of Nil -> Nil; Cons first rest -> Cons (interface-global (imported-symbol first)) (value-symbols rest)
+  parse-runtime-object :: String -> List LoadedInterface -> Bytes -> Bytes -> Result String RuntimeObject
+  parse-runtime-object expected-triple interfaces code metadata = case parse-json "runtime object" metadata of
+    Parsed doc Nil -> if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "escaped_descriptors" doc) of
+      (JNum 1, JNum actual-abi, JNum 64, JStr endian, JBool True, JStr actual, JBool False) -> actual-abi == runtime-abi-int && same endian "little" && same expected-triple actual
+      other -> False) then Err "runtime object target, ownership or descriptor ABI mismatch" else
+      (case field "object_content_hash" doc of
+        JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
+          (case (words (field "layout_words" doc), field "layout_entries" doc, units (field "units" doc) Nil, interface-files (field "interfaces" doc)) of
+            (Some prefix, JNum entries, Ok functions, Ok files) -> if entries < 0 || nat-from-int entries > list-length prefix || list-length prefix > 65408 then Err "runtime object layout prefix exceeds the supported descriptor space" else
+              if not (layout-rows (nat-from-int entries) (nat-from-int entries) prefix prefix) then Err "invalid runtime object pointer-map table" else
+              (case load-interface-set files of
+                Err message -> Err message
+                Ok checked -> if matching-interfaces interfaces checked then Ok (RuntimeObject prefix functions (exported-symbols interfaces) (exported-instances interfaces) (encode-dictionary-keys (field "dictionaries" doc)) (encode-families (field "method_families" doc)) (field "constructors" doc) (field "types" doc)) else Err "runtime object checked interface identity mismatch")
+            (other, other-count, Err message, other-files) -> Err message
+            (other, other-count, other-units, Err message) -> Err message
+            other -> Err "malformed runtime object layout prefix")
+        other -> Err "runtime object has no code identity")
+    other -> Err "runtime object manifest is not valid JSON"
+
+  -- The build driver supplies cryptographic identities for both artifacts.
+  -- Paths remain individual words; no shell expansion participates in loading.
+  read-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> String ->{IO r} Result String RuntimeObject
+  read-runtime-object interfaces path = case fs-read (path-from-string path) of
+    Err error -> Err "cannot read runtime object configuration"
+    Ok bytes -> case parse-json path bytes of
+      Parsed doc Nil -> (case (field "schema" doc, field "target" doc, field "object" doc, field "metadata" doc, field "object_sha256" doc, field "metadata_sha256" doc) of
+        (JNum 1, JStr expected-triple, JStr object-file, JStr metadata-file, JStr object-hash, JStr metadata-hash) ->
+          (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
+            (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then parse-runtime-object expected-triple interfaces code metadata else Err "runtime object artifact digest mismatch"
+            other -> Err "cannot read runtime object artifacts")
+        other -> Err "malformed runtime object configuration")
+      other -> Err "runtime object configuration is not valid JSON"
+
+  -- Encode every UTF-8 byte, so source operators and non-ASCII names cannot
+  -- become LLVM syntax. No platform-specific alias spellings are assumed.
+  hex :: Nat -> String
+  hex value = if value == 0 then "0" else if value == 1 then "1" else if value == 2 then "2" else if value == 3 then "3" else if value == 4 then "4" else if value == 5 then "5" else if value == 6 then "6" else if value == 7 then "7" else if value == 8 then "8" else if value == 9 then "9" else if value == 10 then "A" else if value == 11 then "B" else if value == 12 then "C" else if value == 13 then "D" else if value == 14 then "E" else "F"
+  llvm-bytes :: Bytes -> Nat -> String
+  llvm-bytes bytes index = if index < bytes-len bytes then
+    let byte = bytes-get bytes index in "\\" <> hex (byte / 16) <> hex (byte % 16) <> llvm-bytes bytes (index + 1)
+    else ""
+  llvm-object-symbol :: String -> String
+  llvm-object-symbol name = "@\"" <> llvm-bytes (string-to-bytes name) 0 <> "\""
+  llvm-data-bytes :: String -> String
+  llvm-data-bytes text = llvm-bytes (string-to-bytes text) 0

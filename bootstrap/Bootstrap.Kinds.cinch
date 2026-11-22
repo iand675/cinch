@@ -1,0 +1,177 @@
+-- Recheck annotated types against actual nominal and lexical kind contexts.
+-- A printed name or a cached Kind annotation never introduces a declaration.
+module Bootstrap.Kinds where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Text.Lex (Span)
+
+  export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme
+  export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
+  export nominal-kinds-closed, add-rigid-kind
+  export proper-type, argument-well-formed
+
+  data TypeScope where
+    MkTypeScope :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Scheme) -> TypeScope
+  empty-type-scope :: TypeScope
+  empty-type-scope = MkTypeScope Nil Nil Nil
+  scope-bound :: TypeScope -> List (Nat, Kind)
+  scope-bound scope = case scope of MkTypeScope bound rigid locals -> bound
+  scope-rigid :: TypeScope -> List (Nat, Kind)
+  scope-rigid scope = case scope of MkTypeScope bound rigid locals -> rigid
+  scope-locals :: TypeScope -> List (Nat, Scheme)
+  scope-locals scope = case scope of MkTypeScope bound rigid locals -> locals
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  lookup-id :: Nat -> List (Nat, Kind) -> Option Kind
+  lookup-id id entries = case entries of Nil -> None; Cons (key, kind) rest -> if id == key then Some kind else lookup-id id rest
+  lookup-kind :: String -> List (String, Kind) -> Option Kind
+  lookup-kind name entries = case entries of Nil -> None; Cons (key, kind) rest -> if same name key then Some kind else lookup-kind name rest
+  equal-type :: UType -> UType -> Bool
+  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "kind scope")) of Nil -> True; other -> False)
+  add-rigid-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
+  add-rigid-kind id kind scope = case lookup-id id (scope-rigid scope) of
+    Some prior -> None
+    None -> (case lookup-local id (scope-locals scope) of Some prior -> None; None -> Some (MkTypeScope (scope-bound scope) (Cons (id, kind) (scope-rigid scope)) (scope-locals scope)))
+  add-bound-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
+  add-bound-kind id kind scope = case lookup-id id (scope-bound scope) of
+    Some prior -> None
+    None -> Some (MkTypeScope (Cons (id, kind) (scope-bound scope)) (scope-rigid scope) (scope-locals scope))
+  lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
+  lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if id == key then Some sc else lookup-local id rest
+  add-local-scheme :: Nat -> Scheme -> TypeScope -> Option TypeScope
+  add-local-scheme id sc scope = case (lookup-id id (scope-rigid scope), lookup-local id (scope-locals scope)) of
+    (None, None) -> Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, sc) (scope-locals scope)))
+    other -> None
+  highest :: Nat -> Nat -> Nat
+  highest a b = if a > b then a else b
+  kind-level :: Kind -> Nat
+  kind-level kind = case kind of KFun a b -> highest (kind-level a) (kind-level b); KValue payload -> (case value-carrier kind of Some ty -> type-level ty; None -> 0); other -> 0
+  index-level :: IndexTerm -> Nat
+  index-level value = case value of
+    IRigid id name level -> level
+    IApply f x -> highest (index-level f) (index-level x)
+    ILambda id name body -> index-level body
+    IAdd a b -> highest (index-level a) (index-level b)
+    ISubtract a b -> highest (index-level a) (index-level b)
+    IMultiply a b -> highest (index-level a) (index-level b)
+    other -> 0
+  type-level :: UType -> Nat
+  type-level ty = case ty of
+    URigid id name level kind -> highest level (kind-level kind)
+    UBound id name kind -> kind-level kind
+    UCon name kind -> kind-level kind
+    UMeta id kind -> kind-level kind
+    UIndex carrier value -> highest (type-level carrier) (index-level value)
+    URefine id name carrier predicate -> highest (type-level carrier) (type-level predicate)
+    UPi id name a row b -> highest (type-level row) (highest (type-level a) (type-level b))
+    UFunEff a row b -> highest (type-level row) (highest (type-level a) (type-level b))
+    UProofFun a row b -> highest (type-level row) (highest (type-level a) (type-level b))
+    UApp a b -> highest (type-level a) (type-level b)
+    UFun a b -> highest (type-level a) (type-level b)
+    URow labels -> type-level labels
+    URowJoin a b -> highest (type-level a) (type-level b)
+    UTuple fields -> type-level fields
+    UArg a b -> highest (type-level a) (type-level b)
+    UCompare op a b -> highest (type-level a) (type-level b)
+    UPropAnd a b -> highest (type-level a) (type-level b)
+    UPropOr a b -> highest (type-level a) (type-level b)
+    URequire a b -> highest (type-level a) (type-level b)
+    UPropNot body -> type-level body
+    UPropNonZero body -> type-level body
+    UPropNonZeroPending body -> type-level body
+    UIndexForget body -> type-level body
+    UIndexPromote body -> type-level body
+    UIndexByteLength body -> type-level body
+    UIndexCall function args -> type-level args
+    UIndexMath op a b -> highest (type-level a) (type-level b)
+    other -> 0
+  local-carrier :: UType -> Nat -> TypeScope -> Bool
+  local-carrier carrier id scope = case lookup-local id (scope-locals scope) of
+    Some sc -> (case scheme-requirements sc of
+      Nil -> (case fresh-for-types [carrier, scheme-body sc] (restore-level (highest (type-level carrier) (type-level (scheme-body sc)) + 1) (empty-store "local index carrier")) of
+        (fresh, prepared) -> case open-scheme False sc prepared of
+          (expected, pairs, opened) -> (case store-errors (unify (Span 0 0 1 1) expected carrier opened) of Nil -> True; other -> False))
+      other -> False)
+    None -> False
+  kind-well-formed :: List (String, Kind) -> TypeScope -> Kind -> Bool
+  kind-well-formed kinds scope kind = valid-kind kind && (case kind of
+    KFun domain result -> kind-well-formed kinds scope domain && kind-well-formed kinds scope result
+    KValue payload -> (case value-carrier kind of Some carrier -> type-well-formed kinds scope carrier; None -> False)
+    other -> True)
+  index-binding :: UType -> Nat -> List (Nat, Kind) -> Bool
+  index-binding carrier id entries = case lookup-id id entries of
+    Some kind -> (case value-carrier kind of Some expected -> equal-type expected carrier; None -> False)
+    None -> False
+  index-well-formed :: List (String, Kind) -> TypeScope -> UType -> IndexTerm -> Bool
+  index-well-formed kinds scope carrier value = case value of
+    IInteger n -> integer-literal-valid carrier n
+    IBound id name -> index-binding carrier id (scope-bound scope)
+    IRigid id name level -> index-binding carrier id (scope-rigid scope) || local-carrier carrier id scope
+    IAdd a b -> index-well-formed kinds scope carrier a && index-well-formed kinds scope carrier b
+    ISubtract a b -> index-well-formed kinds scope carrier a && index-well-formed kinds scope carrier b
+    IMultiply a b -> index-well-formed kinds scope carrier a && index-well-formed kinds scope carrier b
+    other -> False
+  binder-body :: List (String, Kind) -> TypeScope -> Nat -> UType -> UType -> Bool
+  binder-body kinds scope id carrier body = type-well-formed kinds scope carrier && (case add-bound-kind id (value-kind carrier) scope of
+    Some bound -> type-well-formed kinds bound body
+    None -> False)
+  type-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  type-well-formed kinds scope ty = valid-type ty && (case ty of
+    UCon name actual -> (case lookup-kind name kinds of Some expected -> kind-equal actual expected; None -> False)
+    UBound id name actual -> (case lookup-id id (scope-bound scope) of Some expected -> kind-equal actual expected; None -> False)
+    URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-well-formed kinds scope carrier && local-carrier carrier id scope; None -> False)
+    UMeta id kind -> False
+    UError -> False
+    UIndex carrier value -> type-well-formed kinds scope carrier && index-runtime-admissible carrier value && index-well-formed kinds scope carrier value
+    URefine id name carrier predicate -> binder-body kinds scope id carrier predicate
+    UPi id name domain row result -> binder-body kinds scope id domain (UArg row (UArg result UEnd))
+    UApp f x -> type-well-formed kinds scope f && type-well-formed kinds scope x
+    UFun a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UFunEff a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
+    UProofFun a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
+    UIndexForget value -> type-well-formed kinds scope value
+    UIndexPromote value -> type-well-formed kinds scope value
+    UIndexByteLength value -> type-well-formed kinds scope value
+    UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
+    UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    URow labels -> type-well-formed kinds scope labels
+    URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UTuple fields -> type-well-formed kinds scope fields
+    UArg first rest -> type-well-formed kinds scope first && type-well-formed kinds scope rest
+    UCompare relation a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UPropAnd a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UPropOr a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
+    UPropNot body -> type-well-formed kinds scope body
+    UPropNonZero body -> type-well-formed kinds scope body
+    UPropNonZeroPending body -> type-well-formed kinds scope body
+    URequire predicates body -> type-well-formed kinds scope predicates && type-well-formed kinds scope body
+    UPropLit value -> True
+    UEnd -> True)
+  scheme-type-scope :: List (String, Kind) -> TypeScope -> List Quant -> Option TypeScope
+  scheme-type-scope kinds scope qs = case qs of
+    Nil -> Some scope
+    Cons q rest -> if kind-well-formed kinds scope (quant-kind q) then
+      (case add-bound-kind (quant-id q) (quant-kind q) scope of Some bound -> scheme-type-scope kinds bound rest; None -> None)
+      else None
+  requirements-well-formed :: List (String, Kind) -> TypeScope -> List Requirement -> Bool
+  requirements-well-formed kinds scope requirements = case requirements of Nil -> True; Cons r rest -> type-well-formed kinds scope (requirement-type r) && requirements-well-formed kinds scope rest
+  scheme-well-formed :: List (String, Kind) -> TypeScope -> Scheme -> Bool
+  scheme-well-formed kinds scope sc = case scheme-type-scope kinds scope (scheme-params sc) of
+    Some bound -> proper-type (scheme-body sc) && type-well-formed kinds bound (scheme-body sc) && requirements-well-formed kinds bound (scheme-requirements sc)
+    None -> False
+  proper-type :: UType -> Bool
+  proper-type ty = valid-type ty && kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
+  argument-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  argument-well-formed kinds scope ty = type-well-formed kinds scope ty && (case type-kind ty of
+    KType -> proper-type ty
+    KValue payload -> typed-index-admissible ty
+    other -> True)
+  nominal-seen :: List (String, Kind) -> List (String, Kind) -> List String -> Bool
+  nominal-seen all entries names = case entries of
+    Nil -> True
+    Cons (name, kind) rest -> string-length name > 0 && not (name-seen name names)
+      && kind-well-formed all empty-type-scope kind && nominal-seen all rest (Cons name names)
+  name-seen :: String -> List String -> Bool
+  name-seen name names = case names of Nil -> False; Cons key rest -> same name key || name-seen name rest
+  nominal-kinds-closed :: List (String, Kind) -> Bool
+  nominal-kinds-closed kinds = nominal-seen kinds kinds Nil

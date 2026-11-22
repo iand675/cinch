@@ -132,7 +132,7 @@ conversion out of a `String` copies.
 ## `bytes-new`
 
 ```cinch
-bytes-new :: ((a0 :: Nat) -> refined ((Data.Bytes.bytes-len out) == a0) Bytes)
+bytes-new :: ((a0 :: Nat) -> refined ((Data.Bytes.bytes-len r) == a0) Bytes)
 ```
 
 [Source](/reference-sources/Data.Bytes.cinch) · line 40

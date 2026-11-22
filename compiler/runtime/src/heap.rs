@@ -88,16 +88,23 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     if env_bytes(c"CINCH_ALLOC_STATS") == Some(b"1") {
         unsafe { atexit(print_stats) };
     }
-    let limit = match env_bytes(c"CINCH_HEAP_LIMIT") {
-        None => DEFAULT_HEAP_LIMIT,
-        Some(v) => parse_limit(v).unwrap_or(DEFAULT_HEAP_LIMIT),
-    };
+    let limit = configured_limit(env_bytes(c"CINCH_HEAP_LIMIT"));
     Config {
         limit,
         rc_debug: env_bytes(c"CINCH_RC_DEBUG") == Some(b"1"),
         leak_check: env_bytes(c"CINCH_LEAK_CHECK") == Some(b"1"),
     }
 });
+
+// Keep the default-setting rule testable without launching a generated
+// program with its heap guard removed. Reading this setting does not
+// change CONFIG or allocate memory.
+fn configured_limit(setting: Option<&[u8]>) -> u64 {
+    match setting {
+        None => DEFAULT_HEAP_LIMIT,
+        Some(value) => parse_limit(value).unwrap_or(DEFAULT_HEAP_LIMIT),
+    }
+}
 
 /// Whether `CINCH_RC_DEBUG=1`: freed blocks are poisoned and kept, and the
 /// count entry points validate headers ([`crate::rc`]).
@@ -385,6 +392,13 @@ static GLOBAL: Counting = Counting;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_and_invalid_limits_use_the_documented_default() {
+        assert_eq!(configured_limit(None), 8 << 30);
+        assert_eq!(configured_limit(Some(b"invalid")), 8 << 30);
+        assert_eq!(configured_limit(Some(b"256M")), 256 << 20);
+    }
 
     #[test]
     fn limit_suffixes() {

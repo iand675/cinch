@@ -393,12 +393,17 @@ fn probes(iface: &Iface) -> Vec<Probe> {
             "u",
         );
     }
-    // Method names resolve once each. `pure` and `bind` serve the
-    // three sequencing providers under one name (D22: the first
-    // registered provider answers bare uses), so the first scheme wins.
+    // Method names resolve once each. Bare `pure`/`bind` use the direct
+    // provider (D22). Interface contract order is not registration order:
+    // private class closure is collected from a map and JSON is sorted.
     let mut seen_methods: BTreeSet<String> = BTreeSet::new();
     for s in &iface.exports.signatures {
         for m in &s.methods {
+            if matches!(m.name.as_str(), "pure" | "bind")
+                && s.identity != "Effect.Sequencing.DirectSequencing"
+            {
+                continue;
+            }
             if !seen_methods.insert(m.name.clone()) {
                 continue;
             }
@@ -460,6 +465,23 @@ fn every_facade_surface_name_resolves_through_prelude() {
         covered, surface,
         "every surface name needs a probe (and no probe may name a stranger)"
     );
+
+    // Permuting the contract table must not change the default provider's
+    // bare-method probes. Check the generated uses through the frontend,
+    // rather than depending on which provider the map visited first.
+    let mut reversed = iface.clone();
+    reversed.exports.signatures.reverse();
+    let mut defaults = String::from("module Main where\n");
+    let mut default_names = BTreeSet::new();
+    for probe in probes(&reversed).into_iter().filter(|p| p.kind == "method"
+        && matches!(p.name.as_str(), "pure" | "bind")) {
+        default_names.insert(probe.name);
+        defaults.push_str(&probe.body);
+    }
+    assert_eq!(default_names, BTreeSet::from(["pure".to_string(), "bind".to_string()]));
+    defaults.push_str("  main :: Int\n  main = 0\n");
+    check_sources(&defaults, "<reordered-provider-contracts>")
+        .expect("bare sequencing methods retain the direct provider when contracts are reordered");
 
     let mut failures: Vec<String> = Vec::new();
     for kind in ["value", "type", "ctor", "class", "method"] {
@@ -740,7 +762,6 @@ fn parked_semigroup_instances_behave_identically() {
         "module Main where\n\
          \x20 import Algebra.Semigroup\n\
          \n\
-         \x20 infixr 6 <>\n\
          \n\
          \x20 eq-list :: forall a. using (ea :: Eq a) => List a -> List a -> Bool\n\
          \x20 eq-list a b = case a of\n\

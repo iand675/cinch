@@ -1,0 +1,7 @@
+module Main where
+  import Audio
+  import syntax "../../syntax/audio.syntax.json" as audio
+  main :: Int
+  main =
+    let output = audio!{ input {Audio.mono 5} |> duplicate |> gain 2 } in
+    if Audio.observe output == 20 then 0 else 1

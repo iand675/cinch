@@ -1,0 +1,546 @@
+{
+  "additional_native_checks": {
+    "interface_class_contracts": 1,
+    "interface_conditional_methods": 1,
+    "module_parameters": 7,
+    "surface": 17
+  },
+  "all_rust_test_targets": {
+    "exit_code": 0,
+    "finished": "2026-11-03T07:09:05.721385+00:00",
+    "pid": 94676,
+    "source_sha256": "cb71b4e88eb5344f425631a27f773a6b0400a35b852953cb2a85cbaac0347661",
+    "source_unchanged": true,
+    "started": "2026-11-03T07:08:45.682959+00:00",
+    "status": "passed"
+  },
+  "bootstrap_achieved": false,
+  "boundary_gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-4/cargo",
+        "--test",
+        "bootstrap_instance_resolution",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:13:11.497246+00:00",
+      "name": "bootstrap_instance_resolution",
+      "pid": 96722,
+      "started": "2026-11-03T07:11:49.375890+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-4/cargo",
+        "--test",
+        "bootstrap_nominals",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:22:27.599571+00:00",
+      "name": "bootstrap_nominals",
+      "pid": 96723,
+      "started": "2026-11-03T07:11:49.376361+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-4/cargo",
+        "--test",
+        "bootstrap_globals",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:14:34.676821+00:00",
+      "name": "bootstrap_globals",
+      "pid": 97686,
+      "started": "2026-11-03T07:13:11.497770+00:00",
+      "status": "passed"
+    }
+  ],
+  "cinch_gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-4/cargo",
+        "--test",
+        "bootstrap_source_instances",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:14:16.489164+00:00",
+      "name": "bootstrap_source_instances",
+      "pid": 84162,
+      "started": "2026-11-03T06:57:21.957157+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-4/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:03:37.203054+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 84161,
+      "started": "2026-11-03T06:57:21.956695+00:00",
+      "status": "passed"
+    }
+  ],
+  "class_scope_regressions": {
+    "exit_code": 0,
+    "finished": "2026-11-03T07:35:11.033898+00:00",
+    "pid": 11265,
+    "source_sha256": "cb71b4e88eb5344f425631a27f773a6b0400a35b852953cb2a85cbaac0347661",
+    "source_unchanged": true,
+    "started": "2026-11-03T07:34:17.027746+00:00",
+    "status": "passed"
+  },
+  "genuine_stage_chain": {
+    "frontend_diagnostics": 0,
+    "llvm_bytes": 0,
+    "meaning": "Class authority reaches actual imported factory lookup; executable base functions/factories remain unavailable. Diagnostics include cascades, not a remaining feature count.",
+    "missing_declaring_class_diagnostics": 0,
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tooling/tests",
+          "-v"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-03T07:02:10.941892+00:00",
+        "name": "tooling",
+        "pid": 89285,
+        "started": "2026-11-03T07:02:10.454437+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-03T07:03:13.420836+00:00",
+        "name": "stage0-smoke",
+        "pid": 89301,
+        "started": "2026-11-03T07:02:10.942375+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-03T07:07:22.096481+00:00",
+        "name": "stage1-smoke",
+        "pid": 90137,
+        "started": "2026-11-03T07:03:13.421179+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "/tmp/cinch-imported-classes-stages-4/wait-tests.py"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-03T07:14:17.835363+00:00",
+        "name": "focused-prerequisites",
+        "pid": 93781,
+        "started": "2026-11-03T07:07:22.096832+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-03T07:21:02.537885+00:00",
+        "name": "self-hosting",
+        "pid": 98452,
+        "started": "2026-11-03T07:14:17.835780+00:00",
+        "status": "failed"
+      }
+    ],
+    "runtime_diagnostics": 7127,
+    "stage2_executable": false,
+    "stages": {
+      "0": {
+        "exit_code": 0,
+        "inputs": {
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 3,
+          "seed": {
+            "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic, schema-8 closed executable total-body contracts with exact defining declarations, private first-order measure dependencies and definition-site argument identities, acyclic FromList class dependencies retain complete List and Bytes factory schemes, lexical constructor-witness value provenance, strict-let alias identity and source namespace separation, scope-aware anonymous refinement value binders and capture-free refinement rendering, optional closed conditional implementation declarations from actual checked dictionary slots, checked guarded Nat body equations, strict let result equations with original lexical value identities, corrected multi-term equality proof search, checked byte-length observations and actual selected arithmetic bodies in strict Nat let equations, typed collection constant reification with actual constructor instantiations and checked field types, declining unresolved generalized result types; changed only by an intentional seed update. Rejects duplicate handler operation clauses and checks operation type parameters universally without clause-scope escape; no ABI or prototype syntax change.",
+            "patch": "bootstrap/seed/stage0.patch",
+            "patch_sha256": "781522241690ae5e4e12085b8ecfd336e3827e78be81e7282d2e3795fe4fb189",
+            "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+            "runtime_abi": 5,
+            "schema": 1,
+            "source_sha256": "c77484d26d293178f2a37efde10da2e1c15155e2dc825715a8d4ca8f30fd98a0"
+          }
+        },
+        "log": "/private/tmp/cinch-imported-classes-validation-4/source/build/bootstrap/stage0/build.log",
+        "status": "built"
+      },
+      "1": {
+        "exit_code": 0,
+        "inputs": {
+          "builder_sha256": "e339950b7f6f34e25848ba45547ad99648e061df6f1e99e34801369d82aa0198",
+          "built_by_stage": 0,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 3,
+          "source_sha256": "e190188ba1a1436620a1f2ee381281b5388779456c737b6481c1f7a9b106c8de"
+        },
+        "log": "/private/tmp/cinch-imported-classes-validation-4/source/build/bootstrap/stage1/build.log",
+        "status": "built"
+      },
+      "2": {
+        "diagnostic_categories": {
+          "Core form needs typed runtime lowering": 2989,
+          "checked factory has no executable source factory: i.68_97_116_97_46_66_111_111_108_46_69_113_95_66_111_111_108_": 3,
+          "checked factory has no executable source factory: i.68_97_116_97_46_73_110_116_46_65_100_100_95_73_110_116_": 9,
+          "checked factory has no executable source factory: i.68_97_116_97_46_73_110_116_46_69_113_95_73_110_116_": 13,
+          "checked factory has no executable source factory: i.68_97_116_97_46_73_110_116_46_77_117_108_95_73_110_116_": 8,
+          "checked factory has no executable source factory: i.68_97_116_97_46_73_110_116_46_79_114_100_95_73_110_116_": 22,
+          "checked factory has no executable source factory: i.68_97_116_97_46_73_110_116_46_83_117_98_95_73_110_116_": 9,
+          "checked factory has no executable source factory: i.68_97_116_97_46_76_105_115_116_46_70_114_111_109_76_105_115_116_95_76_105_115_116_": 462,
+          "checked factory has no executable source factory: i.68_97_116_97_46_76_105_115_116_46_83_101_109_105_103_114_111_117_112_95_76_105_115_116_": 506,
+          "checked factory has no executable source factory: i.68_97_116_97_46_77_97_99_104_105_110_101_46_69_113_95_73_54_52_": 452,
+          "checked factory has no executable source factory: i.68_97_116_97_46_77_97_99_104_105_110_101_46_79_114_100_95_73_54_52_": 14,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_65_100_100_95_78_97_116_": 180,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_68_105_118_95_78_97_116_": 1,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_69_113_95_78_97_116_": 204,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_77_117_108_95_78_97_116_": 23,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_79_114_100_95_78_97_116_": 109,
+          "checked factory has no executable source factory: i.68_97_116_97_46_78_97_116_46_82_101_109_95_78_97_116_": 1,
+          "constructor needs dependent, existential or extended runtime lowering": 2,
+          "constructor parameters need runtime representation classes": 39,
+          "definition needs dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_65_115_116_.105_115_45_111_112_101_114_97_116_111_114_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_73_110_102_101_114_.110_117_109_98_101_114_45_100_105_103_105_116_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_73_110_116_101_114_102_97_99_101_.102_110_118_45_98_121_116_101_115_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_73_110_116_101_114_102_97_99_101_.117_54_52_45_100_101_99_105_109_97_108_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_74_115_111_110_.119_114_105_116_101_45_102_108_111_97_116_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_100_97_115_104_45_103_108_117_101_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_101_120_112_114_45_101_110_100_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_105_100_101_110_116_45_115_116_97_114_116_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_105_100_101_110_116_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_115_121_109_98_111_108_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_117_112_112_101_114_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_119_115_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_97_108_112_104_97_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.105_115_45_97_116_116_114_45_110_97_109_101_45_99_104_97_114_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.107_101_121_119_111_114_100_45_111_102_45_108_101_110_103_116_104_": 1,
+          "definition needs dictionary or unsupported runtime lowering: m.84_101_120_116_46_76_101_120_.114_101_115_101_114_118_101_100_45_115_121_109_98_111_108_": 1,
+          "external runtime implementation is unavailable: cinch.runtime.textF64FromDecimal": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_66_111_111_108_46_110_111_116_": 182,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_103_101_116_": 5,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_": 4,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_115_101_116_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_99_111_109_112_97_114_101_": 7,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_100_105_103_105_116_45_118_97_108_117_101_": 2,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_101_113_45_99_104_97_114_": 100,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_104_101_120_45_100_105_103_105_116_45_118_97_108_117_101_": 2,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_105_115_45_97_115_99_105_105_45_100_105_103_105_116_": 4,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_105_115_45_97_115_99_105_105_45_117_112_112_101_114_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_99_104_97_114_45_102_114_111_109_45_99_111_100_101_": 5,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_67_104_97_114_46_99_104_97_114_45_99_111_100_101_": 22,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_73_110_116_46_105_110_116_45_102_114_111_109_45_105_54_52_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_73_110_116_46_105_110_116_45_110_101_103_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_73_110_116_46_105_110_116_45_115_117_98_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_73_110_116_46_105_110_116_45_97_100_100_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_76_105_115_116_46_108_105_115_116_45_108_101_110_103_116_104_": 133,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_76_105_115_116_46_114_101_118_101_114_115_101_": 90,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_76_105_115_116_46_115_111_114_116_45_98_121_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_77_97_99_104_105_110_101_46_108_101_45_105_54_52_": 3,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_77_97_99_104_105_110_101_46_108_116_45_105_54_52_": 3,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_110_97_116_45_102_114_111_109_45_105_110_116_": 12,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_110_97_116_45_114_101_109_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_110_97_116_45_116_111_45_105_110_116_": 19,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_110_97_116_45_99_109_112_": 89,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_83_117_98_95_78_97_116_46_45_": 43,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_99_104_101_99_107_101_100_45_110_97_116_45_116_111_45_105_54_52_": 2,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_99_104_101_99_107_101_100_45_115_117_98_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_80_97_116_104_46_112_97_116_104_45_102_114_111_109_45_115_116_114_105_110_103_": 11,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_80_97_116_104_46_112_97_116_104_45_116_111_45_115_116_114_105_110_103_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_101_109_112_116_121_45_115_116_114_105_110_103_": 19,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_112_97_99_107_": 4,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_102_114_111_109_45_98_121_116_101_115_": 9,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_108_101_110_103_116_104_": 36,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_114_101_112_101_97_116_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_116_111_45_98_121_116_101_115_": 25,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_99_104_97_114_45_97_116_": 4,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_99_111_109_112_97_114_101_": 370,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_99_111_110_99_97_116_": 113,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_115_116_114_105_110_103_45_99_111_110_99_97_116_45_97_108_108_": 42,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_117_110_112_97_99_107_": 10,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_117_116_102_56_45_101_110_99_111_100_101_45_105_110_116_111_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_117_116_102_56_45_101_110_99_111_100_101_45_119_105_100_116_104_": 1,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_117_116_102_56_45_97_116_": 4,
+          "external runtime implementation is unavailable: i.68_97_116_97_46_83_116_114_105_110_103_46_99_111_112_121_45_98_121_116_101_115_45_105_110_116_111_": 4,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_70_115_46_102_115_45_114_101_97_100_": 6,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_70_115_46_102_115_45_119_114_105_116_101_": 8,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_112_114_111_99_101_115_115_45_115_112_97_119_110_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_112_114_111_99_101_115_115_45_97_114_103_115_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_99_104_105_108_100_45_114_101_97_100_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_99_104_105_108_100_45_119_97_105_116_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_99_104_105_108_100_45_99_108_111_115_101_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_99_104_105_108_100_45_99_108_111_115_101_45_115_116_100_105_110_": 1,
+          "external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_99_111_109_109_97_110_100_": 1,
+          "external runtime implementation is unavailable: i.84_101_120_116_46_83_104_111_119_46_105_110_116_45_116_111_45_115_116_114_105_110_103_": 4,
+          "external runtime implementation is unavailable: i.84_101_120_116_46_83_104_111_119_46_110_97_116_45_116_111_45_115_116_114_105_110_103_": 48,
+          "external runtime implementation is unavailable: i.84_101_120_116_46_83_104_111_119_46_99_104_97_114_45_115_116_114_105_110_103_": 3,
+          "integer carrier needs runtime lowering": 466,
+          "pattern needs typed runtime match lowering": 95,
+          "polymorphic or aggregate let needs runtime lowering": 2,
+          "reference operation needs a checked runtime representation": 5,
+          "runtime local is absent from its lexical scope": 29
+        },
+        "diagnostics": 7127,
+        "exit_code": 5,
+        "first_diagnostics": [
+          "bootstrap.runtime-ir:1:1: Core form needs typed runtime lowering",
+          "bootstrap.runtime-ir:1:1: Core form needs typed runtime lowering",
+          "bootstrap.runtime-ir:4474:22: external runtime implementation is unavailable: i.69_102_102_101_99_116_46_80_114_111_99_101_115_115_46_112_114_111_99_101_115_115_45_97_114_103_115_",
+          "bootstrap.runtime-ir:14690:82: external runtime implementation is unavailable: i.68_97_116_97_46_80_97_116_104_46_112_97_116_104_45_102_114_111_109_45_115_116_114_105_110_103_",
+          "bootstrap.runtime-ir:14690:56: external runtime implementation is unavailable: i.69_102_102_101_99_116_46_70_115_46_102_115_45_114_101_97_100_",
+          "bootstrap.runtime-ir:20291:83: integer carrier needs runtime lowering",
+          "bootstrap.runtime-ir:20291:77: external runtime implementation is unavailable: i.68_97_116_97_46_78_97_116_46_110_97_116_45_99_109_112_",
+          "bootstrap.runtime-ir:20291:67: checked factory has no executable source factory: i.68_97_116_97_46_77_97_99_104_105_110_101_46_69_113_95_73_54_52_"
+        ],
+        "inputs": {
+          "builder_sha256": "c426b91b82212ac6b81513686906b84dec6f373ee596500dd79423874de607a5",
+          "built_by_stage": 1,
+          "frontend_mode": "typed-ir",
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "a10bd059d78fe3d5da62bd84a009d5a69e20798641e8553645a6092bd3f73cd4",
+          "protocol": 3,
+          "runtime_archive_sha256": "b8649f466a9d8abd44973f5839ec1a431134ed593c1b586b7e8bd1945475a959",
+          "source_sha256": "e190188ba1a1436620a1f2ee381281b5388779456c737b6481c1f7a9b106c8de"
+        },
+        "log": "/private/tmp/cinch-imported-classes-validation-4/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      }
+    }
+  },
+  "imported_class_authority": "Retain closed class descriptors independently of source instances; derive class kinds from checked defining parameters, then validate portable method schemes in private stores without changing module inference state. No source names or constructors are granted.",
+  "imported_class_cases": [
+    "given imported class with no local instance",
+    "renamed class and method-local quantifier/constraint with no local instance",
+    "higher kind imported class with no local instance"
+  ],
+  "linked_root_probe": {
+    "directory": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_object_roots_85563",
+    "exit_code": 0,
+    "family": {
+      "class": "Library.Poly",
+      "declared_methods": 1,
+      "slots": [
+        {
+          "logical": 0,
+          "own": "R",
+          "physical": 0
+        },
+        {
+          "logical": 0,
+          "own": "T",
+          "physical": 1
+        }
+      ]
+    },
+    "sha256": {
+      "consumer.ll": "0621e05436311e46ad9bab20bb5cca6b48d4be4cb41992ba69ef66ff905a5f00",
+      "library.abi.json": "4fbb440815613b9cdb850c691c68910421cf4cc1273340eae443ae050c3fd184",
+      "library.ll": "5702322012b71a80677710995beb3bda3ac13c4a8c6f996dcf368d9fd0710aba",
+      "library.o": "c521f30f9e18634eddfca0fe6474ae01a2cd665cec6877bd41930d3defb19926",
+      "main.c": "276fcecd1dcd251465b1026a710fc9cb5d5feeed78a7728ce3f445f5b9202992",
+      "program": "4bc90c67b034af0f304da2b638a7c2da68441f1099b0f9668fc5570c94b8f832"
+    },
+    "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+    "variants": [
+      "Library.choose@R",
+      "Library.choose@T"
+    ]
+  },
+  "method_families": "Native runtime method sites and factories carry canonical declaring class identities. Collector emits exact logical/physical slot and own-vector tables shared by every factory of each class.",
+  "native_checks": {
+    "class_defaults": 6,
+    "effects": 16,
+    "modules": 12,
+    "native_dictionary_checks": 3,
+    "representation": 3,
+    "unit": 147
+  },
+  "native_gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-object-roots-validation-2/cargo",
+        "--lib",
+        "codegen::tests::object_",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:58:20.252876+00:00",
+      "name": "object-tests",
+      "pid": 84198,
+      "started": "2026-11-03T06:57:24.712341+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-object-roots-validation-2/cargo",
+        "--lib",
+        "--test",
+        "native_dictionary_checks",
+        "--test",
+        "class_defaults",
+        "--test",
+        "repr_classes",
+        "--test",
+        "modules",
+        "--test",
+        "effects",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:01:50.967942+00:00",
+      "name": "native-regressions",
+      "pid": 84992,
+      "started": "2026-11-03T06:58:20.253235+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--target-dir",
+        "/tmp/cinch-object-roots-validation-2/cargo",
+        "--bin",
+        "cinch"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:02:08.256446+00:00",
+      "name": "native-bin",
+      "pid": 89070,
+      "started": "2026-11-03T07:01:50.968335+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/tmp/cinch-object-roots-validation-2/cargo/debug/cinch",
+        "emit-object",
+        "/tmp/cinch-object-roots-validation-2/CliLibrary.cinch",
+        "--object-roots",
+        "/tmp/cinch-object-roots-validation-2/roots.json",
+        "-o",
+        "/tmp/cinch-object-roots-validation-2/cli.o"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T07:02:14.025229+00:00",
+      "name": "object-cli",
+      "pid": 89259,
+      "started": "2026-11-03T07:02:08.257212+00:00",
+      "status": "passed"
+    }
+  ],
+  "object_roots": "Schema1 explicit unit, dictionary and method own-vector roots; validate concrete arities, canonical declaring identities and logical slots; seed only demanded variants plus transitive references; reject unrecorded representation arguments",
+  "published_file_hashes": {
+    "bootstrap/Bootstrap.Infer.cinch": "f4ab27cd55e748670ae2f5c39e81c29931e2d4ac49a4405d768fc5dbd3dcb69a",
+    "bootstrap/programs/Run.SourceInstances.cinch": "1f1816b2ad081b5e9eef889f9ad637730bcabb9e1018154b658303f3a81aecc4",
+    "compiler/src/check.rs": "b1f2bfd5aa4bfdeb209662755ae4644866888dbbf2848a1eec7d8e7507ebd7b7",
+    "compiler/src/check_decls.rs": "1a0d247bf3cb2ab594a1cb5b6b71e4e32e9e3e45b643cbcaa20a3ba91b89a708",
+    "compiler/src/check_terms.rs": "faf20506e7253c693ce916a15a5f5b9c2ebc14a365d7ad8e71bfb91a6e08a56c",
+    "compiler/src/codegen.rs": "e3a03d03c8474f421ce94572e5498cdbb26c00f5804df01c0caed5ad9298497e",
+    "compiler/src/driver.rs": "2c0aed37dd322f86fd7f9d8e07c675dd5435118b438b1ac59eb48b1c90b8e812",
+    "compiler/src/main.rs": "d94b25dc4492bbb63477e914dc01916ce19c6296ae96c27dd351f4f678102436",
+    "compiler/src/specialize.rs": "96e0d390d8070bb12eb036304e612b71c02e5066619103af8a75827a5957b1e4",
+    "compiler/tests/bootstrap_source_instances.rs": "92d2473861d694789aed190c99bd52b1001fabb01566285b3054edc90a7e900e"
+  },
+  "remaining": [
+    "Cinch object-manifest admission, checked external variants and producer method-family consumption",
+    "Shared layout prefix seeding; actual external function/factory calls and closure dispatch",
+    "Private String, scalar/pattern and extended runtime lowering",
+    "Genuine Stage2/3 fixed point, changed-source behavior, full current Native/self-built suites and correctness obligations"
+  ],
+  "seed_changed": false,
+  "source_check": {
+    "bootstrap_achieved": false,
+    "cinch_exit": 0,
+    "compiler_implementation_interfaces": false,
+    "compiler_sha256": "b0228c6ad1000a9c5d0d242a98456b9fd04d46868fdeef23ebeb514410f9d9f6",
+    "diagnostics": 0,
+    "first_diagnostics": [],
+    "module_count": 25,
+    "native_preflight": "/tmp/cinch-imported-classes-validation-4/results.json",
+    "source_sha256": "cb71b4e88eb5344f425631a27f773a6b0400a35b852953cb2a85cbaac0347661",
+    "status": "passed"
+  },
+  "source_sha256": "cb71b4e88eb5344f425631a27f773a6b0400a35b852953cb2a85cbaac0347661",
+  "source_unchanged": true,
+  "status": "passed",
+  "total_native_checks": 213
+}

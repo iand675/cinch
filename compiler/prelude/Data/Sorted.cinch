@@ -21,7 +21,6 @@ module Data.Sorted where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   type Sorted = refine (xs :: List Nat) with Ordered xs
 

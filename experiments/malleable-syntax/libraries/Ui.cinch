@@ -1,0 +1,59 @@
+module Ui where
+  import Data.String
+  import Text.Show
+  import Category.Functor
+
+  -- A server-rendered HTML backend. The syntax library is independent of this
+  -- representation; a browser backend can implement the same constructors.
+  data Html where
+    Html :: String -> Html
+  data Attribute where
+    Attribute :: String -> String -> Attribute
+    Flag :: String -> Bool -> Attribute
+
+  render :: Html -> String
+  render node = case node of
+    Html value -> value
+  escape-char :: Char -> String
+  escape-char c =
+    if c == '<' then "&lt;"
+    else if c == '>' then "&gt;"
+    else if c == '&' then "&amp;"
+    else if c == '"' then "&quot;"
+    else char-string c
+  escape :: String -> String
+  escape value = string-concat-all (escape-char <$> unpack value)
+  text :: String -> Html
+  text value = Html (escape value)
+  render-attr :: Attribute -> String
+  render-attr attr = case attr of
+    Attribute name value -> string-concat-all [" ", name, "=\"", escape value, "\""]
+    Flag name enabled -> if enabled then string-concat " " name else ""
+  element :: String -> List Attribute -> List Html -> Html
+  void-tag :: String -> Bool
+  void-tag tag = tag == "input" || tag == "br" || tag == "hr" || tag == "img" || tag == "meta" || tag == "link" || tag == "area" || tag == "base" || tag == "col" || tag == "embed" || tag == "param" || tag == "source" || tag == "track" || tag == "wbr"
+  element tag attrs children = Html (string-concat-all ["<", tag, string-concat-all (render-attr <$> attrs), ">", string-concat-all (render <$> children), if void-tag tag then "" else string-concat-all ["</", tag, ">"]])
+  fragment :: List Html -> Html
+  fragment nodes = Html (string-concat-all (render <$> nodes))
+  signature HtmlAttribute a where
+    attribute :: String -> a -> Attribute
+  implicit instance StringAttribute :: HtmlAttribute String where
+    attribute name value = Attribute name value
+  implicit instance BooleanAttribute :: HtmlAttribute Bool where
+    attribute name value = Flag name value
+
+  signature Child a where
+    child :: a -> Html
+  implicit instance ChildString :: Child String where
+    child value = text value
+  implicit instance ChildHtml :: Child Html where
+    child value = value
+  implicit instance ChildList :: Child (List Html) where
+    child values = fragment values
+
+  record ButtonProps where
+    onClick :: Unit -> Int
+  component-Button :: ButtonProps -> List Html -> Html
+  component-Button props children = element "button" [] children
+  click :: ButtonProps -> Int
+  click props = props.onClick ()

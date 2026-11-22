@@ -99,6 +99,22 @@
       "public_methods": 2
     },
     {
+      "module": "Data.Array.Packed",
+      "path": "compiler/prelude/Data/Array/Packed.cinch",
+      "sha256": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Array",
+      "path": "compiler/prelude/Data/Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "embedded": false,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Ascii",
       "path": "compiler/prelude/Data/Ascii.cinch",
       "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
@@ -136,6 +152,14 @@
       "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
       "embedded": true,
       "values": 21,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Columnar",
+      "path": "compiler/prelude/Data/Columnar.cinch",
+      "sha256": "20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506",
+      "embedded": false,
+      "values": 8,
       "public_methods": 0
     },
     {
@@ -189,7 +213,7 @@
     {
       "module": "Data.FromList",
       "path": "compiler/prelude/Data/FromList.cinch",
-      "sha256": "79adbec390aabbf362dc551bdc475da29e2721656cd005dbf263bbab88ba17c4",
+      "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
       "embedded": true,
       "values": 0,
       "public_methods": 1
@@ -253,7 +277,7 @@
     {
       "module": "Data.List",
       "path": "compiler/prelude/Data/List.cinch",
-      "sha256": "07bee14b1520df1e5a0de73e0faa956c03da610014f97773b101dfe463675575",
+      "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
       "embedded": true,
       "values": 41,
       "public_methods": 0
@@ -401,6 +425,14 @@
       "embedded": true,
       "values": 2,
       "public_methods": 2
+    },
+    {
+      "module": "Data.Tensor",
+      "path": "compiler/prelude/Data/Tensor.cinch",
+      "sha256": "caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
     },
     {
       "module": "Data.Time",
@@ -613,7 +645,7 @@
     {
       "module": "Text.Builder",
       "path": "compiler/prelude/Text/Builder.cinch",
-      "sha256": "212242bd8c516223446f1023b982c053f80dfed0e591c7af4f6e0a3d027a05ab",
+      "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
       "embedded": false,
       "values": 11,
       "public_methods": 0
@@ -645,7 +677,7 @@
     {
       "module": "Text.Json",
       "path": "compiler/prelude/Text/Json.cinch",
-      "sha256": "a80f141038155fcd58bf92ae57204f0b8c0b098c9144a90fced2f37606782876",
+      "sha256": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
       "embedded": false,
       "values": 25,
       "public_methods": 0
@@ -653,7 +685,7 @@
     {
       "module": "Text.Lex",
       "path": "compiler/prelude/Text/Lex.cinch",
-      "sha256": "aac19e1c9e6d49781285e77d5818d2d570a6e2a46f244495324495b71c921998",
+      "sha256": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
       "embedded": false,
       "values": 18,
       "public_methods": 0

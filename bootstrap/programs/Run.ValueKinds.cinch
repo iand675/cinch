@@ -1,0 +1,161 @@
+-- Carrier types and fresh identities are exercised after compilation.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Data.Json
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  equal :: Store -> UType -> UType -> Bool
+  equal st a b = clean (unify sp a b st)
+  reserve :: Nat -> Store -> Store
+  reserve count st = if count == 0 then st else case fresh-id st of (id, next) -> reserve (count - 1) next
+  start :: Nat -> Store
+  start nonce = reserve nonce (empty-store "value-kinds")
+  indexed :: UType -> UType -> UType
+  indexed carrier value = UApp (UCon "Indexed" (KFun (value-kind carrier) KType)) value
+
+  solve-carrier :: Nat -> Bool
+  solve-carrier nonce = case fresh-meta KType (start nonce) of
+    (carrier, first) -> case fresh-meta (value-kind carrier) first of
+      (value, before) -> let witness = UBound (nonce + 100) "n" (value-kind nat) in
+        let after = unify sp value witness before in
+        clean after && equal after (normalize after carrier) nat
+          && equal after (normalize after value) witness
+          && kind-equal (type-kind (normalize after value)) (value-kind nat)
+  scope-carrier :: Nat -> Bool
+  scope-carrier nonce = case fresh-meta KType (start nonce) of
+    (carrier, first) -> case fresh-meta (value-kind carrier) first of
+      (value, before) -> let inner = URigid (nonce + 100) "a" 1 KType in
+        let after = unify sp value (UBound (nonce + 101) "x" (value-kind inner)) (enter-level before) in
+        not (clean after)
+  lower-carrier :: Nat -> Bool
+  lower-carrier nonce = case fresh-meta KType (enter-level (start nonce)) of
+    (carrier, younger) -> case fresh-meta (value-kind carrier) (restore-level 0 younger) of
+      (value, before) -> let inner = URigid (nonce + 100) "a" 1 KType in
+        not (clean (unify sp carrier inner (enter-level before)))
+  occurs-carrier :: Nat -> Bool
+  occurs-carrier nonce = case fresh-meta KType (start nonce) of
+    (carrier, before) -> let value = UBound (nonce + 100) "x" (value-kind carrier) in
+      not (clean (unify sp carrier (indexed carrier value) before))
+  self-kind :: Nat -> Bool
+  self-kind nonce = case fresh-id (start nonce) of
+    (next, ignored) -> case fresh-meta (value-kind (UMeta next KType)) (start nonce) of
+      (value, after) -> not (clean after)
+  unknown-kind :: Nat -> Bool
+  unknown-kind nonce = case fresh-meta (value-kind (UMeta (nonce + 100) KType)) (start nonce) of
+    (value, after) -> not (clean after)
+  escaping-fresh-kind :: Nat -> Bool
+  escaping-fresh-kind nonce = case fresh-meta (value-kind (URigid (nonce + 100) "a" 1 KType)) (start nonce) of
+    (value, after) -> not (clean after)
+
+  generic :: Nat -> Scheme
+  generic nonce =
+    let a = UBound nonce "a" KType in
+    let x = UBound (nonce + 1) "x" (value-kind a) in
+    MkScheme [MkQuant nonce "a" KType False, MkQuant (nonce + 1) "x" (value-kind a) False] (indexed a x)
+  open-generic :: Nat -> Bool -> Bool
+  open-generic nonce rigid = case open-scheme rigid (generic nonce) (enter-level (start (nonce + 10))) of
+    (ty, pairs, before) -> case ty of
+      UApp head value -> case type-kind head of
+        KFun expected KType -> case value-carrier expected of
+          Some carrier -> kind-equal (type-kind value) (value-kind carrier) && clean before
+            && (if rigid then (case value of
+                  URigid id name level actual-kind -> (case value-carrier actual-kind of Some actual -> level == 1 && equal before carrier actual; None -> False)
+                  other -> False)
+                else clean (unify sp value (UBound (nonce + 100) "n" (value-kind nat)) before))
+          None -> False
+        other -> False
+      other -> False
+  generalized :: Nat -> Bool
+  generalized nonce = case fresh-meta KType (enter-level (start nonce)) of
+    (carrier, first) -> case fresh-meta (value-kind carrier) first of
+      (value, before) -> let scheme = generalize 0 Nil (indexed carrier value) before in
+        case scheme-params scheme of
+          Cons a (Cons x Nil) -> kind-equal (quant-kind a) KType
+            && (case value-carrier (quant-kind x) of Some (UBound id name KType) -> id == quant-id a; other -> False)
+            && scheme-closed scheme
+            && (case instantiate scheme before of (opened, after) -> clean after && valid-type (normalize after opened))
+          other -> False
+  blocked-carrier :: Nat -> Bool
+  blocked-carrier nonce = case fresh-meta KType (start nonce) of
+    (carrier, first) -> case fresh-meta (value-kind carrier) (enter-level first) of
+      (value, before) -> let scheme = generalize 0 (free-metas before carrier) (indexed carrier value) before in
+        list-length (scheme-params scheme) == 1 && not (scheme-closed scheme)
+          && list-length (scheme-metas before scheme) == 1
+  substitution :: Nat -> Bool
+  substitution nonce =
+    let a = UBound nonce "a" KType in
+    let x = UBound (nonce + 1) "x" (value-kind a) in
+    let replaced = substitute-bound [(nonce, nat)] x in
+    kind-equal (type-kind replaced) (value-kind nat)
+      && kind-equal (type-kind (scheme-body (map-scheme-types (substitute-bound [(nonce, nat)]) (mono x)))) (value-kind nat)
+  hidden-kind-hole :: Nat -> Bool
+  hidden-kind-hole nonce = case fresh-meta KType (start nonce) of
+    (carrier, before) -> let scheme = MkScheme [MkQuant (nonce + 100) "x" (value-kind carrier) False] nat in
+      not (scheme-closed scheme) && list-length (scheme-metas before scheme) == 1
+  definition :: UType -> CoreDefinition
+  definition actual = MkCoreDefinition sp "f" (mono nat) Nil Nil Nil
+    [MkCoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
+  no-invented-witness :: Nat -> Bool
+  no-invented-witness nonce = case fresh-meta (value-kind nat) (start nonce) of
+    (value, before) -> not (core-definition-closed (seal-definition before (definition value)))
+  private-type-ok :: Nat -> Bool
+  private-type-ok nonce = case fresh-meta KType (start nonce) of
+    (value, before) -> core-definition-closed (seal-definition before (definition value))
+
+  cases :: Nat -> List (String, Bool)
+  cases nonce =
+    let n = UBound (nonce + 100) "n" (value-kind nat) in
+    [ ("numeric value kind", valid-kind (value-kind nat))
+    , ("opaque carrier is retained", valid-kind (value-kind (UCon "Bytes" KType)))
+    , ("function carrier is retained", valid-kind (value-kind (UFun nat integer)))
+    , ("region is not a carrier type", not (valid-kind (value-kind (UBound (nonce + 100) "r" KRegion))))
+    , ("constructor kind is not a carrier type", not (valid-kind (value-kind (UCon "F" (KFun KType KType)))))
+    , ("kind distinguishes carriers", not (kind-equal (value-kind nat) (value-kind integer)))
+    , ("value argument application", valid-type (indexed nat n))
+    , ("type is not a value argument", not (valid-type (indexed nat nat)))
+    , ("wrong value carrier rejected", not (valid-type (indexed nat (UBound (nonce + 101) "n" (value-kind integer)))))
+    , ("carrier inference", solve-carrier nonce)
+    , ("carrier scope", scope-carrier nonce)
+    , ("carrier levels lowered", lower-carrier nonce)
+    , ("occurs through carrier", occurs-carrier nonce)
+    , ("kind cannot refer to itself", self-kind nonce)
+    , ("kind cannot refer to missing meta", unknown-kind nonce)
+    , ("fresh kind cannot escape", escaping-fresh-kind nonce)
+    , ("instantiation opens carriers", open-generic nonce False)
+    , ("skolemization opens carriers", open-generic nonce True)
+    , ("generalization closes carriers", generalized nonce)
+    , ("blocked carrier stays tracked", blocked-carrier nonce)
+    , ("substitution traverses carriers", substitution nonce)
+    , ("quantifier kind holes stay visible", hidden-kind-hole nonce)
+    , ("no invented runtime witness", no-invented-witness nonce)
+    , ("private erased type remains allowed", private-type-ok nonce)
+    , ("malformed carrier tree rejected", not (valid-kind (KValue JNull)))
+    , ("sequence end is not a carrier", not (valid-kind (value-kind UEnd)))
+    , ("argument spine is not a carrier", not (valid-kind (value-kind (UArg nat UEnd))))
+    , ("sequence cannot hide in an application", not (valid-kind (value-kind (UApp (UCon "F" (KFun KType KType)) UEnd))))
+    , ("sequence cannot hide in a function", not (valid-kind (value-kind (UFun UEnd nat))))
+    , ("tuple carrier preserved", valid-kind (value-kind (UTuple (UArg nat (UArg integer UEnd)))))
+    , ("carrier binding identity retained", not (kind-equal (value-kind (UBound nonce "a" KType)) (value-kind (UBound (nonce + 1) "a" KType))))
+    , ("pure carrier conversion", kind-equal (value-kind (UFun nat integer)) (value-kind (UFunEff nat (URow UEnd) integer)))
+    , ("effectful carrier stays distinct", not (kind-equal (value-kind (UFun nat integer)) (value-kind (UFunEff nat (URow (UArg (UCon "Diverge" KEffect) UEnd)) integer))))
+    ]
+  failures :: List (String, Bool) -> String
+  failures rows = case rows of Nil -> ""; Cons (name, ok) rest -> string-concat (if ok then "" else string-concat name "\n") (failures rest)
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
+    Err error -> 90
+    Ok input -> let report = failures (cases (bytes-len input)) in
+      case fs-write (path-from-string "value-kinds-report.txt") (string-to-bytes report) of
+        Err error -> 91
+        Ok _ -> if string-length report == 0 then 0 else 4

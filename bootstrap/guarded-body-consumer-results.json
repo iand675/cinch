@@ -1,0 +1,50 @@
+{
+  "authority": "opaque body binding checked under actual full callable preconditions and associated with the actual external global declaration; no class/name/slot equation rule added",
+  "body_admission_checks": 50,
+  "bootstrap_achieved": false,
+  "core_body_declaration_and_stale_alias_checks": 50,
+  "core_call_guard_checks": 40,
+  "current_seed_source_sha256": "74239b712cfe212b52cc88a89196fd278b1fd642010cf551753bb515aafc64fa",
+  "full_suite": "new187integration+5general sweep running; preceding182+5conditional baseline passed on c126",
+  "native_units": 142,
+  "remaining": [
+    "handlers",
+    "ordinary selected numeric method body authority",
+    "complete independent proof/usage/totality",
+    "typed runtime lowering",
+    "stage2/stage3 fixed point and full self-built frontend tests"
+  ],
+  "runtime_inputs": "native-generated actual interfaces and source are read after the Cinch checkers are compiled; neither Native Main compiler interfaces nor stage0 checking decide their source acceptance",
+  "source_cases": 25,
+  "source_sha256": "daa1564668b7c1006144418af05210153bd6ae0babcd0643c91ddc5705502979",
+  "stages": "fresh742stage0andstage1 all6smokes passed; actualstage2running",
+  "status": "passed focused guarded-body consumer checkpoint",
+  "symbolic_nat": "a checked result is bound once and carries an independently reconstructed mathematical equation; unknown symbolic Nat subtraction remains unavailable as an unconditional type-level index",
+  "verified": [
+    "exact result equation and strict let",
+    "wrong result/missing call guard/wrong branch/shadowing refused",
+    "lexical dictionary priority and no unrestricted conditional dictionary escape",
+    "actual changed bodies change equations; stale direct/let proofs refused",
+    "missing body/changed declaration/wrong actual arguments/missing evidence/refresh cannot manufacture proof authority",
+    "effect rows retained",
+    "argument identifiers above2^128"
+  ],
+  "whole_fresh_cinch_targets": [
+    "bootstrap_parse",
+    "bootstrap_globals"
+  ],
+  "whole_native_targets": [
+    "interface_conditional_methods",
+    "interface_class_contracts",
+    "interface_guarded_bodies",
+    "proof_guarded_lets",
+    "proof_value_identity",
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental",
+    "linear_facts",
+    "params",
+    "total_bodies"
+  ]
+}

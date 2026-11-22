@@ -1,0 +1,22 @@
+{
+  "bootstrap_achieved": false,
+  "compiler_bundle_sha256": "2f261f02f400d113c16d52622572c3200eedac7cf2370353eb349be61c471d99",
+  "emitter_diagnostics": 6935,
+  "first_emitter_diagnostics": [
+    "bootstrap.ir:1:1: imported builtin needs the shared uniform-word ABI and layout registry before lowering: b.newIO",
+    "bootstrap.ir:1:1: imported builtin needs the shared uniform-word ABI and layout registry before lowering: b.ioWrite",
+    "bootstrap.ir:1:1: imported builtin-syntax needs the shared uniform-word ABI and layout registry before lowering: b.decide",
+    "bootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.Yes",
+    "bootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.No",
+    "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_73_110_82_97_110_103_101_"
+  ],
+  "frontend_diagnostics": 0,
+  "scope": "before adding Bootstrap.RuntimeIr and emit CLI; new RuntimeIr separately passes complete source closure",
+  "source_sha256": "d346fdd68402217e9e8e02a49edece6dc823478eea5f1666ce5a401862b40670",
+  "source_unchanged": true,
+  "stage0_stage1": "six smokes passed",
+  "stage2_executable": false,
+  "stage2_exit": 5,
+  "stage2_ir": false,
+  "status": "retained Core pipeline accepts full compiler source and reaches explicit emitter refusal"
+}

@@ -1,0 +1,342 @@
+{
+  "recorded_at": "2026-11-01T23:26:48.261799+00:00",
+  "status": "focused global-reference, source, inference, intrinsic, parser and pipeline targets passed; complete current suite and staged bootstrap not yet proven",
+  "source_sha256": "0472eeba8242be0aef5d2bd55692ad3c1af1b1e783fd5151133e8faa401594b8",
+  "source_inputs": 582,
+  "owned_changes": [
+    "bootstrap/Bootstrap.Global.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/programs/Run.GlobalReferences.cinch",
+    "compiler/tests/bootstrap_globals.rs",
+    "compiler/tests/common/mod.rs",
+    "compiler/tests/bootstrap_parse.rs",
+    "compiler/tests/bootstrap_pipeline.rs"
+  ],
+  "compiler_named_source_sha256": "fac87bc2b526e987bfc929769f49f19aae60ff8f4d30ea4d39d5cf6513a53e61",
+  "compiler_bundle_bytes_sha256": "9664536e73deb00a612daae6517c1254496979811cc9d92ab475ac9ed2ce495b",
+  "focused_results": [
+    {
+      "name": "global-preflight",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:52:36.858596+00:00",
+      "finished": "2026-11-01T22:53:03.958732+00:00"
+    },
+    {
+      "name": "native-preflight",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:53:03.959377+00:00",
+      "finished": "2026-11-01T22:54:33.138218+00:00"
+    },
+    {
+      "name": "bootstrap_globals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:54:33.139336+00:00",
+      "finished": "2026-11-01T22:56:15.704392+00:00"
+    },
+    {
+      "name": "bootstrap_source_instances",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:56:15.705017+00:00",
+      "finished": "2026-11-01T23:07:13.521202+00:00"
+    },
+    {
+      "name": "bootstrap_infer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:07:13.521864+00:00",
+      "finished": "2026-11-01T23:09:50.329580+00:00"
+    },
+    {
+      "name": "bootstrap_intrinsics",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:09:50.330255+00:00",
+      "finished": "2026-11-01T23:11:42.052046+00:00"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:13:27.582449+00:00",
+      "finished": "2026-11-01T23:14:52.570221+00:00"
+    },
+    {
+      "name": "bootstrap_pipeline",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:13:27.582892+00:00",
+      "finished": "2026-11-01T23:20:30.987357+00:00"
+    }
+  ],
+  "focused_source_reuse": {
+    "changed_inputs": [
+      "compiler/tests/bootstrap_parse.rs",
+      "compiler/tests/bootstrap_pipeline.rs"
+    ],
+    "from_source_sha256": "b712b7691c8d0764e3df0ab0c43048cf9c2b5b2946f40dabc37e52bfbcfbecd8",
+    "results": [
+      {
+        "command": [
+          "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+          "check",
+          "/tmp/cinch-global-validation-5/direct-preflight/Main.cinch"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/direct-preflight",
+        "exit_code": 0,
+        "finished": "2026-11-01T22:53:03.958732+00:00",
+        "name": "global-preflight",
+        "pid": 14460,
+        "started": "2026-11-01T22:52:36.858596+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+          "check",
+          "/tmp/cinch-global-validation-5/preflight/Main.cinch"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/preflight",
+        "exit_code": 0,
+        "finished": "2026-11-01T22:54:33.138218+00:00",
+        "name": "native-preflight",
+        "pid": 14994,
+        "started": "2026-11-01T22:53:03.959377+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-global-validation-5/cargo/compiler",
+          "--test",
+          "bootstrap_globals",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T22:56:15.704392+00:00",
+        "name": "bootstrap_globals",
+        "pid": 15950,
+        "started": "2026-11-01T22:54:33.139336+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-global-validation-5/cargo/compiler",
+          "--test",
+          "bootstrap_source_instances",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:07:13.521202+00:00",
+        "name": "bootstrap_source_instances",
+        "pid": 18962,
+        "started": "2026-11-01T22:56:15.705017+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-global-validation-5/cargo/compiler",
+          "--test",
+          "bootstrap_infer",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:09:50.329580+00:00",
+        "name": "bootstrap_infer",
+        "pid": 28019,
+        "started": "2026-11-01T23:07:13.521864+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-global-validation-5/cargo/compiler",
+          "--test",
+          "bootstrap_intrinsics",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-global-validation-5/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:11:42.052046+00:00",
+        "name": "bootstrap_intrinsics",
+        "pid": 30050,
+        "started": "2026-11-01T23:09:50.330255+00:00",
+        "status": "passed"
+      }
+    ],
+    "status": "all implementation, Native sources, shared harness and reused own fixtures byte-identical",
+    "to_source_sha256": "0472eeba8242be0aef5d2bd55692ad3c1af1b1e783fd5151133e8faa401594b8",
+    "whole_targets": [
+      "bootstrap_globals",
+      "bootstrap_source_instances",
+      "bootstrap_infer",
+      "bootstrap_intrinsics"
+    ]
+  },
+  "source_cases": 21,
+  "actual_Text_Json_source_dictionary": "passed",
+  "runtime_identity_inputs": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "runtime_identity_base": "340282366920938463463374607431768211456",
+  "complete_current_suite": {
+    "status": "not run",
+    "integration_targets": 163,
+    "general_gates": 5,
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  },
+  "fresh_stages": {
+    "status": "all six stage0/1 smokes pass; stage2 exit4 before bodies, no IR/executable",
+    "source_audit": {
+      "files": 582,
+      "finished": "2026-11-01T23:29:56.140244+00:00",
+      "sha256": "0472eeba8242be0aef5d2bd55692ad3c1af1b1e783fd5151133e8faa401594b8",
+      "status": "unchanged"
+    },
+    "stage2": {
+      "diagnostic_categories": {
+        "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+        "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+        "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+        "imported using context needs a defining signature contract": 1
+      },
+      "diagnostics": 4,
+      "exit_code": 4,
+      "inputs": {
+        "builder_sha256": "a3e4712b5e5277a7b8ed768b70bf78e48e335933104e3542b60f165f3515ae05",
+        "built_by_stage": 1,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_set_sha256": "ae74735519c40c874185031d4515e6546b5e25ba31b5c92adc6956080539160b",
+        "protocol": 2,
+        "source_sha256": "fac87bc2b526e987bfc929769f49f19aae60ff8f4d30ea4d39d5cf6513a53e61"
+      },
+      "log": "/private/tmp/cinch-global-stages-6/source/build/bootstrap/stage2/build.log",
+      "status": "failed"
+    },
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-01T23:26:13.336016+00:00",
+        "log": "/tmp/cinch-global-stages-6/stage0-smoke.log",
+        "name": "stage0-smoke",
+        "pid": 45367,
+        "started": "2026-11-01T23:25:10.376636+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-01T23:28:46.921725+00:00",
+        "log": "/tmp/cinch-global-stages-6/stage1-smoke.log",
+        "name": "stage1-smoke",
+        "pid": 46907,
+        "started": "2026-11-01T23:26:13.336415+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-01T23:29:56.092470+00:00",
+        "log": "/tmp/cinch-global-stages-6/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 56760,
+        "started": "2026-11-01T23:28:46.922097+00:00",
+        "status": "failed"
+      }
+    ],
+    "compiler_bundle_bytes_match": true,
+    "complete_bootstrap": false
+  },
+  "last_complete_native_assisted_checkpoint": "623d33e0f02198e701ac8a899f3e92ee6462a266",
+  "native_source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9",
+  "seed_patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+  "runtime_abi": 5,
+  "interface_schema": 7,
+  "self_hosting_achieved": false,
+  "limitations": [
+    "The global environment comes from checked source and interface declarations; this phase rechecks references and declarations, not every interior term/type rule.",
+    "Numeric proof authority still requires actual checked primitive or instance-body semantics; canonical class names, slots and pure types are insufficient.",
+    "The separate kind/term typing prototype is not included in this checkpoint.",
+    "Decisions/proof erasure, total-measure contracts, handlers, usage and typed shared-runtime lowering remain required.",
+    "Actual stage2/3 fixed point, changed-source behavior and full self-built frontend suite remain unproven."
+  ],
+  "documentation_only_changes": [
+    "bootstrap/README.md",
+    "design/next-steps.md",
+    "design/self-hosting.md"
+  ],
+  "previous_complete_source_instance_suite": {
+    "status": "passed",
+    "source_sha256": "e9b561b5630c921f5895afd8b535b109ac29224f691a6bd1d413e128a6e941f2",
+    "integration_targets": 162,
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "self_built_frontend": false,
+    "bootstrap_achieved": false
+  },
+  "scope": "Global-reference implementation before the subsequent independent kind/term rechecker; current validation is in core-typing-checkpoint-results.json.",
+  "subsequent_complete_typing_suite": {
+    "status": "passed",
+    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "integration_targets": 164,
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "self_built_frontend": false,
+    "bootstrap_achieved": false
+  }
+}

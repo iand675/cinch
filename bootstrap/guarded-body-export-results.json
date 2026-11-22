@@ -1,0 +1,40 @@
+{
+  "body_record": {
+    "authority": "actual checked implementation and actual primitive identity; not class/member spelling",
+    "maximum_depth": 64,
+    "nodes": [
+      "argument",
+      "nat-subtract"
+    ],
+    "schema": 1,
+    "sort": "closed pure Nat arguments and result"
+  },
+  "cinch_consumer": "private; not part of this checkpoint",
+  "full_suite": "conditional182+5 baseline resumed after correcting unrelated params fixture; not yet complete",
+  "genuine_self_hosting": false,
+  "native_units": 141,
+  "patch_sha256": "e66b5e222a03238bf44b34f1d8563fdb2c408b6c233afa49292f13a470c8f68e",
+  "remaining": [
+    "Cinch guarded call equations and exact Native strict-let proof fix under validation",
+    "handler elaboration",
+    "complete independent proof/usage/totality",
+    "typed runtime lowering",
+    "stage2/stage3 fixed point and full self-built frontend tests"
+  ],
+  "seed_archive_and_patch_verified": true,
+  "seed_source_sha256": "641613bac360fb1c2340329b25bee1c38252632d8f9c883a4fedb35b53d653ff",
+  "source_sha256": "5357db4fe17563121336f687dfceeec474d9658e7b50deb73c162e73424fbfb8",
+  "status": "passed Native producer checkpoint",
+  "verified": [
+    "actual StdBase subtraction body",
+    "changing actual body with same ID/scheme changes record and hash",
+    "unbound argument slots refused",
+    "over-depth records refused",
+    "optional absent record preserves previous encoding"
+  ],
+  "whole_native_targets": [
+    "interface_class_contracts",
+    "interface_conditional_methods",
+    "interface_guarded_bodies"
+  ]
+}

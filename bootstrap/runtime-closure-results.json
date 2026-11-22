@@ -1,0 +1,212 @@
+{
+  "abi": "ABI5 KIND_CLOSURE2 payload code/arity/filled/saved; one shared layout registry; shape table includes3Raw prefix words and all actual parameter classes; allocation sizes3+filled",
+  "actual_case_results": [
+    "huge: exit 37; cinch-leak: live=0 immortal=0 leaked=0",
+    "alias: exit 39; cinch-leak: live=0 immortal=0 leaked=0",
+    "call: exit 41; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch: exit 43; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive: exit 47; cinch-leak: live=0 immortal=0 leaked=0",
+    "negative: exit 53; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural: exit 59; cinch-leak: live=0 immortal=0 leaked=0",
+    "wildcard: exit 61; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-field: exit 67; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-case: exit 71; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-tuple: exit 73; cinch-leak: live=0 immortal=0 leaked=0",
+    "dropped-tuple: exit 79; cinch-leak: live=0 immortal=0 leaked=0",
+    "full-inline-map: exit 83; cinch-leak: live=0 immortal=0 leaked=0",
+    "nullary-constructors: exit 89; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive-tree: exit 97; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-nested-pattern: exit 101; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-constructor-root: exit 103; cinch-leak: live=0 immortal=0 leaked=0",
+    "raw-bool-patterns: exit 107; cinch-leak: live=0 immortal=0 leaked=0",
+    "numeric-equations: exit 109; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-case-guards: exit 113; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-case-guard: exit 127; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural-literal-pattern: exit 131; cinch-leak: live=0 immortal=0 leaked=0",
+    "last-regular-tag: exit 137; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-identity-classes: exit 151; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-tobj: exit 157; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-obj: exit 163; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-tuple-fields: exit 167; cinch-leak: live=0 immortal=0 leaked=0",
+    "polymorphic-recursion: exit 173; cinch-leak: live=0 immortal=0 leaked=0",
+    "class-swapping-recursion: exit 179; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-classes: exit 181; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-recursive-data: exit 191; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-growing-recursion: exit 193; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-owned-result: exit 197; cinch-leak: live=0 immortal=0 leaked=0",
+    "lambda-argument: exit 199; cinch-leak: live=0 immortal=0 leaked=0",
+    "escaping-capture: exit 201; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-closure: exit 203; cinch-leak: live=0 immortal=0 leaked=0",
+    "global-function-value: exit 205; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-function: exit 207; cinch-leak: live=0 immortal=0 leaked=0",
+    "dynamic-partial-application: exit 209; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-constructor: exit 211; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-escaping-closures: exit 213; cinch-leak: live=0 immortal=0 leaked=0",
+    "unused-capture: exit 215; cinch-leak: live=0 immortal=0 leaked=0",
+    "shadowed-capture: exit 217; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-capture-classes: exit 219; cinch-leak: live=0 immortal=0 leaked=0",
+    "higher-order-generic-map: exit 221; cinch-leak: live=0 immortal=0 leaked=0",
+    "borrowed-field-capture: exit 223; cinch-leak: live=0 immortal=0 leaked=0",
+    "closure-constructor-field: exit 225; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch-returned-closure: exit 227; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-object-capture: exit 229; cinch-leak: live=0 immortal=0 leaked=0",
+    "lambda-tuple-pattern: exit 231; cinch-leak: live=0 immortal=0 leaked=0",
+    "function-captures: exit 233; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "application": "worker arity from actual equation patterns; source function/constructor partial application, indirect calls, escaping and nested lambdas, generic captures and higher-order recursive mapping; app stub also accepts bulk C ABI args and zero-arg partial copies",
+  "bootstrap_achieved": false,
+  "cinch_source_check": {
+    "bootstrap_achieved": false,
+    "cinch_exit": 0,
+    "compiler_implementation_interfaces": false,
+    "compiler_sha256": "b0228c6ad1000a9c5d0d242a98456b9fd04d46868fdeef23ebeb514410f9d9f6",
+    "diagnostics": 0,
+    "first_diagnostics": [],
+    "module_count": 25,
+    "native_preflight": "/tmp/cinch-runtime-closures-preflight-4/result.json",
+    "source_sha256": "824f748dd406872d31da8f4f80255dec93d93f38da27e0aeb08de514446d6a4d",
+    "status": "passed"
+  },
+  "exact_source_differences": [
+    "compiler/tests/bootstrap_runtime_emit.rs"
+  ],
+  "genuine_stage2": {
+    "compiler_executable_exists": false,
+    "compiler_executable_verified": false,
+    "diagnostic_count_scope": "collector stops at unsupported main; not a count of missing features",
+    "diagnostics": 3,
+    "evidence_directory": "/tmp/cinch-runtime-closures-stages-1",
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18999:3: definition needs first-order runtime representation specialization",
+      "bootstrap.runtime-ir:1:1: runtime entry must be main :: Int",
+      "bootstrap.runtime-ir:1:1: declarations need shared runtime layout and dictionary lowering"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "389598b84ba440bfbe02f440d7353bcf625626ce69cfcded6cc07a5ff17fb0a1",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "790a13a5e22a3c34042ac69f100bb5fcbbbc36a405a0b40ce517cb884bc6b1f7",
+      "protocol": 3,
+      "runtime_archive_sha256": "99cdba1cf4f465e0dbb76b1e5035dc128f7fc79f4700314d0c3531a2edbb6b64",
+      "source_sha256": "64eff1235da4b23f3a5e1c35f246d2807b4ba292cbe265312e490bcdd047b86f"
+    },
+    "ir_bytes": 0,
+    "source_sha256": "d518c557bbb94e9ba4e9619552e5597fe60cb7002b313e2ddf08cdb16e2789ba",
+    "status": "complete compiler source accepted; emission refuses erased-region/IO/dictionary boundary"
+  },
+  "implementation_paths": [
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "compiler/tests/bootstrap_runtime_ir.rs",
+    "compiler/tests/bootstrap_runtime_emit.rs"
+  ],
+  "limits": [
+    "first-order Type parameters only; generic local let specialization, dependent/erased parameters, effects, dictionaries and foreign/base implementations unfinished",
+    "inline closure shapes up to13parameters including captures; extended descriptors unfinished",
+    "default and compile-only pipeline still use legacy scalar renderer; complete portable self-built suite unfinished",
+    "complete independent usage/totality/kernel obligations and whole current Native suite unfinished",
+    "no verified Stage2 executable or Stage3 fixed point"
+  ],
+  "ownership": "capture actual free lexical ids under separate bound/rigid class scopes; duplicate counted captures before storing; app stub copies/duplicates saved fields before dropping closure, argv transfers, returns and overapplication preserve owned results",
+  "physical_closure_abi": "C closure ABI: kind2, exact prefix/maps, shared PAP clone and bulk overapplication; cinch-leak: live=0 immortal=0 leaked=0",
+  "runtime_source_sha256": "824f748dd406872d31da8f4f80255dec93d93f38da27e0aeb08de514446d6a4d",
+  "source_sha256": "d518c557bbb94e9ba4e9619552e5597fe60cb7002b313e2ddf08cdb16e2789ba",
+  "source_unchanged": true,
+  "stage_gates": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tooling/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:19:57.008489+00:00",
+      "name": "tooling",
+      "pid": 66981,
+      "started": "2026-11-03T01:19:56.516585+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:20:54.974617+00:00",
+      "name": "stage0-smoke",
+      "pid": 66986,
+      "started": "2026-11-03T01:19:57.008790+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:24:44.605149+00:00",
+      "name": "stage1-smoke",
+      "pid": 67597,
+      "started": "2026-11-03T01:20:54.974942+00:00",
+      "status": "passed"
+    }
+  ],
+  "status": "Native-compatible closures and partial applications validated",
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-closures-validation-1/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:05:28.123135+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 50939,
+      "started": "2026-11-03T01:00:11.638200+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-closures-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_emit",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:15:44.842658+00:00",
+      "name": "bootstrap_runtime_emit",
+      "pid": 60913,
+      "started": "2026-11-03T01:10:38.389204+00:00",
+      "status": "passed"
+    }
+  ]
+}

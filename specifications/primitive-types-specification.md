@@ -11,15 +11,16 @@ Draft 0.1. This chapter defines the primitive, unboxed types: the fixed-width ma
 
 # 1 Scope and role
 
-Three families of types must not be confused:
+Four families of types must not be confused:
 
 | Family | Examples | Semantics |
 | --- | --- | --- |
 | Mathematical | `Nat`, `Int` | Unbounded; exact, total arithmetic; see the core specification |
 | Primitive machine scalars | `I32`, `U64`, `F64`, `Char`, `Bool` | This chapter: fixed width, unboxed, explicitly chosen overflow behavior |
+| Runtime array primitives | `Array a`, `Tensor a`, `Columnar row` | Immutable containers; [array design and ABI6 integration boundary](../design/arrays.md) |
 | Structured and target-indexed | `Vec n U32`, closures, records, dictionaries | Other chapters; not primitives |
 
-A primitive value is **unboxed**: it occupies its stated fixed layout, is passed, stored and compared inline, and involves no indirection, allocation or ownership transfer. Primitive types are ordinary types in `Type`; they carry no proofs and are never erased.
+A primitive machine scalar value is **unboxed**: it occupies its stated fixed layout, is passed, stored and compared inline, and involves no indirection, allocation or ownership transfer. Primitive types are ordinary types in `Type`; they carry no proofs and are never erased.
 
 Dependent mathematics keeps using `Nat` and `Int`. A machine integer is not an `Int`: converting between them is explicit (section 7), and `Nat` and `Int` never acquire machine overflow behavior.
 
@@ -42,7 +43,7 @@ Dependent mathematics keeps using `Nat` and `Int`. A machine integer is not an `
 # 3 Unboxed semantics and layout
 
 - A primitive type's size and alignment are exactly as stated in section 2, on every target. They are part of the language, not of an implementation's discretion, because [Foreign function interface specification](foreign-function-interface-specification.md) bindings and raw memory layouts depend on them.
-- Arrays and `Vec n t` of a primitive type `t` have element stride equal to `sizeof t` with no padding.
+- Packed scalar arrays and `Vec n t` of a primitive type `t` have element stride equal to `sizeof t` with no padding. Generic `Array a` constructors use ABI-word storage; the explicit packed constructors retain scalar stride through generic reads, slices and updates. See the [array design](../design/arrays.md).
 - Primitive values are `Copy`: they may be duplicated and dropped freely (see the core specification, section 7). They impose no ownership or lifetime obligations.
 - Evaluation of primitive operations follows the core rules: strict, left-to-right, call-by-value.
 - Byte order is not observable through primitive values. It becomes observable only through explicit serialization and raw memory APIs, which state the order they use.

@@ -14,7 +14,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 - Preserve the bold typographic composition: very large headings, broad ink/ivory/orange fields, generous space, and a clear reading order. Do not shrink the page into a dashboard of little rounded cards.
 - Use **Momo Trust Display Regular** for display headings, **DM Sans** for reading text and UI, and **IBM Plex Mono** for code, technical labels, indices, and dimensions. Momo was explicitly selected after many full-page comparisons. Do not substitute a fashionable technical-site font or synthesize extra weights.
 - Think of manufactured space-age plastic, paper manuals, and scientific instruments. The reference language includes rounded housings, spherical/circular forms, large curved shoulders, inset wells, fitted seams, restrained fasteners, and fine printed technical detail.
-- Work that language into the **page composition**, not only a decorative computer next to an otherwise generic landing page. Existing section transitions, curved navigation ends, title plates, index rails, code surrounds, and native scrollbars demonstrate the distribution.
+- Work that language into the **page composition**, not only a decorative computer next to an otherwise generic landing page. Existing section transitions, curved navigation ends, title plates, code surrounds, and native scrollbars demonstrate the distribution.
 - Keep technical ornament purposeful and subordinate. A label should identify something; a gauge should represent something; a leader line should point to something. Avoid invented coordinates, serial numbers, telemetry, controls, or “system online” messages added only to look technical.
 - Use the existing static grain asset sparingly. Texture should become apparent on closer inspection. Preserve crisp text, clean controls, and calm reading surfaces. Avoid page-wide CRT effects, moving noise, flicker, fake damage, and continuous motion.
 - Keep the material palette warm: charcoal ink, cream paper, orange, amber, and olive. The direction does not require red controls, black/green terminal styling, chrome, neon, or a literal cockpit everywhere.
@@ -35,7 +35,14 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Native scrollbar materials | `src/styles/scrollbars.css` |
 | Docs code palettes and render-cache identity | `src/themes/syntax.mjs`, `astro.config.mjs`, `src/loaders/safelang-docs.ts` |
 | Interactive type illustration | `src/components/ContractConsole.astro` and its rules in `landing.css` |
-| Manual-style technical figure | `src/components/TechnicalFigure.astro`, `src/styles/technical-figure.css` |
+| Manual-style technical figure | `src/components/TechnicalFigure.astro` (tutorial), `src/components/AverageFigure.astro` (landing), `src/styles/technical-figure.css` |
+| Checked landing examples and recorded runs | `src/data/examples/*.cinch`, `src/data/examples/recordings.json`, `scripts/record-examples.py` |
+| Runnable code window | `src/components/RunnableSource.astro`, `.run-output` rules in `landing.css` |
+| Dev-only annotation toolbar (Agentation) | `src/components/FeedbackToolbar.astro`, `src/lib/feedback-toolbar.ts`; usage in `design/agent-feedback.md` |
+| Agent session (LLM section teletype) | `src/components/AgentLoop.astro`, `.agent-*` rules in `src/styles/language-tour.css` |
+| Compiler printout (rejected example on form paper) | `src/components/CompilerPrintout.astro`, `.printout` rules in `landing.css` |
+| Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
+| Live-editable Game of Life (simulated hot reload) | `src/components/LifeReload.astro`, `src/lib/life.ts` (board step and rule reader), `src/data/examples/life.cinch`, `.life-*` rules in `language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Package fixtures and generated API references | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/` |
 | Sample releases and downloads | `src/lib/downloads.ts`, `src/pages/downloads/` |
@@ -46,10 +53,18 @@ Reuse the owning layout/component before duplicating it. Prefer semantic colour 
 ## Content and interaction constraints
 
 - Preserve the source Markdown, heading anchors, existing documentation routes, and navigation. The loader reads documentation outside `website/`; do not create parallel copies of the book or change technical examples merely to fit a layout.
-- The console illustrates a type relationship; it does not run a compiler. Its controls must keep the length, visual cells, equation, explanation, and accessible state in agreement.
+- The console illustrates `average :: NonEmpty Int -> Int` on one customer's orders; it does not run a compiler. Its controls must keep the order count, visual cells, equation, explanation, and accessible state in agreement.
+- Position Cinch as a language for bulletproof programs, not a proof assistant: keep "proof" out of the landing hero, labels, and headings (see the landing tour notes). Alternate-universe flavour goes on short printed hardware labels, not in explanatory copy.
+- Landing examples should be code a working programmer recognises from their own job (the average-order-value crash), not a famous incident or a type-theory exercise. Code shown as compiling or rejected comes from `src/data/examples/` and must give that result under `cinch check`.
+- Runnable windows call `window.cinch.run(file, source)` when the browser build of the compiler registers it, and otherwise play back the recording for that file. Recordings come only from `npm run examples:record` against the real compiler (it needs a clang new enough for the emitted IR, for example clang 20 via `CINCH_CLANG`). `npm run examples:check` fails when a recording is stale. Never hand-edit `recordings.json`. Until the browser build lands, runnable code is read-only.
+- Gadgets change a quantity their section is about, animate only when the reader acts, and honour `prefers-reduced-motion`. Their controls are console keycaps (`.gadget-key`, `.gadget-stepper`), never tab bars. The user rejected tabbed "deck key" selectors, a manual-spread restyle of the runtime-contracts rows, and a module-wall restyle of the documentation links (2026-11-01).
 - Packages, versions, API signatures, and release bundles currently include **explicitly labelled sample data**. Keep those labels and indexing rules until real data replaces the fixtures. A sample ZIP is not a compiler distribution. Do not invent compatibility, adoption, benchmark, security, or release claims.
 - Keep real controls native and keyboard-operable where practical. Preserve skip links, visible focus, meaningful link names, selectable code, figure descriptions, and local overflow for long signatures. Decorative SVG/CSS belongs outside the accessibility tree; informative diagrams need a description and caption.
 - Keep font licences. Paid Domaine/Founders captures are historical design specimens, not licensed production webfonts. Archived reference imagery lives outside `public/`; use it to understand the design, not as unreviewed page artwork.
+
+## Annotated feedback
+
+The user may review pages with Agentation in `npm run dev` and paste the copied annotations into the chat. Each one names a page, a selector, and a note. Locate the element, change it in its owning file, and follow these instructions as usual. See [design/agent-feedback.md](design/agent-feedback.md).
 
 ## Working and verification
 

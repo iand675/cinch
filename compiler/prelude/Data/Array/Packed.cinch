@@ -1,0 +1,20 @@
+-- Packed scalar constructors. Result is an ordinary Array: the element
+-- format travels with the buffer, so generic reads and updates preserve it.
+module Data.Array.Packed where
+  import Data.Core
+  import Data.Array
+
+  export array-from-i8s, array-from-i16s, array-from-i32s, array-from-i64s, array-from-u8s, array-from-u16s, array-from-u32s, array-from-u64s, array-from-f32s, array-from-f64s, array-from-chars, array-from-usizes, array-from-isizes
+  foreign import ccall "cinch.runtime.arrayFromListI8" array-from-i8s :: List I8 -> Array I8
+  foreign import ccall "cinch.runtime.arrayFromListI16" array-from-i16s :: List I16 -> Array I16
+  foreign import ccall "cinch.runtime.arrayFromListI32" array-from-i32s :: List I32 -> Array I32
+  foreign import ccall "cinch.runtime.arrayFromListI64" array-from-i64s :: List I64 -> Array I64
+  foreign import ccall "cinch.runtime.arrayFromListU8" array-from-u8s :: List U8 -> Array U8
+  foreign import ccall "cinch.runtime.arrayFromListU16" array-from-u16s :: List U16 -> Array U16
+  foreign import ccall "cinch.runtime.arrayFromListU32" array-from-u32s :: List U32 -> Array U32
+  foreign import ccall "cinch.runtime.arrayFromListU64" array-from-u64s :: List U64 -> Array U64
+  foreign import ccall "cinch.runtime.arrayFromListF32" array-from-f32s :: List F32 -> Array F32
+  foreign import ccall "cinch.runtime.arrayFromListF64" array-from-f64s :: List F64 -> Array F64
+  foreign import ccall "cinch.runtime.arrayFromListChar" array-from-chars :: List Char -> Array Char
+  foreign import ccall "cinch.runtime.arrayFromListUsize" array-from-usizes :: List Usize -> Array Usize
+  foreign import ccall "cinch.runtime.arrayFromListIsize" array-from-isizes :: List Isize -> Array Isize

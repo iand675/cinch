@@ -1,0 +1,40 @@
+{
+  "base_interface_manifest_sha256": "fae7befce4b1b2368adf99feee6c73394d6dfb78ee2b4307c97dc65507e8f53b",
+  "bootstrap_achieved": false,
+  "builder_sha256": "34bb8645bc66560bc70b5f1ec6b02d70a56b4a53f748e564e670d4b823599426",
+  "compiler_bundle_sha256": "b833e42d70b4b8c82ad686c6d2fdd43917772020dfbd3a7c5fabcc4287744d49",
+  "emitter_diagnostics": 6925,
+  "first_emitter_diagnostics": [
+    "bootstrap.ir:1:1: imported builtin needs the shared uniform-word ABI and layout registry before lowering: b.newIO",
+    "bootstrap.ir:1:1: imported builtin needs the shared uniform-word ABI and layout registry before lowering: b.ioWrite",
+    "bootstrap.ir:1:1: imported builtin-syntax needs the shared uniform-word ABI and layout registry before lowering: b.decide",
+    "bootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.Yes",
+    "bootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.No",
+    "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_73_110_82_97_110_103_101_",
+    "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_",
+    "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_65_100_100_46_43_"
+  ],
+  "frontend_diagnostics": 0,
+  "published_compiler_commit": "1ff8fe5f2fe29c0eab3281a8e26238ff950ee4e5",
+  "published_compiler_source_bundle_matches": true,
+  "scope": "Cinch source frontend acceptance is not complete usage/totality/kernel correctness or a self-built frontend test-suite pass",
+  "source_sha256": "7abd4dd806cbaf95d3b52cdedc8c3140813126ecb9c2b535a62113d5828e046a",
+  "source_unchanged": true,
+  "stage0_and_stage1": "six fresh smoke cases passed",
+  "stage2_executable": false,
+  "stage2_exit": 5,
+  "stage2_ir": false,
+  "stage3_fixed_point": false,
+  "stage_inputs": {
+    "builder_sha256": "34bb8645bc66560bc70b5f1ec6b02d70a56b4a53f748e564e670d4b823599426",
+    "built_by_stage": 1,
+    "host": {
+      "machine": "arm64",
+      "system": "Darwin"
+    },
+    "interface_set_sha256": "fae7befce4b1b2368adf99feee6c73394d6dfb78ee2b4307c97dc65507e8f53b",
+    "protocol": 2,
+    "source_sha256": "984e31edbd10c5fc7221630f7c238d5386dc750d52637052783d1b39fe92b721"
+  },
+  "status": "full compiler source accepted by Cinch frontend; typed runtime emitter remains required"
+}

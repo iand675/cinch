@@ -1,0 +1,109 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Bootstrap.Proof
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  empty-row :: UType
+  empty-row = URow UEnd
+  effects :: UType
+  effects = URow (UArg (UCon "Diverge" KEffect) UEnd)
+  truth :: UType
+  truth = UPropLit True
+  one :: CoreTerm
+  one = CInt sp int "1"
+  pure-arrow :: UType
+  pure-arrow = UProofFun truth empty-row int
+  effect-arrow :: UType
+  effect-arrow = UProofFun truth effects int
+  ref :: Nat -> CoreTerm
+  ref id = CProofRef sp truth id "h"
+  definition :: String -> UType -> List CorePattern -> CoreTerm -> CoreDefinition
+  definition name ty patterns body = MkCoreDefinition sp name (mono ty) Nil Nil Nil [MkCoreClause sp patterns body]
+  nonnegative :: UType -> UType
+  nonnegative value = UCompare ">=" value (UIndex int (IInteger 0))
+  refined-result :: Nat -> UType
+  refined-result id = URefine id "r" int (nonnegative (UIndex int (IBound id "r")))
+  guarded :: Nat -> Bool
+  guarded nonce =
+    let x = nonce + 1 in let h = nonce + 2 in let result = refined-result (nonce + 3) in
+    let predicate = nonnegative (UIndex int (IRigid x "x" 0)) in
+    let scheme = UPi nonce "x" int empty-row (UProofFun (nonnegative (UIndex int (IBound nonce "x"))) empty-row result) in
+    let patterns = [CPVar sp int x "x", CPProof sp predicate h "h"] in
+    let gamma = proof-patterns patterns (make-proof-scope Nil Nil) in
+    let body = CLocal sp int x "x" Nil in
+    case (close-typing-context [("Int", KType)] [GlobalValue "guarded" "value" (mono scheme)], scoped-prove-refinement gamma Nil result body) of
+      (Some context, Some certificate) ->
+        let out = definition "guarded" scheme patterns (CRefine sp result certificate body) in
+        typing-definition-closed context out
+          && not (typing-definition-closed context (definition "guarded" scheme [CPVar sp int x "x", CPProof sp (UPropLit False) h "h"] (CRefine sp result certificate body)))
+          && (case scoped-prove-refinement (proof-patterns [CPVar sp int x "x"] (make-proof-scope Nil Nil)) Nil result body of None -> True; Some other -> False)
+      other -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let h = nonce + 1 in let binder = CPProof sp truth h "h" in
+    let call row witness = CErasedApply sp int row (CUse sp effect-arrow "effect" "external" Nil) witness in
+    let declarations =
+          [ GlobalValue "pure" "value" (mono pure-arrow)
+          , GlobalValue "effectful" "value" (mono effect-arrow)
+          , GlobalValue "closure" "value" (mono effect-arrow)
+          , GlobalValue "answer" "value" (mono int)
+          , GlobalValue "effect" "external" (mono effect-arrow)
+          , GlobalValue "accept" "external" (mono pure-arrow)
+          , GlobalValue "ordinary" "external" (mono (UFun int int))
+          ] in
+    let gamma = proof-pattern binder (make-proof-scope Nil Nil) in
+    case close-typing-context [("Int", KType), ("Bool", KType)] declarations of
+      Some context ->
+        let pure body = typing-definition-closed context (definition "pure" pure-arrow [binder] body) in
+        let effectful body = typing-definition-closed context (definition "effectful" effect-arrow [binder] body) in
+        [ pure one
+        , effectful (call effects (ref h))
+        , not (pure (call effects (ref h)))
+        , not (effectful (call empty-row (ref h)))
+        , not (effectful (call effects (ref (h + 1))))
+        , not (effectful (call effects (CProofRef sp (UPropLit False) h "h")))
+        , not (effectful (call effects one))
+        , not (effectful (call effects (CLocal sp truth h "h" Nil)))
+        , not (effectful (call effects (CUse sp truth "forged" "external" Nil)))
+        , not (effectful (CApplyEff sp int effects (CUse sp effect-arrow "effect" "external" Nil) (ref h)))
+        , not (pure (CErasedApply sp int empty-row (CUse sp (UFun int int) "ordinary" "external" Nil) (ref h)))
+        , not (pure (CLet sp int (h + 1) "escaped" (mono truth) (ref h) one))
+        , not (pure (CIf sp int (ref h) one one))
+        , not (pure (CCase sp int (ref h) (CAlternative sp (CPProof sp truth (h + 1) "copy") one (CAlternativesEnd sp))))
+        , not (pure (CTuple sp int (CArgument sp (ref h) (CArgumentsEnd sp))))
+        , not (typing-definition-closed context (definition "answer" int Nil (call effects (ref h))))
+        , not (typing-definition-closed context (definition "pure" pure-arrow [CPVar sp truth h "forged"] one))
+        , not (typing-definition-closed context (definition "pure" pure-arrow [CPWild sp truth] one))
+        , not (typing-definition-closed context (definition "pure" pure-arrow [CPProof sp int h "forged"] one))
+        , typing-definition-closed context (definition "closure" effect-arrow Nil (CLambda sp effect-arrow binder (call effects (ref h))))
+        , not (typing-definition-closed context (definition "closure" effect-arrow Nil (CLambda sp pure-arrow binder (call effects (ref h)))))
+        , (case store-errors (unify sp (core-effects (call effects (ref h))) effects (empty-store "erased call effects")) of Nil -> True; other -> False)
+        , (case store-errors (unify sp (core-effects (CLambda sp effect-arrow binder (call effects (ref h)))) empty-row (empty-store "closure creation")) of Nil -> True; other -> False)
+        , scoped-proof-reference gamma truth (ref h)
+        , not (scoped-proof-reference (make-proof-scope [(h, truth)] Nil) truth (ref h))
+        , not (scoped-proof-reference gamma (UPropLit False) (ref h))
+        , not (scoped-proof-reference gamma truth (CProofRef sp truth (h + 1) "h"))
+        , scoped-proof-reference gamma truth (CProofRef sp truth h "renamed")
+        , not (pure (CApply sp int (CUse sp pure-arrow "accept" "external" Nil) (ref h)))
+        , pure (CErasedApply sp int empty-row (CUse sp pure-arrow "accept" "external" Nil) (ref h))
+        , guarded (nonce + 10)
+        ]
+      None -> [False]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

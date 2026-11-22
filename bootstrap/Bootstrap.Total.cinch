@@ -1,0 +1,229 @@
+-- Executable, closed total-body contracts. A pure scheme or class slot is
+-- not a body. Only this module can construct the checked graph/function
+-- handles; the complete graph is typed and checked for dependency cycles.
+-- These standalone version-1 artifacts are not yet admitted by cinchif.
+module Bootstrap.Total where
+  import Data.Json
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Algebra.Semigroup
+  import Text.Json (canonical-bytes)
+
+  export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
+
+  data TotalGraph where
+    MkTotalGraph :: Json -> TotalGraph
+  data TotalFunction where
+    MkTotalFunction :: TotalGraph -> String -> TotalFunction
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  has :: String -> List String -> Bool
+  has key keys = case keys of Nil -> False; Cons first rest -> same key first || has key rest
+  without :: String -> List String -> List String
+  without key keys = case keys of Nil -> Nil; Cons first rest -> if same key first then rest else Cons first (without key rest)
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  fields :: List String -> Json -> Bool
+  fields keys doc = case doc of
+    JObj key value rest -> has key keys && fields (without key keys) rest
+    JObjEnd -> (case keys of Nil -> True; other -> False)
+    other -> False
+  valid-sort :: String -> Bool
+  valid-sort name = has name ["Nat", "Int", "Bool", "Bytes", "I64"]
+  sorts :: Json -> Option (List String)
+  sorts rows = case rows of
+    JArr (JStr sort) rest -> if valid-sort sort then (case sorts rest of Some more -> Some (Cons sort more); None -> None) else None
+    JArrEnd -> Some Nil
+    other -> None
+  at :: Nat -> List String -> Option String
+  at index scope = case scope of Nil -> None; Cons first rest -> if index == 0 then Some first else at (index - 1) rest
+  find :: String -> Json -> Option Json
+  find name rows = case rows of
+    JArr row rest -> if same name (text (field "identity" row)) then Some row else find name rest
+    other -> None
+
+  decimal-digits :: List Char -> Bool
+  decimal-digits chars = case chars of Nil -> True; Cons char rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
+  trim-zeros :: List Char -> List Char
+  trim-zeros chars = case chars of Cons char (Cons next rest) -> if char-code char == 48 then trim-zeros (Cons next rest) else chars; other -> chars
+  i64-digits :: Bool -> List Char -> Bool
+  i64-digits negative digits = let value = pack (trim-zeros digits) in
+    string-length value < 19 || (string-length value == 19 && string-compare value (if negative then "9223372036854775808" else "9223372036854775807") <= 0)
+  decimal-number :: String -> String -> Bool
+  decimal-number sort value = case unpack value of
+    Nil -> False
+    Cons char rest -> if char-code char == 45 then
+      not (same sort "Nat") && (same sort "Int" || same sort "I64") && (case rest of Nil -> False; other -> decimal-digits rest && (not (same sort "I64") || i64-digits True rest))
+      else (same sort "Nat" || same sort "Int" || same sort "I64") && decimal-digits (Cons char rest) && (not (same sort "I64") || i64-digits False (Cons char rest))
+
+  operation-type :: String -> Option (List String, String)
+  operation-type name =
+    if has name ["NatAdd", "NatMul"] then Some (["Nat", "Nat"], "Nat")
+    else if same name "NatCmp" then Some (["Nat", "Nat"], "I64")
+    else if has name ["IntAdd", "IntSub", "IntMul"] then Some (["Int", "Int"], "Int")
+    else if same name "IntNeg" then Some (["Int"], "Int")
+    else if same name "IntCmp" then Some (["Int", "Int"], "I64")
+    else if same name "IntFromNat" then Some (["Nat"], "Int")
+    else if same name "IntFromI64" then Some (["I64"], "Int")
+    else if has name ["I64Eq", "I64Ne", "I64Lt", "I64Le", "I64Gt", "I64Ge"] then Some (["I64", "I64"], "Bool")
+    else if has name ["BoolEq", "BoolNe", "BoolAnd", "BoolOr"] then Some (["Bool", "Bool"], "Bool")
+    else if same name "BoolNot" then Some (["Bool"], "Bool")
+    else if same name "BytesLen" then Some (["Bytes"], "Nat")
+    else None
+  arguments-fit :: Json -> List String -> Json -> List String -> Bool
+  arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
+    (JArr argument rest, Cons expected more) -> (case infer definitions scope argument of Some actual -> same expected actual; None -> False) && arguments-fit definitions scope rest more
+    (JArrEnd, Nil) -> True
+    other -> False
+  call-type :: Json -> List String -> Json -> Json -> Option String
+  call-type definitions scope arguments declaration = case sorts (field "parameters" declaration) of
+    Some parameters -> if valid-sort (text (field "result" declaration)) && arguments-fit definitions scope arguments parameters then Some (text (field "result" declaration)) else None
+    None -> None
+  infer :: Json -> List String -> Json -> Option String
+  infer definitions scope term = let node = text (field "node" term) in
+    if same node "local" then
+      (if fields ["node", "slot"] term then (case field "slot" term of JNum index -> if index >= 0 then at (nat-from-int index) scope else None; other -> None) else None)
+    else if same node "number" then
+      (if fields ["node", "sort", "decimal"] term && decimal-number (text (field "sort" term)) (text (field "decimal" term)) then Some (text (field "sort" term)) else None)
+    else if same node "bool" then
+      (if fields ["node", "value"] term then (case field "value" term of JBool value -> Some "Bool"; other -> None) else None)
+    else if same node "primitive" then
+      (if fields ["node", "operation", "arguments"] term then (case operation-type (text (field "operation" term)) of
+        Some (parameters, result) -> if arguments-fit definitions scope (field "arguments" term) parameters then Some result else None
+        None -> None) else None)
+    else if same node "call" then
+      (if fields ["node", "target", "arguments"] term then (case find (text (field "target" term)) definitions of
+        Some declaration -> call-type definitions scope (field "arguments" term) declaration
+        None -> None) else None)
+    else if same node "let" then
+      (if fields ["node", "value", "body"] term then (case infer definitions scope (field "value" term) of
+        Some sort -> infer definitions (scope <> [sort]) (field "body" term)
+        None -> None) else None)
+    else if same node "if" then
+      (if fields ["node", "condition", "yes", "no"] term then (case (infer definitions scope (field "condition" term), infer definitions scope (field "yes" term), infer definitions scope (field "no" term)) of
+        (Some condition, Some yes, Some no) -> if same condition "Bool" && same yes no then Some yes else None
+        other -> None) else None)
+    else None
+
+  calls-arguments :: Json -> List String
+  calls-arguments rows = case rows of JArr first rest -> calls first <> calls-arguments rest; other -> Nil
+  calls :: Json -> List String
+  calls term = let node = text (field "node" term) in
+    if same node "call" then Cons (text (field "target" term)) (calls-arguments (field "arguments" term))
+    else if same node "primitive" then calls-arguments (field "arguments" term)
+    else if same node "let" then calls (field "value" term) <> calls (field "body" term)
+    else if same node "if" then calls (field "condition" term) <> calls (field "yes" term) <> calls (field "no" term)
+    else Nil
+  acyclic-calls :: Json -> List String -> List String -> List String -> Option (List String)
+  acyclic-calls definitions path done targets = case targets of
+    Nil -> Some done
+    Cons name rest -> if has name done then acyclic-calls definitions path done rest
+      else if has name path then None else case find name definitions of
+        Some declaration -> (case acyclic-calls definitions (Cons name path) done (calls (field "body" declaration)) of
+          Some checked -> acyclic-calls definitions path (Cons name checked) rest
+          None -> None)
+        None -> None
+  acyclic-roots :: Json -> Json -> List String -> Bool
+  acyclic-roots all rows done = case rows of
+    JArr declaration rest -> (case acyclic-calls all Nil done [text (field "identity" declaration)] of Some checked -> acyclic-roots all rest checked; None -> False)
+    JArrEnd -> True
+    other -> False
+  valid-definitions :: Json -> Json -> List String -> Bool
+  valid-definitions all rows seen = case rows of
+    JArr declaration rest -> let name = text (field "identity" declaration) in
+      fields ["identity", "parameters", "result", "body"] declaration && string-length name > 0 && not (has name seen)
+      && (case sorts (field "parameters" declaration) of Some parameters -> (case infer all parameters (field "body" declaration) of Some result -> valid-sort (text (field "result" declaration)) && same result (text (field "result" declaration)); None -> False); None -> False)
+      && valid-definitions all rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+  check-total-graph :: Json -> Option TotalGraph
+  check-total-graph doc = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) && valid-definitions (field "definitions" doc) (field "definitions" doc) Nil && acyclic-roots (field "definitions" doc) (field "definitions" doc) Nil then Some (MkTotalGraph doc) else None
+  total-function :: TotalGraph -> String -> Option TotalFunction
+  total-function graph name = case graph of MkTotalGraph doc -> (case find name (field "definitions" doc) of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-document :: TotalGraph -> Json
+  total-document graph = case graph of MkTotalGraph doc -> doc
+  total-identity :: TotalFunction -> String
+  total-identity function = case function of MkTotalFunction graph name -> name
+  function-row :: TotalFunction -> Json
+  function-row function = case function of MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
+  total-parameters :: TotalFunction -> List String
+  total-parameters function = case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil
+  total-result :: TotalFunction -> String
+  total-result function = text (field "result" (function-row function))
+  total-function-document :: TotalFunction -> Json
+  total-function-document function = case function of MkTotalFunction graph name -> total-document graph
+  total-function-equal :: TotalFunction -> TotalFunction -> Bool
+  total-function-equal first second = same (total-identity first) (total-identity second)
+    && bytes-compare (canonical-bytes (total-function-document first)) (canonical-bytes (total-function-document second)) == 0
+  total-body :: TotalFunction -> Json
+  total-body function = field "body" (function-row function)
+
+  -- A universal finite return envelope, derived from actual literal leaves.
+  -- Unknown arithmetic/parameters remain unknown. Conditions may narrow the
+  -- result further, but taking both checked branches is always conservative.
+  decimal-fold :: List Char -> Int -> Option Int
+  decimal-fold chars value = case chars of
+    Nil -> Some value
+    Cons char rest -> let code = char-code char in
+      if code >= 48 && code <= 57 then decimal-fold rest (value * 10 + (nat-to-int code - 48)) else None
+  decimal-value :: String -> Option Int
+  decimal-value value = if string-length value > 4096 then None else case unpack value of
+    Nil -> None
+    Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
+  unknown-domains :: List String -> List (Option (List Int))
+  unknown-domains parameters = case parameters of Nil -> Nil; Cons parameter rest -> Cons None (unknown-domains rest)
+  domain-at :: Nat -> List (Option (List Int)) -> Option (List Int)
+  domain-at slot scope = case scope of Nil -> None; Cons first rest -> if slot == 0 then first else domain-at (slot - 1) rest
+  argument-domains :: Json -> List (Option (List Int)) -> Json -> Nat -> (List (Option (List Int)), Nat)
+  argument-domains definitions scope arguments fuel = if fuel == 0 then (Nil, 0) else case arguments of
+    JArr argument rest -> (case literal-results definitions scope argument fuel of
+      (value, left) -> case argument-domains definitions scope rest left of
+        (others, remaining) -> (Cons value others, remaining))
+    other -> (Nil, fuel)
+  literal-results :: Json -> List (Option (List Int)) -> Json -> Nat -> (Option (List Int), Nat)
+  literal-results definitions scope term fuel = if fuel == 0 then (None, 0) else
+    let remaining = fuel - 1 in let node = text (field "node" term) in
+    if same node "number" then (case decimal-value (text (field "decimal" term)) of Some value -> (Some [value], remaining); None -> (None, remaining))
+    else if same node "local" then (case field "slot" term of JNum slot -> if slot >= 0 then (domain-at (nat-from-int slot) scope, remaining) else (None, remaining); other -> (None, remaining))
+    else if same node "if" then (case literal-results definitions scope (field "yes" term) remaining of
+      (Some yes, left) -> (case literal-results definitions scope (field "no" term) left of
+        (Some no, final) -> if list-length yes + list-length no <= 256 then (Some (yes <> no), final) else (None, final)
+        other -> other)
+      other -> other)
+    else if same node "let" then (case literal-results definitions scope (field "value" term) remaining of
+      (value, left) -> literal-results definitions (scope <> [value]) (field "body" term) left)
+    else if same node "call" then (case find (text (field "target" term)) definitions of
+      Some declaration -> (case argument-domains definitions scope (field "arguments" term) remaining of
+        (values, left) -> literal-results definitions values (field "body" declaration) left)
+      None -> (None, remaining))
+    else (None, remaining)
+  result-envelope :: List Int -> Int -> Int -> (Int, Int)
+  result-envelope values low high = case values of Nil -> (low, high); Cons value rest -> result-envelope rest (if value < low then value else low) (if value > high then value else high)
+  total-bounds :: TotalFunction -> Option (Int, Int)
+  total-bounds function = if not (has (total-result function) ["Nat", "Int", "I64"]) then None else case function of
+    MkTotalFunction (MkTotalGraph doc) name -> (case literal-results (field "definitions" doc) (unknown-domains (total-parameters function)) (total-body function) 4096 of
+      (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
+      other -> None)
+
+  total-owned-rows :: Json -> List String -> Bool
+  total-owned-rows rows reachable = case rows of
+    JArr row rest -> has (text (field "identity" row)) reachable && total-owned-rows rest reachable
+    JArrEnd -> True
+    other -> False
+  total-graph-for-roots :: TotalGraph -> List String -> Bool
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil roots of
+    Some reachable -> total-owned-rows (field "definitions" doc) reachable
+    None -> False)
+
+  compatible-definitions :: Json -> Json -> Bool
+  compatible-definitions first second = case first of
+    JArr row rest -> (case find (text (field "identity" row)) second of
+      Some prior -> bytes-compare (canonical-bytes row) (canonical-bytes prior) == 0
+      None -> True) && compatible-definitions rest second
+    JArrEnd -> True
+    other -> False
+  total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
+  total-functions-compatible first second = compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))

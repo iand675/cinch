@@ -82,7 +82,6 @@ module Text.Toml where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export TomlError, TomlSyntax, TomlDuplicateKey, TomlDateTime, TomlNotRepresentable
   export toml-parse, toml-print

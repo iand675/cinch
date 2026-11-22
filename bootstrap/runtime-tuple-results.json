@@ -1,0 +1,67 @@
+{
+  "actual_case_results": [
+    "huge: exit 37; cinch-leak: live=0 immortal=0 leaked=0",
+    "alias: exit 39; cinch-leak: live=0 immortal=0 leaked=0",
+    "call: exit 41; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch: exit 43; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive: exit 47; cinch-leak: live=0 immortal=0 leaked=0",
+    "negative: exit 53; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural: exit 59; cinch-leak: live=0 immortal=0 leaked=0",
+    "wildcard: exit 61; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-field: exit 67; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-case: exit 71; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-tuple: exit 73; cinch-leak: live=0 immortal=0 leaked=0",
+    "dropped-tuple: exit 79; cinch-leak: live=0 immortal=0 leaked=0",
+    "full-inline-map: exit 83; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "bootstrap_achieved": false,
+  "cinch_source_check": {
+    "cinch_exit": 0,
+    "compiler_implementation_interfaces": false,
+    "implementation_identical_to_runtime_target": true,
+    "module_count": 25,
+    "native_exit": 0,
+    "source_sha256": "90748b558a5b7ac03fd780501da1daa3c1bce68a29c3363b08a35441cca9f3f7"
+  },
+  "implementation_paths": [
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "compiler/tests/bootstrap_runtime_ir.rs"
+  ],
+  "limits": [
+    "inline maps up to16 fields and1022 regular groups; extended descriptors refused",
+    "closed typed tuples and irrefutable single alternatives only; source ADTs and refutable/multiple alternatives unfinished",
+    "polymorphic calls, closures, dictionaries, effects, foreign and executable base ABI unfinished",
+    "no complete latest Native or self-built suite; no Stage2 compiler or Stage3 fixed point"
+  ],
+  "negative_cases": [
+    "unsupported polymorphism refused5 with no IR",
+    "17-field tuple refused5 by explicit extended-layout boundary with no IR"
+  ],
+  "ownership": "tuple fields transfer owned references into constructors; parameter/case fields borrow while an owning root is held; reads duplicate their actual class; scope exits drop roots",
+  "runtime_layout": "ABI5 one module-wide anonymous scan-map registry; Raw0 Obj1 TObj2; layout word count in low32 and2-bit inline field maps in high32; global initializer registers exact table before allocation",
+  "source_sha256": "ea1d2efc709769758775d3b89fd9b441d0cfa30d1dbe3424338588ef04da613e",
+  "source_unchanged": true,
+  "status": "typed tuple layout and field ownership paths validated",
+  "whole_rust_target": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-tuples-validation-2/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T23:10:54.696142+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 70992,
+      "started": "2026-11-02T23:06:02.907029+00:00",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,390 @@
+{
+  "bootstrap_achieved": false,
+  "code_hashes": {
+    "bootstrap/Bootstrap.Infer.cinch": "c73313515c3276bdd044e8b40bd9fb50210100021456b02decba1fc78ec40ff4",
+    "bootstrap/Bootstrap.Object.cinch": "7074e5475702e23993cbd4f1699109ee487a15b4caaf8a3580e8a6fd6e54f6fe",
+    "bootstrap/Bootstrap.Pipeline.cinch": "658ceac7b3151afd030bb05f9c63ed6c233e4e14284aab4f04fdcbf14f47e4c4",
+    "bootstrap/Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "e3da57d4067d4afecdffb5bb42d7fac689695667d0ac35e3da5c0218618e4d41",
+    "bootstrap/library-object-roots.json": "bd640822bab6497cf26b5f03a9cb0ce4d8122c2060e8e4f4ff3714e36b0f187f",
+    "bootstrap/library-provider.lock.json": "ce5d6e7baea1bf477c094f06c3c4a9ddec4b003b1a9fd6616d34584cd75196b7",
+    "bootstrap/programs/Run.Pipeline.cinch": "b3b44dabd6ea30fe43835af39bd56134ec56704cb0b1ba031f956b5d016225ec",
+    "bootstrap/programs/Run.RuntimeObject.cinch": "ddc93f33807fafbe123d83f4fd14b1ee3f5b44f73d2718b448adb8db32f11d00",
+    "compiler/src/check_decls.rs": "0e94ccb289495d235d9ab5354f7c00d67314bd45d7b96ea1c72fa0aebaa9438b",
+    "compiler/tests/bootstrap_runtime_emit.rs": "f0615e23369c3299f0c504262bb05fce6b479e0c6f904ed977b1b53a98f0dce2",
+    "compiler/tests/bootstrap_runtime_objects.rs": "12266125f65cc3ed9d8e385082212ffcea780c7e9f791a1a302e914d2807c6fb",
+    "compiler/tests/common/mod.rs": "8e35f82c4d690a00a36b0be1f43537db40a6a0739a9975bf556f464358fdbde3",
+    "compiler/tests/intrinsic_objects.rs": "9ea39f8ad0838749bb7bc18cc8b4666dcb8ac8935484e5c4f8d2502a6139c9a8",
+    "tooling/bootstrap.py": "f772715f27a85048587fe54d80a4fb50e5928b75cbcec3e3a409f3e2b4ebaee7",
+    "tooling/bootstrap_objects.py": "8ae8404ce9acd0c09db66cd2befe32d2f9c42855796935ecca12afc3970a2749",
+    "tooling/tests/test_bootstrap.py": "5cd3fa0319c0b9804d616775fa8902c19bf94b7c1d480fb7ce3915acb951dd03",
+    "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054"
+  },
+  "conditional_call_checkpoint": {
+    "all_positive_programs_zero_leaks": true,
+    "builder_fix_scope": "New private tail-recursive builder passes same65536chunk/2MiBcase. Full stage20 verification pending; not yet claimed as the full compiler stack repair.",
+    "builder_stress_after": {
+      "chunks": 65536,
+      "exit_code": 0,
+      "stack_size": "2M",
+      "status": "observed",
+      "stderr": ""
+    },
+    "builder_stress_before": {
+      "chunks": 65536,
+      "exit_code": 73,
+      "stack_size": "2M",
+      "status": "observed",
+      "stderr": "cinch: exhausted: stack\n"
+    },
+    "compiler_exit_code": 73,
+    "failure": "exhausted: stack during runtime emission before IR output; sample13 contains RuntimeIr.worker/call-name/external-call.",
+    "full_object_target19": {
+      "exit_code": 101,
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "linked_programs": 19,
+    "next_candidate": {
+      "pid": 34805,
+      "source_sha256": "7c77a40b81d6b330e93b11993a03581d9a7ded29595a76ef79bbd80525d64754",
+      "status": "running"
+    },
+    "physical_negative_probe": {
+      "cases": [
+        {
+          "case": "valid",
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected": 0,
+          "ir_bytes": 32764
+        },
+        {
+          "case": "wrong-method",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "wrong-owner",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "wrong-context",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "underflow",
+          "diagnostics": "bootstrap.check:4:15: function precondition is not established at this call\n",
+          "exit_code": 4,
+          "expected": 4,
+          "ir_bytes": 0
+        }
+      ],
+      "status": "passed"
+    },
+    "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+    "stage19": {
+      "exit_code": 1,
+      "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "target19_failure_scope": "Test mutation also changed the embedded checked interface, so admission correctly refused at8 before the intended emitter5. Corrected fixture changes physical dictionary prefix only."
+  },
+  "conditional_linkage_attempt18": {
+    "all_diagnostics_same_target": "Data.Nat.Sub_Nat.-",
+    "compiler_exit_code": 5,
+    "frontend_passed": true,
+    "ir_bytes": 0,
+    "next_candidate": {
+      "pid": 76138,
+      "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+      "status": "running"
+    },
+    "object_failure": "conditional-slot runtime refusal: raw dictionary id passed to encoded inventory lookup. Fixed at checked-conditional-target boundary in candidate19, not yet validated.",
+    "object_target": {
+      "exit_code": 101,
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "provider_hashed_artifacts": 62,
+    "provider_status": "built",
+    "runtime_diagnostic_lines": 57,
+    "source_sha256": "c91986c0a0630a830295d0c6f0e6f7ca1bfe561983dd7ba7eb31bc2fd3906b86",
+    "stage": {
+      "exit_code": 1,
+      "source_sha256": "c91986c0a0630a830295d0c6f0e6f7ca1bfe561983dd7ba7eb31bc2fd3906b86",
+      "source_unchanged": true,
+      "status": "failed"
+    }
+  },
+  "configuration_fix": {
+    "probe": [
+      {
+        "case": "before",
+        "diagnostics": "bootstrap.check:9:32: argument index needs checked pure total reification\n",
+        "exit_code": 4
+      },
+      {
+        "case": "after",
+        "diagnostics": "",
+        "exit_code": 0
+      }
+    ],
+    "reason": "Avoid dependent global-value reification in generated ABI configuration; emit exact Nat and Int literals from one validated selection.",
+    "source_sha256": "23411a31a2f8140e5d4d60737098b59c958fc0d16d685a987a74c2ea29b5cc35",
+    "stage_chain": {
+      "diagnostic_lines": 211,
+      "exit_code": 1,
+      "first_diagnostics": [
+        "bootstrap.check:16879:46: function precondition is not established at this call",
+        "bootstrap.check:16879:10: non-exhaustive patterns",
+        "bootstrap.check:16884:18: non-exhaustive patterns",
+        "bootstrap.check:16886:18: non-exhaustive patterns",
+        "bootstrap.check:16887:44: non-exhaustive patterns",
+        "bootstrap.check:16888:21: non-exhaustive patterns"
+      ],
+      "meaning": "Runtime ABI configuration error cleared. The next actual full-source failure is an argument-count subtraction precondition in external-call-unit. Later diagnostics may cascade.",
+      "source_unchanged": true,
+      "stage2_executable": false,
+      "status": "failed"
+    },
+    "tooling_checks": 35
+  },
+  "explicit_subtraction_bound": {
+    "builder": "genuine Stage1 candidate11",
+    "compiler_bundle_sha256": "e711a8854564c459ee7efc14034ff7b3250562aa4b5cdb42c1a9a52af9635d52",
+    "exit_code": 5,
+    "fresh_stage12": {
+      "compiler_exit_code": 5,
+      "exit_code": 1,
+      "requested_roots_match_full_source_probe": true,
+      "source_sha256": "d1b8e7ae36d1a7d2b42cdba1c007bcac2a8cf706b542275ff0116a249f0f4753",
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "frontend_diagnostics": 0,
+    "missing_dictionary_roots": 4,
+    "missing_runtime_intrinsics": [
+      "cinch.runtime.textF64FromDecimal",
+      "cinch.runtime.textF64ToDecimal"
+    ],
+    "missing_unit_roots": 29,
+    "runtime_diagnostic_lines": 1568,
+    "runtime_ir_source_sha256": "051493078775364471fe2a687cbb4ce30f460a3b581dbe1699c6d0c854792a67",
+    "small_probe_scope": "Scalar and list-count probes accept both old and new guards; they do not reproduce the complete-source failure. Unsafe reversed-bound subtraction is refused.",
+    "stage2_executable": false,
+    "stage2_ir_bytes": 0,
+    "status": "full-source-frontend-passed-runtime-emission-refused"
+  },
+  "intrinsic_runtime_checkpoint": {
+    "abi5_alias_regression": {
+      "exit_code": 0,
+      "mode": "abi5",
+      "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0",
+      "status": "passed"
+    },
+    "all_reported_zero_leaks": true,
+    "all_test_targets18": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "candidate17": {
+      "exit_code": 1,
+      "source_sha256": "3ea0d23fee16e623cec72821961a31b2d8107fc495560e7e9009dda71db3fce6",
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "decimal_cases": [
+      "roundtrip",
+      "negative-zero",
+      "first-class"
+    ],
+    "full_native18": {
+      "current_objects19": "running separately",
+      "queued_target_gates": 197,
+      "reused_broader_tests": 225,
+      "scope": "Remaining 195 integration targets plus bin/doc gates; no complete suite pass claim.",
+      "status": "running",
+      "workers": [
+        1,
+        2
+      ]
+    },
+    "linked_programs": 17,
+    "native6_alias_regression": {
+      "exit_code": 0,
+      "mode": "native6",
+      "source_sha256": "a47a65bb6d7bd92924c41224836ce5e7bf309c8220ef4c296c8db819c6899a85",
+      "status": "passed"
+    },
+    "native_broader17": {
+      "checks": 225,
+      "exit_code": 0,
+      "groups": [
+        "lib",
+        "arrays",
+        "ffi",
+        "intrinsic_objects",
+        "modules",
+        "ownership",
+        "reclamation"
+      ],
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "object_consumer13": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "object_consumer14": {
+      "all_reported_zero_leaks": true,
+      "direct_intrinsic_export_executed": true,
+      "exit_code": 0,
+      "linked_programs": 18,
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "remaining": "Verify full requested provider, conditional instance method linkage, actual Stage2 emission/link/run and Stage3 interfaces/fixed point, complete suites.",
+    "source_sha256": "827dd9e5e8e60d688e56cfb2d3c9000e492c7d153b8ce96fca1a3fe89f3aff9b",
+    "stage13": {
+      "exit_code": 1,
+      "source_sha256": "827dd9e5e8e60d688e56cfb2d3c9000e492c7d153b8ce96fca1a3fe89f3aff9b",
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "stage13_failure": "Old ABI5 producer rejected declared public intrinsic alias Data.Bytes.bytes-compare as an unknown root. Fixed in Native and independently in ABI5 producer; no stage0 pin change.",
+    "tooling18": {
+      "checks": 35,
+      "status": "passed"
+    }
+  },
+  "library_producer": {
+    "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+    "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+  },
+  "previous_stage2": {
+    "diagnostics": 2082,
+    "exit_code": 4,
+    "ir_bytes": 0,
+    "meaning": "Frontend stopped at generated RuntimeAbi nat-to-int conversion; subsequent diagnostics may cascade. Fixed configuration passes the focused actual Cinch check; complete retry recorded separately."
+  },
+  "remaining": [
+    "Full compiler frontend/emission on corrected configuration",
+    "Actual missing concrete provider demands and remaining runtime forms",
+    "Canonical compiler interface emission",
+    "Stage2/Stage3 fixed point, changed-source behavior and complete current Native/self-built/correctness gates"
+  ],
+  "seed_changed": false,
+  "status": "checkpoint-bootstrap-incomplete",
+  "validation10": {
+    "all_test_targets": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "boundaries": {
+      "exit_code": 0,
+      "source_sha256": "a43bfa1ca352df5fc9bc4f468eb976c8bb812e19e6c254ffd7056f13d478ea3c",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "live_runtime_abi": 6,
+    "object_programs": [
+      "object raw: exit 227; cinch-leak: live=0 immortal=0 leaked=0",
+      "object closure: exit 229; cinch-leak: live=0 immortal=0 leaked=0",
+      "object owned-result: exit 231; cinch-leak: live=0 immortal=0 leaked=0",
+      "object partial-owned: exit 233; cinch-leak: live=0 immortal=0 leaked=0",
+      "object combined-table: exit 235; cinch-leak: live=0 immortal=0 leaked=0",
+      "object process-arguments: exit 239; cinch-leak: live=0 immortal=0 leaked=0",
+      "object polymorphic-function: exit 241; cinch-leak: live=0 immortal=0 leaked=0",
+      "object method-families: exit 243; cinch-leak: live=0 immortal=0 leaked=0",
+      "object string-literal: exit 245; cinch-leak: live=0 immortal=0 leaked=0",
+      "object empty-string: exit 247; cinch-leak: live=0 immortal=0 leaked=0",
+      "object char-pattern: exit 249; cinch-leak: live=0 immortal=0 leaked=0",
+      "object machine-pattern: exit 251; cinch-leak: live=0 immortal=0 leaked=0",
+      "object string-pattern: exit 253; cinch-leak: live=0 immortal=0 leaked=0",
+      "object returned-function: exit 237; cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    "results": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-object-consumer-validation-10/cargo",
+          "--test",
+          "bootstrap_runtime_ir",
+          "--test",
+          "bootstrap_runtime_emit",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-03T10:05:07.721371+00:00",
+        "name": "runtime-and-cli",
+        "pid": 91854,
+        "slot": 1,
+        "started": "2026-11-03T09:47:00.549025+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-object-consumer-validation-10/cargo",
+          "--test",
+          "bootstrap_runtime_objects",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-03T10:05:18.761110+00:00",
+        "name": "objects",
+        "pid": 91855,
+        "slot": 2,
+        "started": "2026-11-03T09:47:00.551781+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "build",
+          "--stage",
+          "2"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source",
+        "exit_code": 1,
+        "finished": "2026-11-03T10:07:06.157781+00:00",
+        "name": "stage2",
+        "pid": 91856,
+        "slot": 3,
+        "started": "2026-11-03T09:47:00.552239+00:00",
+        "status": "failed"
+      }
+    ],
+    "runtime_programs": 82,
+    "source_sha256": "a43bfa1ca352df5fc9bc4f468eb976c8bb812e19e6c254ffd7056f13d478ea3c"
+  }
+}

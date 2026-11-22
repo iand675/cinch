@@ -1,0 +1,27 @@
+module Main where
+  import Ui
+  import Data.String
+  import Category.Functor
+  import syntax "../syntax/html.syntax.json" as html
+  import syntax "../syntax/once.syntax.json" as once
+
+  -- These names deliberately collide with helper and temporary spellings.
+  text :: Int
+  text = 99
+  __syntax_1_once :: Int
+  __syntax_1_once = 100
+
+  person :: String -> Html
+  person name = html!{<li>{name}</li>}
+
+  view :: String -> List String -> Html
+  view title people = html!{<section class="people"><h1>{title}</h1>{person <$> people}<Button onClick={\() -> 42}>Refresh &amp; retry</Button></section>}
+
+  main :: Int
+  main =
+    let title = "Friends <3" in
+    let result = render (view title ["Ada", "Grace & Ian"]) in
+    let expected = "<section class=\"people\"><h1>Friends &lt;3</h1><li>Ada</li><li>Grace &amp; Ian</li><button>Refresh &amp; retry</button></section>" in
+    let extra = render (html!{<><input disabled value={"\"quoted\""}/><Button onClick={\() -> 7}/></>}) in
+    let value = once!{ {20 + 1} as x in {x + x} } in
+    if result == expected && value == 42 && text == 99 && extra == "<input disabled value=\"&quot;quoted&quot;\"><button></button>" then 0 else 1

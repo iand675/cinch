@@ -1,0 +1,33 @@
+module Main where
+  import Bootstrap.Total
+  import Bootstrap.TotalSemantics
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  option :: Option String -> String
+  option value = case value of Some text -> text; None -> "opaque"
+  entry :: TotalGraph -> String -> Bool -> String
+  entry graph name comparison = case total-function graph name of
+    Some function -> string-concat-all [name, ":", option (if comparison then total-numeric-comparison function else total-numeric-operation function), "\n"]
+    None -> string-concat-all [name, ":opaque\n"]
+  report :: TotalGraph -> String
+  report graph = string-concat-all
+    [ entry graph "Main.add" False
+    , entry graph "Main.multiply" False
+    , entry graph "Main.subtract" False
+    , entry graph "Main.less" True
+    , entry graph "Main.swapped" True
+    , entry graph "Main.constant" True
+    , entry graph "Main.altered" False
+    , entry graph "Main.alias" False
+    , entry graph "Main.forward" False
+    ]
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "bodies.json") of
+    Ok source -> (case parse-json "actual-total-bodies" source of
+      Parsed doc Nil -> (case check-total-graph doc of
+        Some graph -> (case fs-write (path-from-string "semantics.txt") (string-to-bytes (report graph)) of Ok _ -> 0; Err error -> 92)
+        None -> 4)
+      other -> 2)
+    other -> 90

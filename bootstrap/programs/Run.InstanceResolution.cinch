@@ -1,0 +1,150 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Dictionary
+  import Bootstrap.Nominal (interface-global)
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Algebra.Semigroup
+  s :: Span
+  s = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  boolean :: UType
+  boolean = UCon "Bool" KType
+  eq :: UType -> UType
+  eq ty = UApp (UCon "Eq" (KFun KType KType)) ty
+  classes :: List (String, Kind)
+  classes = [("Eq", KFun KType KType)]
+  request :: UType -> List CoreEvidence -> CoreTerm
+  request wanted evidence = CMethod s (UFun nat (UFun nat boolean)) "==" "Eq" 0 Nil evidence
+  needed :: UType -> List CoreGiven -> CoreTerm
+  needed wanted scope = request wanted [CENeeded s wanted scope]
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  instance-named :: String -> CoreTerm -> Bool
+  instance-named expected term = case term of CMethod sp ty name owner slot actuals [CEInstance at wanted symbol types args] -> string-compare expected symbol == 0; other -> False
+  given-named :: String -> CoreTerm -> Bool
+  given-named expected term = case term of CMethod sp ty name owner slot actuals [CEGiven at wanted symbol] -> string-compare expected symbol == 0; other -> False
+  accepted :: String -> (CoreTerm, Store) -> Bool
+  accepted expected result = case result of (term, st) -> clean st && instance-named expected term
+  refused :: (CoreTerm, Store) -> Bool
+  refused result = case result of (term, st) -> not (clean st)
+  generic-evidence :: String -> String -> CoreTerm -> Bool
+  generic-evidence outer inner term = case term of
+    CMethod sp ty name owner slot actuals [CEInstance at wanted symbol [actual] (CEArgument arg (CEInstance leaf goal child Nil (CEArgumentsEnd end)) (CEArgumentsEnd tail))] -> string-compare outer symbol == 0 && string-compare inner child == 0 && string-compare (type-text actual) "Nat" == 0
+    other -> False
+  comparison-call :: UType -> String -> String -> Nat -> CoreEvidence -> Nat -> CoreTerm
+  comparison-call carrier owner name slot evidence id =
+    let method = CMethod s (UFun carrier (UFun carrier boolean)) name owner slot [carrier] [evidence] in
+    CApply s boolean (CApply s (UFun carrier boolean) method (CLocal s carrier id "x" Nil)) (CInt s carrier "0")
+  has-fact :: List (Nat, UType) -> CoreTerm -> Bool
+  has-fact gamma term = case core-condition gamma Nil term of Some fact -> True; None -> False
+  method-checks :: Nat -> Bool
+  method-checks nonce =
+    let id = nonce + 340282366920938463463374607431768211500 in
+    let owner = interface-global "Relation.Ord.Ord" in
+    let name = interface-global "Relation.Ord.Ord.>" in
+    let wanted = UApp (UCon owner (KFun KType KType)) nat in
+    let evidence = CEInstance s wanted "registered-numeric" Nil (CEArgumentsEnd s) in
+    let good = comparison-call nat owner name 2 evidence id in
+    let local = comparison-call nat owner name 2 (CEGiven s wanted "uninterpreted-order") id in
+    let pending = comparison-call nat owner name 2 (CENeeded s wanted Nil) id in
+    let wrong-name = comparison-call nat owner (interface-global "Elsewhere.>") 2 evidence id in
+    let wrong-slot = comparison-call nat owner name 0 evidence id in
+    let wrong-owner = comparison-call nat (interface-global "Elsewhere.Ord") name 2 evidence id in
+    let floating = UCon "F64" KType in
+    let floating-evidence = CEInstance s (UApp (UCon owner (KFun KType KType)) floating) "float" Nil (CEArgumentsEnd s) in
+    let float-call = comparison-call floating owner name 2 floating-evidence id in
+    let machine = UCon "I64" KType in
+    let machine-evidence = CEInstance s (UApp (UCon owner (KFun KType KType)) machine) "machine" Nil (CEArgumentsEnd s) in
+    let machine-call = comparison-call machine owner name 2 machine-evidence id in
+    let machine-local = comparison-call machine owner name 2 (CEGiven s (UApp (UCon owner (KFun KType KType)) machine) "opaque-machine-order") id in
+    let machine-wrong-slot = comparison-call machine owner name 0 machine-evidence id in
+    let add-owner = interface-global "Algebra.Arithmetic.Add" in
+    let machine-add = CMethod s (UFun machine (UFun machine machine)) (interface-global "Algebra.Arithmetic.Add.+") add-owner 0 [machine]
+          [CEInstance s (UApp (UCon add-owner (KFun KType KType)) machine) "machine-add" Nil (CEArgumentsEnd s)] in
+    let no-machine-arithmetic = case numeric-method-operation machine-add (CLocal s machine id "x" Nil) (CInt s machine "1") of None -> True; Some op -> False in
+    let effect-method = CMethod s (UFunEff nat (URow (UArg (UCon "Diverge" KEffect) UEnd)) (UFun nat boolean)) name owner 2 [nat] [evidence] in
+    let effect-call = CApply s boolean (CApply s (UFun nat boolean) effect-method (CLocal s nat id "x" Nil)) (CInt s nat "0") in
+    let gamma = [(id, nat)] in
+    has-fact gamma good && not (has-fact gamma local) && not (has-fact gamma pending)
+      && not (has-fact gamma wrong-name) && not (has-fact gamma wrong-slot) && not (has-fact gamma wrong-owner)
+      && not (has-fact [(id, floating)] float-call) && has-fact [(id, machine)] machine-call
+      && not (has-fact [(id, machine)] machine-local) && not (has-fact [(id, machine)] machine-wrong-slot)
+      && not (has-fact [(id, nat)] machine-call) && no-machine-arithmetic
+      && not (has-fact gamma effect-call) && not (has-fact Nil good) && not (has-fact [(id, integer)] good)
+  arithmetic-checks :: Nat -> Bool
+  arithmetic-checks nonce =
+    let id = nonce + 340282366920938463463374607431768211550 in
+    let owner = interface-global "Algebra.Arithmetic.Add" in
+    let name = interface-global "Algebra.Arithmetic.Add.+" in
+    let target-type = UApp (UCon owner (KFun KType KType)) nat in
+    let evidence = CEInstance s target-type "numeric-add" Nil (CEArgumentsEnd s) in
+    let method = CMethod s (UFun nat (UFun nat nat)) name owner 0 [nat] [evidence] in
+    let first = CLocal s nat id "x" Nil in
+    let second = CInt s nat "1" in
+    let selected = case numeric-method-operation method first second of Some op -> string-compare op "+" == 0; None -> False in
+    let uninterpreted = CMethod s (UFun nat (UFun nat nat)) name owner 0 [nat] [CEGiven s target-type "uninterpreted-add"] in
+    let sub-owner = interface-global "Algebra.Arithmetic.Sub" in
+    let partial = CMethod s (UFun nat (UFun nat nat)) (interface-global "Algebra.Arithmetic.Sub.-") sub-owner 0 [nat]
+          [CEInstance s (UApp (UCon sub-owner (KFun KType KType)) nat) "partial-sub" Nil (CEArgumentsEnd s)] in
+    selected && (case numeric-method-operation uninterpreted first second of None -> True; Some op -> False)
+      && (case numeric-method-operation partial first second of None -> True; Some op -> False)
+  invalid-context-check :: UType -> Bool
+  invalid-context-check requirement = case fresh-meta KType (empty-store "invalid factory context") of
+    (meta, fresh) ->
+      let poison = qualified Nil [MkRequirement "invalid" requirement] (eq nat) in
+      let term = needed (eq meta) Nil in
+      let definition = MkCoreDefinition s "context-trial" (mono (core-type term)) Nil Nil Nil [MkCoreClause s Nil term] in
+      case resolve-dictionary-definition-with classes [("poison", poison), ("integer", mono (eq integer))] definition fresh of
+        (out, done) -> clean done && string-compare (type-text (normalize done meta)) "Int" == 0
+  invalid-context-checks :: Bool
+  invalid-context-checks = invalid-context-check nat
+    && invalid-context-check (UCon "Eq" (KFun KType KType))
+    && invalid-context-check (eq (UCon "not-a-carrier" KEffect))
+  run :: Nat -> Int
+  run nonce =
+    let leaf = string-concat "leaf-" (nat-to-string nonce) in
+    let list = string-concat "list-" (nat-to-string nonce) in
+    let given = string-concat "given-" (nat-to-string nonce) in
+    let q = nonce + 340282366920938463463374607431768211456 in
+    let a = UBound q "a" KType in
+    let list-con = UCon "List" (KFun KType KType) in
+    let leaf-entry = (leaf, mono (eq nat)) in
+    let generic = qualified [MkQuant q "a" KType False] [MkRequirement "element" (eq a)] (eq (UApp list-con a)) in
+    let factories = [leaf-entry, (list, generic)] in
+    let start = empty-store "instance resolver" in
+    let unique = accepted leaf (resolve-ready-term classes factories Nil (needed (eq nat) Nil) start) in
+    let scope = [CGiven s given (eq nat)] in
+    let lexical = case resolve-ready-term classes factories scope (needed (eq nat) scope) start of (term, st) -> clean st && given-named given term in
+    let generic-ok = case resolve-ready-term classes factories Nil (needed (eq (UApp list-con nat)) Nil) start of (term, st) -> clean st && generic-evidence list leaf term in
+    let ambiguous = refused (resolve-ready-term classes [leaf-entry, ("other", mono (eq nat))] Nil (needed (eq nat) Nil) start) in
+    let alien = refused (resolve-ready-term classes factories Nil (needed (eq nat) [CGiven s "alien" (eq nat)]) start) in
+    let forged = refused (resolve-ready-term classes factories Nil (request (eq nat) [CEInstance s (eq nat) "forged" Nil (CEArgumentsEnd s)]) start) in
+    let arity = refused (resolve-ready-term classes factories Nil (request (eq nat) [CEInstance s (eq nat) leaf [nat] (CEArgumentsEnd s)]) start) in
+    let cycle-sc = qualified Nil [MkRequirement "again" (eq nat)] (eq nat) in
+    let cycle = refused (resolve-ready-term classes [("cycle", cycle-sc)] Nil (needed (eq nat) Nil) start) in
+    let spoofed = case resolve-ready-term classes factories scope (needed (eq nat) [CGiven s given (eq integer)]) start of (term, st) -> clean st && given-named given term in
+    let bad-child = refused (resolve-ready-term classes (Cons ("integer", mono (eq integer)) factories) Nil
+      (request (eq (UApp list-con nat)) [CEInstance s (eq (UApp list-con nat)) list [nat]
+        (CEArgument s (CEInstance s (eq integer) "integer" Nil (CEArgumentsEnd s)) (CEArgumentsEnd s))]) start) in
+    let transactional = case fresh-meta KType start of
+          (meta, fresh) ->
+            let poison = qualified Nil [MkRequirement "missing" (UApp (UCon "Missing" (KFun KType KType)) nat)] (eq nat) in
+            let term = needed (eq meta) Nil in
+            let definition = MkCoreDefinition s "transaction" (mono (core-type term)) Nil Nil Nil [MkCoreClause s Nil term] in
+            case resolve-dictionary-definition-with classes [("poison", poison), ("integer", mono (eq integer))] definition fresh of
+              (out, done) -> clean done && string-compare (type-text (normalize done meta)) "Int" == 0 in
+    if not unique then 1 else if not lexical then 2 else if not generic-ok then 3 else if not ambiguous then 4
+    else if not alien then 5 else if not forged then 6 else if not arity then 7 else if not cycle then 8
+    else if not spoofed then 9 else if not bad-child then 10 else if not transactional then 11
+    else if not (method-checks nonce) then 12 else if not (arithmetic-checks nonce) then 13
+    else if not (clean (check-instance-coherence factories start)) then 14
+    else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15
+    else if not invalid-context-checks then 16 else 0
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of Err error -> 90; Ok nonce -> run (bytes-len nonce)

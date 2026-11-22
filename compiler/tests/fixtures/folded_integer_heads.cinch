@@ -1,0 +1,7 @@
+module Main where
+  values :: List Int
+  values = [11, 184467440737095516160]
+  main :: Int
+  main = case values of
+    Cons small (Cons big Nil) -> if small == 11 && big == 184467440737095516160 then 0 else 1
+    other -> 2

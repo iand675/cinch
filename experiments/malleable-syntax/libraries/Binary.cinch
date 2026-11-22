@@ -1,0 +1,37 @@
+module Binary where
+  import Data.Bytes
+  export decode, encode
+  sum8-from :: Bytes -> Nat -> InRange 0 255 Nat -> InRange 0 255 Nat
+  sum8-from bytes i acc =
+    if i >= bytes-len bytes then acc
+    else
+      let next = (acc + bytes-get bytes i) % 256 in
+      if next <= 255 then sum8-from bytes (i + 1) next else 0
+  sum8 :: Bytes -> InRange 0 255 Nat
+  sum8 bytes = sum8-from bytes 0 0
+  decode :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes -> Option Bytes
+  decode magic version bytes =
+    if bytes-len bytes < 4 then None
+    else if bytes-get bytes 0 /= magic then None
+    else if bytes-get bytes 1 /= version then None
+    else
+      let n = bytes-get bytes 2 in
+      if bytes-len bytes /= n + 4 then None
+      else
+        let payload = bytes-new n in
+        let copied = bytes-copy-range payload bytes 0 3 n in
+        if bytes-get bytes (n + 3) == sum8 payload then Some payload else None
+  encode :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes -> Option Bytes
+  encode magic version payload =
+    let n = bytes-len payload in
+    if n >= 256 then None
+    else
+      let bytes = bytes-new (n + 4) in
+      let a = bytes-set bytes 0 magic in
+      let b = bytes-set bytes 1 version in
+      let c = bytes-set bytes 2 n in
+      if n <= bytes-len payload then
+        let d = bytes-copy-range bytes payload 3 0 n in
+        let e = bytes-set bytes (n + 3) (sum8 payload) in
+        Some bytes
+      else None

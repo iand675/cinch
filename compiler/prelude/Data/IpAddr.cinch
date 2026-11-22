@@ -53,7 +53,6 @@ module Data.IpAddr where
   import Data.Bool
   import Data.Char
 
-  infixr 6 <>
 
   export IpFamily, Ipv4Family, Ipv6Family
   export Ipv4, ipv4-parse, ipv4-from-octets, ipv4-to-string, ipv4-bytes

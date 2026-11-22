@@ -32,6 +32,45 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
 // ------------------------------------------------------------ multiplicities
 
 #[test]
+fn strict_aliases_preserve_linear_and_affine_usage() {
+    for multiplicity in ["%1", "%aff"] {
+        expect_err(
+            "alias-double-use",
+            &format!(r#"
+module Main where
+  duplicate :: Nat {multiplicity} -> Nat
+  duplicate value = let temporary = value in let alias = temporary in alias + alias
+  main :: Int
+  main = 0
+"#),
+            &["used 2 time"],
+        );
+    }
+    expect_err(
+        "linear-alias-drop",
+        r#"
+module Main where
+  discard :: Nat %1 -> Nat
+  discard value = let alias = value in 0
+  main :: Int
+  main = 0
+"#,
+        &["multiplicity %1", "never used"],
+    );
+    expect_ok(
+        "linear-alias-branch",
+        r#"
+module Main where
+  choose :: Bool -> Nat %1 -> Nat
+  choose flag value = let alias = value in if flag then alias else alias
+  main :: Int
+  main = if choose True 42 == 42 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
 fn linear_double_use_is_rejected() {
     expect_err(
         "linear-double-use",
@@ -540,4 +579,30 @@ module Main where
 "#,
         0,
     );
+}
+
+
+#[test]
+fn annotated_linear_lambda_owns_its_parameter_inside_its_body() {
+    for expression in [
+        r"((\token -> case token of { Token value -> value }) :: Token %1 -> Int) (Token 42)",
+        r"((\(Token value) -> value) :: Token %1 -> Int) (Token 42)",
+    ] {
+        expect_ok("linear-lambda-parameter", &format!(
+            "module Main where\n  data Token where\n    Token :: Int -> Token\n  main :: Int\n  main = {expression}\n"
+        ), 42);
+    }
+}
+
+#[test]
+fn linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped() {
+    for expression in [
+        r"((\token -> (\u -> case token of { Token value -> value }) ()) :: Token %1 -> Int) (Token 42)",
+        r"((\token -> let first = (case token of { Token value -> value }) in case token of { Token value -> first + value }) :: Token %1 -> Int) (Token 42)",
+        r"((\token -> 0) :: Token %1 -> Int) (Token 42)",
+    ] {
+        expect_err("linear-lambda-parameter-misuse", &format!(
+            "module Main where\n  data Token where\n    Token :: Int -> Token\n  main :: Int\n  main = {expression}\n"
+        ), &["multiplicity %1"]);
+    }
 }

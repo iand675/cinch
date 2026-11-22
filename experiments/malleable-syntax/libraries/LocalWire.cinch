@@ -1,0 +1,5 @@
+module LocalWire where
+  suspend :: forall a. (Unit -> a) -> Thunk {} a
+  suspend body = delay body
+  take :: forall a. Thunk {} a %1 -> a
+  take packet = force packet

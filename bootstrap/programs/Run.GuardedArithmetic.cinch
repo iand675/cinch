@@ -1,0 +1,89 @@
+-- Source arrives after this checker executable has been built.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Infer
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.Proof (PFalsehood)
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  definition :: UType -> List CorePattern -> CoreTerm -> CoreDefinition
+  definition ty patterns body = MkCoreDefinition (Span 0 0 1 1) "certificate-scope" (mono ty) Nil Nil Nil [MkCoreClause (Span 0 0 1 1) patterns body]
+  invariants :: Nat -> Bool
+  invariants nonce =
+    let s = Span 0 0 1 1 in
+    let nat = UCon "Nat" KType in
+    let boolean = UCon "Bool" KType in
+    let first-id = nonce + 1 in
+    let second-id = nonce + 2 in
+    let first = CLocal s nat first-id "x" Nil in
+    let second = CLocal s nat second-id "y" Nil in
+    let gamma = [(first-id, nat), (second-id, nat)] in
+    let args = CArgument s first (CArgument s second (CArgumentsEnd s)) in
+    let condition = CPrimitive s boolean ">=" args in
+    let operation = CPrimitive s nat "-" args in
+    let reverse = CPrimitive s nat "-" (CArgument s second (CArgument s first (CArgumentsEnd s))) in
+    let zero = CInt s nat "0" in
+    let parameters = [CPVar s nat first-id "x", CPVar s nat second-id "y"] in
+    let fn-type = UFun nat (UFun nat nat) in
+    case core-condition gamma Nil condition of
+      None -> False
+      Some fact -> case prove-subtraction gamma [fact] first second of
+        None -> False
+        Some evidence ->
+          let closed = core-definition-closed (definition fn-type parameters (CIf s nat condition (CProved s nat evidence operation) zero)) in
+          let wrong-goal = not (core-definition-closed (definition fn-type parameters (CIf s nat condition (CProved s nat evidence reverse) zero))) in
+          let wrong-branch = not (core-definition-closed (definition fn-type parameters (CIf s nat condition zero (CProved s nat evidence operation)))) in
+          let outside = not (core-definition-closed (definition fn-type parameters (CProved s nat evidence operation))) in
+          let missing = not (core-definition-closed (definition fn-type parameters (CIf s nat condition operation zero))) in
+          let forged-false = case prove-subtraction gamma [PFalsehood] first second of
+                Some forged -> not (core-definition-closed (definition fn-type parameters (CProved s nat forged operation)))
+                None -> False in
+          let machine = CLocal s (UCon "I64" KType) first-id "x" Nil in
+          let machine-gamma = [(first-id, UCon "I64" KType)] in
+          let machine-comparison = case core-condition machine-gamma Nil (CPrimitive s boolean ">=" (CArgument s machine (CArgument s machine (CArgumentsEnd s)))) of None -> False; Some p -> True in
+          let no-machine-subtraction = case prove-subtraction machine-gamma Nil machine machine of None -> True; Some evidence -> False in
+          let machine-sum = CPrimitive s (UCon "I64" KType) "+" (CArgument s machine (CArgument s (CInt s (UCon "I64" KType) "1") (CArgumentsEnd s))) in
+          let no-wrapping-fact = case core-condition machine-gamma Nil (CPrimitive s boolean ">" (CArgument s machine-sum (CArgument s machine (CArgumentsEnd s)))) of None -> True; Some p -> False in
+          closed && wrong-goal && wrong-branch && outside && missing && forged-false && machine-comparison && no-machine-subtraction && no-wrapping-fact
+  certificates :: CoreTerm -> Nat
+  certificates term = case term of
+    CProved s ty evidence body -> 1 + certificates body
+    CApply s ty f x -> certificates f + certificates x
+    CLambda s ty p body -> certificates body
+    CLet s ty id name sc rhs body -> certificates rhs + certificates body
+    CIf s ty condition yes no -> certificates condition + certificates yes + certificates no
+    CCase s ty value alts -> certificates value + certificates alts
+    CPrimitive s ty op args -> certificates args
+    CArgument s value rest -> certificates value + certificates rest
+    CAlternative s p body rest -> certificates body + certificates rest
+    CGuard s ty condition body -> certificates condition + certificates body
+    other -> 0
+  clause-certificates :: List CoreClause -> Nat
+  clause-certificates clauses = case clauses of Nil -> 0; Cons (MkCoreClause s ps body) rest -> certificates body + clause-certificates rest
+  retained :: List CoreDefinition -> Nat
+  retained definitions = case definitions of Nil -> 0; Cons d rest -> clause-certificates (core-clauses d) + retained rest
+  closed :: List CoreDefinition -> Bool
+  closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
+  run :: Bytes -> (Int, String)
+  run source = if not (invariants (bytes-len source)) then (95, "operation certificate escaped its actual goal or scope") else case parse-program "guarded-source" source of
+    Parsed program Nil -> let errors = check-program program in
+      let result = elaborate-program "guarded-source" program in
+      let found = elaboration-errors result in
+      if list-length errors > 0 || list-length found > 0 then (4, render-diagnostics (errors <> found))
+      else if closed (elaboration-core result) && retained (elaboration-core result) > 0 then (0, "")
+      else (94, "guarded operation lost its checked certificate")
+    other -> (2, "source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
+    Err error -> 90
+    Ok source -> let (status, report) = run source in case fs-write (path-from-string "guarded-report.txt") (string-to-bytes report) of
+      Err error -> 91
+      Ok _ -> status

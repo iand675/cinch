@@ -67,6 +67,23 @@ fn iface_value_names(dir: &Path, module: &str) -> Vec<String> {
 // ---------------------------------------- D105/D110: collection literals
 
 #[test]
+fn collection_of_records_with_closed_callbacks_keeps_runtime_construction() {
+    let dir = write_project(&[("Main.cinch", r#"
+module Main where
+  record Props where
+    callback :: Unit -> Nat
+  nodes :: List Props
+  nodes = [Props { callback = \() -> 42 }]
+  main :: Int
+  main = case nodes of
+    Cons props Nil -> if props.callback () == 42 then 0 else 1
+    _ -> 2
+"#)]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("closed callback remains executable"), 0);
+    assert_eq!(literal_folds(&dir), vec![("list".to_string(), false)]);
+}
+
+#[test]
 fn list_literal_folds_to_a_constant_and_a_runtime_call_stays() {
     // All-constant elements fold (the boundary records it); an element
     // that is a runtime value keeps its `from-list` call.
@@ -113,6 +130,23 @@ fn bytes_literal_folds_and_map_literal_round_trips() {
         folds.iter().any(|(k, f)| k == "map" && *f),
         "the map literal folds to its constant tree: {folds:?}"
     );
+}
+
+#[test]
+fn bytes_literal_folding_preserves_unsigned_byte_boundaries() {
+    let dir = write_project(&[(
+        "Main.cinch",
+        r#"module Main where
+  buf :: Bytes
+  buf = [0, 127, 128, 255]
+  main :: Int
+  main = if bytes-len buf == 4 then
+    if bytes-get buf 0 == 0 && bytes-get buf 1 == 127 && bytes-get buf 2 == 128 && bytes-get buf 3 == 255 then 0 else 1
+    else 2
+"#,
+    )]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
+    assert_eq!(literal_folds(&dir), vec![("list".to_string(), true)]);
 }
 
 #[test]

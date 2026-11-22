@@ -144,9 +144,11 @@ Append a string as one piece: O(1), no copy of the string's bytes.
 builder-bytes :: (Builder -> Bytes)
 ```
 
-The flattened bytes: one allocation, one copy pass.
+Exact size and fixed-length pieces make the checked copy pass succeed.
+Preserve the original semantics if those private invariants ever disagree:
+recompute with the range-checked fill, never return truncated text.
 
-[Source](/reference-sources/Text.Builder.cinch) · line 139
+[Source](/reference-sources/Text.Builder.cinch) · line 184
 
 <a id="value-6275696c6465722d6368756e6b73"></a>
 
@@ -199,7 +201,7 @@ The flattened string: flatten once, then decode the UTF-8. A builder
 built through the string, line, nat and int surface is always valid UTF-8;
 a raw byte chunk that is not yields the empty string (see the header).
 
-[Source](/reference-sources/Text.Builder.cinch) · line 145
+[Source](/reference-sources/Text.Builder.cinch) · line 193
 
 <a id="value-6275696c6465722d73697a65"></a>
 
@@ -212,8 +214,8 @@ builder-size :: (Builder -> Nat)
 The exact total byte length of the flattened result, without flattening
 (a line piece counts its LF). O(number of pieces).
 
-[Source](/reference-sources/Text.Builder.cinch) · line 104
+[Source](/reference-sources/Text.Builder.cinch) · line 106
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Builder.cinch`. Source SHA-256: `212242bd8c516223446f1023b982c053f80dfed0e591c7af4f6e0a3d027a05ab`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Builder.cinch`. Source SHA-256: `c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

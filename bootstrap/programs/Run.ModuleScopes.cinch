@@ -1,0 +1,54 @@
+-- The fragment checker must not flatten private names from separate
+-- modules. Until interface resolution and qualified codegen land, imports
+-- and multi-module emission are named refusals.
+module Main where
+
+  import Bootstrap.Ast
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Ir (emit-diagnostics)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Report (Diagnostic, diagnostic-message)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  independent :: String
+  independent = "module A where\n  helper :: Int\n  helper = 7\nmodule Main where\n  helper :: Bool\n  helper = True\n  main :: Int\n  main = if helper then 0 else 1\n"
+
+  leaked :: String
+  leaked = "module A where\n  secret :: Int\n  secret = 7\nmodule Main where\n  main :: Int\n  main = secret\n"
+
+  imported :: String
+  imported = "module A where\n  helper :: Int\n  helper = 7\nmodule Main where\n  import A (helper)\n  main :: Int\n  main = helper\n"
+
+  contains :: String -> List Diagnostic -> Bool
+  contains text ds = case ds of
+    Nil -> False
+    Cons d rest -> string-compare text (diagnostic-message d) == 0 || contains text rest
+
+  clean-modules :: Bool
+  clean-modules = case parse-program "independent" (string-to-bytes independent) of
+    Failed bundle -> False
+    Parsed program errors -> program-unmodeled-count program == 0 && list-length (check-program program) == 0
+
+  leakage-refused :: Bool
+  leakage-refused = case parse-program "leak" (string-to-bytes leaked) of
+    Failed bundle -> False
+    Parsed program errors -> contains "unbound variable: secret" (check-program program)
+
+  import-refused :: Bool
+  import-refused = case parse-program "import" (string-to-bytes imported) of
+    Failed bundle -> False
+    Parsed program errors -> contains "module imports need interface resolution, which is not supported in this rung" (check-program program)
+
+  emission-refused :: Bool
+  emission-refused = case parse-program "emit" (string-to-bytes independent) of
+    Failed bundle -> False
+    Parsed program errors -> contains "multiple modules need qualified symbols, which this emitter does not lower yet" (emit-diagnostics program)
+
+  main :: Int
+  main = if clean-modules then
+    if leakage-refused then
+      if import-refused then
+        if emission-refused then 0 else 4
+      else 3
+    else 2
+    else 1

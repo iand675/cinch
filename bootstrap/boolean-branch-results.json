@@ -1,0 +1,223 @@
+{
+  "status": "all three focused targets and six combined stage smokes passed; broader guard/effect regressions pending at publication",
+  "recorded_at": "2026-11-02T21:54:22.757509+00:00",
+  "focused_source_sha256": "e2df19bc80510a6269084cfcb57959f8abcbe6bd9ed9247e74011653c16da6e5",
+  "combined_source_sha256": "744f7a85b3205925923c9093d4ae56cf81e6fbf5a54c9754936bc5a76feb047a",
+  "implementation_file_sha256": {
+    "bootstrap/Bootstrap.Core.cinch": "92e353a108b525e558cba752942df9fc5a29a45e869d80af9c14926141cd1afa",
+    "bootstrap/Bootstrap.Infer.cinch": "b02428335291ee3910f640441236e246534e975d8e03fdaa00dea57d8ca296e2",
+    "bootstrap/Bootstrap.Typing.cinch": "bd12252119ea70b5ee3461fc37329ea8790eaf8ce3a9f4aad469444b1a883f33",
+    "compiler/tests/bootstrap_boolean_branches.rs": "15e716c9cd890b18b31bc2192852d7eb9f2c71193e70627379567a22c80cdfc9"
+  },
+  "implementation": "Keep exact scoped-core-condition readings separate from polarity-aware scoped-core-branch implications. If the exact condition cannot be read, a true CIf with an actual False alternative may retain true facts about its test; a false CIf with an actual True arm may retain false facts about its test. Never negate a weaker implication. Infer, independent Typing, Core proof checks and certificate refresh use the same branch rule.",
+  "before_evidence": {
+    "directory": "/tmp/cinch-boolean-branch-before-1",
+    "valid_cases_native0_cinch4": [
+      "actual guarded JSON slot conversion",
+      "opaque right side of conjunction, true branch",
+      "opaque right side of disjunction, false branch"
+    ],
+    "invalid_converses_native1_cinch4": [
+      "false conjunction cannot negate left",
+      "true disjunction cannot assert left"
+    ]
+  },
+  "focused_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_boolean_branches",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T21:31:33.234773+00:00",
+      "name": "bootstrap_boolean_branches",
+      "pid": 13169,
+      "started": "2026-11-02T21:21:09.542653+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_typing",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T21:33:42.042197+00:00",
+      "name": "bootstrap_typing",
+      "pid": 59764,
+      "started": "2026-11-02T21:31:33.235947+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_decisions",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T21:35:45.776641+00:00",
+      "name": "bootstrap_decisions",
+      "pid": 61507,
+      "started": "2026-11-02T21:33:42.043068+00:00",
+      "status": "passed"
+    }
+  ],
+  "source_cases": 6,
+  "existing_direct_core_checks": true,
+  "case_coverage": [
+    "actual guarded JSON slot conversion",
+    "true conjunction retains left guard",
+    "false disjunction retains negative left guard",
+    "false conjunction cannot negate left guard",
+    "true disjunction cannot assert left guard",
+    "nested conjunction retains outer guard"
+  ],
+  "broader_results_at_publication": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_guarded_calls",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_guarded_calls",
+      "pid": 70911,
+      "started": "2026-11-02T21:36:55.533227+00:00",
+      "status": "running"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_source_effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_source_effects",
+      "status": "pending"
+    }
+  ],
+  "stage_smokes": {
+    "bootstrap_achieved": false,
+    "builder_sha256": "3393396fe755067a396992bddb7c67989bc2ed2bef7c616c395550d4e4da2527",
+    "source_sha256": "744f7a85b3205925923c9093d4ae56cf81e6fbf5a54c9754936bc5a76feb047a",
+    "status": "six stage0/1 smokes passed"
+  },
+  "actual_stages": {
+    "0": {
+      "exit_code": 0,
+      "inputs": {
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 2,
+        "seed": {
+          "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic, schema-8 closed executable total-body contracts with exact defining declarations, private first-order measure dependencies and definition-site argument identities, acyclic FromList class dependencies retain complete List and Bytes factory schemes, lexical constructor-witness value provenance, strict-let alias identity and source namespace separation, scope-aware anonymous refinement value binders and capture-free refinement rendering, optional closed conditional implementation declarations from actual checked dictionary slots, checked guarded Nat body equations, strict let result equations with original lexical value identities, corrected multi-term equality proof search, checked byte-length observations and actual selected arithmetic bodies in strict Nat let equations, typed collection constant reification with actual constructor instantiations and checked field types, declining unresolved generalized result types; changed only by an intentional seed update. Rejects duplicate handler operation clauses and checks operation type parameters universally without clause-scope escape; no ABI or prototype syntax change.",
+          "patch": "bootstrap/seed/stage0.patch",
+          "patch_sha256": "781522241690ae5e4e12085b8ecfd336e3827e78be81e7282d2e3795fe4fb189",
+          "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+          "runtime_abi": 5,
+          "schema": 1,
+          "source_sha256": "c77484d26d293178f2a37efde10da2e1c15155e2dc825715a8d4ca8f30fd98a0"
+        }
+      },
+      "log": "/private/tmp/cinch-boolean-modes-validation-1/source/build/bootstrap/stage0/build.log",
+      "status": "built"
+    },
+    "1": {
+      "exit_code": 0,
+      "inputs": {
+        "builder_sha256": "b3b234192b66701761f7d1d31578ce74910b67cd8e5b3b4142dbfc6a60a4ec45",
+        "built_by_stage": 0,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 2,
+        "source_sha256": "82cdb389505e2e20b1858f31baf9d5ae822fb543588f7010872ba202804cf55a"
+      },
+      "log": "/private/tmp/cinch-boolean-modes-validation-1/source/build/bootstrap/stage1/build.log",
+      "status": "built"
+    },
+    "2": {
+      "diagnostic_categories": {
+        "argument call needs checked pure total reification or a checked observation contract": 1,
+        "ill-sorted, partial or unchecked typed source index": 1,
+        "non-exhaustive patterns": 442,
+        "type mismatch: expected Nat, found Int": 1,
+        "with binding needs a checked signature value": 1
+      },
+      "diagnostics": 446,
+      "exit_code": 4,
+      "first_diagnostics": [
+        "bootstrap.check:7002:43: argument call needs checked pure total reification or a checked observation contract",
+        "bootstrap.check:7002:43: ill-sorted, partial or unchecked typed source index",
+        "bootstrap.check:7016:45: non-exhaustive patterns",
+        "bootstrap.check:7022:13: non-exhaustive patterns",
+        "bootstrap.check:7024:15: non-exhaustive patterns",
+        "bootstrap.check:7025:29: non-exhaustive patterns",
+        "bootstrap.check:7026:31: non-exhaustive patterns",
+        "bootstrap.check:7034:23: non-exhaustive patterns",
+        "bootstrap.check:7043:8: non-exhaustive patterns",
+        "bootstrap.check:7048:31: non-exhaustive patterns"
+      ],
+      "inputs": {
+        "builder_sha256": "3393396fe755067a396992bddb7c67989bc2ed2bef7c616c395550d4e4da2527",
+        "built_by_stage": 1,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_set_sha256": "97b5b4290ba86e43b42a2b7fd003a6c53f1739e0458a7bf12da480adf01f3ccd",
+        "protocol": 2,
+        "source_sha256": "82cdb389505e2e20b1858f31baf9d5ae822fb543588f7010872ba202804cf55a"
+      },
+      "log": "/private/tmp/cinch-boolean-modes-validation-1/source/build/bootstrap/stage2/build.log",
+      "status": "failed"
+    }
+  },
+  "actual_result": "Stage 2 clears Bootstrap.Guarded and stops at Bootstrap.Infer.check-imported-value, where nat-to-int is given a sum of opaque Nat getter calls. No Stage 2 IR or executable is produced.",
+  "next_candidate": "A checked strict binding of the actual imported arity sum is under separate whole-inference-module validation. It is not part of this checkpoint.",
+  "seed": "c774 unchanged, ABI5/schema8",
+  "remaining": [
+    "Typed Core runtime lowering, shared layouts/base linking and canonical source interfaces.",
+    "Complete independent usage/totality and actual selected-method body authority; class/slot-only numeric reflection still requires replacement.",
+    "Complete current-source and self-built frontend suites, Stage 2 executable, Stage 3 fixed point and changed-source probe."
+  ],
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

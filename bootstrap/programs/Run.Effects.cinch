@@ -1,0 +1,27 @@
+-- Input is supplied after this checker executable has been compiled.
+module Main where
+
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors)
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case fs-read (path-from-string "source.cinch") of
+      Err error -> 90
+      Ok source -> let (status, report) = check-source source in
+        case fs-write (path-from-string "effects-report.txt") (string-to-bytes report) of
+          Ok _ -> status
+          Err error -> 91
+
+  check-source :: Bytes -> (Int, String)
+  check-source source = case parse-program "source.cinch" source of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> let errors = elaboration-errors (elaborate-program "source.cinch" resolved) in
+        (if list-length errors == 0 then 0 else 4, render-diagnostics errors)
+      (resolved, errors) -> (3, render-diagnostics errors)
+    other -> (2, "parse failure")

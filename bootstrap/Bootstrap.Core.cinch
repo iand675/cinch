@@ -1,0 +1,1961 @@
+-- Checked pure terms. No surface expression is retained here: applications,
+-- binders and constructor fields carry their inferred types, and each use
+-- records the type arguments chosen by rank-one instantiation.
+-- Effects, evidence and erasure need further core forms before acceptance.
+module Bootstrap.Core where
+
+  import Bootstrap.Index
+  import Bootstrap.Type
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Proof
+  import Bootstrap.Total
+  import Bootstrap.BodyContract
+  import Bootstrap.Guarded
+  import Data.Nat (nat-to-int)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
+  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
+  export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
+  export CApplyEff, CWith, core-effects
+  export CHandler, CHandle, CHandlerOperation, CHandlerEnd
+  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
+  export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
+  export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
+  export CRefineProof, scoped-refinement-proof
+  export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
+  export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
+  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
+  export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
+  export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
+  export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
+  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
+  export CEArgument, CEArgumentsEnd
+  export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
+  export map-givens, map-evidence, map-evidences, scheme-closed
+  export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
+
+  export contract-quants-closed, contract-scheme-closed, core-definition-result-types
+  export arrow-result, pattern-result, proof-pattern, proof-patterns, scope-let
+  export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
+  export core-data-name, core-data-kind, core-data-params, core-data-constructors
+  export core-constructor-name, core-constructor-scheme, core-constructor-fields
+  export core-data-closed
+
+  export CoreEffect, MkCoreEffect, CoreOperation, MkCoreOperation
+  export core-effect-name, core-effect-kind, core-effect-params, core-effect-operations
+  export core-operation-name, core-operation-scheme, core-operation-slot, core-effect-closed
+
+  -- A source effect is a typed declaration, not an unchecked foreign value.
+  -- Operation order is the handler dispatch order, including private slots.
+  data CoreOperation where
+    MkCoreOperation :: Span -> String -> Nat -> Scheme -> CoreOperation
+  data CoreEffect where
+    MkCoreEffect :: Span -> String -> Kind -> List Quant -> List CoreOperation -> CoreEffect
+  core-effect-name :: CoreEffect -> String
+  core-effect-name d = case d of MkCoreEffect s name kind qs ops -> name
+  core-effect-kind :: CoreEffect -> Kind
+  core-effect-kind d = case d of MkCoreEffect s name kind qs ops -> kind
+  core-effect-params :: CoreEffect -> List Quant
+  core-effect-params d = case d of MkCoreEffect s name kind qs ops -> qs
+  core-effect-operations :: CoreEffect -> List CoreOperation
+  core-effect-operations d = case d of MkCoreEffect s name kind qs ops -> ops
+  core-operation-name :: CoreOperation -> String
+  core-operation-name op = case op of MkCoreOperation s name slot sc -> name
+  core-operation-slot :: CoreOperation -> Nat
+  core-operation-slot op = case op of MkCoreOperation s name slot sc -> slot
+  core-operation-scheme :: CoreOperation -> Scheme
+  core-operation-scheme op = case op of MkCoreOperation s name slot sc -> sc
+  effect-kind :: List Quant -> Kind
+  effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (effect-kind rest)
+  effect-label :: String -> Kind -> List Quant -> UType
+  effect-label name kind qs = effect-arguments (UCon name kind) qs
+  effect-arguments :: UType -> List Quant -> UType
+  effect-arguments head qs = case qs of Nil -> head; Cons q rest -> effect-arguments (UApp head (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  effect-quant :: Nat -> List Quant -> Option Quant
+  effect-quant id qs = case qs of Nil -> None; Cons q rest -> if id == quant-id q then Some q else effect-quant id rest
+  effect-quant-name :: String -> List Quant -> Bool
+  effect-quant-name name qs = case qs of Nil -> False; Cons q rest -> string-compare name (quant-name q) == 0 || effect-quant-name name rest
+  effect-kind-scope :: List Quant -> Kind -> Bool
+  effect-kind-scope qs kind = valid-kind kind && (case kind of
+    KValue payload -> (case value-carrier kind of Some ty -> effect-type-scope qs ty; None -> False)
+    KFun a b -> effect-kind-scope qs a && effect-kind-scope qs b
+    other -> True)
+  effect-quants-scoped :: List Quant -> List Quant -> Bool
+  effect-quants-scoped qs bound = case qs of
+    Nil -> True
+    Cons q rest -> (case effect-quant (quant-id q) bound of Some old -> False; None -> True)
+      && not (effect-quant-name (quant-name q) bound) && effect-kind-scope bound (quant-kind q)
+      && effect-quants-scoped rest (Cons q bound)
+  effect-binder :: List Quant -> Nat -> String -> UType -> UType -> Bool
+  effect-binder qs id name carrier body = (case effect-quant id qs of Some q -> False; None -> True)
+    && effect-proper-value carrier && effect-type-scope qs carrier && effect-type-scope (Cons (MkQuant id name (value-kind carrier) False) qs) body
+  effect-index-scope :: List Quant -> UType -> IndexTerm -> Bool
+  effect-index-scope qs carrier value = case value of
+    IInteger n -> integer-literal-valid carrier n
+    IBound id name -> case effect-quant id qs of
+      Some q -> (case value-carrier (quant-kind q) of Some declared -> contract-equal carrier declared; None -> False)
+      None -> False
+    IAdd a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    ISubtract a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    IMultiply a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    other -> False
+  effect-proper-value :: UType -> Bool
+  effect-proper-value ty = kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
+  effect-type-scope :: List Quant -> UType -> Bool
+  effect-type-scope qs ty = case ty of
+    UBound id name kind -> case effect-quant id qs of Some q -> kind-equal kind (quant-kind q) && effect-kind-scope qs kind; None -> False
+    UCon name kind -> effect-kind-scope Nil kind
+    URigid id name level kind -> False
+    UMeta id kind -> False
+    UError -> False
+    UIndex carrier value -> effect-type-scope qs carrier && effect-index-scope qs carrier value
+    UIndexForget value -> effect-type-scope qs value
+    UIndexPromote value -> effect-type-scope qs value
+    UIndexByteLength value -> effect-type-scope qs value
+    UIndexCall function args -> effect-type-scope qs args
+    UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
+    URefine id name carrier predicate -> effect-binder qs id name carrier predicate
+    UPi id name domain row result -> effect-binder qs id name domain (UArg row (UArg result UEnd))
+    UApp a b -> effect-type-scope qs a && effect-type-scope qs b
+    UFun a b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs b
+    UFunEff a row b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
+    UProofFun a row b -> valid-type a && kind-equal (type-kind a) KProp && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
+    URow labels -> effect-type-scope qs labels
+    URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
+    UTuple fields -> effect-type-scope qs fields
+    UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
+    UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropAnd a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropOr a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropNot body -> effect-type-scope qs body
+    UPropNonZero body -> effect-type-scope qs body
+    UPropNonZeroPending body -> effect-type-scope qs body
+    URequire predicates body -> effect-type-scope qs predicates && effect-type-scope qs body
+    UPropLit value -> True
+    UEnd -> True
+  effect-requirements :: List Quant -> List Requirement -> Bool
+  effect-requirements qs rs = case rs of Nil -> True; Cons r rest -> effect-type-scope qs (requirement-type r) && effect-requirements qs rest
+  effect-parameter-prefix :: List Quant -> List Quant -> Bool
+  effect-parameter-prefix owner actual = case owner of
+    Nil -> True
+    Cons q rest -> case actual of
+      Cons a more -> quant-id q == quant-id a && kind-equal (quant-kind q) (quant-kind a)
+        && quant-implicit q == quant-implicit a && string-compare (quant-name q) (quant-name a) == 0
+        && effect-parameter-prefix rest more
+      Nil -> False
+  operation-function :: UType -> Bool
+  operation-function ty = case ty of UFun a b -> True; UFunEff a row b -> True; UProofFun p row b -> True; UPi id name a row b -> True; other -> False
+  operation-effects :: UType -> UType -> Bool
+  operation-effects label ty = case ty of
+    UFun a b -> operation-effects label b
+    UFunEff a row b -> operation-row label row b
+    UProofFun predicate row result -> operation-row label row result
+    UPi id name a row b -> operation-row label row b
+    other -> False
+  operation-row :: UType -> UType -> UType -> Bool
+  operation-row label row result = if operation-function result then
+    contract-equal row (URow UEnd) && operation-effects label result
+    else contract-equal row (URow (UArg label UEnd))
+  effect-operations-closed :: String -> Kind -> List Quant -> Nat -> List String -> List CoreOperation -> Bool
+  effect-operations-closed name kind qs next names ops = case ops of
+    Nil -> True
+    Cons op rest -> let sc = core-operation-scheme op in let all = scheme-params sc in
+      core-operation-slot op == next
+      && not (effect-operation-seen (core-operation-name op) names)
+      && scheme-closed sc && valid-type (scheme-body sc) && scheme-index-scope Nil sc && effect-quants-scoped all Nil
+      && effect-parameter-prefix qs all && effect-type-scope all (scheme-body sc)
+      && effect-requirements all (scheme-requirements sc)
+      && operation-effects (effect-label name kind qs) (scheme-body sc)
+      && effect-operations-closed name kind qs (next + 1) (Cons (core-operation-name op) names) rest
+  effect-operation-seen :: String -> List String -> Bool
+  effect-operation-seen name names = case names of Nil -> False; Cons n rest -> string-compare name n == 0 || effect-operation-seen name rest
+  core-effect-closed :: CoreEffect -> Bool
+  core-effect-closed declaration = case declaration of
+    MkCoreEffect s name kind qs ops -> string-length name > 0 && effect-quants-scoped qs Nil
+      && closed-quants qs && kind-equal kind (effect-kind qs)
+      && (case ops of Nil -> False; Cons op rest -> True)
+      && effect-operations-closed name kind qs 1 Nil ops
+
+  -- Source declarations retain every constructor, including private ones.
+  -- Export visibility stays in the module contexts. Imported declarations
+  -- remain checked interface contracts, not reconstructed source data.
+  data CoreConstructor where
+    MkCoreConstructor :: Span -> String -> Scheme -> CoreConstructor
+  data CoreData where
+    MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
+
+  core-data-name :: CoreData -> String
+  core-data-name d = case d of MkCoreData s name k qs constructors -> name
+  core-data-kind :: CoreData -> Kind
+  core-data-kind d = case d of MkCoreData s name k qs constructors -> k
+  core-data-params :: CoreData -> List Quant
+  core-data-params d = case d of MkCoreData s name k qs constructors -> qs
+  core-data-constructors :: CoreData -> List CoreConstructor
+  core-data-constructors d = case d of MkCoreData s name k qs constructors -> constructors
+  core-constructor-name :: CoreConstructor -> String
+  core-constructor-name c = case c of MkCoreConstructor s name sc -> name
+  core-constructor-scheme :: CoreConstructor -> Scheme
+  core-constructor-scheme c = case c of MkCoreConstructor s name sc -> sc
+  constructor-fields :: UType -> List UType
+  constructor-fields ty = case ty of UPi id name a row b -> Cons a (constructor-fields b); UFun a b -> Cons a (constructor-fields b); UProofFun predicate row result -> constructor-fields result; other -> Nil
+  core-constructor-fields :: CoreConstructor -> List UType
+  core-constructor-fields c = constructor-fields (scheme-body (core-constructor-scheme c))
+  constructors-closed :: List CoreConstructor -> Bool
+  constructors-closed cs = case cs of
+    Nil -> True
+    Cons c rest -> scheme-closed (core-constructor-scheme c) && scheme-index-scope Nil (core-constructor-scheme c) && constructors-closed rest
+  core-data-closed :: CoreData -> Bool
+  core-data-closed d = constructors-closed (core-data-constructors d)
+
+  data CorePattern where
+    CPWild :: Span -> UType -> CorePattern
+    CPVar :: Span -> UType -> Nat -> String -> CorePattern
+    -- Proof binders never introduce a runtime local or value index.
+    CPProof :: Span -> UType -> Nat -> String -> CorePattern
+    CPAs :: Span -> UType -> Nat -> String -> CorePattern -> CorePattern
+    CPConstructor :: Span -> UType -> String -> List UType -> UType -> CorePattern -> CorePattern
+    CPInt :: Span -> UType -> String -> CorePattern
+    CPString :: Span -> UType -> String -> CorePattern
+    CPChar :: Span -> UType -> String -> CorePattern
+    CPTuple :: Span -> UType -> CorePattern -> CorePattern
+    CPField :: Span -> CorePattern -> CorePattern -> CorePattern
+    CPDone :: Span -> CorePattern
+
+  -- Dictionary binders have stable internal symbols, independent of the
+  -- source spelling that a nested local declaration may shadow.
+  data CoreGiven where
+    CGiven :: Span -> String -> UType -> CoreGiven
+  given-symbol :: CoreGiven -> String
+  given-symbol given = case given of CGiven s name ty -> name
+  given-type :: CoreGiven -> UType
+  given-type given = case given of CGiven s name ty -> ty
+  data CoreEvidence where
+    CENeeded :: Span -> UType -> List CoreGiven -> CoreEvidence
+    CEGiven :: Span -> UType -> String -> CoreEvidence
+    CEInstance :: Span -> UType -> String -> List UType -> CoreEvidence -> CoreEvidence
+    CEArgument :: Span -> CoreEvidence -> CoreEvidence -> CoreEvidence
+    CEArgumentsEnd :: Span -> CoreEvidence
+  evidence-type :: CoreEvidence -> UType
+  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CEInstance s ty name actuals args -> ty; other -> UError
+  map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
+  map-givens f givens = case givens of Nil -> Nil; Cons (CGiven s name ty) rest -> Cons (CGiven s name (f ty)) (map-givens f rest)
+  map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
+  map-evidence f evidence = case evidence of
+    CENeeded s ty scope -> CENeeded s (f ty) (map-givens f scope)
+    CEGiven s ty name -> CEGiven s (f ty) name
+    CEInstance s ty name actuals args -> CEInstance s (f ty) name (map-types f actuals) (map-evidence f args)
+    CEArgument s arg rest -> CEArgument s (map-evidence f arg) (map-evidence f rest)
+    CEArgumentsEnd s -> evidence
+  map-evidences :: (UType -> UType) -> List CoreEvidence -> List CoreEvidence
+  map-evidences f evidences = case evidences of Nil -> Nil; Cons evidence rest -> Cons (map-evidence f evidence) (map-evidences f rest)
+
+  data CoreTerm where
+    CUse :: Span -> UType -> String -> String -> List UType -> CoreTerm
+    CLocal :: Span -> UType -> Nat -> String -> List UType -> CoreTerm
+    CProofRef :: Span -> UType -> Nat -> String -> CoreTerm
+    CQualifiedUse :: Span -> UType -> String -> String -> List UType -> List CoreEvidence -> CoreTerm
+    CMethod :: Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> CoreTerm
+    CInt :: Span -> UType -> String -> CoreTerm
+    CString :: Span -> UType -> String -> CoreTerm
+    CChar :: Span -> UType -> String -> CoreTerm
+    CUnit :: Span -> UType -> CoreTerm
+    CApply :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CApplyEff :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CErasedApply :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    -- The test is executable; the proposition is checked against that
+    -- exact test in the actual value scope before it can justify a branch.
+    CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
+    CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandler :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandle :: Span -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandlerOperation :: Span -> Nat -> List (Nat, UType) -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandlerEnd :: Span -> CoreTerm
+    CLambda :: Span -> UType -> CorePattern -> CoreTerm -> CoreTerm
+    CLet :: Span -> UType -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
+    CIf :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
+    CCase :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CTuple :: Span -> UType -> CoreTerm -> CoreTerm
+    CPrimitive :: Span -> UType -> String -> CoreTerm -> CoreTerm
+    -- A checked operation obligation. The certificate contains citations,
+    -- not an asserted goal or a cached hypothesis list.
+    CProved :: Span -> UType -> Proof -> CoreTerm -> CoreTerm
+    CRefine :: Span -> UType -> Proof -> CoreTerm -> CoreTerm
+    -- Explicit erased evidence is retained and checked in its lexical scope.
+    CRefineProof :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CForget :: Span -> UType -> CoreTerm -> CoreTerm
+    CRequire :: Span -> UType -> CoreTerm -> CoreTerm
+    CDischarge :: Span -> UType -> List Proof -> CoreTerm -> CoreTerm
+    CGuard :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CArgument :: Span -> CoreTerm -> CoreTerm -> CoreTerm
+    CArgumentsEnd :: Span -> CoreTerm
+    CAlternative :: Span -> CorePattern -> CoreTerm -> CoreTerm -> CoreTerm
+    CAlternativesEnd :: Span -> CoreTerm
+    CError :: Span -> CoreTerm
+
+
+  -- The handler constructor is private to checked Core. The label is the
+  -- nominal effect declaration, followed by input, output and clause effects.
+  handler-kind :: Kind
+  handler-kind = KFun KEffect (KFun KType (KFun KType (KFun KRow KType)))
+  handler-type :: UType -> UType -> UType -> UType -> UType
+  handler-type label input output row = UApp (UApp (UApp (UApp (UCon "#kernel.Handler" handler-kind) label) input) output) row
+  handler-parts :: UType -> Option (UType, UType, UType, UType)
+  handler-parts ty = case ty of
+    UApp (UApp (UApp (UApp (UCon name kind) label) input) output) row -> if string-compare name "#kernel.Handler" == 0 && kind-equal kind handler-kind then Some (label, input, output, row) else None
+    other -> None
+  map-handler-openings :: (UType -> UType) -> List (Nat, UType) -> List (Nat, UType)
+  map-handler-openings f entries = case entries of Nil -> Nil; Cons (key, ty) rest -> Cons (key, f ty) (map-handler-openings f rest)
+  handler-opening-metas :: Store -> List (Nat, UType) -> List (Nat, Kind)
+  handler-opening-metas st entries = case entries of Nil -> Nil; Cons (key, ty) rest -> type-metas st ty <> handler-opening-metas st rest
+  handler-openings-closed :: List (Nat, UType) -> Bool
+  handler-openings-closed entries = case entries of Nil -> True; Cons (key, ty) rest -> closed-type ty && handler-openings-closed rest
+  handler-opening-values :: List (Nat, UType) -> List Nat
+  handler-opening-values entries = case entries of
+    Nil -> Nil
+    Cons (key, URigid id name level kind) rest -> if kind-equal kind KRegion || kind-equal kind KType || kind-equal kind KRow || kind-equal kind KEffect then handler-opening-values rest else Cons id (handler-opening-values rest)
+    Cons other rest -> handler-opening-values rest
+  -- Remove only an explicitly known occurrence. An opaque row variable is
+  -- retained: handling one label cannot erase any unknown remaining effects.
+  handler-residual :: UType -> UType -> Option UType
+  handler-residual label row = if not (valid-type label && kind-equal (type-kind label) KEffect && valid-type row && kind-equal (type-kind row) KRow) then None else case row of
+    URow labels -> case handler-residual-labels label labels of Some rest -> Some (URow rest); None -> None
+    URowJoin a b -> case (handler-residual label a, handler-residual label b) of (Some x, Some y) -> Some (union-effects x y); other -> None
+    UBound id name KRow -> Some row
+    URigid id name level KRow -> Some row
+    other -> None
+  handler-residual-labels :: UType -> UType -> Option UType
+  handler-residual-labels label labels = case labels of
+    UEnd -> Some UEnd
+    UArg first rest -> case handler-residual-labels label rest of Some more -> Some (if contract-equal label first then more else UArg first more); None -> None
+    other -> None
+  handler-label-arguments :: CoreEffect -> UType -> List UType -> Option (List UType)
+  handler-label-arguments declaration label args = case label of
+    UApp f x -> handler-label-arguments declaration f (Cons x args)
+    UCon name kind -> if string-compare name (core-effect-name declaration) == 0 && kind-equal kind (core-effect-kind declaration) then Some args else None
+    other -> None
+  handler-parameter-pairs :: List Quant -> List UType -> List (Nat, UType) -> Option (List (Nat, UType))
+  handler-parameter-pairs qs args pairs = case (qs, args) of
+    (Nil, Nil) -> Some pairs
+    (Cons q rest, Cons arg more) -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (quant-kind q)) then handler-parameter-pairs rest more (Cons (quant-id q, arg) pairs) else None
+    other -> None
+  handler-remaining-params :: List Quant -> List Quant -> List Quant
+  handler-remaining-params owner all = case owner of Nil -> all; Cons q rest -> case all of Cons first more -> handler-remaining-params rest more; Nil -> Nil
+  handler-operation-scheme :: CoreEffect -> UType -> CoreOperation -> Option Scheme
+  handler-operation-scheme declaration label operation = case handler-label-arguments declaration label Nil of
+    Some args -> case handler-parameter-pairs (core-effect-params declaration) args Nil of
+      Some pairs -> let sc = core-operation-scheme operation in
+        case scheme-requirements sc of
+          Nil -> Some (map-scheme-types (substitute-bound pairs) (MkScheme (handler-remaining-params (core-effect-params declaration) (scheme-params sc)) (scheme-body sc)))
+          other -> None
+      None -> None
+    None -> None
+  -- Operation arguments retain dependent binders and obligations. The
+  -- continuation accepts the actual operation result and returns the handler
+  -- output; invoking it is pure, as in the shared runtime's deep handlers.
+  handler-clause-type :: UType -> UType -> UType -> UType
+  handler-clause-type operation output row = case operation of
+    UFun a b -> UFun a (handler-clause-type b output row)
+    UFunEff a effects b -> if operation-function b then UFun a (handler-clause-type b output row) else UFun a (UFunEff (UFun b output) row output)
+    UPi id name a effects b -> if operation-function b then UPi id name a (URow UEnd) (handler-clause-type b output row) else UPi id name a (URow UEnd) (UFunEff (UFun b output) row output)
+    UProofFun predicate effects b -> if operation-function b then UProofFun predicate (URow UEnd) (handler-clause-type b output row) else UProofFun predicate (URow UEnd) (UFunEff (UFun b output) row output)
+    other -> UError
+  handler-row-absent :: UType -> UType -> Bool
+  handler-row-absent label row = case row of
+    URow labels -> handler-label-absent label labels
+    URowJoin a b -> handler-row-absent label a && handler-row-absent label b
+    other -> False
+  handler-label-absent :: UType -> UType -> Bool
+  handler-label-absent label labels = case labels of UEnd -> True; UArg first rest -> not (contract-equal label first) && handler-label-absent label rest; other -> False
+  handler-direct-operation :: List String -> CoreTerm -> Bool
+  handler-direct-operation names term = case term of
+    CUse sp ty name role actuals -> string-compare role "operation" == 0 && effect-operation-seen name names
+    CApply sp ty f x -> handler-direct-operation names f
+    CApplyEff sp ty row f x -> handler-direct-operation names f
+    CDischarge sp ty evidence f -> handler-direct-operation names f
+    other -> False
+  -- D23: dispatch is lexical to this computation. An ordinary call cannot
+  -- smuggle the discharged label in from a different function's body.
+  handler-body-direct :: UType -> List String -> CoreTerm -> Bool
+  handler-body-direct label names term = case term of
+    CApplyEff sp ty row f x -> (handler-row-absent label row || handler-direct-operation names f) && handler-body-direct label names f && handler-body-direct label names x
+    CApply sp ty f x -> handler-body-direct label names f && handler-body-direct label names x
+    CErasedApply sp ty row f x -> handler-row-absent label row && handler-body-direct label names f && handler-body-direct label names x
+    CLet sp ty id name sc rhs body -> handler-body-direct label names rhs && handler-body-direct label names body
+    CIf sp ty condition yes no -> handler-body-direct label names condition && handler-body-direct label names yes && handler-body-direct label names no
+    CCase sp ty value alts -> handler-body-direct label names value && handler-body-direct label names alts
+    CAlternative sp pattern body rest -> handler-body-direct label names body && handler-body-direct label names rest
+    CArgument sp first rest -> handler-body-direct label names first && handler-body-direct label names rest
+    CTuple sp ty fields -> handler-body-direct label names fields
+    CPrimitive sp ty name args -> handler-body-direct label names args
+    CDecision sp ty predicate body -> handler-body-direct label names body
+    CProved sp ty evidence body -> handler-body-direct label names body
+    CRefine sp ty evidence body -> handler-body-direct label names body
+    CRefineProof sp ty witness body -> handler-body-direct label names witness && handler-body-direct label names body
+    CForget sp ty body -> handler-body-direct label names body
+    CRequire sp ty body -> handler-body-direct label names body
+    CDischarge sp ty evidence body -> handler-body-direct label names body
+    CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
+    CWith sp ty given value body -> handler-body-direct label names value && handler-body-direct label names body
+    CHandle sp ty inner residual body handled-by -> handler-row-absent label (core-effects term)
+    -- Constructing a closure or handler does not execute its body.
+    other -> True
+  resume-max :: Nat -> Nat -> Nat
+  resume-max a b = if a > b then a else b
+  -- A resumption can be called once along a path. Passing it as a value,
+  -- capturing it in another closure, or storing it requires richer usage
+  -- evidence and is refused here rather than treated as unrestricted.
+  resume-uses :: Nat -> CoreTerm -> Nat
+  resume-uses id term = case term of
+    CLocal sp ty key name actuals -> if id == key then 2 else 0
+    CApply sp ty (CLocal at ft key name actuals) arg -> if id == key then 1 + resume-uses id arg else resume-uses id arg
+    CApply sp ty f x -> resume-uses id f + resume-uses id x
+    CApplyEff sp ty row f x -> resume-uses id f + resume-uses id x
+    CErasedApply sp ty row f x -> resume-uses id f + resume-uses id x
+    CLambda sp ty pattern body -> if resume-uses id body > 0 then 2 else 0
+    CLet sp ty key name sc rhs body -> resume-uses id rhs + resume-uses id body
+    CIf sp ty condition yes no -> resume-uses id condition + resume-max (resume-uses id yes) (resume-uses id no)
+    CCase sp ty value alts -> resume-uses id value + resume-uses id alts
+    CAlternative sp pattern body rest -> resume-alternative-uses id body rest
+    CArgument sp first rest -> resume-uses id first + resume-uses id rest
+    CTuple sp ty fields -> resume-uses id fields
+    CPrimitive sp ty name args -> resume-uses id args
+    CDecision sp ty predicate body -> resume-uses id body
+    CProved sp ty evidence body -> resume-uses id body
+    CRefine sp ty evidence body -> resume-uses id body
+    CRefineProof sp ty witness body -> resume-uses id witness + resume-uses id body
+    CForget sp ty body -> resume-uses id body
+    CRequire sp ty body -> resume-uses id body
+    CDischarge sp ty evidence body -> resume-uses id body
+    CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
+    CWith sp ty given value body -> resume-uses id value + resume-uses id body
+    CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
+    CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
+    CHandlerOperation sp slot openings row closure rest -> resume-uses id closure + resume-uses id rest
+    other -> 0
+  -- A failed guard continues to later alternatives. Calls performed by
+  -- the guard therefore add to calls in the later branch, rather than
+  -- being counted as mutually exclusive with that branch.
+  resume-alternative-uses :: Nat -> CoreTerm -> CoreTerm -> Nat
+  resume-alternative-uses id body rest = case body of
+    CGuard sp ty condition value -> resume-uses id condition + resume-max (resume-uses id value) (resume-uses id rest)
+    CLet sp ty key name sc rhs value -> resume-uses id rhs + resume-alternative-uses id value rest
+    CRequire sp ty value -> resume-alternative-uses id value rest
+    CDischarge sp ty evidence value -> resume-alternative-uses id value rest
+    CProved sp ty evidence value -> resume-alternative-uses id value rest
+    CRefine sp ty evidence value -> resume-alternative-uses id value rest
+    CForget sp ty value -> resume-alternative-uses id value rest
+    other -> resume-max (resume-uses id body) (resume-uses id rest)
+  handler-resumption-safe :: UType -> CoreTerm -> Bool
+  handler-resumption-safe operation closure = case closure of
+    CLambda sp ty pattern body -> case operation of
+      UFun a b -> handler-resumption-safe b body
+      UFunEff a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      UPi id name a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      UProofFun predicate row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      other -> False
+    other -> False
+  resume-body-safe :: CoreTerm -> Bool
+  resume-body-safe term = case term of
+    CLambda sp ty (CPVar at domain id name) body -> resume-uses id body <= 1
+    CLambda sp ty (CPWild at domain) body -> True
+    other -> False
+
+  data CoreClause where
+    MkCoreClause :: Span -> List CorePattern -> CoreTerm -> CoreClause
+  data CoreDefinition where
+    MkCoreDefinition :: Span -> String -> Scheme -> List (Nat, UType) -> List CoreGiven -> List (Nat, Kind) -> List CoreClause -> CoreDefinition
+
+  core-name :: CoreDefinition -> String
+  core-name d = case d of MkCoreDefinition s name sc openings givens private clauses -> name
+  core-scheme :: CoreDefinition -> Scheme
+  core-scheme d = case d of MkCoreDefinition s name sc openings givens private clauses -> sc
+  core-clauses :: CoreDefinition -> List CoreClause
+  core-clauses d = case d of MkCoreDefinition s name sc openings givens private clauses -> clauses
+  core-openings :: CoreDefinition -> List (Nat, UType)
+  core-openings d = case d of MkCoreDefinition s name sc openings givens private clauses -> openings
+  core-private-types :: CoreDefinition -> List (Nat, Kind)
+  core-private-types d = case d of MkCoreDefinition s name sc openings givens private clauses -> private
+
+  core-givens :: CoreDefinition -> List CoreGiven
+  core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
+
+  -- Sequence nodes have no value type. They only appear in the matching
+  -- tuple, primitive, pattern or alternative positions, never as values.
+  core-type :: CoreTerm -> UType
+  core-type term = case term of
+    CUse s ty name role actuals -> ty
+    CLocal s ty id name actuals -> ty
+    CProofRef s ty id name -> ty
+    CQualifiedUse s ty name role actuals evidence -> ty
+    CMethod s ty name owner slot actuals evidence -> ty
+    CInt s ty text -> ty
+    CString s ty text -> ty
+    CChar s ty text -> ty
+    CUnit s ty -> ty
+    CApply s ty f x -> ty
+    CApplyEff s ty row f x -> ty
+    CErasedApply s ty row f x -> ty
+    CDecision s ty predicate condition -> ty
+    CWith s ty given value body -> ty
+    CHandler s ty returned operations -> ty
+    CHandle s ty label residual body handled-by -> ty
+    CLambda s ty p body -> ty
+    CLet s ty id name sc rhs body -> ty
+    CIf s ty condition yes no -> ty
+    CCase s ty value alts -> ty
+    CTuple s ty fields -> ty
+    CPrimitive s ty name args -> ty
+    CProved s ty evidence body -> ty
+    CRefine s ty evidence body -> ty
+    CRefineProof s ty witness body -> ty
+    CForget s ty body -> ty
+    CRequire s ty body -> ty
+    CDischarge s ty evidence body -> ty
+    CGuard s ty guard rhs -> ty
+    other -> UError
+
+  -- Creating a closure is pure; invoking it contributes its latent row.
+  -- Supplying a capability preserves the body's effects, never handles them.
+  core-effects :: CoreTerm -> UType
+  core-effects term = case term of
+    CHandler s ty returned operations -> union-effects (core-effects returned) (core-effects operations)
+    CHandlerOperation s slot openings row closure rest -> union-effects (core-effects closure) (core-effects rest)
+    CApply s ty f x -> union-effects (core-effects f) (core-effects x)
+    CApplyEff s ty row f x -> union-effects row (union-effects (core-effects f) (core-effects x))
+    CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
+    CDecision s ty predicate condition -> core-effects condition
+    CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
+    CHandle s ty label residual body handled-by -> case handler-parts (core-type handled-by) of
+      Some (declared-label, input, output, row) -> union-effects residual (union-effects row (core-effects handled-by))
+      None -> UError
+    CLet s ty id name scheme rhs body -> union-effects (core-effects rhs) (core-effects body)
+    CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
+    CCase s ty value alternatives -> union-effects (core-effects value) (core-effects alternatives)
+    CTuple s ty fields -> core-effects fields
+    CPrimitive s ty name args -> core-effects args
+    CProved s ty evidence body -> core-effects body
+    CRefine s ty evidence body -> core-effects body
+    CRefineProof s ty witness body -> core-effects body
+    CForget s ty body -> core-effects body
+    CRequire s ty body -> core-effects body
+    CDischarge s ty evidence body -> core-effects body
+    CGuard s ty condition body -> union-effects (core-effects condition) (core-effects body)
+    CArgument s value rest -> union-effects (core-effects value) (core-effects rest)
+    CAlternative s pattern body rest -> union-effects (core-effects body) (core-effects rest)
+    other -> URow UEnd
+
+  map-types :: (UType -> UType) -> List UType -> List UType
+  map-types f types = case types of Nil -> Nil; Cons ty rest -> Cons (f ty) (map-types f rest)
+  map-scheme :: (UType -> UType) -> Scheme -> Scheme
+  map-scheme f sc = map-scheme-types f sc
+  map-pattern-types :: (UType -> UType) -> CorePattern -> CorePattern
+  map-pattern-types f p = case p of
+    CPWild s ty -> CPWild s (f ty)
+    CPVar s ty id name -> CPVar s (f ty) id name
+    CPProof s ty id name -> CPProof s (f ty) id name
+    CPAs s ty id name inner -> CPAs s (f ty) id name (map-pattern-types f inner)
+    CPConstructor s ty name actuals constructor fields -> CPConstructor s (f ty) name (map-types f actuals) (f constructor) (map-pattern-types f fields)
+    CPInt s ty text -> CPInt s (f ty) text
+    CPString s ty text -> CPString s (f ty) text
+    CPChar s ty text -> CPChar s (f ty) text
+    CPTuple s ty fields -> CPTuple s (f ty) (map-pattern-types f fields)
+    CPField s x rest -> CPField s (map-pattern-types f x) (map-pattern-types f rest)
+    CPDone s -> p
+  map-term-types :: (UType -> UType) -> CoreTerm -> CoreTerm
+  map-term-types f term = case term of
+    CUse s ty name role actuals -> CUse s (f ty) name role (map-types f actuals)
+    CLocal s ty id name actuals -> CLocal s (f ty) id name (map-types f actuals)
+    CProofRef s ty id name -> CProofRef s (f ty) id name
+    CDecision s ty predicate condition -> CDecision s (f ty) (f predicate) (map-term-types f condition)
+    CQualifiedUse s ty name role actuals evidence -> CQualifiedUse s (f ty) name role (map-types f actuals) (map-evidences f evidence)
+    CMethod s ty name owner slot actuals evidence -> CMethod s (f ty) name owner slot (map-types f actuals) (map-evidences f evidence)
+    CInt s ty text -> CInt s (f ty) text
+    CString s ty text -> CString s (f ty) text
+    CChar s ty text -> CChar s (f ty) text
+    CUnit s ty -> CUnit s (f ty)
+    CApply s ty fun arg -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
+    CErasedApply s ty row fun witness -> CErasedApply s (f ty) (f row) (map-term-types f fun) (map-term-types f witness)
+    CApplyEff s ty row fun arg -> case f row of
+      URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
+      effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
+    CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
+    CHandler s ty returned operations -> CHandler s (f ty) (map-term-types f returned) (map-term-types f operations)
+    CHandle s ty label residual body handled-by -> CHandle s (f ty) (f label) (f residual) (map-term-types f body) (map-term-types f handled-by)
+    CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot (map-handler-openings f openings) (f row) (map-term-types f closure) (map-term-types f rest)
+    CHandlerEnd s -> term
+    CLambda s ty p body -> CLambda s (f ty) (map-pattern-types f p) (map-term-types f body)
+    CLet s ty id name sc rhs body -> CLet s (f ty) id name (map-scheme f sc) (map-term-types f rhs) (map-term-types f body)
+    CIf s ty condition yes no -> CIf s (f ty) (map-term-types f condition) (map-term-types f yes) (map-term-types f no)
+    CCase s ty value alts -> CCase s (f ty) (map-term-types f value) (map-term-types f alts)
+    CTuple s ty fields -> CTuple s (f ty) (map-term-types f fields)
+    CPrimitive s ty name args -> CPrimitive s (f ty) name (map-term-types f args)
+    CProved s ty evidence body -> CProved s (f ty) evidence (map-term-types f body)
+    CRefine s ty evidence body -> CRefine s (f ty) evidence (map-term-types f body)
+    CRefineProof s ty witness body -> CRefineProof s (f ty) (map-term-types f witness) (map-term-types f body)
+    CForget s ty body -> CForget s (f ty) (map-term-types f body)
+    CRequire s ty body -> CRequire s (f ty) (map-term-types f body)
+    CDischarge s ty evidence body -> CDischarge s (f ty) evidence (map-term-types f body)
+    CGuard s ty guard rhs -> CGuard s (f ty) (map-term-types f guard) (map-term-types f rhs)
+    CArgument s x rest -> CArgument s (map-term-types f x) (map-term-types f rest)
+    CArgumentsEnd s -> term
+    CAlternative s p body rest -> CAlternative s (map-pattern-types f p) (map-term-types f body) (map-term-types f rest)
+    CAlternativesEnd s -> term
+    CError s -> term
+
+  abstract-type :: Store -> List (Nat, UType) -> UType -> UType
+  abstract-type st pairs ty = abstract-metas pairs (normalize st ty)
+  abstract-term :: Store -> List (Nat, UType) -> CoreTerm -> CoreTerm
+  abstract-term st pairs term = map-term-types (abstract-type st pairs) term
+
+  -- Any unconstrained internal monotypes become explicitly scoped rigid
+  -- type names. They cannot acquire a later solution or escape through a
+  -- public scheme. Public forall openings are retained separately.
+  freeze-type :: Store -> UType -> UType
+  freeze-type st ty = if valid-type ty then freeze (normalize st ty) else UError
+  freeze :: UType -> UType
+  freeze ty = case ty of
+    UPropLit value -> UPropLit value
+    UCompare relation left right -> UCompare relation (freeze left) (freeze right)
+    UPropAnd left right -> UPropAnd (freeze left) (freeze right)
+    UPropOr left right -> UPropOr (freeze left) (freeze right)
+    UPropNot body -> UPropNot (freeze body)
+    UPropNonZero body -> UPropNonZero (freeze body)
+    UPropNonZeroPending body -> UPropNonZeroPending (freeze body)
+    URequire predicates body -> URequire (freeze predicates) (freeze body)
+    URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
+    UIndexForget value -> UIndexForget (freeze value)
+    UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexCall function args -> UIndexCall function (freeze args)
+    UIndexPromote value -> UIndexPromote (freeze value)
+    UIndexMath op left right -> UIndexMath op (freeze left) (freeze right)
+    UPi id name domain row result -> UPi id name (freeze domain) (freeze row) (freeze result)
+    UIndex carrier value -> case index-free-metas value of Nil -> UIndex (freeze carrier) value; other -> UError
+    -- A private type name needs no runtime payload. An unsolved value
+    -- index does: inventing a rigid name would fabricate its witness.
+    UMeta id k -> case k of KValue carrier -> UError; other -> URigid id (string-concat "#core" (nat-to-string id)) 0 (map-kind-types freeze k)
+    UCon name k -> UCon name (map-kind-types freeze k)
+    UBound id name k -> UBound id name (map-kind-types freeze k)
+    URigid id name level k -> URigid id name level (map-kind-types freeze k)
+    UApp f x -> UApp (freeze f) (freeze x)
+    UFun a b -> UFun (freeze a) (freeze b)
+    UFunEff a row b -> UFunEff (freeze a) (freeze row) (freeze b)
+    UProofFun a row b -> UProofFun (freeze a) (freeze row) (freeze b)
+    URow labels -> URow (freeze labels)
+    URowJoin a b -> union-effects (freeze a) (freeze b)
+    UTuple fields -> UTuple (freeze fields)
+    UArg x rest -> UArg (freeze x) (freeze rest)
+    other -> ty
+
+  -- The private type declarations are collected before freezing, in first
+  -- occurrence order. Their numeric ids share the checker's fresh supply.
+  type-metas :: Store -> UType -> List (Nat, Kind)
+  type-metas st ty = case normalize st ty of
+    UPropLit value -> Nil
+    UCompare relation left right -> type-metas st left <> type-metas st right
+    UPropAnd left right -> type-metas st left <> type-metas st right
+    UPropOr left right -> type-metas st left <> type-metas st right
+    UPropNot body -> type-metas st body
+    UPropNonZero body -> type-metas st body
+    UPropNonZeroPending body -> type-metas st body
+    URequire predicates body -> type-metas st predicates <> type-metas st body
+    URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
+    UIndexForget value -> type-metas st value
+    UIndexByteLength value -> type-metas st value
+    UIndexCall function args -> type-metas st args
+    UIndexPromote value -> type-metas st value
+    UIndexMath op left right -> type-metas st left <> type-metas st right
+    UPi id name domain row result -> type-metas st domain <> type-metas st row <> type-metas st result
+    UIndex carrier value -> type-metas st carrier <> index-type-metas carrier (index-free-metas value)
+    UMeta id k -> Cons (id, k) (kind-type-metas st k)
+    UCon name k -> kind-type-metas st k
+    UBound id name k -> kind-type-metas st k
+    URigid id name level k -> kind-type-metas st k
+    UApp f x -> type-metas st f <> type-metas st x
+    UFun a b -> type-metas st a <> type-metas st b
+    UFunEff a row b -> type-metas st a <> type-metas st row <> type-metas st b
+    UProofFun a row b -> type-metas st a <> type-metas st row <> type-metas st b
+    URow labels -> type-metas st labels
+    URowJoin a b -> type-metas st a <> type-metas st b
+    UTuple fields -> type-metas st fields
+    UArg x rest -> type-metas st x <> type-metas st rest
+    other -> Nil
+  index-type-metas :: UType -> List Nat -> List (Nat, Kind)
+  index-type-metas carrier ids = case ids of Nil -> Nil; Cons id rest -> Cons (id, value-kind carrier) (index-type-metas carrier rest)
+  kind-type-metas :: Store -> Kind -> List (Nat, Kind)
+  kind-type-metas st kind = case kind of KValue payload -> (case value-carrier kind of Some carrier -> type-metas st carrier; None -> Nil); KFun a b -> kind-type-metas st a <> kind-type-metas st b; other -> Nil
+  types-metas :: Store -> List UType -> List (Nat, Kind)
+  types-metas st types = case types of Nil -> Nil; Cons ty rest -> type-metas st ty <> types-metas st rest
+  given-metas :: Store -> List CoreGiven -> List (Nat, Kind)
+  given-metas st givens = case givens of Nil -> Nil; Cons given rest -> type-metas st (given-type given) <> given-metas st rest
+  evidence-metas :: Store -> CoreEvidence -> List (Nat, Kind)
+  evidence-metas st evidence = case evidence of
+    CENeeded s ty scope -> type-metas st ty <> given-metas st scope
+    CEGiven s ty name -> type-metas st ty
+    CEInstance s ty name actuals args -> type-metas st ty <> types-metas st actuals <> evidence-metas st args
+    CEArgument s arg rest -> evidence-metas st arg <> evidence-metas st rest
+    CEArgumentsEnd s -> Nil
+  evidences-metas :: Store -> List CoreEvidence -> List (Nat, Kind)
+  evidences-metas st evidences = case evidences of Nil -> Nil; Cons evidence rest -> evidence-metas st evidence <> evidences-metas st rest
+  requirements-metas :: Store -> List Requirement -> List (Nat, Kind)
+  requirements-metas st rs = case rs of Nil -> Nil; Cons r rest -> type-metas st (requirement-type r) <> requirements-metas st rest
+  pattern-metas :: Store -> CorePattern -> List (Nat, Kind)
+  pattern-metas st p = case p of
+    CPWild s ty -> type-metas st ty
+    CPVar s ty id name -> type-metas st ty
+    CPProof s ty id name -> type-metas st ty
+    CPAs s ty id name inner -> type-metas st ty <> pattern-metas st inner
+    CPConstructor s ty name actuals constructor fields -> type-metas st ty <> types-metas st actuals <> type-metas st constructor <> pattern-metas st fields
+    CPInt s ty text -> type-metas st ty
+    CPString s ty text -> type-metas st ty
+    CPChar s ty text -> type-metas st ty
+    CPTuple s ty fields -> type-metas st ty <> pattern-metas st fields
+    CPField s x rest -> pattern-metas st x <> pattern-metas st rest
+    CPDone s -> Nil
+  term-metas :: Store -> CoreTerm -> List (Nat, Kind)
+  term-metas st term = case term of
+    CUse s ty name role actuals -> type-metas st ty <> types-metas st actuals
+    CLocal s ty id name actuals -> type-metas st ty <> types-metas st actuals
+    CProofRef s ty id name -> type-metas st ty
+    CQualifiedUse s ty name role actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
+    CMethod s ty name owner slot actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
+    CInt s ty text -> type-metas st ty
+    CString s ty text -> type-metas st ty
+    CChar s ty text -> type-metas st ty
+    CUnit s ty -> type-metas st ty
+    CApply s ty f x -> type-metas st ty <> term-metas st f <> term-metas st x
+    CApplyEff s ty row f x -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st x
+    CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
+    CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
+    CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
+    CHandler s ty returned operations -> type-metas st ty <> term-metas st returned <> term-metas st operations
+    CHandle s ty label residual body handled-by -> type-metas st ty <> type-metas st label <> type-metas st residual <> term-metas st body <> term-metas st handled-by
+    CHandlerOperation s slot openings row closure rest -> handler-opening-metas st openings <> type-metas st row <> term-metas st closure <> term-metas st rest
+    CLambda s ty p body -> type-metas st ty <> pattern-metas st p <> term-metas st body
+    CLet s ty id name sc rhs body -> type-metas st ty <> type-metas st (scheme-body sc) <> requirements-metas st (scheme-requirements sc) <> term-metas st rhs <> term-metas st body
+    CIf s ty condition yes no -> type-metas st ty <> term-metas st condition <> term-metas st yes <> term-metas st no
+    CCase s ty value alts -> type-metas st ty <> term-metas st value <> term-metas st alts
+    CTuple s ty fields -> type-metas st ty <> term-metas st fields
+    CPrimitive s ty name args -> type-metas st ty <> term-metas st args
+    CProved s ty evidence body -> type-metas st ty <> term-metas st body
+    CRefine s ty evidence body -> type-metas st ty <> term-metas st body
+    CRefineProof s ty witness body -> type-metas st ty <> term-metas st witness <> term-metas st body
+    CForget s ty body -> type-metas st ty <> term-metas st body
+    CRequire s ty body -> type-metas st ty <> term-metas st body
+    CDischarge s ty evidence body -> type-metas st ty <> term-metas st body
+    CGuard s ty guard rhs -> type-metas st ty <> term-metas st guard <> term-metas st rhs
+    CArgument s x rest -> term-metas st x <> term-metas st rest
+    CAlternative s p body rest -> pattern-metas st p <> term-metas st body <> term-metas st rest
+    other -> Nil
+  patterns-metas :: Store -> List CorePattern -> List (Nat, Kind)
+  patterns-metas st patterns = case patterns of Nil -> Nil; Cons p rest -> pattern-metas st p <> patterns-metas st rest
+  clauses-metas :: Store -> List CoreClause -> List (Nat, Kind)
+  clauses-metas st clauses = case clauses of Nil -> Nil; Cons (MkCoreClause s ps body) rest -> patterns-metas st ps <> term-metas st body <> clauses-metas st rest
+  has-id :: Nat -> List (Nat, Kind) -> Bool
+  has-id id entries = case entries of Nil -> False; Cons (n, k) rest -> id == n || has-id id rest
+  unique :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Kind)
+  unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
+  seal-patterns :: Store -> List CorePattern -> List CorePattern
+  seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
+  seal-clauses :: List BodyBinding -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards st clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
+      let frozen = map-term-types (freeze-type st) body in
+      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
+  normalize-valid-type :: Store -> UType -> UType
+  normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
+  seal-definition :: Store -> CoreDefinition -> CoreDefinition
+  seal-definition st definition = seal-definition-with-bodies Nil st definition
+  seal-definition-with-bodies :: List BodyBinding -> Store -> CoreDefinition -> CoreDefinition
+  seal-definition-with-bodies bodies st definition = seal-definition-with-contracts bodies Nil st definition
+  seal-definition-with-contracts :: List BodyBinding -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
+  seal-definition-with-contracts bodies guards st definition = case definition of
+    MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st clauses)
+
+  closed-type :: UType -> Bool
+  closed-type ty = case ty of
+    UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
+    UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexMath op left right -> valid-type ty && typed-index-admissible ty && closed-type left && closed-type right
+    URefine id name carrier predicate -> valid-type ty && closed-type carrier && closed-type predicate
+    UPropLit value -> valid-type ty && (True)
+    UCompare relation left right -> valid-type ty && (closed-type left && closed-type right)
+    UPropAnd left right -> valid-type ty && (closed-type left && closed-type right)
+    UPropOr left right -> valid-type ty && (closed-type left && closed-type right)
+    UPropNot body -> valid-type ty && (closed-type body)
+    UPropNonZero body -> valid-type ty && (closed-type body)
+    UPropNonZeroPending body -> valid-type ty && (closed-type body)
+    URequire predicates body -> valid-type ty && (closed-type predicates && closed-type body)
+    UPi id name domain row result -> valid-type ty && closed-type domain && closed-type row && closed-type result
+    UIndex carrier value -> valid-type ty && closed-type carrier && index-runtime-admissible carrier value && (case index-free-metas value of Nil -> True; other -> False)
+    UMeta id k -> False
+    UError -> False
+    UCon name k -> valid-kind k && closed-kind k
+    UBound id name k -> valid-kind k && closed-kind k
+    URigid id name level k -> valid-kind k && closed-kind k
+    UApp f x -> closed-type f && closed-type x
+    UFun a b -> closed-type a && closed-type b
+    UFunEff a row b -> closed-type a && closed-type row && closed-type b
+    UProofFun a row b -> valid-type ty && closed-type a && closed-type row && closed-type b
+    URow labels -> closed-type labels
+    URowJoin a b -> closed-type a && closed-type b
+    UTuple fields -> closed-type fields
+    UArg x rest -> closed-type x && closed-type rest
+    other -> True
+  closed-kind :: Kind -> Bool
+  closed-kind kind = case kind of KValue payload -> (case value-carrier kind of Some carrier -> closed-type carrier; None -> False); KFun a b -> closed-kind a && closed-kind b; other -> True
+  closed-quants :: List Quant -> Bool
+  closed-quants qs = case qs of Nil -> True; Cons q rest -> valid-kind (quant-kind q) && closed-kind (quant-kind q) && closed-quants rest
+  closed-types :: List UType -> Bool
+  closed-types types = case types of Nil -> True; Cons ty rest -> closed-type ty && closed-types rest
+  requirements-closed :: List Requirement -> Bool
+  requirements-closed rs = case rs of Nil -> True; Cons r rest -> closed-type (requirement-type r) && requirements-closed rest
+  scheme-closed :: Scheme -> Bool
+  scheme-closed sc = kind-equal (type-kind (scheme-body sc)) KType && closed-quants (scheme-params sc) && closed-type (scheme-body sc) && requirements-closed (scheme-requirements sc)
+  givens-closed :: List CoreGiven -> Bool
+  givens-closed givens = case givens of Nil -> True; Cons given rest -> closed-type (given-type given) && givens-closed rest
+  evidence-closed :: CoreEvidence -> Bool
+  evidence-closed evidence = case evidence of
+    CENeeded s ty scope -> False
+    CEGiven s ty name -> closed-type ty
+    CEInstance s ty name actuals args -> closed-type ty && closed-types actuals && evidence-arguments-closed args
+    other -> False
+  evidence-arguments-closed :: CoreEvidence -> Bool
+  evidence-arguments-closed args = case args of
+    CEArgument s arg rest -> evidence-closed arg && evidence-arguments-closed rest
+    CEArgumentsEnd s -> True
+    other -> False
+  evidences-closed :: List CoreEvidence -> Bool
+  evidences-closed evidences = case evidences of Nil -> True; Cons evidence rest -> evidence-closed evidence && evidences-closed rest
+  closed-runtime-type :: UType -> Bool
+  closed-runtime-type ty = closed-type ty && kind-equal (type-kind ty) KType && (case ty of
+    URequire predicates body -> False
+    UArg first rest -> False
+    UEnd -> False
+    other -> True)
+
+  valid-pattern :: CorePattern -> Bool
+  valid-pattern p = case p of
+    CPWild s ty -> closed-runtime-type ty
+    CPVar s ty id name -> closed-runtime-type ty
+    CPProof s ty id name -> closed-type ty && valid-type ty && kind-equal (type-kind ty) KProp
+    CPAs s ty id name inner -> closed-runtime-type ty && valid-pattern inner
+    CPConstructor s ty name actuals constructor fields -> closed-runtime-type ty && closed-types actuals && closed-type constructor && valid-pattern fields
+    CPInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
+    CPString s ty text -> closed-runtime-type ty
+    CPChar s ty text -> closed-runtime-type ty
+    CPTuple s ty fields -> closed-runtime-type ty && valid-pattern fields
+    CPField s x rest -> valid-pattern x && valid-pattern rest
+    CPDone s -> True
+  -- A proof reference is legal only in an erased operand position.
+  valid-proof-reference :: CoreTerm -> Bool
+  valid-proof-reference term = case term of CProofRef s predicate id name -> closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp; other -> False
+  valid-term :: CoreTerm -> Bool
+  valid-term term = case term of
+    CUse s ty name role actuals -> closed-runtime-type ty && closed-types actuals
+    CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
+    CProofRef s ty id name -> False
+    CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
+    CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
+    CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
+    CInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
+    CString s ty text -> closed-runtime-type ty
+    CChar s ty text -> closed-runtime-type ty
+    CUnit s ty -> closed-runtime-type ty
+    CApply s ty f x -> closed-runtime-type ty && valid-term f && valid-term x
+    CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
+    CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-proof-reference witness
+    CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
+    CHandler s ty returned operations -> closed-runtime-type ty && valid-term returned && valid-term operations
+    CHandle s ty label residual body handled-by -> closed-runtime-type ty && closed-type label && closed-type residual && valid-term body && valid-term handled-by
+    CHandlerOperation s slot openings row closure rest -> closed-type row && handler-openings-closed openings && valid-term closure && valid-term rest
+    CHandlerEnd s -> True
+    CLambda s ty p body -> closed-runtime-type ty && valid-pattern p && valid-term body
+    CLet s ty id name sc rhs body -> closed-runtime-type ty && scheme-closed sc && valid-term rhs && valid-term body
+    CIf s ty condition yes no -> closed-runtime-type ty && valid-term condition && valid-term yes && valid-term no
+    CCase s ty value alts -> closed-runtime-type ty && valid-term value && valid-term alts
+    CTuple s ty fields -> closed-runtime-type ty && valid-term fields
+    CPrimitive s ty name args -> closed-runtime-type ty && valid-term args
+    CProved s ty evidence body -> closed-runtime-type ty && valid-term body
+    CRefine s ty evidence body -> closed-runtime-type ty && valid-term body
+    CRefineProof s ty witness body -> closed-runtime-type ty && valid-proof-reference witness && valid-term body
+    CForget s ty body -> closed-runtime-type ty && valid-term body
+    CRequire s ty body -> closed-type ty && valid-term body
+    CDischarge s ty evidence body -> closed-runtime-type ty && valid-required-call body
+    CGuard s ty guard rhs -> closed-runtime-type ty && valid-term guard && valid-term rhs
+    CArgument s x rest -> valid-term x && valid-term rest
+    CArgumentsEnd s -> True
+    CAlternative s p body rest -> valid-pattern p && valid-term body && valid-term rest
+    CAlternativesEnd s -> True
+    CError s -> False
+  valid-patterns :: List CorePattern -> Bool
+  valid-patterns ps = case ps of Nil -> True; Cons p rest -> valid-pattern p && valid-patterns rest
+  valid-clauses :: List CoreClause -> Bool
+  valid-clauses clauses = case clauses of Nil -> True; Cons (MkCoreClause s ps body) rest -> valid-patterns ps && valid-term body && valid-clauses rest
+  -- Local references use stable identities. Display names may shadow or
+  -- change without changing binding. A let does not bind inside its RHS;
+  -- lambda and case patterns extend only their own body scopes.
+  local-id :: Nat -> List Nat -> Bool
+  local-id id scope = case scope of Nil -> False; Cons first rest -> id == first || local-id id rest
+  bind-local-id :: Nat -> List Nat -> Option (List Nat)
+  bind-local-id id scope = if local-id id scope then None else Some (Cons id scope)
+  -- Value indices have their own bound/rigid namespaces. Type variables
+  -- do not authorize a value index with the same printed name or number.
+  kind-index-scope :: List Nat -> List Nat -> Kind -> Bool
+  kind-index-scope bound rigid kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> type-index-scope bound rigid carrier; None -> False
+    KFun a b -> kind-index-scope bound rigid a && kind-index-scope bound rigid b
+    other -> True
+  type-index-scope :: List Nat -> List Nat -> UType -> Bool
+  type-index-scope bound rigid ty = case ty of
+    UPropLit value -> True
+    UCompare relation left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
+    UPropAnd left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
+    UPropOr left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
+    UPropNot body -> type-index-scope bound rigid body
+    UPropNonZero body -> type-index-scope bound rigid body
+    UPropNonZeroPending body -> type-index-scope bound rigid body
+    URequire predicates body -> type-index-scope bound rigid predicates && type-index-scope bound rigid body
+    URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (Cons id bound) rigid predicate
+    UIndexForget value -> type-index-scope bound rigid value
+    UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexCall function args -> type-index-scope bound rigid args
+    UIndexPromote value -> type-index-scope bound rigid value
+    UIndexMath op left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
+    UIndex carrier value -> type-index-scope bound rigid carrier && index-scoped bound rigid Nil value
+    UPi id name domain row result -> type-index-scope bound rigid domain && type-index-scope (Cons id bound) rigid row && type-index-scope (Cons id bound) rigid result
+    UBound id name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id bound; None -> True)
+    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid; None -> True)
+    UMeta id kind -> False
+    UCon name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> False; None -> True)
+    UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
+    UFun a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
+    UFunEff a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
+    UProofFun a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
+    URow labels -> type-index-scope bound rigid labels
+    URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
+    UTuple fields -> type-index-scope bound rigid fields
+    UArg a rest -> type-index-scope bound rigid a && type-index-scope bound rigid rest
+    UEnd -> True
+    UError -> False
+  types-index-scope :: List Nat -> List Nat -> List UType -> Bool
+  types-index-scope bound rigid types = case types of Nil -> True; Cons ty rest -> type-index-scope bound rigid ty && types-index-scope bound rigid rest
+  quant-index-bounds :: List Quant -> List Nat -> List Nat
+  quant-index-bounds qs bound = case qs of
+    Nil -> bound
+    Cons q rest -> quant-index-bounds rest (case value-carrier (quant-kind q) of Some carrier -> Cons (quant-id q) bound; None -> bound)
+  quant-index-scope :: List Quant -> List Nat -> List Nat -> Bool
+  quant-index-scope qs bound rigid = case qs of
+    Nil -> True
+    Cons q rest -> kind-index-scope bound rigid (quant-kind q) && quant-index-scope rest (case value-carrier (quant-kind q) of Some carrier -> Cons (quant-id q) bound; None -> bound) rigid
+  requirements-index-scope :: List Nat -> List Nat -> List Requirement -> Bool
+  requirements-index-scope bound rigid rs = case rs of Nil -> True; Cons r rest -> type-index-scope bound rigid (requirement-type r) && requirements-index-scope bound rigid rest
+  scheme-index-scope :: List Nat -> Scheme -> Bool
+  scheme-index-scope rigid sc = let bound = quant-index-bounds (scheme-params sc) Nil in
+    quant-index-scope (scheme-params sc) Nil rigid && type-index-scope bound rigid (scheme-body sc) && requirements-index-scope bound rigid (scheme-requirements sc)
+  opening-type :: Nat -> List (Nat, UType) -> Option UType
+  opening-type id pairs = case pairs of Nil -> None; Cons (key, ty) rest -> if id == key then Some ty else opening-type id rest
+  opening-value-ids :: List Quant -> List (Nat, UType) -> List Nat
+  opening-value-ids qs pairs = case qs of
+    Nil -> Nil
+    Cons q rest -> let more = opening-value-ids rest pairs in case value-carrier (quant-kind q) of
+      None -> more
+      Some carrier -> case opening-type (quant-id q) pairs of
+        Some ty -> (case index-of-type ty of Some (IRigid id name level) -> Cons id more; other -> more)
+        None -> more
+  givens-index-scope :: List Nat -> List CoreGiven -> Bool
+  givens-index-scope rigid givens = case givens of Nil -> True; Cons given rest -> type-index-scope Nil rigid (given-type given) && givens-index-scope rigid rest
+  evidence-index-scope :: List Nat -> CoreEvidence -> Bool
+  evidence-index-scope rigid evidence = case evidence of
+    CENeeded s ty scope -> False
+    CEGiven s ty name -> type-index-scope Nil rigid ty
+    CEInstance s ty name actuals args -> type-index-scope Nil rigid ty && types-index-scope Nil rigid actuals && evidence-index-scope rigid args
+    CEArgument s arg rest -> evidence-index-scope rigid arg && evidence-index-scope rigid rest
+    CEArgumentsEnd s -> True
+  evidences-index-scope :: List Nat -> List CoreEvidence -> Bool
+  evidences-index-scope rigid evidence = case evidence of Nil -> True; Cons first rest -> evidence-index-scope rigid first && evidences-index-scope rigid rest
+  pattern-scope :: List Nat -> CorePattern -> List Nat -> Option (List Nat)
+  pattern-scope values pattern scope = case pattern of
+    CPVar s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
+    CPProof s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
+    CPAs s ty id name inner -> if type-index-scope Nil (values <> scope) ty then (case bind-local-id id scope of Some bound -> pattern-scope values inner bound; None -> None) else None
+    CPConstructor s ty name actuals constructor fields -> if type-index-scope Nil (values <> scope) ty && types-index-scope Nil (values <> scope) actuals && type-index-scope Nil (values <> scope) constructor then pattern-scope values fields scope else None
+    CPTuple s ty fields -> if type-index-scope Nil (values <> scope) ty then pattern-scope values fields scope else None
+    CPField s first rest -> case pattern-scope values first scope of Some bound -> pattern-scope values rest bound; None -> None
+    CPWild s ty -> if type-index-scope Nil (values <> scope) ty then Some scope else None
+    CPInt s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
+    CPString s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
+    CPChar s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
+    CPDone s -> Some scope
+  patterns-scope :: List Nat -> List CorePattern -> List Nat -> Option (List Nat)
+  patterns-scope values patterns scope = case patterns of
+    Nil -> Some scope
+    Cons pattern rest -> case pattern-scope values pattern scope of Some bound -> patterns-scope values rest bound; None -> None
+  scoped-term :: List Nat -> List Nat -> CoreTerm -> Bool
+  scoped-term values scope term =
+    let rigid = values <> scope in
+    let typed = case term of CHandlerOperation s slot openings row closure rest -> True; CHandlerEnd s -> True; CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope Nil rigid (core-type term) in
+    typed && (case term of
+      CLocal s ty id name actuals -> local-id id scope && types-index-scope Nil rigid actuals
+      CProofRef s ty id name -> local-id id scope
+      CDecision s ty predicate condition -> type-index-scope Nil rigid predicate && scoped-term values scope condition
+      CUse s ty name role actuals -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals
+      CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
+      CMethod s ty name owner slot actuals evidence -> types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
+      CLambda s ty pattern body -> (case pattern-scope values pattern scope of Some bound -> scoped-term values bound body; None -> False)
+      CLet s ty id name scheme rhs body -> scheme-index-scope rigid scheme && scoped-term values scope rhs && (case bind-local-id id scope of Some bound -> scoped-term values bound body; None -> False)
+      CApply s ty f x -> scoped-term values scope f && scoped-term values scope x
+      CApplyEff s ty row f x -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope x
+      CErasedApply s ty row f witness -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope witness
+      CWith s ty given value body -> type-index-scope Nil rigid (given-type given) && scoped-term values scope value && scoped-term values scope body
+      CHandler s ty returned operations -> scoped-term values scope returned && scoped-term values scope operations
+      CHandle s ty label residual body handled-by -> type-index-scope Nil rigid label && type-index-scope Nil rigid residual && scoped-term values scope body && scoped-term values scope handled-by
+      CHandlerOperation s slot openings row closure rest -> let opened = handler-opening-values openings <> values in
+        type-index-scope Nil (opened <> scope) row && scoped-term opened scope closure && scoped-term values scope rest
+      CIf s ty condition yes no -> scoped-term values scope condition && scoped-term values scope yes && scoped-term values scope no
+      CCase s ty value alternatives -> scoped-term values scope value && scoped-term values scope alternatives
+      CTuple s ty fields -> scoped-term values scope fields
+      CPrimitive s ty name args -> scoped-term values scope args
+      CProved s ty evidence body -> scoped-term values scope body
+      CRefine s ty evidence body -> scoped-term values scope body
+      CRefineProof s ty witness body -> scoped-term values scope witness && scoped-term values scope body
+      CForget s ty body -> scoped-term values scope body
+      CRequire s ty body -> scoped-term values scope body
+      CDischarge s ty evidence body -> scoped-term values scope body
+      CGuard s ty condition body -> scoped-term values scope condition && scoped-term values scope body
+      CArgument s value rest -> scoped-term values scope value && scoped-term values scope rest
+      CAlternative s pattern body rest -> (case pattern-scope values pattern scope of Some bound -> scoped-term values bound body; None -> False) && scoped-term values scope rest
+      other -> True)
+  scoped-clauses :: List Nat -> List CoreClause -> Bool
+  scoped-clauses values clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-scope values patterns Nil of Some bound -> scoped-term values bound body; None -> False) && scoped-clauses values rest
+  -- These checks cover lexical identities, index references and operation
+  -- certificates. An independent full typing/kind kernel remains separate.
+  core-definition-closed :: CoreDefinition -> Bool
+  core-definition-closed definition = core-definition-bodies-closed Nil definition
+  core-definition-bodies-closed :: List BodyBinding -> CoreDefinition -> Bool
+  core-definition-bodies-closed bodies definition = core-definition-contracts-closed bodies Nil definition
+  core-definition-contracts-closed :: List BodyBinding -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-contracts-closed bodies guards definition = body-bindings-closed bodies && guarded-bindings-closed guards && (case definition of
+    MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
+      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses bodies guards (substitute-bound openings (scheme-body sc)) clauses)
+
+  -- Operation certificates are rechecked against facts derived from the
+  -- retained Core control flow. Display names never identify proof values.
+  number-sort :: UType -> Option String
+  number-sort ty = case ty of UCon name KType -> if string-compare name "Nat" == 0 || string-compare name "Int" == 0 then Some name else None; other -> None
+  nat-type :: UType -> Bool
+  nat-type ty = case number-sort ty of Some name -> string-compare name "Nat" == 0; None -> False
+  bool-type :: UType -> Bool
+  bool-type ty = case ty of UCon name KType -> string-compare name "Bool" == 0; other -> False
+  same-number-sort :: UType -> UType -> Bool
+  same-number-sort a b = case (number-sort a, number-sort b) of (Some x, Some y) -> string-compare x y == 0; other -> False
+  proof-variable :: Nat -> Arithmetic
+  proof-variable id = AVariable (string-concat "#value:" (nat-to-string id))
+  -- Types and checked local definitions occupy separate context fields.
+  -- Elaboration may supply checked witness hints; closed Core reconstructs
+  -- every definition from the actual strict let RHS before checking its body.
+  data ProofScope where
+    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> List BodyBinding -> List GuardedBinding -> ProofScope
+  empty-proof-scope :: ProofScope
+  empty-proof-scope = MkProofScope Nil Nil Nil Nil Nil
+  scope-bodies :: ProofScope -> List BodyBinding
+  scope-bodies scope = case scope of MkProofScope types values proofs bodies guards -> bodies
+  with-body-bindings :: List BodyBinding -> ProofScope -> ProofScope
+  with-body-bindings bindings scope = if body-bindings-closed bindings then (case scope of MkProofScope types values proofs old guards -> MkProofScope types values proofs bindings guards) else scope
+  scope-types :: ProofScope -> List (Nat, UType)
+  scope-types scope = case scope of MkProofScope types values proofs bodies guards -> types
+  scope-entry :: Nat -> List (Nat, UType) -> Option UType
+  scope-entry id entries = case entries of Nil -> None; Cons (key, value) rest -> if id == key then Some value else scope-entry id rest
+  scope-value :: Nat -> ProofScope -> Option UType
+  scope-value id scope = case scope of MkProofScope types values proofs bodies guards -> scope-entry id values
+  scope-remove :: Nat -> List (Nat, UType) -> List (Nat, UType)
+  scope-remove id entries = case entries of Nil -> Nil; Cons (key, value) rest -> if id == key then scope-remove id rest else Cons (key, value) (scope-remove id rest)
+  scope-without-value :: Nat -> ProofScope -> ProofScope
+  scope-without-value id scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope types (scope-remove id values) proofs bodies guards
+  scope-local :: Nat -> UType -> ProofScope -> ProofScope
+  scope-local id ty scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs) bodies guards
+  scope-index-valid :: UType -> UType -> Bool
+  scope-index-valid carrier value = valid-type value && typed-index-admissible value && kind-equal (type-kind value) (value-kind carrier)
+  scope-definitions :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
+  scope-definitions types values = case values of
+    Nil -> Nil
+    Cons (id, value) rest -> case scope-entry id types of
+      Some carrier -> if scope-index-valid carrier value then Cons (id, value) (scope-definitions types rest) else scope-definitions types rest
+      None -> scope-definitions types rest
+  make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
+  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil Nil Nil
+  scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
+  scope-index scope id name ty = case proof-local id scope of
+    Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
+      Some value -> if scope-index-valid declared value then Some value else None
+      None -> Some (UIndex ty (IRigid id name 0))
+    None -> None
+  -- Class identity and a method slot do not establish the selected body's
+  -- numeric semantics. Such a strict RHS still binds a fresh runtime value;
+  -- it cannot become a definitional arithmetic alias without body authority.
+  stable-index-source :: CoreTerm -> Bool
+  stable-index-source term = case term of
+    CLocal sp ty id name Nil -> True
+    CInt sp ty text -> True
+    CRefine sp ty certificate body -> stable-index-source body
+    CRefineProof sp ty witness body -> stable-index-source body
+    CForget sp ty body -> stable-index-source body
+    CProved sp ty certificate body -> stable-index-source body
+    CDischarge sp ty certificates body -> True
+    CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
+    CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
+    CApply sp ty (CUse at function symbol role Nil) input -> byte-length-function ty function symbol role && stable-index-source input
+    other -> False
+  scope-let :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> ProofScope
+  scope-let scope facts id scheme rhs = let bound = scope-local id (scheme-body scheme) scope in
+    case (scheme-params scheme, scheme-requirements scheme) of
+      (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
+        Some value -> if scope-index-valid (scheme-body scheme) value then
+          (case bound of MkProofScope types values proofs bodies guards -> MkProofScope types (Cons (id, value) values) proofs bodies guards) else bound
+        None -> bound
+      other -> bound
+
+  scope-erased :: Nat -> UType -> ProofScope -> ProofScope
+  scope-erased id predicate gamma = case gamma of
+    MkProofScope types values proofs bodies guards -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies guards
+  scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
+  scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
+    (MkProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
+      && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
+    other -> False)
+  -- These identities and schemes belong to the kernel. In particular a
+  -- constructor's source proof slot is absent from its runtime payload.
+  decision-type :: UType -> UType
+  decision-type predicate = UApp (UCon "b.Dec" (KFun KProp KType)) predicate
+  decision-constructor-scheme :: String -> Option Scheme
+  decision-constructor-scheme name =
+    let predicate = UBound 0 "p" KProp in
+    let result = decision-type predicate in
+    if string-compare name "b.Yes" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun predicate (URow UEnd) result))
+    else if string-compare name "b.No" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun (UPropNot predicate) (URow UEnd) result))
+    else None
+  decision-constant :: Bool -> CoreTerm -> Bool
+  decision-constant expected term = bool-type (core-type term) && (case term of
+    CPrimitive sp ty operation (CArgumentsEnd end) -> string-compare operation (if expected then "decision-true" else "decision-false") == 0
+    other -> False)
+  -- No class projection or ordinary global call has numeric authority
+  -- here. Only fixed arithmetic, scoped values and the checked stable
+  -- byte-length ABI observation can contribute to a runtime decision.
+  decision-operand :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  decision-operand gamma facts term = case term of
+    CInt sp ty text -> integer-carrier ty && valid-integer-literal ty text
+    CLocal sp ty id name Nil -> integer-carrier ty && (case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False)
+    CForget sp ty body -> integer-carrier ty && forgotten gamma facts ty body && (case body of CLocal at actual id name Nil -> True; other -> decision-operand gamma facts body)
+    CRefine sp ty certificate body -> certified-refinement gamma facts ty certificate body && decision-operand gamma facts body
+    CRefineProof sp ty witness body -> scoped-refinement-proof gamma facts ty witness body && decision-operand gamma facts body
+    CProved sp ty certificate body -> certified-operation gamma facts ty certificate body && (case body of
+      CPrimitive at result operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
+      other -> False)
+    CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> same-number-sort ty (core-type first) && same-number-sort ty (core-type second)
+      && (string-compare operation "+" == 0 || string-compare operation "*" == 0 || (string-compare operation "-" == 0 && not (nat-type ty)))
+      && decision-operand gamma facts first && decision-operand gamma facts second
+    CPrimitive sp ty operation (CArgument a first (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
+    CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) -> byte-length-function ty function symbol role
+      && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False)
+    other -> False
+  decision-index-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  decision-index-reading gamma facts term = case actual-index gamma facts term of
+    Some value -> (case typed-index-arithmetic gamma value of Some reading -> Some reading; None -> typed-index-arithmetic gamma (UIndexPromote value))
+    None -> None
+  decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  decision-predicate-test gamma facts predicate condition = case predicate of
+    UPropLit value -> decision-constant value condition
+    UPropNot input -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts input test && decision-constant False yes && decision-constant True no; other -> False)
+    UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test gamma (branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
+    UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)
+    other -> (case condition of
+      CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
+        && (case (core-predicate gamma predicate, comparison-name operation, decision-index-reading gamma facts first, decision-index-reading gamma facts second) of
+          (Some expected, Some relation, Some left, Some right) -> proposition-equal expected (PCompare relation left right)
+          other -> False)
+      other -> False)
+  scoped-decision-valid :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
+  scoped-decision-valid gamma facts ty predicate condition = valid-type predicate && kind-equal (type-kind predicate) KProp && valid-type ty
+    && contract-equal ty (decision-type predicate) && bool-type (core-type condition)
+    && contract-equal (core-effects condition) (URow UEnd) && proof-term gamma facts condition
+    && decision-predicate-test gamma facts predicate condition
+
+  proof-local :: Nat -> ProofScope -> Option UType
+  proof-local id gamma = scope-entry id (scope-types gamma)
+  decimal-digits :: List Char -> Int -> Bool -> Option Int
+  decimal-digits chars n seen = case chars of
+    Nil -> if seen then Some n else None
+    Cons c rest -> let code = char-code c in
+      if code >= 48 && code <= 57 then decimal-digits rest (n * 10 + nat-to-int (code - 48)) True else None
+  decimal-value :: String -> Option Int
+  decimal-value text = case unpack text of
+    Cons c rest -> if char-code c == 45 then (case decimal-digits rest 0 False of Some n -> Some (0 - n); None -> None)
+      else decimal-digits (Cons c rest) 0 False
+    Nil -> None
+  valid-integer-literal :: UType -> String -> Bool
+  valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
+  same-integer-carrier :: UType -> UType -> Bool
+  same-integer-carrier first second = integer-carrier first && contract-equal first second
+  ordered-id :: Nat -> List Nat -> List Nat
+  ordered-id id ids = case ids of Nil -> [id]; Cons key rest -> if id == key then ids else if id < key then Cons id ids else Cons key (ordered-id id rest)
+  natural-ids :: List (Nat, UType) -> List Nat
+  natural-ids gamma = case gamma of Nil -> Nil; Cons (id, ty) rest -> if nat-type ty then ordered-id id (natural-ids rest) else natural-ids rest
+  natural-facts :: List Nat -> List Proposition
+  natural-facts ids = case ids of Nil -> Nil; Cons id rest -> Cons (PCompare AtLeast (proof-variable id) (AInteger 0)) (natural-facts rest)
+  proof-assumptions :: ProofScope -> List Proposition -> List Proposition
+  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> erased-facts gamma <> facts
+  erased-facts :: ProofScope -> List Proposition
+  erased-facts gamma = case gamma of MkProofScope types values proofs bodies guards -> erased-predicates gamma proofs
+  erased-predicates :: ProofScope -> List (Nat, UType) -> List Proposition
+  erased-predicates gamma proofs = case proofs of
+    Nil -> Nil
+    Cons (id, predicate) rest -> case core-predicate gamma predicate of Some p -> Cons p (erased-predicates gamma rest); None -> erased-predicates gamma rest
+  machine-ids :: List (Nat, UType) -> List Nat
+  machine-ids gamma = case gamma of
+    Nil -> Nil
+    Cons (id, ty) rest -> case integer-bounds (numeric-carrier-view ty) of Some bounds -> ordered-id id (machine-ids rest); None -> machine-ids rest
+  machine-facts :: List Nat -> List (Nat, UType) -> List Proposition
+  machine-facts ids gamma = case ids of
+    Nil -> Nil
+    Cons id rest -> case scope-entry id gamma of
+      Some ty -> case integer-bounds (numeric-carrier-view ty) of
+        Some (low, high) -> Cons (PCompare AtLeast (proof-variable id) (AInteger low))
+          (Cons (PCompare AtMost (proof-variable id) (AInteger high)) (machine-facts rest gamma))
+        None -> machine-facts rest gamma
+      None -> machine-facts rest gamma
+  byte-buffer-type :: UType -> Bool
+  byte-buffer-type ty = case ty of
+    UCon name KType -> string-compare name "Bytes" == 0
+    URefine id name carrier predicate -> valid-type ty && byte-buffer-type carrier
+    other -> False
+  byte-buffer-ids :: List (Nat, UType) -> List Nat
+  byte-buffer-ids gamma = case gamma of
+    Nil -> Nil
+    Cons (id, ty) rest -> if byte-buffer-type ty then ordered-id id (byte-buffer-ids rest) else byte-buffer-ids rest
+  -- ABI 5 byte buffers have a fixed nonnegative machine-sized length.
+  -- Only the typed primitive observation reifier can name these atoms.
+  byte-length-facts :: List Nat -> List Proposition
+  byte-length-facts ids = case ids of
+    Nil -> Nil
+    Cons id rest -> Cons (PCompare AtLeast (byte-length-variable id) (AInteger 0))
+      (Cons (PCompare AtMost (byte-length-variable id) (AInteger 9223372036854775807)) (byte-length-facts rest))
+
+  byte-length-variable :: Nat -> Arithmetic
+  byte-length-variable id = AVariable (string-concat "#bytes-length:" (nat-to-string id))
+  byte-length-function :: UType -> UType -> String -> String -> Bool
+  byte-length-function result function symbol role = string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False)
+  byte-observation-id :: ProofScope -> UType -> Option Nat
+  byte-observation-id gamma value = if not (typed-index-admissible (UIndexByteLength value)) then None else case value of
+    UIndex carrier (IRigid id name level) -> case proof-local id gamma of
+      Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
+        Some value -> byte-observation-id (scope-without-value id gamma) value
+        None -> Some id
+      None -> None
+    UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
+      Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
+        Some value -> byte-observation-id (scope-without-value id gamma) (UIndexForget value)
+        None -> Some id
+      None -> None
+    other -> None
+
+  core-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  core-arithmetic gamma facts term = case checked-total-index gamma facts term of Some value -> typed-index-arithmetic gamma value; None -> ordinary-arithmetic gamma facts term
+  ordinary-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  ordinary-arithmetic gamma facts term = case term of
+    CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
+    CApply s ty (CUse at function symbol role Nil) input ->
+      if byte-length-function ty function symbol role then
+        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> None); None -> None)
+      else None
+    CRefine s ty evidence body -> if certified-refinement gamma facts ty evidence body then core-arithmetic gamma facts body else None
+    CRefineProof s ty witness body -> if scoped-refinement-proof gamma facts ty witness body then core-arithmetic gamma facts body else None
+    CForget s ty body -> if forgotten gamma facts ty body then (case body of
+      CLocal at refined id name Nil -> Some (proof-variable id)
+      other -> core-arithmetic gamma facts body) else None
+    CLocal s ty id name Nil -> case proof-local id gamma of
+      Some declared -> if same-integer-carrier ty declared then Some (proof-variable id) else None
+      None -> None
+    CInt s ty text -> case decimal-value text of
+      Some n -> if integer-literal-valid ty n then Some (AInteger n) else None
+      None -> None
+    CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      if same-number-sort ty (core-type first) && same-number-sort ty (core-type second) then
+        (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
+          (Some x, Some y) -> if string-compare op "+" == 0 then Some (APlus x y)
+            else if string-compare op "*" == 0 then Some (ATimes x y)
+            else if string-compare op "-" == 0 && not (nat-type ty) then Some (AMinus x y) else None
+          other -> None)
+      else None
+    CPrimitive s ty op (CArgument a first (CArgumentsEnd end)) ->
+      if string-compare op "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) then
+        (case core-arithmetic gamma facts first of Some x -> Some (AMinus (AInteger 0) x); None -> None) else None
+    CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
+      Some op -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
+        (Some a, Some b) -> Some (if string-compare op "+" == 0 then APlus a b else if string-compare op "*" == 0 then ATimes a b else AMinus a b)
+        other -> None
+      None -> None
+    CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then
+      (case body of
+        CPrimitive at out op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+          (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (AMinus x y); other -> None)
+        other -> None) else None
+    other -> None
+  comparison-name :: String -> Option Comparison
+  comparison-name op = if string-compare op "<" == 0 then Some Less else if string-compare op "<=" == 0 then Some AtMost
+    else if string-compare op "==" == 0 then Some Equal else if string-compare op "/=" == 0 then Some Unequal
+    else if string-compare op ">=" == 0 then Some AtLeast else if string-compare op ">" == 0 then Some Greater else None
+  scoped-core-condition :: ProofScope -> List Proposition -> CoreTerm -> Option Proposition
+  scoped-core-condition gamma facts term = if not (bool-type (core-type term)) then None else case term of
+    CPrimitive sp ty operation (CArgumentsEnd end) -> if string-compare operation "decision-true" == 0 then Some PTruth else if string-compare operation "decision-false" == 0 then Some PFalsehood else None
+    CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      if same-integer-carrier (core-type first) (core-type second) then
+        (case (comparison-name op, core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
+          (Some rel, Some x, Some y) -> Some (PCompare rel x y)
+          other -> None) else None
+    CApply s ty (CApply partial function method first) second -> case numeric-method-comparison method first second of
+      Some relation -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
+        (Some a, Some b) -> Some (PCompare relation a b)
+        other -> None
+      None -> None
+    CUse s ty name role Nil -> if string-compare role "constructor" == 0 then
+      (if string-compare name "True" == 0 then Some PTruth else if string-compare name "False" == 0 then Some PFalsehood else None) else None
+    CIf s ty condition yes no -> case scoped-core-condition gamma facts condition of
+      Some p -> case (scoped-core-condition gamma (Cons p facts) yes, scoped-core-condition gamma (Cons (PNegate p) facts) no) of
+        (Some q, Some r) -> Some (PEither (PBoth p q) (PBoth (PNegate p) r))
+        other -> None
+      None -> None
+    other -> None
+  -- Exact condition readings may be negated. A partial reading supplies
+  -- only the implication for the branch actually taken: a true p && q
+  -- implies p, and a false p || q implies not p, even when q is opaque.
+  -- Never negate that weaker implication to describe the other branch.
+  scoped-core-branch :: ProofScope -> List Proposition -> CoreTerm -> Bool -> Option Proposition
+  scoped-core-branch gamma facts condition positive = if not (bool-type (core-type condition)) then None else
+    case scoped-core-condition gamma facts condition of
+      Some p -> Some (if positive then p else PNegate p)
+      None -> case condition of
+        CIf sp ty test yes no -> if positive then
+          (case scoped-core-condition gamma facts no of
+            Some PFalsehood -> scoped-core-branch gamma facts test True
+            other -> None)
+          else (case scoped-core-condition gamma facts yes of
+            Some PTruth -> scoped-core-branch gamma facts test False
+            other -> None)
+        other -> None
+  branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
+  branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
+    Some p -> Cons p facts
+    None -> facts
+  subtraction-goal :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proposition
+  subtraction-goal gamma facts first second = if nat-type (core-type first) && nat-type (core-type second) then
+    (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (PCompare AtMost y x); other -> None) else None
+  scoped-prove-subtraction :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
+  scoped-prove-subtraction gamma facts first second = case subtraction-goal gamma facts first second of
+    Some goal -> let hypotheses = goal-assumptions gamma facts [goal] in case prove hypotheses goal of
+      Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
+      None -> None
+    None -> None
+  certified-operation :: ProofScope -> List Proposition -> UType -> Proof -> CoreTerm -> Bool
+  certified-operation gamma facts ty evidence body = nat-type ty && (case body of
+    CPrimitive s out op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      nat-type out && string-compare op "-" == 0 && proof-term gamma facts first && proof-term gamma facts second
+      && (case subtraction-goal gamma facts first second of Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence; None -> False)
+    other -> False)
+  scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
+  scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
+    (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
+      else let carrier = numeric-carrier-view (scheme-body sc) in
+        if same-number-sort carrier carrier then
+          (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
+           case core-arithmetic gamma facts value of Some reading -> Some (PCompare Equal (proof-variable id) reading); None -> None)
+        else None
+    other -> None
+  proof-pattern :: CorePattern -> ProofScope -> ProofScope
+  proof-pattern pattern gamma = case pattern of
+    CPVar s ty id name -> scope-local id ty gamma
+    CPProof s predicate id name -> scope-erased id predicate gamma
+    CPAs s ty id name inner -> proof-pattern inner (scope-local id ty gamma)
+    CPConstructor s ty name actuals ctor fields -> proof-pattern fields gamma
+    CPTuple s ty fields -> proof-pattern fields gamma
+    CPField s first rest -> proof-pattern rest (proof-pattern first gamma)
+    other -> gamma
+  proof-patterns :: List CorePattern -> ProofScope -> ProofScope
+  proof-patterns patterns gamma = case patterns of Nil -> gamma; Cons p rest -> proof-patterns rest (proof-pattern p gamma)
+  erased-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  erased-application gamma facts ty row fun witness = proof-term gamma facts fun && (case core-type fun of
+    UProofFun predicate effects result -> valid-type (core-type fun) && contract-equal result ty && contract-equal effects row
+      && scoped-proof-reference gamma predicate witness
+    other -> False)
+  proof-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  proof-term gamma facts term = if is-refinement (core-type term) then proof-refined-term gamma facts term else proof-ordinary-term gamma facts term
+  proof-ordinary-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  proof-ordinary-term gamma facts term = case term of
+    CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
+    CProofRef s ty id name -> False
+    CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
+    CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
+    CForget s ty body -> forgotten gamma facts ty body
+    CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
+    CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
+    CInt s ty text -> valid-integer-literal ty text
+    CRequire s ty body -> False
+    CDischarge s ty evidence body -> discharged gamma facts ty evidence body
+    CProved s ty evidence body -> certified-operation gamma facts ty evidence body
+    CPrimitive s ty op args -> not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
+    CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
+    CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
+    CWith s ty given value body -> proof-term gamma facts value && proof-term gamma facts body
+    CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
+    CHandle s ty label residual body handled-by -> proof-term gamma facts body && proof-term gamma facts handled-by
+    CHandlerOperation s slot openings row closure rest -> proof-term gamma facts closure && proof-term gamma facts rest
+    CLambda s ty pattern body -> if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected (proof-pattern pattern gamma) facts result body; None -> False) else proof-term (proof-pattern pattern gamma) facts body
+    CLet s ty id name sc rhs body -> proof-term gamma facts rhs &&
+      proof-term (scope-let gamma facts id sc rhs) (case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts) body
+    CIf s ty condition yes no -> proof-term gamma facts condition
+      && proof-term gamma (branch-facts gamma facts condition True) yes
+      && proof-term gamma (branch-facts gamma facts condition False) no
+    CCase s ty value alts -> proof-term gamma facts value && proof-term gamma facts alts
+    CTuple s ty fields -> proof-term gamma facts fields
+    CGuard s ty guard rhs -> proof-term gamma facts guard && proof-term gamma (branch-facts gamma facts guard True) rhs
+    CArgument s first rest -> proof-term gamma facts first && proof-term gamma facts rest
+    CAlternative s pattern body rest -> proof-term (proof-pattern pattern gamma) facts body && proof-term gamma facts rest
+    other -> True
+  is-refinement :: UType -> Bool
+  is-refinement ty = case ty of URefine id name carrier predicate -> True; other -> False
+  -- This view is for predicate checking only. It never changes a runtime
+  -- local's declared type or licenses an unchecked CLocal projection.
+  numeric-carrier-view :: UType -> UType
+  numeric-carrier-view ty = case ty of
+    URefine id name carrier predicate -> if valid-type ty && integer-carrier carrier then carrier else ty
+    other -> ty
+  refinement-gamma :: List (Nat, UType) -> List (Nat, UType)
+  refinement-gamma gamma = case gamma of Nil -> Nil; Cons (id, ty) rest -> Cons (id, numeric-carrier-view ty) (refinement-gamma rest)
+  refinement-facts :: ProofScope -> List (Nat, UType) -> List Proposition
+  refinement-facts gamma remaining = case remaining of
+    Nil -> Nil
+    Cons (local, URefine id name carrier predicate) rest ->
+      let more = refinement-facts gamma rest in
+      if valid-type (URefine id name carrier predicate) && (integer-index-carrier carrier || byte-buffer-type carrier) then
+        (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex (URefine id name carrier predicate) (IRigid local name 0)))] predicate) of
+          Some fact -> Cons fact more
+          None -> more) else more
+    Cons other rest -> refinement-facts gamma rest
+  refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
+  refinement-goal gamma facts ty body = case ty of
+    URefine id name carrier predicate -> if valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body then
+      (case core-predicate gamma predicate of
+        Some independent -> Some independent
+        None -> case actual-index gamma facts body of
+          Some value -> core-predicate gamma (substitute-bound [(id, value)] predicate)
+          None -> None) else None
+    other -> None
+  scoped-prove-refinement :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proof
+  scoped-prove-refinement gamma facts ty body = case refinement-goal gamma facts ty body of
+    Some goal -> let hypotheses = goal-assumptions gamma facts [goal] in case prove hypotheses goal of
+      Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
+      None -> None
+    None -> None
+  -- Proof references carry their actual declared predicate. Opening the
+  -- refinement at the checked payload supplies the expected proposition;
+  -- neither a source spelling nor an annotated witness can establish it.
+  scoped-refinement-proof :: ProofScope -> List Proposition -> UType -> CoreTerm -> CoreTerm -> Bool
+  scoped-refinement-proof gamma facts ty witness body = case ty of
+    URefine id name carrier predicate -> valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body
+      && (case actual-index gamma facts body of
+        Some value -> scoped-proof-reference gamma (substitute-bound [(id, value)] predicate) witness
+        None -> False)
+    other -> False
+  certified-refinement :: ProofScope -> List Proposition -> UType -> Proof -> CoreTerm -> Bool
+  certified-refinement gamma facts ty evidence body = case refinement-goal gamma facts ty body of
+    Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence
+    None -> False
+  forgotten :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  forgotten gamma facts carrier body = case core-type body of
+    URefine id name domain predicate -> valid-type (core-type body) && contract-equal carrier domain && proof-term gamma facts body
+    other -> False
+  -- Every path producing a refinement retains either its checked producer
+  -- or an introduction certificate. A literal's annotated type is no proof.
+  proof-refined-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  proof-refined-term gamma facts term = if not (is-refinement (core-type term) && valid-type (core-type term)) then False else case term of
+    -- Global references inherit the checked source/interface scheme, just
+    -- as ordinary globals do. This is still the partial scope/certificate
+    -- checker, not an independent validator of the global environment.
+    CUse s ty name role actuals -> not (string-compare role "local" == 0) && closed-types actuals
+    CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && closed-types actuals && evidences-closed evidence
+    CMethod s ty name owner slot actuals evidence -> closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
+    CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
+    CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
+    CForget s ty body -> forgotten gamma facts ty body
+    CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
+    CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
+    CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty (URow UEnd) f x
+    CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty row f x
+    CDischarge s ty evidence body -> discharged gamma facts ty evidence body
+    CLet s ty id name sc rhs body -> proof-expected gamma facts (scheme-body sc) rhs &&
+      proof-expected (scope-let gamma facts id sc rhs) (case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts) ty body
+    CIf s ty condition yes no -> bool-type (core-type condition) && proof-term gamma facts condition
+      && proof-expected gamma (branch-facts gamma facts condition True) ty yes
+      && proof-expected gamma (branch-facts gamma facts condition False) ty no
+    CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts ty alternatives
+    CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard && proof-expected gamma (branch-facts gamma facts guard True) ty rhs
+    CWith s ty given value body -> proof-term gamma facts value && proof-expected gamma facts ty body
+    other -> False
+  refined-alternatives :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  refined-alternatives gamma facts ty alternatives = case alternatives of
+    CAlternativesEnd s -> True
+    CAlternative s pattern body rest -> proof-expected (proof-pattern pattern gamma) facts ty body && refined-alternatives gamma facts ty rest
+    other -> False
+
+  proof-clauses :: List CoreClause -> Bool
+  proof-clauses clauses = case clauses of Nil -> True; Cons (MkCoreClause s patterns body) rest -> proof-term (proof-patterns patterns empty-proof-scope) Nil body && proof-clauses rest
+
+  -- Inference may discover another local is Nat after an earlier branch
+  -- has been checked. That adds a domain fact and can change citation
+  -- positions. Seal against the completed types: keep a valid certificate,
+  -- otherwise search again in the actual frozen context. The independent
+  -- proof-term pass still checks the resulting certificate without repair.
+  refresh-certificates :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm
+  refresh-certificates gamma facts term = case term of
+    CHandler s ty returned operations -> CHandler s ty (refresh-certificates gamma facts returned) (refresh-certificates gamma facts operations)
+    CHandle s ty label residual body handled-by -> CHandle s ty label residual (refresh-certificates gamma facts body) (refresh-certificates gamma facts handled-by)
+    CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot openings row (refresh-certificates gamma facts closure) (refresh-certificates gamma facts rest)
+    CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
+      let value = refresh-certificates gamma facts (CInt sp carrier text) in
+      (case scoped-prove-refinement gamma facts refined value of Some evidence -> CRefine sp refined evidence value; None -> CError sp)
+    CRefineProof s ty witness body -> CRefineProof s ty witness (refresh-certificates gamma facts body)
+    CRefine s ty evidence body -> let out = refresh-certificates gamma facts body in
+      if certified-refinement gamma facts ty evidence out then CRefine s ty evidence out
+      else case scoped-prove-refinement gamma facts ty out of Some fresh -> CRefine s ty fresh out; None -> CError s
+    CForget s ty body -> CForget s ty (refresh-certificates gamma facts body)
+    CRequire s ty body -> case ty of
+      URequire predicates result -> case scoped-core-predicates gamma predicates of Some ps -> CRequire s ty (refresh-certificates gamma (ps <> facts) body); None -> CError s
+      other -> CError s
+    CDischarge s ty evidence body -> let call = refresh-certificates gamma facts body in
+      case scoped-prove-predicates gamma facts (core-type call) of Some fresh -> CDischarge s ty fresh call; None -> CError s
+    CProved s ty evidence body -> let out = refresh-certificates gamma facts body in
+      if certified-operation gamma facts ty evidence out then CProved s ty evidence out
+      else case out of
+        CPrimitive at result op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+          if nat-type ty && nat-type result && string-compare op "-" == 0 then
+            (case scoped-prove-subtraction gamma facts first second of
+              Some fresh -> CProved s ty fresh out
+              None -> CError s)
+          else CError s
+        other -> CError s
+    CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
+    CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
+    CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
+    CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
+    CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
+    CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
+    CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in
+      let more = case scoped-core-let-fact gamma facts id sc value of Some p -> Cons p facts; None -> facts in
+      CLet s ty id name sc value (refresh-certificates (scope-let gamma facts id sc value) more body)
+    CIf s ty condition yes no -> let c = refresh-certificates gamma facts condition in
+      CIf s ty c (refresh-certificates gamma (branch-facts gamma facts c True) yes)
+        (refresh-certificates gamma (branch-facts gamma facts c False) no)
+    CCase s ty value alts -> CCase s ty (refresh-certificates gamma facts value) (refresh-certificates gamma facts alts)
+    CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
+    CPrimitive s ty op args -> CPrimitive s ty op (refresh-certificates gamma facts args)
+    CGuard s ty condition body -> let c = refresh-certificates gamma facts condition in
+      CGuard s ty c (refresh-certificates gamma (branch-facts gamma facts c True) body)
+    CArgument s value rest -> CArgument s (refresh-certificates gamma facts value) (refresh-certificates gamma facts rest)
+    CAlternative s pattern body rest -> CAlternative s pattern (refresh-certificates (proof-pattern pattern gamma) facts body) (refresh-certificates gamma facts rest)
+    other -> term
+
+  -- Preconditions are proof metadata. Calls retain their obligation until a
+  -- CDischarge checks it; CRequire is permitted only at a declared boundary.
+  contract-equal :: UType -> UType -> Bool
+  contract-equal a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core contract")) of Nil -> True; other -> False
+  index-arithmetic :: ProofScope -> UType -> IndexTerm -> Option Arithmetic
+  index-arithmetic gamma carrier value = if not (same-number-sort carrier carrier && index-runtime-admissible carrier value) then None else case value of
+    IInteger n -> Some (AInteger n)
+    IRigid id name level -> case proof-local id gamma of Some ty -> if same-number-sort carrier (numeric-carrier-view ty) then Some (proof-variable id) else None; None -> None
+    IAdd a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (APlus x y); other -> None
+    ISubtract a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (AMinus x y); other -> None
+    IMultiply a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (ATimes x y); other -> None
+    other -> None
+  -- Projection and numeric promotion keep their input's actual carrier.
+  -- A matching identifier alone cannot change the type supplied by Gamma.
+  integer-index-carrier :: UType -> Bool
+  integer-index-carrier carrier = same-number-sort carrier carrier || valid-type (UIndexPromote (UIndex carrier (IBound 0 "#sort")))
+  typed-index-arithmetic :: ProofScope -> UType -> Option Arithmetic
+  typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
+    UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
+    UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
+    UIndex carrier index -> index-arithmetic gamma carrier index
+    UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
+      Some declared -> if contract-equal carrier declared && (case carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
+      None -> None
+    UIndexPromote (UIndex carrier (IInteger n)) -> if integer-literal-valid carrier n then Some (AInteger n) else None
+    UIndexPromote (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
+      Some declared -> if contract-equal carrier declared then Some (proof-variable id) else None
+      None -> None
+    UIndexPromote input -> typed-index-arithmetic gamma input
+    UIndexMath op left right -> case (typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
+      (Some a, Some b) -> Some (if string-compare op "+" == 0 then APlus a b else if string-compare op "*" == 0 then ATimes a b else AMinus a b)
+      other -> None
+    other -> None
+  core-predicate :: ProofScope -> UType -> Option Proposition
+  core-predicate gamma predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
+    UPropLit value -> Some (if value then PTruth else PFalsehood)
+    UCompare relation left right -> case (comparison-name relation, typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
+      (Some op, Some x, Some y) -> Some (PCompare op x y)
+      other -> None
+    UPropAnd a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PBoth x y); other -> None
+    UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
+    UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
+    UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropNonZeroPending value -> None
+    other -> None
+  scoped-core-predicates :: ProofScope -> UType -> Option (List Proposition)
+  scoped-core-predicates gamma predicates = case predicates of
+    UEnd -> Some Nil
+    UArg first rest -> case (core-predicate gamma first, scoped-core-predicates gamma rest) of (Some p, Some ps) -> Some (Cons p ps); other -> None
+    other -> None
+  required-predicates :: ProofScope -> UType -> Option (List Proposition)
+  required-predicates gamma ty = case ty of
+    URequire predicates body -> case (scoped-core-predicates gamma predicates, required-predicates gamma body) of (Some ps, Some more) -> Some (ps <> more); other -> None
+    other -> Some Nil
+  required-body :: UType -> UType
+  required-body ty = case ty of URequire predicates body -> required-body body; other -> ty
+  scoped-prove-predicates :: ProofScope -> List Proposition -> UType -> Option (List Proof)
+  scoped-prove-predicates gamma facts ty = case required-predicates gamma ty of
+    Some goals -> prove-goals (goal-assumptions gamma facts goals) goals
+    None -> None
+  prove-goals :: List Proposition -> List Proposition -> Option (List Proof)
+  prove-goals hypotheses goals = case goals of
+    Nil -> Some Nil
+    Cons goal rest -> case prove hypotheses goal of
+      Some evidence -> if check-proof hypotheses goal evidence then (case prove-goals hypotheses rest of Some more -> Some (Cons evidence more); None -> None) else None
+      None -> None
+  check-goals :: List Proposition -> List Proposition -> List Proof -> Bool
+  check-goals hypotheses goals evidence = case (goals, evidence) of
+    (Nil, Nil) -> True
+    (Cons goal rest, Cons first more) -> check-proof hypotheses goal first && check-goals hypotheses rest more
+    other -> False
+  contains-required :: UType -> Bool
+  contains-required ty = case ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UProofFun predicate row result -> contains-required result; other -> False
+  arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
+  arithmetic-index gamma term = case term of
+    AInteger n -> Some (IInteger n)
+    AVariable name -> variable-index (scope-types gamma) name
+    APlus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IAdd x y); other -> None
+    AMinus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (ISubtract x y); other -> None
+    ATimes a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IMultiply x y); other -> None
+    other -> None
+  variable-index :: List (Nat, UType) -> String -> Option IndexTerm
+  variable-index gamma name = case gamma of
+    Nil -> None
+    Cons (id, ty) rest -> if arithmetic-equal (proof-variable id) (AVariable name) then Some (IRigid id name 0) else variable-index rest name
+  actual-math-index :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option UType
+  actual-math-index gamma facts op first second = case (actual-index gamma facts first, actual-index gamma facts second) of
+    (Some left, Some right) -> let out = normalize (empty-store "Core mathematical index") (UIndexMath op left right) in if typed-index-admissible out then Some out else None
+    other -> None
+  actual-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  actual-index gamma facts term = case checked-total-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+  ordinary-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  ordinary-index gamma facts term = case term of
+    CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term
+    CApply s ty (CUse at function symbol role Nil) input ->
+      if byte-length-function ty function symbol role then
+        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (UIndexByteLength value); None -> None); None -> None)
+      else None
+    CForget s ty body -> if forgotten gamma facts ty body then (case body of
+      CRefine at refined evidence actual -> actual-index gamma facts actual
+      CRefineProof at refined witness actual -> actual-index gamma facts actual
+      CApply at result (CUse source function symbol role Nil) input -> if byte-length-function result function symbol role then actual-index gamma facts body
+        else projected-index gamma facts ty body
+      other -> projected-index gamma facts ty body) else None
+    CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      if same-number-sort ty ty && same-number-sort ty (core-type first) && same-number-sort ty (core-type second) && proof-term gamma facts term then
+        actual-math-index gamma facts op first second else None
+    CPrimitive s ty op (CArgument a input (CArgumentsEnd end)) ->
+      if string-compare op "negate" == 0 && same-number-sort ty (core-type input) && not (nat-type ty) && proof-term gamma facts input then
+        actual-math-index gamma facts "-" (CInt s ty "0") input else None
+    CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
+      Some op -> if proof-term gamma facts first && proof-term gamma facts second then actual-math-index gamma facts op first second else None
+      None -> None
+    CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then (case body of
+      CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> actual-math-index gamma facts operation first second
+      other -> None) else None
+    CInt s ty text -> case decimal-value text of Some n -> if integer-literal-valid ty n then Some (UIndex ty (IInteger n)) else None; None -> None
+    CLocal s ty id name Nil -> scope-index gamma id name ty
+    other -> case core-arithmetic gamma facts term of
+      Some value -> case arithmetic-index gamma value of Some index -> let out = UIndex (core-type term) index in if valid-type out && index-runtime-admissible (core-type term) index then Some out else None; None -> None
+      None -> None
+  arrow-result :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, UType)
+  arrow-result gamma facts fun argument = case fun of
+    UPi id name domain row result -> if not (contract-equal domain (core-type argument)) then None
+      else if pi-dependent fun then (case actual-index gamma facts argument of
+        Some value ->
+          -- The closed Core context already scopes surrounding type
+          -- rigids. Re-running inference in an empty level-zero Store
+          -- would incorrectly reject those valid polymorphic callers.
+          let out = substitute-bound [(id, value)] result in
+          let effects = substitute-bound [(id, value)] row in
+          if valid-type out && valid-type effects then Some (out, effects) else None
+        None -> None)
+      else Some (result, row)
+    UFun domain result -> if contract-equal domain (core-type argument) then Some (result, URow UEnd) else None
+    UFunEff domain row result -> if contract-equal domain (core-type argument) then Some (result, row) else None
+    other -> None
+  required-call :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  required-call gamma facts term = case core-type term of
+    URequire predicates result -> case term of
+      CUse s ty name role actuals -> not (string-compare role "local" == 0) && closed-types actuals
+      CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && closed-types actuals && evidences-closed evidence
+      CMethod s ty name owner slot actuals evidence -> closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
+      CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty (URow UEnd) f x
+      CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty row f x
+      other -> False
+    other -> False
+  application-type :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  application-type gamma facts result row fun argument = case arrow-result gamma facts (core-type fun) argument of
+    Some (out, effects) -> contract-equal out result && contract-equal row effects && application-chain gamma facts fun
+    None -> False
+  application-chain :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  application-chain gamma facts term = case term of
+    CApply s ty f x -> application-type gamma facts ty (URow UEnd) f x
+    CApplyEff s ty row f x -> application-type gamma facts ty row f x
+    other -> True
+  discharged :: ProofScope -> List Proposition -> UType -> List Proof -> CoreTerm -> Bool
+  discharged gamma facts ty evidence body = closed-runtime-type ty && required-call gamma facts body
+    && contract-equal ty (required-body (core-type body))
+    && (case required-predicates gamma (core-type body) of Some goals -> check-goals (goal-assumptions gamma facts goals) goals evidence; None -> False)
+  valid-required-call :: CoreTerm -> Bool
+  valid-required-call term = closed-type (core-type term) && (case term of
+    CUse s ty name role actuals -> closed-types actuals
+    CQualifiedUse s ty name role actuals evidence -> closed-types actuals && evidences-closed evidence
+    CMethod s ty name owner slot actuals evidence -> closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
+    CApply s ty f x -> valid-term f && valid-term x
+    CApplyEff s ty row f x -> closed-type row && valid-term f && valid-term x
+    other -> False)
+  pattern-type :: CorePattern -> UType
+  pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
+  pattern-index :: CorePattern -> Option UType
+  pattern-index pattern = case pattern of
+    CPVar s ty id name -> Some (UIndex ty (IRigid id name 0))
+    CPAs s ty id name inner -> Some (UIndex ty (IRigid id name 0))
+    CPInt s ty text -> case decimal-value text of Some n -> Some (UIndex ty (IInteger n)); None -> None
+    other -> None
+  pattern-result :: UType -> CorePattern -> Option UType
+  pattern-result fun pattern = case fun of
+    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal predicate actual then Some result else None; other -> None
+    UPi id name domain row result -> if not (contract-equal domain (pattern-type pattern)) then None
+      else if pi-dependent fun then (case pattern-index pattern of Some index -> Some (substitute-bound [(id, index)] result); None -> None) else Some result
+    UFun domain result -> if contract-equal domain (pattern-type pattern) then Some result else None
+    UFunEff domain row result -> if contract-equal domain (pattern-type pattern) then Some result else None
+    other -> None
+  patterns-result :: UType -> List CorePattern -> Option UType
+  patterns-result expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result expected p of Some result -> patterns-result result rest; None -> None
+  -- Shared declaration closure checks. Global term typing and primitive
+  -- semantics remain separate from these retained contract invariants.
+  contract-quants-closed :: List Quant -> Bool
+  contract-quants-closed qs = effect-quants-scoped qs Nil && closed-quants qs
+  contract-scheme-closed :: Scheme -> Bool
+  contract-scheme-closed sc = scheme-closed sc && valid-type (scheme-body sc)
+    && scheme-index-scope Nil sc && contract-quants-closed (scheme-params sc)
+    && effect-type-scope (scheme-params sc) (scheme-body sc)
+    && effect-requirements (scheme-params sc) (scheme-requirements sc)
+  definition-clause-types :: UType -> List CoreClause -> Bool
+  definition-clause-types ty clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result ty patterns of Some expected -> contract-equal expected (core-type body); None -> False) && definition-clause-types ty rest
+  definition-given-types :: List Requirement -> List CoreGiven -> Bool
+  definition-given-types requirements givens = case (requirements, givens) of
+    (Nil, Nil) -> True
+    (Cons r rest, Cons g more) -> contract-equal (requirement-type r) (given-type g) && definition-given-types rest more
+    other -> False
+  core-definition-result-types :: CoreDefinition -> Bool
+  core-definition-result-types definition = let sc = core-scheme definition in let pairs = core-openings definition in
+    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
+      && definition-clause-types (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
+
+  proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  proof-expected gamma facts expected term = case expected of
+    URefine id name carrier predicate -> contract-equal expected (core-type term) && proof-refined-term gamma facts term
+    URequire predicates result -> case term of
+      CRequire s ty body -> contract-equal expected ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected gamma (introduced <> facts) result body; None -> False)
+      other -> False
+    other -> proof-term gamma facts term
+  proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
+  proof-contract-clauses bodies guards expected clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
+      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil result body
+      None -> False) && proof-contract-clauses bodies guards expected rest
+
+  numeric-method-comparison :: CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
+  numeric-method-comparison method first second = case method of
+    CMethod sp ty name owner slot [actual] [CEInstance at instance-type symbol types arguments] -> case (ty, instance-type) of
+      (UFun left (UFun right result), UApp (UCon signature-name kind) carrier) ->
+        if same-integer-carrier carrier actual && same-integer-carrier carrier left && same-integer-carrier carrier right
+          && same-integer-carrier carrier (core-type first) && same-integer-carrier carrier (core-type second)
+          && bool-type result && string-compare signature-name owner == 0
+          && evidence-closed (CEInstance at instance-type symbol types arguments) then canonical-comparison owner name slot else None
+      other -> None
+    other -> None
+  canonical-comparison :: String -> String -> Nat -> Option Comparison
+  canonical-comparison owner name slot =
+    if string-compare owner (interface-global "Relation.Ord.Ord") == 0 then
+      (if slot == 0 && string-compare name (interface-global "Relation.Ord.Ord.<") == 0 then Some Less
+       else if slot == 1 && string-compare name (interface-global "Relation.Ord.Ord.<=") == 0 then Some AtMost
+       else if slot == 2 && string-compare name (interface-global "Relation.Ord.Ord.>") == 0 then Some Greater
+       else if slot == 3 && string-compare name (interface-global "Relation.Ord.Ord.>=") == 0 then Some AtLeast else None)
+    else if string-compare owner (interface-global "Relation.Eq.Eq") == 0 then
+      (if slot == 0 && string-compare name (interface-global "Relation.Eq.Eq.==") == 0 then Some Equal
+       else if slot == 1 && string-compare name (interface-global "Relation.Eq.Eq./=") == 0 then Some Unequal else None)
+    else None
+
+  numeric-method-operation :: CoreTerm -> CoreTerm -> CoreTerm -> Option String
+  numeric-method-operation method first second = case method of
+    CMethod sp ty name owner slot [actual] [CEInstance at instance-type symbol types arguments] -> case (ty, instance-type) of
+      (UFun left (UFun right result), UApp (UCon signature-name kind) carrier) ->
+        if same-number-sort carrier actual && same-number-sort carrier left && same-number-sort carrier right
+          && same-number-sort carrier result && same-number-sort carrier (core-type first)
+          && same-number-sort carrier (core-type second) && string-compare signature-name owner == 0
+          && evidence-closed (CEInstance at instance-type symbol types arguments) && slot == 0 then
+          (if string-compare owner (interface-global "Algebra.Arithmetic.Add") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Add.+") == 0 then Some "+"
+           else if string-compare owner (interface-global "Algebra.Arithmetic.Mul") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Mul.*") == 0 then Some "*"
+           else if not (nat-type carrier) && string-compare owner (interface-global "Algebra.Arithmetic.Sub") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Sub.-") == 0 then Some "-" else None)
+        else None
+      other -> None
+    other -> None
+
+  -- Existing type-only proof APIs keep their interface. Definition-aware
+  -- elaboration uses the scoped variants; Core reconstructs those scopes.
+  prove-refinement :: List (Nat, UType) -> List Proposition -> UType -> CoreTerm -> Option Proof
+  prove-refinement gamma facts ty body = scoped-prove-refinement (make-proof-scope gamma Nil) facts ty body
+  prove-predicates :: List (Nat, UType) -> List Proposition -> UType -> Option (List Proof)
+  prove-predicates gamma facts ty = scoped-prove-predicates (make-proof-scope gamma Nil) facts ty
+  core-predicates :: List (Nat, UType) -> UType -> Option (List Proposition)
+  core-predicates gamma ty = scoped-core-predicates (make-proof-scope gamma Nil) ty
+  core-condition :: List (Nat, UType) -> List Proposition -> CoreTerm -> Option Proposition
+  core-condition gamma facts term = scoped-core-condition (make-proof-scope gamma Nil) facts term
+  core-let-fact :: List (Nat, UType) -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
+  core-let-fact gamma facts id sc rhs = scoped-core-let-fact (make-proof-scope gamma Nil) facts id sc rhs
+  prove-subtraction :: List (Nat, UType) -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
+  prove-subtraction gamma facts first second = scoped-prove-subtraction (make-proof-scope gamma Nil) facts first second
+
+  -- A global call gets no semantics from its annotation. Lookup starts in
+  -- the actual declaration-owned body context and checks the complete type.
+  body-call-key :: BodyBinding -> String
+  body-call-key binding = string-concat "#total-body:" (binding-native binding)
+  total-call-spine :: ProofScope -> CoreTerm -> List CoreTerm -> Option (BodyBinding, List CoreTerm)
+  total-call-spine gamma term arguments = case term of
+    CApply sp ty function input -> total-call-spine gamma function (Cons input arguments)
+    CUse sp ty name role Nil -> (case body-binding name (scope-bodies gamma) of
+      Some binding -> if binding-matches name role (mono ty) binding then Some (binding, arguments) else None
+      None -> None)
+    other -> None
+  total-call-values :: ProofScope -> List Proposition -> UType -> List CoreTerm -> Option (UType, UType)
+  total-call-values gamma facts ty inputs = case inputs of
+    Nil -> Some (UEnd, ty)
+    Cons input rest -> (case ty of
+      UFun domain result -> if contract-equal domain (core-type input) && proof-term gamma facts input then
+        (case (actual-index gamma facts input, total-call-values gamma facts result rest) of
+          (Some value, Some (values, output)) -> if kind-equal (type-kind value) (value-kind domain) then Some (UArg value values, output) else None
+          other -> None) else None
+      UFunEff domain (URow UEnd) result -> total-call-values gamma facts (UFun domain result) inputs
+      other -> None)
+  checked-total-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  checked-total-index gamma facts term = case total-call-spine gamma term Nil of
+    Some (binding, inputs) -> (case total-call-values gamma facts (scheme-body (binding-scheme binding)) inputs of
+      Some (values, result) -> if contract-equal result (core-type term) then
+        let value = UIndexCall (binding-function binding) values in
+        if typed-index-admissible value then Some value else None else None
+      None -> None)
+    None -> None
+  projected-index :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option UType
+  projected-index gamma facts carrier body = case actual-index gamma facts body of
+    Some (UIndexCall function args) -> let value = UIndexCall function args in if kind-equal (type-kind value) (value-kind carrier) then Some value else None
+    Some value -> let out = UIndexForget value in if typed-index-admissible out then Some out else None
+    None -> None
+  total-index-arguments :: ProofScope -> UType -> Option Arithmetic
+  total-index-arguments gamma arguments = case arguments of
+    UEnd -> Some AArgumentsEnd
+    UArg first rest -> (case (typed-index-arithmetic gamma first, total-index-arguments gamma rest) of (Some value, Some more) -> Some (AArgument value more); other -> None)
+    other -> None
+  body-key-binding :: String -> List BodyBinding -> Option BodyBinding
+  body-key-binding key bindings = case bindings of Nil -> None; Cons first rest -> if string-compare key (body-call-key first) == 0 then Some first else body-key-binding key rest
+  body-application-facts :: BodyBinding -> Arithmetic -> List Proposition
+  body-application-facts binding value = let function = binding-function binding in
+    (if string-compare (total-result function) "Nat" == 0 then [PCompare AtLeast value (AInteger 0)] else Nil)
+    <> (case total-bounds function of Some (low, high) -> [PCompare AtLeast value (AInteger low), PCompare AtMost value (AInteger high)]; None -> Nil)
+  arithmetic-body-facts :: ProofScope -> Arithmetic -> List Proposition
+  arithmetic-body-facts gamma value = case value of
+    ACall key arguments -> (case body-key-binding key (scope-bodies gamma) of Some binding -> body-application-facts binding value; None -> Nil) <> arithmetic-body-facts gamma arguments
+    AArgument first rest -> arithmetic-body-facts gamma first <> arithmetic-body-facts gamma rest
+    APlus a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
+    AMinus a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
+    ATimes a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
+    other -> Nil
+  proposition-body-facts :: ProofScope -> Proposition -> List Proposition
+  proposition-body-facts gamma goal = case goal of
+    PCompare relation a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
+    PBoth a b -> proposition-body-facts gamma a <> proposition-body-facts gamma b
+    PEither a b -> proposition-body-facts gamma a <> proposition-body-facts gamma b
+    PNegate body -> proposition-body-facts gamma body
+    other -> Nil
+  goals-body-facts :: ProofScope -> List Proposition -> List Proposition
+  goals-body-facts gamma goals = case goals of Nil -> Nil; Cons goal rest -> proposition-body-facts gamma goal <> goals-body-facts gamma rest
+  goal-assumptions :: ProofScope -> List Proposition -> List Proposition -> List Proposition
+  goal-assumptions gamma facts goals =
+    let hypotheses = proof-assumptions gamma facts in
+    -- A checked call can occur only in an existing refinement, while the
+    -- requested weaker result no longer mentions it. Its actual body still
+    -- supplies its bounds. Both proof search and certificate checking rebuild
+    -- these facts from the same declaration-bound body authority.
+    hypotheses <> goals-body-facts gamma (hypotheses <> goals)
+
+  scoped-total-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-total-call-index gamma facts term = if not (proof-term gamma facts term) then None else case actual-index gamma facts term of
+    Some (UIndexCall function arguments) -> Some (UIndexCall function arguments)
+    other -> None
+
+
+  scope-guarded-bodies :: ProofScope -> List GuardedBinding
+  scope-guarded-bodies scope = case scope of MkProofScope types values proofs bodies guards -> guards
+  with-guarded-bindings :: List GuardedBinding -> ProofScope -> ProofScope
+  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of MkProofScope types values proofs bodies old -> MkProofScope types values proofs bodies bindings) else scope
+  guarded-call-spine :: ProofScope -> CoreTerm -> List CoreTerm -> Option (GuardedBinding, List CoreTerm)
+  guarded-call-spine gamma term arguments = case term of
+    CApply sp ty function argument -> guarded-call-spine gamma function (Cons argument arguments)
+    CApplyEff sp ty (URow UEnd) function argument -> guarded-call-spine gamma function (Cons argument arguments)
+    CUse sp ty name role Nil -> if string-compare role "external" /= 0 then None else (case guarded-binding name (scope-guarded-bodies gamma) of
+      Some binding -> if guarded-matches name role (mono ty) binding && list-length arguments == guarded-arity binding then Some (binding, arguments) else None
+      None -> None)
+    other -> None
+  guarded-actuals :: ProofScope -> List Proposition -> List CoreTerm -> Option (List UType)
+  guarded-actuals gamma facts arguments = case arguments of
+    Nil -> Some Nil
+    Cons first rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (actual-index gamma facts first, guarded-actuals gamma facts rest) of
+      (Some value, Some more) -> Some (Cons value more)
+      other -> None)
+  scoped-guarded-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-guarded-call-index gamma facts term = case term of
+    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+      Some (binding, arguments) -> (case guarded-actuals gamma facts arguments of Some values -> guarded-index binding values; None -> None)
+      None -> None)
+    other -> None
+
+  guarded-actual-readings :: ProofScope -> List Proposition -> List CoreTerm -> Option (List Arithmetic)
+  guarded-actual-readings gamma facts arguments = case arguments of
+    Nil -> Some Nil
+    Cons first rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (core-arithmetic gamma facts first, guarded-actual-readings gamma facts rest) of
+      (Some value, Some more) -> Some (Cons value more)
+      other -> None)
+  scoped-guarded-call-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  scoped-guarded-call-reading gamma facts term = case term of
+    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+      Some (binding, arguments) -> (case guarded-actual-readings gamma facts arguments of Some values -> guarded-reading binding values; None -> None)
+      None -> None)
+    other -> None

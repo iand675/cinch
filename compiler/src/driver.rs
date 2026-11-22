@@ -17,6 +17,7 @@ pub mod incremental;
 pub enum Mode {
     Check,
     EmitIr,
+    EmitObject,
     Build,
     Run,
 }
@@ -282,6 +283,7 @@ pub fn prelude_module_names() -> Vec<String> {
 pub struct PreludeSources {
     pub modules: Vec<crate::ast::Module>,
     pub fixities: HashMap<String, FixityTable>,
+    pub exported_fixities: HashMap<String, FixityTable>,
     pub base: FixityTable,
 }
 
@@ -289,24 +291,34 @@ pub struct PreludeSources {
 /// vocabulary appended to the facade's source file (the vocabulary
 /// declares inside the facade and joins its export list).
 pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
-    let empty = FixityTable::new();
     let facade_src = prelude_source_with(adapters);
-    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &empty, &HashMap::new())?;
-    let base = facade_parsed
-        .fixities
+    let mut headers = Vec::new();
+    let facade_at = base_package().facade_index();
+    for (i, (path, source)) in prelude_sources().into_iter().enumerate() {
+        let source = if i == facade_at { facade_src.as_str() } else { source };
+        let toks = layout::layout(lexer::lex(source)?)?;
+        headers.extend(crate::parser::fixity_headers(&toks)
+            .map_err(|e| Error::plain(format!("{path}: {e}")))?);
+    }
+    let mut exported_fixities = crate::parser::export_fixity_headers(&headers, &HashMap::new())?;
+    let base = exported_fixities
         .get("Prelude")
         .cloned()
         .unwrap_or_default();
+    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &base, &exported_fixities)?;
     let mut fixities = facade_parsed.fixities.clone();
     let mut early: Vec<crate::ast::Module> = Vec::new();
     let mut late: Vec<crate::ast::Module> = Vec::new();
-    let mut tables: HashMap<String, FixityTable> = HashMap::new();
+    let mut tables = exported_fixities.clone();
     let mut parse_into =
         |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
             let parsed = parse_source(src, path, &base, &tables)?;
             for (m, f) in &parsed.fixities {
                 fixities.insert(m.clone(), f.clone());
+            }
+            for (m, f) in &parsed.exported_fixities {
                 tables.insert(m.clone(), f.clone());
+                exported_fixities.insert(m.clone(), f.clone());
             }
             out.extend(parsed.modules);
             Ok(())
@@ -317,7 +329,6 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     // is parsed above, because ITS fixity table is the base table every
     // module parses against; every module after the facade is a late
     // home (checked after it, resolving old-surface names through it).
-    let facade_at = base_package().facade_index();
     for (i, (path, src)) in prelude_sources().into_iter().enumerate() {
         if i == facade_at {
             continue;
@@ -339,6 +350,7 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     Ok(PreludeSources {
         modules,
         fixities,
+        exported_fixities,
         base,
     })
 }
@@ -436,8 +448,7 @@ pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
 }
 
 /// A resolved multi-file project: modules in dependency order (imports
-/// first), the entry file's modules last, with each module's source file
-/// and imports.
+/// first), with each module's source file and imports.
 struct Project {
     /// Module name to the file declaring it (a file may declare several).
     module_file: HashMap<String, PathBuf>,
@@ -566,9 +577,9 @@ fn load_project(entry_path: &Path) -> Result<Project> {
             }
         }
     }
-    // Dependency order; the entry file's modules go last, in declaration
-    // order, because their dependencies precede them and a cycle is an
-    // error.
+    // Keep dependency order within a file too: its first module may
+    // import one declared later in the same file. Entry membership is
+    // recorded separately and must not undo the graph's ordering.
     let graph: std::collections::BTreeMap<String, Vec<crate::interface::IfaceRef>> = imports
         .iter()
         .map(|(m, imps)| {
@@ -587,11 +598,6 @@ fn load_project(entry_path: &Path) -> Result<Project> {
     let mut order = crate::interface::topo_order(&graph)
         .map_err(|e| Error::plain(e.to_string()))?;
     order.retain(|m| module_file.contains_key(m));
-    let entry: Vec<String> = entry_modules.clone();
-    order.retain(|m| !entry.contains(m));
-    for m in &entry {
-        order.push(m.clone());
-    }
     Ok(Project {
         module_file,
         sources,
@@ -1375,7 +1381,7 @@ fn parse_family_and_user(
     // `design/compiled-interface-metadata.md` section 2.1, rule 3), so
     // `import Algebra.Semigroup` supplies `<>`'s fixity exactly as it
     // supplies the name, and no consumer redeclares it.
-    let user = parse_source(user_src, user_file, &prelude.base, &prelude.fixities)?;
+    let user = parse_source(user_src, user_file, &prelude.base, &prelude.exported_fixities)?;
     let mut hashes = HashMap::new();
     let mut files = HashMap::new();
     let mut fixities = prelude.fixities.clone();
@@ -1601,6 +1607,9 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
 /// The flags a compile takes that are neither a mode nor a profile.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DriverOptions {
+    /// Concrete representation variants demanded by a library consumer.
+    /// Used only by `EmitObject`; an empty list preserves ordinary roots.
+    pub object_roots: Vec<crate::specialize::ObjectRoot>,
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
     /// leaving it alone. The compile path never fails over an entry's
@@ -1699,11 +1708,15 @@ pub fn driver_with_profile_opts(
     profile: &crate::core::TargetProfile,
     opts: &DriverOptions,
 ) -> Result<i32> {
+    if mode != Mode::EmitObject && !opts.object_roots.is_empty() {
+        return Err(Error::plain("explicit object roots require emit-object mode"));
+    }
     let project = load_project(path)?;
     let adapters = wit_for_source(path)?;
     let prelude = parse_prelude(&adapters)?;
     let prelude_fixities = prelude.base.clone();
     let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
+    let mut exported_fixities = prelude.exported_fixities.clone();
     let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
     let mut modules: Vec<crate::ast::Module> = Vec::new();
     // Each file parses once, at the position of its last module in
@@ -1714,9 +1727,12 @@ pub fn driver_with_profile_opts(
         let key = file.display().to_string();
         if !parsed_by_file.contains_key(&key) {
             let src = &project.sources[&key];
-            let parsed = parse_source(src, &key, &prelude_fixities, &module_fixities)?;
+            let parsed = parse_source(src, &key, &prelude_fixities, &exported_fixities)?;
             for (m, f) in &parsed.fixities {
                 module_fixities.insert(m.clone(), f.clone());
+            }
+            for (m, f) in &parsed.exported_fixities {
+                exported_fixities.insert(m.clone(), f.clone());
             }
             parsed_by_file.insert(key, parsed);
         }
@@ -1775,7 +1791,12 @@ pub fn driver_with_profile_opts(
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
-    let (program, opt) = crate::specialize::optimize(&program, profile)?;
+    let (program, opt, method_families) = if mode == Mode::EmitObject {
+        crate::specialize::optimize_object(&program, profile, &opts.object_roots)?
+    } else {
+        let (program, opt) = crate::specialize::optimize(&program, profile)?;
+        (program, opt, Vec::new())
+    };
     write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters, opts)?;
     if mode == Mode::Check {
         return Ok(0);
@@ -1789,9 +1810,12 @@ pub fn driver_with_profile_opts(
     // section 4): driving duplicates and discards subterms, which would
     // unbalance inserted count operations.
     let program = crate::rc::insert(program, profile)?;
+    if mode == Mode::EmitObject {
+        return write_object(profile, &program, &ifaces, &method_families, path, out);
+    }
     let ir = codegen::emit_for(profile, &program)?;
     match mode {
-        Mode::Check => unreachable!(),
+        Mode::Check | Mode::EmitObject => unreachable!(),
         Mode::EmitIr => {
             match out {
                 Some(out) => {
@@ -1831,6 +1855,53 @@ pub fn driver_with_profile_opts(
             Ok(status.code().unwrap_or(1))
         }
     }
+}
+
+/// Emit a closed library dependency object. Its physical manifest records the
+/// complete checked interface closure; source exports still come only from
+/// those interfaces. The final executable supplies apply and one layout table.
+fn write_object(profile: &crate::core::TargetProfile, program: &crate::core::Program,
+                ifaces: &[crate::interface::Iface], families: &[crate::specialize::MethodFamily], path: &Path, out: Option<&Path>) -> Result<i32> {
+    use crate::interface::{JsonValue as J, parse_json};
+    let object = codegen::emit_object_for(profile, program)?;
+    let out = out.map(Path::to_path_buf).unwrap_or_else(|| path.with_extension("o"));
+    let ir_path = out.with_extension("ll");
+    let abi_path = out.with_extension("abi.json");
+    if out == ir_path || out == abi_path {
+        return Err(Error::plain("emit-object output must differ from its .ll and .abi.json companions"));
+    }
+    // A failed rebuild must not leave an old manifest advertising new code.
+    if abi_path.exists() {
+        std::fs::remove_file(&abi_path).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    }
+    std::fs::write(&ir_path, &object.ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    let output = std::process::Command::new(clang()).arg("-c").arg(&ir_path).arg("-o").arg(&out)
+        .output().map_err(|e| Error::plain(format!("compile library object: {e}")))?;
+    if !output.status.success() {
+        return Err(Error::plain(format!("compile library object failed:\n{}", String::from_utf8_lossy(&output.stderr))));
+    }
+    let mut abi = parse_json(&object.abi).map_err(|e| Error::plain(e.to_string()))?;
+    let J::Obj(ref mut fields) = abi else { unreachable!() };
+    let interfaces = ifaces.iter().map(|iface| {
+        Ok(J::obj([
+            ("module", iface.module.as_str().into()),
+            ("iface_hash", iface.iface_hash().into()),
+            ("interface", parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?),
+        ]))
+    }).collect::<Result<Vec<_>>>()?;
+    fields.insert("interfaces".into(), J::Arr(interfaces));
+    fields.insert("method_families".into(), J::Arr(families.iter().map(|family| J::obj([
+        ("class", family.class.as_str().into()),
+        ("declared_methods", (family.declared_methods as u64).into()),
+        ("slots", J::Arr(family.slots.iter().map(|slot| J::obj([
+            ("logical", (slot.logical as u64).into()), ("physical", (slot.physical as u64).into()),
+            ("own", crate::repr::letters(&slot.own).into()),
+        ])).collect())),
+    ])).collect()));
+    let bytes = std::fs::read(&out).map_err(|e| Error::plain(format!("{}: {e}", out.display())))?;
+    fields.insert("object_content_hash".into(), crate::interface::content_hash_bytes(&bytes).into());
+    std::fs::write(&abi_path, abi.to_canonical_string()).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    Ok(0)
 }
 
 /// Compile and run a source string; used by tests. Returns the exit code.

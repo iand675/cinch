@@ -1,0 +1,60 @@
+module Main where
+  import Algebra.Semigroup
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Text.Show (int-to-string)
+  sp :: Span
+  sp = Span 0 0 1 1
+  integer :: UType
+  integer = UCon "Int" KType
+  nat :: UType
+  nat = UCon "Nat" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  definition :: UType -> CoreTerm -> Bool
+  definition ty body = core-definition-closed (MkCoreDefinition sp "machine-literal" (mono ty) Nil Nil Nil [MkCoreClause sp Nil body])
+  good :: UType -> UType -> Bool
+  good a b = case store-errors (unify sp a b (empty-store "machine-values")) of Nil -> True; other -> False
+  carriers :: List (String, Int, Int)
+  carriers = [("I8", -128, 127), ("I16", -32768, 32767), ("I32", -2147483648, 2147483647), ("I64", -9223372036854775808, 9223372036854775807), ("U8", 0, 255), ("U16", 0, 65535), ("U32", 0, 4294967295), ("U64", 0, 18446744073709551615)]
+  per-carrier :: Nat -> String -> Int -> Int -> List Bool
+  per-carrier nonce name low high =
+    let carrier = UCon name KType in let id = nonce + 1 in let binder = nonce + 2 in
+    let lower = UIndex carrier (IInteger low) in let upper = UIndex carrier (IInteger high) in
+    let local = CLocal sp carrier id "value" Nil in
+    let reading = UIndexPromote (UIndex carrier (IRigid id "value" 0)) in
+    let goal = UCompare ">=" reading (UIndex integer (IInteger low)) in
+    let declared = URefine binder "out" carrier (UCompare ">=" (UIndexPromote (UIndex carrier (IBound binder "out"))) (UIndex integer (IInteger low))) in
+    let bounded = case prove-refinement [(id, carrier)] Nil declared local of
+          Some evidence -> core-definition-closed (MkCoreDefinition sp "carrier-bounds" (mono (UFun carrier declared)) Nil Nil Nil [MkCoreClause sp [CPVar sp carrier id "value"] (CRefine sp declared evidence local)])
+          None -> False in
+    let sum = CPrimitive sp carrier "+" (CArgument sp local (CArgument sp (CInt sp carrier "1") (CArgumentsEnd sp))) in
+    let comparison = CPrimitive sp bool ">" (CArgument sp sum (CArgument sp local (CArgumentsEnd sp))) in
+    [ valid-type lower
+    , valid-type upper
+    , not (valid-type (UIndex carrier (IInteger (low - 1))))
+    , not (valid-type (UIndex carrier (IInteger (high + 1))))
+    , typed-index-admissible lower
+    , good (normalize (empty-store "promote") (UIndexPromote lower)) (UIndex integer (IInteger low))
+    , definition carrier (CInt sp carrier (int-to-string low))
+    , definition carrier (CInt sp carrier (int-to-string high))
+    , not (definition carrier (CInt sp carrier (int-to-string (low - 1))))
+    , not (definition carrier (CInt sp carrier (int-to-string (high + 1))))
+    , bounded
+    , (case prove-predicates [(id, carrier)] Nil (URequire (UArg goal UEnd) nat) of Some evidence -> True; None -> False)
+    , (case prove-predicates [(id, nat)] Nil (URequire (UArg goal UEnd) nat) of Some evidence -> False; None -> True)
+    , (case core-condition [(id, carrier)] Nil comparison of None -> True; Some condition -> False)
+    , not (valid-type (UIndexMath "+" lower upper))
+    ]
+  rows :: Nat -> List (String, Int, Int) -> List Bool
+  rows nonce entries = case entries of Nil -> Nil; Cons (name, low, high) rest -> per-carrier nonce name low high <> rows (nonce + 10) rest
+  verdict :: List Bool -> Int -> Int
+  verdict checks index = case checks of Nil -> 0; Cons True rest -> verdict rest (index + 1); Cons False rest -> index
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok raw -> verdict (Cons (not (definition bool (CInt sp bool "0"))) (rows (bytes-len raw + 340282366920938463463374607431768211456) carriers)) 1

@@ -1,0 +1,93 @@
+module Main where
+  import Bootstrap.Guarded
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Bootstrap.Nominal (interface-global)
+  import Data.Json
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Show (int-to-string)
+  import Algebra.Semigroup
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  implementation :: Json -> Json
+  implementation rows = case rows of JArr row rest -> (case field "id" row of JStr name -> if string-compare name "Data.Nat.Sub_Nat" == 0 then (case field "method_contracts" row of JArr method more -> field "implementation" (field "checked" method); other -> JNull) else implementation rest; other -> implementation rest); other -> JNull
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  literal :: Int -> UType
+  literal n = UIndex nat (IInteger n)
+  required :: UType -> UType -> UType
+  required first second = URequire (UArg (UCompare "<=" second first) UEnd) nat
+  header :: Nat -> UType
+  header id = UPi id "x" nat (URow UEnd) (UPi (id + 1) "y" nat (URow UEnd) (required (UBound id "x" (value-kind nat)) (UBound (id + 1) "y" (value-kind nat))))
+  result-type :: Nat -> UType
+  result-type id = URefine (id + 20) "result" nat (UCompare "==" (UBound (id + 20) "result" (value-kind nat)) (literal 7))
+  call :: Nat -> String -> Int -> Int -> CoreTerm
+  call id native first second = CApply sp (required (literal first) (literal second))
+    (CApply sp (UPi (id + 1) "y" nat (URow UEnd) (required (literal first) (UBound (id + 1) "y" (value-kind nat))))
+      (CUse sp (header id) (interface-global native) "external" Nil) (CInt sp nat (int-to-string first))) (CInt sp nat (int-to-string second))
+  definition :: UType -> CoreTerm -> CoreDefinition
+  definition expected body = MkCoreDefinition sp "caller" (mono expected) Nil Nil Nil [MkCoreClause sp Nil body]
+  typed :: List CoreGlobal -> CoreDefinition -> Bool
+  typed globals value = case close-typing-context [("Nat", KType)] globals of Some context -> typing-definition-closed context value; None -> False
+  globals :: Nat -> String -> UType -> Option GuardedBinding -> List CoreGlobal
+  globals id native expected binding =
+    (case binding of Some body -> [GlobalGuardedBody (GlobalValue (interface-global native) "external" (mono (header id))) body]; None -> [GlobalValue (interface-global native) "external" (mono (header id))])
+    <> [GlobalValue "caller" "value" (mono expected)]
+  changed-body :: Json
+  changed-body = JObj "schema" (JNum 1) (JObj "parameters" (JNum 2) (JObj "root" (JObj "node" (JStr "argument") (JObj "slot" (JNum 0) JObjEnd)) JObjEnd))
+  checks :: Nat -> String -> Json -> List (String, Bool)
+  checks id native doc = case (check-guarded-binding (interface-global native) native (mono (header id)) doc, check-guarded-binding (interface-global native) native (mono (header id)) changed-body, prove-predicates Nil Nil (required (literal 10) (literal 3))) of
+    (Some original, Some changed, Some evidence) ->
+      let scope = with-guarded-bindings [original] (make-proof-scope Nil Nil) in
+      let good = CDischarge sp nat evidence (call id native 10 3) in
+      let expected = result-type id in
+      (case scoped-prove-refinement scope Nil expected good of
+        None -> [("actual body must prove actual result", False)]
+        Some certificate ->
+          let value = definition expected (CRefine sp expected certificate good) in
+          let actual-globals = globals id native expected (Some original) in
+          let changed-globals = globals id native expected (Some changed) in
+          let wrong-call = CDischarge sp nat evidence (call id native 0 3) in
+          let alias = id + 100 in
+          let local = CLocal sp nat alias "alias" Nil in
+          let bound = scope-let scope Nil alias (mono nat) good in
+          let alias-checks = case scoped-core-let-fact scope Nil alias (mono nat) good of
+                None -> [("checked call must retain its actual let equation", False)]
+                Some fact ->
+                  (case scoped-prove-refinement bound [fact] expected local of
+                    None -> [("let equation must establish the actual result", False)]
+                    Some alias-proof ->
+                      let aliased = definition expected (CLet sp expected alias "alias" (mono nat) good (CRefine sp expected alias-proof local)) in
+                      [("actual let equation", typed actual-globals aliased), ("changed body rejects stale let equation", not (typed changed-globals aliased))]) in
+          [ ("actual declaration and body", typed actual-globals value)
+          , ("independent proof closure", core-definition-contracts-closed Nil [original] value)
+          , ("missing body authority", not (typed (globals id native expected None) value))
+          , ("changed body rejects stale result", not (typed changed-globals value))
+          , ("wrong actual arguments", not (typed (globals id native nat (Some original)) (definition nat wrong-call)))
+          , ("missing call evidence", not (typed (globals id native nat (Some original)) (definition nat (CDischarge sp nat Nil (call id native 10 3)))))
+          , ("wrong actual declaration", not (typed [GlobalGuardedBody (GlobalValue (interface-global native) "external" (mono (UFun nat (UFun nat nat)))) original, GlobalValue "caller" "value" (mono expected)] value))
+          , ("refresh cannot repair changed body", not (typed changed-globals (seal-definition-with-contracts Nil [changed] (empty-store "changed guarded body") value)))
+          ] <> alias-checks)
+    other -> [("actual body admission and call precondition", False)]
+  results :: List (String, Bool) -> (Int, String)
+  results entries = case entries of Nil -> (0, ""); Cons (name, good) rest -> let (failed, report) = results rest in (failed + (if good then 0 else 1), string-concat-all [name, ": ", if good then "ok" else "FAILED", "\n", report])
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "interface.json") of
+    Err error -> 90
+    Ok bytes -> case parse-json "guarded association" bytes of
+      Parsed doc Nil -> let entry = implementation (field "instances" (field "exports" doc)) in
+        (case field "identity" entry of
+          JStr native -> let id = 340282366920938463463374607431768211456 + bytes-len bytes in
+            let body = field "body" entry in let (failed, report) = results (checks id native body <> checks (id + 17) native body <> checks (id + 1009) native body <> checks (id + 10007) native body <> checks (id + 100003) native body) in
+            (case fs-write (path-from-string "guarded-association-report.txt") (string-to-bytes report) of Ok _ -> if failed == 0 then 0 else 1; Err error -> 92)
+          other -> 93)
+      other -> 91

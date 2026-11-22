@@ -227,7 +227,6 @@ fn semigroup_nonempty_associativity_and_concatenation() {
          \x20 import Category.Foldable\n\
          \x20 import Data.NonEmpty\n\
          \x20 import Algebra.Semigroup\n\
-         \x20 infixr 6 <>\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\

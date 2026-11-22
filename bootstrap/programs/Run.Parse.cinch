@@ -119,10 +119,10 @@ module Main where
 
   dump-one :: String -> Decl -> List String -> List String
   dump-one tag d acc = case d of
-    DData s n ctors -> dump-ctors tag n ctors (named-line tag n acc)
-    DRecord s n fields -> dump-ctors tag n fields (named-line tag n acc)
+    DData s n params ctors -> dump-ctors tag n ctors (named-line tag n acc)
+    DRecord s n params fields -> dump-ctors tag n fields (named-line tag n acc)
     DClass s n ps members -> dump-decls tag (decls-of members) (mem-line tag n acc)
-    DInstance s i n cls members -> dump-decls tag (decls-of members) (mem-line tag n acc)
+    DInstance s i n params cls members -> dump-decls tag (decls-of members) (mem-line tag n acc)
     DFixity s assoc prec ops -> dump-fixities tag assoc prec ops acc
     other -> named-line tag (case decl-name other of Some n -> n; None -> "") acc
 

@@ -1,0 +1,79 @@
+module Tensor where
+  import Data.List (map as list-map, zip-with as list-zip-with, replicate as list-replicate, list-length)
+  export Matrix, matrix, scalar, matrix22, rows, columns, values, map, zip, add, multiply, transpose, matmul, fill-like, sum, scalar-value, flatten
+
+  -- Shape indices are public; the unchecked representation constructor is not.
+  -- This backend uses checked abstract data rather than requiring refinement of
+  -- rigid Vec indices, which the current compiler does not yet implement.
+  data Matrix (r :: Nat) (c :: Nat) where
+    MkMatrix :: Nat -> Nat -> List (List Int) -> Matrix r c
+
+  valid-rows :: Nat -> List (List Int) -> Bool
+  valid-rows width xs = case xs of
+    Nil -> True
+    Cons row rest -> list-length row == width && valid-rows width rest
+  matrix :: (r :: Nat) -> (c :: Nat) -> List (List Int) -> Option (Matrix r c)
+  matrix r c xs = if list-length xs == r && valid-rows c xs then Some (MkMatrix r c xs) else None
+  scalar :: Int -> Matrix 1 1
+  scalar x = MkMatrix 1 1 [[x]]
+  matrix22 :: Int -> Int -> Int -> Int -> Matrix 2 2
+  matrix22 a b c d = MkMatrix 2 2 [[a, b], [c, d]]
+  columns :: forall (r :: Nat) (c :: Nat). Matrix r c -> Nat
+  columns matrix = case matrix of
+    MkMatrix height width xs -> width
+  rows :: forall (r :: Nat) (c :: Nat). Matrix r c -> Nat
+  rows matrix = case matrix of
+    MkMatrix height width xs -> height
+  values :: forall (r :: Nat) (c :: Nat). Matrix r c -> List (List Int)
+  values matrix = case matrix of
+    MkMatrix height width xs -> xs
+
+  map :: forall (r :: Nat) (c :: Nat). (Int -> Int) -> Matrix r c -> Matrix r c
+  map f matrix = MkMatrix (rows matrix) (columns matrix) (list-map (list-map f) (values matrix))
+  zip :: forall (r :: Nat) (c :: Nat). (Int -> Int -> Int) -> Matrix r c -> Matrix r c -> Matrix r c
+  zip f left right = MkMatrix (rows left) (columns left) (list-zip-with (list-zip-with f) (values left) (values right))
+  add :: forall (r :: Nat) (c :: Nat). Matrix r c -> Matrix r c -> Matrix r c
+  add left right = zip (\x y -> x + y) left right
+  multiply :: forall (r :: Nat) (c :: Nat). Matrix r c -> Matrix r c -> Matrix r c
+  multiply left right = zip (\x y -> x * y) left right
+  fill-like :: forall (r :: Nat) (c :: Nat). Matrix r c -> Int -> Matrix r c
+  fill-like matrix value = map (\x -> value) matrix
+
+  prepend-row :: Int -> List Int -> List Int
+  prepend-row x rest = Cons x rest
+  transpose-rows :: Nat -> List (List Int) -> List (List Int)
+  transpose-rows width xs = case xs of
+    Nil -> list-replicate width Nil
+    Cons row more -> list-zip-with prepend-row row (transpose-rows width more)
+  transpose :: forall (r :: Nat) (c :: Nat). Matrix r c -> Matrix c r
+  transpose matrix = MkMatrix (columns matrix) (rows matrix) (transpose-rows (columns matrix) (values matrix))
+  dot :: List Int -> List Int -> Int
+  dot xs ys = case xs of
+    Nil -> 0
+    Cons x rest -> case ys of
+      Nil -> 0
+      Cons y more -> x * y + dot rest more
+  matmul :: forall (r :: Nat) (k :: Nat) (c :: Nat). Matrix r k -> Matrix k c -> Matrix r c
+  matmul left right =
+    let cols = values (transpose right) in
+    MkMatrix (rows left) (columns right) (list-map (\row -> list-map (dot row) cols) (values left))
+  sum-list :: List Int -> Int
+  sum-list xs = case xs of
+    Nil -> 0
+    Cons x rest -> x + sum-list rest
+  sum :: forall (r :: Nat) (c :: Nat). Matrix r c -> Int
+  sum matrix = sum-list (list-map sum-list (values matrix))
+  scalar-value :: Matrix 1 1 -> Int
+  scalar-value matrix = case values matrix of
+    Cons (Cons x Nil) Nil -> x
+    _ -> 0
+  append :: forall a. List a -> List a -> List a
+  append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (append rest ys)
+  flatten-rows :: List (List Int) -> List Int
+  flatten-rows xs = case xs of
+    Nil -> Nil
+    Cons row rest -> append row (flatten-rows rest)
+  flatten :: forall (r :: Nat) (c :: Nat). Matrix r c -> List Int
+  flatten matrix = flatten-rows (values matrix)

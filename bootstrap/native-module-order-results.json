@@ -1,0 +1,156 @@
+{
+  "after": "Keep graph order; entry membership remains separately recorded. The program links and returns213, and its Main interface records LocalSignature.",
+  "before": "load_project computed topological order, then appended entry-file modules in declaration order; valid selection failed with LocalSignature has no member Echo",
+  "bootstrap_achieved": false,
+  "meaning": "Rust source loader preserves dependency order for modules declared within the same file",
+  "native_reference": [
+    {
+      "build_exit": 0,
+      "build_output": "   Compiling cinchruntime v0.1.0 (/private/tmp/cinch-runtime-source-classes-validation-2/source/compiler/runtime)\nwarning: fields `id` and `state_repr` are never read\n   --> src/evolution.rs:128:5\n    |\n127 | struct CodeVersion {\n    |        ----------- fields in this struct\n128 |     id: i64,\n    |     ^^\n...\n134 |     state_repr: i64,\n    |     ^^^^^^^^^^\n    |\n    = note: `CodeVersion` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `cinchruntime` (lib) generated 1 warning\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.46s\n",
+      "expected": 203,
+      "name": "source-signature",
+      "passed": true,
+      "run_exit": 203,
+      "source_sha256": "ef1dfdac1242c2a45ec526dfb03a72fc187866780d9937a44f2dd5e8fa54d597",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 205,
+      "name": "source-signature-order",
+      "passed": true,
+      "run_exit": 205,
+      "source_sha256": "928e2eae85d36fe0cdcf3a1d9a71b36f3c03e23b773eaaf51d50d00d77ee9fdc",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 207,
+      "name": "source-signature-values",
+      "passed": true,
+      "run_exit": 207,
+      "source_sha256": "d0f35fa5bf94b057ba908fdfb3839d8b22ea99bf350d108ea357af25ff5c28ec",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 209,
+      "name": "source-signature-factory",
+      "passed": true,
+      "run_exit": 209,
+      "source_sha256": "820ae7d33110a1353b6a1e57dae4681074dff64036b91b56e547e71425bda81f",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 211,
+      "name": "source-signature-operator",
+      "passed": true,
+      "run_exit": 211,
+      "source_sha256": "519c4502d99c58aa4100dc946da918ae6428ad0456e390673632ef0682e31b1f",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 213,
+      "name": "source-signature-module",
+      "passed": true,
+      "run_exit": 213,
+      "source_sha256": "98b84ae5223f59ca4ff10ddb674215a69770a9ea68eab16126cf98f5adfda5c2",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    },
+    {
+      "build_exit": 0,
+      "build_output": "",
+      "expected": 215,
+      "name": "source-signature-method-polymorphism",
+      "passed": true,
+      "run_exit": 215,
+      "source_sha256": "d7c80c3e23cee91455d8bbd05925b1090efbf5b724b27ab4943ec379bb5e5baf",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "stdout_hex": ""
+    }
+  ],
+  "published_file_hashes": {
+    "compiler/src/driver.rs": "c630122da30da734a542ad2d2370553b39f33020a1e36a6f2002a272c5ecbaf2",
+    "compiler/tests/modules.rs": "051a7f98d376d5e76b92d2cf43678f437868913b62fb36c510a1c85f28ac28aa"
+  },
+  "remaining": "Cinch source-signature implementation remains private and under validation. No Stage2/3 bootstrap success or complete current-suite pass is claimed.",
+  "seed_changed": false,
+  "source_sha256": "f891240e05664693fb671c01c3d7429bdc95e7c2093b86865e16571fd6355a1b",
+  "source_unchanged": true,
+  "status": "passed",
+  "trigger": "Main imports an explicitly exported signature from a module declared later in Main.cinch",
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-source-classes-validation-2/cargo",
+        "--test",
+        "modules",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:52:53.778175+00:00",
+      "name": "modules",
+      "pid": 99302,
+      "started": "2026-11-03T04:52:33.719925+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-source-classes-validation-2/cargo",
+        "--test",
+        "incremental",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:53:44.545678+00:00",
+      "name": "incremental",
+      "pid": 99730,
+      "started": "2026-11-03T04:52:53.778810+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-source-classes-validation-2/cargo",
+        "--lib",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:54:33.416247+00:00",
+      "name": "lib",
+      "pid": 310,
+      "started": "2026-11-03T04:53:44.546252+00:00",
+      "status": "passed"
+    }
+  ]
+}

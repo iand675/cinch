@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "name": "audio",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        "input",
+        {
+          "capture": "input",
+          "of": {
+            "host": true
+          }
+        },
+        "|>",
+        {
+          "capture": "steps",
+          "of": {
+            "ref": "steps"
+          }
+        },
+        "}"
+      ],
+      "emit": "(${steps} (${input}))"
+    },
+    "steps": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "chain"
+          },
+          {
+            "ref": "stage"
+          }
+        ]
+      }
+    },
+    "chain": {
+      "pattern": [
+        {
+          "capture": "first",
+          "of": {
+            "ref": "stage"
+          }
+        },
+        "|>",
+        {
+          "capture": "rest",
+          "of": {
+            "ref": "steps"
+          }
+        }
+      ],
+      "emit": "(${@chain} ${first} ${rest})"
+    },
+    "stage": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "gain"
+          },
+          {
+            "ref": "duplicate"
+          },
+          {
+            "ref": "mix"
+          }
+        ]
+      }
+    },
+    "gain": {
+      "pattern": [
+        "gain",
+        {
+          "capture": "factor",
+          "of": {
+            "regex": "[0-9]+"
+          }
+        }
+      ],
+      "emit": "(${@gain} ${factor})"
+    },
+    "duplicate": {
+      "pattern": "duplicate",
+      "emit": "${@duplicate}"
+    },
+    "mix": {
+      "pattern": "mix",
+      "emit": "${@mix}"
+    }
+  },
+  "helpers": {
+    "chain": "Audio.chain",
+    "gain": "Audio.gain",
+    "duplicate": "Audio.duplicate",
+    "mix": "Audio.mix"
+  }
+}

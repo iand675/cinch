@@ -1,0 +1,280 @@
+{
+  "status": "passed",
+  "meaning": "Rust dictionary factories preserve actual value-field ownership and scoped explicit instance selection",
+  "source_sha256": "2ea23af15e95cf153b001f260742b21287fbae99ea5c139293b38e47ba5960c7",
+  "source_unchanged": true,
+  "bootstrap_achieved": false,
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:36:16.202722+00:00",
+      "name": "lib",
+      "pid": 11552,
+      "started": "2026-11-03T02:35:29.062029+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "native_dictionary_checks",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:37:35.203451+00:00",
+      "name": "native_dictionary_checks",
+      "pid": 12795,
+      "started": "2026-11-03T02:36:16.203225+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "ownership",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:38:07.058766+00:00",
+      "name": "ownership",
+      "pid": 13779,
+      "started": "2026-11-03T02:37:35.203953+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "reclamation",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:39:14.731480+00:00",
+      "name": "reclamation",
+      "pid": 14283,
+      "started": "2026-11-03T02:38:07.059244+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:39:55.558061+00:00",
+      "name": "effects",
+      "pid": 15408,
+      "started": "2026-11-03T02:39:14.731957+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "repr_classes",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:40:03.675690+00:00",
+      "name": "repr_classes",
+      "pid": 16096,
+      "started": "2026-11-03T02:39:55.558620+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "class_defaults",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:40:12.553922+00:00",
+      "name": "class_defaults",
+      "pid": 16206,
+      "started": "2026-11-03T02:40:03.676184+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-check-regressions-2/cargo",
+        "--test",
+        "surface",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T02:40:46.275526+00:00",
+      "name": "surface",
+      "pid": 16360,
+      "started": "2026-11-03T02:40:12.554446+00:00",
+      "status": "passed"
+    }
+  ],
+  "passed_test_counts": {
+    "lib": 142,
+    "native_dictionary_checks": 1,
+    "ownership": 21,
+    "reclamation": 18,
+    "effects": 16,
+    "repr_classes": 3,
+    "class_defaults": 6,
+    "surface": 17
+  },
+  "native_executable_cases": 18,
+  "invalid_cases": 5,
+  "actual_cases": [
+    [
+      "dictionary-slot-order",
+      "103",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-value",
+      "107",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-object-value",
+      "109",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-factory-context",
+      "113",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-self-method",
+      "127",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-self-escaping",
+      "131",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-evidence-capture",
+      "137",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-extra-evidence",
+      "139",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-raw-value",
+      "149",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "dictionary-shared-evidence",
+      "151",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "erased-region-identity",
+      "157",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "io-unit-entry",
+      "163",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "io-cancellation",
+      "167",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "io-evidence-capture",
+      "173",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "io-observable-bytes",
+      "179",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    [
+      "generic-value-maps",
+      "181",
+      "cinch-leak: live=0 immortal=0 leaked=0"
+    ]
+  ],
+  "additional_case": "exported explicit instance selected through import rename: exit191 and zero leaks; both original bare and qualified spellings remain unavailable",
+  "regressions": [
+    "computed big integer value previously leaked1; heap-object value leaked2; both now have actual field maps",
+    "generic eager values retain specialized TObj/Obj classes",
+    "ordinary signature supplies use actual factories and context wants; IO retains its runtime-region escape check"
+  ],
+  "limits": [
+    "explicit factory refinement obligations still receive a named refusal",
+    "no Stage2 compiler or full current Native/self-built suite established by these focused checks"
+  ],
+  "implementation_sha256": {
+    "compiler/src/core.rs": "bbd4e7a0264254be208fa0f43417de3bd61a397908051eac8303cf12cccf9e72",
+    "compiler/src/check.rs": "295f8119e092e375c65950eaf0fb8a0ba22cc0488be73fe6f33f3f567154f309",
+    "compiler/src/check_decls.rs": "b4ff558fddc8d34bdd1d5b5b59ec623a52f56ab77dcb41ce2927f99dff6a6e62",
+    "compiler/src/check_terms.rs": "f3dd9d8316b2ca5363542a1dfe7e538475c4fa570dcfb5b6d7ca325aa1b0c305",
+    "compiler/src/specialize.rs": "63ebdbef8cdb6395989abe607bbbc4fedf81943c5a239bb43bc3e091dfb1562d",
+    "compiler/src/codegen.rs": "c3a2496cd40aa28ff9c8ec6d23bab695b8b6035b4bef1a12c813449788c01cc5",
+    "compiler/tests/native_dictionary_checks.rs": "fad31a8be69fde1f8d3c8915962fccf0b2fe0c746f85b55c9b62cac9c2cf3740"
+  }
+}

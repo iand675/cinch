@@ -1,4 +1,6 @@
 # Build artifacts
+/build/bootstrap/
+__pycache__/
 target/
 result
 result-*

@@ -1,0 +1,1458 @@
+{
+  "status": "complete older frozen Native-assisted baseline passed",
+  "source_sha256": "3f5b080deb07112cc5c1abff36e3e97695a309fcbf4b2bcbbb20a0532de53348",
+  "source_unchanged": true,
+  "integration_targets": 191,
+  "general_gates": 6,
+  "whole_gate_results": [
+    {
+      "name": "compiler-units",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:30:21.321612+00:00",
+      "finished": "2026-11-02T19:32:10.191551+00:00"
+    },
+    {
+      "name": "bootstrap_source_paths",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:30:21.322865+00:00",
+      "finished": "2026-11-02T19:31:14.122146+00:00"
+    },
+    {
+      "name": "effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:30:21.326431+00:00",
+      "finished": "2026-11-02T19:32:48.628173+00:00"
+    },
+    {
+      "name": "bootstrap_handler_core",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:31:14.124938+00:00",
+      "finished": "2026-11-02T19:33:53.405581+00:00"
+    },
+    {
+      "name": "bootstrap_source_handlers",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:32:10.194797+00:00",
+      "finished": "2026-11-02T19:38:08.303564+00:00"
+    },
+    {
+      "name": "bootstrap_pipeline",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:32:48.632010+00:00",
+      "finished": "2026-11-02T19:44:24.545019+00:00"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:33:53.408985+00:00",
+      "finished": "2026-11-02T19:34:49.576859+00:00"
+    },
+    {
+      "name": "bootstrap_guarded_calls",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:34:49.581060+00:00",
+      "finished": "2026-11-02T19:55:49.496997+00:00"
+    },
+    {
+      "name": "bootstrap_source_instances",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:38:08.306252+00:00",
+      "finished": "2026-11-02T19:56:06.758704+00:00"
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:44:24.547682+00:00",
+      "finished": "2026-11-02T19:46:23.897814+00:00"
+    },
+    {
+      "name": "alloc_accounting",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:46:23.901727+00:00",
+      "finished": "2026-11-02T19:47:00.599839+00:00"
+    },
+    {
+      "name": "argv",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:47:00.602667+00:00",
+      "finished": "2026-11-02T19:47:24.906165+00:00"
+    },
+    {
+      "name": "attributes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:47:24.908785+00:00",
+      "finished": "2026-11-02T19:47:52.939727+00:00"
+    },
+    {
+      "name": "bootstrap_abstract_nonzero_methods",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:47:52.944222+00:00",
+      "finished": "2026-11-02T20:01:49.950331+00:00"
+    },
+    {
+      "name": "bootstrap_abstract_nonzero_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:55:49.499559+00:00",
+      "finished": "2026-11-02T19:57:41.644440+00:00"
+    },
+    {
+      "name": "bootstrap_anonymous_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:56:06.762674+00:00",
+      "finished": "2026-11-02T20:10:01.316430+00:00"
+    },
+    {
+      "name": "bootstrap_body_bindings",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:57:41.649188+00:00",
+      "finished": "2026-11-02T19:59:43.544923+00:00"
+    },
+    {
+      "name": "bootstrap_buffer_aliases",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T19:59:43.548079+00:00",
+      "finished": "2026-11-02T20:04:56.222128+00:00"
+    },
+    {
+      "name": "bootstrap_byte_observations",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:01:49.955369+00:00",
+      "finished": "2026-11-02T20:18:57.182101+00:00"
+    },
+    {
+      "name": "bootstrap_check",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:04:56.226296+00:00",
+      "finished": "2026-11-02T20:09:42.220611+00:00"
+    },
+    {
+      "name": "bootstrap_collections",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:09:42.225117+00:00",
+      "finished": "2026-11-02T20:23:40.771956+00:00"
+    },
+    {
+      "name": "bootstrap_conditional_methods",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:10:01.319219+00:00",
+      "finished": "2026-11-02T20:21:52.345759+00:00"
+    },
+    {
+      "name": "bootstrap_contract",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:18:57.184924+00:00",
+      "finished": "2026-11-02T20:19:04.922990+00:00"
+    },
+    {
+      "name": "bootstrap_core",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:19:04.928183+00:00",
+      "finished": "2026-11-02T20:23:33.889212+00:00"
+    },
+    {
+      "name": "bootstrap_decisions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:21:52.353604+00:00",
+      "finished": "2026-11-02T20:24:02.349010+00:00"
+    },
+    {
+      "name": "bootstrap_driver",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:23:33.891983+00:00",
+      "finished": "2026-11-02T20:24:07.895328+00:00"
+    },
+    {
+      "name": "bootstrap_effect_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:23:40.774233+00:00",
+      "finished": "2026-11-02T20:25:22.265250+00:00"
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:24:02.351463+00:00",
+      "finished": "2026-11-02T20:29:45.592677+00:00"
+    },
+    {
+      "name": "bootstrap_eval",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:24:07.898407+00:00",
+      "finished": "2026-11-02T20:24:25.927044+00:00"
+    },
+    {
+      "name": "bootstrap_function_preconditions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:24:25.931268+00:00",
+      "finished": "2026-11-02T20:28:45.291117+00:00"
+    },
+    {
+      "name": "bootstrap_globals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:25:22.270413+00:00",
+      "finished": "2026-11-02T20:27:13.618290+00:00"
+    },
+    {
+      "name": "bootstrap_guarded_arithmetic",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:27:13.621457+00:00",
+      "finished": "2026-11-02T20:32:27.800881+00:00"
+    },
+    {
+      "name": "bootstrap_guarded_association",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:28:45.295475+00:00",
+      "finished": "2026-11-02T20:30:50.636613+00:00"
+    },
+    {
+      "name": "bootstrap_guarded_bodies",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:29:45.595535+00:00",
+      "finished": "2026-11-02T20:31:20.935735+00:00"
+    },
+    {
+      "name": "bootstrap_imported_nonzero",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:30:50.639319+00:00",
+      "finished": "2026-11-02T20:57:47.373669+00:00"
+    },
+    {
+      "name": "bootstrap_imported_preconditions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:31:20.938846+00:00",
+      "finished": "2026-11-02T20:46:55.877966+00:00"
+    },
+    {
+      "name": "bootstrap_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:32:27.803568+00:00",
+      "finished": "2026-11-02T20:32:41.145038+00:00"
+    },
+    {
+      "name": "bootstrap_infer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:32:41.148580+00:00",
+      "finished": "2026-11-02T20:38:40.433588+00:00"
+    },
+    {
+      "name": "bootstrap_interface",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:38:40.436633+00:00",
+      "finished": "2026-11-02T20:38:56.987617+00:00"
+    },
+    {
+      "name": "bootstrap_intrinsics",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:38:56.990790+00:00",
+      "finished": "2026-11-02T20:43:31.259114+00:00"
+    },
+    {
+      "name": "bootstrap_ir",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:43:31.261592+00:00",
+      "finished": "2026-11-02T20:43:49.966197+00:00"
+    },
+    {
+      "name": "bootstrap_ladder",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:43:49.970441+00:00",
+      "finished": "2026-11-02T20:49:09.545840+00:00"
+    },
+    {
+      "name": "bootstrap_lexer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:46:55.880592+00:00",
+      "finished": "2026-11-02T20:47:31.601658+00:00"
+    },
+    {
+      "name": "bootstrap_load",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:47:31.604245+00:00",
+      "finished": "2026-11-02T20:49:04.308622+00:00"
+    },
+    {
+      "name": "bootstrap_machine_values",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:49:04.313044+00:00",
+      "finished": "2026-11-02T20:56:18.059176+00:00"
+    },
+    {
+      "name": "bootstrap_manifest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:49:09.550868+00:00",
+      "finished": "2026-11-02T20:49:50.101792+00:00"
+    },
+    {
+      "name": "bootstrap_measure_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:49:50.106259+00:00",
+      "finished": "2026-11-02T21:02:52.671818+00:00"
+    },
+    {
+      "name": "bootstrap_module_scopes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:56:18.062587+00:00",
+      "finished": "2026-11-02T21:01:25.141416+00:00"
+    },
+    {
+      "name": "bootstrap_named_refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T20:57:47.378640+00:00",
+      "finished": "2026-11-02T21:06:46.607515+00:00"
+    },
+    {
+      "name": "bootstrap_nominals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:01:25.144165+00:00",
+      "finished": "2026-11-02T21:15:03.036881+00:00"
+    },
+    {
+      "name": "bootstrap_nonzero_source",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:02:52.676730+00:00",
+      "finished": "2026-11-02T21:13:44.945063+00:00"
+    },
+    {
+      "name": "bootstrap_nonzero_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:06:46.610661+00:00",
+      "finished": "2026-11-02T21:09:16.012817+00:00"
+    },
+    {
+      "name": "bootstrap_pi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:09:16.015988+00:00",
+      "finished": "2026-11-02T21:11:04.354125+00:00"
+    },
+    {
+      "name": "bootstrap_proof",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:11:04.358243+00:00",
+      "finished": "2026-11-02T21:11:19.054821+00:00"
+    },
+    {
+      "name": "bootstrap_proof_arrows",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:11:19.061983+00:00",
+      "finished": "2026-11-02T21:13:31.596870+00:00"
+    },
+    {
+      "name": "bootstrap_proof_terms",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:13:31.602759+00:00",
+      "finished": "2026-11-02T21:16:21.904005+00:00"
+    },
+    {
+      "name": "bootstrap_proposition_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:13:44.949098+00:00",
+      "finished": "2026-11-02T21:15:40.373901+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_closure",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:15:03.040547+00:00",
+      "finished": "2026-11-02T21:25:30.757162+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_constructors",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:15:40.378237+00:00",
+      "finished": "2026-11-02T21:29:41.927604+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_core",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:16:21.907322+00:00",
+      "finished": "2026-11-02T21:18:24.045792+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:18:24.049095+00:00",
+      "finished": "2026-11-02T21:20:25.042181+00:00"
+    },
+    {
+      "name": "bootstrap_resolve",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:20:25.047663+00:00",
+      "finished": "2026-11-02T21:27:38.559211+00:00"
+    },
+    {
+      "name": "bootstrap_source_constructors",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:25:30.765332+00:00",
+      "finished": "2026-11-02T21:32:05.777840+00:00"
+    },
+    {
+      "name": "bootstrap_source_decisions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:27:38.565707+00:00",
+      "finished": "2026-11-02T21:33:53.053831+00:00"
+    },
+    {
+      "name": "bootstrap_source_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:29:41.930547+00:00",
+      "finished": "2026-11-02T21:35:41.288799+00:00"
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:32:05.781160+00:00",
+      "finished": "2026-11-02T21:36:52.402953+00:00"
+    },
+    {
+      "name": "bootstrap_source_proofs",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:33:53.057087+00:00",
+      "finished": "2026-11-02T21:38:39.443760+00:00"
+    },
+    {
+      "name": "bootstrap_source_refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:35:41.291806+00:00",
+      "finished": "2026-11-02T21:41:12.561133+00:00"
+    },
+    {
+      "name": "bootstrap_test_runner",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:36:52.405575+00:00",
+      "finished": "2026-11-02T21:37:05.306078+00:00"
+    },
+    {
+      "name": "bootstrap_total",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:37:05.310126+00:00",
+      "finished": "2026-11-02T21:37:17.055536+00:00"
+    },
+    {
+      "name": "bootstrap_total_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:37:17.058346+00:00",
+      "finished": "2026-11-02T21:39:12.297697+00:00"
+    },
+    {
+      "name": "bootstrap_total_semantics",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:38:39.446621+00:00",
+      "finished": "2026-11-02T21:39:13.774258+00:00"
+    },
+    {
+      "name": "bootstrap_type_syntax",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:39:12.300810+00:00",
+      "finished": "2026-11-02T21:44:10.351948+00:00"
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:39:13.778716+00:00",
+      "finished": "2026-11-02T21:41:40.418949+00:00"
+    },
+    {
+      "name": "bootstrap_typing",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:41:12.565588+00:00",
+      "finished": "2026-11-02T21:43:09.671574+00:00"
+    },
+    {
+      "name": "bootstrap_value_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:41:40.423242+00:00",
+      "finished": "2026-11-02T21:43:45.809470+00:00"
+    },
+    {
+      "name": "bootstrap_value_kinds",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:43:09.674264+00:00",
+      "finished": "2026-11-02T21:44:54.533773+00:00"
+    },
+    {
+      "name": "canonical_artifacts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:43:45.814408+00:00",
+      "finished": "2026-11-02T21:44:10.872598+00:00"
+    },
+    {
+      "name": "case_evidence",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:44:10.356294+00:00",
+      "finished": "2026-11-02T21:45:35.337634+00:00"
+    },
+    {
+      "name": "class_defaults",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:44:10.875346+00:00",
+      "finished": "2026-11-02T21:44:54.462072+00:00"
+    },
+    {
+      "name": "codata",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:44:54.466125+00:00",
+      "finished": "2026-11-02T21:45:05.273426+00:00"
+    },
+    {
+      "name": "concurrency",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:44:54.536989+00:00",
+      "finished": "2026-11-02T21:45:24.115594+00:00"
+    },
+    {
+      "name": "dependent",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:05.276643+00:00",
+      "finished": "2026-11-02T21:45:34.363227+00:00"
+    },
+    {
+      "name": "evidence_invalidation",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:24.118265+00:00",
+      "finished": "2026-11-02T21:45:30.495431+00:00"
+    },
+    {
+      "name": "evolution",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:30.498464+00:00",
+      "finished": "2026-11-02T21:45:50.943297+00:00"
+    },
+    {
+      "name": "exhaustion",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:34.366449+00:00",
+      "finished": "2026-11-02T21:45:45.813004+00:00"
+    },
+    {
+      "name": "ffi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:35.340594+00:00",
+      "finished": "2026-11-02T21:45:56.448201+00:00"
+    },
+    {
+      "name": "fixity_interfaces",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:45.815568+00:00",
+      "finished": "2026-11-02T21:45:49.613086+00:00"
+    },
+    {
+      "name": "folded_literal_ownership",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:49.616251+00:00",
+      "finished": "2026-11-02T21:45:55.744637+00:00"
+    },
+    {
+      "name": "goal_tactics",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:50.946660+00:00",
+      "finished": "2026-11-02T21:45:56.380141+00:00"
+    },
+    {
+      "name": "guard_coverage",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:55.749107+00:00",
+      "finished": "2026-11-02T21:46:36.009911+00:00"
+    },
+    {
+      "name": "hk",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:56.382806+00:00",
+      "finished": "2026-11-02T21:46:21.967942+00:00"
+    },
+    {
+      "name": "incremental",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:45:56.451198+00:00",
+      "finished": "2026-11-02T21:47:06.885025+00:00"
+    },
+    {
+      "name": "integration",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:46:21.971039+00:00",
+      "finished": "2026-11-02T21:47:48.624219+00:00"
+    },
+    {
+      "name": "interface_anonymous_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:46:36.015017+00:00",
+      "finished": "2026-11-02T21:46:39.829991+00:00"
+    },
+    {
+      "name": "interface_byte_observations",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:46:39.833422+00:00",
+      "finished": "2026-11-02T21:55:30.015120+00:00"
+    },
+    {
+      "name": "interface_class_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:06.889120+00:00",
+      "finished": "2026-11-02T21:47:11.110254+00:00"
+    },
+    {
+      "name": "interface_conditional_methods",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:11.116382+00:00",
+      "finished": "2026-11-02T21:47:12.968322+00:00"
+    },
+    {
+      "name": "interface_guarded_bodies",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:12.977434+00:00",
+      "finished": "2026-11-02T21:47:14.741061+00:00"
+    },
+    {
+      "name": "interface_kinds",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:14.744870+00:00",
+      "finished": "2026-11-02T21:47:18.058335+00:00"
+    },
+    {
+      "name": "interface_machine_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:18.061934+00:00",
+      "finished": "2026-11-02T21:58:45.434146+00:00"
+    },
+    {
+      "name": "interface_nominals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:48.629213+00:00",
+      "finished": "2026-11-02T21:47:52.656404+00:00"
+    },
+    {
+      "name": "interface_preconditions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:52.659416+00:00",
+      "finished": "2026-11-02T21:47:56.420075+00:00"
+    },
+    {
+      "name": "interface_prelude_overrides",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:47:56.424418+00:00",
+      "finished": "2026-11-02T21:48:02.195036+00:00"
+    },
+    {
+      "name": "interface_refinement_closure",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:48:02.200799+00:00",
+      "finished": "2026-11-02T21:48:06.327757+00:00"
+    },
+    {
+      "name": "interface_refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:48:06.330963+00:00",
+      "finished": "2026-11-02T21:48:11.091103+00:00"
+    },
+    {
+      "name": "interface_region_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:48:11.094647+00:00",
+      "finished": "2026-11-02T21:48:14.213705+00:00"
+    },
+    {
+      "name": "interface_total_bodies",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:48:14.217843+00:00",
+      "finished": "2026-11-02T21:48:16.159986+00:00"
+    },
+    {
+      "name": "json",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:48:16.163113+00:00",
+      "finished": "2026-11-02T21:49:37.603084+00:00"
+    },
+    {
+      "name": "lattice",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:49:37.606301+00:00",
+      "finished": "2026-11-02T21:50:07.363239+00:00"
+    },
+    {
+      "name": "laws",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:50:07.366777+00:00",
+      "finished": "2026-11-02T21:50:13.114657+00:00"
+    },
+    {
+      "name": "letrec",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:50:13.119276+00:00",
+      "finished": "2026-11-02T21:50:34.292849+00:00"
+    },
+    {
+      "name": "lib_algebra",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:50:34.295910+00:00",
+      "finished": "2026-11-02T21:53:24.189072+00:00"
+    },
+    {
+      "name": "lib_base64",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:53:24.191809+00:00",
+      "finished": "2026-11-02T21:53:45.534604+00:00"
+    },
+    {
+      "name": "lib_benchmark",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:53:45.538586+00:00",
+      "finished": "2026-11-02T21:53:54.297520+00:00"
+    },
+    {
+      "name": "lib_bigdecimal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:53:54.300038+00:00",
+      "finished": "2026-11-02T21:54:24.473697+00:00"
+    },
+    {
+      "name": "lib_builder",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:54:24.476696+00:00",
+      "finished": "2026-11-02T21:54:43.227126+00:00"
+    },
+    {
+      "name": "lib_category",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:54:43.230944+00:00",
+      "finished": "2026-11-02T21:55:16.358979+00:00"
+    },
+    {
+      "name": "lib_char_tuple",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:55:16.362086+00:00",
+      "finished": "2026-11-02T21:55:28.420757+00:00"
+    },
+    {
+      "name": "lib_civil_time",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:55:28.423790+00:00",
+      "finished": "2026-11-02T21:56:02.016013+00:00"
+    },
+    {
+      "name": "lib_complex",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:55:30.019850+00:00",
+      "finished": "2026-11-02T21:55:33.574333+00:00"
+    },
+    {
+      "name": "lib_coverage",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:55:33.577387+00:00",
+      "finished": "2026-11-02T21:55:45.752542+00:00"
+    },
+    {
+      "name": "lib_csv",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:55:45.755452+00:00",
+      "finished": "2026-11-02T21:56:16.739881+00:00"
+    },
+    {
+      "name": "lib_digest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:02.019523+00:00",
+      "finished": "2026-11-02T21:56:05.791520+00:00"
+    },
+    {
+      "name": "lib_file_utils",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:05.794518+00:00",
+      "finished": "2026-11-02T21:56:25.721994+00:00"
+    },
+    {
+      "name": "lib_find",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:16.743839+00:00",
+      "finished": "2026-11-02T21:56:23.887161+00:00"
+    },
+    {
+      "name": "lib_foldable",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:23.892154+00:00",
+      "finished": "2026-11-02T21:57:04.728174+00:00"
+    },
+    {
+      "name": "lib_function_ord",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:25.725157+00:00",
+      "finished": "2026-11-02T21:56:49.161517+00:00"
+    },
+    {
+      "name": "lib_hash_keys",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:56:49.166019+00:00",
+      "finished": "2026-11-02T21:57:09.335342+00:00"
+    },
+    {
+      "name": "lib_hashmap_real",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:04.732552+00:00",
+      "finished": "2026-11-02T21:57:14.044431+00:00"
+    },
+    {
+      "name": "lib_http",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:09.338535+00:00",
+      "finished": "2026-11-02T21:57:14.524346+00:00"
+    },
+    {
+      "name": "lib_list",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:14.049298+00:00",
+      "finished": "2026-11-02T21:57:36.503395+00:00"
+    },
+    {
+      "name": "lib_map_set_ops",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:14.527592+00:00",
+      "finished": "2026-11-02T21:57:34.385547+00:00"
+    },
+    {
+      "name": "lib_matrix",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:34.389347+00:00",
+      "finished": "2026-11-02T21:57:55.115482+00:00"
+    },
+    {
+      "name": "lib_option_parser",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:36.507007+00:00",
+      "finished": "2026-11-02T21:57:51.672415+00:00"
+    },
+    {
+      "name": "lib_option_result",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:51.676271+00:00",
+      "finished": "2026-11-02T21:58:11.865571+00:00"
+    },
+    {
+      "name": "lib_pty",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:57:55.118472+00:00",
+      "finished": "2026-11-02T21:58:01.563314+00:00"
+    },
+    {
+      "name": "lib_random",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:01.566355+00:00",
+      "finished": "2026-11-02T21:58:13.877265+00:00"
+    },
+    {
+      "name": "lib_rational",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:11.869054+00:00",
+      "finished": "2026-11-02T21:58:24.412614+00:00"
+    },
+    {
+      "name": "lib_resolv",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:13.882085+00:00",
+      "finished": "2026-11-02T21:58:25.843685+00:00"
+    },
+    {
+      "name": "lib_shellwords",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:24.415629+00:00",
+      "finished": "2026-11-02T21:58:43.785116+00:00"
+    },
+    {
+      "name": "lib_signal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:25.846917+00:00",
+      "finished": "2026-11-02T21:58:35.467637+00:00"
+    },
+    {
+      "name": "lib_string_io",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:35.471894+00:00",
+      "finished": "2026-11-02T21:58:56.723308+00:00"
+    },
+    {
+      "name": "lib_test_runner",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:43.788281+00:00",
+      "finished": "2026-11-02T21:58:57.331933+00:00"
+    },
+    {
+      "name": "lib_text_ops",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:45.437022+00:00",
+      "finished": "2026-11-02T21:59:03.881234+00:00"
+    },
+    {
+      "name": "lib_toml",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:56.726606+00:00",
+      "finished": "2026-11-02T21:59:30.296415+00:00"
+    },
+    {
+      "name": "lib_uri_ipaddr",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:58:57.336371+00:00",
+      "finished": "2026-11-02T22:00:29.167860+00:00"
+    },
+    {
+      "name": "lib_yaml",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:59:03.886282+00:00",
+      "finished": "2026-11-02T22:00:01.199912+00:00"
+    },
+    {
+      "name": "lib_zlib",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:59:30.300930+00:00",
+      "finished": "2026-11-02T21:59:59.815114+00:00"
+    },
+    {
+      "name": "linear_facts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T21:59:59.818262+00:00",
+      "finished": "2026-11-02T22:00:30.948618+00:00"
+    },
+    {
+      "name": "llvm_contract",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:01.203422+00:00",
+      "finished": "2026-11-02T22:00:11.399120+00:00"
+    },
+    {
+      "name": "lsp",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:11.403817+00:00",
+      "finished": "2026-11-02T22:00:18.336399+00:00"
+    },
+    {
+      "name": "modules",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:18.339541+00:00",
+      "finished": "2026-11-02T22:00:39.293818+00:00"
+    },
+    {
+      "name": "observability",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:29.171079+00:00",
+      "finished": "2026-11-02T22:01:18.963466+00:00"
+    },
+    {
+      "name": "optimizer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:30.952069+00:00",
+      "finished": "2026-11-02T22:01:27.504406+00:00"
+    },
+    {
+      "name": "order_independence",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:39.297233+00:00",
+      "finished": "2026-11-02T22:00:50.603370+00:00"
+    },
+    {
+      "name": "ownership",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:00:50.607971+00:00",
+      "finished": "2026-11-02T22:01:35.234501+00:00"
+    },
+    {
+      "name": "package_manifest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:18.968110+00:00",
+      "finished": "2026-11-02T22:01:20.722371+00:00"
+    },
+    {
+      "name": "package_store",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:20.726593+00:00",
+      "finished": "2026-11-02T22:01:31.098349+00:00"
+    },
+    {
+      "name": "params",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:27.508711+00:00",
+      "finished": "2026-11-02T22:01:45.585490+00:00"
+    },
+    {
+      "name": "parsers",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:31.101558+00:00",
+      "finished": "2026-11-02T22:03:26.791945+00:00"
+    },
+    {
+      "name": "pattern_field_names",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:35.238590+00:00",
+      "finished": "2026-11-02T22:01:41.185667+00:00"
+    },
+    {
+      "name": "platform",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:41.191266+00:00",
+      "finished": "2026-11-02T22:02:01.406202+00:00"
+    },
+    {
+      "name": "prelude_lib",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:01:45.588709+00:00",
+      "finished": "2026-11-02T22:02:17.687772+00:00"
+    },
+    {
+      "name": "prelude_split",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:02:01.410448+00:00",
+      "finished": "2026-11-02T22:02:46.325196+00:00"
+    },
+    {
+      "name": "prim",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:02:17.692507+00:00",
+      "finished": "2026-11-02T22:02:52.740368+00:00"
+    },
+    {
+      "name": "primitive_length_identity",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:02:46.329009+00:00",
+      "finished": "2026-11-02T22:02:59.262969+00:00"
+    },
+    {
+      "name": "primitives",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:02:52.744775+00:00",
+      "finished": "2026-11-02T22:04:20.553418+00:00"
+    },
+    {
+      "name": "proof_guarded_lets",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:02:59.267026+00:00",
+      "finished": "2026-11-02T22:03:06.113395+00:00"
+    },
+    {
+      "name": "proof_value_identity",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:03:06.118076+00:00",
+      "finished": "2026-11-02T22:03:09.419135+00:00"
+    },
+    {
+      "name": "range_facts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:03:09.422889+00:00",
+      "finished": "2026-11-02T22:03:43.008950+00:00"
+    },
+    {
+      "name": "reclamation",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:03:26.796351+00:00",
+      "finished": "2026-11-02T22:05:08.848438+00:00"
+    },
+    {
+      "name": "reclamation_tasks",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:03:43.012185+00:00",
+      "finished": "2026-11-02T22:04:06.686198+00:00"
+    },
+    {
+      "name": "refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:06.690107+00:00",
+      "finished": "2026-11-02T22:04:35.162810+00:00"
+    },
+    {
+      "name": "regex",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:20.558288+00:00",
+      "finished": "2026-11-02T22:04:52.513608+00:00"
+    },
+    {
+      "name": "repl",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:35.167406+00:00",
+      "finished": "2026-11-02T22:04:46.018894+00:00"
+    },
+    {
+      "name": "repr_classes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:46.022150+00:00",
+      "finished": "2026-11-02T22:04:58.258015+00:00"
+    },
+    {
+      "name": "runtime_net_prims",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:52.518429+00:00",
+      "finished": "2026-11-02T22:04:59.857352+00:00"
+    },
+    {
+      "name": "runtime_prims",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:58.262603+00:00",
+      "finished": "2026-11-02T22:05:17.793033+00:00"
+    },
+    {
+      "name": "safe_bytes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:04:59.860962+00:00",
+      "finished": "2026-11-02T22:05:21.188534+00:00"
+    },
+    {
+      "name": "safe_division",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:08.851944+00:00",
+      "finished": "2026-11-02T22:05:21.676847+00:00"
+    },
+    {
+      "name": "safe_subtraction",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:17.795791+00:00",
+      "finished": "2026-11-02T22:05:46.711353+00:00"
+    },
+    {
+      "name": "safety",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:21.191424+00:00",
+      "finished": "2026-11-02T22:06:03.183559+00:00"
+    },
+    {
+      "name": "small_nats",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:21.680036+00:00",
+      "finished": "2026-11-02T22:05:48.793146+00:00"
+    },
+    {
+      "name": "staging",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:46.715833+00:00",
+      "finished": "2026-11-02T22:06:34.835337+00:00"
+    },
+    {
+      "name": "string_literals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:05:48.796324+00:00",
+      "finished": "2026-11-02T22:06:17.970920+00:00"
+    },
+    {
+      "name": "surface",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:03.186580+00:00",
+      "finished": "2026-11-02T22:06:50.349324+00:00"
+    },
+    {
+      "name": "sym",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:17.974412+00:00",
+      "finished": "2026-11-02T22:06:37.880896+00:00"
+    },
+    {
+      "name": "tail_calls",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:34.840263+00:00",
+      "finished": "2026-11-02T22:06:47.669886+00:00"
+    },
+    {
+      "name": "temporal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:37.884461+00:00",
+      "finished": "2026-11-02T22:06:45.604513+00:00"
+    },
+    {
+      "name": "total_bodies",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:45.609484+00:00",
+      "finished": "2026-11-02T22:06:57.726329+00:00"
+    },
+    {
+      "name": "wasm",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:47.673217+00:00",
+      "finished": "2026-11-02T22:07:04.900763+00:00"
+    },
+    {
+      "name": "compiler-bin",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:50.352642+00:00",
+      "finished": "2026-11-02T22:06:50.834473+00:00"
+    },
+    {
+      "name": "compiler-docs",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:50.839123+00:00",
+      "finished": "2026-11-02T22:06:51.542986+00:00"
+    },
+    {
+      "name": "runtime",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-02T22:06:51.545878+00:00",
+      "finished": "2026-11-02T22:07:03.582341+00:00"
+    }
+  ],
+  "exact_frozen_external_whole_gates": [
+    {
+      "evidence": "/tmp/cinch-complete-verifier-validation-1/results.json",
+      "name": "tooling",
+      "status": "passed"
+    },
+    {
+      "evidence": "/tmp/cinch-complete-verifier-validation-1/results.json",
+      "name": "malleable-syntax",
+      "status": "passed"
+    }
+  ],
+  "general_test_counts": {
+    "compiler-units": [
+      {
+        "passed": 142,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "runtime": [
+      {
+        "passed": 114,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 31,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "compiler-bin": [
+      {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "compiler-docs": [
+      {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      }
+    ]
+  },
+  "tooling_tests": 23,
+  "syntax_experiment_tests": 39,
+  "reused_scope": "Only tooling and syntax whole gates reused from the exact same full source manifest and frozen source path; remaining195 test gates ran fresh.",
+  "source_epoch": "Checked source/Core handlers including field-construction effects, parser span bindings, intentionally promoted c774 seed, corrected pipeline handler boundary and expanded verifier inputs.",
+  "later_changes_not_covered": [
+    "argument witness scopes",
+    "JSON cursor bindings",
+    "development Rust refined-Nat alias repair",
+    "interface splice and resolver span bindings",
+    "driver check/compile-only modes",
+    "one-way Boolean branch facts",
+    "imported arity binding candidate",
+    "external frontend test adapter candidate"
+  ],
+  "limits": "This baseline calls the Native Rust frontend and predates the later listed changes. It is not a complete current-source or self-built frontend pass. Stage2/3 bootstrap remains unfinished.",
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

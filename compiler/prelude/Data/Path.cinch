@@ -38,7 +38,6 @@ module Data.Path where
   import Data.Option
   import Data.String
 
-  infixr 6 <>
 
   export Path, path-from-string, path-to-string, path-join
   export path-basename, path-dirname, path-extname, path-stem

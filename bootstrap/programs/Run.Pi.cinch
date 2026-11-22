@@ -1,0 +1,173 @@
+-- Dependent arrows keep binding identity through conversion and substitution.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Text.Lex (Span)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  pure-row :: UType
+  pure-row = URow UEnd
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  equal :: Store -> UType -> UType -> Bool
+  equal st a b = valid-type a && valid-type b && clean (unify sp a b st)
+  reserve :: Nat -> Store -> Store
+  reserve count st = if count == 0 then st else case fresh-id st of (id, next) -> reserve (count - 1) next
+  start :: Nat -> Store
+  start nonce = reserve nonce (empty-store "pi")
+  at :: UType -> UType -> UType
+  at carrier value = UApp (UCon "At" (KFun (value-kind carrier) KType)) value
+  vec :: IndexTerm -> UType
+  vec value = at nat (UIndex nat value)
+  pi :: Nat -> UType -> UType
+  pi id result = UPi id "n" nat pure-row result
+  trace :: IndexTerm -> UType
+  trace value = URow (UArg (UApp (UCon "Trace" (KFun (value-kind nat) KEffect)) (UIndex nat value)) UEnd)
+  applies :: Store -> UType -> UType -> UType -> UType -> Bool
+  applies st function argument expected effects = case open-pi sp function argument st of
+    (result, row, after) -> clean after && equal after result expected && equal after row effects
+  rejects-argument :: Store -> UType -> UType -> Bool
+  rejects-argument st function argument = case open-pi sp function argument st of (result, row, after) -> not (clean after)
+  capture-meta :: Nat -> Bool
+  capture-meta nonce = case fresh-meta KType (enter-level (start nonce)) of
+    (hole, before) -> not (clean (unify sp (pi (nonce + 100) hole) (pi (nonce + 200) (vec (IBound (nonce + 200) "n"))) (restore-level 0 before)))
+  domain-capture :: Nat -> Bool
+  domain-capture nonce = case fresh-meta KType (start nonce) of
+    (domain, before) -> not (clean (unify sp
+      (UPi (nonce + 100) "n" domain pure-row nat)
+      (UPi (nonce + 200) "xs" (vec (IBound (nonce + 100) "free")) pure-row nat) before))
+  infer-constant :: Nat -> Bool
+  infer-constant nonce = case fresh-meta KType (start nonce) of
+    (hole, before) -> let after = unify sp (pi (nonce + 100) hole) (pi (nonce + 200) nat) before in clean after && equal after hole nat
+  substitution :: Nat -> Bool
+  substitution nonce =
+    let binder = nonce + 100 in
+    let outer = nonce + 101 in
+    let ty = pi binder (vec (IAdd (IBound binder "n") (IBound outer "free"))) in
+    let replaced = substitute-bound [(outer, UIndex nat (IBound binder "free"))] ty in
+    equal (start nonce) replaced (pi (nonce + 102) (vec (IAdd (IBound (nonce + 102) "n") (IBound binder "free"))))
+  meta-substitution :: Nat -> Bool
+  meta-substitution nonce =
+    let binder = nonce + 100 in
+    let hole = nonce + 101 in
+    let ty = pi binder (vec (IAdd (IBound binder "n") (IMeta hole))) in
+    let replaced = abstract-metas [(hole, UIndex nat (IBound binder "free"))] ty in
+    equal (start nonce) replaced (pi (nonce + 102) (vec (IAdd (IBound (nonce + 102) "n") (IBound binder "free"))))
+  domain-substitution :: Nat -> Bool
+  domain-substitution nonce =
+    let binder = nonce + 100 in
+    let outer = nonce + 101 in
+    let domain = vec (IBound outer "outer") in
+    let ty = UPi binder "xs" domain pure-row nat in
+    equal (start nonce) (substitute-bound [(outer, UIndex nat (IInteger 3))] ty) (UPi binder "xs" (vec (IInteger 3)) pure-row nat)
+  carrier-capture :: Nat -> Bool
+  carrier-capture nonce =
+    let binder = nonce + 100 in
+    let outer = nonce + 101 in
+    let domain = vec (IBound outer "outer") in
+    let ty = UPi binder "xs" domain pure-row (at domain (UIndex domain (IBound binder "xs"))) in
+    let replaced = substitute-bound [(outer, UIndex nat (IBound binder "free"))] ty in
+    let new-domain = vec (IBound binder "free") in
+    equal (start nonce) replaced (UPi (nonce + 102) "ys" new-domain pure-row (at new-domain (UIndex new-domain (IBound (nonce + 102) "ys"))))
+  generic :: Nat -> Bool
+  generic nonce = case fresh-meta KType (enter-level (start nonce)) of
+    (element, before) -> let ty = pi (nonce + 100) (UFun element (vec (IBound (nonce + 100) "n"))) in
+      let scheme = generalize 0 Nil ty before in
+      list-length (scheme-params scheme) == 1 && scheme-closed scheme &&
+        (case instantiate scheme before of (opened, after) -> clean after && equal after opened ty)
+  no-hoisted-carrier :: Nat -> Bool
+  no-hoisted-carrier nonce =
+    let binder = nonce + 100 in
+    let carrier = vec (IBound binder "n") in
+    case fresh-meta (value-kind carrier) (enter-level (start nonce)) of
+      (hole, before) -> let scheme = generalize 0 Nil (pi binder (at carrier hole)) before in
+        list-length (scheme-params scheme) == 0 && not (scheme-closed scheme)
+  definition :: UType -> CoreDefinition
+  definition actual = MkCoreDefinition sp "f" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
+  no-invented-witness :: Nat -> Bool
+  no-invented-witness nonce = case fresh-meta (value-kind nat) (start nonce) of
+    (hole, before) -> not (core-definition-closed (seal-definition before (definition (pi (nonce + 100) (at nat hole)))))
+
+  cases :: Nat -> List (String, Bool)
+  cases nonce =
+    let a = nonce + 100 in
+    let b = nonce + 200 in
+    let c = nonce + 300 in
+    let st = start nonce in
+    let first = pi a (vec (IBound a "n")) in
+    let second = pi b (vec (IBound b "renamed")) in
+    [ ("dependent arrow is a proper type", valid-type first)
+    , ("Pi alpha conversion", equal st first second)
+    , ("binder spelling is not identity", equal st first (UPi a "different" nat pure-row (vec (IBound a "different"))))
+    , ("free bound cannot match Pi binder", not (equal st (pi a (vec (IBound b "free"))) second))
+    , ("Pi binder cannot match free bound", not (equal st second (pi a (vec (IBound b "free")))))
+    , ("free rigid cannot collide with alpha witness", not (equal st (pi a (vec (IRigid nonce "free" 0))) second))
+    , ("nested alpha conversion", equal st (pi a (pi b (vec (IBound a "outer")))) (pi b (pi c (vec (IBound b "outer")))))
+    , ("nested shadowed result differs", not (equal st (pi a (pi b (vec (IBound a "outer")))) (pi b (pi c (vec (IBound c "inner"))))))
+    , ("shadowing one identity remains lexical", equal st (pi a (pi a (vec (IBound a "inner")))) (pi b (pi c (vec (IBound c "inner")))))
+    , ("nondependent Pi agrees with arrow", equal st (pi a nat) (UFun nat nat))
+    , ("arrow agrees with nondependent Pi", equal st (UFun nat nat) (pi a nat))
+    , ("dependent Pi is not constant arrow", not (equal st first (UFun nat (vec (IInteger 3)))))
+    , ("Pi domain mismatch", not (equal st first (UPi b "n" integer pure-row (vec (IBound b "n")))))
+    , ("effect row is preserved", not (equal st first (UPi b "n" nat (trace (IBound b "n")) (vec (IBound b "n")))))
+    , ("dependent effects alpha-convert", equal st (UPi a "n" nat (trace (IBound a "n")) nat) (UPi b "m" nat (trace (IBound b "m")) nat))
+    , ("dependent application substitutes result", applies st first (UIndex nat (IInteger 3)) (vec (IInteger 3)) pure-row)
+    , ("dependent application substitutes row", applies st (UPi a "n" nat (trace (IBound a "n")) nat) (UIndex nat (IInteger 7)) nat (trace (IInteger 7)))
+    , ("wrong argument carrier rejected", rejects-argument st first (UIndex integer (IInteger 3)))
+    , ("a type is not an argument value", rejects-argument st first nat)
+    , ("undefined argument cannot hide in conversion", rejects-argument st first (UIndex nat (IMultiply (IInteger 0) (ISubtract (IInteger 0) (IInteger 1)))))
+    , ("binding cannot enter its own domain", not (valid-type (UPi a "n" (vec (IBound a "free")) pure-row nat)))
+    , ("bound substitution avoids Pi capture", substitution nonce)
+    , ("meta substitution avoids Pi capture", meta-substitution nonce)
+    , ("domain is outside binder scope", domain-substitution nonce)
+    , ("carrier annotations avoid Pi capture", carrier-capture nonce)
+    , ("pre-existing meta cannot capture opened binder", capture-meta nonce)
+    , ("inferred domain preserves binder hygiene", domain-capture nonce)
+    , ("nondependent codomain meta can solve", infer-constant nonce)
+    , ("Pi body metas generalize", generic nonce)
+    , ("Pi-local carrier cannot escape in a forall", no-hoisted-carrier nonce)
+    , ("closed Pi survives Core sealing", core-definition-closed (seal-definition st (definition first)))
+    , ("Core does not invent a Pi-body value witness", no-invented-witness nonce)
+    , ("Pi carrier tree round trip", case value-carrier (value-kind first) of Some decoded -> equal st first decoded; None -> False)
+    , ("Pi is retained in function arity", scheme-arity (mono (pi a (pi b nat))) == 2)
+    ]
+  failures :: List (String, Bool) -> String
+  failures rows = case rows of Nil -> ""; Cons (name, ok) rest -> string-concat (if ok then "" else string-concat name "\n") (failures rest)
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  decode-type :: Json -> Option UType
+  decode-type doc = value-carrier (KValue doc)
+  answer :: Bool -> (Int, String)
+  answer ok = (if ok then 0 else 4, "Pi result")
+  request :: Json -> (Int, String)
+  request doc = case field "mode" doc of
+    JStr mode -> if same mode "selftest" then (case field "nonce" doc of
+      JNum nonce -> if nonce < 0 then (2, "negative nonce") else let report = failures (cases (nat-from-int nonce)) in (if string-length report == 0 then 0 else 4, report)
+      other -> (2, "invalid nonce"))
+      else if same mode "unify" then (case (decode-type (field "left" doc), decode-type (field "right" doc)) of
+        (Some left, Some right) -> answer (equal (start 0) left right)
+        other -> (2, "invalid type tree"))
+      else if same mode "apply" then (case (decode-type (field "function" doc), decode-type (field "argument" doc), decode-type (field "result" doc), decode-type (field "effects" doc)) of
+        (Some function, Some argument, Some result, Some row) -> answer (applies (start 0) function argument result row)
+        other -> (2, "invalid application"))
+      else (2, "unknown mode")
+    other -> (2, "missing mode")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
+    Err error -> 90
+    Ok input -> let (status, report) = case parse-json "pi-input" input of Parsed doc Nil -> request doc; other -> (2, "invalid JSON") in
+      case fs-write (path-from-string "pi-report.txt") (string-to-bytes report) of Err error -> 91; Ok _ -> status

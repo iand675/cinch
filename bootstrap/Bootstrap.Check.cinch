@@ -23,18 +23,14 @@
 -- (each constructor's argument types and its result type, which must be the
 -- type it is declared under).
 --
--- THE HONEST BOUNDARY. No polymorphism: a signature or annotation with
--- `forall` or an implicit `using` is refused by name, so this rung type
--- checks a monomorphic fragment only. `DClass`, `DInstance` and `DFixity`
--- are refused by name, and class dictionaries are not implemented anywhere
--- in this rung. Tuples, list literals, floats, `do`, `handle`, `with`,
--- nested `let rec` and the effect-arrow type form are refused by name.
--- A constructor must be applied at full arity (a partial constructor
--- application is not in the fragment). Expression and pattern spines are
--- walked with the AST's own `*-of` walkers and a malformed spine (a cell
--- sequence that does not end in its end marker) is reported as such.
+-- Bootstrap.Infer now checks rank-one schemes, inferred lambdas, let
+-- generalization and regular parameterized constructors. It validates
+-- kinds, rigid variables, positivity and pattern coverage. Dictionaries,
+-- effects, existential/indexed constructors and refinements still need
+-- their full elaboration. The legacy scalar path below preserves the
+-- rung's diagnostics while typed elaboration and lowering are ported.
 --
--- TYPES. The checker carries its own small type language (`Ty`, below)
+-- LEGACY TYPES. This path carries its own small type language (`Ty`, below)
 -- rather than reusing `TypeExpr`: a body is checked against a known type
 -- (the signature's, an annotation's, or an inferred function's), and the
 -- only "unknown" is `TyHole`, which compares equal to everything so one
@@ -47,13 +43,36 @@ module Bootstrap.Check where
   import Algebra.Semigroup
   import Bootstrap.Ast
   import Bootstrap.Report
+  import Data.Json
+  import Bootstrap.Infer (Elaboration, elaborate-program, elaboration-errors, needs-inference, infer-program)
 
-  export check-program
+  export check-program, CheckedProgram, check-and-retain, checked-surface, checked-elaboration
+
+  -- The constructor stays private. A backend receives the resolved source
+  -- and retained typed declarations only after the current independent
+  -- global/kind/term/proof checks have accepted that same program.
+  data CheckedProgram where
+    MkCheckedProgram :: Program -> Elaboration -> CheckedProgram
+
+  checked-surface :: CheckedProgram -> Program
+  checked-surface checked = case checked of MkCheckedProgram surface typed -> surface
+
+  checked-elaboration :: CheckedProgram -> Elaboration
+  checked-elaboration checked = case checked of MkCheckedProgram surface typed -> typed
+
+  check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain program =
+    let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
+    case legacy of
+      Cons first rest -> Err legacy
+      Nil -> let typed = elaborate-program rung program in
+        case elaboration-errors typed of
+          Nil -> Ok (MkCheckedProgram program typed)
+          found -> Err found
 
   -- The diagnostics list is appended with the `Semigroup` operator (the
-  -- prelude spells list append through it), so this module declares its
-  -- fixity the way every operator-using home does.
-  infixr 6 <>
+  -- prelude spells list append through it). Its defining module supplies
+  -- the fixity with the imported operator.
 
 
   -- The rung's name in every diagnostic it renders.
@@ -82,6 +101,7 @@ module Bootstrap.Check where
     TyChr :: Ty
     TyFun :: Ty -> Ty -> Ty
     TyCon :: String -> Ty -> Ty
+    TyTuple :: Ty -> Ty
     TyArg :: Span -> Ty -> Ty -> Ty
     TyArgsEnd :: Span -> Ty
     TyHole :: Ty
@@ -108,6 +128,7 @@ module Bootstrap.Check where
     TyHole -> "_"
     TyFun a b -> string-concat "(" (string-concat (ty-text a) (string-concat " -> " (string-concat (ty-text b) ")")))
     TyCon n args -> string-concat n (ty-args-text args)
+    TyTuple args -> string-concat "(" (string-concat (ty-args-text args) ")")
     TyArg s x rest -> string-concat " " (string-concat (ty-text x) (ty-args-text rest))
     TyArgsEnd s -> empty-string
 
@@ -134,6 +155,9 @@ module Bootstrap.Check where
       other -> False
     TyCon n1 sp1 -> case b of
       TyCon n2 sp2 -> if string-compare n1 n2 == 0 then ty-spine-equal sp1 sp2 else False
+      other -> False
+    TyTuple xs -> case b of
+      TyTuple ys -> ty-spine-equal xs ys
       other -> False
     TyArg s x rest -> case b of
       TyArg s2 y rest2 -> if ty-equal x y then ty-spine-equal rest rest2 else False
@@ -263,13 +287,22 @@ module Bootstrap.Check where
   type-to-ty :: TypeExpr -> (Ty, List Diagnostic)
   type-to-ty t = case t of
     TName s n -> (prim-ty n, Nil)
+    TIndex s n -> (TyHole, fail s "unsupported type: index literal")
+    TNegate s x -> (TyHole, fail s "unsupported type: index negation")
+    TInfix s op a b -> (TyHole, fail s "unsupported type: predicate or index operation")
+    TRefined s predicate carrier -> (TyHole, fail s "unsupported type: refined result")
     TApp s h args -> type-app-to-ty h args
     TFun s a b -> case type-to-ty a of
       (ta, da) -> case type-to-ty b of
         (tb, db) -> (TyFun ta tb, da <> db)
     TFunEff s a row b -> (TyHole, fail s "unsupported type: effect arrow")
-    TTuple s xs -> (TyHole, fail s "unsupported type: tuple")
+    TRow s labels tail -> (TyHole, fail s "unsupported type: effect row")
+    TTuple s xs -> case ty-spine-to-ty xs of
+      (args, ds) -> (TyTuple args, ds)
     TForall s vs body -> (TyHole, fail s "unsupported type: forall")
+    TQuantifier s name is-implicit kind rest -> (TyHole, fail s "unsupported type: quantifier binder")
+    TQuantifiersEnd s -> (TyHole, fail s "unsupported type: quantifier end")
+    TNoKind s -> (TyHole, fail s "unsupported type: missing kind annotation")
     TUsing s bounds body -> (TyHole, fail s "unsupported type: implicit using")
     TArg s x rest -> (TyHole, fail s "unsupported type: type spine cell")
     TArgsEnd s -> (TyHole, fail s "unsupported type: type spine end")
@@ -391,6 +424,7 @@ module Bootstrap.Check where
     ENeg s x -> (TyInt, check-expr env x TyInt)
     EIf s c t f -> infer-if env s c t f
     ECase s scrut alts -> infer-case env s scrut alts
+    EGuarded s guard body -> (TyHole, fail s "a guarded body is valid only inside a case alternative")
     ELet s bs body -> infer-let env s bs body
     EAnn s x t -> check-ann env s x t
     ELam s ps body -> (TyHole, (fail s "cannot infer the type of this lambda: give it a type annotation"))
@@ -399,8 +433,14 @@ module Bootstrap.Check where
     EBind s n rhs -> (TyHole, fail s "unsupported expression: bind statement")
     EDo s stmts -> (TyHole, fail s "unsupported expression: do block")
     EHandle s body h -> (TyHole, fail s "unsupported expression: handle")
+    EHandler s label clauses -> (TyHole, fail s "unsupported expression: handler")
+    EHandlerClause s name pats continuation body rest -> (TyHole, fail s "unsupported expression: handler clause")
+    EHandlerEnd s -> (TyHole, fail s "unsupported expression: handler clause end")
     EWith s bs body -> (TyHole, fail s "unsupported expression: with")
-    ETuple s xs -> (TyHole, fail s "unsupported expression: tuple")
+    ETuple s xs -> case spine-ok-exprs xs of
+      False -> (TyHole, fail s "malformed tuple expression spine")
+      True -> case infer-tuple-fields env (exprs-of xs) of
+        (fields, ds) -> (TyTuple fields, ds)
     EList s xs -> (TyHole, fail s "unsupported expression: list literal")
     ELitFloat s text -> (TyHole, fail s "unsupported expression: float literal")
     EArg s x rest -> (TyHole, fail s "unsupported expression: argument spine cell")
@@ -410,6 +450,13 @@ module Bootstrap.Check where
     EAlt s p body rest -> (TyHole, fail s "unsupported expression: alternative spine cell")
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
+
+  infer-tuple-fields :: List (String, Ty) -> List Expr -> (Ty, List Diagnostic)
+  infer-tuple-fields env xs = case xs of
+    Nil -> (TyArgsEnd zero-span, Nil)
+    Cons x rest -> case infer-expr env x of
+      (tx, dx) -> case infer-tuple-fields env rest of
+        (fields, ds) -> (TyArg (expr-span x) tx fields, dx <> ds)
 
   -- `f a`: the domain is the argument's expected type, the codomain the
   -- result. A head whose type is unknown does not add a failure.
@@ -529,7 +576,18 @@ module Bootstrap.Check where
     Nil -> Nil
     Cons a rest -> case a of
       (p, body) -> case check-pat env p ts of
-        (env2, dp) -> (dp <> (check-expr env2 body expected)) <> (check-alts env ts rest expected)
+        (env2, dp) -> (dp <> (check-alt-body env2 body expected)) <> (check-alts env ts rest expected)
+
+  check-alt-body :: List (String, Ty) -> Expr -> Ty -> List Diagnostic
+  check-alt-body env body expected = case body of
+    EGuarded s guard rhs -> check-expr env guard TyBool <> check-expr env rhs expected
+    other -> check-expr env other expected
+
+  infer-alt-body :: List (String, Ty) -> Expr -> (Ty, List Diagnostic)
+  infer-alt-body env body = case body of
+    EGuarded s guard rhs -> case infer-expr env rhs of
+      (ty, ds) -> (ty, check-expr env guard TyBool <> ds)
+    other -> infer-expr env other
 
   infer-case :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-case env s scrut alts = case infer-expr env scrut of
@@ -537,7 +595,7 @@ module Bootstrap.Check where
       Nil -> (TyHole, ds <> (fail s "this case expression has no alternatives"))
       Cons a rest -> case a of
         (p, body) -> case check-pat env p ts of
-          (env2, dp) -> case infer-expr env2 body of
+          (env2, dp) -> case infer-alt-body env2 body of
             (t1, d1) -> (t1, ds <> (dp <> (d1 <> (check-alts env ts rest t1))))
 
   -- --------------------------------------------------------------- let binding
@@ -618,13 +676,29 @@ module Bootstrap.Check where
     PLitStr s text -> (env, ty-compare s TyStr expected)
     PLitChar s text -> (env, ty-compare s TyChr expected)
     PCon s n args -> check-con-pat env s n args expected
-    PTuple s xs -> (env, fail s "unsupported pattern: tuple")
+    PTuple s xs -> check-tuple-pat env s xs expected
     PList s xs -> (env, fail s "unsupported pattern: list literal")
     PAs s n inner -> (env, fail s "unsupported pattern: as binding")
     PAnn s inner t -> (env, fail s "unsupported pattern: type annotation")
     PArg s x rest -> (env, fail s "unsupported pattern: pattern spine cell")
     PArgsEnd s -> (env, fail s "unsupported pattern: pattern spine end")
     PUnmodeled s text -> (env, fail s (string-concat "unmodeled pattern: " text))
+
+  tuple-field-types :: Ty -> List Ty
+  tuple-field-types fields = case fields of
+    TyArg s x rest -> Cons x (tuple-field-types rest)
+    other -> Nil
+
+  check-tuple-pat :: List (String, Ty) -> Span -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-tuple-pat env s xs expected = case spine-ok-pats xs of
+    False -> (env, fail s "malformed tuple pattern spine")
+    True -> case expected of
+      TyTuple fields -> case bind-pats env (tuple-field-types fields) (pats-of xs) of
+        (bound, ds) ->
+          if list-length (tuple-field-types fields) == list-length (pats-of xs) then (bound, ds)
+          else (bound, ds <> fail s "tuple pattern arity disagrees with its type")
+      other -> case bind-extra-pats env (pats-of xs) of
+        (bound, ds) -> (bound, ds <> fail s "a tuple pattern requires a tuple type")
 
   -- The pattern's arguments are bound even when the count is wrong, so the
   -- arity failure does not drag an unbound variable along with it.
@@ -770,14 +844,33 @@ module Bootstrap.Check where
   -- registry, so top-level functions may be mutually recursive.
   scan-decl :: Decl -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
   scan-decl d tops acc = case d of
+    DExternal s name kind (Some t) metadata ->
+      if string-compare kind "value" == 0 then case scan-decl (DSig s name t) tops acc of
+        (entries, errors) -> case type-to-ty t of
+          (ty, more) -> (entries, errors <> (if external-word-type t then Nil else fail s "imported value needs quantified, nominal or effect-aware checking")
+            <> (case external-field "arity" metadata of
+              JNum arity -> let count = ty-arity ty in if arity == nat-to-int count then Nil else fail s "imported value arity disagrees with its checked scheme"
+              other -> fail s "imported value has no arity metadata"))
+      else (tops, acc)
     DSig s n t -> case has-sig n tops of
       True -> (tops, acc <> (fail s (string-concat "duplicate signature for " n)))
       False -> case type-to-ty t of
         (ty, ds) -> (Cons (TopSig n ty) tops, acc <> ds)
-    DData s n ctors -> scan-ctors n ctors tops acc
+    DData s n params ctors -> scan-ctors n ctors tops acc
     DDecl s x rest -> case scan-decl x tops acc of
       (t2, a2) -> scan-decl rest t2 a2
     other -> (tops, acc)
+
+  external-field :: String -> Json -> Json
+  external-field name metadata = case metadata of
+    JObj key value rest -> if string-compare key name == 0 then value else external-field name rest
+    other -> JNull
+
+  external-word-type :: TypeExpr -> Bool
+  external-word-type ty = case ty of
+    TName s name -> string-compare name "Int" == 0 || string-compare name "Bool" == 0 || string-compare name "Unit" == 0 || string-compare name "()" == 0
+    TFun s a b -> external-word-type a && external-word-type b
+    other -> False
 
   scan-ctors :: String -> List (String, TypeExpr) -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
   scan-ctors owner ctors tops acc = case ctors of
@@ -800,27 +893,35 @@ module Bootstrap.Check where
     Cons d rest -> case scan-decl d tops acc of
       (t2, a2) -> scan-decls rest t2 a2
 
-  scan-modules :: List Module -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
-  scan-modules ms tops acc = case ms of
-    Nil -> (tops, acc)
-    Cons m rest -> case scan-decls (module-decls m) tops acc of
-      (t2, a2) -> scan-modules rest t2 a2
-
   -- ------------------------------------------------------- pass two: checking
 
   check-decl :: List Top -> Decl -> List Diagnostic
   check-decl tops d = case d of
+    DSource s name metadata -> Nil
+    DInterface s name hash metadata -> Nil
+    DExternal s name kind scheme metadata ->
+      if string-compare kind "builtin" == 0 then fail s (string-concat "builtin needs region, capability and effect elaboration: " name)
+      else if string-compare kind "builtin-syntax" == 0 then fail s (string-concat "builtin syntax needs dependent predicate elaboration: " name)
+      else if string-compare kind "builtin-constructor" == 0 then fail s (string-concat "builtin constructor needs proposition instantiation and erasure checking: " name)
+      else if string-compare kind "value" == 0 then case scheme of
+        Some ty -> Nil
+        None -> fail s "imported value has no parsed type metadata"
+      else fail s (string-concat-all ["imported ", kind, " needs kind, constructor or dictionary elaboration: ", name])
     DSig s n t -> Nil
+    DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
     DFun s n clauses -> check-fun tops s n clauses
-    DData s n ctors -> Nil
+    DData s n params ctors -> case params of
+      Nil -> Nil
+      Cons p rest -> fail s "parameterized data declarations are not supported in this rung"
+    DRefine s n params binder predicate -> fail s "named refinement declarations need proof checking, which is not supported in this rung"
     DClass s n params members -> fail s "class declarations are not supported in this rung"
-    DInstance s is-implicit name class-app members -> fail s "instance declarations are not supported in this rung"
+    DInstance s is-implicit name params class-app members -> fail s "instance declarations are not supported in this rung"
     DFixity s assoc prec ops -> fail s "fixity declarations are not supported in this rung"
-    DImport s path -> Nil
-    DExport s text -> Nil
-    DRecord s n fields -> fail s "record declarations are not supported in this rung"
-    DEffect s n ops -> fail s "effect declarations are not supported in this rung"
-    DForeign s conv foreign-name t -> fail s "foreign declarations are not supported in this rung"
+    DImport s path mods alias members args -> fail s "module imports need interface resolution, which is not supported in this rung"
+    DExport s text items -> Nil
+    DRecord s n params fields -> fail s "record declarations are not supported in this rung"
+    DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
+    DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
     DDeclsEnd s -> Nil
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
@@ -830,15 +931,15 @@ module Bootstrap.Check where
     Nil -> Nil
     Cons d rest -> (check-decl tops d) <> (check-decls tops rest)
 
-  check-modules :: List Top -> List Module -> List Diagnostic
-  check-modules tops ms = case ms of
+  check-modules :: List Module -> List Diagnostic
+  check-modules ms = case ms of
     Nil -> Nil
-    Cons m rest -> (check-decls tops (module-decls m)) <> (check-modules tops rest)
+    Cons m rest -> case scan-decls (module-decls m) Nil Nil of
+      (tops, registry-diags) -> registry-diags <> check-decls tops (module-decls m) <> check-modules rest
 
-  -- The entry point: the failures of the whole program, in the two passes'
-  -- order (registry duplicates first, then the declarations in source
-  -- order).
+  -- Each module owns its registry. Private names from another module
+  -- cannot satisfy a reference or collide with a local declaration.
+  -- Imported interfaces must be resolved before extending that registry.
   check-program :: Program -> List Diagnostic
-  check-program p = case p of
-    MkProgram s ms -> case scan-modules ms Nil Nil of
-      (tops, d1) -> d1 <> (check-modules tops ms)
+  check-program p = if needs-inference p then infer-program rung p else case p of
+    MkProgram s ms -> check-modules ms

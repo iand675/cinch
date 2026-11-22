@@ -1,0 +1,41 @@
+{
+  "bootstrap_achieved": false,
+  "changes": [
+    "strict Nat let equations derive from the actual checked primitive or unique closed selected implementation",
+    "equations survive strict aliases, retain original lexical identities and cannot discharge their own pre-binding call guards",
+    "numeric result contracts retain outer values across let/letrec shadowing",
+    "ordinary evidence rebase preserves opaque measure expressions and mutable-state invalidation",
+    "linear proof search seeds negated-equality alternatives before pruning unrelated rows; independent certificate checking remains required"
+  ],
+  "cinch_consumer": "latest admission50 and body-association50 checks passed privately; source25/Core40 still running",
+  "full_suite": "182+5 conditional baseline passed on preceding c126; new Rust snapshot passes142units+12whole targets only",
+  "native_guarded_let_tests": 4,
+  "native_units": 142,
+  "patch_sha256": "d1b10f204881d3c37aff2866521dac307abcd0cc598eec9e0bbd02187e039bd7",
+  "seed_archive_and_patch_verified": true,
+  "seed_source_sha256": "74239b712cfe212b52cc88a89196fd278b1fd642010cf551753bb515aafc64fa",
+  "source_sha256": "daa1564668b7c1006144418af05210153bd6ae0babcd0643c91ddc5705502979",
+  "status": "passed Rust guarded-let checkpoint",
+  "verified": [
+    "good strict results and aliases",
+    "wrong result and missing guard refused",
+    "shadowed result/argument and unknown lexical dictionary cannot forge an equation",
+    "same class/slot/scheme with a changed actual body changes accepted result equations",
+    "string-length branch facts remain opaque and usable",
+    "multi-term equality certificates validate; missing facts and neighboring false equality refused"
+  ],
+  "whole_native_targets": [
+    "interface_conditional_methods",
+    "interface_class_contracts",
+    "interface_guarded_bodies",
+    "proof_guarded_lets",
+    "proof_value_identity",
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental",
+    "linear_facts",
+    "params",
+    "total_bodies"
+  ]
+}

@@ -31,6 +31,7 @@ module Data.List where
   -- name imported from two homes is an ambiguity error, and the types
   -- live in exactly one place now.
   import Data.Core
+  import Data.FromList
   import Data.Ordering
   import Relation.Eq
   import Relation.Ord

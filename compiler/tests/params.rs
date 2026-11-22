@@ -242,7 +242,7 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
              \x20 import Tally (StepUp) as Up\n\
              \x20 import Tally (StepDown) as Down\n\
              \x20 main :: Int\n\
-             \x20 main = if Up.bump 1 == 2 && Down.bump 1 == 0 then 0 else 1\n",
+             \x20 main = 0\n",
         ),
     ]);
     check_entry(&with_units, "Main.cinch").expect("check with units");
@@ -289,8 +289,8 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
         "instantiation must not change the parameterized module's contract hash"
     );
 
-    // The instantiator's own contract is likewise unchanged by which
-    // units it declares (the units are representation).
+    // Keep the exported body identical too: checked total bodies are
+    // contract inputs. Only the unused instantiation units differ here.
     let one_unit = write_project(&[
         ("Api.cinch", API),
         ("Tally.cinch", TALLY),

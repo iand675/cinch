@@ -1,0 +1,16 @@
+---
+// Agentation's annotation toolbar, for reviewing the site with a coding agent.
+// Rendered only by `npm run dev`; production builds do not include it.
+//
+// Without an endpoint, annotations are copied as markdown to paste into the
+// agent. Set PUBLIC_AGENTATION_ENDPOINT (for example http://localhost:4747)
+// when a local `npx -y agentation-mcp server` is running, and the agent can
+// read them directly. See design/agent-feedback.md.
+---
+<script>
+  // The branch is constant-false in production builds, so the toolbar is not bundled.
+  if (import.meta.env.DEV && !document.querySelector('[data-feedback-toolbar-root]')) {
+    const endpoint = import.meta.env.PUBLIC_AGENTATION_ENDPOINT || undefined;
+    import('../lib/feedback-toolbar').then(({ mountFeedbackToolbar }) => mountFeedbackToolbar(endpoint));
+  }
+</script>

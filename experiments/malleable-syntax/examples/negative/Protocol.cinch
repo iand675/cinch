@@ -1,0 +1,12 @@
+module Main where
+  import syntax "../../syntax/protocol.syntax.json" as protocol
+  protocol!{
+    state Offered;
+    state Pending;
+    state Complete;
+    send authorize : Offered -> Pending;
+    send confirm : Pending -> Complete;
+  }
+  main :: Int
+  main = case confirm (Offered 0) of
+    Complete count -> if count == 2 then 0 else 1

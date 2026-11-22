@@ -92,7 +92,7 @@ data LToken
 A token with its span; the flag marks `{`, `;`, `}` inserted by
 the layout pass (the compiler's `Token.virtual_`).
 
-[Source](/reference-sources/Text.Lex.cinch) · line 178
+[Source](/reference-sources/Text.Lex.cinch) · line 179
 
 <a id="type-4c65784572726f72"></a>
 
@@ -102,7 +102,7 @@ the layout pass (the compiler's `Token.virtual_`).
 data LexError
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 353
+[Source](/reference-sources/Text.Lex.cinch) · line 354
 
 ```cinch
 LexError :: (Span -> (LexErrorKind -> LexError))
@@ -122,7 +122,7 @@ Every rejection this module can produce. The layout kinds carry
 the columns the compiler's diagnostics name; the refusal kinds are
 the named unproductions of the module header.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 335
+[Source](/reference-sources/Text.Lex.cinch) · line 336
 
 ```cinch
 TabInIndentation :: LexErrorKind
@@ -196,7 +196,7 @@ RefusedTickName :: LexErrorKind
 data Lexed
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 385
+[Source](/reference-sources/Text.Lex.cinch) · line 386
 
 ```cinch
 LexedTokens :: (List LToken -> Lexed)
@@ -219,7 +219,7 @@ Spans, tokens, located tokens.
 A source span: byte offsets [start, end) and the start position as
 line and character column (the compiler's `Span` shape).
 
-[Source](/reference-sources/Text.Lex.cinch) · line 124
+[Source](/reference-sources/Text.Lex.cinch) · line 125
 
 ```cinch
 Span :: (Nat -> (Nat -> (Nat -> (Nat -> Span))))
@@ -246,7 +246,7 @@ underscores dropped, leading zeros stripped, a leading `-` for a
 signed literal), `TFloat` the scanned decimal text, `TStr` the
 decoded UTF-8 content, `TChar` the decoded scalar.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 150
+[Source](/reference-sources/Text.Lex.cinch) · line 151
 
 ```cinch
 TVar :: (String -> Token)
@@ -348,7 +348,7 @@ has already scanned, so it holds that bound.
 chars-bytes :: (List Char -> Bytes)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 115
+[Source](/reference-sources/Text.Lex.cinch) · line 116
 
 <a id="value-65712d746f6b656e"></a>
 
@@ -361,7 +361,7 @@ eq-token :: (Token -> (Token -> Bool))
 Token equality over the kind and its spelling: `Text.Parse`'s
 token matchers compare with this.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 205
+[Source](/reference-sources/Text.Lex.cinch) · line 206
 
 <a id="value-6c61796f75742d746f6b656e73"></a>
 
@@ -374,7 +374,7 @@ layout-tokens :: (List LToken -> Lexed)
 fields: out, stack, prev, pending-span, pending-is-let, with-paren-pending,
 supply-close-pending
 
-[Source](/reference-sources/Text.Lex.cinch) · line 1372
+[Source](/reference-sources/Text.Lex.cinch) · line 1376
 
 <a id="value-6c65782d6572726f722d6b696e64"></a>
 
@@ -384,7 +384,7 @@ supply-close-pending
 lex-error-kind :: (LexError -> LexErrorKind)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 360
+[Source](/reference-sources/Text.Lex.cinch) · line 361
 
 <a id="value-6c65782d6572726f722d6d657373616765"></a>
 
@@ -394,7 +394,7 @@ lex-error-kind :: (LexError -> LexErrorKind)
 lex-error-message :: (LexErrorKind -> String)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 364
+[Source](/reference-sources/Text.Lex.cinch) · line 365
 
 <a id="value-6c65782d6572726f722d7370616e"></a>
 
@@ -404,7 +404,7 @@ lex-error-message :: (LexErrorKind -> String)
 lex-error-span :: (LexError -> Span)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 356
+[Source](/reference-sources/Text.Lex.cinch) · line 357
 
 <a id="value-6c65782d736f75726365"></a>
 
@@ -416,7 +416,7 @@ lex-source :: (Bytes -> Lexed)
 
 lex-tokens over a source `String`'s bytes.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 1290
+[Source](/reference-sources/Text.Lex.cinch) · line 1294
 
 <a id="value-6c65782d746f6b656e73"></a>
 
@@ -426,7 +426,7 @@ lex-tokens over a source `String`'s bytes.
 lex-tokens :: (Bytes -> Lexed)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 1194
+[Source](/reference-sources/Text.Lex.cinch) · line 1198
 
 <a id="value-6c742d7370616e"></a>
 
@@ -436,7 +436,7 @@ lex-tokens :: (Bytes -> Lexed)
 lt-span :: (LToken -> Span)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 181
+[Source](/reference-sources/Text.Lex.cinch) · line 182
 
 <a id="value-6c742d746f6b656e"></a>
 
@@ -446,7 +446,7 @@ lt-span :: (LToken -> Span)
 lt-token :: (LToken -> Token)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 189
+[Source](/reference-sources/Text.Lex.cinch) · line 190
 
 <a id="value-6c742d7669727475616c"></a>
 
@@ -456,7 +456,7 @@ lt-token :: (LToken -> Token)
 lt-virtual :: (LToken -> Bool)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 185
+[Source](/reference-sources/Text.Lex.cinch) · line 186
 
 <a id="value-72656e6465722d746f6b656e"></a>
 
@@ -474,7 +474,7 @@ is always one line of the rendering (the drift tests split on
 lines); a `TChar` renders its scalar's UTF-8 text (the compiler
 records the decoded char).
 
-[Source](/reference-sources/Text.Lex.cinch) · line 291
+[Source](/reference-sources/Text.Lex.cinch) · line 292
 
 <a id="value-7370616e2d636f6c"></a>
 
@@ -484,7 +484,7 @@ records the decoded char).
 span-col :: (Span -> Nat)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 139
+[Source](/reference-sources/Text.Lex.cinch) · line 140
 
 <a id="value-7370616e2d656e64"></a>
 
@@ -494,7 +494,7 @@ span-col :: (Span -> Nat)
 span-end :: (Span -> Nat)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 131
+[Source](/reference-sources/Text.Lex.cinch) · line 132
 
 <a id="value-7370616e2d6c696e65"></a>
 
@@ -504,7 +504,7 @@ span-end :: (Span -> Nat)
 span-line :: (Span -> Nat)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 135
+[Source](/reference-sources/Text.Lex.cinch) · line 136
 
 <a id="value-7370616e2d7374617274"></a>
 
@@ -514,7 +514,7 @@ span-line :: (Span -> Nat)
 span-start :: (Span -> Nat)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 127
+[Source](/reference-sources/Text.Lex.cinch) · line 128
 
 <a id="value-746f6b656e2d6b696e642d6e616d65"></a>
 
@@ -524,8 +524,8 @@ span-start :: (Span -> Nat)
 token-kind-name :: (Token -> String)
 ```
 
-[Source](/reference-sources/Text.Lex.cinch) · line 250
+[Source](/reference-sources/Text.Lex.cinch) · line 251
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `aac19e1c9e6d49781285e77d5818d2d570a6e2a46f244495324495b71c921998`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

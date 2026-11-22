@@ -1,0 +1,61 @@
+module Main where
+  import Checkout
+  -- Each actor sees only its projected endpoint state and typed incoming wire.
+  shop-prefix :: Thunk {} CheckoutShopP0 %1 -> Thunk {} CheckoutWireOrder %1 -> (Thunk {} CheckoutShopP2, Thunk {} CheckoutWirePayment)
+  shop-prefix endpoint order = case receive-Checkout-Shop-Order endpoint order of
+    (next, amount) -> send-Checkout-Shop-Payment next (amount * 2)
+  bank-prefix :: Thunk {} CheckoutBankP0 %1 -> Thunk {} CheckoutWirePayment %1 -> (Thunk {} CheckoutBankP1, Nat)
+  bank-prefix endpoint payment = receive-Checkout-Bank-Payment endpoint payment
+
+  approved :: Thunk {} CheckoutBuyerP1 %1 -> Thunk {} CheckoutShopP2 %1 -> Thunk {} CheckoutBankP1 %1 -> Nat -> Int
+  approved buyer shop bank payment = case choose-Checkout-Approved bank of
+    (bank-ready, buyer-choice, shop-choice) ->
+      let buyer-branch = offer-Checkout-Buyer buyer buyer-choice in
+      let shop-branch = offer-Checkout-Shop shop shop-choice in
+      case send-Checkout-Approved-Bank-Receipt bank-ready (payment + 1) of
+        (bank-done, receipt) ->
+          let bank-count = close-Checkout-Approved-Bank bank-done in
+          case (buyer-branch, shop-branch) of
+            (CheckoutApprovedBuyer buyer-ready, CheckoutApprovedShop shop-ready) -> case receive-Checkout-Approved-Shop-Receipt shop-ready receipt of
+              (shop-next, value) -> case send-Checkout-Approved-Shop-Confirmation shop-next (value * 2) of
+                (shop-done, confirmation) ->
+                  let shop-count = close-Checkout-Approved-Shop shop-done in
+                  case receive-Checkout-Approved-Buyer-Confirmation buyer-ready confirmation of
+                    (buyer-done, result) ->
+                      let buyer-count = close-Checkout-Approved-Buyer buyer-done in
+                      if result == (payment + 1) * 2 && bank-count + shop-count + buyer-count == 8 then 0 else 10
+            _ -> 11
+
+  declined :: Thunk {} CheckoutBuyerP1 %1 -> Thunk {} CheckoutShopP2 %1 -> Thunk {} CheckoutBankP1 %1 -> Nat -> Int
+  declined buyer shop bank payment = case choose-Checkout-Declined bank of
+    (bank-ready, buyer-choice, shop-choice) ->
+      let buyer-branch = offer-Checkout-Buyer buyer buyer-choice in
+      let shop-branch = offer-Checkout-Shop shop shop-choice in
+      case send-Checkout-Declined-Bank-Reason bank-ready (payment + 1) of
+        (bank-done, reason) ->
+          let bank-count = close-Checkout-Declined-Bank bank-done in
+          case (buyer-branch, shop-branch) of
+            (CheckoutDeclinedBuyer buyer-ready, CheckoutDeclinedShop shop-ready) -> case receive-Checkout-Declined-Shop-Reason shop-ready reason of
+              (shop-next, value) -> case send-Checkout-Declined-Shop-Rejection shop-next (value * 2) of
+                (shop-done, rejection) ->
+                  let shop-count = close-Checkout-Declined-Shop shop-done in
+                  case receive-Checkout-Declined-Buyer-Rejection buyer-ready rejection of
+                    (buyer-done, result) ->
+                      let buyer-count = close-Checkout-Declined-Buyer buyer-done in
+                      if result == (payment + 1) * 2 && bank-count + shop-count + buyer-count == 8 then 0 else 20
+            _ -> 21
+
+  run-checkout :: Nat -> Int
+  run-checkout amount =
+    let buyer = start-Checkout-Buyer () in
+    let shop = start-Checkout-Shop () in
+    let bank = start-Checkout-Bank () in
+    case send-Checkout-Buyer-Order buyer amount of
+      (buyer-waiting, order) -> case shop-prefix shop order of
+        (shop-waiting, payment) -> case bank-prefix bank payment of
+          (bank-ready, value) ->
+            if value >= 40 then approved buyer-waiting shop-waiting bank-ready value
+            else declined buyer-waiting shop-waiting bank-ready value
+
+  main :: Int
+  main = if run-checkout 21 == 0 && run-checkout 10 == 0 then 0 else 1

@@ -1,0 +1,62 @@
+---
+// A terminal window whose program can be run from the page.
+//
+// When the browser build of the compiler is loaded it registers
+// `window.cinch = { run(file, source) => Promise<{ stdout, stderr, exit }> }`
+// and this component calls it. Until then, Run plays back the output that
+// scripts/record-examples.py captured from the real compiler for this file.
+import { tokenize } from '../lib/highlight';
+import recordings from '../data/examples/recordings.json';
+interface Props { file: string; source: string; }
+const { file, source } = Astro.props;
+const recording = (recordings as Record<string, { command: string; stdout: string; stderr: string; exit: number }>)[file];
+if (!recording) throw new Error(`No recording for ${file}: run scripts/record-examples.py`);
+// Show the module from its first comment, outdented one level.
+const lines = source.replace(/\n+$/, '').split('\n');
+const start = lines.findIndex((line) => line.trim().startsWith('--'));
+const shown = lines.slice(start < 0 ? 0 : start).map((line) => line.replace(/^  /, ''));
+const kind = (k?: string) => k === 'comment' ? 'code-comment' : k === 'keyword' ? 'code-keyword' : k === 'type' ? 'code-type' : k === 'number' ? 'code-number' : k === 'string' ? 'code-string' : undefined;
+---
+<div class="code-window runnable" data-runnable={file}>
+  <div class="code-toolbar mono"><span><i></i> {file}</span><button type="button" class="gadget-key run-key" data-run aria-controls={`run-${file}`}>Run <span aria-hidden="true">▸</span></button></div>
+  <pre aria-label={file}><code data-source>{shown.map((line) => <>{tokenize(line).map((t) => <span class={kind(t.kind)}>{t.text}</span>)}{'\n'}</>)}</code></pre>
+  <div class="run-output" id={`run-${file}`} data-output aria-live="polite" hidden>
+    <p class="run-command"><span aria-hidden="true">$ </span>{recording.command}</p>
+    <pre data-stdout></pre>
+    <p class="run-status mono" data-status></p>
+  </div>
+  <slot />
+  <script type="application/json" data-recording set:html={JSON.stringify({ ...recording, source })} />
+</div>
+<script>
+  type Result = { stdout: string; stderr: string; exit: number };
+  type Engine = { run(file: string, source: string): Promise<Result> };
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, calm() ? 0 : ms));
+  document.querySelectorAll<HTMLElement>('[data-runnable]').forEach((box) => {
+    const file = box.dataset.runnable!;
+    const button = box.querySelector<HTMLButtonElement>('[data-run]')!;
+    const output = box.querySelector<HTMLElement>('[data-output]')!;
+    const stdout = box.querySelector<HTMLElement>('[data-stdout]')!;
+    const status = box.querySelector<HTMLElement>('[data-status]')!;
+    const recorded = JSON.parse(box.querySelector('[data-recording]')!.textContent!) as Result & { source: string };
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      output.hidden = false;
+      stdout.textContent = '';
+      status.textContent = 'compiling…';
+      const engine = (window as unknown as { cinch?: Engine }).cinch;
+      const result: Result = engine ? await engine.run(file, recorded.source) : (await wait(650), recorded);
+      status.textContent = '';
+      // Print line by line, like output arriving from the process.
+      for (const line of (result.stdout + result.stderr).split(/(?<=\n)/)) {
+        stdout.textContent += line;
+        await wait(220);
+      }
+      status.textContent = `exit ${result.exit}`;
+      box.classList.toggle('run-failed', result.exit !== 0);
+      button.disabled = false;
+      button.firstChild!.textContent = 'Run again ';
+    });
+  });
+</script>

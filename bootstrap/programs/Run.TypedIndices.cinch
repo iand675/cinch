@@ -1,0 +1,128 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  machine :: UType
+  machine = UCon "I64" KType
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  good :: UType -> UType -> Bool
+  good a b = clean (unify sp a b (empty-store "typed-indices"))
+  bad :: UType -> UType -> Bool
+  bad a b = not (good a b)
+  codec :: UType -> Bool
+  codec value = case value-carrier (value-kind (UApp (UCon "Family" (KFun (type-kind value) KType)) value)) of
+    Some (UApp family decoded) -> good value decoded
+    other -> False
+  family :: UType -> UType
+  family value = UApp (UCon "Family" (KFun (type-kind value) KType)) value
+  provable :: List (Nat, UType) -> UType -> Bool
+  provable gamma proposition = case prove-predicates gamma Nil (URequire (UArg proposition UEnd) nat) of Some evidence -> True; None -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in
+    let other = nonce + 2 in
+    let refined = URefine other "r" nat (UCompare ">" (UIndex nat (IBound other "r")) (UIndex nat (IInteger 0))) in
+    let arg = UIndex refined (IBound id "arg") in
+    let projected = UIndexForget arg in
+    let promoted = UIndexPromote projected in
+    let number = UIndex integer (IInteger 3) in
+    let sum = UIndexMath "+" promoted number in
+    let formal = UIndex refined (IBound other "formal") in
+    let substituted = substitute-bound [(other, arg)] (UIndexPromote (UIndexForget formal)) in
+    let (vm, vs) = fresh-meta (value-kind refined) (empty-store "value-meta") in
+    let (nm, ns) = fresh-meta (value-kind nat) (empty-store "nat-meta") in
+    let (im, is) = fresh-meta (value-kind integer) (empty-store "int-meta") in
+    let solved = unify sp nm projected ns in
+    let nested-meta = substitute-bound [(id, nm)] (UIndex nat (IAdd (IBound id "n") (IInteger 1))) in
+    let int-solved = unify sp im sum is in
+    let (fresh, row, opened) = open-pi sp (UPi other "formal" refined (URow UEnd) (family (UIndexForget formal))) arg (empty-store "pi") in
+    let wrong = case open-pi sp (UPi other "formal" refined (URow UEnd) nat) (UIndex nat (IBound id "bare")) (empty-store "bad-pi") of (result, row, st) -> not (clean st) in
+    let zero = UIndex nat (IInteger 0) in
+    let one = UIndex nat (IInteger 1) in
+    let variable = UIndex nat (IBound id "n") in
+    let late = UIndexForget (UIndex refined (IRigid id "late" 3)) in
+    let recursive = UIndexMath "+" im number in
+    let (outside, os) = fresh-meta (value-kind integer) (empty-store "outside") in
+    let capture = URefine id "result" integer (UCompare "==" (UIndex integer (IBound id "result")) (UIndexPromote (UIndex nat (IBound other "free")))) in
+    let renamed = substitute-bound [(other, UIndex nat (IBound id "incoming"))] capture in
+    let (gm, gs) = fresh-meta (value-kind nat) (enter-level (empty-store "generalization")) in
+    let generalized = generalize 0 Nil (family (UIndexPromote gm)) gs in
+    let proof-projected = UIndexForget (UIndex refined (IRigid id "arg" 0)) in
+    let generalized-ok = case scheme-params generalized of Cons q Nil -> valid-type (scheme-body generalized); other -> False in
+    let capture-ok = case renamed of URefine fresh name carrier predicate -> not (fresh == id) && good predicate (UCompare "==" (UIndex integer (IBound fresh "result")) (UIndexPromote variable)); value -> False in
+    [ valid-type arg
+    , valid-type projected
+    , kind-equal (type-kind projected) (value-kind nat)
+    , valid-type promoted
+    , kind-equal (type-kind promoted) (value-kind integer)
+    , valid-type sum
+    , bad arg projected
+    , bad projected promoted
+    , bad projected (UIndex nat (IBound id "arg"))
+    , not (valid-type (UIndexForget variable))
+    , not (valid-type (UIndexPromote number))
+    , not (valid-type (UIndexPromote (UIndex (UCon "F64" KType) (IBound id "float"))))
+    , valid-type (UIndexPromote (UIndex machine (IBound id "machine")))
+    , not (valid-type (UIndexPromote (UIndex (UCon "Isize" KType) (IBound id "target-sized"))))
+    , not (valid-type (UIndexMath "+" projected number))
+    , not (valid-type (UIndexMath "+" (UIndex machine (IBound id "m")) (UIndex machine (IBound other "n"))))
+    , not (valid-type (UIndexMath "/" promoted number))
+    , valid-type (UCompare "<" promoted number)
+    , not (valid-type (UCompare "<" projected number))
+    , good substituted promoted
+    , not (valid-type (substitute-bound [(other, variable)] formal))
+    , clean opened && good fresh (family projected)
+    , wrong
+    , clean solved && good (normalize solved nm) projected
+    , clean int-solved && good (normalize int-solved im) sum
+    , good (normalize solved nested-meta) (UIndexMath "+" projected one)
+    , clean (unify sp nm nm ns)
+    , not (clean (unify sp vm projected vs))
+    , not (clean (unify sp outside (UIndexPromote late) os))
+    , not (clean (unify sp im recursive is))
+    , not (clean (unify sp nm (UIndexForget (UIndex (URefine other "r" nat (UCompare "==" (UIndex nat (IBound other "r")) nm)) (IBound id "recursive"))) ns))
+    , codec projected
+    , codec promoted
+    , codec sum
+    , capture-ok
+    , generalized-ok
+    , good (normalize (empty-store "literal") (UIndexPromote (UIndex nat (IInteger 7)))) (UIndex integer (IInteger 7))
+    , bad (normalize (empty-store "d28") (UIndexMath "+" variable zero)) variable
+    , bad (normalize (empty-store "d28") (UIndexMath "*" variable zero)) zero
+    , bad (normalize (empty-store "d28") (UIndexMath "-" variable variable)) zero
+    , not (valid-type (UIndexMath "-" zero one))
+    , not (valid-type (UIndexMath "-" variable one))
+    , valid-type (UIndexMath "-" projected projected)
+    , good (normalize (empty-store "literal") (UIndexMath "+" (UIndex nat (IInteger 2)) one)) (UIndex nat (IInteger 3))
+    , typed-index-admissible sum
+    , not (typed-index-admissible (UIndexPromote nm))
+    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [MkCoreConstructor sp "field" (mono (family promoted))]))
+    , provable [(id, refined)] (UCompare ">" proof-projected (UIndex nat (IInteger 0)))
+    , not (provable [(id, nat)] (UCompare "==" proof-projected proof-projected))
+    , not (provable [(other, refined)] (UCompare "==" proof-projected proof-projected))
+    , provable [(id, machine)] (UCompare "==" (UIndexPromote (UIndex machine (IRigid id "m" 0))) (UIndexPromote (UIndex machine (IRigid id "m" 0))))
+    , not (provable [(id, nat)] (UCompare "==" (UIndexPromote (UIndex machine (IRigid id "m" 0))) (UIndexPromote (UIndex machine (IRigid id "m" 0)))))
+    , good (without-index-levels (family (URigid id "index" 3 (value-kind nat)))) (without-index-levels (family (UIndex nat (IRigid id "index" 3))))
+    , good (without-index-levels (family (URigid id "index" 3 (value-kind refined)))) (without-index-levels (family (UIndex refined (IRigid id "index" 3))))
+    , bad (without-index-levels (family (URigid id "index" 3 (value-kind nat)))) (without-index-levels (family (UIndex nat (IRigid other "index" 3))))
+    , bad (without-index-levels (family (URigid id "index" 3 (value-kind nat)))) (without-index-levels (family (UIndex integer (IRigid id "index" 3))))
+    , (case without-index-levels (URigid id "type" 3 KType) of URigid key name level KType -> level == 3; other -> False)
+    , bad (URigid id "index" 3 (value-kind nat)) (UIndex nat (IRigid id "index" 0))
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict (checks (bytes-len bytes + 340282366920938463463374607431768211456)) 1

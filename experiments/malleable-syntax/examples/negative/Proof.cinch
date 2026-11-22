@@ -1,0 +1,8 @@
+module Main where
+  import syntax "../../syntax/by.syntax.json" as by
+  proof arithmetic :: Eq (2 + 3) 6
+  proof arithmetic = by!{ reflexivity }
+  consume :: Eq (2 + 3) 6 -> Int
+  consume evidence = 42
+  main :: Int
+  main = if consume arithmetic == 42 then 0 else 1

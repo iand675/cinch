@@ -1,0 +1,60 @@
+{
+  "status": "whole pipeline behavior target and six fresh stage smokes passed",
+  "recorded_at": "2026-11-02T21:30:59.234673+00:00",
+  "source_sha256": "7cb3d11c63170856c065050bd61effb1c24b161cfba8f140706185eba92745f1",
+  "implementation_file_sha256": {
+    "bootstrap/Bootstrap.Pipeline.cinch": "aed134fd05cb0efb876ddba5bfe3d8b81e48e453d70cbf167b6f82ed133ddf64",
+    "bootstrap/Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+    "bootstrap/programs/Run.Pipeline.cinch": "e7e7540744eeed7a2a95d8e75626242b8e941dc61b10a42d5f11f1af837e39d1",
+    "compiler/tests/bootstrap_pipeline.rs": "ef1ce7d7e194cc35570a1856fc318dd2ae62566b0ae29a138fa923407377e220"
+  },
+  "documentation_scope": "bootstrap/README.md adds mode usage after the frozen implementation capture; it is documentation only.",
+  "modes": {
+    "check": "--check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE; runs parsing/resolution/current source and Core checks, stops before emitter/linker, writes or clears BASE.diagnostics",
+    "compile_only": "--compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT; emits and links without running; report contains linker exit only",
+    "default": "original four paths still compile, link and run; interface and mode options accepted in either order; duplicate/conflicting modes refused"
+  },
+  "whole_pipeline_results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-frontend-modes-validation-1/cargo",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T21:21:09.411340+00:00",
+      "name": "bootstrap_pipeline",
+      "pid": 80266,
+      "started": "2026-11-02T21:07:13.150066+00:00",
+      "status": "passed"
+    }
+  ],
+  "behavior_assertions": [
+    "Typed polymorphic program passes check-only but still gets the emitter refusal when compiled.",
+    "Invalid checking preserves the named refusal and a later success clears stale diagnostics.",
+    "A real linked binary returns37 when explicitly run.",
+    "Execution marker is absent after compile-only and present after original link/run; both paths invoke the linker spy.",
+    "Linker exit19 remains an error and is recorded rather than running a stale artifact.",
+    "Check-only accepts checked imported calls without requesting unsupported runtime lowering; both flag orders work.",
+    "Existing Fibonacci, modules, inherited fixities, source/interface refusals and pipeline boundaries still pass."
+  ],
+  "stage_smokes": {
+    "bootstrap_achieved": false,
+    "builder_sha256": "446bdbf9d95d4e543cea180617bacf8c1f6f3055f1e66a031e997a339ba6ce97",
+    "source_sha256": "7cb3d11c63170856c065050bd61effb1c24b161cfba8f140706185eba92745f1",
+    "status": "six stage0/1 smokes passed"
+  },
+  "no_new_actual_stage2_attempt": "Modes do not fix the known Boolean guard blocker. No mode-only Stage2 run was performed; a new genuine stage chain will follow the separately validated checker repair.",
+  "external_test_harness": "Common Rust test helpers still use the Native frontend by default. A separate strict external-adapter candidate is under validation; a complete self-built frontend suite is not claimed.",
+  "correctness_boundary": "Check-only executes the current checks. Complete independent usage/totality, canonical interfaces and typed runtime lowering remain required.",
+  "seed": "c774 unchanged, ABI5/schema8",
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

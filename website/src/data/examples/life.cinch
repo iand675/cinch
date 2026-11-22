@@ -1,0 +1,55 @@
+module Life where
+  import Data.List
+
+  data Cell where
+    Dead :: Cell
+    Alive :: Cell
+
+  -- What a cell becomes, given how many of its eight neighbours are alive.
+  rule :: Cell -> Int -> Cell
+  rule cell n = case cell of
+    Alive -> if n == 2 || n == 3 then Alive else Dead
+    Dead -> if n == 3 then Alive else Dead
+
+  alive :: Cell -> Int
+  alive cell = case cell of
+    Alive -> 1
+    Dead -> 0
+
+  -- Each position takes its neighbour's value; the edge takes the filler.
+  shift-down :: forall a . a -> List a -> List a
+  shift-down fill xs = Cons fill (drop-last xs)
+
+  shift-up :: forall a . a -> List a -> List a
+  shift-up fill xs = case xs of
+    Nil -> Nil
+    Cons x rest -> snoc rest fill
+
+  drop-last :: forall a . List a -> List a
+  drop-last xs = case xs of
+    Nil -> Nil
+    Cons x rest -> case rest of
+      Nil -> Nil
+      Cons y more -> Cons x (drop-last rest)
+
+  snoc :: forall a . List a -> a -> List a
+  snoc xs y = case xs of
+    Nil -> Cons y Nil
+    Cons x rest -> Cons x (snoc rest y)
+
+  add-rows :: List Int -> List Int -> List Int
+  add-rows a b = zip-with (\x y -> x + y) a b
+
+  -- A cell and its left and right neighbours, summed.
+  across :: List Int -> List Int
+  across row = add-rows (add-rows (shift-down 0 row) row) (shift-up 0 row)
+
+  -- One generation. Cells beyond the edge of the board count as dead.
+  step :: List (List Cell) -> List (List Cell)
+  step board = case board of
+    Nil -> Nil
+    Cons first rest ->
+      let wide = map across (map (map alive) board) in
+      let zero = map (\c -> 0) first in
+      let block = zip-with add-rows (zip-with add-rows (shift-down zero wide) wide) (shift-up zero wide) in
+      zip-with (zip-with (\cell total -> rule cell (total - alive cell))) board block
