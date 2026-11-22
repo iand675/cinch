@@ -13,7 +13,8 @@ module Bootstrap.Load where
   import Bootstrap.Ast (TypeExpr, portable-law-syntax)
   import Bootstrap.RuntimeAbi (runtime-abi)
   import Bootstrap.Total
-  import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash, fnv-ordered-json)
+  import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
+  import Bootstrap.Package (PackageContract, package-contract)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, decode-identity, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
@@ -33,7 +34,7 @@ module Bootstrap.Load where
   export load-interface, load-interface-set, validate-interface-set
   export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, known-contract-end, canonical-interface-validation
   export load-interface-from-contract, load-interface-set-from-contracts
-  export load-validated-ordered-documents
+  export load-validated-package-contracts
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
   export loaded-entry, loaded-private-methods, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
@@ -1117,8 +1118,15 @@ module Bootstrap.Load where
   load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
     Err message -> Err message
     Ok loaded -> validate-interfaces loaded
-  load-validated-ordered-documents :: List (String, String, Json) -> Result String ValidatedInterfaces
-  load-validated-ordered-documents inputs = case read-interface-inputs (load-interface-document-with fnv-ordered-json) inputs of
+  load-packed-contract :: String -> String -> (Json, String) -> Result String LoadedInterface
+  load-packed-contract expected-name expected-hash (doc, digest) = case check-contract-envelope expected-name doc of
+    Err message -> Err message
+    Ok unit ->
+      if not (same digest expected-hash) then Err "interface contract identity mismatch"
+      else accepted-interface True expected-name digest doc (string-to-bytes "")
+
+  load-validated-package-contracts :: List PackageContract -> Result String ValidatedInterfaces
+  load-validated-package-contracts inputs = case read-interface-inputs load-packed-contract (map package-contract inputs) of
     Err message -> Err message
     Ok loaded -> validate-interfaces loaded
 

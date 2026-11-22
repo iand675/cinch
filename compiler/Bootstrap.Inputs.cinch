@@ -1,7 +1,7 @@
 -- Read a closed interface set before lexing the source's operator chains.
 module Bootstrap.Inputs where
 
-  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-ordered-documents, validated-interfaces-members)
+  import Bootstrap.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-package-contracts, validated-interfaces-members)
   import Bootstrap.Package (PackageSnapshot, read-package-documents, read-package-snapshot)
   import Data.Json
   import Data.Path (path-from-string)
@@ -104,14 +104,14 @@ module Bootstrap.Inputs where
     InterfaceFiles rows -> load-interface-references rows
     InterfacePackage path -> case read-package-documents path of
       Err message -> Err message
-      Ok documents -> load-validated-ordered-documents documents
+      Ok documents -> load-validated-package-contracts documents
 
   load-client-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs -> Option String ->{IO r} Result String (ValidatedInterfaces, Option PackageSnapshot)
   load-client-interface-inputs inputs metadata = case (inputs, metadata) of
     (InterfacePackage path, Some file) | string-compare path file == 0 ->
       (case read-package-snapshot path of
         Err message -> Err message
-        Ok (documents, snapshot) -> (case load-validated-ordered-documents documents of
+        Ok (documents, snapshot) -> (case load-validated-package-contracts documents of
           Err message -> Err message
           Ok checked -> Ok (checked, Some snapshot)))
     other -> case load-interface-inputs inputs of

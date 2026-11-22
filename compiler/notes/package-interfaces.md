@@ -102,8 +102,9 @@ the same canonical contract without allocating expression trees. An explicit
 request for an owned definition materializes that closure on demand. Native
 Cinch checks the node sorts, lexical scope, and call graph against the
 packed tables while building one shared tree per definition for the
-JSON-based contract consumers. Its digest still uses the contract document
-shape.
+JSON-based contract consumers. It hashes the canonical contract during
+decode. Plain strings are hashed directly from their file spans, while
+escaped text and body references use the canonical value writer.
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.

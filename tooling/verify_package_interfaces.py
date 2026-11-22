@@ -61,6 +61,13 @@ module Main where
     invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", manifest,
             "--objects", stage / "objects.json", source, ir], work, leak=True)
     document = json.loads((work / "probe.ll.PackedProbe.cinchif").read_bytes())
+    document["compiler"] = "producer metadata with a quote \" and a newline \n"
+    document["source_hash"] = "producer metadata with a backslash \\"
+    document["digest_probe"] = {
+        "compiler": "".join(map(chr, range(32))) + '\\"π𐍈',
+        "source_hash": "nested fields are part of the contract",
+        "units": [False, None, True, -(2**64 - 1), 2**64 - 1, [], {}],
+    }
     for export in document["exports"]["values"]:
         for definition in export["total_body"]["definitions"]:
             if definition["identity"] == "PackedProbe.branch":
@@ -89,6 +96,11 @@ module Main where
     command = [stage / "cinch", "--check-types", "--interfaces", package, source, output]
     invoke(command, work, leak=True)
     assert not output.with_suffix(".diagnostics").read_bytes()
+
+    document["digest_probe"]["source_hash"] = "changed nested field"
+    publish(package, pack([*rows, ("PackedProbe", digest, canonical(document).encode())], flat_bodies=True))
+    invoke(command, work, status=7, leak=True)
+    assert "interface contract identity mismatch" in output.with_suffix(".diagnostics").read_text()
 
     let_node = next(offset for offset in range(nodes, nodes + size, 16) if words(data, offset, 1)[0] == 5)
     corrupt = bytearray(data)

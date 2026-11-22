@@ -3,7 +3,7 @@
 module Bootstrap.Package where
 
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
-  import Bootstrap.Interface (sha256-hex)
+  import Bootstrap.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
   import Bootstrap.Total (valid-sort, decimal-number, operation-type)
   import Data.Array (array-append, array-from-list, array-get, array-length)
   import Data.Bytes (bytes-data, bytes-len, bytes-new)
@@ -11,13 +11,13 @@ module Bootstrap.Package where
   import Data.Json
   import Data.List (sort)
   import Data.Machine (u32-to-nat, saturating-i64-to-i32)
-  import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int)
+  import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int, nat-to-i64)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
   import Text.Json (parse-json)
   import Text.Lex (bytes-slice)
   import Text.Parse (ParseOutcome, Parsed)
 
-  export read-package-documents, packaged-abi
+  export PackageContract, package-contract, read-package-documents, packaged-abi
   export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
 
   foreign import ccall "mmap" map-file :: forall r. I64 -> I64 -> I32 -> I32 -> I32 -> I64 ->{IO r} I64
@@ -61,6 +61,12 @@ module Bootstrap.Package where
     StringTable :: Nat -> Nat -> Region -> StringTable
   data PackageSnapshot where
     PackageSnapshot :: Bytes -> StringTable -> Array String -> AbiSection -> PackageSnapshot
+  data PackageContract where
+    PackageContract :: String -> String -> Json -> String -> PackageContract
+
+  package-contract :: PackageContract -> (String, String, (Json, String))
+  package-contract (PackageContract name declared doc computed) = (name, declared, (doc, computed))
+
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
@@ -189,47 +195,160 @@ module Bootstrap.Package where
     Err message -> Err message
     Ok region -> read-text address region
 
-  read-document :: forall r. I64 -> Array String -> Definitions -> Region ->{IO r} Result String Json
-  read-document address strings definitions region = case region of
-    Region start size ->
-      let limit = start + size in
-      case read-value address strings definitions start limit 256 of
-        Err message -> Err message
-        Ok (value, end) -> if end == limit then Ok value else Err "trailing bytes in structured contract"
+  -- A zero intermediate state falls back to the canonical writer. That
+  -- also handles strings containing an escape, without copying plain text.
+  fnv-plain-quoted-range :: U64 -> I64 -> Nat -> Nat -> U64
+  fnv-plain-quoted-range hash address start size =
+    let end = start + size in
+    if start <= 4294967295 && end <= 4294967295 then
+      hash-plain-utf8 address (nat-to-i64 start) (nat-to-i64 end) (fnv-byte hash 34)
+    else 0
 
-  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat ->{IO r} Result String (Json, Nat)
-  read-value address strings definitions at limit depth =
+  hash-plain-utf8 :: I64 -> I64 -> I64 -> U64 -> U64
+  hash-plain-utf8 address at end hash =
+    if at == end then fnv-byte hash 34
+    else if le-i64 (wrapping-add-i64 at 8) end then
+      let next = fnv-plain-octet hash address at in
+      if eq-u64 next 0 then 0 else hash-plain-utf8 address (wrapping-add-i64 at 8) end next
+    else
+      let next = fnv-plain-byte hash address at in
+      if eq-u64 next 0 then 0 else hash-plain-utf8 address (wrapping-add-i64 at 1) end next
+
+  -- Bounded by hash-plain-utf8. Vector lanes follow address order on
+  -- either endianness, and the FNV steps remain sequential.
+  prim fnv-plain-octet :: U64 -> I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %1 to ptr
+      %at = getelementptr i8, ptr %base, i64 %2
+      %raw = load <8 x i8>, ptr %at, align 1
+      %control = icmp ult <8 x i8> %raw, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %quote = icmp eq <8 x i8> %raw, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %backslash = icmp eq <8 x i8> %raw, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %escapes = or <8 x i1> %quote, %backslash
+      %needs-escape = or <8 x i1> %control, %escapes
+      %mask = bitcast <8 x i1> %needs-escape to i8
+      %plain = icmp eq i8 %mask, 0
+      %byte0 = extractelement <8 x i8> %raw, i32 0
+      %word0 = zext i8 %byte0 to i64
+      %mixed0 = xor i64 %0, %word0
+      %hash0 = mul i64 %mixed0, 1099511628211
+      %byte1 = extractelement <8 x i8> %raw, i32 1
+      %word1 = zext i8 %byte1 to i64
+      %mixed1 = xor i64 %hash0, %word1
+      %hash1 = mul i64 %mixed1, 1099511628211
+      %byte2 = extractelement <8 x i8> %raw, i32 2
+      %word2 = zext i8 %byte2 to i64
+      %mixed2 = xor i64 %hash1, %word2
+      %hash2 = mul i64 %mixed2, 1099511628211
+      %byte3 = extractelement <8 x i8> %raw, i32 3
+      %word3 = zext i8 %byte3 to i64
+      %mixed3 = xor i64 %hash2, %word3
+      %hash3 = mul i64 %mixed3, 1099511628211
+      %byte4 = extractelement <8 x i8> %raw, i32 4
+      %word4 = zext i8 %byte4 to i64
+      %mixed4 = xor i64 %hash3, %word4
+      %hash4 = mul i64 %mixed4, 1099511628211
+      %byte5 = extractelement <8 x i8> %raw, i32 5
+      %word5 = zext i8 %byte5 to i64
+      %mixed5 = xor i64 %hash4, %word5
+      %hash5 = mul i64 %mixed5, 1099511628211
+      %byte6 = extractelement <8 x i8> %raw, i32 6
+      %word6 = zext i8 %byte6 to i64
+      %mixed6 = xor i64 %hash5, %word6
+      %hash6 = mul i64 %mixed6, 1099511628211
+      %byte7 = extractelement <8 x i8> %raw, i32 7
+      %word7 = zext i8 %byte7 to i64
+      %mixed7 = xor i64 %hash6, %word7
+      %hash7 = mul i64 %mixed7, 1099511628211
+      %next = select i1 %plain, i64 %hash7, i64 0
+      ret i64 %next
+    }
+
+  prim fnv-plain-byte :: U64 -> I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %1 to ptr
+      %at = getelementptr i8, ptr %base, i64 %2
+      %byte = load i8, ptr %at, align 1
+      %control = icmp ult i8 %byte, 32
+      %quote = icmp eq i8 %byte, 34
+      %backslash = icmp eq i8 %byte, 92
+      %escapes = or i1 %quote, %backslash
+      %needs-escape = or i1 %control, %escapes
+      %word = zext i8 %byte to i64
+      %mixed = xor i64 %0, %word
+      %hash = mul i64 %mixed, 1099511628211
+      %next = select i1 %needs-escape, i64 0, i64 %hash
+      ret i64 %next
+    }
+
+  -- All referenced strings have already been bounds and UTF-8 checked by
+  -- read-strings. Hash the same bytes in place while the mapping is live.
+  digest-string :: I64 -> Option StringTable -> U64 -> Nat -> String -> U64
+  digest-string address table hash id text = case table of
+    None -> hash
+    Some (StringTable base count (Region raw length)) ->
+      let at = base + 8 * id in
+      let start = word address at in
+      let size = word address (at + 4) in
+      if start + size > length then fnv-json-string hash text else
+        let result = fnv-plain-quoted-range hash address (raw + start) size in
+        if eq-u64 result 0 then fnv-json-string hash text else result
+
+  digest-token :: Option StringTable -> U64 -> U64 -> U64
+  digest-token table hash byte = case table of None -> hash; Some strings -> fnv-byte hash byte
+
+  digest-value :: Option StringTable -> U64 -> Json -> U64
+  digest-value table hash value = case table of None -> hash; Some strings -> fnv-json-value hash value
+
+  read-document :: forall r. I64 -> Array String -> Definitions -> Region ->{IO r} Result String Json
+  read-document address strings definitions region = case read-hashed-document address strings definitions region None of
+    Err message -> Err message
+    Ok (document, hash) -> Ok document
+
+  read-hashed-document :: forall r. I64 -> Array String -> Definitions -> Region -> Option StringTable ->{IO r} Result String (Json, U64)
+  read-hashed-document address strings definitions (Region start size) table =
+    let limit = start + size in
+    case read-value address strings definitions start limit 256 table 0xCBF29CE484222325 of
+      Err message -> Err message
+      Ok (value, end, hash) -> if end == limit then Ok (value, hash) else Err "trailing bytes in structured contract"
+
+  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-value address strings definitions at limit depth table hash =
     if depth == 0 || at + 4 > limit then Err "truncated or over-nested structured contract" else
       let cursor = at + 4 in
       case word address at of
-        0 -> Ok (JNull, cursor)
-        1 -> Ok (JBool False, cursor)
-        2 -> Ok (JBool True, cursor)
-        3 -> read-number address cursor limit False
+        0 -> Ok (JNull, cursor, digest-value table hash JNull)
+        1 -> Ok (JBool False, cursor, digest-value table hash (JBool False))
+        2 -> Ok (JBool True, cursor, digest-value table hash (JBool True))
+        3 -> read-number address cursor limit False table hash
         4 -> if cursor + 4 > limit then Err "truncated text index" else
-          (case array-get strings (word address cursor) of
-            None -> Err "text outside package string table"
-            Some value -> Ok (JStr value, cursor + 4))
+          (let id = word address cursor in
+            case array-get strings id of
+              None -> Err "text outside package string table"
+              Some value -> Ok (JStr value, cursor + 4, digest-string address table hash id value))
         5 -> if cursor + 4 > limit then Err "truncated array header" else
-          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil
+          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil table (digest-token table hash 91)
         6 -> if cursor + 4 > limit then Err "truncated object header" else
-          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None Nil
+          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None Nil table (digest-token table hash 123)
         7 -> (case definitions of
-          RecipeDefinitions rows | cursor + 4 <= limit -> read-definitions address rows (word address cursor) (cursor + 4) limit 0 Nil
+          RecipeDefinitions rows | cursor + 4 <= limit -> (case read-definitions address rows (word address cursor) (cursor + 4) limit 0 Nil of
+            Err message -> Err message
+            Ok (body, end) -> Ok (body, end, digest-value table hash body))
           other -> Err "invalid shared definition table")
-        8 -> read-number address cursor limit True
+        8 -> read-number address cursor limit True table hash
         9 -> (case definitions of
           IndexedDefinitions flat rows | cursor + 4 <= limit -> (case read-body-closure address strings flat rows (word address cursor) of
             Err message -> Err message
-            Ok body -> Ok (body, cursor + 4))
+            Ok body -> Ok (body, cursor + 4, digest-value table hash body))
           other -> Err "unexpected packed body root")
         other -> Err "unknown structured contract tag"
 
-  read-number :: I64 -> Nat -> Nat -> Bool -> Result String (Json, Nat)
-  read-number address at limit negative =
+  read-number :: I64 -> Nat -> Nat -> Bool -> Option StringTable -> U64 -> Result String (Json, Nat, U64)
+  read-number address at limit negative table hash =
     if at + 8 > limit then Err "truncated structured contract integer" else
       let value = nat-to-int (word address at + word address (at + 4) * 4294967296) in
-      Ok (JNum (if negative then 0 - value else value), at + 8)
+      let number = JNum (if negative then 0 - value else value) in
+      Ok (number, at + 8, digest-value table hash number)
 
   array-from-reverse :: List Json -> Json -> Json
   array-from-reverse items out = case items of
@@ -241,28 +360,43 @@ module Bootstrap.Package where
     Nil -> out
     Cons (name, item) rest -> object-from-reverse rest (JObj name item out)
 
-  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json ->{IO r} Result String (Json, Nat)
-  read-array address strings definitions left at limit depth items =
-    if left == 0 then Ok (array-from-reverse items JArrEnd, at) else
-      (case read-value address strings definitions at limit depth of
+  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-array address strings definitions left at limit depth items table hash =
+    if left == 0 then Ok (array-from-reverse items JArrEnd, at, digest-token table hash 93) else
+      (case read-value address strings definitions at limit depth table hash of
         Err message -> Err message
-        Ok (item, end) -> read-array address strings definitions (left - 1) end limit depth (Cons item items))
+        Ok (item, end, digest) -> read-array address strings definitions (left - 1) end limit depth (Cons item items)
+          table (if left == 1 then digest else digest-token table digest 44))
 
   out-of-order :: Option String -> String -> Bool
   out-of-order previous name = case previous of
     None -> False
     Some earlier -> string-compare earlier name >= 0
 
-  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) ->{IO r} Result String (Json, Nat)
-  read-object address strings definitions left at limit depth previous items =
-    if left == 0 then Ok (object-from-reverse items JObjEnd, at)
+  contract-field-projection :: Nat -> String -> Option Json
+  contract-field-projection depth name =
+    if depth /= 255 then None
+    else if string-compare name "compiler" == 0 || string-compare name "source_hash" == 0 then Some (JStr "")
+    else if string-compare name "units" == 0 then Some JArrEnd
+    else None
+
+  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-object address strings definitions left at limit depth previous items table hash =
+    if left == 0 then Ok (object-from-reverse items JObjEnd, at, digest-token table hash 125)
     else if at + 4 > limit then Err "truncated field key" else
-      (case array-get strings (word address at) of
-        None -> Err "field key outside package string table"
-        Some name -> if out-of-order previous name then Err "unordered or duplicate structured contract field" else
-          (case read-value address strings definitions (at + 4) limit depth of
-            Err message -> Err message
-            Ok (item, end) -> read-object address strings definitions (left - 1) end limit depth (Some name) (Cons (name, item) items)))
+      (let id = word address at in
+        case array-get strings id of
+          None -> Err "field key outside package string table"
+          Some name -> if out-of-order previous name then Err "unordered or duplicate structured contract field" else
+            (let prefix = digest-token table (digest-string address table hash id name) 58 in
+              let projected = case table of None -> None; Some spans -> contract-field-projection depth name in
+              let field-table = case projected of None -> table; Some placeholder -> None in
+              case read-value address strings definitions (at + 4) limit depth field-table prefix of
+                Err message -> Err message
+                Ok (item, end, digest) ->
+                  let next = case projected of None -> digest; Some placeholder -> digest-value table prefix placeholder in
+                  read-object address strings definitions (left - 1) end limit depth (Some name) (Cons (name, item) items)
+                    table (if left == 1 then next else digest-token table next 44)))
 
   read-definitions :: I64 -> Array Json -> Nat -> Nat -> Nat -> Nat -> List Json -> Result String (Json, Nat)
   read-definitions address definitions left at limit count items =
@@ -563,8 +697,8 @@ module Bootstrap.Package where
     StructuredAbi (Region start length) | length >= 4 -> Some (word address start)
     other -> None
 
-  read-rows :: forall r. I64 -> Region -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List (String, String, Json) ->{IO r} Result String (List (String, String, Json))
-  read-rows address raw strings documents definitions base count index items =
+  read-rows :: forall r. I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract)
+  read-rows address raw table strings documents definitions base count index items =
     if index == count then Ok (reverse items) else
       let id = word address (base + index * 36 + 32) in
       if id >= count then Err "invalid package manifest index" else
@@ -575,11 +709,12 @@ module Bootstrap.Package where
             Err message -> Err message
             Ok digest -> case row-span address documents (row + 24) of
               Err message -> Err message
-              Ok region -> case read-document address strings definitions region of
+              Ok region -> case read-hashed-document address strings definitions region (Some table) of
                 Err message -> Err message
-                Ok document -> read-rows address raw strings documents definitions base count (index + 1) (Cons (name, digest, document) items))
+                Ok (document, computed) -> read-rows address raw table strings documents definitions base count (index + 1)
+                  (Cons (PackageContract name digest document (u64-decimal computed)) items))
 
-  decode-package :: forall r. I64 -> Nat ->{IO r} Result String (List (String, String, Json), StringTable, Array String, AbiSection)
+  decode-package :: forall r. I64 -> Nat ->{IO r} Result String (List PackageContract, StringTable, Array String, AbiSection)
   decode-package address size = case package-header address size of
     Err message -> Err message
     Ok (Package strings (Region modules module-size) format documents abi) ->
@@ -591,13 +726,13 @@ module Bootstrap.Package where
             Err message -> Err message
             Ok texts -> case read-package-definitions address texts format of
               Err message -> Err message
-              Ok definitions -> case read-rows address raw texts documents definitions modules (module-size / 36) 0 Nil of
+              Ok definitions -> case read-rows address raw table texts documents definitions modules (module-size / 36) 0 Nil of
                 Err message -> Err message
                 Ok rows -> Ok (rows, table, texts, abi)
 
   -- Read one bounded snapshot when the contracts and object ABI have
   -- the same path. Both consumers then see the same bytes after a rename.
-  read-package-snapshot :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, Json), PackageSnapshot)
+  read-package-snapshot :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract, PackageSnapshot)
   read-package-snapshot path = case sys-open-read path of
     Err error -> Err "cannot open interface package"
     Ok fd -> case read-package-bytes fd of
@@ -623,7 +758,7 @@ module Bootstrap.Package where
         Ok got | got > 0 -> fill-package-buffer fd bytes length (wrapping-add-i64 used got)
         other -> Err "cannot read interface package")
 
-  read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, Json))
+  read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract)
   read-package-documents path = case sys-open-read path of
     Err error -> Err "cannot open interface package"
     Ok fd ->

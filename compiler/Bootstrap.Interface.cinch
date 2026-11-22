@@ -94,6 +94,7 @@ module Bootstrap.Interface where
   export iface-schemes-non-empty, iface-schemes-stable
   export iface-import-names-match, iface-value-names-match, iface-fixity-rows-match
   export fnv-source-hash, fnv-ordered-json, sha256-hex
+  export fnv-byte, fnv-json-value, fnv-json-string, u64-decimal
 
   -- The interface schema version this reader understands
   -- (`interface::SCHEMA_VERSION`). A later schema is answered as a mismatch
