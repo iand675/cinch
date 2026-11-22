@@ -130,6 +130,26 @@ module Main where
       && store-error-count (check-instance-coherence [concrete, generic] start) == 1
       && store-error-count (check-instance-coherence [generic, distinct] start) == 1
       && store-error-count (check-instance-coherence [concrete, ("concrete", mono (eq integer))] start) == 1
+  coherence-applied-carriers :: Store -> Bool
+  coherence-applied-carriers start =
+    let unary = KFun KType KType in
+    let binary = KFun KType unary in
+    let list = UCon "List" unary in
+    let concrete = ("list", mono (eq (UApp list nat))) in
+    let distinct = ("option", mono (eq (UApp (UCon "Option" unary) nat))) in
+    let pair = ("pair", mono (eq (UApp (UApp (UCon "Pair" binary) nat) nat))) in
+    let other-argument = ("list-of-int", mono (eq (UApp list integer))) in
+    let generic = ("generic", qualified [MkQuant 1 "a" KType False] Nil (eq (UApp list (UBound 1 "a" KType)))) in
+    let higher = ("higher", qualified [MkQuant 2 "f" unary False] Nil (eq (UApp (UBound 2 "f" unary) nat))) in
+    let arrow = ("arrow", mono (eq (UApp (UApp (UCon "(->)" binary) nat) nat))) in
+    let function = ("function", mono (eq (UFun nat nat))) in
+    let duplicate = ("list", mono (eq integer)) in
+    let dirty = add-error s "existing diagnostic" start in
+    clean (check-instance-coherence [concrete, distinct, pair, other-argument] start)
+      && store-error-count (check-instance-coherence [generic, concrete] start) == 1
+      && store-error-count (check-instance-coherence [concrete, higher] start) == 1
+      && store-error-count (check-instance-coherence [arrow, function] start) == 1
+      && store-error-count (check-instance-coherence [concrete, generic, duplicate] dirty) == 2
   run :: List BodyBinding -> Nat -> Int
   run bodies nonce =
     let leaf = string-concat "leaf-" (nat-to-string nonce) in
@@ -171,7 +191,8 @@ module Main where
     else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15
     else if not invalid-context-checks then 16
     else if not (coherence-diagnostic-order start) then 17
-    else if not (coherence-carrier-buckets start) then 18 else 0
+    else if not (coherence-carrier-buckets start) then 18
+    else if not (coherence-applied-carriers start) then 19 else 0
   method-bodies :: InterfaceSet -> Option (List BodyBinding)
   method-bodies interfaces = case (
       check-imported-method-binding interfaces (interface-global "Data.Nat.Ord_Nat") 2 (mono (UFun nat (UFun nat boolean))),

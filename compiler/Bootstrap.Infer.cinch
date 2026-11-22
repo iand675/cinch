@@ -8709,7 +8709,7 @@ module Bootstrap.Infer where
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
     let (env, conditional-store) = cache-body-context uncached-env registration-store in
-    let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
+    let se = check-instance-coherence (env-instances env <> conditional-heads env hash-map-empty) conditional-store in
     let families = add-families (reverse (Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds)))) external-families in
     let default-decls = source-default-definitions ds (context-source-classes kinds) in
     let law-store = case store-errors se of Nil -> check-source-laws classes kinds families env ds se; other -> se in
@@ -10218,11 +10218,13 @@ module Bootstrap.Infer where
 
   -- A conditional instance supplies individual callable declarations. It is
   -- never added to env-instances: generic dictionaries remain unavailable.
-  conditional-heads :: List CheckedBinding -> List String -> List (String, Scheme)
+  conditional-heads :: List CheckedBinding -> HashMap String Bool -> List (String, Scheme)
   conditional-heads env seen = case env of
     Nil -> Nil
-    Cons (MkConditionalBinding origin name owner slot dictionary head sc guarded) rest -> let key = dictionary in
-      if not (implicit-method origin) || has key seen then conditional-heads rest seen else Cons (name, mono head) (conditional-heads rest (Cons key seen))
+    Cons (MkConditionalBinding origin name owner slot dictionary head sc guarded) rest | implicit-method origin ->
+      (case hash-map-lookup dictionary seen of
+        Some prior -> conditional-heads rest seen
+        None -> Cons (name, mono head) (conditional-heads rest (hash-map-insert dictionary True seen)))
     Cons other rest -> conditional-heads rest seen
   conditional-member :: Nat -> List CoreClassMethod -> Option CoreClassMethod
   conditional-member slot methods = case methods of Nil -> None; Cons member rest -> if slot == class-method-slot member then Some member else conditional-member slot rest

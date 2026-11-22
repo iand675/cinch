@@ -410,7 +410,7 @@ module Bootstrap.Dictionary where
     CoherenceCandidate :: Nat -> String -> Scheme -> CoherenceCandidate
 
   data CoherenceRow where
-    CoherenceRow :: String -> Scheme -> List CoherenceCandidate -> List CoherenceCandidate -> CoherenceRow
+    CoherenceRow :: String -> Scheme -> List CoherenceCandidate -> List CoherenceCandidate -> List CoherenceCandidate -> CoherenceRow
 
   data CoherenceClass where
     SingleClassInstance :: CoherenceCandidate -> CoherenceClass
@@ -421,13 +421,25 @@ module Bootstrap.Dictionary where
     Some entries -> entries
     None -> Nil
 
-  -- A unary type class applied to a rigid nominal carrier keeps that
-  -- carrier through substitution and normalization. Distinct carriers
-  -- of this form cannot unify. All other heads keep the full class check.
+  -- Saturated nominal applications keep their constructor through
+  -- substitution and normalization. The arrow constructor normalizes to
+  -- a function type, and non-type kind parameters can normalize to indices.
   coherence-carrier :: Scheme -> Option String
   coherence-carrier sc = case scheme-body sc of
-    UApp (UCon owner (KFun KType KType)) (UCon carrier KType) -> Some carrier
+    UApp (UCon owner (KFun KType KType)) carrier -> nominal-carrier carrier 0
     other -> None
+
+  nominal-carrier :: UType -> Nat -> Option String
+  nominal-carrier ty arity = case ty of
+    UApp head argument -> nominal-carrier head (arity + 1)
+    UCon name kind | nominal-carrier-kind kind arity && not (same name "(->)") -> Some name
+    other -> None
+
+  nominal-carrier-kind :: Kind -> Nat -> Bool
+  nominal-carrier-kind kind arity = case kind of
+    KType -> arity == 0
+    KFun KType result -> if arity == 0 then False else nominal-carrier-kind result (arity - 1)
+    other -> False
 
   -- Both buckets have the original diagnostic order and disjoint members.
   merge-coherence-candidates :: List CoherenceCandidate -> List CoherenceCandidate -> List CoherenceCandidate
@@ -438,7 +450,7 @@ module Bootstrap.Dictionary where
       if coherence-position first > coherence-position second then Cons first (merge-coherence-candidates rest flexible)
       else Cons second (merge-coherence-candidates definite more)
 
-  index-coherence-class :: CoherenceCandidate -> Scheme -> CoherenceClass -> (List CoherenceCandidate, CoherenceClass)
+  index-coherence-class :: CoherenceCandidate -> Scheme -> CoherenceClass -> (List CoherenceCandidate, List CoherenceCandidate, CoherenceClass)
   index-coherence-class entry sc group = case group of
     SingleClassInstance prior -> case prior of
       CoherenceCandidate position name first ->
@@ -448,9 +460,9 @@ module Bootstrap.Dictionary where
           Some carrier -> CoherenceClass all Nil (hash-map-insert carrier all hash-map-empty)) in
         index-coherence-class entry sc buckets
     CoherenceClass all flexible carriers -> case coherence-carrier sc of
-      None -> (all, CoherenceClass (Cons entry all) (Cons entry flexible) carriers)
+      None -> (all, Nil, CoherenceClass (Cons entry all) (Cons entry flexible) carriers)
       Some carrier -> let matches = coherence-bucket carrier carriers in
-        (merge-coherence-candidates matches flexible, CoherenceClass (Cons entry all) flexible
+        (matches, flexible, CoherenceClass (Cons entry all) flexible
           (hash-map-insert carrier (Cons entry matches) carriers))
 
   -- Walk backwards so a bucket contains only later rows. A duplicate
@@ -463,27 +475,33 @@ module Bootstrap.Dictionary where
       let duplicates = coherence-bucket name symbols in
       let next-symbols = hash-map-insert name (Cons entry duplicates) symbols in
       case class-root (scheme-body sc) of
-        None -> index-coherence-rows rest (position + 1) classes next-symbols (Cons (CoherenceRow name sc Nil duplicates) indexed)
+        None -> index-coherence-rows rest (position + 1) classes next-symbols (Cons (CoherenceRow name sc Nil Nil duplicates) indexed)
         Some (owner, kind) -> case hash-map-lookup owner classes of
           None -> index-coherence-rows rest (position + 1) (hash-map-insert owner (SingleClassInstance entry) classes)
-            next-symbols (Cons (CoherenceRow name sc Nil duplicates) indexed)
+            next-symbols (Cons (CoherenceRow name sc Nil Nil duplicates) indexed)
           Some prior -> case index-coherence-class entry sc prior of
-            (members, next) -> index-coherence-rows rest (position + 1) (hash-map-insert owner next classes)
-              next-symbols (Cons (CoherenceRow name sc members duplicates) indexed)
+            (members, flexible, next) -> index-coherence-rows rest (position + 1) (hash-map-insert owner next classes)
+              next-symbols (Cons (CoherenceRow name sc members flexible duplicates) indexed)
 
   coherence-position :: CoherenceCandidate -> Nat
   coherence-position (CoherenceCandidate position name scheme) = position
 
+  report-instance-overlap :: String -> String -> Store -> Store
+  report-instance-overlap name other st =
+    add-error (Span 0 0 1 1) (string-concat-all ["ambiguous instance: overlapping implicit contracts for ",
+      instance-display name, " and ", instance-display other]) st
+
   check-instance-pair :: String -> Scheme -> CoherenceCandidate -> Store -> Store
   check-instance-pair name sc (CoherenceCandidate position other candidate) st =
-    if same name other || overlapping-heads sc candidate st then
-      add-error (Span 0 0 1 1) (string-concat-all ["ambiguous instance: overlapping implicit contracts for ",
-        instance-display name, " and ", instance-display other]) st else st
+    if same name other || overlapping-heads sc candidate st then report-instance-overlap name other st else st
 
   -- Preserve list order for diagnostics, including when a duplicate
   -- symbol is also in the class bucket.
   check-instance-pairs :: String -> Scheme -> List CoherenceCandidate -> List CoherenceCandidate -> Store -> Store
-  check-instance-pairs name sc classes symbols st = case (classes, symbols) of
+  -- Once the store has an error, unification cannot yield a clean store.
+  -- Duplicated symbols still report independently of unification.
+  check-instance-pairs name sc classes symbols st =
+    if not (clean st) then check-duplicate-symbols name symbols st else case (classes, symbols) of
     (Nil, Nil) -> st
     (Cons first rest, Nil) -> check-instance-pairs name sc rest Nil (check-instance-pair name sc first st)
     (Nil, Cons second rest) -> check-instance-pairs name sc Nil rest (check-instance-pair name sc second st)
@@ -494,11 +512,19 @@ module Bootstrap.Dictionary where
       else if a < b then check-instance-pairs name sc classes rest (check-instance-pair name sc second st)
       else check-instance-pairs name sc more rest (check-instance-pair name sc first st)
 
+  check-duplicate-symbols :: String -> List CoherenceCandidate -> Store -> Store
+  check-duplicate-symbols name symbols st = case symbols of
+    Nil -> st
+    Cons (CoherenceCandidate position other scheme) rest ->
+      check-duplicate-symbols name rest (report-instance-overlap name other st)
+
   check-coherence-rows :: List CoherenceRow -> Store -> Store
   check-coherence-rows rows st = case rows of
     Nil -> st
-    Cons (CoherenceRow name sc classes symbols) rest ->
-      check-coherence-rows rest (check-instance-pairs name sc classes symbols st)
+    Cons (CoherenceRow name sc matches flexible symbols) rest ->
+      let checked = (if clean st then check-instance-pairs name sc (merge-coherence-candidates matches flexible) symbols st
+        else check-duplicate-symbols name symbols st) in
+      check-coherence-rows rest checked
 
   check-instance-coherence :: List (String, Scheme) -> Store -> Store
   check-instance-coherence instances st =
