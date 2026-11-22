@@ -226,9 +226,14 @@ def verify_native_object_references(stage, work, package, legacy_package, source
             assert ir.read_bytes() == expected
 
     runtime = Path(original["metadata"]).with_name("libcinchruntime.a")
+    run_directory = work / "packed-run"
+    run_directory.mkdir()
+    prefix = run_directory / "hello"
     run = invoke([stage / "cinch", "--interfaces", package, "--objects", configuration,
-                  "run", runtime, work / "packed-run", source], work)
+                  "run", runtime, prefix, source], run_directory, leak=True)
     assert run.stdout == "Hello, world!\n"
+    assert prefix.with_suffix(".ll").read_bytes() == expected
+    assert not (run_directory / "build").exists()
 
     use_embedded_abi(package, b"not the package bytes")
     invoke(command, work, status=7, leak=True)

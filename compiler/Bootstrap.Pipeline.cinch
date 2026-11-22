@@ -302,7 +302,8 @@ module Bootstrap.Pipeline where
       Ok (checked, provider, metadata, object-path, object-bytes) ->
         if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
         else if object-path-member (normalize-path object-path) paths then pipeline-bad-args
-        else case emit-object-client inlining debug reclaim profile EmitOnly checked provider source ir of
+        -- A run needs LLVM and the authenticated object snapshot.
+        else case emit-object-client inlining debug reclaim profile IrOnly checked provider source ir of
           0 -> (case fs-write (path-from-string object-copy) object-bytes of
             Err error -> pipeline-write-failed
             Ok written -> link-object-client ir executable object-copy runtime metadata words)
