@@ -3,7 +3,8 @@ module Main where
 
   import Bootstrap.Ast
   import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Resolve (resolve-program, prepare-admitted-resolution)
+  import Bootstrap.Load (load-validated-interfaces)
   import Bootstrap.Contracts (declaration-references)
   import Bootstrap.Check (check-program)
   import Bootstrap.Eval (Value, VInt, eval-main, eval-main-result, render-value)
@@ -352,6 +353,17 @@ module Main where
   large-references-ok count = let names = declaration-references (reference-workload count) in
     list-length names == count && wanted-references names && reference-order-ok
 
+  prepared-interface-provenance-ok :: Bool
+  prepared-interface-provenance-ok =
+    let sp = Span 0 0 1 1 in
+    let body = [DSig sp "main" (TName sp "Int"), DFun sp "main" [(Nil, ELitInt sp "0")]] in
+    let input = \declarations -> MkProgram sp [MkModule sp "Main" (decl-spine sp declarations)] in
+    let resolve = prepare-admitted-resolution (load-validated-interfaces Nil) in
+    case (resolve (input body) Nil, resolve (input (Cons (DInterface sp "Fabricated" "bad" JObjEnd) body)) Nil) of
+      ((resolved, Nil, True), (supplied, Cons first rest, False)) ->
+        string-compare (diagnostic-message first) "this declaration requires further namespace elaboration" == 0
+      other -> False
+
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in
     case fs-write (path-from-string "resolve-report.txt") (string-to-bytes (describe-positives positive 1)) of
@@ -365,7 +377,8 @@ module Main where
                 -- The report is a runtime input, so this walk cannot be
                 -- replaced with a compile-time constant by the seed.
                 case fs-read (path-from-string "resolve-report.txt") of
-                  Ok bytes -> if large-references-ok (6000 + bytes-len bytes) then (if source-order-ok then 0 else 208) else 206
+                  Ok bytes -> if large-references-ok (6000 + bytes-len bytes) then
+                    (if not source-order-ok then 208 else if prepared-interface-provenance-ok then 0 else 209) else 206
                   Err error -> 255
               else 207 else 205 else 204 else 203 else 202
             else 201

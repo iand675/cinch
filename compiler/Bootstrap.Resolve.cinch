@@ -1530,10 +1530,11 @@ module Bootstrap.Resolve where
       Err message -> (p, fail (program-span p) message)
       Ok ordered -> resolve-ordered-interfaces p (validated-interfaces-members ordered) checked
   -- The declarations and outbound names of a validated package are fixed
-  -- for the session. Resolve each edit's own imports and source shadowing.
-  prepare-admitted-resolution :: Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic))
+  -- for the session. The result records whether the resolved program kept
+  -- the original package declarations in order.
+  prepare-admitted-resolution :: Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool))
   prepare-admitted-resolution admitted = case admitted of
-    Err message -> \p checked -> (p, fail (program-span p) message)
+    Err message -> \p checked -> (p, fail (program-span p) message, False)
     Ok ready -> let ordered = validated-interfaces-members ready in
       let scopes = index-interface-scopes ordered hash-map-empty in
       let scope = indexed-interface-scope scopes in
@@ -1614,9 +1615,10 @@ module Bootstrap.Resolve where
     Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
 
   resolve-context :: Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
-  resolve-context p available base checked = resolve-context-with interface-scope None p available base checked
+  resolve-context p available base checked = case resolve-context-with interface-scope None p available base checked of
+    (resolved, errors, retained) -> (resolved, errors)
 
-  resolve-context-with :: (LoadedInterface -> Bool -> (Scoped, Module)) -> Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-context-with :: (LoadedInterface -> Bool -> (Scoped, Module)) -> Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic, Bool)
   resolve-context-with scope prepared p available base checked = case p of
     MkProgram sp modules ->
       let sources = reference-index (map module-name modules) in
@@ -1629,9 +1631,9 @@ module Bootstrap.Resolve where
               (interfaces, headers) -> finish-resolution p sp modules sources prepared
                 (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
                 headers base
-        errors -> (p, errors)
+        errors -> (p, errors, False)
 
-  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> Option PreparedDeclarations -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
+  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> Option PreparedDeclarations -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic, Bool)
   finish-resolution p sp modules sources prepared resolution headers base = case resolution of
     (done, indexed, Nil) ->
       let source-surfaces = source-scopes sources done in
@@ -1662,8 +1664,13 @@ module Bootstrap.Resolve where
       let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
       let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
       case materialize-externals all-reference-set families Nil of
-        (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
-    (done, indexed, errors) -> (p, errors)
+        -- Source declaration resolution rejects DInterface. Positional
+        -- selection and materialization keep every package DInterface.
+        (body, errors) -> let retained = (case (prepared, errors) of
+          (Some package, Nil) -> True
+          other -> False) in
+          (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors, retained)
+    (done, indexed, errors) -> (p, errors, False)
 
   resolution-declarations :: Option PreparedDeclarations -> List Scoped -> List Scoped -> (List (List String) -> List Decl, List String, HashMap String Bool)
   resolution-declarations prepared done sources = case prepared of

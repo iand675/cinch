@@ -179,16 +179,23 @@ module Bootstrap.Load where
       if ordered && admitted-body-documents members inputs then Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
       else load-body-interfaces-with-known members inputs
 
-  -- A resident compiler can keep the checked body index and the fallback
-  -- module table together. True attests to the exact document sequence
-  -- for other projections of the same package.
-  prepare-body-interface-load :: ValidatedInterfaces -> (List (String, String, Json) -> (Result String InterfaceSet, Bool))
+  -- A resident compiler keeps the checked body index and the fallback
+  -- module table together. The direct result is for a resolver that kept
+  -- the original list of admitted documents in order.
+  prepare-body-interface-load :: ValidatedInterfaces -> (Option InterfaceSet, List (String, String, Json) -> (Result String InterfaceSet, Bool))
   prepare-body-interface-load (MkValidatedInterfaces members closures ordered) =
     let known = read-known-document (interface-table (reverse members) hash-map-empty) in
     let fallback = \inputs -> (load-body-interfaces-using known inputs, False) in
-    if not ordered then fallback else
+    if not ordered || not (verified-body-documents members) then (None, fallback) else
       let prepared = CheckedInterfaceSet members (index-graph-bodies (set-bodies members)) in
-      \inputs -> if admitted-body-documents members inputs then (Ok prepared, True) else fallback inputs
+      (Some prepared, \inputs -> if admitted-body-documents members inputs then (Ok prepared, True) else fallback inputs)
+
+  verified-body-documents :: List LoadedInterface -> Bool
+  verified-body-documents members = case members of
+    Nil -> True
+    Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest ->
+      verified-body-documents rest
+    other -> False
 
   admitted-body-documents :: List LoadedInterface -> List (String, String, Json) -> Bool
   admitted-body-documents members inputs = case (members, inputs) of

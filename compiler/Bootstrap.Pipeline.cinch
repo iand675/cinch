@@ -254,8 +254,8 @@ module Bootstrap.Pipeline where
         let headers = module-name-index (interface-fixity-headers interfaces) in
         let admitted = canonical-interface-validation checked in
         let resolve = prepare-admitted-resolution admitted in
-        let retain = (case admitted of Ok canonical -> prepare-admitted-check canonical; Err message -> check-and-retain-with-interfaces interfaces) in
-        let check = check-object-client-using profile interfaces (checked-admitted-source-using profile interfaces retain resolve) in
+        let retain = (case admitted of Ok canonical -> prepare-admitted-check canonical; Err message -> \retained -> check-and-retain-with-interfaces interfaces) in
+        let check = check-object-client-using profile interfaces (checked-prepared-source profile interfaces retain resolve) in
         case ioWrite (string-to-bytes "ready\n") of
           _ -> serve-object-builds (string-to-bytes "\n")
             (\unit -> emit-object-client-using inlining debug reclaim profile IrOnly interfaces provider
@@ -392,13 +392,24 @@ module Bootstrap.Pipeline where
   checked-admitted-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> List LoadedInterface -> (Program, List Diagnostic)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   checked-admitted-source-using profile interfaces check resolve overlays program =
     check-source-using profile interfaces check (\input -> resolve input overlays) program
+  -- Both closures were prepared from the same admitted package. Only the
+  -- final resolution can attest to the documents the checker receives.
+  checked-prepared-source :: TargetProfile -> List LoadedInterface -> (Bool -> Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
+  checked-prepared-source profile interfaces check resolve overlays program =
+    let stage-resolve = \input -> case resolve input overlays of (resolved, errors, retained) -> (resolved, errors) in
+    let finish = \input -> (case resolve input overlays of
+      (resolved, errors, retained) -> retain-resolved-source profile (check retained) (resolved, errors)) in
+    check-expanded-source interfaces stage-resolve finish program
   check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase profile interfaces resolve program =
     check-source-using profile interfaces (check-and-retain-with-interfaces interfaces) resolve program
   check-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
-  check-source-using profile interfaces check resolve program = case expand-stages-with-report resolve (\unit -> interface-headers interfaces) program of
+  check-source-using profile interfaces check resolve program =
+    check-expanded-source interfaces resolve (\expanded -> retain-resolved-source profile check (resolve expanded)) program
+  check-expanded-source :: List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> (Program -> Result (List Diagnostic) CheckedProgram) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-expanded-source interfaces resolve finish program = case expand-stages-with-report resolve (\unit -> interface-headers interfaces) program of
     Err errors -> Err errors
-    Ok (expanded, generated) -> case retain-resolved-source profile check (resolve expanded) of
+    Ok (expanded, generated) -> case finish expanded of
       Err errors -> Err (explain-expansion-errors expanded errors)
       Ok checked -> Ok (with-generated generated checked)
   retain-resolved-source :: TargetProfile -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram

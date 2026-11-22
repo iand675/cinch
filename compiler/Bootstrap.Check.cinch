@@ -75,10 +75,10 @@ module Bootstrap.Check where
   check-and-retain-with-interfaces known program = check-and-retain-using (elaborate-with-interfaces known rung) program
   check-and-retain-with-admitted-interfaces :: ValidatedInterfaces -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-with-admitted-interfaces admitted program = check-and-retain-using (elaborate-with-admitted-interfaces admitted rung) program
-  prepare-admitted-check :: ValidatedInterfaces -> (Program -> Result (List Diagnostic) CheckedProgram)
+  prepare-admitted-check :: ValidatedInterfaces -> (Bool -> Program -> Result (List Diagnostic) CheckedProgram)
   prepare-admitted-check admitted =
     let elaborate = prepare-admitted-elaboration admitted rung in
-    \program -> check-and-retain-using elaborate program
+    \retained program -> check-and-retain-using (elaborate retained) program
   check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-using elaborate program =
     let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
