@@ -1510,29 +1510,49 @@ module Bootstrap.Load where
           Err message -> Err message
           Ok unit -> verify-nominal-set rest ix closures checked
 
-  body-declaration :: String -> Json -> Json
-  body-declaration identity row = JObj "identity" (JStr identity) (JObj "resolved" (field "resolved" row) (JObj "total_body" (field "total_body" row) JObjEnd))
-  value-body-declarations :: Json -> List Json
-  value-body-declarations rows = case rows of
-    JArr row rest -> (case field "total_body" row of JNull -> Nil; doc -> [body-declaration (text (field "symbol" row)) row])
-      <> json-rows (resolved-measures row) <> value-body-declarations rest
-    other -> Nil
-  signature-body-declarations :: Json -> List Json
-  signature-body-declarations rows = case rows of
-    JArr row rest -> value-body-declarations (field "methods" row) <> signature-body-declarations rest
-    other -> Nil
-  method-body-declarations :: Json -> List Json
-  method-body-declarations rows = case rows of
-    JArr row rest -> Cons (body-declaration (text (field "implementation" row)) row) (method-body-declarations rest)
-    other -> Nil
-  instance-body-declarations :: Json -> List Json
-  instance-body-declarations rows = case rows of
-    JArr row rest -> method-body-declarations (field "method_bodies" row) <> instance-body-declarations rest
-    other -> Nil
-  interface-body-declarations :: LoadedInterface -> List Json
+  data BodyDeclaration where
+    DeclaredBody :: String -> Json -> Json -> BodyDeclaration
+
+  body-declaration :: String -> Json -> BodyDeclaration
+  body-declaration identity row = DeclaredBody identity (field "resolved" row) (field "total_body" row)
+
+  same-body-declaration :: BodyDeclaration -> BodyDeclaration -> Bool
+  same-body-declaration first second = case (first, second) of
+    (DeclaredBody name resolved graph, DeclaredBody identity other body) ->
+      same name identity && same-contract resolved other && same-contract graph body
+
+  measure-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  measure-body-declarations rows tail = case rows of
+    JArr row rest -> Cons (body-declaration (text (field "identity" row)) row) (measure-body-declarations rest tail)
+    other -> tail
+  value-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  value-body-declarations rows tail = case rows of
+    JArr row rest ->
+      let more = measure-body-declarations (resolved-measures row) (value-body-declarations rest tail) in
+      (case field "total_body" row of
+        JNull -> more
+        doc -> Cons (DeclaredBody (text (field "symbol" row)) (field "resolved" row) doc) more)
+    other -> tail
+  signature-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  signature-body-declarations rows tail = case rows of
+    JArr row rest -> value-body-declarations (field "methods" row) (signature-body-declarations rest tail)
+    other -> tail
+  method-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  method-body-declarations rows tail = case rows of
+    JArr row rest -> Cons (body-declaration (text (field "implementation" row)) row) (method-body-declarations rest tail)
+    other -> tail
+  instance-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  instance-body-declarations rows tail = case rows of
+    JArr row rest -> method-body-declarations (field "method_bodies" row) (instance-body-declarations rest tail)
+    other -> tail
+  interface-body-declarations :: LoadedInterface -> List BodyDeclaration
   interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
-    value-body-declarations (field "values" exports) <> signature-body-declarations (field "signatures" exports)
-      <> value-body-declarations (field "instances" exports) <> instance-body-declarations (field "instances" exports) <> conditional-instance-body-declarations (field "instances" exports)
+    let instances = field "instances" exports in
+    let conditional = conditional-instance-body-declarations instances Nil in
+    let ordinary = instance-body-declarations instances conditional in
+    let values = value-body-declarations instances ordinary in
+    let methods = signature-body-declarations (field "signatures" exports) values in
+    value-body-declarations (field "values" exports) methods
   -- Only dots can end the defining module prefix. Try them from right
   -- to left and probe the same exact name table as ordinary imports.
   body-node-owner :: InterfaceIndex -> String -> String
@@ -1553,7 +1573,7 @@ module Bootstrap.Load where
       else body-node-owner-at ix identity at
     else ""
   data BodyAdmissions where
-    MkBodyAdmissions :: HashMap String (String, Json) -> HashMap String Json -> BodyAdmissions
+    MkBodyAdmissions :: HashMap String (String, Json) -> HashMap String BodyDeclaration -> BodyAdmissions
 
   verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String (String, Json) -> Result String (HashMap String (String, Json))
   verify-body-nodes rows reachable ix seen = case rows of
@@ -1573,29 +1593,34 @@ module Bootstrap.Load where
   bad-body-owner :: forall a. String -> Result String a
   bad-body-owner identity = Err (string-concat "total body dependency is outside the checked module closure: " identity)
 
-  verify-body-declarations :: List Json -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Result String BodyAdmissions
-  verify-body-declarations declarations reachable ix seen = case declarations of
-    Nil -> Ok seen
-    Cons row rest -> let identity = text (field "identity" row) in
-      let declared = body-declaration identity row in
-      let owner-name = body-node-owner ix identity in
-      if not (name-in owner-name reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
-      else (case interface-by-name ix owner-name of
-        None -> Err (string-concat "missing defining total body interface: " identity)
-        Some owner -> (case loaded-entry owner "value" identity of
-          Some definition -> if same-contract declared (body-declaration identity definition) then verify-body-consistency row rest reachable ix seen declared
-            else Err (string-concat "total body disagrees with its declaring module: " identity)
-          None -> verify-body-consistency row rest reachable ix seen declared))
-  verify-body-consistency :: Json -> List Json -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Json -> Result String BodyAdmissions
-  verify-body-consistency row rest reachable ix seen declared = case seen of
-    MkBodyAdmissions nodes declarations ->
-      let identity = text (field "identity" row) in
-      (case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix nodes of
+  verify-body-declarations :: List BodyDeclaration -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Result String BodyAdmissions
+  verify-body-declarations declarations reachable ix seen = case (declarations, seen) of
+    (Nil, _) -> Ok seen
+    (Cons declared rest, MkBodyAdmissions nodes previous) -> case declared of
+      DeclaredBody identity resolved body ->
+        -- A previously admitted definition already records its exact owner.
+        -- Each importer still has to reach that owner and the body's nodes.
+        let owner-name = (case hash-map-lookup identity nodes of Some (owner, _) -> owner; None -> body-node-owner ix identity) in
+        if not (name-in owner-name reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
+        else
+          let prior = hash-map-lookup identity previous in
+          (case prior of
+            Some admitted | same-body-declaration admitted declared ->
+              verify-body-consistency rest reachable ix seen declared False
+            other -> (case interface-by-name ix owner-name of
+              None -> Err (string-concat "missing defining total body interface: " identity)
+              Some owner -> (case loaded-entry owner "value" identity of
+                Some definition | not (same-body-declaration declared (body-declaration identity definition)) ->
+                  Err (string-concat "total body disagrees with its declaring module: " identity)
+                _ -> verify-body-consistency rest reachable ix seen declared (case prior of Some _ -> True; None -> False))))
+
+  verify-body-consistency :: List BodyDeclaration -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> BodyDeclaration -> Bool -> Result String BodyAdmissions
+  verify-body-consistency rest reachable ix (MkBodyAdmissions nodes declarations) declared conflict = case declared of
+    DeclaredBody identity resolved body ->
+      (case verify-body-nodes (field "definitions" body) reachable ix nodes of
         Err message -> Err message
-        Ok checked -> (case hash-map-lookup identity declarations of
-          None -> verify-body-declarations rest reachable ix (MkBodyAdmissions checked (hash-map-insert identity declared declarations))
-          Some prior -> if same-contract prior declared then verify-body-declarations rest reachable ix (MkBodyAdmissions checked declarations)
-            else Err (string-concat "conflicting defining total body declarations: " identity)))
+        Ok checked -> if conflict then Err (string-concat "conflicting defining total body declarations: " identity)
+          else verify-body-declarations rest reachable ix (MkBodyAdmissions checked (hash-map-insert identity declared declarations)))
 
   method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   method-body-owners-valid rows owner ix = case rows of
@@ -1702,12 +1727,14 @@ module Bootstrap.Load where
     Cons i rest -> missing-ref (loaded-imports i) ix || missing-dependency rest ix
 
 
-  conditional-body-declarations :: Json -> List Json
-  conditional-body-declarations rows = case rows of
+  conditional-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  conditional-body-declarations rows tail = case rows of
     JArr row rest -> let checked = field "checked" row in
-      json-rows (resolved-measures (field "head" checked)) <> json-rows (resolved-measures (field "implementation" checked)) <> conditional-body-declarations rest
-    other -> Nil
-  conditional-instance-body-declarations :: Json -> List Json
-  conditional-instance-body-declarations rows = case rows of
-    JArr row rest -> conditional-body-declarations (field "method_contracts" row) <> conditional-instance-body-declarations rest
-    other -> Nil
+      let more = conditional-body-declarations rest tail in
+      let implementation = measure-body-declarations (resolved-measures (field "implementation" checked)) more in
+      measure-body-declarations (resolved-measures (field "head" checked)) implementation
+    other -> tail
+  conditional-instance-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
+  conditional-instance-body-declarations rows tail = case rows of
+    JArr row rest -> conditional-body-declarations (field "method_contracts" row) (conditional-instance-body-declarations rest tail)
+    other -> tail
