@@ -1,0 +1,109 @@
+-- FNV-1a summaries for contiguous runs of canonical interface body rows.
+module Bootstrap.PackageHash where
+
+  import Bootstrap.PackedBody (hold-package-source)
+  import Data.Bytes (bytes-data, bytes-len, bytes-new)
+  import Data.Bytes.Word (bytes-write-le64)
+  import Data.Nat (nat-to-i64)
+
+  export HashSummary, summarize-row, compose-hashes, apply-summary
+
+  -- For a fixed byte stream, FNV-1a touches the low byte with xor and
+  -- multiplies by an odd constant. The other bits contribute independently
+  -- by prime^length. Store the 256 results for an initial low byte.
+  data HashSummary where
+    Summary :: U64 -> Bytes -> HashSummary
+
+  -- Each range row follows a previously hashed row, so include its comma.
+  summarize-row :: Bytes -> HashSummary
+  summarize-row input =
+    let table = bytes-new 2048 in
+    let size = bytes-len input in
+    let filled = hold-package-source input (fill-table (bytes-data input) (nat-to-i64 size) table 0 0) in
+    case filled of _ -> Summary (prime-power (size + 1) 1099511628211 1) table
+
+  compose-hashes :: HashSummary -> HashSummary -> HashSummary
+  compose-hashes (Summary first left) (Summary second right) =
+    let table = bytes-new 2048 in
+    let filled = hold-package-source left (hold-package-source right
+      (compose-table (bytes-data left) (bytes-data right) second table 0)) in
+    case filled of _ -> Summary (wrapping-mul-u64 first second) table
+
+  apply-summary :: HashSummary -> U64 -> U64
+  apply-summary (Summary factor table) hash =
+    hold-package-source table (apply-table (bytes-data table) factor hash)
+
+  prime-power :: Nat -> U64 -> U64 -> U64
+  prime-power count base result =
+    if count == 0 then result else prime-power (count / 2) (wrapping-mul-u64 base base)
+      (if count % 2 == 0 then result else wrapping-mul-u64 result base)
+
+  fill-table :: I64 -> I64 -> Bytes -> Nat -> U64 -> Unit
+  fill-table source size table offset seed =
+    if offset + 8 <= bytes-len table then
+      let prefix = wrapping-mul-u64 (bit-xor-u64 seed 44) 1099511628211 in
+      let written = bytes-write-le64 table offset (visit-bytes source size 0 prefix) in
+      fill-table source size table (offset + 8) (wrapping-add-u64 seed 1)
+    else ()
+
+  visit-bytes :: I64 -> I64 -> I64 -> U64 -> U64
+  visit-bytes source size index hash =
+    if index == size then hash else visit-bytes source size (wrapping-add-i64 index 1) (hash-byte-at source index hash)
+
+  compose-table :: I64 -> I64 -> U64 -> Bytes -> Nat -> Unit
+  compose-table left right factor output offset =
+    if offset + 8 <= bytes-len output then
+      let before = read-hash left (nat-to-i64 offset) in
+      let written = bytes-write-le64 output offset (apply-table right factor before) in
+      compose-table left right factor output (offset + 8)
+    else ()
+
+  -- These private tables always contain 256 little-endian words.
+  prim read-hash :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %ptr = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %ptr, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %ptr = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %ptr, align 1
+      %le = call i64 @llvm.bswap.i64(i64 %value)
+      ret i64 %le
+    } when endian big
+
+  prim apply-table :: I64 -> U64 -> U64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %low = and i64 %2, 255
+      %high = and i64 %2, -256
+      %ptr = getelementptr i64, ptr %base, i64 %low
+      %hashed_seed = load i64, ptr %ptr, align 1
+      %product = mul i64 %high, %1
+      %result = add i64 %product, %hashed_seed
+      ret i64 %result
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %low = and i64 %2, 255
+      %high = and i64 %2, -256
+      %ptr = getelementptr i64, ptr %base, i64 %low
+      %stored = load i64, ptr %ptr, align 1
+      %hashed_seed = call i64 @llvm.bswap.i64(i64 %stored)
+      %product = mul i64 %high, %1
+      %result = add i64 %product, %hashed_seed
+      ret i64 %result
+    } when endian big
+
+  prim hash-byte-at :: I64 -> I64 -> U64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %ptr = getelementptr i8, ptr %base, i64 %1
+      %value = load i8, ptr %ptr, align 1
+      %byte = zext i8 %value to i64
+      %mixed = xor i64 %2, %byte
+      %result = mul i64 %mixed, 1099511628211
+      ret i64 %result
+    }

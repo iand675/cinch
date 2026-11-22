@@ -126,6 +126,11 @@ and compatibility document. Each reference still hashes its graph at the
 current contract position. The reader hashes
 plain strings and indexed body graphs from their file records. Escaped text
 and legacy shared definitions use the canonical value writer.
+For packages that repeatedly hash large checked closures, the native loader
+keeps temporary FNV-1a summaries of contiguous body rows. A summary preserves
+the same canonical digest for any preceding contract fields. Each row in a
+cached range is serialized at most once during package decode.
+
 An execution interface can supply `interface_refs` in place of embedded
 `interfaces`. Each row supplies the module name and contract digest. This
 form requires the matching packed sidecar.

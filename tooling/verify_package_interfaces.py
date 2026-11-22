@@ -255,6 +255,51 @@ def verify_native_object_references(stage, work, package, legacy_package, source
         assert f"bootstrap.{phase}: {diagnostic}" in ir.with_suffix(".ll.diagnostics").read_text()
 
 
+def native_shared_body_ranges(stage, work, manifest, rows):
+    source = work / "SharedBodies.cinch"
+    names = [f"step{i:02d}" for i in range(48)]
+    declarations = ["module SharedBodies where", "  export " + ", ".join(names)]
+    for index, name in enumerate(names):
+        # Most roots share one prefix. Every fourth step skips its immediate
+        # predecessor, which also tests disjoint spans in the body index.
+        previous = index - (2 if index and index % 4 == 0 else 1)
+        body = "1" if not index else f"{names[previous]} n"
+        declarations += [f"  {name} :: Nat -> Nat", f"  {name} n = {body}"]
+    declarations += ["module Main where", "  main :: Int", "  main = 0"]
+    source.write_text("\n".join(declarations) + "\n")
+    ir = work / "shared.ll"
+    invoke([stage / "cinch", "--emit-ir-with-interfaces", "--interfaces", manifest,
+            "--objects", stage / "objects.json", source, ir], work, leak=True)
+    contract = work / "shared.ll.SharedBodies.cinchif"
+    document = json.loads(contract.read_bytes())
+    graphs = [row["total_body"]["definitions"] for row in document["exports"]["values"]]
+    assert sum(map(len, graphs)) > 800
+    digest = interface_hash(document)
+    package = work / "shared.cpk"
+    output = work / "shared-check"
+    main = work / "RangesMain.cinch"
+    main.write_text("module Main where\n  import SharedBodies (step47)\n  main :: Int\n  main = 0\n")
+    command = [stage / "cinch", "--check-types", "--interfaces", package, main, output]
+
+    def publish_contract():
+        publish(package, pack([*rows, ("SharedBodies", digest, canonical(document).encode())],
+                              flat_bodies=True, structured_abi=True))
+
+    publish_contract()
+    invoke(command, work, leak=True)
+    assert not output.with_suffix(".diagnostics").read_bytes()
+
+    # Change the numeric leaf everywhere it is shared, retaining its
+    # type and edges. The original public contract digest must fail.
+    for graph in graphs:
+        leaf = next((row for row in graph if row["identity"] == "SharedBodies.step00"), None)
+        if leaf is not None:
+            leaf["body"]["decimal"] = "2"
+    publish_contract()
+    invoke(command, work, status=7, leak=True)
+    assert "interface contract identity mismatch" in output.with_suffix(".diagnostics").read_text()
+
+
 def native(stage, work, repeats):
     manifest = stage / "base-interfaces.json"
     rows = read_manifest(manifest)
@@ -366,6 +411,7 @@ module Main where
             assert emitted == legacy_export
 
     native_indexed_body_nodes(stage, work, manifest, rows)
+    native_shared_body_ranges(stage, work, manifest, rows)
     verify_native_object_references(stage, work, indexed, legacy_indexed, hello, ir, legacy_ir)
 
     times = {name: [] for name in cases}

@@ -1316,6 +1316,18 @@
       "symbol": "Data.Const.get-const"
     },
     {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
       "classes": "TT",
       "symbol": "Data.HashMap.hash-map-delete"
     },
