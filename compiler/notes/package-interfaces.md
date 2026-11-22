@@ -107,7 +107,10 @@ IDs and operand spans against the retained package bytes when the
 definition matches the admitted row. This includes the refinement checker
 and the LLVM inliner for imported primitive bodies. Graphs that match the
 checked package rows reuse their signatures and edges. A projected closure
-builds a JSON definition array only when a caller requests it. During decode it hashes
+builds a JSON definition array only when a caller requests it. During
+package decode, repeated references to one packed root share its closure
+and compatibility document. Each reference still hashes its graph at the
+current contract position. The reader hashes
 plain strings and indexed body graphs from their file records. Escaped text
 and legacy shared definitions use the canonical value writer.
 An execution interface can supply `interface_refs` in place of embedded

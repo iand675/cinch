@@ -131,10 +131,12 @@ module Bootstrap.Package where
     , definitionsArray = string-to-bytes "{\"definitions\":["
     }
 
+  data PackedClosure where
+    PackedClosure :: List Nat -> Json -> PackedClosure
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
-    IndexedDefinitions :: PackedTable -> Array Json -> WireSyntax -> Definitions
+    IndexedDefinitions :: PackedTable -> Array Json -> WireSyntax -> HashMap String PackedClosure -> Definitions
 
   region-size :: Region -> Nat
   region-size region = case region of Region start length -> length
@@ -367,29 +369,29 @@ module Bootstrap.Package where
   read-document :: forall r. I64 -> Array String -> Definitions -> Region ->{IO r} Result String Json
   read-document address strings definitions region = case read-hashed-document address strings definitions region None of
     Err message -> Err message
-    Ok (document, hash) -> Ok document
+    Ok (document, hash, decoded) -> Ok document
 
-  read-hashed-document :: forall r. I64 -> Array String -> Definitions -> Region -> Option StringTable ->{IO r} Result String (Json, U64)
+  read-hashed-document :: forall r. I64 -> Array String -> Definitions -> Region -> Option StringTable ->{IO r} Result String (Json, U64, Definitions)
   read-hashed-document address strings definitions (Region start size) table =
     let limit = start + size in
     case read-value address strings definitions start limit 256 table 0xCBF29CE484222325 of
       Err message -> Err message
-      Ok (value, end, hash) -> if end == limit then Ok (value, hash) else Err "trailing bytes in structured contract"
+      Ok (value, end, hash, decoded) -> if end == limit then Ok (value, hash, decoded) else Err "trailing bytes in structured contract"
 
-  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
   read-value address strings definitions at limit depth table hash =
     if depth == 0 || at + 4 > limit then Err "truncated or over-nested structured contract" else
       let cursor = at + 4 in
       case word address at of
-        0 -> Ok (JNull, cursor, digest-value table hash JNull)
-        1 -> Ok (JBool False, cursor, digest-value table hash (JBool False))
-        2 -> Ok (JBool True, cursor, digest-value table hash (JBool True))
-        3 -> read-number address cursor limit False table hash
+        0 -> Ok (JNull, cursor, digest-value table hash JNull, definitions)
+        1 -> Ok (JBool False, cursor, digest-value table hash (JBool False), definitions)
+        2 -> Ok (JBool True, cursor, digest-value table hash (JBool True), definitions)
+        3 -> read-number address definitions cursor limit False table hash
         4 -> if cursor + 4 > limit then Err "truncated text index" else
           (let id = word address cursor in
             case array-get strings id of
               None -> Err "text outside package string table"
-              Some value -> Ok (JStr value, cursor + 4, digest-string address table hash id value))
+              Some value -> Ok (JStr value, cursor + 4, digest-string address table hash id value, definitions))
         5 -> if cursor + 4 > limit then Err "truncated array header" else
           read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil table (digest-token table hash 91)
         6 -> if cursor + 4 > limit then Err "truncated object header" else
@@ -397,22 +399,22 @@ module Bootstrap.Package where
         7 -> (case definitions of
           RecipeDefinitions rows | cursor + 4 <= limit -> (case read-definitions address rows (word address cursor) (cursor + 4) limit 0 Nil of
             Err message -> Err message
-            Ok (body, end) -> Ok (body, end, digest-value table hash body))
+            Ok (body, end) -> Ok (body, end, digest-value table hash body, definitions))
           other -> Err "invalid shared definition table")
-        8 -> read-number address cursor limit True table hash
+        8 -> read-number address definitions cursor limit True table hash
         9 -> (case definitions of
-          IndexedDefinitions packed rows syntax | cursor + 4 <= limit -> (case read-body-closure syntax packed rows (word address cursor) table hash of
+          IndexedDefinitions packed rows syntax cache | cursor + 4 <= limit -> (case read-body-closure syntax packed rows cache (word address cursor) table hash of
             Err message -> Err message
-            Ok (body, digest) -> Ok (body, cursor + 4, digest))
+            Ok (body, digest, checked) -> Ok (body, cursor + 4, digest, IndexedDefinitions packed rows syntax checked))
           other -> Err "unexpected packed body root")
         other -> Err "unknown structured contract tag"
 
-  read-number :: I64 -> Nat -> Nat -> Bool -> Option StringTable -> U64 -> Result String (Json, Nat, U64)
-  read-number address at limit negative table hash =
+  read-number :: I64 -> Definitions -> Nat -> Nat -> Bool -> Option StringTable -> U64 -> Result String (Json, Nat, U64, Definitions)
+  read-number address definitions at limit negative table hash =
     if at + 8 > limit then Err "truncated structured contract integer" else
       let value = nat-to-int (word address at + word address (at + 4) * 4294967296) in
       let number = JNum (if negative then 0 - value else value) in
-      Ok (number, at + 8, digest-value table hash number)
+      Ok (number, at + 8, digest-value table hash number, definitions)
 
   array-from-reverse :: List Json -> Json -> Json
   array-from-reverse items out = case items of
@@ -424,12 +426,12 @@ module Bootstrap.Package where
     Nil -> out
     Cons (name, item) rest -> object-from-reverse rest (JObj name item out)
 
-  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
   read-array address strings definitions left at limit depth items table hash =
-    if left == 0 then Ok (array-from-reverse items JArrEnd, at, digest-token table hash 93) else
+    if left == 0 then Ok (array-from-reverse items JArrEnd, at, digest-token table hash 93, definitions) else
       (case read-value address strings definitions at limit depth table hash of
         Err message -> Err message
-        Ok (item, end, digest) -> read-array address strings definitions (left - 1) end limit depth (Cons item items)
+        Ok (item, end, digest, decoded) -> read-array address strings decoded (left - 1) end limit depth (Cons item items)
           table (if left == 1 then digest else digest-token table digest 44))
 
   out-of-order :: Option String -> String -> Bool
@@ -444,9 +446,9 @@ module Bootstrap.Package where
     else if string-compare name "units" == 0 then Some JArrEnd
     else None
 
-  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64)
+  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> List (String, Json) -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
   read-object address strings definitions left at limit depth previous items table hash =
-    if left == 0 then Ok (object-from-reverse items JObjEnd, at, digest-token table hash 125)
+    if left == 0 then Ok (object-from-reverse items JObjEnd, at, digest-token table hash 125, definitions)
     else if at + 4 > limit then Err "truncated field key" else
       (let id = word address at in
         case array-get strings id of
@@ -457,9 +459,9 @@ module Bootstrap.Package where
               let field-table = case projected of None -> table; Some placeholder -> None in
               case read-value address strings definitions (at + 4) limit depth field-table prefix of
                 Err message -> Err message
-                Ok (item, end, digest) ->
+                Ok (item, end, digest, decoded) ->
                   let next = case projected of None -> digest; Some placeholder -> digest-value table prefix placeholder in
-                  read-object address strings definitions (left - 1) end limit depth (Some name) (Cons (name, item) items)
+                  read-object address strings decoded (left - 1) end limit depth (Some name) (Cons (name, item) items)
                     table (if left == 1 then next else digest-token table next 44)))
 
   read-definitions :: I64 -> Array Json -> Nat -> Nat -> Nat -> Nat -> List Json -> Result String (Json, Nat)
@@ -630,14 +632,14 @@ module Bootstrap.Package where
   -- already been checked.
   data PackedVisit where
     EnterBody :: Nat -> PackedVisit
-    LeaveBody :: String -> PackedVisit
+    LeaveBody :: Nat -> PackedVisit
 
   stack-body-edges :: I64 -> Nat -> Nat -> List PackedVisit -> List PackedVisit
   stack-body-edges address at end rest =
     if at == end then rest
     else stack-body-edges address (at + 4) end (Cons (EnterBody (word address at)) rest)
 
-  check-body-cycles :: I64 -> Array PackedSignature -> Nat -> List PackedVisit -> HashMap String Bool -> Bool
+  check-body-cycles :: I64 -> Array PackedSignature -> Nat -> List PackedVisit -> HashMap Nat Nat -> Bool
   check-body-cycles address signatures next pending visited = case pending of
     Nil -> if next == array-length signatures then True
       else check-body-cycles address signatures (next + 1) [EnterBody next] visited
@@ -645,12 +647,12 @@ module Bootstrap.Package where
       None -> False
       Some (PackedSignature identity parameters result root (Region start length)) ->
         if length == 0 then check-body-cycles address signatures next rest visited else
-        (case hash-map-lookup identity visited of
-          Some done -> done && check-body-cycles address signatures next rest visited
+        (case hash-map-lookup id visited of
+          Some done -> done == 1 && check-body-cycles address signatures next rest visited
           None -> check-body-cycles address signatures next
-            (stack-body-edges address start (start + length) (Cons (LeaveBody identity) rest))
-            (hash-map-insert identity False visited)))
-    Cons (LeaveBody identity) rest -> check-body-cycles address signatures next rest (hash-map-insert identity True visited)
+            (stack-body-edges address start (start + length) (Cons (LeaveBody id) rest))
+            (hash-map-insert id 0 visited)))
+    Cons (LeaveBody id) rest -> check-body-cycles address signatures next rest (hash-map-insert id 1 visited)
 
   parameter-document :: List String -> Json -> Json
   parameter-document backwards tail = case backwards of
@@ -663,7 +665,7 @@ module Bootstrap.Package where
       if index == array-length signatures then
         (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
          else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
-         else Ok (IndexedDefinitions table (array-from-list (reverse rows)) wire-syntax))
+         else Ok (IndexedDefinitions table (array-from-list (reverse rows)) wire-syntax hash-map-empty))
       else
         (case array-get signatures index of
           None -> Err "packed body definition outside its section"
@@ -683,16 +685,16 @@ module Bootstrap.Package where
 
   -- The verified signature table already carries the exact edge spans.
   -- Closure walks reuse those spans and never reread a definition header.
-  reachable-bodies :: PackedTable -> List Nat -> HashMap String () -> List Nat -> Result String (List Nat)
+  reachable-bodies :: PackedTable -> List Nat -> HashMap Nat Nat -> List Nat -> Result String (List Nat)
   reachable-bodies packed pending seen selected = case (packed, pending) of
     (PackedTable address strings nodes operands signatures, Cons first rest) ->
       (case array-get signatures first of
         None -> Err "packed body definition outside its section"
         Some (PackedSignature identity parameters result root (Region start length)) ->
-          (case hash-map-lookup identity seen of
+          (case hash-map-lookup first seen of
             Some known -> reachable-bodies packed rest seen selected
             None -> reachable-bodies packed (reversed-words address start (start + length) rest)
-              (hash-map-insert identity () seen) (Cons first selected)))
+              (hash-map-insert first 0 seen) (Cons first selected)))
     (PackedTable address strings nodes operands signatures, Nil) -> Ok selected
 
   hash-node-text :: I64 -> StringTable -> Array String -> U64 -> Nat -> Result String U64
@@ -787,25 +789,34 @@ module Bootstrap.Package where
       Some row -> body-rows rows rest (JArr row tail)
       None -> Err "packed body definition outside its section")
 
-  finish-body-closure :: WireSyntax -> PackedTable -> Array Json -> List Nat -> Option StringTable -> U64 -> Result String (Json, U64)
-  finish-body-closure syntax packed rows selected table hash = case body-rows rows (reverse selected) JArrEnd of
-    Err message -> Err message
-    Ok body -> case table of
-      None -> Ok (body, hash)
-      Some spans -> (case hash-wire-rows syntax packed spans selected (fnv64a-update hash (syntax.definitionsArray)) of
-        Err message -> Err message
-        Ok digest -> Ok (body, digest))
+  -- Hash with the current prefix even when the graph itself was already
+  -- decoded. Every reference still participates in its own contract digest.
+  hash-body-closure :: WireSyntax -> PackedTable -> PackedClosure -> Option StringTable -> U64 -> HashMap String PackedClosure -> Result String (Json, U64, HashMap String PackedClosure)
+  hash-body-closure syntax packed (PackedClosure selected document) table hash cache = case table of
+    None -> Ok (document, hash, cache)
+    Some spans -> (case hash-wire-rows syntax packed spans selected (fnv64a-update hash (syntax.definitionsArray)) of
+      Err message -> Err message
+      Ok digest -> Ok (document, digest, cache))
 
-  read-body-closure :: WireSyntax -> PackedTable -> Array Json -> Nat -> Option StringTable -> U64 -> Result String (Json, U64)
-  read-body-closure syntax packed rows root table hash = case packed of
+  read-body-closure :: WireSyntax -> PackedTable -> Array Json -> HashMap String PackedClosure -> Nat -> Option StringTable -> U64 -> Result String (Json, U64, HashMap String PackedClosure)
+  read-body-closure syntax packed rows cache root table hash = case packed of
     PackedTable address strings nodes operands signatures ->
       (case array-get signatures root of
         None -> Err "packed body definition outside its section"
         Some (PackedSignature name parameters result node (Region start length)) ->
-          if length == 0 then finish-body-closure syntax packed rows [root] table hash else
-            (case reachable-bodies packed [root] hash-map-empty Nil of
-              Err message -> Err message
-              Ok selected -> finish-body-closure syntax packed rows (sort selected) table hash))
+          (case hash-map-lookup name cache of
+            Some graph -> hash-body-closure syntax packed graph table hash cache
+            None ->
+              let closure = (if length == 0 then Ok [root] else reachable-bodies packed [root] hash-map-empty Nil) in
+              (case closure of
+                Err message -> Err message
+                Ok reachable ->
+                  let selected = sort reachable in
+                  (case body-rows rows (reverse selected) JArrEnd of
+                    Err message -> Err message
+                    Ok document ->
+                      let graph = PackedClosure selected document in
+                      hash-body-closure syntax packed graph table hash (hash-map-insert name graph cache)))))
 
   read-package-definitions :: forall r. I64 -> Array String -> BodyFormat ->{IO r} Result String Definitions
   read-package-definitions address strings format = case format of
@@ -861,7 +872,7 @@ module Bootstrap.Package where
 
   retain-body-table :: Bytes -> Definitions -> Option PackedBodyTable
   retain-body-table source definitions = case definitions of
-    IndexedDefinitions (PackedTable address strings nodes operands signatures) rows syntax
+    IndexedDefinitions (PackedTable address strings nodes operands signatures) rows syntax cache
       | array-length signatures > 0 ->
         Some (BodyTable source strings nodes operands signatures (index-packed-signatures signatures 0 hash-map-empty) rows)
     other -> None
@@ -954,7 +965,7 @@ module Bootstrap.Package where
               Err message -> Err message
               Ok region -> case read-hashed-document address strings definitions region (Some table) of
                 Err message -> Err message
-                Ok (document, computed) -> read-rows address raw table strings documents definitions bodies base count (index + 1)
+                Ok (document, computed, decoded) -> read-rows address raw table strings documents decoded bodies base count (index + 1)
                   (Cons (PackageContract name digest document (u64-decimal computed) bodies) items))
 
   decode-package :: forall r. Bytes ->{IO r} Result String (List PackageContract, StringTable, Array String, AbiSection)

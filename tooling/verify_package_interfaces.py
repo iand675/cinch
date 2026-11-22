@@ -77,6 +77,11 @@ module Main where
                     "node": "if", "condition": {"node": "bool", "value": True},
                     "yes": definition["body"], "no": {"node": "number", "sort": "Nat", "decimal": "1"},
                 }
+    # Two export rows can point to the same checked graph. Each has its
+    # own canonical digest position even when its closure is shared.
+    branch = next(row for row in document["exports"]["values"] if row["name"] == "branch")
+    document["exports"]["values"].append({**deepcopy(branch), "name": "branch-alias"})
+    document["abi"]["symbols"].append("branch-alias=PackedProbe.branch")
     digest = interface_hash(document)
     data = pack([*rows, ("PackedProbe", digest, canonical(document).encode())], flat_bodies=True)
     nodes, size = words(data, 56, 2)
