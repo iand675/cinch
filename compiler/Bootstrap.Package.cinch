@@ -13,6 +13,7 @@ module Bootstrap.Package where
   import Data.Machine (u32-to-nat, saturating-i64-to-i32)
   import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int, nat-to-i64)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
+  import Text.Fnv (fnv64a-update)
   import Text.Json (parse-json)
   import Text.Lex (bytes-slice)
   import Text.Parse (ParseOutcome, Parsed)
@@ -67,10 +68,53 @@ module Bootstrap.Package where
   package-contract :: PackageContract -> (String, String, (Json, String))
   package-contract (PackageContract name declared doc computed) = (name, declared, (doc, computed))
 
+  -- Prepare these fixed canonical fragments once per package.
+  record WireSyntax where
+    localNode :: Bytes
+    decimalField :: Bytes
+    numberSort :: Bytes
+    falseNode :: Bytes
+    trueNode :: Bytes
+    primitiveOperation :: Bytes
+    callTarget :: Bytes
+    letBody :: Bytes
+    letValue :: Bytes
+    ifCondition :: Bytes
+    ifNo :: Bytes
+    ifYes :: Bytes
+    argumentsArray :: Bytes
+    endGraph :: Bytes
+    identityField :: Bytes
+    parametersField :: Bytes
+    resultField :: Bytes
+    definitionsArray :: Bytes
+
+  wire-syntax :: WireSyntax
+  wire-syntax = WireSyntax
+    { localNode = string-to-bytes "{\"node\":\"local\",\"slot\":"
+    , decimalField = string-to-bytes "{\"decimal\":"
+    , numberSort = string-to-bytes ",\"node\":\"number\",\"sort\":"
+    , falseNode = string-to-bytes "{\"node\":\"bool\",\"value\":false}"
+    , trueNode = string-to-bytes "{\"node\":\"bool\",\"value\":true}"
+    , primitiveOperation = string-to-bytes ",\"node\":\"primitive\",\"operation\":"
+    , callTarget = string-to-bytes ",\"node\":\"call\",\"target\":"
+    , letBody = string-to-bytes "{\"body\":"
+    , letValue = string-to-bytes ",\"node\":\"let\",\"value\":"
+    , ifCondition = string-to-bytes "{\"condition\":"
+    , ifNo = string-to-bytes ",\"no\":"
+    , ifYes = string-to-bytes ",\"node\":\"if\",\"yes\":"
+    , argumentsArray = string-to-bytes "{\"arguments\":["
+    , endGraph = string-to-bytes "],\"version\":1}"
+    , identityField = string-to-bytes ",\"identity\":"
+    , parametersField = string-to-bytes ",\"parameters\":["
+    , resultField = string-to-bytes ",\"result\":"
+    , definitionsArray = string-to-bytes "{\"definitions\":["
+    }
+
   data Definitions where
     NoDefinitions :: Definitions
     RecipeDefinitions :: Array Json -> Definitions
-    IndexedDefinitions :: FlatBodies -> Array Json -> Definitions
+    IndexedDefinitions :: PackedTable -> Array Json -> WireSyntax -> Definitions
 
   region-size :: Region -> Nat
   region-size region = case region of Region start length -> length
@@ -337,9 +381,9 @@ module Bootstrap.Package where
           other -> Err "invalid shared definition table")
         8 -> read-number address cursor limit True table hash
         9 -> (case definitions of
-          IndexedDefinitions flat rows | cursor + 4 <= limit -> (case read-body-closure address strings flat rows (word address cursor) of
+          IndexedDefinitions packed rows syntax | cursor + 4 <= limit -> (case read-body-closure syntax packed rows (word address cursor) table hash of
             Err message -> Err message
-            Ok body -> Ok (body, cursor + 4, digest-value table hash body))
+            Ok (body, digest) -> Ok (body, cursor + 4, digest))
           other -> Err "unexpected packed body root")
         other -> Err "unknown structured contract tag"
 
@@ -593,13 +637,13 @@ module Bootstrap.Package where
     Nil -> tail
     Cons sort rest -> parameter-document rest (JArr (JStr sort) tail)
 
-  read-flat-rows :: FlatBodies -> PackedTable -> Nat -> Nat -> List Json -> Result String Definitions
-  read-flat-rows flat table index first rows = case table of
+  read-flat-rows :: PackedTable -> Nat -> Nat -> List Json -> Result String Definitions
+  read-flat-rows table index first rows = case table of
     PackedTable address strings nodes operands signatures ->
       if index == array-length signatures then
         (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
          else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
-         else Ok (IndexedDefinitions flat (array-from-list (reverse rows))))
+         else Ok (IndexedDefinitions table (array-from-list (reverse rows)) wire-syntax))
       else
         (case array-get signatures index of
           None -> Err "packed body definition outside its section"
@@ -612,28 +656,109 @@ module Bootstrap.Package where
                 else
                   let arguments = parameter-document (reverse parameters) JArrEnd in
                   let row = JObj "body" body (JObj "identity" (JStr identity) (JObj "parameters" arguments (JObj "result" (JStr result) JObjEnd))) in
-                  read-flat-rows flat table (index + 1) next (Cons row rows)))
+                  read-flat-rows table (index + 1) next (Cons row rows)))
 
   body-document :: Json -> Json
   body-document definitions = JObj "definitions" definitions (JObj "version" (JNum 1) JObjEnd)
 
-  -- The indexed table has already been checked. Walk only the reachable
-  -- body IDs, even when the package has many independent exports.
-  reachable-bodies :: I64 -> Array String -> Region -> Region -> List Nat -> HashMap String () -> List Nat -> Result String (List Nat)
-  reachable-bodies address strings bodies edges pending seen selected = case pending of
-    Nil -> Ok selected
-    Cons first rest ->
-      if first >= region-size bodies / 32 then Err "packed body definition outside its section" else
-        let at = region-start bodies + first * 32 in
-        (case array-get strings (word address at) of
-          None -> Err "packed body identity outside package string table"
-          Some identity -> (case hash-map-lookup identity seen of
-            Some known -> reachable-bodies address strings bodies edges rest seen selected
-            None -> (case operand-region edges (word address (at + 20)) (word address (at + 24)) of
+  -- The verified signature table already carries the exact edge spans.
+  -- Closure walks reuse those spans and never reread a definition header.
+  reachable-bodies :: PackedTable -> List Nat -> HashMap String () -> List Nat -> Result String (List Nat)
+  reachable-bodies packed pending seen selected = case (packed, pending) of
+    (PackedTable address strings nodes operands signatures, Cons first rest) ->
+      (case array-get signatures first of
+        None -> Err "packed body definition outside its section"
+        Some (PackedSignature identity parameters result root (Region start length)) ->
+          (case hash-map-lookup identity seen of
+            Some known -> reachable-bodies packed rest seen selected
+            None -> reachable-bodies packed (reversed-words address start (start + length) rest)
+              (hash-map-insert identity () seen) (Cons first selected)))
+    (PackedTable address strings nodes operands signatures, Nil) -> Ok selected
+
+  hash-node-text :: I64 -> StringTable -> Array String -> U64 -> Nat -> Result String U64
+  hash-node-text address table strings hash id = case array-get strings id of
+    None -> Err "packed body text outside package string table"
+    Some text -> Ok (digest-string address (Some table) hash id text)
+
+  hash-wire-term :: WireSyntax -> PackedTable -> StringTable -> U64 -> Nat -> Nat -> Result String U64
+  hash-wire-term syntax packed table hash id depth = case packed of
+    PackedTable address strings nodes operands signatures ->
+      if depth == 0 || id >= region-size nodes / 16 then Err "packed body node outside its section" else
+        let at = region-start nodes + id * 16 in
+        let a = word address (at + 4) in
+        let b = word address (at + 8) in
+        let c = word address (at + 12) in
+        let next = depth - 1 in
+        case word address at of
+          0 -> Ok (fnv-byte (fnv-json-value (fnv64a-update hash (syntax.localNode)) (JNum (nat-to-int a))) 125)
+          1 -> (case hash-node-text address table strings (fnv64a-update hash (syntax.decimalField)) b of
+            Err message -> Err message
+            Ok literal -> (case hash-node-text address table strings (fnv64a-update literal (syntax.numberSort)) a of
               Err message -> Err message
-              Ok (Region start length) ->
-                reachable-bodies address strings bodies edges (reversed-words address start (start + length) rest)
-                  (hash-map-insert identity () seen) (Cons first selected))))
+              Ok result -> Ok (fnv-byte result 125)))
+          2 -> Ok (fnv64a-update hash (if a == 0 then (syntax.falseNode) else (syntax.trueNode)))
+          3 -> (case hash-wire-application syntax packed table hash b c next of
+            Err message -> Err message
+            Ok arguments -> (case hash-node-text address table strings
+              (fnv64a-update arguments (syntax.primitiveOperation)) a of
+                Err message -> Err message
+                Ok operation -> Ok (fnv-byte operation 125)))
+          4 -> (case array-get signatures a of
+            None -> Err "packed body definition outside its section"
+            Some (PackedSignature name parameters result root edges) ->
+              (case hash-wire-application syntax packed table hash b c next of
+                Err message -> Err message
+                Ok arguments -> Ok (fnv-byte (fnv-json-string (fnv64a-update arguments (syntax.callTarget)) name) 125)))
+          5 -> (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.letBody)) b next of
+            Err message -> Err message
+            Ok body -> (case hash-wire-term syntax packed table (fnv64a-update body (syntax.letValue)) a next of
+              Err message -> Err message
+              Ok value -> Ok (fnv-byte value 125)))
+          6 -> (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.ifCondition)) a next of
+            Err message -> Err message
+            Ok condition -> (case hash-wire-term syntax packed table (fnv64a-update condition (syntax.ifNo)) c next of
+              Err message -> Err message
+              Ok no -> (case hash-wire-term syntax packed table (fnv64a-update no (syntax.ifYes)) b next of
+                Err message -> Err message
+                Ok yes -> Ok (fnv-byte yes 125))))
+          other -> Err "invalid packed body node"
+
+  hash-wire-application :: WireSyntax -> PackedTable -> StringTable -> U64 -> Nat -> Nat -> Nat -> Result String U64
+  hash-wire-application syntax packed table hash start count depth = case packed of
+    PackedTable address strings nodes operands signatures ->
+      (case operand-region operands start count of
+        Err message -> Err message
+        Ok (Region at length) -> hash-wire-arguments syntax packed table at (at + length) depth (fnv64a-update hash (syntax.argumentsArray)))
+
+  hash-wire-arguments :: WireSyntax -> PackedTable -> StringTable -> Nat -> Nat -> Nat -> U64 -> Result String U64
+  hash-wire-arguments syntax packed table at end depth hash =
+    if at == end then Ok (fnv-byte hash 93) else case packed of
+      PackedTable address strings nodes operands signatures ->
+        (case hash-wire-term syntax packed table hash (word address at) depth of
+          Err message -> Err message
+          Ok argument -> hash-wire-arguments syntax packed table (at + 4) end depth
+            (if at + 4 == end then argument else fnv-byte argument 44))
+
+  hash-parameter-list :: U64 -> List String -> U64
+  hash-parameter-list hash parameters = case parameters of
+    Nil -> fnv-byte hash 93
+    Cons sort Nil -> fnv-byte (fnv-json-string hash sort) 93
+    Cons sort rest -> hash-parameter-list (fnv-byte (fnv-json-string hash sort) 44) rest
+
+  hash-wire-rows :: WireSyntax -> PackedTable -> StringTable -> List Nat -> U64 -> Result String U64
+  hash-wire-rows syntax packed table indices hash = case (packed, indices) of
+    (PackedTable address strings nodes operands signatures, Nil) -> Ok (fnv64a-update hash (syntax.endGraph))
+    (PackedTable address strings nodes operands signatures, Cons first rest) ->
+      (case array-get signatures first of
+        None -> Err "packed body definition outside its section"
+        Some (PackedSignature name parameters result root edges) ->
+          (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.letBody)) root 256 of
+            Err message -> Err message
+            Ok body ->
+              let identity = fnv-json-string (fnv64a-update body (syntax.identityField)) name in
+              let arguments = hash-parameter-list (fnv64a-update identity (syntax.parametersField)) parameters in
+              let complete = fnv-byte (fnv-json-string (fnv64a-update arguments (syntax.resultField)) result) 125 in
+              hash-wire-rows syntax packed table rest (case rest of Nil -> complete; other -> fnv-byte complete 44)))
 
   body-rows :: Array Json -> List Nat -> Json -> Result String Json
   body-rows rows indices tail = case indices of
@@ -642,14 +767,25 @@ module Bootstrap.Package where
       Some row -> body-rows rows rest (JArr row tail)
       None -> Err "packed body definition outside its section")
 
-  read-body-closure :: I64 -> Array String -> FlatBodies -> Array Json -> Nat -> Result String Json
-  read-body-closure address strings flat rows root = case flat of
-    FlatBodies bodies edges nodes operands ->
-      if root >= region-size bodies / 32 then Err "packed body definition outside its section"
-      else if word address (region-start bodies + root * 32 + 24) == 0 then body-rows rows [root] JArrEnd
-      else (case reachable-bodies address strings bodies edges [root] hash-map-empty Nil of
-          Err message -> Err message
-          Ok selected -> body-rows rows (reverse (sort selected)) JArrEnd)
+  finish-body-closure :: WireSyntax -> PackedTable -> Array Json -> List Nat -> Option StringTable -> U64 -> Result String (Json, U64)
+  finish-body-closure syntax packed rows selected table hash = case body-rows rows (reverse selected) JArrEnd of
+    Err message -> Err message
+    Ok body -> case table of
+      None -> Ok (body, hash)
+      Some spans -> (case hash-wire-rows syntax packed spans selected (fnv64a-update hash (syntax.definitionsArray)) of
+        Err message -> Err message
+        Ok digest -> Ok (body, digest))
+
+  read-body-closure :: WireSyntax -> PackedTable -> Array Json -> Nat -> Option StringTable -> U64 -> Result String (Json, U64)
+  read-body-closure syntax packed rows root table hash = case packed of
+    PackedTable address strings nodes operands signatures ->
+      (case array-get signatures root of
+        None -> Err "packed body definition outside its section"
+        Some (PackedSignature name parameters result node (Region start length)) ->
+          if length == 0 then finish-body-closure syntax packed rows [root] table hash else
+            (case reachable-bodies packed [root] hash-map-empty Nil of
+              Err message -> Err message
+              Ok selected -> finish-body-closure syntax packed rows (sort selected) table hash))
 
   read-package-definitions :: forall r. I64 -> Array String -> BodyFormat ->{IO r} Result String Definitions
   read-package-definitions address strings format = case format of
@@ -659,7 +795,7 @@ module Bootstrap.Package where
     Indexed flat -> case flat of
       FlatBodies bodies edges nodes operands -> (case read-flat-signatures address strings flat 0 None Nil of
         Err message -> Err message
-        Ok signatures -> read-flat-rows flat (PackedTable address strings nodes operands signatures) 0 0 Nil)
+        Ok signatures -> read-flat-rows (PackedTable address strings nodes operands signatures) 0 0 Nil)
 
   read-strings :: forall r. I64 -> Region -> Nat -> Nat -> List String ->{IO r} Result String (Array String)
   read-strings address raw at limit items =
