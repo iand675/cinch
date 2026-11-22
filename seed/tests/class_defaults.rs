@@ -113,6 +113,26 @@ fn an_omitted_method_takes_its_default_and_a_definition_overrides_it() {
 }
 
 #[test]
+fn a_wide_instance_keeps_equation_order_and_can_take_a_default() {
+    let mut source = String::from("module Main where\n  signature Wide a where\n");
+    for index in 0..10 {
+        source.push_str(&format!("    method{index} :: a -> Nat\n"));
+    }
+    source.push_str(
+        "    method9 value = method0 value\n  implicit instance WideBool :: Wide Bool where\n",
+    );
+    source.push_str("    method0 True = 1\n    method0 _ = 2\n");
+    for index in (1..9).rev() {
+        source.push_str(&format!("    method{index} _ = {index}\n"));
+    }
+    source.push_str(
+        "  main :: Int\n  main = if method9 True == 1 && method9 False == 2 && method8 True == 8 then 0 else 9\n",
+    );
+    let dir = project(&[("Main.cinch", &source)]);
+    assert_eq!(outcome(Mode::Run, &dir), Ok(0));
+}
+
+#[test]
 fn an_omitted_method_without_a_default_is_still_refused() {
     let main = MAIN.replace(
         "    size b = case b of\n      Box n -> n\n",

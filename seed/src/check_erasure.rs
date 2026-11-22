@@ -3,10 +3,8 @@
 // an arrow's effect row is not a certificate that an arbitrary body terminates.
 impl Checker {
     fn check_erased_computations(&self, module: &str) -> Result<()> {
-        for (owner, span, expression) in &self.erasure_checks {
-            if owner == module {
-                self.erased_computation(expression, &HashMap::new(), &mut Vec::new(), *span)?;
-            }
+        for (span, expression) in self.erasure_checks.get(module).into_iter().flatten() {
+            self.erased_computation(expression, &HashMap::new(), &mut Vec::new(), *span)?;
         }
         Ok(())
     }

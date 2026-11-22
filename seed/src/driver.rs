@@ -326,14 +326,17 @@ pub struct PackageModule {
 /// interfaces carry an empty `source_hash`, which leaves a stored
 /// artifact with no witness for which sources produced it.
 pub fn family_source_hashes() -> Vec<(String, String)> {
-    base_package()
-        .modules
-        .iter()
-        .filter_map(|m| {
-            embedded_source(&m.path)
-                .map(|(_, src)| (m.name.clone(), crate::interface::content_hash(src)))
-        })
-        .collect()
+    static HASHES: std::sync::LazyLock<Vec<(String, String)>> = std::sync::LazyLock::new(|| {
+        base_package()
+            .modules
+            .iter()
+            .filter_map(|m| {
+                embedded_source(&m.path)
+                    .map(|(_, src)| (m.name.clone(), crate::interface::content_hash(src)))
+            })
+            .collect()
+    });
+    HASHES.clone()
 }
 
 /// A parsed package manifest (`.cinchpkg`): the module list and the
@@ -477,21 +480,27 @@ impl Package {
     /// The facade's position in the check order: the split between the
     /// early homes (checked before it) and the late ones.
     pub fn facade_index(&self) -> usize {
+        let facades: HashSet<_> = self.modules.iter()
+            .filter(|module| module.facade)
+            .map(|module| module.name.as_str())
+            .collect();
         self.order
             .iter()
-            .position(|n| self.modules.iter().any(|m| m.facade && &m.name == n))
+            .position(|name| facades.contains(name.as_str()))
             .unwrap_or(self.order.len())
     }
 
     /// `(path, source)` for every embedded module, in manifest order.
     pub fn ordered_sources(&self) -> Result<Vec<(&'static str, &'static str)>> {
+        let mut modules = HashMap::with_capacity(self.modules.len());
+        for module in &self.modules {
+            modules.entry(module.name.as_str()).or_insert(module);
+        }
         self.order
             .iter()
             .map(|name| {
-                let m = self
-                    .modules
-                    .iter()
-                    .find(|m| &m.name == name)
+                let m = modules
+                    .get(name.as_str())
                     .ok_or_else(|| {
                         Error::plain(format!(
                             "package manifest: `{name}` is in `order` but has no module entry"
@@ -1257,7 +1266,15 @@ fn str_of(v: &crate::interface::JsonValue, what: &str) -> Result<String> {
 /// The embedded `(path, source)` entry for a manifest path (the
 /// `include_str!` table).
 pub fn embedded_source(path: &str) -> Option<(&'static str, &'static str)> {
-    EMBEDDED_SOURCES.iter().copied().find(|(p, _)| *p == path)
+    static BY_PATH: std::sync::LazyLock<HashMap<&'static str, &'static str>> =
+        std::sync::LazyLock::new(|| {
+            let mut sources = HashMap::with_capacity(EMBEDDED_SOURCES.len());
+            for &(path, source) in EMBEDDED_SOURCES {
+                sources.entry(path).or_insert(source);
+            }
+            sources
+        });
+    BY_PATH.get_key_value(path).map(|(&path, &source)| (path, source))
 }
 
 /// The base package, parsed once from its embedded manifest.
@@ -3558,11 +3575,9 @@ fn parse_family_and_user(
     for (m, f) in &user.fixities {
         fixities.insert(m.clone(), f.clone());
     }
+    let user_hash = crate::interface::content_hash(user_src);
     for m in &user.modules {
-        hashes.insert(
-            m.name.text.clone(),
-            crate::interface::content_hash(user_src),
-        );
+        hashes.insert(m.name.text.clone(), user_hash.clone());
         files.insert(m.name.text.clone(), user_file.to_string());
     }
     // The embedded family witnesses its own sources as well.
@@ -5657,18 +5672,14 @@ pub fn driver_with_profile_opts(
         eprint!("{}", link_plan.describe());
     }
     if !opts.package_objects.is_empty() {
-        let mut excluded = Vec::new();
+        let mut excluded = HashSet::new();
         for object in &opts.package_objects {
-            for module in package_object_modules(object)? {
-                if !excluded.contains(&module) {
-                    excluded.push(module);
-                }
-            }
+            excluded.extend(package_object_modules(object)?);
         }
         emit_modules = project
             .order
             .iter()
-            .filter(|module| !excluded.contains(module))
+            .filter(|module| !excluded.contains(module.as_str()))
             .cloned()
             .collect();
     }

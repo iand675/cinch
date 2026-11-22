@@ -6045,13 +6045,18 @@ impl Checker {
         let mut method_own: Vec<usize> = Vec::new();
         let mut seen: Vec<String> = Vec::new();
         let mut pres_methods: Vec<(String, GlobalId, Ty)> = Vec::new();
+        let equations = (sig.methods.len() > 8).then(|| {
+            let mut by_method: HashMap<&str, Vec<&ast::Equation>> = HashMap::new();
+            for equation in &inst.methods {
+                by_method.entry(equation.name.text.as_str()).or_default().push(equation);
+            }
+            by_method
+        });
         for (mname, mscheme) in sig.methods.clone() {
-            let mut eqs: Vec<ast::Equation> = inst
-                .methods
-                .iter()
-                .filter(|e| e.name.text == mname)
-                .cloned()
-                .collect();
+            let mut eqs: Vec<ast::Equation> = match &equations {
+                Some(by_method) => by_method.get(mname.as_str()).into_iter().flatten().copied().cloned().collect(),
+                None => inst.methods.iter().filter(|equation| equation.name.text == mname).cloned().collect(),
+            };
             let from_default = eqs.is_empty();
             if from_default {
                 match sig.defaults.iter().find(|(m, _)| *m == mname) {
@@ -8151,7 +8156,7 @@ impl Checker {
         body = self.fill_holes(&body, &sol)?;
         for (module, span, expression) in std::mem::take(&mut self.pending_erasure_checks) {
             let expression = self.fill_holes(&expression, &sol)?;
-            self.erasure_checks.push((module, span, expression));
+            self.erasure_checks.entry(module).or_default().push((span, expression));
         }
         let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
         for (mid, core) in std::mem::take(&mut self.pending_rec) {
@@ -17474,60 +17479,45 @@ impl Checker {
     /// ambiguous. The metadata-level check in `interface.rs` is the fast
     /// path; this is the authoritative check with real type machinery.
     fn check_instance_coherence(&mut self) -> Result<()> {
-        let n = self.instance_list.len();
-        for a in 0..n {
-            for b in (a + 1)..n {
-                // Default resolution stays coherent among the instances
-                // it may select: the implicit ones. Explicit dictionaries
-                // are selected by name (module arguments, `using` binders),
-                // so several meaningful implementations of one class may
-                // coexist and nothing silently merges them. A
-                // parameterized module's declared instance resolves only
-                // inside its module and is published per instantiation, so
-                // it is compared through its published copies, not against
-                // itself (module parameters as module arguments).
-                if self.instance_list[a].base || self.instance_list[b].base {
-                    continue;
-                }
-                if !self.instance_list[a].implicit || !self.instance_list[b].implicit {
-                    continue;
-                }
-                let (class_a, class_b) =
-                    (self.instance_list[a].target.class.clone(), self.instance_list[b].target.class.clone());
-                if class_a != class_b {
-                    continue;
-                }
-                let (pa, ta) = {
-                    let i = &self.instance_list[a];
-                    (i.params.clone(), i.target.clone())
-                };
-                let (pb, tb, name_a, name_b) = {
-                    let i = &self.instance_list[b];
-                    (i.params.clone(), i.target.clone(), self.instance_list[a].name.clone(), i.name.clone())
-                };
+        // Preserve the original (a, b) diagnostic order while excluding
+        // pairs that default resolution can never compare.
+        let mut candidates: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (index, instance) in self.instance_list.iter().enumerate() {
+            if instance.implicit && !instance.base {
+                candidates.entry(instance.target.class.as_str()).or_default().push(index);
+            }
+        }
+        for (a, first) in self.instance_list.iter().enumerate() {
+            if first.base || !first.implicit {
+                continue;
+            }
+            let class = first.target.class.as_str();
+            let peers = &candidates[class];
+            let following = peers.partition_point(|&b| b <= a);
+            for &b in &peers[following..] {
+                let second = &self.instance_list[b];
                 let mut map_a: HashMap<String, Ty> = HashMap::new();
-                for p in &pa {
-                    map_a.insert(p.clone(), self.uni.fresh());
+                for param in &first.params {
+                    map_a.insert(param.clone(), self.uni.fresh());
                 }
                 let mut map_b: HashMap<String, Ty> = HashMap::new();
-                for p in &pb {
-                    map_b.insert(p.clone(), self.uni.fresh());
+                for param in &second.params {
+                    map_b.insert(param.clone(), self.uni.fresh());
                 }
                 let rows = HashMap::new();
                 let regs = HashMap::new();
-                let ca = Checker::subst_full_class(&ta, &map_a, &rows, &regs);
-                let cb = Checker::subst_full_class(&tb, &map_b, &rows, &regs);
-                let conflict = self
-                    .uni
-                    .unify(
-                        &Ty::Adt(ca.class.clone().into(), ca.args.clone()),
-                        &Ty::Adt(cb.class.clone().into(), cb.args.clone()),
-                    )
-                    .is_ok();
+                let ca = Checker::subst_full_class(&first.target, &map_a, &rows, &regs);
+                let cb = Checker::subst_full_class(&second.target, &map_b, &rows, &regs);
+                let conflict = self.uni.unify(
+                    &Ty::Adt(ca.class.into(), ca.args),
+                    &Ty::Adt(cb.class.into(), cb.args),
+                ).is_ok();
                 if conflict {
+                    let name_a = &first.name;
+                    let name_b = &second.name;
                     return Err(Error::plain(crate::diagnostic!(
                         "ambiguous instance for {}: {name_a} and {name_b} have unifiable targets",
-                        crate::spelling::Nominal(&class_a)
+                        crate::spelling::Nominal(class)
                     )));
                 }
             }

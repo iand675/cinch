@@ -3250,7 +3250,7 @@ struct Checker {
     comparison_facts: HashMap<LocalId, Vec<ComparisonCertificate>>,
     used_comparisons: RefCell<Vec<(ComparisonCertificate, ast::Span, String)>>,
     pending_erasure_checks: Vec<(String, ast::Span, ECore)>,
-    erasure_checks: Vec<(String, ast::Span, ECore)>,
+    erasure_checks: HashMap<String, Vec<(ast::Span, ECore)>>,
     /// Top-level bindings recorded for the eager-reference-cycle check
     /// (the guarded-letrec rule extended to the top level, where the
     /// `letrec` fixpoint discipline does not reach): `(unit id, name,
@@ -3996,7 +3996,7 @@ impl Checker {
             comparison_facts: HashMap::new(),
             used_comparisons: RefCell::new(Vec::new()),
             pending_erasure_checks: Vec::new(),
-            erasure_checks: Vec::new(),
+            erasure_checks: HashMap::new(),
             top_binds: Vec::new(),
             top_edges: Vec::new(),
             record_top_value: false,
