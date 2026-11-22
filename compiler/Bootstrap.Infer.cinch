@@ -81,7 +81,7 @@ module Bootstrap.Infer where
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
     -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
-    MkTypeContext :: Bool -> KindDeclarations -> (List Decl, HashMap String Decl, HashMap String ImportedSyntax, HashMap String (List Json))
+    MkTypeContext :: Bool -> KindDeclarations -> (List Decl, HashMap String Decl, HashMap String ImportedSyntax, HashMap String (List Json), RecordIndex)
       -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
 
   -- | Remove authority when a source or imported header claims an existing primitive identity.
@@ -132,13 +132,17 @@ module Bootstrap.Infer where
         aliases active observers effects source-classes (revoke-payload name payloads)
   -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext handling kinds (rows, refinements, parsed, foreign-rows) active observers effects source-classes payloads -> rows
+  context-aliases context = case context of MkTypeContext handling kinds (rows, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads -> rows
+  context-records :: TypeContext -> HashMap String RecordShape
+  context-records context = case context of
+    MkTypeContext handling kinds (rows, refinements, parsed, foreign-rows, RecordIndex records scopes) active observers effects source-classes payloads -> records
   -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
   context-add-alias alias context = case context of
-    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows) active observers effects source-classes payloads ->
+    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads ->
       let indexed = (case alias of DRefine site name parameters binder predicate -> hash-map-insert name alias refinements; other -> refinements) in
-      MkTypeContext handling kinds (Cons alias aliases, indexed, parsed, foreign-rows) active observers effects source-classes (declaration-payloads alias payloads)
+      MkTypeContext handling kinds (Cons alias aliases, indexed, parsed, foreign-rows, update-record-index alias records)
+        active observers effects source-classes (declaration-payloads alias payloads)
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
@@ -483,7 +487,7 @@ module Bootstrap.Infer where
   primitive-kinds :: TypeContext
   primitive-kinds =
     let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
-    MkTypeContext False (kind-declarations builtins) (Nil, hash-map-empty, hash-map-empty, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+    MkTypeContext False (kind-declarations builtins) (Nil, hash-map-empty, hash-map-empty, hash-map-empty, RecordIndex hash-map-empty None) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -650,7 +654,7 @@ module Bootstrap.Infer where
     other -> (None, add-error sp "imported refinement is missing its defining contract" st)
   find-refinement :: String -> TypeContext -> Option Decl
   find-refinement name context = case context of
-    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows) active observers effects source-classes payloads -> hash-map-lookup name refinements
+    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads -> hash-map-lookup name refinements
   refinement-application :: UType -> List UType -> (UType, List UType)
   refinement-application ty args = case ty of UApp head value -> refinement-application head (Cons value args); other -> (ty, args)
   unfold-refinement :: Span -> TypeContext -> UType -> Store -> (UType, Store)
@@ -2610,7 +2614,7 @@ module Bootstrap.Infer where
     other -> None
   cached-import-scheme :: TypeContext -> Json -> Option ImportedSyntax
   cached-import-scheme kinds metadata = case kinds of
-    MkTypeContext handling rows (aliases, refinements, parsed, foreign-rows) active observers effects source-classes payloads -> case field "symbol" metadata of
+    MkTypeContext handling rows (aliases, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads -> case field "symbol" metadata of
       JStr name -> hash-map-lookup name parsed
       other -> case field "id" metadata of
         JStr identity -> hash-map-lookup identity parsed
@@ -2649,8 +2653,8 @@ module Bootstrap.Infer where
     Cons other rest -> prepare-import-syntax materialized rest parsed
   context-with-import-indexes :: HashMap String ImportedSyntax -> HashMap String (List Json) -> TypeContext -> TypeContext
   context-with-import-indexes parsed foreign-rows context = case context of
-    MkTypeContext handling kinds (aliases, refinements, prior, previous-foreign) active observers effects source-classes payloads ->
-      MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows) active observers effects source-classes payloads
+    MkTypeContext handling kinds (aliases, refinements, prior, previous-foreign, records) active observers effects source-classes payloads ->
+      MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads
   imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
   imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
     None -> (case make-scheme True classes kinds Nil fallback st of
@@ -3453,7 +3457,7 @@ module Bootstrap.Infer where
 
   imported-foreign-row :: String -> TypeContext -> Option Json
   imported-foreign-row identity context = case context of
-    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows) active observers effects source-classes payloads ->
+    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, records) active observers effects source-classes payloads ->
       (case hash-map-lookup identity foreign-rows of
         Some rows -> matching-imported-foreign rows
         None -> None)
@@ -4588,7 +4592,7 @@ module Bootstrap.Infer where
     Some binding -> lookup-value sp name env st
     None -> case find-refinement name kinds of
       Some declaration -> refinement-constructor sp kinds name st
-      None -> if codata-name name (context-aliases kinds) then
+      None -> if codata-name name kinds then
         term-error sp "a codata value must use its observed construction form" st
         else lookup-value sp name env st
 
@@ -6455,10 +6459,10 @@ module Bootstrap.Infer where
               None -> case bind-constructor classes kinds families env locals s args (pattern-constructor-type (normalize ss expected) ty) expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
                 (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
         else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
-      None -> if codata-name name (context-aliases kinds) then
+      None -> if codata-name name kinds then
         (env, CPWild s UError, add-error s "a codata value is observed, not destructured: use .field projection" st)
         else (env, CPWild s UError, add-error s (string-concat "unknown constructor: " name) st)
-    PRecord s name fields -> if codata-name name (context-aliases kinds) then
+    PRecord s name fields -> if codata-name name kinds then
       (env, CPWild s UError, add-error s "a codata value is observed, not destructured: use .field projection" st)
       else (env, CPWild s UError, add-error s "record pattern has no defining field contract" st)
     PUnmodeled s message -> (env, CPWild s UError, add-error s message st)
@@ -8728,7 +8732,7 @@ module Bootstrap.Infer where
     let has-codata = codata-present original in
     let unmarked = if has-codata then unwrap-corec-declarations original else original in
     let (specs, declarations) = split-specifications (specification-names unmarked) unmarked in
-    let unkinded = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
+    let unkinded = if record-definitions-present declarations then record-declarations (record-shapes declarations) declarations else declarations in
     let initial = empty-store label in
     let guarded = if has-codata then check-codata-bodies (codata-headers original) (codata-cycle-index original) original initial else initial in
     let contracts = check-imported-refinements unkinded hash-map-empty guarded in
@@ -8756,7 +8760,7 @@ module Bootstrap.Infer where
     let admitted-bodies = (case interfaces of Ok checked -> Some checked; Err message -> None) in
     let (import-kinds, import-body-store) = collect-body-contracts admitted-bodies ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces total-instances ds rows classes import-kinds import-body-store in
-    PreparedModule unkinded ds specs clauses classes method-kinds method-store
+    PreparedModule unkinded ds specs clauses classes (prepare-record-scopes method-kinds) method-store
 
   finish-module :: ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
@@ -8857,26 +8861,48 @@ module Bootstrap.Infer where
   record-labels fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons name (record-labels rest)
   data RecordShape where
     RecordShape :: String -> List String -> Option (List (String, TypeExpr)) -> RecordShape
-  record-definition :: String -> List Decl -> Option RecordShape
-  record-definition name ds = case ds of
-    Nil -> None
-    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (RecordShape actual (record-labels fields) None) else record-definition name rest
-    Cons (DCodata sp actual params fields) rest -> if same name actual then Some (RecordShape actual (record-labels fields) (Some fields)) else record-definition name rest
-    Cons (DExternal sp actual category syntax metadata) rest ->
-      if same actual name && same category "type" then
-        (case (field "kind" metadata, field "ctors" metadata) of
-          (JStr variety, JArr constructor JArrEnd) ->
-            if same variety "codata" then
-              (case imported-observation-fields (field "fields" metadata) constructor of
-                Some fields -> Some (RecordShape actual (record-labels fields) (Some fields))
-                None -> record-definition name rest)
-            else if same variety "record" && runtime-constructors-complete name (field "ctors" metadata)
-              && (case field "symbol" constructor of JStr symbol -> same name (interface-global symbol); other -> False) then
-              Some (RecordShape actual (record-context-names (field "fields" metadata)) None)
-            else record-definition name rest
-          other -> record-definition name rest)
-      else record-definition name rest
-    Cons other rest -> record-definition name rest
+  data RecordIndex where
+    RecordIndex :: HashMap String RecordShape -> Option (List RecordScope) -> RecordIndex
+  data RecordScope where
+    RecordScope :: Span -> HashMap String RecordField -> RecordScope
+  data RecordField where
+    UniqueRecordField :: Nat -> String -> Bool -> RecordField
+    AmbiguousRecordField :: RecordField
+
+  record-shape :: Decl -> Option RecordShape
+  record-shape declaration = case declaration of
+    DRecord sp name params fields -> Some (RecordShape name (record-labels fields) None)
+    DCodata sp name params fields -> Some (RecordShape name (record-labels fields) (Some fields))
+    DExternal sp name category syntax metadata | same category "type" ->
+      (case (field "kind" metadata, field "ctors" metadata) of
+        (JStr variety, JArr constructor JArrEnd) ->
+          if same variety "codata" then
+            (case imported-observation-fields (field "fields" metadata) constructor of
+              Some fields -> Some (RecordShape name (record-labels fields) (Some fields))
+              None -> None)
+          else if same variety "record" && runtime-constructors-complete name (field "ctors" metadata)
+            && (case field "symbol" constructor of JStr symbol -> same name (interface-global symbol); other -> False) then
+            Some (RecordShape name (record-context-names (field "fields" metadata)) None)
+          else None
+        other -> None)
+    other -> None
+  update-record-index :: Decl -> RecordIndex -> RecordIndex
+  update-record-index declaration index = case index of
+    RecordIndex records scopes -> (case record-shape declaration of
+      Some (RecordShape name labels observations) ->
+        RecordIndex (hash-map-insert name (RecordShape name labels observations) records) None
+      None -> (case declaration of DSource sp name metadata -> RecordIndex records None; other -> index))
+
+  add-record-shape :: Decl -> HashMap String RecordShape -> HashMap String RecordShape
+  add-record-shape declaration records = case record-shape declaration of
+    Some (RecordShape name labels observations) -> hash-map-insert name (RecordShape name labels observations) records
+    None -> records
+  -- Earlier declarations control shape lookup, including synthesized
+  -- records alongside imported declarations with the same name.
+  record-shapes :: List Decl -> HashMap String RecordShape
+  record-shapes declarations = case declarations of
+    Nil -> hash-map-empty
+    Cons declaration rest -> add-record-shape declaration (record-shapes rest)
   imported-observation-fields :: Json -> Json -> Option (List (String, TypeExpr))
   imported-observation-fields labels row = case resolved-text row of
     Some text -> (case parse-scheme "codata observations" (string-to-bytes text) of
@@ -8892,8 +8918,10 @@ module Bootstrap.Infer where
     other -> None
   has-observations :: Option (List (String, TypeExpr)) -> Bool
   has-observations observations = case observations of Some fields -> True; None -> False
-  codata-name :: String -> List Decl -> Bool
-  codata-name name ds = case record-definition name ds of Some (RecordShape owner fields observations) -> has-observations observations; None -> False
+  codata-name :: String -> TypeContext -> Bool
+  codata-name name kinds = case hash-map-lookup name (context-records kinds) of
+    Some (RecordShape owner fields observations) -> has-observations observations
+    None -> False
   unwrap-corec :: Decl -> Decl
   unwrap-corec declaration = case declaration of DCorec sp body -> body; other -> declaration
   unwrap-corec-declarations :: List Decl -> List Decl
@@ -8928,16 +8956,7 @@ module Bootstrap.Infer where
               other -> marked in
         case unwrap-corec declaration of
           DSig sp name syntax -> CodataHeaders (hash-map-insert name syntax signatures) flags records
-          other -> CodataHeaders signatures flags (codata-record-header declaration records)
-  codata-record-header :: Decl -> HashMap String RecordShape -> HashMap String RecordShape
-  codata-record-header declaration records = case declaration of
-    DRecord sp name params fields -> hash-map-insert name (RecordShape name (record-labels fields) None) records
-    DCodata sp name params fields -> hash-map-insert name (RecordShape name (record-labels fields) (Some fields)) records
-    DExternal sp name category syntax metadata | same category "type" ->
-      (case record-definition name [declaration] of
-        Some shape -> hash-map-insert name shape records
-        None -> records)
-    other -> records
+          other -> CodataHeaders signatures flags (add-record-shape declaration records)
 
   codata-call-graphs :: List Decl -> HashMap String (List String) -> HashMap String (List String) -> List String -> (HashMap String (List String), HashMap String (List String), List String)
   codata-call-graphs ds forward backward vertices = case ds of
@@ -9155,7 +9174,7 @@ module Bootstrap.Infer where
     Cons (name, ty) rest ->
       let at = type-expr-span ty in
       TFun at (TBound at name ty (TBoundsEnd at)) (dependent-record-constructor sp rest result)
-  record-declarations :: List Decl -> List Decl -> List Decl
+  record-declarations :: HashMap String RecordShape -> List Decl -> List Decl
   record-declarations all ds = case ds of
     Nil -> Nil
     Cons declaration rest -> let more = record-declarations all rest in
@@ -9170,11 +9189,11 @@ module Bootstrap.Infer where
         DFun sp name clauses -> Cons (DFun sp name (record-clauses all clauses)) more
         DInstance sp flag name params head members -> Cons (DInstance sp flag name params head (decl-spine sp (record-declarations all (decls-of members)))) more
         other -> Cons declaration more
-  record-clauses :: List Decl -> List (List Pat, Expr) -> List (List Pat, Expr)
+  record-clauses :: HashMap String RecordShape -> List (List Pat, Expr) -> List (List Pat, Expr)
   record-clauses all clauses = case clauses of
     Nil -> Nil
     Cons (patterns, body) rest -> Cons (record-patterns all patterns, record-expression all body) (record-clauses all rest)
-  record-patterns :: List Decl -> List Pat -> List Pat
+  record-patterns :: HashMap String RecordShape -> List Pat -> List Pat
   record-patterns all patterns = case patterns of Nil -> Nil; Cons first rest -> Cons (record-pattern all first) (record-patterns all rest)
   record-pattern-fields :: Pat -> Option (List (String, Pat))
   record-pattern-fields fields = case fields of
@@ -9205,13 +9224,13 @@ module Bootstrap.Infer where
   record-field-pattern sp label fields = case fields of
     Nil -> PUnmodeled sp "missing record pattern field"
     Cons (name, value) rest -> if same name label then value else record-field-pattern sp label rest
-  record-ordered-patterns :: List Decl -> Span -> List String -> List (String, Pat) -> List Pat
+  record-ordered-patterns :: HashMap String RecordShape -> Span -> List String -> List (String, Pat) -> List Pat
   record-ordered-patterns all sp declared fields = case declared of
     Nil -> Nil
     Cons name rest -> Cons (record-pattern all (record-field-pattern sp name fields)) (record-ordered-patterns all sp rest fields)
-  record-pattern :: List Decl -> Pat -> Pat
+  record-pattern :: HashMap String RecordShape -> Pat -> Pat
   record-pattern all pattern = case pattern of
-    PRecord sp name fields -> (case (record-definition name all, record-pattern-fields fields) of
+    PRecord sp name fields -> (case (hash-map-lookup name all, record-pattern-fields fields) of
       (Some (RecordShape owner declared (Some observations)), Some values) -> pattern
       (Some (RecordShape owner declared None), Some values) -> (case record-field-error declared (record-pattern-labels values) Nil of
         Some message -> PUnmodeled sp message
@@ -9227,7 +9246,7 @@ module Bootstrap.Infer where
     other -> pattern
   record-local-name :: String -> String
   record-local-name label = "#record-field:" <> label
-  record-value-expressions :: List Decl -> Span -> List (String, Expr) -> Expr
+  record-value-expressions :: HashMap String RecordShape -> Span -> List (String, Expr) -> Expr
   record-value-expressions all sp fields = case fields of
     Nil -> EArgsEnd sp
     Cons (name, value) rest -> ERecordField (expr-span value) name (record-expression all value) (record-value-expressions all sp rest)
@@ -9242,7 +9261,7 @@ module Bootstrap.Infer where
   record-written-argument sp wanted written = case written of
     Nil -> EUnmodeled sp "missing record evidence field"
     Cons (name, value) rest -> if same name wanted then value else record-written-argument sp wanted rest
-  record-expression :: List Decl -> Expr -> Expr
+  record-expression :: HashMap String RecordShape -> Expr -> Expr
   record-expression all expression = case expression of
     ESupplied sp head fields -> (case record-expression-fields fields of
       Some values -> ESupplied sp (record-expression all head) (record-value-expressions all sp values)
@@ -9318,7 +9337,7 @@ module Bootstrap.Infer where
     Cons (label, value) rest -> let sp = expr-span value in
       Cons (label, ELam sp [PWild sp] value) (delayed-observations rest)
   infer-record-construction :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  infer-record-construction classes kinds families env locals sp name fields wanted st = case (record-definition name (context-aliases kinds), record-expression-fields fields) of
+  infer-record-construction classes kinds families env locals sp name fields wanted st = case (hash-map-lookup name (context-records kinds), record-expression-fields fields) of
     (Some (RecordShape owner declared observations), Some values) -> (case record-field-error declared (record-expression-labels values) Nil of
       Some message -> term-error sp message st
       None -> (case lookup-expression-value sp kinds (record-storage-name (has-observations observations) owner) env st of
@@ -9339,33 +9358,69 @@ module Bootstrap.Infer where
   record-scope-contains :: Span -> Span -> Bool
   record-scope-contains outer inner = case (outer, inner) of
     (Span start finish line column, Span position end row col) -> start <= position && position < finish
-  record-scope-at :: Span -> List Decl -> List String
-  record-scope-at sp declarations = case declarations of
+  -- Only visible records can inform an unknown receiver. Build the
+  -- label table once per source scope, keeping the first matching span
+  -- and counting repeated candidate records just as the scope list did.
+  prepare-record-scopes :: TypeContext -> TypeContext
+  prepare-record-scopes context = case context of
+    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, RecordIndex records scopes) active observers effects classes payloads ->
+      let prepared = RecordIndex records (Some (index-record-scopes aliases records)) in
+      MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, prepared) active observers effects classes payloads
+
+  index-record-scopes :: List Decl -> HashMap String RecordShape -> List RecordScope
+  index-record-scopes declarations records = case declarations of
     Nil -> Nil
-    Cons (DSource at name metadata) rest -> if record-scope-contains at sp then record-context-names (field "record_scope" metadata) else record-scope-at sp rest
-    Cons other rest -> record-scope-at sp rest
-  record-field-candidates :: String -> List String -> List Decl -> List String
-  record-field-candidates label visible declarations = case visible of
-    Nil -> Nil
-    Cons name rest -> (case record-definition name declarations of
-      Some (RecordShape owner fields observations) -> if has label fields then Cons owner (record-field-candidates label rest declarations) else record-field-candidates label rest declarations
-      other -> record-field-candidates label rest declarations)
+    Cons (DSource at name metadata) rest ->
+      let fields = index-visible-fields (field "record_scope" metadata) records 0 hash-map-empty in
+      Cons (RecordScope at fields) (index-record-scopes rest records)
+    Cons other rest -> index-record-scopes rest records
+
+  index-visible-fields :: Json -> HashMap String RecordShape -> Nat -> HashMap String RecordField -> HashMap String RecordField
+  index-visible-fields visible records ordinal indexed = case visible of
+    JArr (JStr name) rest -> (case hash-map-lookup name records of
+      Some (RecordShape owner fields observations) ->
+        index-visible-fields rest records (ordinal + 1) (add-visible-fields fields ordinal owner (has-observations observations) indexed)
+      None -> index-visible-fields rest records (ordinal + 1) indexed)
+    other -> indexed
+
+  add-visible-fields :: List String -> Nat -> String -> Bool -> HashMap String RecordField -> HashMap String RecordField
+  add-visible-fields fields ordinal owner observed indexed = case fields of
+    Nil -> indexed
+    Cons label rest ->
+      let next = (case hash-map-lookup label indexed of
+        None -> hash-map-insert label (UniqueRecordField ordinal owner observed) indexed
+        Some (UniqueRecordField prior _ _) | ordinal /= prior -> hash-map-insert label AmbiguousRecordField indexed
+        other -> indexed) in
+      add-visible-fields rest ordinal owner observed next
+
+  record-field-in-scope :: Span -> String -> List RecordScope -> Option RecordField
+  record-field-in-scope sp label scopes = case scopes of
+    Nil -> None
+    Cons (RecordScope at fields) rest ->
+      if record-scope-contains at sp then hash-map-lookup label fields else record-field-in-scope sp label rest
+
+  context-record-field :: Span -> String -> TypeContext -> Option RecordField
+  context-record-field sp label context = case context of
+    MkTypeContext handling kinds (aliases, refinements, parsed, foreign-rows, RecordIndex records scopes) active observers effects classes payloads ->
+      case scopes of
+        Some ready -> record-field-in-scope sp label ready
+        None -> record-field-in-scope sp label (index-record-scopes aliases records)
   -- Match Native: a known receiver chooses its declaring record. An
   -- unknown receiver may use exactly one visible declaring record, never
   -- a private/unselected global or a guess among repeated field names.
   hint-record-receiver :: Span -> String -> UType -> TypeContext -> List CheckedBinding -> Store -> Store
   hint-record-receiver sp label receiver kinds env st = case normalize st receiver of
-    UMeta id KType -> (case record-field-candidates label (record-scope-at sp (context-aliases kinds)) (context-aliases kinds) of
-      Cons owner Nil -> (case lookup-expression-value sp kinds (record-storage-name (codata-name owner (context-aliases kinds)) owner) env st of
+    UMeta id KType -> (case context-record-field sp label kinds of
+      Some (UniqueRecordField ordinal owner observed) -> (case lookup-expression-value sp kinds (record-storage-name observed owner) env st of
         (constructor, checked) -> unify sp receiver (result-type (core-type constructor)) checked)
-      Nil -> add-error sp ("unknown record field " <> label) st
-      other -> add-error sp ("ambiguous record field " <> label <> ": annotate the operand") st)
+      Some AmbiguousRecordField -> add-error sp ("ambiguous record field " <> label <> ": annotate the operand") st
+      None -> add-error sp ("unknown record field " <> label) st)
     other -> st
   infer-record-projection :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> String -> Store -> (CoreTerm, Store)
   infer-record-projection classes kinds families env locals sp value label st = case infer classes kinds families env locals value st of
     (scrutinee, inferred) -> let checked = hint-record-receiver sp label (core-type scrutinee) kinds env inferred in
       (case root-name (normalize checked (core-type scrutinee)) of
-      Some owner -> (case record-definition owner (context-aliases kinds) of
+      Some owner -> (case hash-map-lookup owner (context-records kinds) of
         Some (RecordShape name fields observations) -> if has label fields then
           (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name (has-observations observations) owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
             (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
