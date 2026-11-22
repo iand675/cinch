@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider and runtime with owned read-only package mappings.",
-  "revision": "80712815f7b1a8b2ec73bf7ee5282277835fb98e",
+  "description": "ABI 10 packed library provider and runtime with mapped packages and validated string views.",
+  "revision": "61f4ae91ab4b942dca5f0af874bf2aec0cf83e44",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "c3589cd62e10ce9cac8baeaca594b665235d1338a3533afd4ce10f7f7b56051f"
+  "source_sha256": "db591a153077ca80af1ef95e598c6d0945a9944d1c8cff2ff4733aaa7465e9f6"
 }

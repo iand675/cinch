@@ -8408,18 +8408,24 @@ module Bootstrap.Infer where
   -- The ordinary pass and every total-body retry see the same interface
   -- headers. Only source declarations and their elaborated kinds differ.
   data ElaborationImports where
-    ElaborationImports :: Result String InterfaceSet -> ImportedClasses -> HashMap String (String, Option TypeExpr) -> ElaborationImports
+    ElaborationImports :: Result String InterfaceSet -> ImportedClasses -> HashMap String (String, Option TypeExpr)
+      -> List (String, Json) -> List (String, List String) -> ElaborationImports
 
   elaborate-module :: (List (String, String, Json) -> Result String InterfaceSet) -> String -> Module -> Elaboration
   elaborate-module load label m =
     let declarations = module-decls m in
     let interfaces = load (total-interface-inputs declarations) in
-    let imports = ElaborationImports interfaces (imported-classes declarations) (prepare-import-syntax declarations hash-map-empty) in
+    let classes = imported-classes declarations in
+    let syntax = prepare-import-syntax declarations hash-map-empty in
+    let ordered = imported-class-rows classes in
+    let families = imported-families declarations in
+    let imports = ElaborationImports interfaces classes syntax ordered families in
     elaborate-module-with-source-bodies imports True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: ElaborationImports -> Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies imports enable label m =
-    let (interfaces, rows, parsed) = (case imports of ElaborationImports admitted signatures syntax -> (admitted, signatures, syntax)) in
+    let (interfaces, rows, parsed, ordered-classes, external-families) = (case imports of
+      ElaborationImports admitted signatures syntax ordered families -> (admitted, signatures, syntax, ordered, families)) in
     let original = module-decls m in
     let has-codata = codata-present original in
     let unmarked = if has-codata then unwrap-corec-declarations original else original in
@@ -8438,7 +8444,6 @@ module Bootstrap.Infer where
     let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded base-kinds preliminary-kinds contracts preliminary-store in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
-    let ordered-classes = imported-class-rows rows in
     let (runtime-kinds, runtime-store) = imported-runtime-class-kinds ordered-classes nominal-kinds sk in
     -- Copy and Share are compiler-known structural classes: their evidence is
     -- the checked shape of a type, so no module declares them.
@@ -8457,7 +8462,7 @@ module Bootstrap.Infer where
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
     let (env, conditional-store) = cache-body-context uncached-env registration-store in
     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
-    let families = index-families (Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds))) in
+    let families = index-families (Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> external-families))) in
     let default-decls = source-default-definitions ds (context-source-classes kinds) in
     let law-store = case store-errors se of Nil -> check-source-laws classes kinds families env ds se; other -> se in
     let (defaults, default-store) = case store-errors law-store of Nil -> check-bodies classes kinds families env Nil (default-decls <> ds) default-decls law-store; other -> (Nil, law-store) in

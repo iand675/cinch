@@ -1,6 +1,6 @@
 --- a/compiler/runtime/src/abi.rs
 +++ b/compiler/runtime/src/abi.rs
-@@ -138,15 +138,46 @@
+@@ -138,15 +138,78 @@
      boxed(crate::block::KIND_BYTES, crate::block::RC_FRESH, v)
  }
  
@@ -36,6 +36,38 @@
 +    }
 +}
 +
++/// Check a string span and return a fresh `String` word, or a negative
++/// error code. Immutable bytes can be retained as a view, while mutable
++/// buffers are copied once so no later write can change the string.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_package_text(owner: i64, offset: i64, length: i64) -> i64 {
++    use crate::block::{KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW, RC_FRESH};
++    let (Ok(start), Ok(length)) = (usize::try_from(offset), usize::try_from(length)) else {
++        return -crate::sys::EINVAL;
++    };
++    let Some(end) = start.checked_add(length) else {
++        return -crate::sys::EINVAL;
++    };
++    let source = unsafe { as_bytes(owner) };
++    let Some(span) = source.as_slice().get(start..end) else {
++        return -crate::sys::EINVAL;
++    };
++    if std::str::from_utf8(span).is_err() {
++        return -crate::sys::EINVAL;
++    }
++    let bytes = if !span.is_empty()
++        && matches!(unsafe { box_kind(owner) }, KIND_BYTES_MAPPED | KIND_BYTES_STATIC | KIND_BYTES_VIEW)
++    {
++        boxed(KIND_BYTES_VIEW, RC_FRESH, unsafe { crate::bytes::ByteView::new(span, owner) })
++    } else {
++        box_bytes(span.to_vec().into())
++    };
++    // Data.String.StrBuf is the sole constructor, with a counted Bytes field.
++    let string = unsafe { crate::block::allocate_ctor(8, crate::block::shape_field(0, 1), false) };
++    unsafe { string.cast::<i64>().write(bytes) };
++    string as usize as i64
++}
++
  /// Box one interned name cell (the cell is handed out once per name and
  /// never freed, so its word is the name's identity): an immortal block.
  pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
@@ -50,7 +82,7 @@
  ///
  /// # Safety
  ///
-@@ -158,6 +189,7 @@
+@@ -158,6 +221,7 @@
          N => unsafe { std::ptr::drop_in_place(p.cast::<Nat>()) },
          I => unsafe { std::ptr::drop_in_place(p.cast::<Int>()) },
          B => unsafe { (*p.cast::<crate::bytes::Bytes>()).release() },
@@ -58,7 +90,7 @@
          _ => {}
      }
  }
-@@ -369,28 +401,21 @@
+@@ -369,28 +433,21 @@
      o as i64
  }
  
@@ -70,8 +102,8 @@
  pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
 -    let k = unsafe { box_kind(word) };
 -    if k != crate::block::KIND_BYTES && k != crate::block::KIND_BYTES_STATIC {
-+    use crate::block::{KIND_BYTES, KIND_BYTES_MAPPED, KIND_BYTES_STATIC};
-+    if !matches!(unsafe { box_kind(word) }, KIND_BYTES | KIND_BYTES_STATIC | KIND_BYTES_MAPPED) {
++    use crate::block::{KIND_BYTES, KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW};
++    if !matches!(unsafe { box_kind(word) }, KIND_BYTES | KIND_BYTES_STATIC | KIND_BYTES_MAPPED | KIND_BYTES_VIEW) {
          raise(Error::CorruptValue);
      }
      unsafe { &*(word as usize as *const crate::bytes::Bytes) }
@@ -84,37 +116,57 @@
 -/// literal's backing) takes the defined read-only fault instead of a
 -/// write to constant data.
 +/// Read a byte buffer for mutation. Generated code sequences all writes,
-+/// and the two read-only kinds take the defined fault.
++/// and read-only buffers take the defined fault.
  unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
      match unsafe { box_kind(word) } {
          crate::block::KIND_BYTES => unsafe { &mut *(word as usize as *mut crate::bytes::Bytes) },
 -        crate::block::KIND_BYTES_STATIC => raise(Error::ReadOnly),
-+        crate::block::KIND_BYTES_STATIC | crate::block::KIND_BYTES_MAPPED => raise(Error::ReadOnly),
++        crate::block::KIND_BYTES_STATIC | crate::block::KIND_BYTES_MAPPED | crate::block::KIND_BYTES_VIEW => raise(Error::ReadOnly),
          _ => raise(Error::CorruptValue),
      }
  }
 --- a/compiler/runtime/src/alloc_kinds.rs
 +++ b/compiler/runtime/src/alloc_kinds.rs
-@@ -56,6 +56,8 @@
+@@ -56,6 +56,9 @@
      b"tensor",
      b"columnar",
      b"tvar",
 +    b"reserved",
 +    b"mapped-bytes",
++    b"bytes-view",
      b"other",
  ];
  
+--- a/compiler/runtime/src/block.rs
++++ b/compiler/runtime/src/block.rs
+@@ -490,6 +490,12 @@
+                 }
+                 Scan::mapped(words, k, 0, scan_slot(code, TVAR_VALUE_WORD))
+             }
++            KIND_BYTES_VIEW => {
++                if words != BYTES_VIEW_OWNER_WORD as usize + 1 {
++                    crate::abi::panic_exit(b"compiler bug: corrupt byte view");
++                }
++                Scan::mapped(words, k, 0, scan_slot(SCAN_OBJ, BYTES_VIEW_OWNER_WORD))
++            }
+             _ => Scan::mapped(words, k, 0, 0),
+         }
+     }
 --- a/compiler/runtime/src/block_kinds.rs
 +++ b/compiler/runtime/src/block_kinds.rs
-@@ -99,8 +99,10 @@
+@@ -99,8 +99,14 @@
  /// scanned slot a live block ever has rewritten in place; its code is the
  /// cell's own `format` word (`SCAN_RAW`, `SCAN_OBJ` or `SCAN_TOBJ`).
  pub const KIND_TVAR: u8 = 17;
 +/// Read-only bytes backed by a file mapping released with the block.
 +pub const KIND_BYTES_MAPPED: u8 = 19;
++/// Read-only byte span with a counted reference to its backing buffer.
++pub const KIND_BYTES_VIEW: u8 = 20;
++/// The owner follows the length and data pointer of the byte span.
++pub const BYTES_VIEW_OWNER_WORD: u64 = 2;
  /// Last live kind; keep range validation in step with new runtime kinds.
 -pub const KIND_LAST: u8 = KIND_TVAR;
-+pub const KIND_LAST: u8 = KIND_BYTES_MAPPED;
++pub const KIND_LAST: u8 = KIND_BYTES_VIEW;
  /// A freed block (debug poisoning): the largest value the field holds.
  pub const KIND_FREED: u8 = 31;
  
@@ -132,7 +184,36 @@
  //! negative lengths, and byte values outside `0..=255` are
  //! [`Error::OutOfBounds`], never undefined behaviour. For generated
  //! code every one of these checks is a compiler-bug trap: a `Bytes`
-@@ -64,8 +63,7 @@
+@@ -32,6 +31,28 @@
+     data: *mut u8,
+ }
+ 
++/// Shares the byte payload layout so read-only operations work on a span.
++#[repr(C)]
++pub(crate) struct ByteView {
++    bytes: Bytes,
++    owner: i64,
++}
++
++impl ByteView {
++    /// Construct a span into a stable buffer with a counted owner.
++    ///
++    /// # Safety
++    ///
++    /// `span` is immutable and remains valid while `owner` is live.
++    pub(crate) unsafe fn new(span: &[u8], owner: i64) -> Self {
++        unsafe { crate::rc::cinch_dup(owner) };
++        Self {
++            bytes: Bytes { len: span.len() as i64, data: span.as_ptr().cast_mut() },
++            owner,
++        }
++    }
++}
++
+ impl Bytes {
+     /// A zeroed buffer of `len` bytes; `len` must be non-negative.
+     pub fn new(len: i64) -> Result<Bytes> {
+@@ -64,8 +85,7 @@
      /// Write `value` (0..=255) at `index`.
      ///
      /// The caller (`abi::as_bytes_mut`) hands out a mutable borrow only
@@ -142,7 +223,7 @@
      pub fn set(&mut self, index: i64, value: i64) -> Result<()> {
          let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
          let v = u8::try_from(value).map_err(|_| Error::OutOfBounds)?;
-@@ -74,6 +72,31 @@
+@@ -74,6 +94,31 @@
          }
          unsafe { *self.data.add(i) = v };
          Ok(())
@@ -227,25 +308,27 @@
  }
 --- a/compiler/src/codegen.rs
 +++ b/compiler/src/codegen.rs
-@@ -528,6 +528,7 @@
+@@ -528,6 +528,8 @@
          "declare i64 @cinch_fs_mkdir(i64, i64)",
          "declare i64 @cinch_fs_remove(i64, i64)",
          "declare i64 @cinch_fs_temp_dir()",
 +        "declare i64 @cinch_map_package_bytes(i64, i64)",
++        "declare i64 @cinch_package_text(i64, i64, i64)",
          "declare i64 @cinch_signal_send(i64, i64)",
          // The bump arena (`compiler/runtime/src/arena.rs`): a scope enters
          // one, allocates its constructor cells from it uncounted, and
-@@ -5688,6 +5689,15 @@
-                 ArenaNew | ArenaLeave => {
+@@ -5685,9 +5687,15 @@
+                 }
+                 // The arena entries take and answer one machine word: the
+                 // size or the handle, both never blocks.
+-                ArenaNew | ArenaLeave => {
++                PackageOffset | ArenaNew | ArenaLeave => {
                      let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                      ret(b, &r);
 +                }
-+                MapPackageBytes => {
-+                    let r = rt_call(
-+                        b,
-+                        k.extern_name(),
-+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
-+                    );
++                MapPackageBytes | PackageText => {
++                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
++                    let r = rt_call(b, k.extern_name(), &args);
 +                    let word = freeze_word(b, &r);
 +                    ret_result(b, reg, op, &word, |_| word.clone());
                  }
@@ -253,44 +336,70 @@
                      let r = rt_call(b, k.extern_name(), &[]);
 --- a/compiler/src/core.rs
 +++ b/compiler/src/core.rs
-@@ -630,6 +630,8 @@
+@@ -630,6 +630,12 @@
      /// `fsTempDir :: Unit -> Bytes`: the platform temp directory as a
      /// `Bytes` path.
      FsTempDir,
 +    /// Map a stable package file as an owned read-only byte buffer.
 +    MapPackageBytes,
++    /// Validate text and retain an immutable package string span.
++    PackageText,
++    /// Unbox a bounded packed-package offset without constructing an Option.
++    PackageOffset,
      /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
      SignalSend,
      /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
-@@ -649,6 +651,7 @@
+@@ -649,6 +655,9 @@
              PlatformOp::FsMkdir => "fsMkdir",
              PlatformOp::FsRemove => "fsRemove",
              PlatformOp::FsTempDir => "fsTempDir",
 +            PlatformOp::MapPackageBytes => "mapPackageBytes",
++            PlatformOp::PackageText => "packageText",
++            PlatformOp::PackageOffset => "packageOffset",
              PlatformOp::SignalSend => "signalSend",
              PlatformOp::ArenaNew => "arenaNew",
              PlatformOp::ArenaLeave => "arenaLeave",
-@@ -662,6 +665,7 @@
+@@ -662,6 +671,9 @@
              PlatformOp::FsMkdir => "cinch_fs_mkdir",
              PlatformOp::FsRemove => "cinch_fs_remove",
              PlatformOp::FsTempDir => "cinch_fs_temp_dir",
 +            PlatformOp::MapPackageBytes => "cinch_map_package_bytes",
++            PlatformOp::PackageText => "cinch_package_text",
++            PlatformOp::PackageOffset => "cinch_nat_to_i64",
              PlatformOp::SignalSend => "cinch_signal_send",
              PlatformOp::ArenaNew => "cinch_arena_new",
              PlatformOp::ArenaLeave => "cinch_arena_leave",
-@@ -1211,6 +1215,7 @@
+@@ -1211,6 +1223,9 @@
                  "fsMkdir" => Platform(PlatformOp::FsMkdir),
                  "fsRemove" => Platform(PlatformOp::FsRemove),
                  "fsTempDir" => Platform(PlatformOp::FsTempDir),
 +                "mapPackageBytes" => Platform(PlatformOp::MapPackageBytes),
++                "packageText" => Platform(PlatformOp::PackageText),
++                "packageOffset" => Platform(PlatformOp::PackageOffset),
                  "signalSend" => Platform(PlatformOp::SignalSend),
                  "arenaNew" => Platform(PlatformOp::ArenaNew),
                  "arenaLeave" => Platform(PlatformOp::ArenaLeave),
-@@ -1461,6 +1466,7 @@
+@@ -1360,8 +1375,8 @@
+                     | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
+             )
+             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
+-            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => 1,
+-            Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
++            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
++            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
+             Bytes(BytesOp::Set) => 3,
+             Bytes(BytesOp::Copy) => 5,
+             Sym(SymOp::Intern | SymOp::Name) => 1,
+@@ -1461,6 +1476,12 @@
                  (vec![Ty::Bytes, Ty::Bool], i64t)
              }
              Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
 +            Platform(PlatformOp::MapPackageBytes) => (vec![i64t.clone(), i64t.clone()], res(Ty::Bytes)),
++            Platform(PlatformOp::PackageText) => (
++                vec![Ty::Bytes, i64t.clone(), i64t.clone()],
++                res(Ty::Adt(crate::known::STRING.into(), vec![])),
++            ),
++            Platform(PlatformOp::PackageOffset) => (vec![Ty::Nat], i64t),
              Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
              Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
              Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),

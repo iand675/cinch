@@ -44,11 +44,12 @@ per-module JSON files and native JSON manifests remain supported.
 The readers decode structured values directly from the package sections and
 verify the same interface identities and contracts as the JSON readers.
 The package carries complete contracts without a JSON compatibility payload.
-On native hosts the reader maps the file read-only. The verified body
-views retain the mapping beyond the lifetime of the file descriptor. When
-mapping is unavailable, the reader buffers the same open file. Writers
-publish by renaming a new inode so existing views keep seeing their
-original bytes. Keep published package files immutable while mapped.
+On native hosts the reader maps the file read-only. Verified body views
+and UTF-8 string spans retain the mapping beyond the lifetime of the file
+descriptor. When mapping is unavailable, the reader buffers the same open
+file and copies validated string spans into immutable strings. Writers publish
+by renaming a new inode so existing views keep seeing their original bytes.
+Keep published package files immutable while mapped.
 
 ## File format
 

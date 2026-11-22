@@ -4,7 +4,7 @@ module Bootstrap.Package where
 
   import Bootstrap.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
   import Bootstrap.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
-  import Bootstrap.PackedBody (Region, PackedSignature, region-start, hold-package-source,
+  import Bootstrap.PackedBody (Region, PackedSignature, region-start, package-offset, hold-package-source,
     CheckedBodyTable, PackedTerm, retain-checked-body-table, checked-body-id, checked-definition, checked-term)
   import Bootstrap.PackageHash (HashSummary, summarize-row, compose-hashes, apply-summary)
   import Bootstrap.TotalRules (valid-sort, decimal-number, operation-type)
@@ -14,7 +14,7 @@ module Bootstrap.Package where
   import Bootstrap.Document
   import Data.List (sort)
   import Data.Machine (u32-to-nat)
-  import Data.Nat (checked-nat-to-i64, checked-nat-from-i64, nat-to-int, nat-to-i64)
+  import Data.Nat (checked-nat-from-i64, nat-to-int)
   import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
   import Text.Fnv (fnv64a-update)
 
@@ -22,7 +22,7 @@ module Bootstrap.Package where
   export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
   export PackedBodyTable, packed-definition-for
 
-  foreign import ccall "memmove" copy-memory :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch.runtime.packageText" package-text :: Bytes -> I64 -> I64 -> Result I64 String
   foreign import ccall "cinch.runtime.mapPackageBytes" map-package-bytes :: I64 -> I64 -> Result I64 Bytes
 
   -- The caller has checked the word against its containing region. The
@@ -115,13 +115,7 @@ module Bootstrap.Package where
   region-size :: Region -> Nat
   region-size region = case region of Region start length -> length
   word :: I64 -> Nat -> Nat
-  word address at = u32-to-nat (load-word address (machine-offset at))
-
-  -- Positions are bounded by the validated 32-bit package extents.
-  machine-offset :: Nat -> I64
-  machine-offset at = case checked-nat-to-i64 at of
-    Some offset -> offset
-    None -> 0
+  word address at = u32-to-nat (load-word address (package-offset at))
 
   subregion :: Region -> Nat -> Nat -> Result String Region
   subregion region offset size = case region of
@@ -160,28 +154,30 @@ module Bootstrap.Package where
   packaged-abi :: forall r. Bytes ->{IO r} Result String (Option Json)
   packaged-abi source =
     let size = bytes-len source in
-    if size < 8 then Ok None else hold-package-source source (decode-packaged-abi (bytes-data source) size)
+    if size < 8 then Ok None else hold-package-source source (decode-packaged-abi source size)
 
-  decode-packaged-abi :: forall r. I64 -> Nat ->{IO r} Result String (Option Json)
-  decode-packaged-abi address size =
+  decode-packaged-abi :: forall r. Bytes -> Nat ->{IO r} Result String (Option Json)
+  decode-packaged-abi source size =
+    let address = bytes-data source in
     -- Recognize the seven-byte family prefix so unsupported versions refuse
     -- through the package header check.
     if word address 0 /= 1129204035 || word address 4 % 16777216 /= 4935752 then Ok None else
       (case package-header address size of
         Err message -> Err message
         Ok (Package strings modules format documents abi) ->
-          (case decode-package-abi address abi (string-table address strings) None of
+          (case decode-package-abi source abi (string-table address strings) None of
             Err message -> Err message
             Ok artifact -> Ok (Some artifact)))
 
-  decode-package-abi :: forall r. I64 -> Region -> Result String StringTable -> Option (Array String) ->{IO r} Result String Json
-  decode-package-abi address (Region start length) table prefix =
+  decode-package-abi :: forall r. Bytes -> Region -> Result String StringTable -> Option (Array String) ->{IO r} Result String Json
+  decode-package-abi source (Region start length) table prefix =
+    let address = bytes-data source in
     if length == 0 then Err "interface package has no object ABI"
     else if length < 4 then Err "truncated structured ABI header"
     else (case table of
       Err message -> Err message
       Ok (StringTable beginning count raw) -> if word address start > count then Err "invalid structured ABI string boundary"
-        else (case abi-texts address (StringTable beginning count raw) prefix of
+        else (case abi-texts source address (StringTable beginning count raw) prefix of
           Err message -> Err message
           Ok texts -> read-document address texts NoDefinitions (Region (start + 4) (length - 4))))
 
@@ -189,24 +185,14 @@ module Bootstrap.Package where
   authenticated-snapshot-abi sha snapshot = case snapshot of
     PackageSnapshot source table texts abi ->
       if string-compare (sha256-hex source) sha /= 0 then Err "runtime object artifact digest mismatch"
-      else hold-package-source source (decode-package-abi (bytes-data source) abi (Ok table) (Some texts))
+      else hold-package-source source (decode-package-abi source abi (Ok table) (Some texts))
 
-  read-text :: forall r. I64 -> Region ->{IO r} Result String String
-  read-text address region = case region of
-    Region start size ->
-      let bytes = bytes-new size in
-      let destination = bytes-data bytes in
-      let copied = (if size == 0 then destination
-        else copy-memory destination (wrapping-add-i64 address (machine-offset start)) (machine-offset size)) in
-      if copied /= bytes-data bytes then Err "cannot read interface package text" else
-        (case string-from-bytes bytes of
-          Some value -> Ok value
-          None -> Err "invalid UTF-8 in interface package")
-
-  text-at :: forall r. I64 -> Region -> Nat ->{IO r} Result String String
-  text-at address strings at = case row-span address strings at of
+  text-at :: Bytes -> I64 -> Region -> Nat -> Result String String
+  text-at source address strings at = case row-span address strings at of
     Err message -> Err message
-    Ok region -> read-text address region
+    Ok (Region start size) -> (case package-text source (package-offset start) (package-offset size) of
+      Ok value -> Ok value
+      Err error -> Err "invalid UTF-8 in interface package")
 
   -- A zero intermediate state falls back to the canonical writer. That
   -- also handles strings containing an escape, without copying plain text.
@@ -214,7 +200,7 @@ module Bootstrap.Package where
   fnv-plain-quoted-range hash address start size =
     let end = start + size in
     if start <= 4294967295 && end <= 4294967295 then
-      hash-plain-utf8 address (nat-to-i64 start) (nat-to-i64 end) (fnv-byte hash 34)
+      hash-plain-utf8 address (package-offset start) (package-offset end) (fnv-byte hash 34)
     else 0
 
   hash-plain-utf8 :: I64 -> I64 -> I64 -> U64 -> U64
@@ -362,7 +348,7 @@ module Bootstrap.Package where
         None -> hash
         Some _ | high == 0 && low < 100 ->
           let signed = if negative && low /= 0 then fnv-byte hash 45 else hash in
-          fnv-small-decimal signed (wrapping-i64-to-u64 (machine-offset low))
+          fnv-small-decimal signed (wrapping-i64-to-u64 (package-offset low))
         other -> fnv-json-value hash number) in
       Ok (number, at + 8, digest, definitions)
 
@@ -847,12 +833,12 @@ module Bootstrap.Package where
             Err message -> Err message
             Ok unit -> Ok (IndexedDefinitions packed (retain-checked-body-table source strings nodes operands signatures) wire-syntax hash-map-empty hash-map-empty (BodyHashCache 0 hash-map-empty))))
 
-  read-strings :: forall r. I64 -> Region -> Nat -> Nat -> List String ->{IO r} Result String (Array String)
-  read-strings address raw at limit items =
+  read-strings :: Bytes -> I64 -> Region -> Nat -> Nat -> List String -> Result String (Array String)
+  read-strings source address raw at limit items =
     if at == limit then Ok (array-from-list (reverse items)) else
-      (case text-at address raw at of
+      (case text-at source address raw at of
         Err message -> Err message
-        Ok value -> read-strings address raw (at + 8) limit (Cons value items))
+        Ok value -> read-strings source address raw (at + 8) limit (Cons value items))
 
   string-table :: I64 -> Region -> Result String StringTable
   string-table address (Region base length) =
@@ -862,20 +848,20 @@ module Bootstrap.Package where
       if table-size > length then Err "invalid package string table length" else
         Ok (StringTable (base + 4) count (Region (base + table-size) (length - table-size)))
 
-  contract-texts :: forall r. I64 -> StringTable -> Region ->{IO r} Result String (Array String)
-  contract-texts address (StringTable start count raw) (Region abi length) =
+  contract-texts :: Bytes -> I64 -> StringTable -> Region -> Result String (Array String)
+  contract-texts source address (StringTable start count raw) (Region abi length) =
     if length > 0 && length < 4 then Err "truncated structured ABI header" else
       let needed = if length == 0 then count else word address abi in
       if needed > count then Err "invalid structured ABI string boundary" else
-        read-strings address raw start (start + needed * 8) Nil
+        read-strings source address raw start (start + needed * 8) Nil
 
-  abi-texts :: forall r. I64 -> StringTable -> Option (Array String) ->{IO r} Result String (Array String)
-  abi-texts address (StringTable start count raw) prefix = case prefix of
-    None -> read-strings address raw start (start + count * 8) Nil
+  abi-texts :: Bytes -> I64 -> StringTable -> Option (Array String) -> Result String (Array String)
+  abi-texts source address (StringTable start count raw) prefix = case prefix of
+    None -> read-strings source address raw start (start + count * 8) Nil
     Some texts ->
       let used = array-length texts in
       if used == count then Ok texts else
-        (case read-strings address raw (start + used * 8) (start + count * 8) Nil of
+        (case read-strings source address raw (start + used * 8) (start + count * 8) Nil of
           Err message -> Err message
           Ok suffix -> Ok (array-append texts suffix))
 
@@ -898,21 +884,21 @@ module Bootstrap.Package where
       other -> None)
     None -> None
 
-  read-rows :: forall r. I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract, Definitions)
-  read-rows address raw table strings documents definitions base count index items =
+  read-rows :: forall r. Bytes -> I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract, Definitions)
+  read-rows source address raw table strings documents definitions base count index items =
     if index == count then Ok (reverse items, definitions) else
       let id = word address (base + index * 36 + 32) in
       if id >= count then Err "invalid package manifest index" else
         let row = base + id * 36 in
-        (case text-at address raw row of
+        (case text-at source address raw row of
           Err message -> Err message
-          Ok name -> case text-at address raw (row + 8) of
+          Ok name -> case text-at source address raw (row + 8) of
             Err message -> Err message
             Ok digest -> case row-span address documents (row + 24) of
               Err message -> Err message
               Ok region -> case read-hashed-document address strings definitions region (Some table) of
                 Err message -> Err message
-                Ok (document, computed, decoded) -> read-rows address raw table strings documents decoded base count (index + 1)
+                Ok (document, computed, decoded) -> read-rows source address raw table strings documents decoded base count (index + 1)
                   (Cons (PackageContract name digest document (u64-decimal computed) None) items))
 
   decode-package :: forall r. Bytes ->{IO r} Result String (List PackageContract, StringTable, Array String, Region)
@@ -925,11 +911,11 @@ module Bootstrap.Package where
           Err message -> Err message
           Ok (StringTable start count raw) ->
             let table = StringTable start count raw in
-            case contract-texts address table abi of
+            case contract-texts source address table abi of
               Err message -> Err message
               Ok texts -> case read-package-definitions source texts format of
                 Err message -> Err message
-                Ok definitions -> case read-rows address raw table texts documents definitions modules (module-size / 36) 0 Nil of
+                Ok definitions -> case read-rows source address raw table texts documents definitions modules (module-size / 36) 0 Nil of
                   Err message -> Err message
                   Ok (rows, decoded) ->
                     let bodies = retain-body-table decoded in

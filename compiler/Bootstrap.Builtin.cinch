@@ -205,12 +205,12 @@ module Bootstrap.Builtin where
   -- passing and result construction. Every extern borrows its Bytes
   -- arguments and answers one i64 word. Argument codes: 0 a raw word
   -- passed as is, 1 a Bytes word passed as is, 2 a Nat converted by
-  -- cinch_nat_to_len, 3 a Unit the extern does not take, 4 a tagged Int
+  -- cinch_nat_to_len, 3 a Unit the extern does not take, 4 a tagged integer
   -- borrowed by the extern without conversion. Result codes: 0
   -- the raw word, 1 a Nat from the raw count, and 2 to 5 the prelude
   -- `Result I64 a` a boundary word stands for (a negative word is `Err`
   -- over its negation; otherwise `Ok` over the word as I64 for 2, as a
-  -- Nat count for 3, as a fresh Bytes buffer for 4, or Unit for 5).
+  -- Nat count for 3, as a fresh counted value for 4, or Unit for 5).
   platform-intrinsic :: String -> Option (String, String, List Nat, Nat)
   platform-intrinsic symbol =
     if string-compare symbol "cinch.runtime.bytesCompare" == 0 then Some ("Bytes -> Bytes -> I64", "cinch_bytes_compare", [1, 1], 0)
@@ -225,6 +225,8 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.fsRemove" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_remove", [1, 0], 0)
     else if string-compare symbol "cinch.runtime.fsTempDir" == 0 then Some ("Unit -> Bytes", "cinch_fs_temp_dir", [3], 0)
     else if string-compare symbol "cinch.runtime.mapPackageBytes" == 0 then Some ("I64 -> I64 -> Result I64 Bytes", "cinch_map_package_bytes", [0, 0], 4)
+    else if string-compare symbol "cinch.runtime.packageText" == 0 then Some ("Bytes -> I64 -> I64 -> Result I64 String", "cinch_package_text", [1, 0, 0], 4)
+    else if string-compare symbol "cinch.runtime.packageOffset" == 0 then Some ("Nat -> I64", "cinch_nat_to_i64", [4], 0)
     else if string-compare symbol "cinch.runtime.signalSend" == 0 then Some ("I64 -> I64 -> I64", "cinch_signal_send", [0, 0], 0)
     -- The bump arena (`seed/runtime/src/arena.rs`): the handle is a
     -- machine word at both ends, so neither entry takes or answers a

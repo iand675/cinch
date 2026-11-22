@@ -7,14 +7,17 @@ module Bootstrap.PackedBody where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
   import Data.Machine (u32-to-nat)
-  import Data.Nat (checked-nat-to-i64, nat-to-int)
+  import Data.Nat (nat-to-int)
 
-  export Region, PackedSignature, region-start, hold-package-source
+  export Region, PackedSignature, region-start, package-offset, hold-package-source
   export CheckedBodyTable, retain-checked-body-table, checked-body-id, checked-definition
   export checked-term, packed-term-json
   export PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node
   export PackedNode, PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm
   export PackedArgumentNode, NoPackedArguments, NextPackedArgument
+
+  -- All callers have checked the position against the 32-bit package extents.
+  foreign import ccall "cinch.runtime.packageOffset" package-offset :: Nat -> I64
 
   -- Read one word inside the caller's checked span.
   prim load-word :: I64 -> I64 -> U32 where
@@ -59,13 +62,7 @@ module Bootstrap.PackedBody where
   region-start region = case region of Region start length -> start
 
   word :: I64 -> Nat -> Nat
-  word address at = u32-to-nat (load-word address (machine-offset at))
-
-  -- Positions are bounded by the validated 32-bit package extents.
-  machine-offset :: Nat -> I64
-  machine-offset at = case checked-nat-to-i64 at of
-    Some offset -> offset
-    None -> 0
+  word address at = u32-to-nat (load-word address (package-offset at))
 
   -- Keep the owner live until the decoder has finished its raw reads.
   hold-package-source :: forall a. Bytes -> a -> a

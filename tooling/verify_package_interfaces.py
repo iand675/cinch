@@ -412,6 +412,20 @@ def native(stage, work, repeats):
         invoke(command(hello, path), work, status=7, leak=True)
         assert "bootstrap.interfaces:" in diagnostics.read_text()
 
+    strings, _ = words(contents, 16, 2)
+    abi, _ = words(contents, 80, 2)
+    (count,) = words(contents, strings, 1)
+    (used,) = words(contents, abi, 1)
+    payload = strings + 4 + 8 * count
+    entries = (words(contents, strings + 4 + 8 * index, 2) for index in range(used))
+    offset = next(offset for offset, length in entries if length)
+    altered = bytearray(contents)
+    altered[payload + offset] = 0xff
+    malformed_text = work / "bad-utf8.cpk"
+    publish(malformed_text, altered)
+    invoke(command(hello, malformed_text), work, status=7, leak=True)
+    assert "invalid UTF-8 in interface package" in diagnostics.read_text()
+
     old_package = work / "old-version.cpk"
     publish(old_package, b"CINCHPK3" + contents[8:12] + struct.pack("<I", 3) + contents[16:])
     invoke(command(hello, old_package), work, status=7, leak=True)
