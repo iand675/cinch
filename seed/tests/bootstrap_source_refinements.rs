@@ -111,14 +111,13 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
     // omits its polymorphic callee. An independent body still proves its range.
     for (upper, wanted) in [(4, 0), (9, 4)] {
         let source = format!(r#"module Main where
-  import Algebra.Arithmetic (InRange)
   hidden :: forall a. a -> Nat
   hidden value = 6
   wrap :: Nat -> Nat
   wrap n = hidden n
   bounds :: Nat -> Nat
   bounds n = if n < 128 then 1 else {upper}
-  use-bounds :: Nat -> InRange 1 4 Nat
+  use-bounds :: Nat -> refined (out >= 1 && out <= 4) Nat
   use-bounds n = bounds n
   main :: Int
   main = 0
