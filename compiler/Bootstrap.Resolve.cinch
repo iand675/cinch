@@ -130,14 +130,14 @@ module Bootstrap.Resolve where
 
   -- A module's signature and equations name the same binding. Duplicate
   -- declarations stay in the body for the checker to diagnose.
-  data OwnBindings where
-    OwnBindings :: List Binding -> HashMap String Binding -> OwnBindings
+  data BindingRows where
+    BindingRows :: List Binding -> HashMap String Binding -> BindingRows
   own-bindings :: String -> List Decl -> List Binding -> List Binding
-  own-bindings home ds initial = case collect-own-bindings home ds (OwnBindings initial (binding-index initial)) of
-    OwnBindings rows index -> rows
-  collect-own-bindings :: String -> List Decl -> OwnBindings -> OwnBindings
+  own-bindings home ds initial = case collect-own-bindings home ds (BindingRows initial (binding-index initial)) of
+    BindingRows rows index -> rows
+  collect-own-bindings :: String -> List Decl -> BindingRows -> BindingRows
   collect-own-bindings home ds acc = case ds of
-    Nil -> case acc of OwnBindings reversed index -> OwnBindings (reverse reversed) index
+    Nil -> case acc of BindingRows reversed index -> BindingRows (reverse reversed) index
     Cons d rest -> case d of
       DImport s path mods alias members hidden args -> collect-own-bindings home rest acc
       DExport s text items -> collect-own-bindings home rest acc
@@ -152,14 +152,14 @@ module Bootstrap.Resolve where
         None -> collect-own-bindings home rest acc
         Some name -> collect-own-bindings home rest (add-own home name acc)
 
-  add-declared :: String -> String -> (() -> String) -> OwnBindings -> OwnBindings
+  add-declared :: String -> String -> (() -> String) -> BindingRows -> BindingRows
   add-declared label owner symbol entries = case entries of
-    OwnBindings rows index -> case hash-map-lookup label index of
+    BindingRows rows index -> case hash-map-lookup label index of
       Some binding -> entries
       None ->
         let binding = MkBinding label owner (symbol ()) in
-        OwnBindings (Cons binding rows) (hash-map-insert label binding index)
-  add-macro :: String -> String -> OwnBindings -> OwnBindings
+        BindingRows (Cons binding rows) (hash-map-insert label binding index)
+  add-macro :: String -> String -> BindingRows -> BindingRows
   add-macro home name entries = add-declared name home (\unit -> "#macro." <> name) entries
   macro-binding :: Binding -> Bool
   macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
@@ -181,9 +181,9 @@ module Bootstrap.Resolve where
 
   -- A resolved method already names its binding; re-deriving the symbol from
   -- the home would rebind it to a name the checker never registered.
-  add-own-symbol :: String -> String -> OwnBindings -> OwnBindings
+  add-own-symbol :: String -> String -> BindingRows -> BindingRows
   add-own-symbol label symbol entries = add-declared label "<builtin>" (\unit -> symbol) entries
-  add-own :: String -> String -> OwnBindings -> OwnBindings
+  add-own :: String -> String -> BindingRows -> BindingRows
   add-own home name entries = add-declared name home (\unit -> global-name home name) entries
   -- Source declarations with a kernel spelling have a separate, module-owned
   -- identity. Other source effects preserve the language's global namespace.
@@ -192,21 +192,21 @@ module Bootstrap.Resolve where
     if has-name name ["MVar", "STM", "IO", "Mut", "Async", "Cancel", "Eval", "Foreign", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"] then
       "#effect." <> global-name home name
     else name
-  add-own-effect :: String -> String -> OwnBindings -> OwnBindings
+  add-own-effect :: String -> String -> BindingRows -> BindingRows
   add-own-effect home name entries = add-declared name home (\unit -> source-effect-name home name) entries
 
   -- A class member is visible under its label whether it is still in source
   -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
   -- already resolved. The kernel's classes are declared after renaming, so
   -- they arrive as `DMethod` and would otherwise contribute no name.
-  own-class-methods :: String -> List Decl -> OwnBindings -> OwnBindings
+  own-class-methods :: String -> List Decl -> BindingRows -> BindingRows
   own-class-methods home ds acc = case ds of
     Nil -> acc
     Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
     Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own-symbol label symbol acc)
     Cons other rest -> own-class-methods home rest acc
 
-  own-ctors :: String -> List (String, TypeExpr) -> OwnBindings -> OwnBindings
+  own-ctors :: String -> List (String, TypeExpr) -> BindingRows -> BindingRows
   own-ctors home ctors acc = case ctors of
     Nil -> acc
     Cons (name, ty) rest -> own-ctors home rest (add-own home name acc)
@@ -399,11 +399,11 @@ module Bootstrap.Resolve where
     Cons (DExport site text items) rest -> True
     Cons other rest -> has-export-declaration rest
 
-  lookup-view :: String -> List View -> Option View
-  lookup-view name views = case views of
-    Nil -> None
-    Cons v rest -> case v of
-      MkView s path qualifier only selected -> if same name path || same name qualifier then Some v else lookup-view name rest
+  view-index :: List View -> HashMap String View
+  view-index views = case views of
+    Nil -> hash-map-empty
+    Cons view rest -> case view of
+      MkView s path qualifier only selected -> hash-map-insert path view (hash-map-insert qualifier view (view-index rest))
 
   join-parts :: List String -> String
   join-parts parts = case parts of
@@ -417,25 +417,26 @@ module Bootstrap.Resolve where
     Cons first Nil -> first
     Cons first rest -> last-part rest
 
-  add-exports :: Span -> List Binding -> List Binding -> (List Binding, List Diagnostic)
+  add-exports :: Span -> List Binding -> BindingRows -> (BindingRows, List Diagnostic)
   add-exports sp incoming acc = case incoming of
     Nil -> (acc, Nil)
-    Cons b rest -> case lookup-binding (binding-name b) acc of
-      None -> add-exports sp rest (Cons b acc)
-      Some old -> case add-exports sp rest acc of
-        (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+    Cons b rest -> case acc of
+      BindingRows rows index -> case hash-map-lookup (binding-name b) index of
+        None -> add-exports sp rest (BindingRows (Cons b rows) (hash-map-insert (binding-name b) b index))
+        Some old -> case add-exports sp rest acc of
+          (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
 
-  build-exports :: List ExportItem -> List Binding -> List View -> List Binding -> (List Binding, List Diagnostic)
+  build-exports :: List ExportItem -> HashMap String Binding -> HashMap String View -> BindingRows -> (List Binding, List Diagnostic)
   build-exports items visible views acc = case items of
-    Nil -> (reverse acc, Nil)
+    Nil -> case acc of BindingRows rows index -> (reverse rows, Nil)
     Cons item rest -> case item of
-      ExportName s parts -> case lookup-binding (join-parts parts) visible of
+      ExportName s parts -> let name = join-parts parts in case hash-map-lookup name visible of
         None -> case build-exports rest visible views acc of
-          (entries, errors) -> (entries, fail s (cat ["`", join-parts parts, "` is not a name in scope to export"]) <> errors)
+          (entries, errors) -> (entries, fail s (cat ["`", name, "` is not a name in scope to export"]) <> errors)
         Some (MkBinding name home symbol) -> case add-exports s (Cons (MkBinding (last-part parts) home symbol) Nil) acc of
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
-      ExportModule s name -> case lookup-view name views of
+      ExportModule s name -> case hash-map-lookup name views of
         None -> case build-exports rest visible views acc of
           (entries, errors) -> (entries, fail s (cat ["module is not imported to export: ", name]) <> errors)
         Some (MkView sp path qualifier only selected) -> case add-exports s selected acc of
@@ -486,10 +487,11 @@ module Bootstrap.Resolve where
   build-scope m done base earlier checked =
     let home = module-name m in
     let (declared, visible, views, visibility-errors) = module-visibility m done base checked in
+    let indexed = binding-index visible in
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
-          Cons first rest -> build-exports (Cons first rest) visible views Nil in
-    let lexical = MkLexicalScope home False visible (binding-index visible) Nil in
+          Cons first rest -> build-exports (Cons first rest) indexed (view-index views) (BindingRows Nil hash-map-empty) in
+    let lexical = MkLexicalScope home False visible indexed Nil in
     let has-macro = declares-macros (module-decls m) in
     let homes = Cons (home, lexical) earlier in
     let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
@@ -535,7 +537,9 @@ module Bootstrap.Resolve where
   macro-scope-order ordered done scopes = case ordered of
     Nil -> scopes
     Cons m rest -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
-      let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
+      let (surface, errors) = (case export-items (module-decls m) of
+        Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
+        Cons first more -> build-exports (Cons first more) (binding-index visible) (view-index views) (BindingRows Nil hash-map-empty)) in
       let home = module-name m in
       macro-scope-order rest (hash-map-insert home (MkScoped home surface Nil) done) (hash-map-insert home visible scopes)
   lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
