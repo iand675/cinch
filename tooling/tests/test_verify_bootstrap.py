@@ -67,6 +67,12 @@ class FrozenVerification(unittest.TestCase):
                                 "cases": {"native_case": "direct Rust API assertion"}}}
             self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash)[0], "recheck")
             self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash, review)[0], "verified")
+            with log.open("a") as stream:
+                stream.write("skipping native_case: missing toolchain\n")
+            row["log_sha256"] = checklist.digest(log)
+            review["mixed"]["require_no_skips"] = True
+            self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash, review)[0], "recheck")
+            review["mixed"].pop("require_no_skips")
             source.write_text("changed test source")
             self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash, review)[0], "recheck")
 

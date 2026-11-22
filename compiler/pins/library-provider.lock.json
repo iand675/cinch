@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 provider with checked numeric Enum and ordered map dictionaries, regional and nominal contracts, and big-endian PowerPC64 objects.",
-  "revision": "5455b59b09ff951e82cfbb60b948fc7c2a41bdd8",
+  "description": "ABI 10 provider with direct CINCHPK4 emission and faster artifact SHA-256.",
+  "revision": "2d592a33259eb47254dce1e0f7759fe2d1db6ab8",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "9ea06f095efb4b75a47f98d65ac6e443479d0e07f682568aa5362654e4c01770"
+  "source_sha256": "f2e97c46f50aee50354b4d6ca90d6100529f7dc4f0b01a33a78ab412fbee0c74"
 }

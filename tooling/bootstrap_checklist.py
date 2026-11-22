@@ -189,7 +189,10 @@ def published_stage3_status(row, directory, interfaces_hash, native_assertions=N
             return 'recheck', 'A receipt does not match the audited compiler wrapper and interface set.'
         selected.add(record.get('test'))
     native = (native_assertions or {}).get(row['name'], {})
-    direct = (names - selected) & set(native.get('cases', {})) if matches_digest(row.get('source'), native.get('source_sha256')) else set()
+    reviewed = matches_digest(row.get('source'), native.get('source_sha256'))
+    if reviewed and native.get('require_no_skips') and re.search(r'^skipping ', text, re.M):
+        return 'recheck', 'The required Rust API assertions include a skipped test.'
+    direct = (names - selected) & set(native.get('cases', {})) if reviewed else set()
     if not selected or selected | direct != names:
         return 'recheck', f'{len(selected & names)} of {len(names)} cases recorded a matching Cinch invocation. Remaining cases need a coverage review.'
     if direct:

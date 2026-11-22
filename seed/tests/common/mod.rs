@@ -244,6 +244,11 @@ pub fn drive_opts(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, opt
         let request = external_frontend::options_request(mode, opts)?;
         return external_frontend::drive_profile(&frontend, mode, dir, entry, out, &request);
     }
+    drive_native_opts(mode, dir, entry, out, opts)
+}
+
+/// Exercise the Rust driver's target ABI and linker, independently of the selected frontend.
+pub fn drive_native_opts(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, opts: &DriverOptions) -> Result<i32, String> {
     let (path, opts) = (dir.join(entry), opts.clone());
     on_driver_thread(move || cinch::driver::driver_opts(mode, &path, out.as_deref(), &opts))
 }

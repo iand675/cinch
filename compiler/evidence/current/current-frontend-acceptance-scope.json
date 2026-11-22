@@ -30,19 +30,20 @@
       }
     },
     "wasm_target": {
-      "source_sha256": "3b6ae34d7d3d076caea2a94d9af846fb32ad9460ce35e001364d1d3c68a09b0f",
+      "source_sha256": "27570f003923d562f5b45f349f0176ee3f25271584aa9f6b8e4bc1f95bcc9aaf",
       "cases": {
-        "the_matrix_runs_every_program": "The selected frontend exposes no wasm target, so every program goes through the Rust driver's wasm matrix, not the selected Cinch frontend.",
-        "build_produces_a_wasm_module": "The case skips through frontend_lacks when the selected frontend has no wasm build mode; the Rust driver then builds the module.",
-        "the_emitted_module_is_the_freestanding_entry": "The case skips through frontend_lacks when the selected frontend has no wasm emit-ir mode; the Rust driver then emits the IR.",
-        "run_refuses_program_arguments_it_cannot_deliver": "The selected frontend exposes no wasm run mode, so the Rust driver performs the refusal.",
-        "an_unknown_triple_is_refused_with_the_list": "Refuses an unknown triple in the Rust driver before any Cinch source is compiled.",
-        "the_freestanding_archive_is_built_when_the_flag_is_absent": "The selected frontend has no wasm target; the Rust driver builds the freestanding archive.",
-        "a_runtime_archive_that_is_not_one_is_refused": "The Rust driver rejects the archive shape; no Cinch source is compiled.",
-        "a_host_archive_is_refused_for_the_wasm_target": "The Rust driver rejects the host archive for wasm; no Cinch source is compiled.",
-        "a_nonterminating_program_still_builds": "The case skips through frontend_lacks when the selected frontend has no wasm build mode; the Rust driver builds the module.",
-        "zz_the_skipped_cases": "Prints the collected skip reasons for the wasm cases; it invokes no compiler."
-      }
+        "the_matrix_runs_every_program": "Exercises the Rust driver's complete freestanding Wasm program matrix.",
+        "build_produces_a_wasm_module": "Builds a module through the Rust driver and checks its Wasm header.",
+        "the_emitted_module_is_the_freestanding_entry": "Checks the Rust emitter's target triple and freestanding LLVM entry.",
+        "run_refuses_program_arguments_it_cannot_deliver": "Checks the Rust driver's argument refusal before linking.",
+        "an_unknown_triple_is_refused_with_the_list": "Checks the Rust driver's target selection diagnostic.",
+        "the_freestanding_archive_is_built_when_the_flag_is_absent": "Checks the Rust driver's runtime archive discovery and build.",
+        "a_runtime_archive_that_is_not_one_is_refused": "Checks the Rust driver's rejection of a malformed static archive.",
+        "a_host_archive_is_refused_for_the_wasm_target": "Checks the Rust driver's rejection of a host archive for Wasm.",
+        "a_nonterminating_program_still_builds": "Builds a nonterminating Wasm module through the Rust driver.",
+        "zz_the_skipped_cases": "Prints the collected skip reasons for the Wasm cases."
+      },
+      "require_no_skips": true
     }
   },
   "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",

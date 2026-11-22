@@ -9,6 +9,9 @@
 //! artifact, so a program that compiles here has to RUN here, and its
 //! answer is the same one the native target gives.
 //!
+//! The Wasm cases exercise the Rust driver's target ABI and linker. The host
+//! control case uses the selected frontend when the Stage 3 gate runs it.
+//!
 //! # Running it
 //!
 //! ```
@@ -66,65 +69,6 @@ fn wasm_target() -> DriverOptions {
         target: Some("wasm32-unknown-unknown".to_string()),
         ..DriverOptions::default()
     }
-}
-
-/// Why the compiler running this suite cannot serve one request, or `None`
-/// when it can.
-///
-/// The suite runs through a selected frontend when one is configured, and
-/// that compiler is the Cinch-written one. Its selector decides which
-/// invocations it can adapt, and it reports that through
-/// `options_request`; but a request the selector accepts is not yet a
-/// target the frontend builds, because the selector's own link is a native
-/// `clang` call with no target and no `wasm-ld`. The capability that
-/// matters is therefore the frontend's, and it is asked here rather than
-/// inferred: a `Build` for this target is attempted once, and its refusal
-/// is the reason every case that links skips.
-///
-/// `--runtime-archive` and `--opt-level` are part of the question, because
-/// a frontend that lacks them cannot be asked for this build at all, and
-/// the selector names them precisely.
-fn frontend_lacks(mode: Mode, opts: &DriverOptions) -> Option<String> {
-    match common::external_frontend::configured() {
-        Ok(Some(_)) => match common::external_frontend::options_request(mode, opts) {
-            Err(error) => Some(error),
-            // The selector accepts the request; the frontend still has to
-            // build the target. One compile answers that, and the answer is
-            // cached because every case asks the same question.
-            Ok(_) => frontend_build_refusal(mode, opts),
-        },
-        Ok(None) => None,
-        Err(error) => Some(error),
-    }
-}
-
-/// The refusal a selected frontend gives for this target's `build`, or
-/// `None` when it builds it. The answer is computed once per process: it is
-/// the same compile for every case, and it is not free.
-fn frontend_build_refusal(mode: Mode, opts: &DriverOptions) -> Option<String> {
-    use std::sync::OnceLock;
-    static ANSWER: OnceLock<Option<String>> = OnceLock::new();
-    ANSWER
-        .get_or_init(|| {
-            // A refusal is what this asks for, so the compile is the
-            // smallest program that reaches the link.
-            let dir = project("frontend-probe", "module Main where\n\nmain :: Int\nmain = 0\n");
-            let out = dir.join("probe.wasm");
-            let result = common::drive_opts(mode, &dir, "Main.cinch", Some(out.clone()), opts);
-            let answer = match result {
-                Ok(_) if out.is_file() => None,
-                Ok(_) => Some(format!(
-                    "the selected frontend reported success without writing {}",
-                    out.display()
-                )),
-                Err(error) => Some(format!(
-                    "the selected frontend cannot build this target: {error}"
-                )),
-            };
-            let _ = std::fs::remove_dir_all(&dir);
-            answer
-        })
-        .clone()
 }
 
 /// Why a case that links cannot run on this machine, or `None` when the
@@ -239,15 +183,10 @@ fn project(name: &str, source: &str) -> PathBuf {
     dir
 }
 
-/// Build and run one case, returning the module's exit value.
-///
-/// The build goes through `common::drive_opts`, so the staged compiler
-/// runs it when the suite selects one: `--target` and `--runtime-archive`
-/// are flags it implements, and the artifact is the same module either
-/// way.
+/// Build and run one case using the Rust driver's freestanding ABI.
 fn run_case(case: &Case) -> i32 {
     let dir = project(case.name, case.source);
-    let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
+    let result = common::drive_native_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
     let _ = std::fs::remove_dir_all(&dir);
     match result {
         Ok(code) => code,
@@ -259,7 +198,7 @@ fn run_case(case: &Case) -> i32 {
 fn build_case(case: &Case) -> Vec<u8> {
     let dir = project(case.name, case.source);
     let out = dir.join("program.wasm");
-    let result = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &wasm_target());
+    let result = common::drive_native_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &wasm_target());
     if let Err(error) = result {
         let _ = std::fs::remove_dir_all(&dir);
         panic!("{}: build failed: {error}", case.name);
@@ -275,7 +214,7 @@ fn matrix(case: &Case) {
     match case.expect {
         Expect::Refused(needle) => {
             let dir = project(case.name, case.source);
-            let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
+            let result = common::drive_native_opts(Mode::Run, &dir, "Main.cinch", None, &wasm_target());
             let _ = std::fs::remove_dir_all(&dir);
             let error = result.expect_err(case.name).to_string();
             assert!(
@@ -693,31 +632,12 @@ const CASES: &[Case] = &[
     },
 ];
 
-/// The matrix, one case per program. Each is a separate test so a failure
-/// names the program rather than the table.
+/// Run the complete matrix. Each failure names its program.
 #[test]
 fn the_matrix_runs_every_program() {
-    // A partial matrix is neither a pass nor a failure, so the whole test
-    // skips once when a program's precondition is absent. Two of them
-    // differ: a case that expects a refusal never links, and a case that
-    // expects an exit value needs the toolchain.
-    let links = CASES.iter().any(|case| matches!(case.expect, Expect::Exit(_)));
-    let refuses = CASES.iter().any(|case| matches!(case.expect, Expect::Refused(_)));
-    if refuses {
-        if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
-            skip("the_matrix_runs_every_program", &reason);
-            return;
-        }
-    }
-    if links {
-        if let Some(reason) = missing_toolchain() {
-            skip("the_matrix_runs_every_program", &reason);
-            return;
-        }
-        if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
-            skip("the_matrix_runs_every_program", &reason);
-            return;
-        }
+    if let Some(reason) = missing_toolchain() {
+        skip("the_matrix_runs_every_program", &reason);
+        return;
     }
     for case in CASES {
         matrix(case);
@@ -729,7 +649,7 @@ fn the_matrix_runs_every_program() {
 /// named after the target's own extension.
 #[test]
 fn build_produces_a_wasm_module() {
-    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+    if let Some(reason) = missing_toolchain() {
         skip("build_produces_a_wasm_module", &reason);
         return;
     }
@@ -757,13 +677,9 @@ fn build_produces_a_wasm_module() {
 /// hand it. Emission needs no linker, so this runs everywhere.
 #[test]
 fn the_emitted_module_is_the_freestanding_entry() {
-    if let Some(reason) = frontend_lacks(Mode::EmitIr, &wasm_target()) {
-        skip("the_emitted_module_is_the_freestanding_entry", &reason);
-        return;
-    }
     let dir = project("ir-beside", CASES[0].source);
     let ir_path = dir.join("program.ll");
-    let result = common::drive_opts(Mode::EmitIr, &dir, "Main.cinch", Some(ir_path.clone()), &wasm_target());
+    let result = common::drive_native_opts(Mode::EmitIr, &dir, "Main.cinch", Some(ir_path.clone()), &wasm_target());
     if let Err(error) = result {
         let _ = std::fs::remove_dir_all(&dir);
         panic!("emit-ir failed: {error}");
@@ -785,16 +701,12 @@ fn the_emitted_module_is_the_freestanding_entry() {
 /// one would see an empty list with no diagnostic.
 #[test]
 fn run_refuses_program_arguments_it_cannot_deliver() {
-    if let Some(reason) = frontend_lacks(Mode::Run, &wasm_target()) {
-        skip("run_refuses_program_arguments_it_cannot_deliver", &reason);
-        return;
-    }
     let dir = project("run-args", CASES[0].source);
     let opts = DriverOptions {
         program_args: vec!["--flag".to_string()],
         ..wasm_target()
     };
-    let result = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &opts);
+    let result = common::drive_native_opts(Mode::Run, &dir, "Main.cinch", None, &opts);
     let _ = std::fs::remove_dir_all(&dir);
     let error = result.expect_err("a freestanding run cannot deliver arguments").to_string();
     assert!(error.contains("no command line"), "{error}");
@@ -819,17 +731,12 @@ fn a_native_target_still_runs_here() {
 /// freestanding one.
 #[test]
 fn an_unknown_triple_is_refused_with_the_list() {
-    let opts = DriverOptions { target: Some("wasm32".to_string()), ..DriverOptions::default() };
-    if let Some(reason) = frontend_lacks(Mode::Check, &opts) {
-        skip("an_unknown_triple_is_refused_with_the_list", &reason);
-        return;
-    }
     let dir = project("unknown-triple", CASES[0].source);
     let opts = DriverOptions {
         target: Some("wasm32".to_string()),
         ..DriverOptions::default()
     };
-    let result = common::drive_opts(Mode::Check, &dir, "Main.cinch", None, &opts);
+    let result = common::drive_native_opts(Mode::Check, &dir, "Main.cinch", None, &opts);
     let _ = std::fs::remove_dir_all(&dir);
     let error = result.expect_err("`wasm32` is not a triple").to_string();
     assert!(error.contains("unknown target `wasm32`"), "{error}");
@@ -858,7 +765,7 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
         );
         return;
     }
-    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+    if let Some(reason) = missing_toolchain() {
         skip("the_freestanding_archive_is_built_when_the_flag_is_absent", &reason);
         return;
     }
@@ -866,7 +773,7 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
     // itself.
     let dir = project("auto-archive", CASES[0].source);
     let out = dir.join("program.wasm");
-    let result = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &wasm_target());
+    let result = common::drive_native_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &wasm_target());
     let built = result.is_ok();
     let _ = std::fs::remove_dir_all(&dir);
     assert!(built, "the build did not produce an archive on its own: {:?}", result.err());
@@ -876,16 +783,6 @@ fn the_freestanding_archive_is_built_when_the_flag_is_absent() {
 /// an archive is refused by name rather than reaching the linker.
 #[test]
 fn a_runtime_archive_that_is_not_one_is_refused() {
-    // The request names an archive, which is the option this case is about,
-    // so the predicate is asked with one.
-    let probe = DriverOptions {
-        runtime_archive: Some(PathBuf::from("/nonexistent/libcinchruntime.a")),
-        ..wasm_target()
-    };
-    if let Some(reason) = frontend_lacks(Mode::Build, &probe) {
-        skip("a_runtime_archive_that_is_not_one_is_refused", &reason);
-        return;
-    }
     let dir = project("bad-archive", CASES[0].source);
     let archive = dir.join("libcinchruntime.a");
     std::fs::write(&archive, b"not an archive").expect("write the bogus archive");
@@ -893,7 +790,7 @@ fn a_runtime_archive_that_is_not_one_is_refused() {
         runtime_archive: Some(archive),
         ..wasm_target()
     };
-    let result = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("p.wasm")), &opts);
+    let result = common::drive_native_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("p.wasm")), &opts);
     let _ = std::fs::remove_dir_all(&dir);
     let error = result.expect_err("a file that is not an archive is refused").to_string();
     assert!(error.contains("not a static library archive"), "{error}");
@@ -904,14 +801,6 @@ fn a_runtime_archive_that_is_not_one_is_refused() {
 /// failing inside it.
 #[test]
 fn a_host_archive_is_refused_for_the_wasm_target() {
-    let probe = DriverOptions {
-        runtime_archive: Some(PathBuf::from("/nonexistent/libcinchruntime.a")),
-        ..wasm_target()
-    };
-    if let Some(reason) = frontend_lacks(Mode::Build, &probe) {
-        skip("a_host_archive_is_refused_for_the_wasm_target", &reason);
-        return;
-    }
     let dir = project("host-archive", CASES[0].source);
     // A minimal ELF64 aarch64 object header, which is what a host archive
     // of this machine holds.
@@ -934,7 +823,7 @@ fn a_host_archive_is_refused_for_the_wasm_target() {
         runtime_archive: Some(archive),
         ..wasm_target()
     };
-    let result = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("p.wasm")), &opts);
+    let result = common::drive_native_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("p.wasm")), &opts);
     let _ = std::fs::remove_dir_all(&dir);
     let error = result.expect_err("a host archive cannot link for wasm32").to_string();
     assert!(error.contains("aarch64"), "{error} does not name what the archive holds");
@@ -947,7 +836,7 @@ fn a_host_archive_is_refused_for_the_wasm_target() {
 /// case asserts the build only, under a bounded wait, and says why.
 #[test]
 fn a_nonterminating_program_still_builds() {
-    if let Some(reason) = frontend_lacks(Mode::Build, &wasm_target()).or_else(missing_toolchain) {
+    if let Some(reason) = missing_toolchain() {
         skip("a_nonterminating_program_still_builds", &reason);
         return;
     }
