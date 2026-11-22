@@ -3145,7 +3145,7 @@ struct Checker {
     syntax_context_values: HashMap<(String, String), Vec<ast::Name>>,
     /// Top-level equations in declaration order, with positions stable across macro expansion.
     top_eqs: Vec<(String, String, ast::Equation)>,
-    top_eqs_by_name: HashMap<String, HashMap<String, Vec<usize>>>,
+    top_eqs_by_module: HashMap<String, ModuleEquations>,
     top_recursion_groups: RefCell<HashMap<String, RecursionGroups>>,
     /// Finished instance dictionaries.
     instance_defs: Vec<InstanceDef>,
@@ -3960,7 +3960,7 @@ impl Checker {
             syntax_implicit_values: HashMap::new(),
             syntax_context_values: HashMap::new(),
             top_eqs: Vec::new(),
-            top_eqs_by_name: HashMap::new(),
+            top_eqs_by_module: HashMap::new(),
             top_recursion_groups: RefCell::new(HashMap::new()),
             instance_defs: Vec::new(),
             instance_defs_pending: HashMap::new(),

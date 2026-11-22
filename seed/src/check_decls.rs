@@ -731,6 +731,28 @@ struct ModuleBodyHeaders {
     defaults: Vec<SigInfo>,
 }
 
+#[derive(Default)]
+struct ModuleEquations {
+    by_name: HashMap<String, usize>,
+    /// Each group is numbered by the position of its first equation.
+    groups: Vec<Vec<usize>>,
+}
+
+impl ModuleEquations {
+    fn push(&mut self, name: &str, position: usize) {
+        let group = match self.by_name.get(name) {
+            Some(&group) => group,
+            None => {
+                let group = self.groups.len();
+                self.by_name.insert(name.to_owned(), group);
+                self.groups.push(Vec::new());
+                group
+            }
+        };
+        self.groups[group].push(position);
+    }
+}
+
 impl Checker {
     /// Methods and laws classify quantified binders by the same native kind
     /// rules as ordinary signatures. Class indices are erased dictionary
@@ -5410,9 +5432,9 @@ impl Checker {
         }
         if !eqs.is_empty() {
             self.top_recursion_groups.get_mut().remove(&module);
-            let positions = self.top_eqs_by_name.entry(module.clone()).or_default();
+            let equations = self.top_eqs_by_module.entry(module.clone()).or_default();
             for (name, eq) in eqs {
-                positions.entry(name.clone()).or_default().push(self.top_eqs.len());
+                equations.push(&name, self.top_eqs.len());
                 self.top_eqs.push((module.clone(), name, eq));
             }
         }
@@ -5751,10 +5773,9 @@ impl Checker {
     }
 
     fn top_equation_indices(&self, module: &str, name: &str) -> &[usize] {
-        self.top_eqs_by_name
+        self.top_eqs_by_module
             .get(module)
-            .and_then(|names| names.get(name))
-            .map(Vec::as_slice)
+            .and_then(|equations| equations.by_name.get(name).map(|&group| equations.groups[group].as_slice()))
             .unwrap_or_default()
     }
 
@@ -5858,33 +5879,26 @@ impl Checker {
         self.process_units(module)?;
 
         // Check bindings in the order of their first equation.
-        let mut names: Vec<_> = self.top_eqs_by_name.get(module).into_iter().flat_map(|positions| {
-            positions.iter().map(|(name, equations)| (equations[0], name.clone()))
-        }).collect();
-        names.sort_unstable_by_key(|(first, _)| *first);
-        for (_, name) in names {
+        let first_equations: Vec<_> = self.top_eqs_by_module.get(module).into_iter()
+            .flat_map(|equations| equations.groups.iter().map(|group| group[0]))
+            .collect();
+        for first in first_equations {
+            let key = (module.to_owned(), self.top_eqs[first].1.clone());
+            let name = &key.1;
             // Staging (P9): `stage`/`macro` definitions are compile-time
             // only, and code compiled on demand for compile-time evaluation
             // is checked already.
-            if self
-                .checked_early
-                .contains(&(module.to_string(), name.clone()))
-                || self.staging.contains(&(module.to_string(), name.clone()))
-            {
+            if self.checked_early.contains(&key) || self.staging.contains(&key) {
                 continue;
             }
-            let eqs: Vec<ast::Equation> = self.top_equation_indices(module, &name)
+            let eqs: Vec<ast::Equation> = self.top_equation_indices(module, name)
                 .iter().map(|&position| self.top_eqs[position].2.clone()).collect();
-            let scheme = self
-                .top_schemes
-                .get(&(module.to_string(), name.clone()))
-                .cloned()
-                .unwrap();
-            let id = fn_id(module, &name);
+            let scheme = self.top_schemes[&key].clone();
+            let id = fn_id(module, name);
             // An ordinary top-level definition is a top-level value
             // binding for the eager-reference-cycle check (D302).
             self.record_top_value = true;
-            let r = self.check_equations(&name, &id, &scheme, &eqs, Vec::new());
+            let r = self.check_equations(name, &id, &scheme, &eqs, Vec::new());
             self.record_top_value = false;
             r?;
         }
@@ -6965,14 +6979,16 @@ impl Checker {
     /// Build the syntactic call graph once per module. The guard walk still
     /// checks lexical binders and reports references in source order.
     fn build_recursion_groups(&self, module: &str) -> RecursionGroups {
-        let Some(positions) = self.top_eqs_by_name.get(module) else {
+        let Some(equations) = self.top_eqs_by_module.get(module) else {
             return HashMap::new();
         };
-        let names: Vec<&str> = positions.keys().map(String::as_str).collect();
-        let index: HashMap<_, _> = names.iter().copied().enumerate().map(|(i, name)| (name, i)).collect();
+        let names: Vec<_> = equations.groups.iter()
+            .map(|group| self.top_eqs[group[0]].1.as_str())
+            .collect();
+        let index = &equations.by_name;
         let mut adjacent = vec![Vec::new(); names.len()];
-        for (node, name) in names.iter().copied().enumerate() {
-            for &position in &positions[name] {
+        for (node, group) in equations.groups.iter().enumerate() {
+            for &position in group {
                 for term in self.top_eqs[position].2.terms() {
                     for_each_subterm(term, &mut |term| match term {
                         ast::Term::Var(path) if path.quals.is_empty() => {
@@ -19786,21 +19802,18 @@ impl Checker {
             Some(named) if named != module => named.clone(),
             _ => self.prelude_default.clone(),
         };
-        let mut views: Vec<ImportView> = Vec::new();
-        if let Some(vs) = self.module_views.get(module).cloned() {
-            for v in vs {
-                if v.applied || (!include_stage && v.stage) {
-                    continue;
-                }
-                views.push(v);
-            }
-        }
+        let mut views: Vec<_> = self.module_views.get(module).into_iter().flatten()
+            .filter(|v| !v.applied && (include_stage || !v.stage))
+            .cloned().collect();
         if self.prelude_module != module && !self.prelude_module.is_empty() {
             views.push(ImportView::whole(self.prelude_module.clone(), self.prelude_module.clone()));
         }
-        let mut visible = vec![module.to_string()];
+        let mut seen = HashSet::with_capacity(views.len() + 1);
+        seen.insert(module);
+        let mut visible = Vec::with_capacity(views.len() + 1);
+        visible.push(module.to_owned());
         for v in &views {
-            if !visible.contains(&v.target) {
+            if seen.insert(v.target.as_str()) {
                 visible.push(v.target.clone());
             }
         }
@@ -20641,15 +20654,20 @@ impl Checker {
         let pending: Vec<(String, String)> = self
             .top_eqs
             .iter()
-            .filter(|(m, n, e)| {
-                !self.checked_early.contains(&(m.clone(), n.clone()))
-                    && !self.staging.contains(&(m.clone(), n.clone()))
-                    && (e.terms().any(term_has_macro_call) || e.locals.iter().any(|local| match local {
-                        ast::LocalDecl::Eq { body, .. } | ast::LocalDecl::Bind { body, .. } | ast::LocalDecl::Lazy { body, .. } => term_has_macro_call(body),
+            .filter_map(|(module, name, equation)| {
+                let has_macro = equation.terms().any(term_has_macro_call)
+                    || equation.locals.iter().any(|local| match local {
+                        ast::LocalDecl::Eq { body, .. }
+                        | ast::LocalDecl::Bind { body, .. }
+                        | ast::LocalDecl::Lazy { body, .. } => term_has_macro_call(body),
                         _ => false,
-                    }))
+                    });
+                if !has_macro {
+                    return None;
+                }
+                let key = (module.clone(), name.clone());
+                (!self.checked_early.contains(&key) && !self.staging.contains(&key)).then_some(key)
             })
-            .map(|(m, n, _)| (m.clone(), n.clone()))
             .collect();
         for (module, name) in pending {
             let key = (module.clone(), name.clone());
@@ -20664,11 +20682,9 @@ impl Checker {
             let dictionaries = context_values.iter().filter_map(ast::Name::local_binding).cloned().collect();
             let globals = std::sync::Arc::new((*self.syntax_global_scope(&module)).clone().with_dictionary_bindings(dictionaries));
             let values = implicit_values.into_iter().chain(context_values).collect::<Vec<_>>();
-            let mut eqs: Vec<ast::Equation> = self
-                .top_eqs
-                .iter()
-                .filter(|(m, n, _)| m == &module && n == &name)
-                .map(|(_, _, e)| e.clone())
+            let positions = self.top_equation_indices(&module, &name).to_vec();
+            let mut eqs: Vec<_> = positions.iter()
+                .map(|&position| self.top_eqs[position].2.clone())
                 .collect();
             for eq in &mut eqs {
                 *eq = ast::scope_equation(eq, &values, globals.clone())?;
@@ -20683,12 +20699,8 @@ impl Checker {
                 }
             }
             self.top_recursion_groups.get_mut().remove(&module);
-            let mut i = 0;
-            for slot in self.top_eqs.iter_mut() {
-                if slot.0 == module && slot.1 == name {
-                    slot.2 = eqs[i].clone();
-                    i += 1;
-                }
+            for (position, equation) in positions.into_iter().zip(eqs) {
+                self.top_eqs[position].2 = equation;
             }
         }
         Ok(())

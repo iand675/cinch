@@ -165,6 +165,26 @@ fn quote_decls_splice_produces_checked_declaration() {
 
 // -------------------------------------------------------------------- hygiene
 
+#[test]
+fn macro_expansion_keeps_each_equations_local_binding() {
+    let code = run(r#"module Main where
+  macro capture-int :: Syntax -> Code Int
+  macro capture-int source = Syntax.capture source
+
+  data Choice where
+    FirstChoice :: Int -> Choice
+    SecondChoice :: Int -> Choice
+
+  choose :: Choice -> Int
+  choose (FirstChoice x) = capture-int!(x + 1)
+  choose (SecondChoice y) = capture-int!(y + 2)
+
+  main :: Int
+  main = if choose (FirstChoice 2) == 3 && choose (SecondChoice 2) == 4 then 0 else 1
+"#).expect("macros in both equations elaborate against their own pattern bindings");
+    assert_eq!(code, 0);
+}
+
 /// A macro's generated binder does not capture the caller's name of the
 /// same spelling: the template binds `x`, the caller's spliced `x` keeps
 /// its own binding (41), so the result is 1 + 41.
