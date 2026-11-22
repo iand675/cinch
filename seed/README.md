@@ -95,6 +95,25 @@ ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
 The feature is off by default, so the ordinary compiler build does not depend on
 LLVM.
 
+On macOS and Linux, use a staged native frontend and its prebuilt base:
+
+```sh
+cinch jit --native-stage build/bootstrap/stage3 Main.cinch -- arg1
+cinch jit --native-stage build/bootstrap/stage3 --serve Main.cinch -- arg1
+```
+
+The first command runs once and returns the program's exit status. In serve
+mode, wait for `cinch jit: ready` on stderr, then send one empty line per
+build and run. Each request ends with `cinch jit: status N` on stderr. Close
+stdin to stop the session. The program runs in a separate child process on
+each request, inherits stdout and stderr, and reads from an empty stdin in
+serve mode.
+
+The session retains the admitted `base.cpk` and compiled base object. It
+reuses machine code when the frontend returns identical LLVM IR. Restart
+the session after changing the compiler or base package. Use
+`--runtime LIBRARY` to select a shared runtime that matches the stage.
+
 A regular `check`, `build`, or LLVM emission writes `build/<entry>.cpk`
 with the checked interface closure. The package can also carry unfoldings
 for separate compilation. Rebuild old interface artifacts from source.

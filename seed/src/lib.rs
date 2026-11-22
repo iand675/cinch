@@ -24,6 +24,8 @@ mod package_interfaces;
 pub mod intern;
 #[cfg(feature = "jit")]
 pub mod jit;
+#[cfg(all(feature = "jit", any(target_os = "macos", target_os = "linux")))]
+pub mod native_jit;
 pub mod known;
 pub mod layout;
 pub mod lexer;

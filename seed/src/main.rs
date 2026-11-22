@@ -29,6 +29,8 @@ usage:
   cinch doc highlight <file.cinch> [--out <html>]
   cinch repl                       interactive session in the current project
   cinch jit <file.cinch>           JIT-compile and run (requires the jit feature)
+  cinch jit --native-stage <stage-dir> [--runtime <library>] [--serve] <file.cinch> [-- <args>...]
+                                   use a staged native compiler and prebuilt base
   cinch jit --package-object <package.o> [--package-dependency <dep.o>]... --call <symbol>
                                    load an installed package object and its
                                    dependency objects, then call one zero-arity
@@ -131,6 +133,10 @@ fn main() {
         }
         Some("pkg") => exit(cinch::pkg::cli(&args[1..])),
         Some("jit") => {
+            #[cfg(all(feature = "jit", any(target_os = "macos", target_os = "linux")))]
+            if args.get(1).is_some_and(|word| word == "--native-stage") {
+                exit(cinch::native_jit::cli(&args[2..]));
+            }
             #[cfg(feature = "jit")]
             {
                 let mut file: Option<&str> = None;

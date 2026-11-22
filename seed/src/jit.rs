@@ -23,6 +23,7 @@ type LLVMOrcThreadSafeModuleRef = *mut c_void;
 type LLVMOrcExecutionSessionRef = *mut c_void;
 type LLVMOrcJITDylibRef = *mut c_void;
 type LLVMOrcDefinitionGeneratorRef = *mut c_void;
+type LLVMOrcResourceTrackerRef = *mut c_void;
 
 #[allow(dead_code)]
 extern "C" {
@@ -55,12 +56,18 @@ extern "C" {
         message: *mut *mut c_char,
     ) -> c_int;
     fn LLVMDisposeMessage(message: *mut c_char);
+    fn LLVMDisposeModule(module: LLVMModuleRef);
+    fn LLVMGetNamedFunction(module: LLVMModuleRef, name: *const c_char) -> *mut c_void;
+    fn LLVMSetValueName2(value: *mut c_void, name: *const c_char, len: usize);
+    fn LLVMGetDataLayoutStr(module: LLVMModuleRef) -> *const c_char;
+    fn LLVMSetDataLayout(module: LLVMModuleRef, layout: *const c_char);
 
     fn LLVMOrcCreateLLJIT(result: *mut LLVMOrcLLJITRef, builder: *mut c_void) -> LLVMErrorRef;
     fn LLVMOrcDisposeLLJIT(jit: LLVMOrcLLJITRef) -> LLVMErrorRef;
     fn LLVMOrcLLJITGetExecutionSession(jit: LLVMOrcLLJITRef) -> LLVMOrcExecutionSessionRef;
     fn LLVMOrcLLJITGetMainJITDylib(jit: LLVMOrcLLJITRef) -> LLVMOrcJITDylibRef;
     fn LLVMOrcLLJITGetGlobalPrefix(jit: LLVMOrcLLJITRef) -> c_char;
+    fn LLVMOrcLLJITGetDataLayoutStr(jit: LLVMOrcLLJITRef) -> *const c_char;
     fn LLVMOrcCreateNewThreadSafeContextFromLLVMContext(
         context: LLVMContextRef,
     ) -> LLVMOrcThreadSafeContextRef;
@@ -74,6 +81,14 @@ extern "C" {
         dylib: LLVMOrcJITDylibRef,
         module: LLVMOrcThreadSafeModuleRef,
     ) -> LLVMErrorRef;
+    fn LLVMOrcLLJITAddLLVMIRModuleWithRT(
+        jit: LLVMOrcLLJITRef,
+        tracker: LLVMOrcResourceTrackerRef,
+        module: LLVMOrcThreadSafeModuleRef,
+    ) -> LLVMErrorRef;
+    fn LLVMOrcJITDylibCreateResourceTracker(dylib: LLVMOrcJITDylibRef) -> LLVMOrcResourceTrackerRef;
+    fn LLVMOrcResourceTrackerRemove(tracker: LLVMOrcResourceTrackerRef) -> LLVMErrorRef;
+    fn LLVMOrcReleaseResourceTracker(tracker: LLVMOrcResourceTrackerRef);
     fn LLVMOrcLLJITAddObjectFile(
         jit: LLVMOrcLLJITRef,
         dylib: LLVMOrcJITDylibRef,
@@ -149,6 +164,7 @@ pub struct JitEngine {
     jit: LLVMOrcLLJITRef,
     context: LLVMOrcThreadSafeContextRef,
     llvm_context: LLVMContextRef,
+    entry: Option<LLVMOrcResourceTrackerRef>,
     /// Whether this engine has enabled reclamation for a package object
     /// built with it (once per process, before any library code runs).
     reclaim_enabled: bool,
@@ -207,6 +223,7 @@ impl JitEngine {
                 jit,
                 context,
                 llvm_context,
+                entry: None,
                 reclaim_enabled: false,
                 package_glue: false,
             })
@@ -215,6 +232,19 @@ impl JitEngine {
 
     /// Add one textual LLVM module to the engine.
     pub fn add_ir(&mut self, ir: &str, name: &str) -> Result<()> {
+        let module = self.parse_ir(ir, name)?;
+        unsafe {
+            let module = LLVMOrcCreateNewThreadSafeModule(module, self.context);
+            let dylib = LLVMOrcLLJITGetMainJITDylib(self.jit);
+            let error = LLVMOrcLLJITAddLLVMIRModule(self.jit, dylib, module);
+            if let Some(message) = take_error(error) {
+                return Err(Error::plain(format!("add JIT module: {message}")));
+            }
+        }
+        Ok(())
+    }
+
+    fn parse_ir(&self, ir: &str, name: &str) -> Result<LLVMModuleRef> {
         unsafe {
             let module_name =
                 CString::new(name).map_err(|_| Error::plain("module name contains a NUL byte"))?;
@@ -241,14 +271,51 @@ impl JitEngine {
                 };
                 return Err(Error::plain(format!("parse LLVM IR: {text}")));
             }
+            #[cfg(all(target_arch = "aarch64", any(target_os = "macos", target_os = "linux")))]
+            {
+                // Cinch's emitters omit LLVM's natural function pointer
+                // alignment for AArch64. Accept only that exact difference.
+                let layout = CStr::from_ptr(LLVMGetDataLayoutStr(module)).to_bytes();
+                let host = LLVMOrcLLJITGetDataLayoutStr(self.jit);
+                if CStr::from_ptr(host).to_bytes().strip_suffix(b"-Fn32") == Some(layout) {
+                    LLVMSetDataLayout(module, host);
+                }
+            }
+            Ok(module)
+        }
+    }
+
+    /// Replace the native frontend's program while retaining its dependency object.
+    /// The caller must stop using the old `main` address before replacing it.
+    pub(crate) fn replace_entry(&mut self, ir: &str) -> Result<(u64, u64)> {
+        unsafe {
+            if let Some(previous) = self.entry.take() {
+                let error = LLVMOrcResourceTrackerRemove(previous);
+                LLVMOrcReleaseResourceTracker(previous);
+                if let Some(message) = take_error(error) {
+                    return Err(Error::plain(format!("remove previous JIT program: {message}")));
+                }
+            }
+            let module = self.parse_ir(ir, "cinch-native")?;
+            // The dependency object binds __apply to the permanent trampoline.
+            // LLVM keeps calls within this module pointing directly at its body.
+            let apply = LLVMGetNamedFunction(module, c"__apply".as_ptr());
+            if apply.is_null() {
+                LLVMDisposeModule(module);
+                return Err(Error::plain("native JIT program has no closure dispatcher"));
+            }
+            let name = c"__cinch_native_apply";
+            LLVMSetValueName2(apply, name.as_ptr(), name.to_bytes().len());
             let module = LLVMOrcCreateNewThreadSafeModule(module, self.context);
             let dylib = LLVMOrcLLJITGetMainJITDylib(self.jit);
-            let error = LLVMOrcLLJITAddLLVMIRModule(self.jit, dylib, module);
+            let tracker = LLVMOrcJITDylibCreateResourceTracker(dylib);
+            self.entry = Some(tracker);
+            let error = LLVMOrcLLJITAddLLVMIRModuleWithRT(self.jit, tracker, module);
             if let Some(message) = take_error(error) {
-                return Err(Error::plain(format!("add JIT module: {message}")));
+                return Err(Error::plain(format!("add native JIT program: {message}")));
             }
-            Ok(())
         }
+        Ok((self.lookup("main")?, self.lookup("__cinch_native_apply")?))
     }
 
     /// Add one native object file to the engine's main JIT dylib.
@@ -372,6 +439,9 @@ impl JitEngine {
 impl Drop for JitEngine {
     fn drop(&mut self) {
         unsafe {
+            if let Some(entry) = self.entry.take() {
+                LLVMOrcReleaseResourceTracker(entry);
+            }
             if !self.jit.is_null() {
                 let _ = LLVMOrcDisposeLLJIT(self.jit);
             }
