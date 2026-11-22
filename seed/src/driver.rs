@@ -4487,6 +4487,10 @@ pub struct DriverOptions {
     /// Concrete representation variants demanded by a library consumer.
     /// Used only by `EmitObject`; an empty list preserves ordinary roots.
     pub object_roots: Vec<crate::specialize::ObjectRoot>,
+    /// Write a CINCHPK4 companion for the emitted object.
+    pub interface_package: bool,
+    /// An object-only module, stored in the native package ABI section.
+    pub interface_package_private: Option<String>,
     /// `EmitObject` only: modules whose units this object defines. Every
     /// other module is an external dependency and is emitted as declarations,
     /// so separately produced package objects do not duplicate one another.
@@ -5603,6 +5607,12 @@ pub fn driver_with_profile_opts(
             "explicit object roots require emit-object mode",
         ));
     }
+    if opts.interface_package && mode != Mode::EmitObject {
+        return Err(Error::plain("--interface-package requires emit-object mode"));
+    }
+    if opts.interface_package_private.is_some() && !opts.interface_package {
+        return Err(Error::plain("--interface-package-private requires --interface-package"));
+    }
     if mode != Mode::EmitObject && !opts.package_objects.is_empty() && mode == Mode::EmitIr {
         return Err(Error::plain("package objects require build or run mode"));
     }
@@ -6121,7 +6131,7 @@ pub fn driver_with_profile_opts(
             path,
             out,
             &emit_modules,
-            opts.opt_level.unwrap_or(2),
+            opts,
             &out_dir,
         );
     }
@@ -6202,7 +6212,7 @@ fn write_object(
     path: &Path,
     out: Option<&Path>,
     emit_modules: &[String],
-    opt_level: u8,
+    opts: &DriverOptions,
     artifacts: &Path,
 ) -> Result<i32> {
     use crate::interface::{parse_json, JsonValue as J};
@@ -6216,7 +6226,18 @@ fn write_object(
     } else {
         package_execution_path(&out)
     };
-    if out == ir_path || out == abi_path {
+    let package_path = if emit_modules.is_empty() {
+        out.with_extension("cpk")
+    } else {
+        abi_path.with_extension("cpk")
+    };
+    let private = opts.interface_package_private.as_deref();
+    if let Some(module) = private {
+        if !emit_modules.is_empty() || !ifaces.iter().any(|iface| iface.module == module) {
+            return Err(Error::plain(format!("invalid object-only interface module {module}")));
+        }
+    }
+    if out == ir_path || out == abi_path || (opts.interface_package && (out == package_path || path == package_path)) {
         return Err(Error::plain(
             "emit-object output must differ from its LLVM and ABI companions",
         ));
@@ -6226,6 +6247,10 @@ fn write_object(
         std::fs::remove_file(&abi_path)
             .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     }
+    if opts.interface_package && package_path.exists() {
+        std::fs::remove_file(&package_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", package_path.display())))?;
+    }
     std::fs::write(&ir_path, &object.ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     let mut assemble = std::process::Command::new(clang());
@@ -6233,6 +6258,7 @@ fn write_object(
     // so they are optimized by default (`--opt-level`, 2 unless given):
     // unoptimized objects keep every local in a stack slot and every call
     // out of line.
+    let opt_level = opts.opt_level.unwrap_or(2);
     assemble.arg(format!("-O{opt_level}")).arg("-c").arg(&ir_path).arg("-o").arg(&out);
     // An object for a foreign target is assembled for that target: the
     // triple decides which instruction set the body's `asm` is, and the
@@ -6284,15 +6310,9 @@ fn write_object(
                 }
                 Err(_) => J::Null,
             };
-            Ok(J::obj([
-                ("module", iface.module.as_str().into()),
-                ("iface_hash", iface.iface_hash().into()),
-                ("interface", iface.artifact_document()),
-                ("optimisation", optimisation),
-            ]))
+            Ok((iface.iface_hash(), optimisation))
         })
         .collect::<Result<Vec<_>>>()?;
-    fields.insert("interfaces".into(), J::Arr(interfaces));
     fields.insert(
         "method_families".into(),
         J::Arr(
@@ -6328,6 +6348,39 @@ fn write_object(
         "object_content_hash".into(),
         crate::interface::content_hash_bytes(&bytes).into(),
     );
+    if opts.interface_package {
+        let entries: Vec<_> = ifaces.iter().zip(&interfaces).filter_map(|(iface, (hash, _))| {
+            (Some(iface.module.as_str()) != private).then_some((iface, hash.as_str()))
+        }).collect();
+        let mut packed_abi = fields.clone();
+        packed_abi.insert("interface_refs".into(), J::Arr(ifaces.iter().zip(&interfaces).map(|(iface, (hash, optimisation))| {
+            J::obj([
+                ("module", iface.module.as_str().into()),
+                ("iface_hash", hash.into()),
+                ("optimisation", optimisation.clone()),
+            ])
+        }).collect()));
+        if let Some((iface, (hash, optimisation))) = ifaces.iter().zip(&interfaces)
+            .find(|(iface, _)| Some(iface.module.as_str()) == private)
+        {
+            packed_abi.insert("private_interfaces".into(), J::Arr(vec![J::obj([
+                ("module", iface.module.as_str().into()),
+                ("iface_hash", hash.into()),
+                ("interface", iface.packed_document()),
+                ("optimisation", optimisation.clone()),
+            ])]));
+        }
+        let digest = crate::package_interfaces::publish(&package_path, &entries, &J::Obj(packed_abi))?;
+        fields.insert("interface_package_sha256".into(), digest.into());
+    }
+    fields.insert("interfaces".into(), J::Arr(ifaces.iter().zip(interfaces).map(|(iface, (hash, optimisation))| {
+        J::obj([
+            ("module", iface.module.as_str().into()),
+            ("iface_hash", hash.into()),
+            ("interface", iface.artifact_document()),
+            ("optimisation", optimisation),
+        ])
+    }).collect()));
     std::fs::write(&abi_path, abi.to_canonical_string())
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     Ok(0)

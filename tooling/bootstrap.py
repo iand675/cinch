@@ -915,10 +915,16 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     package = directory / "base.cpk"
     object_config = provider["configuration"]
     try:
-        embedded = json.loads(Path(object_config["metadata"]).read_bytes())
-        packed = pack([(name, identity, Path(path).read_bytes())
-                       for name, identity, path in base["interfaces"]], embedded,
-                      flat_bodies=True, structured_abi=True)
+        produced_package = provider.get("interface_package")
+        if produced_package is not None:
+            packed = produced_package.read_bytes()
+            if digest(packed) != provider["identity"]["artifacts"]["library.cpk"]:
+                raise BootstrapError("direct base interface package changed after admission")
+        else:
+            embedded = json.loads(Path(object_config["metadata"]).read_bytes())
+            packed = pack([(name, identity, Path(path).read_bytes())
+                           for name, identity, path in base["interfaces"]], embedded,
+                          flat_bodies=True, structured_abi=True)
     except (KeyError, TypeError, ValueError) as error:
         raise BootstrapError(f"cannot pack the base interfaces: {error}") from error
     configuration = json.dumps(object_config, sort_keys=True, separators=(",", ":")).encode()

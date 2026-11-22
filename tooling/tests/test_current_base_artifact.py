@@ -14,6 +14,7 @@ import build_base_artifact
 import verify_stage3
 import validate_native_string_construction
 from bootstrap_interfaces import content_hash, interface_hash
+from pack_interfaces import pack
 
 
 class CurrentBaseArtifactContract(unittest.TestCase):
@@ -101,12 +102,36 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         """Select this exact receipt without invoking a compiler or falling back to a pin."""
         return bootstrap_objects.artifact_provider(bootstrap, self.directory / "provider.json")
 
+    def package_public_contract(self, path):
+        name = "Data.String"
+        document = self.documents[name]
+        rows = [(name, interface_hash(document), json.dumps(document).encode())]
+        data = pack(rows, self.metadata, flat_bodies=True, structured_abi=True)
+        path.write_bytes(data)
+        return rows, bootstrap.digest(data)
+
     def test_current_bytes_and_checked_interfaces_are_admitted(self):
         """A matched source/object/interface/runtime family retains its explicit identity."""
         provider = self.admit()
         self.assertEqual(provider["runtime"], self.directory / "libcinchruntime.a")
         self.assertEqual(provider["identity"]["sources"], self.receipt["sources"])
         self.assertEqual(provider["configuration"]["object_sha256"], bootstrap.file_hash(provider["object"]))
+
+    def test_producer_package_is_bound_to_checked_public_interfaces(self):
+        path = self.directory / "library.cpk"
+        rows, self.metadata["interface_package_sha256"] = self.package_public_contract(path)
+        self.seal()
+        self.assertEqual(self.admit()["interface_package"], path)
+
+        other = pack([(rows[0][0], "wrong", rows[0][2])], flat_bodies=True, structured_abi=True)
+        path.write_bytes(other)
+        self.seal()
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from its object ABI"):
+            self.admit()
+        self.metadata["interface_package_sha256"] = bootstrap.digest(other)
+        self.seal()
+        with self.assertRaisesRegex(bootstrap.BootstrapError, "does not name the checked base contracts"):
+            self.admit()
 
     def test_changed_object_runtime_and_interface_bytes_are_rejected(self):
         """Replacing any actual payload invalidates the original receipt."""
@@ -249,11 +274,14 @@ class CurrentBaseArtifactContract(unittest.TestCase):
                 self.assertEqual(command[1], "emit-object")
                 self.assertEqual(Path(command[2]).read_bytes(), bootstrap_objects.ARTIFACT_ENTRY)
                 self.assertFalse((Path(command[2]).parent / "Data.String.cinch").exists())
+                self.assertIn("--interface-package", command)
+                self.assertEqual(command[command.index("--interface-package-private") + 1], "CinchBaseObject")
                 (output / "library.o").write_bytes(b"object")
                 (output / "library.ll").write_bytes(b"LLVM")
                 for name, document in self.documents.items():
                     bootstrap.write_json(output / "library/build" / (name + ".cinchif"), document)
-                bootstrap.write_json(output / "library.abi.json", self.metadata)
+                _, digest = self.package_public_contract(output / "library.cpk")
+                bootstrap.write_json(output / "library.abi.json", {**self.metadata, "interface_package_sha256": digest})
 
         sources = {"compiler/src/driver.rs": b"embedded producer source", "compiler/runtime/src/lib.rs": b"runtime source"}
         with patch.object(bootstrap, "seed_sources", return_value=sources), \
@@ -262,6 +290,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         provider = bootstrap_objects.artifact_provider(bootstrap, receipt)
         self.assertEqual(len(commands), 3)
         self.assertEqual(provider["identity"]["producer"]["mode"], "fresh-embedded")
+        self.assertEqual(provider["interface_package"], output / "library.cpk")
         self.assertEqual((output / "base/Data/String.cinch").read_bytes(),
                          (self.root / "seed/prelude/Data/String.cinch").read_bytes())
 

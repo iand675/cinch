@@ -896,7 +896,7 @@ impl Iface {
 
     /// The complete checked artifact before choosing its on-disk encoding.
     pub(crate) fn artifact_document(&self) -> JsonValue {
-        self.json_document(false)
+        self.json_document(false, &mut BodyDocuments::canonical())
     }
 
     /// Stream the same canonical bytes into a buffered file output.
@@ -907,7 +907,11 @@ impl Iface {
             .map_err(|_| output.error.expect("a failed output records its I/O error"))
     }
 
-    fn json_document(&self, contract: bool) -> JsonValue {
+    pub(crate) fn packed_document(&self) -> JsonValue {
+        self.json_document(false, &mut BodyDocuments::Packed)
+    }
+
+    fn json_document(&self, contract: bool, bodies: &mut BodyDocuments) -> JsonValue {
         // Sort references: moving an exported value into order should not
         // make a second copy of its checked total-body dependency closure.
         fn ordered<T: Ord>(rows: &[T]) -> Vec<&T> {
@@ -937,7 +941,6 @@ impl Iface {
         let assertions = ordered(&self.assertions);
         let contracts = ordered(&self.contracts);
         let laws = ordered(&self.laws);
-        let mut body_rows = HashMap::new();
 
         let exports = JsonValue::obj([
             (
@@ -946,10 +949,10 @@ impl Iface {
                     let mut row = BTreeMap::from([
                         ("name".to_string(), (&v.name).into()),
                         ("scheme".to_string(), (&v.scheme).into()),
-                        ("resolved".to_string(), resolved_scheme_json(v.resolved.as_ref())),
+                        ("resolved".to_string(), resolved_scheme_json(v.resolved.as_ref(), bodies)),
                         ("symbol".to_string(), (&v.symbol).into()),
                         ("arity".to_string(), v.arity.into()),
-                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| graph.to_shared_json_value(&mut body_rows))),
+                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| bodies.export(graph))),
                     ]);
                     if let Some(ordering) = v.keyed_ordering {
                         row.insert("keyed_ordering".into(), JsonValue::obj([
@@ -983,7 +986,7 @@ impl Iface {
                                     ("name", (&c.name).into()),
                                     ("symbol", (&c.symbol).into()),
                                     ("scheme", (&c.scheme).into()),
-                                    ("resolved", resolved_scheme_json(c.resolved.as_ref())),
+                                    ("resolved", resolved_scheme_json(c.resolved.as_ref(), bodies)),
                                     ("tag", c.tag.into()),
                                     ("fields", (&c.fields).into()),
                                     ("erased", (&c.erased).into()),
@@ -1016,7 +1019,7 @@ impl Iface {
                                     ("exports", (&m.exports).into()),
                                     ("scheme", (&m.scheme).into()),
                                     ("slot", m.slot.into()),
-                                    ("resolved", resolved_scheme_json(m.resolved.as_ref())),
+                                    ("resolved", resolved_scheme_json(m.resolved.as_ref(), bodies)),
                                 ]);
                                 if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
                                     map.insert("default".to_string(), d.0.clone());
@@ -1035,12 +1038,12 @@ impl Iface {
                         ("id", (&inst.id).into()),
                         ("class", (&inst.class).into()),
                         ("target", (&inst.target).into()),
-                        ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
+                        ("resolved", resolved_scheme_json(inst.resolved.as_ref(), bodies)),
                         ("method_contracts", JsonValue::arr(&method_contracts, |method| {
                             let checked = &method.checked;
                             let mut implementation = BTreeMap::from([
                                 ("identity".into(), (&checked.implementation).into()),
-                                ("resolved".into(), resolved_scheme_json(Some(&checked.resolved))),
+                                ("resolved".into(), resolved_scheme_json(Some(&checked.resolved), bodies)),
                             ]);
                             if let Some(body) = &checked.body {
                                 implementation.insert("body".into(), guarded_nat_body_json(body));
@@ -1051,7 +1054,7 @@ impl Iface {
                                 ("scheme", (&method.scheme).into()),
                                 ("checked", JsonValue::obj([
                                     ("schema", 1u64.into()),
-                                    ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
+                                    ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head), bodies))])),
                                     ("implementation", JsonValue::Obj(implementation)),
                                 ])),
                             ])
@@ -1062,13 +1065,13 @@ impl Iface {
                     ]);
                     // Omit the field when the instance supplies no body authority.
                     if !inst.method_bodies.is_empty() {
-                        let bodies = ordered(&inst.method_bodies);
+                        let methods = ordered(&inst.method_bodies);
                         if let JsonValue::Obj(fields) = &mut row {
-                            fields.insert("method_bodies".into(), JsonValue::arr(&bodies, |body| JsonValue::obj([
+                            fields.insert("method_bodies".into(), JsonValue::arr(&methods, |body| JsonValue::obj([
                                 ("slot", body.slot.into()),
                                 ("implementation", (&body.implementation).into()),
-                                ("resolved", resolved_scheme_json(Some(&body.resolved))),
-                                ("total_body", body.total_body.to_shared_json_value(&mut body_rows)),
+                                ("resolved", resolved_scheme_json(Some(&body.resolved), bodies)),
+                                ("total_body", bodies.export(&body.total_body)),
                             ])));
                         }
                     }
@@ -1234,7 +1237,7 @@ impl Iface {
     /// parameterized module (or of its instantiator).
     pub fn iface_hash(&self) -> String {
         let mut hash = ContractHash(FNV_OFFSET);
-        self.json_document(true)
+        self.json_document(true, &mut BodyDocuments::canonical())
             .write_canonical_to(&mut hash)
             .expect("hashing canonical bytes cannot fail");
         hash.0.to_string()
@@ -2110,7 +2113,33 @@ fn nominal_contract_json(n: &NominalContract) -> JsonValue {
     value
 }
 
-fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
+/// Packed publication retains checked trees until the section writer assigns node IDs.
+enum BodyDocuments {
+    Canonical(HashMap<*const crate::total::Definition, Arc<str>>),
+    Packed,
+}
+
+impl BodyDocuments {
+    fn canonical() -> Self {
+        Self::Canonical(HashMap::new())
+    }
+
+    fn export(&mut self, graph: &crate::total::CheckedGraph) -> JsonValue {
+        match self {
+            Self::Canonical(rows) => graph.to_shared_json_value(rows),
+            Self::Packed => JsonValue::PackedGraph(graph.clone()),
+        }
+    }
+
+    fn measure(&self, graph: &crate::total::CheckedGraph) -> JsonValue {
+        match self {
+            Self::Canonical(_) => graph.to_json_value(),
+            Self::Packed => JsonValue::PackedGraph(graph.clone()),
+        }
+    }
+}
+
+fn resolved_scheme_json(scheme: Option<&ResolvedScheme>, bodies: &mut BodyDocuments) -> JsonValue {
     let Some(scheme) = scheme else { return JsonValue::Null };
     let mut nominals = scheme.nominals.clone();
     nominals.sort();
@@ -2118,8 +2147,8 @@ fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
         ("scheme", (&scheme.scheme).into()),
         ("measures", JsonValue::arr(&scheme.measures, |m| JsonValue::obj([
             ("identity", (&m.identity).into()),
-            ("resolved", resolved_scheme_json(Some(&m.resolved))),
-            ("total_body", m.total_body.to_json_value()),
+            ("resolved", resolved_scheme_json(Some(&m.resolved), bodies)),
+            ("total_body", bodies.measure(&m.total_body)),
         ]))),
         ("nominals", JsonValue::arr(&nominals, nominal_contract_json)),
     ])

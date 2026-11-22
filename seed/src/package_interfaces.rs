@@ -7,8 +7,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 mod flat;
+mod writer;
 use flat::FlatBodies;
 pub(crate) use flat::PackedClosure;
+pub(crate) use writer::publish;
 
 const HEADER: usize = 80;
 const FLAT_HEADER: usize = 88;

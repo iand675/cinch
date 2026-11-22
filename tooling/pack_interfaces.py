@@ -333,6 +333,48 @@ def read_manifest(path):
     return [(name, digest, (path.parent / filename).read_bytes()) for name, digest, filename in manifest["interfaces"]]
 
 
+def packed_manifest(data):
+    """Read the public module identities from a CINCHPK4 section directory."""
+    if len(data) < FLAT_HEADER_SIZE or data[:8] != STRUCTURED_ABI_MAGIC:
+        raise ValueError("invalid packed interface header")
+    if struct.unpack_from("<II", data, 8) != (len(data), 4):
+        raise ValueError("invalid packed interface length")
+    sections = []
+    end = FLAT_HEADER_SIZE
+    for at in range(16, FLAT_HEADER_SIZE, 8):
+        start, length = struct.unpack_from("<II", data, at)
+        if start != end or start + length > len(data):
+            raise ValueError("invalid packed interface directory")
+        end = start + length
+        sections.append(memoryview(data)[start:end])
+    if end != len(data):
+        raise ValueError("invalid packed interface directory")
+    strings, modules = sections[:2]
+    if len(strings) < 4 or len(modules) % 36:
+        raise ValueError("invalid packed module index")
+    text_at = 4 + 8 * struct.unpack_from("<I", strings)[0]
+    if text_at > len(strings):
+        raise ValueError("invalid packed string table")
+
+    def read_text(start, length):
+        first = text_at + start
+        if first + length > len(strings):
+            raise ValueError("invalid packed module string span")
+        return bytes(strings[first:first + length]).decode("utf-8")
+
+    count = len(modules) // 36
+    rows = []
+    seen = set()
+    for at in range(0, len(modules), 36):
+        (rank,) = struct.unpack_from("<I", modules, at + 32)
+        if rank >= count or rank in seen:
+            raise ValueError("invalid packed module rank")
+        seen.add(rank)
+        name_at, name_len, hash_at, hash_len = struct.unpack_from("<IIII", modules, rank * 36)
+        rows.append((read_text(name_at, name_len), read_text(hash_at, hash_len)))
+    return rows
+
+
 def read_abi(config_path):
     config = json.loads(config_path.read_bytes())
     path = config_path.parent / config["metadata"]

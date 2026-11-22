@@ -71,6 +71,10 @@ impl CheckedGraph {
         if matches!(&self.storage, BodyStorage::Packed(_)) {
             return J::PackedGraph(self.clone());
         }
+        self.materialized_json_value()
+    }
+
+    pub(crate) fn materialized_json_value(&self) -> J {
         J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), definition_json))])
     }
 

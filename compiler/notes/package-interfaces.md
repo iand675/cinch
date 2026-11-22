@@ -6,6 +6,18 @@ definition, even when many exports reference the same definitions. The
 contract digest, total bodies, typed schemes, layouts, laws, and dependency
 identities have the same meaning as in the per-module JSON files.
 
+The Rust compiler can write the package directly from its checked contracts
+and body trees while emitting a library object.
+
+```sh
+cinch emit-object Library.cinch --interface-package -o library.o
+```
+
+The fresh-base workflow uses the same writer. `tooling/build_base_artifact.py`
+records the producer's `library.cpk` in its receipt. A bootstrap using
+`--library-artifact` takes that package as its base artifact after checking
+its digest and public module identities.
+
 To generate a package from a native compiler's existing manifest:
 
 ```sh

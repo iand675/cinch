@@ -10,6 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bootstrap
 import bootstrap_objects
+from pack_interfaces import pack
 
 
 class LibraryProviderContract(unittest.TestCase):
@@ -54,7 +55,7 @@ class LibraryProviderContract(unittest.TestCase):
                     (target / "release").mkdir(parents=True, exist_ok=True)
                     if "--bin" in args:
                         binary = target / "release/cinch"
-                        binary.write_bytes(b"pinned producer binary")
+                        binary.write_bytes(b"#!/bin/sh\nprintf '%s\\n' --interface-package-private\n")
                         binary.chmod(0o755)
                     else:
                         (target / "release/libcinchruntime.a").write_bytes(b"matching runtime")
@@ -62,18 +63,23 @@ class LibraryProviderContract(unittest.TestCase):
                     self.assertEqual(args[1], "emit-object")
                     self.assertEqual(Path(args[2]).read_bytes(), bootstrap_objects.ENTRY)
                     self.assertNotIn(b"Bootstrap.", Path(args[2]).read_bytes())
+                    self.assertIn("--interface-package", args)
                     output = Path(args[-1])
                     output.write_bytes(b"native library code")
                     output.with_suffix(".ll").write_bytes(b"native library LLVM")
                     rows = []
                     for name in ["Data.Core", "CinchBaseObject"]:
-                        doc = {"module": name, "imports": []}
+                        doc = {"schema": 10, "module": name, "imports": [], "exports": {"values": []}}
                         interface = Path(args[2]).parent / "build" / (name + ".cinchif")
                         bootstrap.write_json(interface, doc)
                         rows.append({"module": name, "iface_hash": name + "-hash", "interface": doc})
                     metadata = {"schema": 1, "runtime_abi": 10, "word_size": 64, "endian": "little",
                                 "reclaim": True, "self_describing": True, "target": "test-host",
                                 "interfaces": rows, "units": [{"symbol": "CinchBaseObject.marker"}]}
+                    data = pack([("Data.Core", "Data.Core-hash", bootstrap_objects.canonical(rows[0]["interface"]))],
+                                metadata, flat_bodies=True, structured_abi=True)
+                    output.with_suffix(".cpk").write_bytes(data)
+                    metadata["interface_package_sha256"] = bootstrap.digest(data)
                     bootstrap.write_json(output.with_suffix(".abi.json"), metadata)
                 return 0
 
@@ -89,6 +95,7 @@ class LibraryProviderContract(unittest.TestCase):
                 self.assertEqual(len(calls), 3, "concurrent requests must share one construction")
                 self.assertEqual([row[0] for row in provider["interfaces"]["interfaces"]], ["Data.Core"])
                 self.assertEqual(provider["configuration"]["object_sha256"], bootstrap.file_hash(provider["object"]))
+                self.assertEqual(provider["identity"]["artifacts"]["library.cpk"], bootstrap.file_hash(provider["interface_package"]))
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 3)
                 contract = Path(provider["interfaces"]["interfaces"][0][2])
@@ -98,6 +105,9 @@ class LibraryProviderContract(unittest.TestCase):
                 provider["object"].write_bytes(b"corrupted library code")
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 9)
+                provider["interface_package"].write_bytes(b"corrupted packed interface")
+                bootstrap_objects.provider(bootstrap)
+                self.assertEqual(len(calls), 12)
 
     def test_unsupported_library_abi_is_rejected_before_a_native_command(self):
         with tempfile.TemporaryDirectory() as temp:

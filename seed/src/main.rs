@@ -42,6 +42,8 @@ usage:
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
+  --interface-package   emit a packed .cpk with the library object
+  --interface-package-private <module>  keep one object-only module in the packed ABI
   --package-object <path>  link an installed package object in build/run
   --shared              build a native shared library (without main)
   --native-object <path> link a native object/archive (repeatable)
@@ -255,6 +257,18 @@ fn main() {
     let mut i = 0;
     while i < rest.len() {
         match rest[i].as_str() {
+            "--interface-package" => opts.interface_package = true,
+            "--interface-package-private" => {
+                i += 1;
+                let Some(module) = rest.get(i).filter(|name| !name.starts_with('-')) else {
+                    eprintln!("cinch: --interface-package-private needs a module name");
+                    exit(2);
+                };
+                if opts.interface_package_private.replace(module.clone()).is_some() {
+                    eprintln!("cinch: --interface-package-private accepts one module");
+                    exit(2);
+                }
+            }
             "--object-roots" => {
                 i += 1;
                 let Some(path) = rest.get(i) else {
