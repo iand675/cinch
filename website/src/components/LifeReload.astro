@@ -11,6 +11,7 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
     <div class="life-head">
       <span class="mono" data-life-version>VERSION 1</span>
       <span class="mono" data-life-generation>GENERATION 0</span>
+      <span class="mono" data-life-size></span>
       <div class="life-keys">
         <button type="button" class="gadget-key" data-life-run disabled aria-pressed="false">Run <span aria-hidden="true">▸</span></button>
         <button type="button" class="gadget-key" data-life-step disabled>Step</button>
@@ -18,19 +19,19 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
         <button type="button" class="gadget-key" data-life-reseed disabled>Reseed</button>
       </div>
     </div>
-    <canvas class="life-board" data-life-board role="img" aria-label="A Game of Life board, 40 by 24 cells, starting with Gosper's glider gun. Click a cell to switch it."></canvas>
+    <canvas class="life-board" data-life-board role="img" aria-label="Game of Life board. Click a cell to switch it."></canvas>
     <div class="life-editor">
       <pre class="life-paint" aria-hidden="true"><code data-life-paint>{module}</code></pre>
       <textarea class="life-input" data-life-source disabled spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Editable Life.cinch source code" aria-describedby="life-status">{module}</textarea>
     </div>
     <p class="life-status" id="life-status" data-life-status aria-live="polite">Loading the precompiled board…</p>
   </div>
-  <p class="life-note">Edit the Life module and Cinch compiles it in your browser. The runtime switches versions between generations, keeping the cells, their ages, and the generation count. Inspired by <a href="https://github.com/indexable-inc/blaze#demo-a-game-of-life-you-can-edit">Blaze’s live-editable Life demo</a>.</p>
+  <p class="life-note">Edit the Life module and Cinch compiles it in your browser. The runtime switches versions between generations, keeping the generation count and the ages of cells that fit. Inspired by <a href="https://github.com/indexable-inc/blaze#demo-a-game-of-life-you-can-edit">Blaze’s live-editable Life demo</a>.</p>
   <details class="life-exports"><summary>WebAssembly exports</summary><CodeExcerpt code={exports} label="LIFE-ABI.CINCH" /></details>
 </div>
 <script>
   import { tokenize } from '../lib/highlight';
-  import { Life, width as W, height as H } from '../lib/life';
+  import { Life } from '../lib/life';
   import boardUrl from '../data/examples/life-board.wasm?url';
   import type { CompileReply, CompileRequest } from '../lib/life-compiler.worker';
 
@@ -43,6 +44,7 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
     const status = root.querySelector<HTMLElement>('[data-life-status]')!;
     const versionLabel = root.querySelector<HTMLElement>('[data-life-version]')!;
     const generationLabel = root.querySelector<HTMLElement>('[data-life-generation]')!;
+    const sizeLabel = root.querySelector<HTMLElement>('[data-life-size]')!;
     const runKey = root.querySelector<HTMLButtonElement>('[data-life-run]')!;
     const ctx = canvas.getContext('2d')!;
 
@@ -55,27 +57,40 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
     let frame = 0;
     let palette: string[] = [];
 
-    const refreshPalette = () => {
-      palette = life?.settings.colors.map((color) => `#${color.toString(16).padStart(6, '0')}`) ?? [];
+    const refreshBoard = (board: Life) => {
+      const { colors, width, height } = board.settings;
+      palette = colors.map((color) => `#${color.toString(16).padStart(6, '0')}`);
+      canvas.style.aspectRatio = `${width} / ${height}`;
+      canvas.setAttribute('aria-label', `Game of Life board, ${width} columns by ${height} rows. Click a cell to switch it.`);
+      sizeLabel.textContent = `${width} × ${height}`;
+    };
+
+    const geometry = (box: DOMRect, columns: number, rows: number) => {
+      const size = Math.min(box.width / columns, box.height / rows);
+      return { size, left: (box.width - size * columns) / 2, top: (box.height - size * rows) / 2 };
     };
 
     const draw = () => {
       if (!life) return;
+      const { width, height } = life.settings;
       const ages = life.ages;
       const ratio = window.devicePixelRatio || 1;
-      const width = canvas.clientWidth, height = canvas.clientHeight;
-      if (canvas.width !== Math.round(width * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      const size = width / W;
+      const box = canvas.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const pixelWidth = Math.round(box.width * ratio), pixelHeight = Math.round(box.height * ratio);
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+      ctx.setTransform(pixelWidth / box.width, 0, 0, pixelHeight / box.height, 0, 0);
+      const { size, left, top } = geometry(box, width, height);
       ctx.fillStyle = '#1a2117';
-      ctx.fillRect(0, 0, width, height);
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const age = ages[y * W + x];
+      ctx.fillRect(0, 0, box.width, box.height);
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const age = ages[y * width + x];
         ctx.fillStyle = age ? palette[age - 1] : '#283222';
         const inset = age ? size * 0.1 : size * 0.42;
-        ctx.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
+        ctx.fillRect(left + x * size + inset, top + y * size + inset, size - inset * 2, size - inset * 2);
       }
-      generationLabel.textContent = `GENERATION ${life.state[H]}`;
+      generationLabel.textContent = `GENERATION ${life.generation}`;
     };
     const advance = () => {
       try {
@@ -115,23 +130,35 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
     root.querySelector('[data-life-reset]')!.addEventListener('click', () => { life?.reset(); draw(); });
     root.querySelector('[data-life-reseed]')!.addEventListener('click', () => { life?.reseed(); draw(); });
     canvas.addEventListener('click', (event) => {
+      if (!life) return;
+      const { width, height } = life.settings;
       const box = canvas.getBoundingClientRect();
-      const x = Math.floor(((event.clientX - box.left) / box.width) * W);
-      const y = Math.floor(((event.clientY - box.top) / box.height) * H);
-      if (life && x >= 0 && x < W && y >= 0 && y < H) { life.toggle(x, y); draw(); }
+      const { size, left, top } = geometry(box, width, height);
+      const x = Math.floor((event.clientX - box.left - left) / size);
+      const y = Math.floor((event.clientY - box.top - top) / size);
+      if (x >= 0 && x < width && y >= 0 && y < height) { life.toggle(x, y); draw(); }
     });
 
-    // The editor: a transparent textarea over a highlighted copy of the same text.
-    const syncScroll = () => { backdrop.scrollTop = source.scrollTop; };
-    source.addEventListener('scroll', syncScroll);
+    // The textarea owns the scrollbars and the editable text. Mirror its
+    // viewport so the highlighted copy lays out the same lines.
+    const syncViewport = () => {
+      backdrop.style.width = `${source.clientWidth}px`;
+      backdrop.style.height = `${source.clientHeight}px`;
+      backdrop.scrollLeft = source.scrollLeft;
+      backdrop.scrollTop = source.scrollTop;
+    };
+    source.addEventListener('scroll', syncViewport);
+    new ResizeObserver(syncViewport).observe(source);
+
     const repaint = () => {
-      paint.replaceChildren(...tokenize(source.value + '\n').map(({ text, kind }) => {
+      paint.replaceChildren(...tokenize(source.value).map(({ text, kind }) => {
         const span = document.createElement('span');
         if (kind) span.className = `excerpt-${kind}`;
         span.textContent = text;
         return span;
       }));
-      syncScroll();
+      if (source.value.endsWith('\n')) paint.append('​');
+      syncViewport();
     };
     let worker: Worker | undefined;
     let edit = 0;
@@ -154,14 +181,16 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
           status.textContent = `Version ${version} is still running. ${reply.error}`;
         } else {
           try {
-            const { stepMs } = life.settings;
+            const { stepMs, width, height } = life.settings;
             version = life.install(reply.settings);
-            refreshPalette();
+            refreshBoard(life);
             draw();
             if (reply.settings.stepMs !== stepMs) schedule();
             loaded = compiled.source;
             versionLabel.textContent = `VERSION ${version}`;
-            status.textContent = `Version ${version} loaded at generation ${life.state[H]}. Board state preserved.`;
+            const resized = width !== life.settings.width || height !== life.settings.height;
+            const stateMessage = resized ? 'Grid resized. Cells within its bounds were kept.' : 'Board state preserved.';
+            status.textContent = `Version ${version} loaded at generation ${life.generation}. ${stateMessage}`;
           } catch (error) {
             status.textContent = error instanceof Error ? error.message : 'The runtime refused the update.';
           }
@@ -216,7 +245,7 @@ const exports = bridge.split('\n').filter((line) => line.trimStart().startsWith(
     repaint();
     void Life.load(boardUrl).then((board) => {
       life = board;
-      refreshPalette();
+      refreshBoard(board);
       versionLabel.textContent = 'VERSION 1';
       root.querySelectorAll<HTMLButtonElement>('.life-keys button').forEach((button) => { button.disabled = false; });
       source.disabled = false;

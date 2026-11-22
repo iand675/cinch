@@ -57,9 +57,11 @@ project-specific DNS target returned by Vercel with proxying disabled.
 The landing page ships a precompiled Cinch board and loads the seed compiler
 in a worker on the first edit. The entire `life.cinch` module is editable.
 The compiler checks and specializes the cell-age rule, neighbour counting,
-edge behaviour, palette, and generation interval. The Cinch runtime activates
-those settings together between generations, retaining the cells, ages, and
-generation. The fixed WebAssembly bridge lives in `life-abi.cinch`.
+edge behaviour, palette, generation interval, and grid dimensions. The Cinch
+runtime activates those settings between generations. When the grid resizes,
+cells at coordinates that still fit keep their ages, newly added cells start
+dead, and the generation stays the same. The fixed WebAssembly bridge lives in
+`life-abi.cinch`.
 The example is based on [Blaze’s Life demo](https://github.com/indexable-inc/blaze#demo-a-game-of-life-you-can-edit).
 
 After changing the demo's Cinch source, compiler, or runtime, regenerate its

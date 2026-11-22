@@ -4,6 +4,8 @@ use std::cell::RefCell;
 
 const INPUT_CAPACITY: usize = 4096;
 const MAX_AGE: u32 = 32;
+const MAX_WIDTH: u32 = 62;
+const MAX_HEIGHT: u32 = 64;
 const NEIGHBOUR_COUNTS: u32 = 9;
 const NEIGHBOUR_MASKS: u32 = 256;
 const CONTRACT: &str = r#"module Life.Check where
@@ -26,6 +28,12 @@ const CONTRACT: &str = r#"module Life.Check where
 
   board-wrap :: Bool
   board-wrap = wrap-edges
+
+  board-width :: Int
+  board-width = grid-width
+
+  board-height :: Int
+  board-height = grid-height
 "#;
 
 #[derive(serde::Serialize)]
@@ -36,6 +44,8 @@ struct Settings {
     colors: Vec<u32>,
     step_ms: u32,
     wrap_edges: bool,
+    width: u32,
+    height: u32,
 }
 
 thread_local! {
@@ -87,6 +97,8 @@ fn compile(compiler: &mut Analysis, text: &str) -> Result<Settings, String> {
         .filter(|value| *value <= 0x7fff_ffff)
         .ok_or("step-ms must be between 0 and 2147483647.")?;
     let wrap_edges = evaluate(compiler, "board-wrap")? == "True";
+    let width = dimension(compiler, "board-width", "grid-width", MAX_WIDTH)?;
+    let height = dimension(compiler, "board-height", "grid-height", MAX_HEIGHT)?;
 
     let mut ages = Vec::new();
     for age in 0..=MAX_AGE {
@@ -137,7 +149,17 @@ fn compile(compiler: &mut Analysis, text: &str) -> Result<Settings, String> {
         colors,
         step_ms,
         wrap_edges,
+        width,
+        height,
     })
+}
+
+fn dimension(compiler: &mut Analysis, probe: &str, name: &str, max: u32) -> Result<u32, String> {
+    evaluate(compiler, probe)?
+        .parse::<u32>()
+        .ok()
+        .filter(|value| (1..=max).contains(value))
+        .ok_or_else(|| format!("{name} must be between 1 and {max}."))
 }
 
 // Pack each short batch into one Int so the checker can evaluate it in a

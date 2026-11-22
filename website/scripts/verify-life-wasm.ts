@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import { ConsoleStdout, File, OpenFile, WASI } from '@bjorn3/browser_wasi_shim';
-import { Life, maxAge, height, width, type BoardExports, type LifeSettings } from '../src/lib/life.ts';
+import { Life, maxAge, type BoardExports, type LifeSettings } from '../src/lib/life.ts';
 
 const assets = new URL('../src/data/examples/', import.meta.url);
 const read = (name: string) => readFile(new URL(name, assets));
@@ -34,27 +34,30 @@ function compile(source: string): LifeSettings | { error: string } {
 
 const original = (await read('life.cinch')).toString();
 const defaults = life.settings;
+const { width, height } = defaults;
+assert.equal(width, 40);
+assert.equal(height, 24);
 assert.equal(defaults.stepMs, 80);
 assert.equal(defaults.colors.length, maxAge);
 assert.equal(defaults.wrapEdges, true);
 assert.deepEqual(compile(original), defaults);
 
 // A blinker crosses the horizontal edge, then the vertical edge.
-life.state.fill(0n);
+life.rows.fill(0n);
 life.ages.fill(0);
 life.toggle(width - 1, 0);
 life.toggle(0, 0);
 life.toggle(1, 0);
 life.step();
-assert.deepEqual([...life.state.slice(0, 3)], [1n, 1n, 0n]);
-assert.equal(life.state[height - 1], 1n);
-assert.equal(life.state[height], 1n);
+assert.deepEqual([...life.rows.slice(0, 3)], [1n, 1n, 0n]);
+assert.equal(life.rows[height - 1], 1n);
+assert.equal(life.generation, 1n);
 assert.equal(life.ages[0], 2);
 assert.equal(life.ages[1], 0);
 assert.equal(life.ages[width - 1], 0);
 assert.equal(life.ages[width], 1);
 assert.equal(life.ages[(height - 1) * width], 1);
-const rows = life.state.slice();
+const rows = life.rows.slice();
 const ages = life.ages.slice();
 
 const invalidEdits = [
@@ -63,13 +66,15 @@ const invalidEdits = [
   [original.replace('neighbour-count mask = count-bits mask', 'neighbour-count mask = 9'), 'neighbour-count 0'],
   [original.replace('0xffd69c', '16777216'), 'cell-color 1'],
   [original.replace('step-ms = 80', 'step-ms = 2147483648'), 'step-ms must be'],
+  [original.replace('grid-width = 40', 'grid-width = 63'), 'grid-width must be between 1 and 62'],
+  [original.replace('grid-height = 24', 'grid-height = 0'), 'grid-height must be between 1 and 64'],
 ];
 for (const [source, message] of invalidEdits) {
   const invalid = compile(source);
   assert.ok('error' in invalid && invalid.error.includes(message), JSON.stringify(invalid));
 }
 assert.equal(life.settings, defaults);
-assert.deepEqual(life.state, rows);
+assert.deepEqual(life.rows, rows);
 assert.deepEqual(life.ages, ages);
 
 // An added declaration and changes to every part of the module take effect together.
@@ -91,24 +96,25 @@ assert.equal(next.colors[0], 0x00ffff);
 assert.equal(next.stepMs, 0);
 assert.equal(life.install(next), 2);
 assert.deepEqual(life.settings, next);
-assert.deepEqual(life.state, rows);
+assert.deepEqual(life.rows, rows);
 assert.deepEqual(life.ages, ages);
 
 life.step();
-assert.equal(life.state[height], 2n);
+assert.equal(life.generation, 2n);
 assert.equal(life.ages[0], 0);
 assert.equal(life.ages[1], 0);
 assert.equal(life.ages[2], 1);
 assert.deepEqual(compile(original), defaults);
 life.reset();
 assert.deepEqual(life.settings, next);
-assert.equal(life.state[height], 0n);
+assert.equal(life.generation, 0n);
 
 function checkAgesMatchRows() {
+  const { width, height } = life.settings;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const live = (life.state[y] >> BigInt(x)) & 1n;
-      assert.equal(life.ages[y * width + x], Number(live));
+      const live = (life.rows[y] >> BigInt(x)) & 1n;
+      assert.equal(life.ages[y * width + x] > 0, live === 1n);
     }
   }
 }
@@ -116,4 +122,61 @@ checkAgesMatchRows();
 life.reseed();
 checkAgesMatchRows();
 
-console.log('Cinch Wasm compiled Life edits, activated settings atomically, and preserved the board, ages, and generation.');
+// Resize through the compiler and keep coordinates, ages and the counter.
+life.install(defaults);
+life.reset();
+life.rows.fill(0n);
+life.ages.fill(0);
+for (const [x, y] of [[0, 0], [1, 0], [2, 0], [width - 2, height - 2], [width - 1, height - 2], [width - 1, height - 1]]) {
+  life.toggle(x, y);
+}
+life.step();
+assert.equal(life.ages[1], 2);
+const beforeResize = life.ages.slice();
+const smaller = compile(original
+  .replace('grid-width = 40', 'grid-width = 3 + 5')
+  .replace('grid-height = 24', 'grid-height = 6'));
+assert.ok('ages' in smaller, JSON.stringify(smaller));
+assert.equal(smaller.width, 8);
+assert.equal(smaller.height, 6);
+assert.throws(() => life.install({ ...smaller, width: 63 }), /invalid grid dimensions/);
+assert.deepEqual(life.ages, beforeResize);
+life.install(smaller);
+assert.equal(life.generation, 1n);
+assert.equal(life.ages.length, 48);
+for (let y = 0; y < smaller.height; y++) {
+  assert.deepEqual(life.ages.slice(y * 8, (y + 1) * 8), beforeResize.slice(y * width, y * width + 8));
+}
+checkAgesMatchRows();
+
+const larger = compile(original.replace('grid-width = 40', 'grid-width = 62').replace('grid-height = 24', 'grid-height = 64'));
+assert.ok('ages' in larger, JSON.stringify(larger));
+life.install(larger);
+assert.equal(life.generation, 1n);
+assert.equal(life.ages[1], 2);
+assert.ok(life.ages.slice(6 * larger.width).every((age) => age === 0));
+for (let y = 0; y < smaller.height; y++) {
+  assert.ok(life.ages.slice(y * larger.width + smaller.width, (y + 1) * larger.width).every((age) => age === 0));
+}
+checkAgesMatchRows();
+
+// The widest board still has both wrap bits, including bit 63.
+life.rows.fill(0n);
+life.ages.fill(0);
+life.toggle(larger.width - 1, 0);
+life.toggle(0, 0);
+life.toggle(1, 0);
+life.step();
+assert.equal(life.rows[0], 1n);
+assert.equal(life.rows[1], 1n);
+assert.equal(life.rows[larger.height - 1], 1n);
+assert.equal(life.generation, 2n);
+
+life.install({ ...defaults, width: 1, height: 1 });
+life.reset();
+assert.deepEqual([...life.ages], [1]);
+life.step();
+assert.deepEqual([...life.ages], [0]);
+assert.equal(life.generation, 1n);
+
+console.log('Cinch Wasm activated edits atomically and resized the grid while preserving overlapping cells, ages, and generation.');

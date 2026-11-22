@@ -21,7 +21,7 @@ cp "$assets/life-abi.cinch" "$scratch/Browser.cinch"
 "$clang" --target=wasm32-unknown-unknown -O2 -c "$scratch/life.ll" -o "$scratch/life.o"
 exports=(
   life_initial_age life_initial_neighbours life_initial_color life_initial_step_ms
-  life_initial_wrap life_neighbour_mask cinch_alloc
+  life_initial_wrap life_initial_width life_initial_height life_neighbour_mask cinch_alloc
   cinch_evo_module_new cinch_evo_state_seed cinch_evo_state_payload
   cinch_evo_current_version cinch_evo_version_new cinch_evo_update_begin
   cinch_evo_add_replacement cinch_evo_mark_complete cinch_evo_activate
