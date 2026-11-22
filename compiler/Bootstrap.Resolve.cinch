@@ -564,7 +564,7 @@ module Bootstrap.Resolve where
   -- graph. Follow one edge per module until it repeats. Drop the prefix
   -- before the repeated module, which may just be an importer of the cycle.
   import-cycle :: Module -> List Module -> List Diagnostic
-  import-cycle first remaining = case cycle-from (module-name first) (index-modules (reverse remaining) hash-map-empty) hash-map-empty Nil of
+  import-cycle first remaining = case cycle-from (module-name first) (module-name-index remaining) hash-map-empty Nil of
     Some (site, chain) -> fail site (cat ["module import cycle: ", render-cycle chain])
     None -> fail (module-span first) (cat ["unresolved module imports involving ", module-name first])
   cycle-from :: String -> HashMap String Module -> HashMap String Bool -> List String -> Option (Span, List String)
@@ -1704,17 +1704,11 @@ module Bootstrap.Resolve where
       known-imports rest (hash-map-insert name True seen) (Cons name names)
     Cons other rest -> known-imports rest seen names
 
-  -- Index in reverse order so the first source spelling retains authority
-  -- even while staging is inspecting source with a duplicate declaration.
-  index-modules :: List Module -> HashMap String Module -> HashMap String Module
-  index-modules modules indexed = case modules of
-    Nil -> indexed
-    Cons m rest -> index-modules rest (hash-map-insert (module-name m) m indexed)
   -- A compile-time evaluator sees its producer, the source Prelude when present,
   -- and their transitive imports. Runtime clients may import names that the
   -- producer has yet to generate. The expanded program checks those imports.
   source-import-closure :: String -> List Module -> List String
-  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] (index-modules (reverse modules) hash-map-empty) hash-map-empty Nil
+  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] (module-name-index modules) hash-map-empty Nil
 
   walk-source-imports :: List String -> HashMap String Module -> HashMap String Bool -> List String -> List String
   walk-source-imports pending modules seen visited = case pending of

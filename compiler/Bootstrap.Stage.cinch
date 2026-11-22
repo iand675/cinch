@@ -5,7 +5,7 @@ module Bootstrap.Stage where
   import Bootstrap.Ast
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, value-macro, take-group, DeclarationProducer, QuotedDeclarations, ConstructDeclarations, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
-  import Bootstrap.Parse (Ps, POk, PBad, parse-tree-record-fields, Fix, macro-argument-groups, module-scope-fixes)
+  import Bootstrap.Parse (Ps, POk, PBad, parse-tree-record-fields, Fix, macro-argument-groups, indexed-module-scope-fixes)
   import Bootstrap.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle, source-import-closure)
   import Bootstrap.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
   import Bootstrap.StageEval
@@ -75,7 +75,7 @@ module Bootstrap.Stage where
     RootCall :: MacroCallers
     CallerSite :: String -> List (String, Fix) -> MacroCallers -> MacroCallers
   data MacroSite where
-    MkMacroSite :: String -> List (String, Fix) -> List Module -> MacroNamespaces -> MacroCallers -> MacroSite
+    MkMacroSite :: String -> List (String, Fix) -> HashMap String Module -> MacroNamespaces -> MacroCallers -> MacroSite
 
   stage-work :: List Decl -> Bool
   stage-work declarations = case declarations of
@@ -407,7 +407,7 @@ module Bootstrap.Stage where
   surface-template :: MacroSite -> String -> Option CodeTemplate
   surface-template scope spelling = case scope of
     MkMacroSite owner fix modules names parent -> (case lookup-macro names owner spelling of
-      Some (home, name) -> (case macro-module home modules of
+      Some (home, name) -> (case hash-map-lookup home modules of
         Some definition -> let declarations = module-decls definition in
           (case (template-equation name declarations, stage-signature name declarations) of
             (Some (parameters, body), Some ty) -> Some (CodeTemplate home parameters ty body)
@@ -444,7 +444,7 @@ module Bootstrap.Stage where
   defining-scope :: String -> ExpandScope -> ExpandScope
   defining-scope home scope = case scope-site scope of
     MkMacroSite owner fix modules names parent ->
-      MkExpandScope (MkMacroSite home (module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
+      MkExpandScope (MkMacroSite home (indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
 
   scope-template :: ExpandScope -> List Decl
   scope-template scope = case scope of MkExpandScope site template -> template
@@ -580,7 +580,7 @@ module Bootstrap.Stage where
   emit-stage-value :: CheckedProgram -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   emit-stage-value checked scope site value fuel = case (scope-site scope, value) of
     (MkMacroSite owner fix modules names parent, EVar at spelling) -> (case lookup-macro names owner spelling of
-      Some (home, name) -> (case macro-module home modules of
+      Some (home, name) -> (case hash-map-lookup home modules of
         Some definition -> let declarations = module-decls definition in (case (stored-declarations name declarations, stage-signature name declarations) of
           (Some template, Some (TName at carrier)) | same carrier "Declarations" ->
             let destination = defining-scope home scope in (case expand-template checked home (scope-with-template (decls-of template) destination) fuel of
@@ -618,11 +618,6 @@ module Bootstrap.Stage where
       Ok (generated, remaining) -> case expand-actions context checked owner scope rest remaining of
         Err errors -> Err errors
         Ok (more, done) -> Ok (generated <> more, done)
-
-  macro-module :: String -> List Module -> Option Module
-  macro-module home modules = case modules of
-    Nil -> None
-    Cons m rest -> if same (module-name m) home then Some m else macro-module home rest
 
   -- A macro declaration is compile-time only: it names no runtime value in
   -- any module, so the runtime program keeps no trace of it. It is not
@@ -756,7 +751,7 @@ module Bootstrap.Stage where
     case caller of
       MkMacroSite owner fix modules names parent -> case lookup-macro names owner path of
         None -> expand-error site (cat ["`", path, "` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)"])
-        Some (home, name) -> case macro-module home modules of
+        Some (home, name) -> case hash-map-lookup home modules of
           None -> expand-error site (cat ["unavailable macro module ", home])
           Some definition -> let declarations = module-decls definition in case syntax-template-of home (stage-operation-available names home) name declarations of
             None -> expand-error site (cat ["macro `", path, "` has no quotation template; only a `[| ... |]` macro body expands in this rung"])
@@ -767,7 +762,7 @@ module Bootstrap.Stage where
               else let (renamed, serial) = hygienic-term template (macro-budget - fuel) in
                 if serial + 1 > macro-budget then expand-error site "macro expansion exhausted its work budget" else case macro-fill-splices renamed (zip-parameters parameters groups) fix of
                   Err errors -> Err errors
-                  Ok filled -> let scope = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+                  Ok filled -> let scope = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
                     case expand-term scope filled (macro-budget - (serial + 1)) of
                       Err errors -> Err errors
                       Ok (expanded, remaining) -> Ok (ETemplateScope site home expanded, remaining)
@@ -813,13 +808,13 @@ module Bootstrap.Stage where
               other -> expand-error site ("invalid stage operand for " <> op)))
         EMacroCall site path tokens -> (case lookup-macro namespaces owner path of
           None -> expand-error site ("macro is not in scope: " <> path)
-          Some (home, name) -> case macro-module home modules of
+          Some (home, name) -> case hash-map-lookup home modules of
             None -> expand-error site ("unavailable macro module " <> home)
             Some definition -> case name-macro name (module-decls definition) of
               None -> Ok None
               Some (params, body) -> case bind-operands site params (macro-argument-groups tokens (list-length params)) of
                 Err errors -> Err errors
-                Ok args -> let nested = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
+                Ok args -> let nested = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
                   (case reify-name nested args body (fuel - 1) of
                     Ok (Some (NameValue spelling)) -> Ok (Some (NameValue spelling))
                     Err errors -> Err errors
@@ -842,13 +837,13 @@ module Bootstrap.Stage where
   expand-declaration-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else case caller of
     MkMacroSite owner fix modules names parent -> (case lookup-macro names owner path of
       None -> expand-error site (cat ["declaration macro is not in scope: ", path])
-      Some (home, name) -> case macro-module home modules of
+      Some (home, name) -> case hash-map-lookup home modules of
         None -> expand-error site (cat ["unavailable macro module ", home])
         Some definition -> case declaration-macro name (module-decls definition) of
           None -> expand-error site "emit requires a macro producing Declarations"
           Some (params, template) -> let groups = macro-argument-groups tokens (list-length params) in
             if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
-              let scope = MkMacroSite home (if same owner home then fix else module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+              let scope = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
               (case bind-operands site params groups of
                 Err errors -> Err errors
                 Ok operands -> case template of
@@ -866,10 +861,10 @@ module Bootstrap.Stage where
         Some tokens -> Ok (argument-home, tokens, fuel)
         None -> expand-error at "record fields require a Syntax operand")
       (MkMacroSite owner fix modules namespaces parent, args, EMacroCall at path tokens) -> (case lookup-macro namespaces owner path of
-        Some (home, name) -> (case macro-module home modules of
+        Some (home, name) -> (case hash-map-lookup home modules of
           Some definition -> (case value-macro "Syntax" name (module-decls definition) of
             Some (params, body) -> (case bind-operands at params (macro-argument-groups tokens (list-length params)) of
-              Ok nested -> field-syntax (MkMacroSite home (module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
+              Ok nested -> field-syntax (MkMacroSite home (indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
               Err errors -> Err errors)
             None -> expand-error at "record fields require a macro producing Syntax")
           None -> expand-error at ("unavailable macro module " <> home))
@@ -1090,12 +1085,12 @@ module Bootstrap.Stage where
         (None, seen) -> staged-cycle (StageDependencies nodes rest))
       None -> staged-cycle (StageDependencies nodes rest))
 
-  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, List String, Nat)
+  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> HashMap String Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, List String, Nat)
   expand-module resolve program headers names current fuel =
     let declarations = module-decls current in
     if not (stage-work declarations) then Ok (current, Nil, fuel) else
       let owner = module-name current in
-      let finish = \evaluator -> case expand-declarations evaluator (MkMacroSite owner (module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
+      let finish = \evaluator -> case expand-declarations evaluator (MkMacroSite owner (indexed-module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
             Err errors -> Err errors
             Ok (body, emitted, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), emitted, remaining) in
       if not (needs-stage-check declarations) then finish None else let modules = program-modules program in case stage-modules owner (source-import-closure owner modules) modules of
@@ -1108,7 +1103,7 @@ module Bootstrap.Stage where
             Nil -> Err errors
             cycle -> Err cycle)
 
-  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, List (String, List String), Nat)
+  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> HashMap String Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, List (String, List String), Nat)
   expand-modules resolve program headers names modules fuel = case modules of
     Nil -> Ok (Nil, Nil, fuel)
     Cons first rest -> case expand-module resolve program headers names first fuel of
@@ -1163,6 +1158,6 @@ module Bootstrap.Stage where
     if not (modules-have-stage-work modules) then Ok (program, Nil) else
       let imports = import-headers () in let names = macro-namespaces modules imports in
       let prepared = map (prepare-stage-module names) modules in
-      case expand-modules resolve (MkProgram (program-span program) prepared) (prepared <> imports) names prepared macro-budget of
+      case expand-modules resolve (MkProgram (program-span program) prepared) (module-name-index (prepared <> imports)) names prepared macro-budget of
         Err errors -> Err errors
         Ok (expanded, reports, fuel) -> Ok (MkProgram (program-span program) expanded, reports)

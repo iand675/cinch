@@ -33,6 +33,7 @@ module Bootstrap.Ast where
   import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, lt-token, lt-virtual
     , TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF)
   import Bootstrap.Document (Json, JArr, JArrEnd, JStr, JBool, JNull)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert)
   import Data.String (string-from-bytes, empty-string)
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
@@ -756,6 +757,15 @@ module Bootstrap.Ast where
   module-decls :: Module -> List Decl
   module-decls m = case m of
     MkModule s name decls -> decls-of decls
+
+  -- Source headers precede interfaces, and the first occurrence of a
+  -- repeated source name remains visible until the resolver diagnoses it.
+  module-name-index :: List Module -> HashMap String Module
+  module-name-index modules = index-module-names (reverse modules) hash-map-empty
+  index-module-names :: List Module -> HashMap String Module -> HashMap String Module
+  index-module-names modules indexed = case modules of
+    Nil -> indexed
+    Cons m rest -> index-module-names rest (hash-map-insert (module-name m) m indexed)
 
   data Program where
     MkProgram :: Span -> List Module -> Program
