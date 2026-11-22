@@ -19,6 +19,9 @@ module Bootstrap.Total where
   export read-keyed-ordering, keyed-ordering-slots
   export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
   export valid-sort, decimal-number, operation-type
+  export TotalTerm, TotalArguments, TermNode, LocalTerm, NumberTerm, BoolTerm, PrimitiveTerm, CallTerm, LetTerm, IfTerm, InvalidTerm
+  export ArgumentNode, NoArguments, NextArgument, InvalidArguments
+  export total-term, total-graph-term, term-node, argument-node
 
   -- Keep the original row for contract equality and emission. All semantic
   -- queries use the signature, body and call edges checked at admission.
@@ -336,6 +339,50 @@ module Bootstrap.Total where
   total-body :: TotalFunction -> Json
   total-body function = case function-row function of Some row -> row-body row; None -> JNull
 
+  -- Consumers inspect one checked node at a time. References to children
+  -- remain opaque so traversal does not require a particular backing tree.
+  data TotalTerm where
+    JsonTerm :: Json -> TotalTerm
+  data TotalArguments where
+    JsonArguments :: Json -> TotalArguments
+  data TermNode where
+    LocalTerm :: Nat -> TermNode
+    NumberTerm :: String -> String -> TermNode
+    BoolTerm :: Bool -> TermNode
+    PrimitiveTerm :: String -> TotalArguments -> TermNode
+    CallTerm :: String -> TotalArguments -> TermNode
+    LetTerm :: TotalTerm -> TotalTerm -> TermNode
+    IfTerm :: TotalTerm -> TotalTerm -> TotalTerm -> TermNode
+    InvalidTerm :: TermNode
+  data ArgumentNode where
+    NoArguments :: ArgumentNode
+    NextArgument :: TotalTerm -> TotalArguments -> ArgumentNode
+    InvalidArguments :: ArgumentNode
+
+  total-term :: TotalFunction -> Option TotalTerm
+  total-term function = case function-row function of
+    Some row -> Some (JsonTerm (row-body row))
+    None -> None
+  total-graph-term :: TotalGraph -> String -> Option TotalTerm
+  total-graph-term (MkTotalGraph doc rows) name = case find-row name rows of
+    Some row -> Some (JsonTerm (row-body row))
+    None -> None
+  argument-node :: TotalArguments -> ArgumentNode
+  argument-node (JsonArguments args) = case args of
+    JArr first rest -> NextArgument (JsonTerm first) (JsonArguments rest)
+    JArrEnd -> NoArguments
+    other -> InvalidArguments
+  term-node :: TotalTerm -> TermNode
+  term-node (JsonTerm doc) = let node = text (field "node" doc) in
+    if same node "local" then (case field "slot" doc of JNum slot | slot >= 0 -> LocalTerm (nat-from-int slot); other -> InvalidTerm)
+    else if same node "number" then NumberTerm (text (field "sort" doc)) (text (field "decimal" doc))
+    else if same node "bool" then (case field "value" doc of JBool value -> BoolTerm value; other -> InvalidTerm)
+    else if same node "primitive" then PrimitiveTerm (text (field "operation" doc)) (JsonArguments (field "arguments" doc))
+    else if same node "call" then CallTerm (text (field "target" doc)) (JsonArguments (field "arguments" doc))
+    else if same node "let" then LetTerm (JsonTerm (field "value" doc)) (JsonTerm (field "body" doc))
+    else if same node "if" then IfTerm (JsonTerm (field "condition" doc)) (JsonTerm (field "yes" doc)) (JsonTerm (field "no" doc))
+    else InvalidTerm
+
   -- A universal finite return envelope, derived from actual literal leaves.
   -- Unknown arithmetic/parameters remain unknown. Conditions may narrow the
   -- result further, but taking both checked branches is always conservative.
@@ -350,44 +397,50 @@ module Bootstrap.Total where
   parse-decimal-value value = case unpack value of
     Nil -> None
     Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
-  unknown-domains :: List String -> BodyScope (Option (List Int)) -> BodyScope (Option (List Int))
+  -- Retain the existing limit on possible literal outcomes, tracking their
+  -- count and extrema without copying a list at every conditional.
+  data LiteralBounds where
+    LiteralBounds :: Int -> Int -> Nat -> LiteralBounds
+  join-literal-bounds :: LiteralBounds -> LiteralBounds -> Option LiteralBounds
+  join-literal-bounds (LiteralBounds low high count) (LiteralBounds other-low other-high other-count) =
+    let total = count + other-count in
+    if total <= 256 then Some (LiteralBounds (if low <= other-low then low else other-low)
+      (if high >= other-high then high else other-high) total) else None
+  unknown-domains :: List String -> BodyScope (Option LiteralBounds) -> BodyScope (Option LiteralBounds)
   unknown-domains parameters scope = case parameters of
     Nil -> scope
     Cons parameter rest -> unknown-domains rest (push-body-slot scope None)
-  argument-domains :: TotalRows -> BodyScope (Option (List Int)) -> Json -> Nat -> BodyScope (Option (List Int)) -> (BodyScope (Option (List Int)), Nat)
-  argument-domains definitions scope arguments fuel values = if fuel == 0 then (values, 0) else case arguments of
-    JArr argument rest -> (case literal-results definitions scope argument fuel of
-      (value, left) -> argument-domains definitions scope rest left (push-body-slot values value))
+  argument-domains :: TotalGraph -> BodyScope (Option LiteralBounds) -> TotalArguments -> Nat -> BodyScope (Option LiteralBounds) -> (BodyScope (Option LiteralBounds), Nat)
+  argument-domains graph scope arguments fuel values = if fuel == 0 then (values, 0) else case argument-node arguments of
+    NextArgument argument rest -> (case literal-results graph scope argument fuel of
+      (value, left) -> argument-domains graph scope rest left (push-body-slot values value))
     other -> (values, fuel)
-  literal-results :: TotalRows -> BodyScope (Option (List Int)) -> Json -> Nat -> (Option (List Int), Nat)
-  literal-results definitions scope term fuel = if fuel == 0 then (None, 0) else
-    let remaining = fuel - 1 in let node = text (field "node" term) in
-    if same node "number" then (case decimal-value (text (field "decimal" term)) of Some value -> (Some [value], remaining); None -> (None, remaining))
-    else if same node "local" then (case field "slot" term of
-      JNum slot | slot >= 0 -> (case body-slot (nat-from-int slot) scope of
-        Some domain -> (domain, remaining)
+  literal-results :: TotalGraph -> BodyScope (Option LiteralBounds) -> TotalTerm -> Nat -> (Option LiteralBounds, Nat)
+  literal-results graph scope term fuel = if fuel == 0 then (None, 0) else
+    let remaining = fuel - 1 in case term-node term of
+      NumberTerm sort decimal -> (case decimal-value decimal of
+        Some value -> (Some (LiteralBounds value value 1), remaining)
         None -> (None, remaining))
-      other -> (None, remaining))
-    else if same node "if" then (case literal-results definitions scope (field "yes" term) remaining of
-      (Some yes, left) -> (case literal-results definitions scope (field "no" term) left of
-        (Some no, final) -> if list-length yes + list-length no <= 256 then (Some (yes <> no), final) else (None, final)
+      LocalTerm slot -> (case body-slot slot scope of Some domain -> (domain, remaining); None -> (None, remaining))
+      IfTerm condition yes no -> (case literal-results graph scope yes remaining of
+        (Some first, left) -> (case literal-results graph scope no left of
+          (Some second, final) -> (join-literal-bounds first second, final)
+          other -> other)
         other -> other)
-      other -> other)
-    else if same node "let" then (case literal-results definitions scope (field "value" term) remaining of
-      (value, left) -> literal-results definitions (push-body-slot scope value) (field "body" term) left)
-    else if same node "call" then (case find-row (text (field "target" term)) definitions of
-      Some declaration -> (case argument-domains definitions scope (field "arguments" term) remaining empty-body-scope of
-        (values, left) -> literal-results definitions values (row-body declaration) left)
-      None -> (None, remaining))
-    else (None, remaining)
-  result-envelope :: List Int -> Int -> Int -> (Int, Int)
-  result-envelope values low high = case values of Nil -> (low, high); Cons value rest -> result-envelope rest (if value < low then value else low) (if value > high then value else high)
+      LetTerm value body -> (case literal-results graph scope value remaining of
+        (bound, left) -> literal-results graph (push-body-slot scope bound) body left)
+      CallTerm callee-name operands -> (case total-graph-term graph callee-name of
+        Some callee -> (case argument-domains graph scope operands remaining empty-body-scope of
+          (values, left) -> literal-results graph values callee left)
+        None -> (None, remaining))
+      other -> (None, remaining)
   total-bounds :: TotalFunction -> Option (Int, Int)
-  total-bounds function = if not (has (total-result function) ["Nat", "Int", "I64"]) then None else case function of
-    MkTotalFunction (MkTotalGraph doc rows) name -> (case literal-results rows (unknown-domains (total-parameters function) empty-body-scope) (total-body function) 4096 of
-      (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
-      other -> None)
-    other -> None
+  total-bounds function = if not (has (total-result function) ["Nat", "Int", "I64"]) then None else
+    case (total-function-graph function, total-term function) of
+      (Some graph, Some term) -> (case literal-results graph (unknown-domains (total-parameters function) empty-body-scope) term 4096 of
+        (Some (LiteralBounds low high count), remaining) -> Some (low, high)
+        other -> None)
+      other -> None
 
   exact-roots :: TotalRows -> List String -> Bool
   exact-roots rows roots = case walk-calls rows roots of

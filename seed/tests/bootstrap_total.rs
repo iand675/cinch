@@ -63,6 +63,20 @@ fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
         assert_eq!(common::read_output(&dir, "bounds.txt"), format!("{slot}:{slot}"));
     }
     run("deep lexical slot outside the scope", &deep(96), 4);
+    fn literal_branches(first: usize, count: usize) -> serde_json::Value {
+        if count == 1 {
+            return serde_json::json!({"node": "number", "sort": "Nat", "decimal": first.to_string()});
+        }
+        let half = count / 2;
+        serde_json::json!({
+            "node": "if", "condition": {"node": "bool", "value": true},
+            "yes": literal_branches(first, half), "no": literal_branches(first + half, count - half),
+        })
+    }
+    for (count, bounds) in [(256, "0:255"), (257, "unknown")] {
+        run("preserve the literal outcome limit", &one(&literal_branches(0, count).to_string(), r#"["Nat"]"#, "Nat"), 0);
+        assert_eq!(common::read_output(&dir, "bounds.txt"), bounds);
+    }
     for (name, data) in [
         ("wrong local", one(r#"{"node":"local","slot":1}"#, r#"["Nat"]"#, "Nat")),
         ("wrong result sort", one(r#"{"node":"local","slot":0}"#, r#"["Bool"]"#, "Nat")),
