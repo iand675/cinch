@@ -12,6 +12,7 @@ module Bootstrap.Nominal where
   import Data.Nat (nat-div, nat-rem)
   import Data.Char (char-from-code)
   import Data.String (string-from-bytes, string-to-bytes)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export interface-global, raw-interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
@@ -278,11 +279,14 @@ module Bootstrap.Nominal where
   kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
-  unique-strings :: Json -> List String -> Bool
-  unique-strings rows seen = case rows of
-    JArr (JStr name) rest -> string-length name > 0 && not (has name seen) && unique-strings rest (Cons name seen)
-    JArrEnd -> True
-    other -> False
+  indexed-name :: String -> HashMap String () -> Bool
+  indexed-name name seen = case hash-map-lookup name seen of Some _ -> True; None -> False
+  constructor-index :: Json -> HashMap String () -> Nat -> Option (HashMap String (), Nat)
+  constructor-index rows seen count = case rows of
+    JArr (JStr name) rest | string-length name > 0 && not (indexed-name name seen) ->
+      constructor-index rest (hash-map-insert name () seen) (count + 1)
+    JArrEnd -> Some (seen, count)
+    other -> None
   valid-parameters :: Json -> Json -> List String -> Bool
   valid-parameters rows names seen = case (rows, names) of
     (JArr row rest, JArr (JStr name) more) -> same name (text (field "name" row)) && string-length name > 0 && not (has name seen)
@@ -308,20 +312,17 @@ module Bootstrap.Nominal where
     JObjEnd -> list-length seen == 3
     other -> False
   -- | Validate complete constructor coverage before a later typed field decoder can use the proof.
-  usage-rows-valid :: Json -> Json -> List String -> Bool
-  usage-rows-valid rows constructors seen = case rows of
+  usage-rows-valid :: Json -> HashMap String () -> HashMap String () -> Nat -> Bool
+  usage-rows-valid rows constructors seen remaining = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      usage-keys row Nil && usage-member identity constructors && not (has identity seen)
+      remaining > 0 && usage-keys row Nil && indexed-name identity constructors && not (indexed-name identity seen)
       && nonempty (field "result" row) && usage-strings (field "fields" row)
-      && usage-rows-valid rest constructors (Cons identity seen)
-    JArrEnd -> usage-coverage constructors seen
+      && usage-rows-valid rest constructors (hash-map-insert identity () seen) (saturating-sub remaining 1)
+    JArrEnd -> remaining == 0
     other -> False
   -- | Keep field syntax nonempty; its carrier grammar is checked independently after kind admission.
   usage-strings :: Json -> Bool
   usage-strings rows = case rows of JArr first rest -> nonempty first && usage-strings rest; JArrEnd -> True; other -> False
-  -- | Require every defining constructor, including private constructors, exactly once.
-  usage-coverage :: Json -> List String -> Bool
-  usage-coverage rows seen = case rows of JArr (JStr first) rest -> has first seen && usage-coverage rest seen; JArrEnd -> True; other -> False
   -- | Keep a proof-bearing nominal limited to its complete defining identity and usage-only schema.
   usage-contract-keys :: Json -> List String -> Bool
   usage-contract-keys row seen = case row of
@@ -330,33 +331,34 @@ module Bootstrap.Nominal where
     JObjEnd -> list-length seen == 7
     other -> False
   -- | Absence preserves old metadata; a present proof must cover a nonempty data family completely.
-  usage-valid :: Json -> Bool
-  usage-valid row = if not (present "usage" row) then True else
-    usage-contract-keys row Nil && same (text (field "kind" row)) "data" && (case field "constructors" row of
-      JArr first rest -> usage-rows-valid (field "usage" row) (JArr first rest) Nil
-      other -> False)
   valid-nominal-body :: Json -> Bool
   valid-nominal-body row = let kind = text (field "kind" row) in
-    usage-valid row && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
-    else null-field "refinement" row &&
-      (if same kind "data" then unique-strings (field "constructors" row) Nil
-       else (same kind "opaque" || same kind "signature") && null-field "constructors" row))
-  valid-nominals :: Json -> List String -> Bool
+    let usage = present "usage" row in
+    if same kind "data" then null-field "refinement" row &&
+      (case constructor-index (field "constructors" row) hash-map-empty 0 of
+        None -> False
+        Some (constructors, count) -> not usage ||
+          (count > 0 && usage-contract-keys row Nil && usage-rows-valid (field "usage" row) constructors hash-map-empty count))
+    else not usage && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
+      else null-field "refinement" row && (same kind "opaque" || same kind "signature") && null-field "constructors" row)
+  valid-nominal-entry :: String -> Json -> Bool
+  valid-nominal-entry identity row = string-length identity > 0
+    && valid-parameters (field "parameters" row) (field "params" row) Nil
+    && valid-nominal-body row
+  valid-nominals :: Json -> HashMap String () -> Bool
   valid-nominals rows seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      string-length identity > 0 && not (has identity seen)
-      && valid-parameters (field "parameters" row) (field "params" row) Nil
-      && valid-nominal-body row
-      && valid-nominals rest (Cons identity seen)
+      not (indexed-name identity seen) && valid-nominal-entry identity row
+      && valid-nominals rest (hash-map-insert identity () seen)
     JArrEnd -> True
     other -> False
   -- | Validate a standalone defining contract with the same rules as occurrence-resolved nominal rows.
   nominal-entry-valid :: Json -> Bool
-  nominal-entry-valid row = valid-nominals (JArr row JArrEnd) Nil
+  nominal-entry-valid row = valid-nominal-entry (text (field "identity" row)) row
   resolved-entry-valid :: Json -> Bool
   resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
     JNull -> True
-    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) Nil && valid-measures (field "measures" row) Nil)
+    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) hash-map-empty && valid-measures (field "measures" row) Nil)
   resolved-nominals :: Json -> Json
   resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> append-rows (field "nominals" row) (measure-nominals (field "measures" row))
   append-rows :: Json -> Json -> Json
@@ -369,7 +371,7 @@ module Bootstrap.Nominal where
   valid-measures rows seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
       string-length identity > 0 && not (has identity seen) && nonempty (field "scheme" (field "resolved" row))
-      && valid-nominals (field "nominals" (field "resolved" row)) Nil
+      && valid-nominals (field "nominals" (field "resolved" row)) hash-map-empty
       && (case field "measures" (field "resolved" row) of JNull -> True; JArrEnd -> True; other -> False)
       && present "total_body" row && (case field "total_body" row of JNull -> False; other -> True)
       && valid-measures rest (Cons identity seen)

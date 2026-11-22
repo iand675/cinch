@@ -25,7 +25,7 @@ module Bootstrap.Infer where
   import Bootstrap.Eager (check-eager-values)
   import Bootstrap.Contracts (declaration-references, expr-references, overload-candidates, sequencing-providers, ImportedClasses, imported-classes, imported-class-rows, imported-class-row, reference-index, referenced)
   import Bootstrap.Load (LoadedInterface, InterfaceSet, load-body-interfaces-with-known, load-body-interfaces-with-admission, prepare-body-interface-load, ValidatedInterfaces, validated-interfaces-members, loaded-module, loaded-hash, loaded-contract, interface-set-body, interface-set-has-body, admitted-packed-function, contract-usage-nominals, nominal-owner)
-  import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape)
+  import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape, prepare-usage-shape)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
@@ -7407,15 +7407,15 @@ module Bootstrap.Infer where
     Nil -> None
     Cons (prior, result) rest -> if json-eq prior row then Some result else usage-row-verdict row rest
 
-  check-usage-row :: (String -> Option Kind) -> Json -> UsageRows -> (Result String Unit, UsageRows)
-  check-usage-row kinds row usage = case usage of
+  check-usage-row :: ((String -> Option Kind) -> Json -> Result String UsageShape) -> (String -> Option Kind) -> Json -> UsageRows -> (Result String Unit, UsageRows)
+  check-usage-row read kinds row usage = case usage of
     UsageRows memo index shapes ->
       let key = (case field "identity" row of JStr identity -> identity; other -> "") in
       let seen = (case hash-map-lookup key memo of Some rows -> rows; None -> Nil) in
       (case usage-row-verdict row seen of
         Some result -> (result, usage)
         None ->
-          let (result, next-index, next-shapes) = (case read-usage-shape kinds row of
+          let (result, next-index, next-shapes) = (case read kinds row of
             Err error -> (Err error, index, shapes)
             Ok shape -> let name = usage-name shape in
               (case hash-map-lookup name index of
@@ -7424,29 +7424,29 @@ module Bootstrap.Infer where
           (result, UsageRows (hash-map-insert key (Cons (row, result) seen) memo) next-index next-shapes))
 
   -- Decode optional fields only after the supplied interfaces pass admission.
-  collect-usage-rows :: Span -> (String -> Option Kind) -> List Json -> UsageRows -> Store -> (UsageRows, Store)
-  collect-usage-rows sp kinds rows usage st = case rows of
+  collect-usage-rows :: Span -> ((String -> Option Kind) -> Json -> Result String UsageShape) -> (String -> Option Kind) -> List Json -> UsageRows -> Store -> (UsageRows, Store)
+  collect-usage-rows sp read kinds rows usage st = case rows of
     Nil -> (usage, st)
-    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp kinds rest usage st else
-      (case check-usage-row kinds first usage of
+    Cons first rest -> if not (has-json-field "usage" first) then collect-usage-rows sp read kinds rest usage st else
+      (case check-usage-row read kinds first usage of
         (Err message, known) -> (known, add-error sp message st)
-        (Ok done, known) -> collect-usage-rows sp kinds rest known st)
+        (Ok done, known) -> collect-usage-rows sp read kinds rest known st)
   -- | Recognize optional proof presence so malformed null rows cannot silently become absence.
   has-json-field :: String -> Json -> Bool
   has-json-field name row = case row of JObj key value rest -> same name key || has-json-field name rest; other -> False
   -- | Retain header-only and resolved-use proofs in the order in which their owners first appear.
-  collect-usage :: (String -> Json -> List Json) -> List Decl -> (String -> Option Kind) -> Store -> (List UsageShape, Store)
-  collect-usage nominals declarations kinds st = case collect-usage-from nominals declarations kinds (UsageRows hash-map-empty hash-map-empty Nil) st of
+  collect-usage :: (String -> Json -> List Json) -> ((String -> Option Kind) -> Json -> Result String UsageShape) -> List Decl -> (String -> Option Kind) -> Store -> (List UsageShape, Store)
+  collect-usage nominals read declarations kinds st = case collect-usage-from nominals read declarations kinds (UsageRows hash-map-empty hash-map-empty Nil) st of
     (UsageRows memo index shapes, checked) -> (reverse shapes, checked)
-  collect-usage-from :: (String -> Json -> List Json) -> List Decl -> (String -> Option Kind) -> UsageRows -> Store -> (UsageRows, Store)
-  collect-usage-from nominals declarations kinds usage st = case declarations of
+  collect-usage-from :: (String -> Json -> List Json) -> ((String -> Option Kind) -> Json -> Result String UsageShape) -> List Decl -> (String -> Option Kind) -> UsageRows -> Store -> (UsageRows, Store)
+  collect-usage-from nominals read declarations kinds usage st = case declarations of
     Nil -> (usage, st)
-    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp kinds (nominals name metadata) usage st of
-      (more, checked) -> collect-usage-from nominals rest kinds more checked)
+    Cons (DInterface sp name hash metadata) rest -> (case collect-usage-rows sp read kinds (nominals name metadata) usage st of
+      (more, checked) -> collect-usage-from nominals read rest kinds more checked)
     Cons (DExternal sp name category syntax metadata) rest ->
       let rows = (if same category "type" && has-json-field "ownership" metadata then [field "ownership" metadata] else Nil) <> json-rows (resolved-nominals metadata) in
-      (case collect-usage-rows sp kinds rows usage st of (more, checked) -> collect-usage-from nominals rest kinds more checked)
-    Cons other rest -> collect-usage-from nominals rest kinds usage st
+      (case collect-usage-rows sp read kinds rows usage st of (more, checked) -> collect-usage-from nominals read rest kinds more checked)
+    Cons other rest -> collect-usage-from nominals read rest kinds usage st
   -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
@@ -8405,11 +8405,14 @@ module Bootstrap.Infer where
 
   -- The ordinary pass and every total-body retry see the same interface
   -- headers. Only source declarations and their elaborated kinds differ.
+  data PreparedUsageRow where
+    PreparedUsageRow :: Json -> ((String -> Option Kind) -> Result String UsageShape) -> PreparedUsageRow
   data PreparedContracts where
-    PreparedContracts :: ImportedClasses -> HashMap String (List Json) -> PreparedContracts
+    PreparedContracts :: ImportedClasses -> HashMap String (List Json) -> HashMap String (List PreparedUsageRow) -> PreparedContracts
   data ElaborationImports where
     ElaborationImports :: Result String InterfaceSet -> ImportedClasses -> HashMap String (String, Option TypeExpr)
-      -> List (String, Json) -> List (String, List String) -> (String -> Json -> List Json) -> ElaborationImports
+      -> List (String, Json) -> List (String, List String) -> (String -> Json -> List Json)
+      -> ((String -> Option Kind) -> Json -> Result String UsageShape) -> ElaborationImports
 
   projected-nominals :: HashMap String (List Json) -> String -> Json -> List Json
   projected-nominals indexed name doc = case hash-map-lookup name indexed of
@@ -8422,17 +8425,46 @@ module Bootstrap.Infer where
     Cons member rest -> index-contract-nominals rest
       (hash-map-insert (loaded-module member) (contract-usage-nominals (loaded-contract member)) indexed)
 
+  known-usage-row :: Json -> List PreparedUsageRow -> Option ((String -> Option Kind) -> Result String UsageShape)
+  known-usage-row row prepared = case prepared of
+    Nil -> None
+    Cons (PreparedUsageRow prior read) rest -> if json-eq prior row then Some read else known-usage-row row rest
+
+  prepared-usage-read :: HashMap String (List PreparedUsageRow) -> (String -> Option Kind) -> Json -> Result String UsageShape
+  prepared-usage-read indexed kinds row = case field "identity" row of
+    JStr name -> (case hash-map-lookup name indexed of
+      Some rows -> (case known-usage-row row rows of Some read -> read kinds; None -> read-usage-shape kinds row)
+      None -> read-usage-shape kinds row)
+    other -> read-usage-shape kinds row
+
+  index-prepared-usage :: List Json -> HashMap String (List PreparedUsageRow) -> HashMap String (List PreparedUsageRow)
+  index-prepared-usage rows indexed = case rows of
+    Nil -> indexed
+    Cons row rest -> case field "identity" row of
+      JStr name -> let prior = (case hash-map-lookup name indexed of Some found -> found; None -> Nil) in
+        (case known-usage-row row prior of
+          Some read -> index-prepared-usage rest indexed
+          None -> let ready = PreparedUsageRow row (prepare-usage-shape row) in
+            index-prepared-usage rest (hash-map-insert name (Cons ready prior) indexed))
+      other -> index-prepared-usage rest indexed
+
+  prepare-contract-usage :: List LoadedInterface -> HashMap String (List Json) -> HashMap String (List PreparedUsageRow) -> HashMap String (List PreparedUsageRow)
+  prepare-contract-usage contracts nominals indexed = case contracts of
+    Nil -> indexed
+    Cons member rest -> let rows = projected-nominals nominals (loaded-module member) (loaded-contract member) in
+      prepare-contract-usage rest nominals (index-prepared-usage rows indexed)
+
   elaborate-module :: (List (String, String, Json) -> (Result String InterfaceSet, Option PreparedContracts)) -> String -> Module -> Elaboration
   elaborate-module load label m =
     let declarations = module-decls m in
     let (interfaces, prepared) = load (total-interface-inputs declarations) in
-    let (classes, nominal-rows) = (case prepared of
-      Some (PreparedContracts rows nominals) -> (rows, projected-nominals nominals)
-      None -> (imported-classes declarations, \name doc -> contract-usage-nominals doc)) in
+    let (classes, nominal-rows, read-usage) = (case prepared of
+      Some (PreparedContracts rows nominals usage) -> (rows, projected-nominals nominals, prepared-usage-read usage)
+      None -> (imported-classes declarations, (\name doc -> contract-usage-nominals doc), read-usage-shape)) in
     let syntax = prepare-import-syntax declarations hash-map-empty in
     let ordered = imported-class-rows classes in
     let families = imported-families declarations in
-    let imports = ElaborationImports interfaces classes syntax ordered families nominal-rows in
+    let imports = ElaborationImports interfaces classes syntax ordered families nominal-rows read-usage in
     elaborate-module-with-source-bodies imports True label m
   data PreparedModule where
     PreparedModule :: List Decl -> List Decl -> List Decl -> List (String, Kind) -> TypeContext -> Store -> PreparedModule
@@ -8450,7 +8482,7 @@ module Bootstrap.Infer where
   prepare-module :: ElaborationImports -> String -> List Decl -> PreparedModule
   prepare-module imports label original =
     let (interfaces, rows, parsed, ordered-classes, nominals) = (case imports of
-      ElaborationImports admitted signatures syntax ordered families nominal-rows -> (admitted, signatures, syntax, ordered, nominal-rows)) in
+      ElaborationImports admitted signatures syntax ordered families nominal-rows read-usage -> (admitted, signatures, syntax, ordered, nominal-rows)) in
     let has-codata = codata-present original in
     let unmarked = if has-codata then unwrap-corec-declarations original else original in
     let (specs, declarations) = split-specifications (specification-names unmarked) unmarked in
@@ -8482,8 +8514,8 @@ module Bootstrap.Infer where
 
   finish-module :: ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module imports retain home (PreparedModule unkinded ds specs classes method-kinds method-store) bodies =
-    let (rows, ordered-classes, external-families, nominals) = (case imports of
-      ElaborationImports admitted signatures syntax ordered families nominal-rows -> (signatures, ordered, families, nominal-rows)) in
+    let (rows, ordered-classes, external-families, nominals, read-usage) = (case imports of
+      ElaborationImports admitted signatures syntax ordered families nominal-rows reader -> (signatures, ordered, families, nominal-rows, reader)) in
     let (kinds, body-store) = add-source-bodies bodies method-kinds method-store in
     let (values, sv) = register (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
@@ -8506,7 +8538,7 @@ module Bootstrap.Infer where
     let (declared-data, declared-store) = case store-errors initialized of Nil -> checked-data classes linked-kinds env ds Nil initialized; other -> (Nil, initialized) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
-    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage nominals ds (\name -> context-kind name linked-kinds) sd; other -> (Nil, sd) in
+    let (usage, usage-store) = case store-errors sd of Nil -> collect-usage nominals read-usage ds (\name -> context-kind name linked-kinds) sd; other -> (Nil, sd) in
     let (datas, layout-store) = case store-errors usage-store of Nil -> check-unpacked-records ds (check-layouts ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
     let sampler = LawSampling (MkLawEnvironment instances (env-body-context env) core) (law-layouts datas) in
     let (source-laws, source-sampled) = case store-errors layout-store of
@@ -9529,7 +9561,8 @@ module Bootstrap.Infer where
   prepare-admitted-elaboration admitted label =
     let interfaces = validated-interfaces-members admitted in
     let declarations = map (\i -> DInterface zero (loaded-module i) (loaded-hash i) (loaded-contract i)) interfaces in
-    let facts = PreparedContracts (imported-classes declarations) (index-contract-nominals interfaces hash-map-empty) in
+    let nominals = index-contract-nominals interfaces hash-map-empty in
+    let facts = PreparedContracts (imported-classes declarations) nominals (prepare-contract-usage interfaces nominals hash-map-empty) in
     let load = prepare-body-interface-load admitted in
     let import-view = \inputs -> case load inputs of
           (checked, exact) -> (checked, if exact then Some facts else None) in

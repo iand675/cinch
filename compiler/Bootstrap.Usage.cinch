@@ -15,7 +15,8 @@ module Bootstrap.Usage where
   import Algebra.Semigroup
 
   export UsageShape, usage-name, usage-single-field, usage-fields-for, read-usage-shape, usage-fields-json
-  export usage-equal, usage-shape-closed, usage-constructor-agrees
+  export usage-equal, usage-shape-closed, prepare-usage-shape
+  export UsageConstructor, usage-constructor-claims, usage-constructor-key, usage-constructor-agrees
 
   -- | A validated field table supplies no source constructor names, descriptors, tags or bodies.
   data UsageShape where
@@ -153,13 +154,13 @@ module Bootstrap.Usage where
     (Cons first rest, TArg sp (TName at name) more) -> same name (quant-name first) && result-arguments rest more
     other -> False
 
-  -- | Read the complete nonempty defining constructor identities without creating source bindings.
-  constructor-identities :: String -> Json -> List String -> Result String (List String)
-  constructor-identities owner rows seen = case rows of
-    JArr (JStr name) rest -> if not (same (nominal-owner name) (nominal-owner owner)) || any-name name seen then Err "invalid ownership constructor identity" else
-      (case constructor-identities owner rest (Cons name seen) of Err error -> Err error; Ok more -> Ok (Cons name more))
-    JArrEnd -> Ok Nil
-    other -> Err "invalid defining ownership constructor set"
+  -- The structural contract check already established exact coverage.
+  -- Check the defining module of each constructor before decoding fields.
+  constructor-modules-agree :: String -> Json -> Bool
+  constructor-modules-agree owner rows = case rows of
+    JArr (JStr name) rest -> same (nominal-owner name) owner && constructor-modules-agree owner rest
+    JArrEnd -> True
+    other -> False
 
   -- | Parse all actual fields without invoking general type inference or accepting source aliases.
   decoded-fields :: List Quant -> Json -> Result String (List UType)
@@ -173,41 +174,60 @@ module Bootstrap.Usage where
     JArrEnd -> Ok Nil
     other -> Err "invalid ownership fields"
 
-  -- | Validate exact constructor coverage and result ownership before retaining any field facts.
-  decoded-constructors :: String -> List Quant -> List String -> Json -> List String -> Result String (List (String, List UType))
-  decoded-constructors owner params expected rows seen = case rows of
+  -- | Check result ownership before retaining any field facts.
+  decoded-constructors :: String -> List Quant -> Json -> Result String (List (String, List UType))
+  decoded-constructors owner params rows = case rows of
     JArr row rest -> (case (field "identity" row, field "result" row) of
-      (JStr identity, JStr result) -> if not (any-name identity expected) || any-name identity seen then Err "ownership constructor coverage disagrees" else
-        (case field-syntax params result of
+      (JStr identity, JStr result) -> (case field-syntax params result of
           Err error -> Err error
           Ok result-type -> if not (result-matches owner params result-type) then Err "ownership constructor returns a different owner or parameters" else
-            (case (decoded-fields params (field "fields" row), decoded-constructors owner params expected rest (Cons identity seen)) of
+            (case (decoded-fields params (field "fields" row), decoded-constructors owner params rest) of
               (Ok first, Ok more) -> Ok (Cons (interface-global identity, first) more)
               (Err error, other) -> Err error
               (other, Err error) -> Err error))
       other -> Err "invalid ownership constructor row")
-    JArrEnd -> if list-length expected == list-length seen then Ok Nil else Err "ownership proof omits a defining constructor"
+    JArrEnd -> Ok Nil
     other -> Err "invalid ownership constructor table"
 
   -- | Admit a usage-only table from a genuine closed nominal contract, never an opaque header.
   read-usage-shape :: (String -> Option Kind) -> Json -> Result String UsageShape
-  read-usage-shape kinds row = if not (nominal-entry-valid row) then Err "invalid defining ownership metadata" else
-    decode-usage-shape kinds row
+  read-usage-shape kinds row = case read-usage-header row of
+    Err error -> Err error
+    Ok header -> admit-usage-header header (\unit -> decode-usage-fields header) kinds
 
-  -- | Decode the supported first-order tier after complete structural metadata validation.
-  decode-usage-shape :: (String -> Option Kind) -> Json -> Result String UsageShape
-  decode-usage-shape kinds row = case (field "identity" row, field "kind" row, parameters (field "parameters" row) 0) of
-    (JStr owner, JStr variety, Ok params) -> if not (same variety "data") then Err "ownership fields require a data declaration" else
-      (case constructor-identities owner (field "constructors" row) Nil of
+  -- The decoded fields only depend on the immutable contract. The owner
+  -- kind still has to agree with each compilation's live kind context.
+  prepare-usage-shape :: Json -> ((String -> Option Kind) -> Result String UsageShape)
+  prepare-usage-shape row = case read-usage-header row of
+    Err error -> \kinds -> Err error
+    Ok header -> let fields = decode-usage-fields header in
+      \kinds -> admit-usage-header header (\unit -> fields) kinds
+
+  data UsageHeader where
+    UsageHeader :: String -> String -> List Quant -> Json -> UsageHeader
+
+  read-usage-header :: Json -> Result String UsageHeader
+  read-usage-header row = if not (nominal-entry-valid row) then Err "invalid defining ownership metadata" else
+    case (field "identity" row, field "kind" row, parameters (field "parameters" row) 0) of
+      (JStr owner, JStr variety, Ok params) -> if not (same variety "data") then Err "ownership fields require a data declaration" else
+        (case field "constructors" row of
+          JArr first rest -> if constructor-modules-agree (nominal-owner owner) (JArr first rest)
+            then Ok (UsageHeader owner (interface-global owner) params (field "usage" row))
+            else Err "invalid ownership constructor identity"
+          JArrEnd -> Err "ownership fields require a nonempty constructor set"
+          other -> Err "invalid defining ownership constructor set")
+      (other, other-kind, Err error) -> Err error
+      other -> Err "invalid defining ownership contract"
+
+  decode-usage-fields :: UsageHeader -> Result String (List (String, List UType))
+  decode-usage-fields (UsageHeader owner symbol params rows) = decoded-constructors owner params rows
+
+  admit-usage-header :: UsageHeader -> (Unit -> Result String (List (String, List UType))) -> (String -> Option Kind) -> Result String UsageShape
+  admit-usage-header (UsageHeader owner symbol params rows) fields kinds =
+    if not (declared-owner-kind symbol (kind-arrow params) kinds) then Err "ownership owner kind disagrees with its defining header" else
+      (case fields () of
         Err error -> Err error
-        Ok Nil -> Err "ownership fields require a nonempty constructor set"
-        Ok expected -> (case declared-owner-kind (interface-global owner) (kind-arrow params) kinds of
-          False -> Err "ownership owner kind disagrees with its defining header"
-          True -> (case decoded-constructors owner params expected (field "usage" row) Nil of
-            Err error -> Err error
-            Ok fields -> Ok (CheckedUsageShape (interface-global owner) params fields))))
-    (other, other-kind, Err error) -> Err error
-    other -> Err "invalid defining ownership contract"
+        Ok checked -> Ok (CheckedUsageShape symbol params checked))
 
   -- | Compare the full defining kind before field instantiation, including erased Region roles.
   declared-owner-kind :: String -> Kind -> (String -> Option Kind) -> Bool
@@ -275,26 +295,27 @@ module Bootstrap.Usage where
     (Cons (a, fields) rest, Cons (b, more) remaining) -> same a b && same-fields fields more && same-constructors rest remaining
     other -> False
 
-  -- | Check a selected real constructor against its usage-only facts without creating a callable declaration.
-  usage-constructor-agrees :: UsageShape -> String -> Scheme -> Option Bool
-  usage-constructor-agrees shape name scheme = case export-global name of
-    Err error -> None
-    Ok identity -> (case shape of
-      CheckedUsageShape owner params constructors -> (case constructor-fields-for (interface-global identity) constructors of
-        None -> None
-        Some expected -> Some (case scheme-requirements scheme of
-          Cons first rest -> False
-          Nil -> (case constructor-pairs (scheme-params scheme) params (scheme-body scheme) of
-            None -> False
-            Some pairs -> (case actual-constructor-fields owner params (substitute-bound pairs (scheme-body scheme)) of
-              Some actual -> same-fields expected actual
-              None -> False)))))
+  data UsageConstructor where
+    UsageConstructor :: String -> List Quant -> List UType -> UsageConstructor
 
-  -- | Find only the defining identity of an already admitted constructor occurrence.
-  constructor-fields-for :: String -> List (String, List UType) -> Option (List UType)
-  constructor-fields-for name rows = case rows of
-    Nil -> None
-    Cons (identity, fields) rest -> if same name identity then Some fields else constructor-fields-for name rest
+  usage-constructor-claims :: UsageShape -> List (String, UsageConstructor)
+  usage-constructor-claims (CheckedUsageShape owner params constructors) =
+    map (\entry -> case entry of (name, fields) -> (name, UsageConstructor owner params fields)) constructors
+
+  usage-constructor-key :: String -> Option String
+  usage-constructor-key name = case export-global name of
+    Err error -> None
+    Ok identity -> Some (interface-global identity)
+
+  -- | Check a selected real constructor against its usage-only facts without creating a callable declaration.
+  usage-constructor-agrees :: UsageConstructor -> Scheme -> Bool
+  usage-constructor-agrees (UsageConstructor owner params expected) scheme = case scheme-requirements scheme of
+    Cons first rest -> False
+    Nil -> (case constructor-pairs (scheme-params scheme) params (scheme-body scheme) of
+      None -> False
+      Some pairs -> (case actual-constructor-fields owner params (substitute-bound pairs (scheme-body scheme)) of
+        Some actual -> same-fields expected actual
+        None -> False))
 
   -- | Read ordinary actual constructor fields and verify the final owner with lexical binders preserved.
   actual-constructor-fields :: String -> List Quant -> UType -> Option (List UType)

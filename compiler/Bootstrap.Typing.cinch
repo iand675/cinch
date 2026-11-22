@@ -3,7 +3,7 @@
 -- Numeric reflection authority, totality and usage still need their own checks.
 module Bootstrap.Typing where
   import Bootstrap.Type
-  import Bootstrap.Usage (UsageShape, usage-name, usage-fields-for, usage-shape-closed, usage-constructor-agrees)
+  import Bootstrap.Usage (UsageShape, usage-name, usage-fields-for, usage-shape-closed, UsageConstructor, usage-constructor-claims, usage-constructor-key, usage-constructor-agrees)
   import Bootstrap.Index
   import Bootstrap.Core
   import Bootstrap.Global
@@ -16,6 +16,7 @@ module Bootstrap.Typing where
   import Bootstrap.Builtin (array-type-name, cell-type-name)
   import Text.Lex (Span)
   import Text.Scan (string-starts-with)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Algebra.Semigroup
 
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
@@ -28,7 +29,7 @@ module Bootstrap.Typing where
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
-    CheckedTypingContext :: KindIndex -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> List UsageShape -> List UType -> TypingContext
+    CheckedTypingContext :: KindIndex -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> HashMap String UsageShape -> List UType -> TypingContext
   context-data :: TypingContext -> List CoreData
   context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> datas
   context-declarations :: TypingContext -> List CoreGlobal
@@ -157,56 +158,80 @@ module Bootstrap.Typing where
   close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
     let defined = index-kinds declared in
     let all = extend-kind-index defined (constructor-index-kinds datas) in
-    if nominal-index-closed defined declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas
-        && usage-context-closed all usage Nil && usage-globals-closed usage declarations && usage-data-closed usage datas then
-      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) usage Nil); None -> None)
+    if nominal-index-closed defined declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
+      (case index-checked-usage all usage hash-map-empty of
+        Some owners | usage-schemes-closed usage declarations datas -> (case close-globals-with-source-data declarations definitions datas of
+          Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) owners Nil)
+          None -> None)
+        other -> None)
     else None
   -- | Require unique owners and recheck every field's scope without adding runtime data or constructors.
-  usage-context-closed :: KindIndex -> List UsageShape -> List String -> Bool
-  usage-context-closed kinds rows seen = case rows of
+  index-checked-usage :: KindIndex -> List UsageShape -> HashMap String UsageShape -> Option (HashMap String UsageShape)
+  index-checked-usage kinds rows indexed = case rows of
+    Nil -> Some indexed
+    Cons first rest -> let name = usage-name first in case hash-map-lookup name indexed of
+      None | usage-shape-closed kinds first -> index-checked-usage kinds rest (hash-map-insert name first indexed)
+      other -> None
+
+  usage-schemes-closed :: List UsageShape -> List CoreGlobal -> List CoreData -> Bool
+  usage-schemes-closed rows declarations datas = case rows of
     Nil -> True
-    Cons first rest -> not (has (usage-name first) seen) && usage-shape-closed kinds first
-      && usage-context-closed kinds rest (Cons (usage-name first) seen)
+    other -> let claims = index-usage-constructors rows hash-map-empty in
+      usage-globals-closed claims declarations && usage-data-closed claims datas
+
+  index-usage-constructors :: List UsageShape -> HashMap String (List UsageConstructor) -> HashMap String (List UsageConstructor)
+  index-usage-constructors rows indexed = case rows of
+    Nil -> indexed
+    Cons first rest -> index-usage-constructors rest (index-usage-claims (usage-constructor-claims first) indexed)
+
+  index-usage-claims :: List (String, UsageConstructor) -> HashMap String (List UsageConstructor) -> HashMap String (List UsageConstructor)
+  index-usage-claims claims indexed = case claims of
+    Nil -> indexed
+    Cons (name, claim) rest -> let prior = (case hash-map-lookup name indexed of Some found -> found; None -> Nil) in
+      index-usage-claims rest (hash-map-insert name (Cons claim prior) indexed)
+
   -- | Check actual constructor schemes independently whenever a Core context receives optional private facts.
-  usage-scheme-agrees :: List UsageShape -> String -> Scheme -> Bool
-  usage-scheme-agrees rows name scheme = case rows of
+  usage-scheme-agrees :: HashMap String (List UsageConstructor) -> String -> Scheme -> Bool
+  usage-scheme-agrees indexed name scheme = case usage-constructor-key name of
+    None -> True
+    Some key -> (case hash-map-lookup key indexed of
+      None -> True
+      Some claims -> usage-claims-agree claims scheme)
+
+  usage-claims-agree :: List UsageConstructor -> Scheme -> Bool
+  usage-claims-agree rows scheme = case rows of
     Nil -> True
-    Cons first rest -> (case usage-constructor-agrees first name scheme of
-      Some valid -> valid && usage-scheme-agrees rest name scheme
-      None -> usage-scheme-agrees rest name scheme)
+    Cons first rest -> usage-constructor-agrees first scheme && usage-claims-agree rest scheme
   -- | Keep selected global constructors authoritative even when their family remains abstract at runtime.
-  usage-global-agrees :: List UsageShape -> CoreGlobal -> Bool
+  usage-global-agrees :: HashMap String (List UsageConstructor) -> CoreGlobal -> Bool
   usage-global-agrees rows declaration = case declaration of
     GlobalValue name role scheme -> not (same role "constructor") || usage-scheme-agrees rows name scheme
     GlobalBody actual body -> usage-global-agrees rows actual
     GlobalGuardedBody actual body -> usage-global-agrees rows actual
     other -> True
   -- | Recheck constructor agreement on every later context closure without inspecting executable bodies.
-  usage-globals-closed :: List UsageShape -> List CoreGlobal -> Bool
-  usage-globals-closed rows declarations = case rows of Nil -> True; other -> (case declarations of
+  usage-globals-closed :: HashMap String (List UsageConstructor) -> List CoreGlobal -> Bool
+  usage-globals-closed rows declarations = case declarations of
     Nil -> True
-    Cons first rest -> usage-global-agrees rows first && usage-globals-closed rows rest)
+    Cons first rest -> usage-global-agrees rows first && usage-globals-closed rows rest
   -- | Compare available real data constructors too, including public constructors not selected as globals.
-  usage-data-closed :: List UsageShape -> List CoreData -> Bool
-  usage-data-closed rows declarations = case rows of Nil -> True; other -> (case declarations of
+  usage-data-closed :: HashMap String (List UsageConstructor) -> List CoreData -> Bool
+  usage-data-closed rows declarations = case declarations of
     Nil -> True
-    Cons first rest -> usage-constructors-closed rows (core-data-constructors first) && usage-data-closed rows rest)
+    Cons first rest -> usage-constructors-closed rows (core-data-constructors first) && usage-data-closed rows rest
   -- | No proof may contradict actual constructor fields supplied by a source or complete public data table.
-  usage-constructors-closed :: List UsageShape -> List CoreConstructor -> Bool
+  usage-constructors-closed :: HashMap String (List UsageConstructor) -> List CoreConstructor -> Bool
   usage-constructors-closed rows constructors = case constructors of
     Nil -> True
     Cons first rest -> usage-scheme-agrees rows (core-constructor-name first) (core-constructor-scheme first) && usage-constructors-closed rows rest
   -- | Obtain only the structural field table; source-visible constructor and runtime contexts stay separate.
-  context-usage :: TypingContext -> List UsageShape
+  context-usage :: TypingContext -> HashMap String UsageShape
   context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> usage
   -- | Instantiate a validated defining proof, failing closed when either the owner or roles are unavailable.
   task-usage-fields :: TypingContext -> String -> List UType -> Option (List UType)
-  task-usage-fields context owner actuals = usage-field-lookup owner actuals (context-usage context)
-  -- | Find an exact nominal identity in the usage table, never a display-name or constructor-tag substitute.
-  usage-field-lookup :: String -> List UType -> List UsageShape -> Option (List UType)
-  usage-field-lookup owner actuals rows = case rows of
-    Nil -> None
-    Cons first rest -> if same owner (usage-name first) then usage-fields-for first actuals else usage-field-lookup owner actuals rest
+  task-usage-fields context owner actuals = case hash-map-lookup owner (context-usage context) of
+    None -> None
+    Some shape -> usage-fields-for shape actuals
   -- | Run the existing structural property walk over imported fields under the actual type arguments.
   task-usage-property :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Bool
   task-usage-property context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
