@@ -2,9 +2,7 @@
 from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, unquote
-import hashlib
 import json
-import zipfile
 
 root = Path(__file__).resolve().parents[1] / 'dist'
 class Page(HTMLParser):
@@ -58,18 +56,12 @@ for package in catalogue['packages']:
 assert 'decl-with-timeout' in page(root/'packages/cinch-http/0.4.0/Net.Http.Client/index.html').ids
 assert 'decl-with-timeout' not in page(root/'packages/cinch-http/0.3.0/Net.Http.Client/index.html').ids
 
-archives = sorted((root/'downloads/files').glob('*.zip'))
-assert len(archives) == 8
-for archive in archives:
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    assert archive.with_name(archive.name+'.sha256').read_text().split()[0] == digest
-    with zipfile.ZipFile(archive) as bundle:
-        assert bundle.testzip() is None
-        assert set(bundle.namelist()) == {'README.txt','release.json'}
-        metadata = json.loads(bundle.read('release.json'))
-        assert metadata['sample'] and metadata['containsCompiler'] is False
-        assert metadata['target'] in archive.name and metadata['version'] in archive.name
-        assert b'SAMPLE archive' in bundle.read('README.txt')
+downloads = (root/'downloads/index.html').read_text()
+assert 'sample bundle' not in downloads.lower(), 'downloads must not advertise sample bundles'
+assert 'nightly-snapshot' in downloads and 'data-nightly-downloads' in downloads
+assert 'nix-store --import' in downloads, 'nightly imports need Nix instructions'
+assert 'https://github.com/iand675/cinch/releases' in page(root/'downloads/index.html').links
+assert not list((root/'downloads/files').glob('*.zip')), 'sample archives must not be published'
 
 repository = 'https://github.com/iand675/cinch'
 for file in [root/'index.html',root/'downloads/index.html',root/'packages/index.html']:
@@ -77,4 +69,4 @@ for file in [root/'index.html',root/'downloads/index.html',root/'packages/index.
     assert '/downloads/' in page(file).links and '/packages/' in page(file).links
 for file in (root/'tutorials').rglob('*.html'):
     assert repository in page(file).links and '/downloads/' in page(file).links and '/packages/' in page(file).links
-print(f'Checked {len(pages)} package/download pages, {links} local links, versioned API anchors, {len(archives)} ZIPs and checksums, and shared navigation.')
+print(f'Checked {len(pages)} package/download pages, {links} local links, versioned API anchors, nightly download wiring, and shared navigation.')
