@@ -39,7 +39,7 @@ SCHEMA = 2
 # The toolkit the compiler imports and the base package does not carry. A
 # check of it is the workload the measured 10% came from, at about 4,000
 # lines, and it is the same text for every stage.
-TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
+TOOLKIT = ("Text.Lex", "Text.Scan", "Text.Parse", "Text.Json", "Text.Builder", "Data.Bytes.Word")
 # IR level instrumentation: counters live in the module, so a `.ll` input is
 # instrumented without a frontend.
 GENERATE = "-fprofile-generate"
@@ -74,9 +74,9 @@ def workload_source(root: Path) -> bytes:
     module or the rest of the file is never checked. Qualified aliases keep
     the toolkit's exports out of Main's scope.
     """
-    files = {f"Text.{name}.cinch": (root / "seed" / "prelude" / "Text" / f"{name}.cinch").read_bytes()
+    files = {f"{name}.cinch": (root / "seed" / "prelude" / f"{name.replace('.', '/')}.cinch").read_bytes()
              for name in TOOLKIT}
-    imports = "".join(f"  import Text.{name} as ToolkitModule{index}\n"
+    imports = "".join(f"  import {name} as ToolkitModule{index}\n"
                       for index, name in enumerate(TOOLKIT))
     files["Main.cinch"] = ("module Main where\n" + imports + "\n  main :: Int\n  main = 0\n").encode()
     return b"\n\n".join(b"-- source: " + name.encode() + b"\n" + data
@@ -85,7 +85,7 @@ def workload_source(root: Path) -> bytes:
 
 def workload_modules() -> set[str]:
     """The modules the training bundle defines, which a manifest must not shadow."""
-    return {f"Text.{name}" for name in TOOLKIT} | {"Main"}
+    return {*TOOLKIT, "Main"}
 
 
 def profdata_tool() -> tuple[str, str]:
