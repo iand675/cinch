@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
 import statistics
 import struct
 import subprocess
@@ -363,6 +364,80 @@ def native_packed_object_publication(stage, work, package, rows):
             "run", runtime, work / "linked-library-client", client], work, leak=True)
 
 
+def native_object_session(stage, work, source, expected_ir, repeats):
+    original = json.loads((stage / "base-objects.json").read_bytes())
+    session_dir = work / "session"
+    session_dir.mkdir()
+    package = session_dir / "base.cpk"
+    object_file = session_dir / "base.o"
+    config = session_dir / "objects.json"
+    package.write_bytes((stage / "base.cpk").read_bytes())
+    object_file.write_bytes(Path(original["object"]).read_bytes())
+    config.write_text(json.dumps({**original, "metadata": str(package), "object": str(object_file)}))
+    ir = session_dir / "hello.ll"
+    diagnostics = ir.with_name(ir.name + ".diagnostics")
+    hello = session_dir / source.name
+    initial = source.read_text()
+    changed = initial.replace("Hello, world!", "Hello, again!")
+    hello.write_text(changed)
+    invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
+            "--objects", config, hello, ir], session_dir, leak=True)
+    expected_changed = ir.read_bytes()
+    args = [stage / "cinch", "--serve-ir", "--interfaces", package,
+            "--objects", config, hello]
+    invoke([*args, package], session_dir, status=1, leak=True)
+    assert package.read_bytes() == (stage / "base.cpk").read_bytes()
+
+    environment = {**os.environ, "CINCH_LEAK_CHECK": "1"}
+    times = []
+    with (session_dir / "stderr").open("w+") as stderr:
+        start = time.perf_counter_ns()
+        with subprocess.Popen([*args, ir], cwd=session_dir, env=environment,
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr) as child:
+            try:
+                with selectors.DefaultSelector() as selector:
+                    selector.register(child.stdout, selectors.EVENT_READ)
+
+                    def receive():
+                        assert selector.select(timeout=30), "compiler session stopped responding"
+                        return child.stdout.readline()
+
+                    def build():
+                        child.stdin.write(b"\n")
+                        child.stdin.flush()
+                        return receive()
+
+                    assert receive() == b"ready\n"
+                    ready_ms = (time.perf_counter_ns() - start) / 1e6
+                    # A mapped package and an admitted object are snapshots.
+                    # Their names may disappear while an existing session is running.
+                    package.unlink()
+                    object_file.unlink()
+                    hello.write_text(initial)
+                    assert build() == b"0\n"
+                    assert ir.read_bytes() == expected_ir
+
+                    hello.write_text("module Main where\n  main :: Int\n  main = missing-name\n")
+                    assert build() == b"4\n"
+                    assert not ir.read_bytes()
+                    assert "missing-name" in diagnostics.read_text()
+                    for index in range(repeats):
+                        hello.write_text(changed if index % 2 == 0 else initial)
+                        start = time.perf_counter_ns()
+                        assert build() == b"0\n"
+                        times.append((time.perf_counter_ns() - start) / 1e6)
+                        assert not diagnostics.read_bytes()
+                        assert ir.read_bytes() == (expected_changed if index % 2 == 0 else expected_ir)
+                child.stdin.close()
+                assert child.wait(timeout=30) == 0
+            finally:
+                if child.poll() is None:
+                    child.kill()
+        stderr.seek(0)
+        assert "cinch-leak: live=0" in stderr.read()
+    return {"ready_ms": ready_ms, "edit_samples_ms": times, "edit_median_ms": statistics.median(times)}
+
+
 def native(stage, work, repeats):
     package = stage / "base.cpk"
     contents = package.read_bytes()
@@ -462,6 +537,7 @@ def native(stage, work, repeats):
             produced_ir = ir.read_bytes()
         else:
             assert ir.read_bytes() == produced_ir
+    object_session = native_object_session(stage, work, hello, produced_ir, repeats)
 
     reexport = work / "Reexport.cinch"
     reexport.write_text("""module Reexport where
@@ -502,7 +578,7 @@ module Main where
     return {"package_bytes": len(contents), "repacked_bytes": len(indexed_contents),
             "samples_ms": times,
             "median_ms": {name: statistics.median(values) for name, values in times.items()},
-            "allocations": allocations}
+            "allocations": allocations, "object_session": object_session}
 
 
 def rust(seed, work):

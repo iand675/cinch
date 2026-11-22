@@ -25,7 +25,7 @@ module Main where
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
   import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode, compile-manifest-profile-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (run-source-with-object-at, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
+  import Bootstrap.Pipeline (ServeIr, run-source-with-object-at, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
   import Bootstrap.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
@@ -59,6 +59,8 @@ module Main where
         if selected then pipeline-bad-args else run-options roots CompileOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-ir-only" == 0 then
         if selected then pipeline-bad-args else run-options roots IrOnly manifest object-config wanted debug reclaim inlining True rest
+      else if string-compare flag "--serve-ir" == 0 then
+        if selected then pipeline-bad-args else run-options roots ServeIr manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-ir" == 0 then
         if selected then pipeline-bad-args else run-options roots EmitOnly manifest object-config wanted debug reclaim inlining True rest
       else if string-compare flag "--emit-ir-with-interfaces" == 0 then
@@ -153,6 +155,9 @@ module Main where
     IrOnly -> case ws of
       Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
+    ServeIr -> case ws of
+      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      other -> pipeline-bad-args
     EmitOnly -> case ws of
       Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
@@ -179,12 +184,15 @@ module Main where
   run-source mode manifest object-config wanted debug reclaim inlining source ir exe report = case object-config of
     Some configuration -> (case (mode, manifest) of
       (IrOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (ServeIr, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       (EmitOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       (EmitWithInterfaces, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       other -> pipeline-bad-args)
-    None -> if debug && emits-code mode then pipeline-bad-args else case manifest of
-      None -> compile-source-profile-mode inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
-      Some file -> compile-manifest-profile-mode inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
+    None -> case mode of
+      ServeIr -> pipeline-bad-args
+      other -> if debug && emits-code mode then pipeline-bad-args else case manifest of
+        None -> compile-source-profile-mode inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
+        Some file -> compile-manifest-profile-mode inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
 
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of

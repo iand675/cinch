@@ -297,6 +297,7 @@ The driver also has separate frontend and build modes:
     cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
     cinch --emit-interfaces [--interfaces PACKAGE] SOURCE PREFIX
     cinch --emit-ir-only --interfaces MANIFEST --objects CONFIG SOURCE IR
+    cinch --serve-ir --interfaces PACKAGE.cpk --objects CONFIG SOURCE IR
     cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT PACKAGE.cpk
@@ -305,6 +306,14 @@ The driver also has separate frontend and build modes:
 Interface-only mode writes `PREFIX.cpk`. Combined LLVM and interface
 emission writes `IR.cpk` alongside the LLVM file. Both packages contain
 the checked source contracts and their indexed bodies.
+
+`--serve-ir` keeps the packed contracts and validated object metadata in
+memory for a series of edits to one source file. Wait for `ready` on
+stdout, then send one newline on stdin per build after saving `SOURCE`.
+The compiler writes LLVM IR and `IR.diagnostics` as in `--emit-ir-only`
+and replies with the build status on its own line. Close stdin to stop
+the session. Start a new session when the dependency package or object
+changes. Linking an executable is a separate step.
 
 Check-only runs parsing, resolution and the current source/Core checks, then
 writes `DIAGNOSTICS_BASE.diagnostics` (empty on success). It does not run the

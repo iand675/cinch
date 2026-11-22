@@ -50,6 +50,7 @@ module Bootstrap.Pipeline where
   import Effect.Fs (fs-metadata, fs-read, fs-rename, fs-write)
   import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
+  import Text.Show (int-to-string)
 
   foreign import ccall "cinch.runtime.randomBytes" package-stage-entropy :: Nat -> Bytes
   foreign import ccall "cinch.runtime.fsMkdir" make-package-stage :: Bytes -> Bool -> I64
@@ -62,6 +63,7 @@ module Bootstrap.Pipeline where
     CheckOnly :: PipelineMode
     BodiesOnly :: PipelineMode
     IrOnly :: PipelineMode
+    ServeIr :: PipelineMode
     EmitOnly :: PipelineMode
     EmitWithInterfaces :: PipelineMode
     InterfacesOnly :: PipelineMode
@@ -204,6 +206,7 @@ module Bootstrap.Pipeline where
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case mode of
       EmitWithInterfaces -> publish-object-client inlining debug reclaim profile manifest object-config source ir
+      ServeIr -> serve-object-client inlining debug reclaim profile manifest object-config source ir
       IrOnly -> emit-admitted-object-client inlining debug reclaim profile IrOnly manifest object-config source ir
       EmitOnly -> emit-admitted-object-client inlining debug reclaim profile EmitOnly manifest object-config source ir
       other -> pipeline-bad-args
@@ -229,6 +232,36 @@ module Bootstrap.Pipeline where
             (case admitted of
               Err message -> Err ("bootstrap.object: " <> message)
               Ok (provider, metadata, path, code) -> Ok (checked, provider, metadata, path, code))))
+
+  -- Hold the admitted contracts and provider for the life of the session.
+  -- Each newline on stdin requests an IR build from the current source
+  -- file. Stdout carries a readiness line followed by one status per
+  -- request. EOF ends the session.
+  serve-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  serve-object-client inlining debug reclaim profile manifest object-config source ir =
+    let references = read-interface-inputs manifest in
+    let configuration = read-runtime-object-config object-config in
+    let normalize = \name -> path-to-string (path-normalize (path-from-string name)) in
+    let outputs = map normalize [path-to-string ir, path-to-string (refusal-path ir)] in
+    let interface-files = case references of Ok inputs -> interface-input-files inputs; Err message -> Nil in
+    let object-files = case configuration of Ok config -> runtime-object-input-files config; Err message -> Nil in
+    if object-input-overlaps outputs (map normalize ([manifest, object-config, source] <> interface-files <> object-files)) then pipeline-bad-args else
+    case load-object-client reclaim references configuration of
+      Err message -> write-failure ir message pipeline-interface-failed
+      Ok (checked, provider, metadata, object-path, code) ->
+        if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
+        let headers = interface-fixity-headers (validated-interfaces-members checked) in
+        case ioWrite (string-to-bytes "ready\n") of
+          _ -> serve-object-builds (string-to-bytes "\n")
+            (\unit -> emit-object-client-with-headers inlining debug reclaim profile IrOnly checked provider headers source ir)
+
+  serve-object-builds :: forall r. using (io :: Io r) => Bytes -> (Unit ->{IO r, Diverge} Int) ->{IO r, Diverge} Int
+  serve-object-builds newline build = case ioRead 1 of
+    None -> pipeline-ok
+    Some token -> if bytes-compare token newline /= 0 then pipeline-bad-args else
+      case build () of
+        status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+          _ -> serve-object-builds newline build
 
   publish-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
   publish-object-client inlining debug reclaim profile manifest object-config source ir =
@@ -262,9 +295,13 @@ module Bootstrap.Pipeline where
   build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
   emit-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
   emit-object-client inlining debug reclaim profile mode admitted provider source ir =
+    emit-object-client-with-headers inlining debug reclaim profile mode admitted provider
+      (interface-fixity-headers (validated-interfaces-members admitted)) source ir
+  emit-object-client-with-headers :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> List Module -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client-with-headers inlining debug reclaim profile mode admitted provider headers source ir =
     let interfaces = validated-interfaces-members admitted in case fs-read (path-from-string source) of
       Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-      Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
+      Ok src -> case parse-program-with source src headers of
         Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
         Parsed program Nil -> case target-view-program profile program of
           Err message -> write-failure ir message pipeline-check-refused
@@ -758,6 +795,7 @@ module Bootstrap.Pipeline where
       CheckOnly -> pipeline-emit-refused
       BodiesOnly -> pipeline-emit-refused
       IrOnly -> pipeline-emit-refused
+      ServeIr -> pipeline-emit-refused
       EmitOnly -> pipeline-emit-refused
       EmitWithInterfaces -> pipeline-emit-refused
       InterfacesOnly -> pipeline-emit-refused
