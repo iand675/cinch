@@ -100,7 +100,7 @@ fn producer_project() -> std::path::PathBuf {
 fn checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque() {
     let dir = producer_project();
     common::check(&dir, "Main.cinch").expect("emit the selected compiler's machine contracts");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let a = read("A"); let facade = read("Facade");
     for (name, alias) in [("small", "narrow"), ("widen", "widen"), ("small-int", "narrow-int"), ("fixed", "fixed"), ("fixed-unsigned", "fixed-unsigned"), ("codepoint", "codepoint"), ("scalar-bound", "scalar-bound")] {
         let value = a.exports.values.iter().find(|v| v.name == name).unwrap().resolved.as_ref().expect(name);

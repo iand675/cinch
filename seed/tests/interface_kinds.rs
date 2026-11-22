@@ -73,7 +73,7 @@ fn interfaces_preserve_indexed_constructors_and_method_visibility() {
         ("Main.cinch", "module Main where\n  import Facade\n  import Host\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("check metadata fixture");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let contract = read("Contract");
     let facade = read("Facade");
     let host = read("Host");

@@ -247,7 +247,30 @@ impl Writer<'_> {
     }
 }
 
-pub(crate) fn encode(rows: &[(&Iface, &str)], abi: &Value) -> Decode<Vec<u8>> {
+struct EncodedPackage {
+    header: Vec<u8>,
+    sections: [Vec<u8>; 9],
+    length: usize,
+}
+
+impl EncodedPackage {
+    fn write_to(&self, mut output: impl Write) -> std::io::Result<()> {
+        output.write_all(&self.header)?;
+        for section in &self.sections {
+            output.write_all(section)?;
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn encode_interfaces(rows: &[(&Iface, &str)]) -> crate::Result<Vec<u8>> {
+    let encoded = encode(rows, None).map_err(|err| crate::Error::plain(err.to_string()))?;
+    let mut bytes = Vec::with_capacity(encoded.length);
+    encoded.write_to(&mut bytes).expect("writing a Vec cannot fail");
+    Ok(bytes)
+}
+
+fn encode(rows: &[(&Iface, &str)], abi: Option<&Value>) -> Decode<EncodedPackage> {
     let mut ordered: Vec<_> = rows.iter().enumerate().collect();
     ordered.sort_unstable_by_key(|(_, (iface, _))| &iface.module);
     if ordered
@@ -321,8 +344,10 @@ pub(crate) fn encode(rows: &[(&Iface, &str)], abi: &Value) -> Decode<Vec<u8>> {
         }
     }
     let mut packed_abi = Vec::new();
-    put(&mut packed_abi, [word(writer.strings.spans.len())?]);
-    writer.value(abi, &mut packed_abi, false, 0)?;
+    if let Some(abi) = abi {
+        put(&mut packed_abi, [word(writer.strings.spans.len())?]);
+        writer.value(abi, &mut packed_abi, false, 0)?;
+    }
     let sections = [
         writer.strings.section()?,
         modules,
@@ -336,30 +361,35 @@ pub(crate) fn encode(rows: &[(&Iface, &str)], abi: &Value) -> Decode<Vec<u8>> {
     ];
     let total = HEADER + sections.iter().map(Vec::len).sum::<usize>();
     let length = word(total)?;
-    let mut bytes = Vec::with_capacity(total);
-    bytes.extend_from_slice(b"CINCHPK4");
-    put(&mut bytes, [length, 4]);
+    let mut header = Vec::with_capacity(HEADER);
+    header.extend_from_slice(b"CINCHPK4");
+    put(&mut header, [length, 4]);
     let mut offset = HEADER;
     for section in &sections {
-        put(&mut bytes, [word(offset)?, word(section.len())?]);
+        put(&mut header, [word(offset)?, word(section.len())?]);
         offset += section.len();
     }
-    for section in sections {
-        bytes.extend(section);
-    }
-    Ok(bytes)
+    Ok(EncodedPackage { header, sections, length: total })
 }
 
 pub(crate) fn publish(path: &Path, rows: &[(&Iface, &str)], abi: &Value) -> crate::Result<()> {
+    publish_package(path, rows, Some(abi))
+}
+
+pub(crate) fn publish_interfaces(path: &Path, rows: &[(&Iface, &str)]) -> crate::Result<()> {
+    publish_package(path, rows, None)
+}
+
+fn publish_package(path: &Path, rows: &[(&Iface, &str)], abi: Option<&Value>) -> crate::Result<()> {
     let error =
         |err: &dyn std::fmt::Display| crate::Error::plain(format!("{}: {err}", path.display()));
-    let bytes = encode(rows, abi).map_err(|err| error(&err))?;
+    let encoded = encode(rows, abi).map_err(|err| error(&err))?;
     let directory = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(directory).map_err(|err| error(&err))?;
-    file.write_all(&bytes).map_err(|err| error(&err))?;
+    encoded.write_to(&mut file).map_err(|err| error(&err))?;
     // Existing readers may have the old file mapped. Publish a fresh inode.
     file.persist(path).map_err(|err| error(&err))?;
     Ok(())

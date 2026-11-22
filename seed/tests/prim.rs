@@ -420,7 +420,7 @@ module Main where
     common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &capped)
         .expect("check run");
     let iface =
-        std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
+        common::project_interface(&dir, "Main.cinch", "Main").to_json();
     assert!(!iface.contains("Available"), "{iface}");
     assert!(!iface.contains("VecU32Target"), "{iface}");
 }
@@ -850,7 +850,7 @@ module Main where
     let dir = write_project("pop-iface", src);
     common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &x86)
         .expect("check run");
-    let iface = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
+    let iface = common::project_interface(&dir, "Main.cinch", "Main").to_json();
     assert!(!iface.contains("x86_64") && !iface.contains("arch "), "{iface}");
 }
 

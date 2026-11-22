@@ -15,8 +15,7 @@ fn interfaces_publish_preconditions_and_named_refinement_definitions() {
         ("Main.cinch", "module Main where\n  import Contract\n  main :: Int\n  main = 0\n"),
     ]);
     common::build(&dir, "Main.cinch", "program").expect("build contract project");
-    let path = dir.join("build/Contract.cinchif");
-    let iface = Iface::from_json(&std::fs::read_to_string(&path).expect("interface")).expect("read interface");
+    let iface = common::project_interface(&dir, "Main.cinch", "Contract");
     assert_eq!(iface.schema, SCHEMA_VERSION);
     let value = iface.exports.values.iter().find(|v| v.name == "bounded").expect("bounded export");
     assert!(value.scheme.contains("using ("), "{}", value.scheme);
@@ -58,7 +57,7 @@ fn logical_literal_proof_contracts_round_trip_without_becoming_boolean_values() 
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = case decide False of Yes _ -> 1; No h -> case refute h of No _ -> 0; Yes _ -> 2\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit logical literal proof contracts");
-    let read = |name| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name| common::project_interface(&dir, "Main.cinch", name);
     let provider = read("Evidence");
     let facade = read("Facade");
     for iface in [&provider, &facade] {
@@ -108,11 +107,7 @@ module Main where
     let interfaces = if selected {
         let dir = common::project("portable_proof_contracts", &[("Main.cinch", source)]);
         common::check(&dir, "Main.cinch").expect("emit the selected compiler's proof contracts");
-        let interfaces = std::fs::read_dir(dir.join("build")).unwrap()
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|suffix| suffix == "cinchif"))
-            .map(|path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap())
-            .collect::<Vec<_>>();
+        let interfaces = common::project_interfaces(&dir, "Main.cinch").unwrap();
         common::cleanup(&dir);
         interfaces
     } else {
@@ -170,7 +165,7 @@ fn literal_preconditions_keep_checked_truth_and_facade_contract_identity() {
     let exe = common::build(&dir, "Main.cinch", "literal-precondition-program").expect("build literal context project");
     let result = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
     assert_eq!(result.status.code(), Some(7), "{}", String::from_utf8_lossy(&result.stderr));
-    let read = |name| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name| common::project_interface(&dir, "Main.cinch", name);
     let provider = read("Conditions"); let facade = read("Facade");
     for (name, alias, predicate) in [("always", "answer", "True"), ("never", "blocked", "False")] {
         let original = provider.exports.values.iter().find(|v| v.name==name).unwrap();

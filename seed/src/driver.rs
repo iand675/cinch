@@ -2644,63 +2644,27 @@ fn write_artifacts<'a>(
     } else {
         None
     };
-    let package = base_package();
-    let package_modules: std::collections::HashSet<&str> = package.order.iter().map(String::as_str).collect();
-    let mut rendered = std::collections::BTreeMap::new();
     let mut optimisation_metadata = std::collections::BTreeMap::new();
-    for iface in ifaces {
-        let p = out_dir.join(format!("{}.cinchif", iface.module));
-        let error = |e| Error::plain(format!("{}: {e}", p.display()));
-        let store_hash = contract_hashes.get(iface.module.as_str())
-            .filter(|_| package_modules.contains(iface.module.as_str()));
-        if mode != Mode::EmitObject {
-            if let Some(contract_hash) = store_hash {
-                let json = iface.to_json();
-                std::fs::write(&p, &json).map_err(error)?;
-                rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
-            } else {
-                let mut output = std::io::BufWriter::new(std::fs::File::create(&p).map_err(error)?);
-                iface.write_json(&mut output).map_err(error)?;
-                std::io::Write::flush(&mut output).map_err(error)?;
-            }
-        }
-        let opt_path = out_dir.join(format!("{}.cinchopt", iface.module));
-        match &body_index {
-            None => {
-                let _ = std::fs::remove_file(&opt_path);
-            }
-            Some(index) => {
-                let contract_hash = contract_hashes.get(iface.module.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| iface.iface_hash());
-                let optimisation = index.for_contract(&iface.module, contract_hash);
-                if optimisation.bodies.is_empty() {
-                    let _ = std::fs::remove_file(&opt_path);
-                } else {
-                    let text = optimisation.to_json();
-                    std::fs::write(&opt_path, &text).map_err(|e| {
-                        Error::plain(format!("{}: {e}", opt_path.display()))
-                    })?;
-                    if mode == Mode::EmitObject {
-                        optimisation_metadata.insert(iface.module.as_str(), J::obj([
-                            ("schema", crate::ifaceopt::SCHEMA.into()),
-                            ("iface_hash", optimisation.iface_hash.as_str().into()),
-                            ("content_hash", crate::interface::content_hash(&text).into()),
-                            ("bodies", (optimisation.bodies.len() as u64).into()),
-                        ]));
-                    }
-                }
+    if let Some(index) = &body_index {
+        for iface in ifaces {
+            let contract_hash = contract_hashes[iface.module.as_str()].clone();
+            let optimisation = index.for_contract(&iface.module, contract_hash);
+            if !optimisation.bodies.is_empty() {
+                optimisation_metadata.insert(iface.module.as_str(), optimisation.document());
             }
         }
     }
-    let mut modules: Vec<(&str, String)> = ifaces
-        .iter()
-        .map(|i| {
-            let hash = contract_hashes.get(i.module.as_str()).cloned().unwrap_or_else(|| i.iface_hash());
-            (i.module.as_str(), hash)
-        })
-        .collect();
-    modules.sort();
+    if mode != Mode::EmitObject {
+        let path = out_dir.join(format!("{entry}.cpk"));
+        let rows: Vec<_> = ifaces.iter().map(|iface| (iface, contract_hashes[iface.module.as_str()].as_str())).collect();
+        if optimisation_metadata.is_empty() {
+            crate::package_interfaces::publish_interfaces(&path, &rows)?;
+        } else {
+            let optimisations = J::Obj(std::mem::take(&mut optimisation_metadata).into_iter()
+                .map(|(module, doc)| (module.to_owned(), doc)).collect());
+            crate::package_interfaces::publish(&path, &rows, &J::obj([("optimisations", optimisations)]))?;
+        }
+    }
     let mut prims: Vec<String> = Vec::new();
     let mut foreign: Vec<String> = Vec::new();
     let mut declared: Vec<String> = Vec::new();
@@ -3258,7 +3222,7 @@ fn write_artifacts<'a>(
         ("runtime_abi", crate::interface::RUNTIME_ABI_VERSION.into()),
         (
             "modules",
-            J::arr(&modules, |(m, h)| {
+            J::arr(contract_hashes, |(m, h)| {
                 J::obj([("module", (*m).into()), ("iface_hash", h.into())])
             }),
         ),
@@ -3333,7 +3297,7 @@ fn write_artifacts<'a>(
     // would hide a real inconsistency.
     let store = crate::store::Store::user();
     if mode != Mode::EmitObject && store.ensure_root().is_ok() {
-        if let Err(e) = store.write_rendered(package, profile, wit, ifaces, &[], opts.rebuild_store, &rendered) {
+        if let Err(e) = store.write_with_hashes(base_package(), profile, wit, ifaces, &[], opts.rebuild_store, contract_hashes) {
             if matches!(&e, crate::store::StoreError::Package { .. }) {
                 return Err(Error::plain(e.to_string()));
             }
@@ -4603,16 +4567,11 @@ pub struct DriverOptions {
     /// `--inline-model <threshold|benefit>`: which site test the inliner
     /// uses (`crate::simplify::InlineModel`). Default `benefit`.
     pub inline_model: Option<String>,
-    /// `--interface-optimisations <manifest>`: an interface manifest whose
-    /// modules' `.cinchopt` unfoldings answer this program's cross-object
-    /// call sites. The units those artifacts describe are not emitted by
-    /// this compilation, so the caller links the object they describe.
+    /// Checked package with optional unfoldings for cross-object call sites.
+    /// The caller links the object that supplies units left after inlining.
     pub interface_optimisations: Option<PathBuf>,
-    /// `--emit-interface-optimisations`: write the `.cinchopt` artifacts
-    /// beside this compile's `.cinchif`s. An object build writes them by
-    /// default, because it is a library producer and its consumer may read
-    /// them; every other mode writes them only when asked, so a check does
-    /// not pay for an artifact it has no consumer for.
+    /// Include unfoldings in the checked package. Object production enables
+    /// this by default.
     pub emit_interface_optimisations: bool,
     /// `--case-of-case`: run the case-of-case rule (off by default; the join
     /// node, its introduction and its printing stay on either way).
@@ -5819,8 +5778,8 @@ pub fn driver_with_profile_opts(
     // for. A unit of a module this compilation defines keeps its own body:
     // a source module shadows the external one.
     let mut program = program;
-    let (mut program, foreign) = if let Some(manifest) = &opts.interface_optimisations {
-        let table = crate::ifaceopt::load_manifest(manifest)?;
+    let (mut program, foreign) = if let Some(package) = &opts.interface_optimisations {
+        let table = crate::ifaceopt::load_package(package)?;
         if table.bodies.is_empty() || mode == Mode::EmitObject {
             (program, table.bodies)
         } else {
@@ -6214,7 +6173,7 @@ fn write_object(
     emit_modules: &[String],
     opts: &DriverOptions,
     contract_hashes: &std::collections::BTreeMap<&str, String>,
-    mut optimisation_metadata: std::collections::BTreeMap<&str, crate::interface::JsonValue>,
+    optimisation_metadata: std::collections::BTreeMap<&str, crate::interface::JsonValue>,
 ) -> Result<i32> {
     use crate::interface::JsonValue as J;
     let object = codegen::emit_packed_object(profile, program, emit_modules)?;
@@ -6322,13 +6281,11 @@ fn write_object(
     for iface in ifaces {
         let module = iface.module.as_str();
         let hash = contract_hashes[module].as_str();
-        let optimisation = optimisation_metadata.remove(module).unwrap_or(J::Null);
         if Some(module) == private {
             fields.insert("private_interfaces".into(), J::Arr(vec![J::obj([
                 ("module", module.into()),
                 ("iface_hash", hash.into()),
                 ("interface", iface.packed_document()),
-                ("optimisation", optimisation.clone()),
             ])]));
         } else {
             entries.push((iface, hash));
@@ -6336,10 +6293,13 @@ fn write_object(
         references.push(J::obj([
             ("module", module.into()),
             ("iface_hash", hash.into()),
-            ("optimisation", optimisation),
         ]));
     }
     fields.insert("interface_refs".into(), J::Arr(references));
+    if !optimisation_metadata.is_empty() {
+        fields.insert("optimisations".into(), J::Obj(optimisation_metadata.into_iter()
+            .map(|(module, doc)| (module.to_owned(), doc)).collect()));
+    }
     crate::package_interfaces::publish(&package_path, &entries, &J::Obj(fields))?;
     Ok(0)
 }

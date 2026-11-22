@@ -44,8 +44,7 @@ fn class_contexts_methods_and_private_contracts_keep_their_definitions() {
 "#),
     ]);
     common::check(&dir, "Main.cinch").expect("emit class contracts");
-    let read = |module: &str| Iface::from_json(&std::fs::read_to_string(
-        dir.join(format!("build/{module}.cinchif"))).unwrap()).unwrap();
+    let read = |module: &str| common::project_interface(&dir, "Main.cinch", module);
     let a = read("A");
     let facade = read("Facade");
     let main = read("Main");
@@ -106,11 +105,7 @@ fn class_contexts_methods_and_private_contracts_keep_their_definitions() {
         "dependency-ordered emission builds the defining Codec contract before Bool's instance");
     assert!(boolean.imports.iter().any(|r| r.module == "Text.Codec" && r.iface_hash == read("Text.Codec").iface_hash()));
 
-    let all: Vec<Iface> = std::fs::read_dir(dir.join("build")).unwrap().filter_map(|entry| {
-        let path = entry.unwrap().path();
-        (path.extension().is_some_and(|s| s == "cinchif"))
-            .then(|| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap())
-    }).collect();
+    let all = common::project_interfaces(&dir, "Main.cinch").unwrap();
     verify_chain(&all).expect("facade aliases keep the defining contract");
     let mut changed = facade.clone();
     changed.exports.signatures.iter_mut().find(|s| s.identity == "A.Gate").unwrap()

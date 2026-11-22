@@ -813,9 +813,7 @@ fn one_build_selects_different_modules_for_the_host_and_the_target() {
     );
     // The interface records the target's selection only: the host's
     // module is not a dependency of the artifact.
-    let text = std::fs::read_to_string(dir.join("build/Main.cinchif"))
-        .expect("the module's interface");
-    let iface = Iface::from_json(&text).expect("the interface parses");
+    let iface = common::project_interface(&dir, "Main.cinch", "Main");
     let imports = iface_imports(&iface);
     assert!(
         imports.contains("Frame.Cross"),

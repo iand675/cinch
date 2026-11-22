@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from pack_interfaces import PackedInterfaces, pack, publish
+
 
 CLIENTS = {
     "policy-identity": "  import Data.Mutable.Map (MapKeyPolicy)\n  -- | Pass the imported opaque policy without interpreting its fields.\n  observe :: forall k. MapKeyPolicy k -> MapKeyPolicy k\n  observe value = value\n",
@@ -27,7 +29,7 @@ def digest(path: Path) -> str:
 def main() -> None:
     """Probe actual admission; a completed observation run is not a package qualification."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--producer", type=Path, required=True, help="Actual Rust check/build output containing Main.manifest.json and .cinchif files")
+    parser.add_argument("--producer", type=Path, required=True, help="Rust build output containing Main.manifest.json and Main.cpk")
     parser.add_argument("--producer-receipt", type=Path, required=True)
     parser.add_argument("--compiler", type=Path, action="append", required=True, help="Exact raw Native CLI; repeat for independent readers")
     parser.add_argument("--cases", nargs="+", choices=tuple(CLIENTS), default=list(CLIENTS))
@@ -38,25 +40,20 @@ def main() -> None:
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     producer, artifacts = args.producer.resolve(), args.artifacts.resolve()
-    interfaces = artifacts / "interfaces"
-    interfaces.mkdir(parents=True, exist_ok=True)
-    rows, input_hashes = [], {}
-    for row in json.loads((producer / "Main.manifest.json").read_text())["modules"]:
-        name = row["module"]
-        if name == "Main":
-            continue
-        path = producer / (name + ".cinchif")
-        copied = interfaces / path.name
-        copied.write_bytes(path.read_bytes())
-        assert copied.read_bytes() == path.read_bytes()
-        rows.append([name, row["iface_hash"], str(copied)])
-        input_hashes[name] = digest(copied)
-    manifest = artifacts / "interfaces.json"
-    manifest.write_text(json.dumps({"schema": 1, "interfaces": rows}, separators=(",", ":")))
+    artifacts.mkdir(parents=True, exist_ok=True)
+    package = producer / "Main.cpk"
+    inventory = {row["module"]: row["iface_hash"]
+                 for row in json.loads((producer / "Main.manifest.json").read_bytes())["modules"]}
+    rows = PackedInterfaces(package.read_bytes()).documents
+    assert {name: identity for name, identity, _ in rows} == inventory
+    manifest = artifacts / "interfaces.cpk"
+    publish(manifest, pack([row for row in rows if row[0] != "Main"]))
     report = {"kind": "source-absent-admission-observations", "producer_receipt_sha256": digest(args.producer_receipt),
               "producer_compiler_sha256": json.loads(args.producer_receipt.read_text())["compiler_sha256"],
-              "producer_manifest_sha256": digest(producer / "Main.manifest.json"), "interfaces": input_hashes,
-              "interface_bytes_modified": False, "library_sources_in_consumer_directory": False, "runs": []}
+              "producer_manifest_sha256": digest(producer / "Main.manifest.json"),
+              "producer_package_sha256": digest(package), "reader_package_sha256": digest(manifest),
+              "interfaces": {name: identity for name, identity in inventory.items() if name != "Main"},
+              "library_sources_in_consumer_directory": False, "runs": []}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     for number, compiler in enumerate(args.compiler):
         compiler = compiler.resolve()

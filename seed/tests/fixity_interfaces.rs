@@ -92,18 +92,10 @@ fn project_consumer_parses_imported_operator_and_iface_records_it() {
         Err(e) => panic!("a consumer must parse the imported operator without redeclaring it: {e}"),
     }
 
-    let iface = dir.join("build").join("Sibling.cinchif");
-    let text = std::fs::read_to_string(&iface)
-        .unwrap_or_else(|e| panic!("Sibling interface {}: {e}", iface.display()));
-    assert!(
-        text.contains("<+>"),
-        "the interface must record the operator's fixity, got:\n{text}"
-    );
-    let sibling = cinch::interface::Iface::from_json(&text).expect("sibling contract");
+    let sibling = common::project_interface(&dir, "Main.cinch", "Sibling");
     assert_eq!(sibling.exports.fixities.len(), 1, "private operator fixities stay private");
-    let facade = cinch::interface::Iface::from_json(
-        &std::fs::read_to_string(dir.join("build/Facade.cinchif")).expect("facade interface")
-    ).expect("facade contract");
+    assert_eq!(sibling.exports.fixities[0].op, "<+>");
+    let facade = common::project_interface(&dir, "Main.cinch", "Facade");
     assert_eq!(facade.exports.fixities.len(), 1);
     let fixity = &facade.exports.fixities[0];
     assert_eq!((&*fixity.op, &*fixity.assoc, fixity.prec), ("<*>", "right", 6));

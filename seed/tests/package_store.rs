@@ -317,16 +317,15 @@ fn writing_twice_is_idempotent_and_the_entry_reads_back() {
         manifest.contains(&format!("\"key\":{key:?}")),
         "the manifest records the key: {manifest}"
     );
-    for iface in ifaces {
-        let text = std::fs::read_to_string(Kind::Interface.path_in(&dir, &iface.module))
-            .expect("the stored interface");
-        let back = Iface::from_json(&text).expect("the stored interface parses");
-        assert_eq!(back, canonical(iface), "{} round-trips", iface.module);
-        assert_eq!(back.iface_hash(), iface.iface_hash());
+    let path = Kind::Interface.path_in(&dir, "");
+    let packed = cinch::interface::read_package(&path).expect("the stored contracts decode");
+    assert_eq!(packed.len(), ifaces.len());
+    for ((back, hash), iface) in packed.iter().zip(ifaces) {
+        assert_eq!(back, &canonical(iface), "{} round-trips", iface.module);
+        assert_eq!(*hash, iface.iface_hash());
         assert!(
-            manifest.contains(&format!("\"iface_hash\":{:?}", iface.iface_hash())),
-            "the manifest records {}'s hash",
-            iface.module
+            manifest.contains(&format!("\"iface_hash\":{hash:?}")),
+            "the manifest records {}'s hash", iface.module,
         );
     }
     assert!(
@@ -396,16 +395,14 @@ fn a_corrupt_artifact_is_a_hard_error_to_load_and_a_repair_to_write() {
     let manifest_path = dir.join(ENTRY_MANIFEST);
     let manifest = std::fs::read_to_string(&manifest_path).expect("the entry manifest");
 
-    // A truncated interface: the consumer gets a hard error naming the
-    // module and the escape.
-    let victim = &ifaces[3].module;
-    let path = Kind::Interface.path_in(&dir, victim);
-    let text = std::fs::read_to_string(&path).expect("the stored interface");
-    std::fs::write(&path, &text[..text.len() / 2]).expect("truncate");
+    // A truncated package must fail before a consumer uses a contract.
+    let path = Kind::Interface.path_in(&dir, "");
+    let bytes = std::fs::read(&path).expect("the stored package");
+    std::fs::write(&path, &bytes[..bytes.len() / 2]).expect("truncate");
     let err = store.load(pkg, &key).expect_err("a truncated interface is a hard error");
     let msg = err.to_string();
     assert!(msg.contains("package store"), "{msg}");
-    assert!(msg.contains(victim.as_str()), "the reason names the module: {msg}");
+    assert!(msg.contains("interfaces.cpk"), "the reason names the package: {msg}");
     assert!(msg.contains("--rebuild"), "the reason names the escape: {msg}");
 
     // The compile path does not fail a build over it: it writes the
@@ -502,6 +499,19 @@ fn an_entry_from_another_build_is_refreshed_not_fatal() {
     );
     let loaded = store.load(pkg, &key).expect("the refreshed entry loads");
     assert_eq!(loaded.ifaces, canonical_set(ifaces));
+
+    // Instantiation units affect the bytes without changing the contract.
+    let mut instantiated = ifaces.to_vec();
+    instantiated[2].units.push(cinch::interface::UnitExport {
+        name: "StoreFixture".into(),
+        target: "StoreFixture".into(),
+        args: Vec::new(),
+        unit_id: "StoreFixture".into(),
+    });
+    assert_eq!(instantiated[2].iface_hash(), ifaces[2].iface_hash());
+    assert_eq!(store.write(pkg, &profile, &[], &instantiated, false).unwrap(), Outcome::Repaired(key.clone()));
+    assert_eq!(store.load(pkg, &key).unwrap().ifaces, canonical_set(&instantiated));
+
 }
 
 /// A cold cache is not a fault: the loader says so by name, and nothing
@@ -693,35 +703,23 @@ fn the_cli_repairs_a_corrupt_entry_and_accepts_rebuild() {
         .map(|e| e.expect("entry").path())
         .collect();
     assert_eq!(keys.len(), 1, "one key per package version and input set");
-    let victim = std::fs::read_dir(&keys[0])
-        .expect("the entry directory")
-        .map(|e| e.expect("artifact").path())
-        .find(|p| p.to_string_lossy().ends_with(".cinchif"))
-        .expect("an interface artifact");
-    let text = std::fs::read_to_string(&victim).expect("the stored interface");
-    std::fs::write(&victim, &text[..text.len() / 2]).expect("truncate it");
+    let victim = Kind::Interface.path_in(&keys[0], "");
+    let bytes = std::fs::read(&victim).expect("the stored package");
+    assert!(bytes.starts_with(b"CINCHPK4"));
+    assert!(dir.join("build/Main.cpk").is_file());
+    assert!(!dir.join("build/Main.cinchif").exists());
+    std::fs::write(&victim, &bytes[..bytes.len() / 2]).expect("truncate it");
 
-    // The compile path repairs the entry; it must not fail the build.
-    let out = run(&["check", "Main.cinch"]);
-    assert!(
-        out.status.success(),
-        "a corrupt entry must not fail a build: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert_eq!(
-        std::fs::read_to_string(&victim).expect("the repaired interface"),
-        text,
-        "the next check rewrites the corrupted artifact"
-    );
-
-    std::fs::write(&victim, format!("{text}\n")).expect("write valid noncanonical JSON");
     let out = run(&["check", "Main.cinch"]);
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    assert_eq!(
-        std::fs::read_to_string(&victim).expect("the canonical interface"),
-        text,
-        "a warm check restores the compiler's exact bytes even when the contract hash agrees"
-    );
+    assert_eq!(std::fs::read(&victim).expect("the repaired package"), bytes);
+
+    let mut different = bytes.clone();
+    different.push(0);
+    std::fs::write(&victim, different).expect("append a byte to the package");
+    let out = run(&["check", "Main.cinch"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(std::fs::read(&victim).expect("the repaired package"), bytes);
 
     let out = run(&["check", "Main.cinch", "--rebuild"]);
     assert!(

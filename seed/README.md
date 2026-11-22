@@ -95,10 +95,14 @@ ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
 The feature is off by default, so the ordinary compiler build does not depend on
 LLVM.
 
+A regular `check`, `build`, or LLVM emission writes `build/<entry>.cpk`
+with the checked interface closure. The package can also carry unfoldings
+for separate compilation. Rebuild old interface artifacts from source.
+
 `cinch jit --package-object package.o --package-dependency dep.o --call Top.answer`
 loads an installed package object and its separately produced dependency
-objects. Each object validates its package execution interface (`build/package.cinchif`), object bytes, installed
-`.cinchif` files, and physical inventory. Dependency objects are added first;
+objects. Each object validates its package execution interface
+(`build/package.cpk`), object bytes, and physical inventory. Dependency objects are added first;
 the root object registers the combined layout prefix (and reclamation, when
 recorded), and the CLI prints one zero-arity unit. Package objects define only
 their own modules and primitive helpers; they do not bundle dependency modules.

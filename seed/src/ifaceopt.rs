@@ -1,5 +1,5 @@
 //! Interface optimisation artifacts: the small library units' Core bodies,
-//! written beside a module's `.cinchif` and read back by the inliner.
+//! written beside the checked interface package and read back by the inliner.
 //!
 //! A `.cinchif` is the *contract* a dependent is invalidated by
 //! (`design/compiled-interface-metadata.md`), so a body may not go in it: a
@@ -8,8 +8,7 @@
 //! instead (`design/inline-unfolding-policy.md` section 12, mechanism A):
 //!
 //! ```text
-//! build/<Module>.cinchif   the contract (schema 10)
-//! build/<Module>.cinchopt  the unfoldings for its small units (schema 1)
+//! build/<entry>.cpk        checked contracts and optional unfoldings
 //! ```
 //!
 //! The optimisation artifact is keyed by the interface identity it was
@@ -30,8 +29,7 @@
 //! guesses at a body.
 //!
 //! The artifact is not part of any interface identity. A library whose
-//! bodies changed but whose contracts did not keeps the same `.cinchif`
-//! bytes and the same `iface_hash`; only the `.cinchopt` content hash moves.
+//! body changes that preserve the checked contract leave its `iface_hash` stable.
 
 use crate::core::{
     CAlt, CBranch, CPat, Core, FieldAccess, FieldShape, FnDef, GlobalId, LocalId, PrimOp,
@@ -43,7 +41,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// The optimisation artifact's own schema. Independent of the interface
 /// schema on purpose: a body encoding change must not force every
-/// `.cinchif` in the world to be rebuilt.
+/// checked contract to be rebuilt.
 pub const SCHEMA: u32 = 1;
 
 /// One body in the artifact: a unit of the module, its parameter
@@ -89,7 +87,11 @@ impl Optimisation {
     /// no insignificant whitespace. Two runs over the same program write
     /// the same bytes, which the package manifest's content hash relies on.
     pub fn to_json(&self) -> String {
-        let mut bodies = self.bodies.clone();
+        self.document().to_canonical_string()
+    }
+
+    pub(crate) fn document(&self) -> JsonValue {
+        let mut bodies: Vec<_> = self.bodies.iter().collect();
         bodies.sort_by(|a, b| a.unit.cmp(&b.unit));
         let rows = bodies
             .iter()
@@ -103,7 +105,7 @@ impl Optimisation {
                 ]))
             })
             .collect::<Vec<_>>();
-        let doc = JsonValue::obj([
+        JsonValue::obj([
             ("schema", self.schema.into()),
             ("language", self.language.as_str().into()),
             ("runtime_abi", self.runtime_abi.into()),
@@ -111,8 +113,7 @@ impl Optimisation {
             ("module", self.module.as_str().into()),
             ("iface_hash", self.iface_hash.as_str().into()),
             ("bodies", JsonValue::Arr(rows)),
-        ]);
-        doc.to_canonical_string()
+        ])
     }
 
     /// The artifact's own identity: the content hash of its canonical bytes.
@@ -136,7 +137,10 @@ impl Optimisation {
     }
 
     fn parse(text: &str, skip_undecodable: bool) -> Result<Optimisation, ParseError> {
-        let doc = parse_json(text)?;
+        Self::from_document(&parse_json(text)?, skip_undecodable)
+    }
+
+    fn from_document(doc: &JsonValue, skip_undecodable: bool) -> Result<Optimisation, ParseError> {
         let o = doc.as_object()?;
         let schema = field_num(o, "schema")?;
         if schema != SCHEMA as u64 {
@@ -195,7 +199,7 @@ impl Optimisation {
     }
 }
 
-/// The bodies of one module a `.cinchopt` carries.
+/// The optional unfoldings for one module.
 ///
 /// A unit is exported when its body is in the writer's encodable subset, its
 /// parameter classes are concrete (an unresolved `Param` would make the
@@ -876,102 +880,46 @@ pub struct ForeignTable {
     pub modules: BTreeSet<String>,
 }
 
-/// Read the optimisation artifacts named by an interface manifest.
-///
-/// The manifest is the same one a consumer already passes for its imported
-/// contracts (`{"schema":1,"interfaces":[[module, iface_hash, path], ...]}`).
-/// Each row's artifact sits beside its `.cinchif`; a missing artifact is
-/// simply an interface with no unfoldings, which is what every producer
-/// that predates this format writes. A present artifact whose module or
-/// interface identity disagrees with the row is refused: inlining against a
-/// stale body would be a wrong-code bug, not a missed optimization, so the
-/// mismatch is reported instead of ignored.
-pub fn load_manifest(path: &std::path::Path) -> crate::Result<ForeignTable> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-    let doc =
-        parse_json(&text).map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-    let root = doc
-        .as_object()
-        .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-    let schema = root
-        .get("schema")
-        .and_then(|v| v.as_num().ok())
-        .ok_or_else(|| {
-            crate::Error::plain(format!("{}: missing interface manifest schema", path.display()))
-        })?;
-    if schema != 1 {
-        return Err(crate::Error::plain(format!(
-            "{}: unsupported interface manifest schema {schema}",
-            path.display()
-        )));
-    }
-    let rows = root.get("interfaces").and_then(|v| v.as_array().ok()).ok_or_else(|| {
-        crate::Error::plain(format!("{}: missing interface manifest rows", path.display()))
-    })?;
+/// Authenticate the package's optional unfoldings against its checked
+/// contracts before exposing bodies to the inliner.
+pub fn load_package(path: &std::path::Path) -> crate::Result<ForeignTable> {
+    let (interfaces, metadata) = crate::package_interfaces::read_interfaces_with_abi(path)?;
     let mut table = ForeignTable { bodies: Vec::new(), modules: BTreeSet::new() };
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    for row in rows {
-        let parts = row
-            .as_array()
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-        if parts.len() != 3 {
-            return Err(crate::Error::plain(format!(
-                "{}: an interface manifest row needs three fields",
-                path.display()
-            )));
+    let Some(JsonValue::Obj(metadata)) = metadata else {
+        return Ok(table);
+    };
+    let Some(optimisations) = metadata.get("optimisations") else {
+        return Ok(table);
+    };
+    let error = |message: String| crate::Error::plain(format!("{}: {message}", path.display()));
+    let mut contracts: BTreeMap<_, _> = interfaces.into_iter().map(|(iface, hash)| (iface.module, hash)).collect();
+    // A private compiler-owned module can supply implementation evidence
+    // to its object consumer without entering the public module directory.
+    if let Some(JsonValue::Arr(rows)) = metadata.get("private_interfaces") {
+        for row in rows {
+            let fields = row.as_object().map_err(|e| error(e.to_string()))?;
+            let name = field_str(fields, "module").map_err(|e| error(e.to_string()))?;
+            let declared = field_str(fields, "iface_hash").map_err(|e| error(e.to_string()))?;
+            let document = field(fields, "interface").map_err(|e| error(e.to_string()))?;
+            let iface = Iface::from_document(document).map_err(|e| error(e.to_string()))?;
+            if iface.module != name || iface.iface_hash() != declared
+                || contracts.insert(name.clone(), declared).is_some()
+            {
+                return Err(error(format!("invalid private interface for {name}")));
+            }
         }
-        let module = parts[0]
-            .as_str()
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-        let iface_hash = parts[1]
-            .as_str()
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?;
-        let iface_path = std::path::PathBuf::from(
-            parts[2]
-                .as_str()
-                .map_err(|e| crate::Error::plain(format!("{}: {e}", path.display())))?,
-        );
-        let opt_path = iface_path.with_extension("cinchopt");
-        if !opt_path.is_file() {
-            continue;
-        }
-        let opt_text = std::fs::read_to_string(&opt_path)
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", opt_path.display())))?;
-        let artifact = Optimisation::from_json_lenient(&opt_text)
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", opt_path.display())))?;
-        if artifact.module != module {
-            return Err(crate::Error::plain(format!(
-                "{}: optimisation artifact names module {}, expected {module}",
-                opt_path.display(),
-                artifact.module
-            )));
-        }
-        if artifact.iface_hash != iface_hash {
-            return Err(crate::Error::plain(format!(
-                "{}: optimisation artifact was produced against interface {} but the manifest pins {}; rebuild the producer",
-                opt_path.display(),
+    }
+    for (module, document) in optimisations.as_object().map_err(|e| error(e.to_string()))? {
+        let artifact = Optimisation::from_document(document, true).map_err(|e| error(e.to_string()))?;
+        let iface_hash = contracts.get(module)
+            .ok_or_else(|| error(format!("optimisation artifact has no checked interface for {module}")))?;
+        if &artifact.module != module || &artifact.iface_hash != iface_hash {
+            return Err(error(format!(
+                "optimisation artifact for {module} was produced against interface {} but the package pins {iface_hash}",
                 artifact.iface_hash,
-                iface_hash
             )));
         }
-        // The row's own `.cinchif` must still be the contract the artifact
-        // was made against. The producer writes the hash; a consumer that
-        // recomputes it is not trusting the manifest's copy.
-        let iface_text = std::fs::read_to_string(&iface_path)
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", iface_path.display())))?;
-        let iface = Iface::from_json(&iface_text)
-            .map_err(|e| crate::Error::plain(format!("{}: {e}", iface_path.display())))?;
-        if iface.module != module || iface.iface_hash() != iface_hash {
-            return Err(crate::Error::plain(format!(
-                "{}: interface identity disagrees with the manifest row",
-                iface_path.display()
-            )));
-        }
-        if !seen.insert(module.to_string()) {
-            continue;
-        }
-        table.modules.insert(module.to_string());
+        table.modules.insert(module.clone());
         table.bodies.extend(foreign_defs(&artifact));
     }
     Ok(table)

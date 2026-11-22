@@ -197,9 +197,7 @@ fn a_loaded_module_declaring_step_and_done_changes_nothing() {
     );
     assert_eq!(common::run(&dir, "Main.cinch"), 0, "the program runs beside a loaded `Step`");
     let identity = |module: &str| -> String {
-        let text = std::fs::read_to_string(dir.join(format!("build/{module}.cinchif")))
-            .unwrap_or_else(|error| panic!("{module}.cinchif: {error}"));
-        let iface = Iface::from_json(&text).unwrap_or_else(|error| panic!("{module}.cinchif: {error}"));
+        let iface = common::project_interface(&dir, "Main.cinch", module);
         iface
             .exports
             .types

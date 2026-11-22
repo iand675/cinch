@@ -2,14 +2,14 @@
 //! carry for a consumer's inliner, and the consumer's admission of them.
 //!
 //! The producer is `crate::ifaceopt::for_module` (called by the artifact
-//! writer beside every `.cinchif`); the consumer is
+//! writer beside the checked package); the consumer is
 //! `crate::simplify::simplify_with_foreign`. The tests here fix the three
 //! properties the mechanism rests on: the artifact round-trips byte for
 //! byte, it is keyed by the interface identity it was made against, and a
 //! foreign body replaces a call site exactly as a local body does.
 
 use cinch::core::{Core, FnDef, Program, SimplifyReport};
-use cinch::ifaceopt::{foreign_defs, for_module, load_manifest, Optimisation};
+use cinch::ifaceopt::{foreign_defs, for_module, load_package, Optimisation};
 use cinch::simplify::{simplify_with_foreign, SimplifyOptions};
 
 /// The immediate children of a node, for the census walk. The test does not
@@ -127,37 +127,36 @@ fn artifact_round_trips_and_carries_the_class() {
 
 #[test]
 fn a_stale_artifact_is_refused() {
-    let dir = std::env::temp_dir().join(format!("cinch_ifaceopt_{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let (program, ifaces) = check(MAIN);
-    let bool_iface = ifaces.iter().find(|i| i.module == "Data.Bool").unwrap();
-    let iface_path = dir.join("Data.Bool.cinchif");
-    std::fs::write(&iface_path, bool_iface.to_json()).unwrap();
-    // Produce the artifact, then edit its recorded interface identity: the
-    // bodies are now inlining evidence for a contract that is not this one.
-    let artifact = for_module(bool_iface, &program);
-    let stale = artifact.to_json().replace(
-        &format!("\"iface_hash\":\"{}\"", artifact.iface_hash),
-        "\"iface_hash\":\"0\"",
-    );
-    std::fs::write(dir.join("Data.Bool.cinchopt"), stale).unwrap();
-    let manifest = dir.join("interfaces.json");
-    std::fs::write(
-        &manifest,
-        format!(
-            "{{\"schema\":1,\"interfaces\":[[\"Data.Bool\",\"{}\",\"{}\"]]}}",
-            bool_iface.iface_hash(),
-            iface_path.display()
-        ),
-    )
-    .unwrap();
-    let error = load_manifest(&manifest).err().expect("stale artifact refused");
-    assert!(
-        error.to_string().contains("produced against interface"),
-        "unexpected refusal: {error}"
-    );
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("Main.cinch");
+    std::fs::write(&source, MAIN).unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"))
+        .args(["check", "--emit-interface-optimisations"])
+        .arg(&source).env("CINCH_STORE", dir.path().join("store"))
+        .output().expect("publish a package with unfoldings");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let build = dir.path().join("build");
+    let package = build.join("Main.cpk");
+    assert!(load_package(&package).unwrap().modules.contains("Data.Bool"));
+    assert!(!build.join("Data.Bool.cinchopt").exists());
+    let tooling = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tooling");
+    let changed = std::process::Command::new("python3")
+        .args(["-c", r#"
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[1])
+from pack_interfaces import PackedInterfaces, pack, publish
+path = Path(sys.argv[2])
+package = PackedInterfaces(path.read_bytes())
+metadata = package.metadata()
+metadata["optimisations"]["Data.Bool"]["iface_hash"] = "0"
+publish(path, pack(package.documents, metadata))
+"#])
+        .arg(tooling).arg(&package).output().unwrap();
+    assert!(changed.status.success(), "{}", String::from_utf8_lossy(&changed.stderr));
+    let error = load_package(&package).err().expect("stale artifact refused");
+    assert!(error.to_string().contains("produced against interface"), "{error}");
+
 }
 
 #[test]

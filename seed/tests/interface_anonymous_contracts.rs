@@ -15,7 +15,7 @@ fn producer() -> std::path::PathBuf {
 #[test]
 fn checked_anonymous_contracts_survive_facades() {
     let dir = producer();
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let a = read("A"); let facade = read("Facade");
     let get = |iface: &Iface, name: &str| iface.exports.values.iter().find(|v| v.name == name).unwrap().resolved.clone();
     for (original, alias) in [("bounded", "bound"), ("under", "under"), ("identity", "identity"), ("positive", "pos"), ("require-positive", "need"), ("below-zero", "below-zero"), ("argument-only", "argument-only"), ("collide", "collide"), ("by-positive", "by-positive")] {

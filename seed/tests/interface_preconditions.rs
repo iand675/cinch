@@ -28,7 +28,7 @@ fn numeric_conditions_keep_checked_argument_positions_and_reexports() {
         ("Main.cinch", "module Main where\n  import Facade\n  import Untrusted\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit checked numeric contracts");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let a = read("A");
     let facade = read("Facade");
     let pred = a.exports.values.iter().find(|v| v.name == "pred").unwrap();

@@ -5,7 +5,7 @@
 //! Layout, one entry per (package, version, key):
 //!
 //! ```text
-//! <root>/<package>/<version>/<key>/<Module>.cinchif   the interface
+//! <root>/<package>/<version>/<key>/interfaces.cpk    the checked contracts
 //! <root>/<package>/<version>/<key>/<Module>.o         an object file
 //! <root>/<package>/<version>/<key>/<Module>.ir        the module's IR form
 //! <root>/<package>/<version>/<key>/store.json         the entry manifest
@@ -96,7 +96,7 @@ use crate::interface::{
 /// `store.json`'s shape bumps this, which invalidates every entry
 /// through [`StoreError::IdentityMismatch`] instead of relying on
 /// readers to tolerate two shapes.
-pub const STORE_SCHEMA: u32 = 2;
+pub const STORE_SCHEMA: u32 = 3;
 
 /// The entry manifest's file name inside an entry directory.
 pub const ENTRY_MANIFEST: &str = "store.json";
@@ -104,7 +104,7 @@ pub const ENTRY_MANIFEST: &str = "store.json";
 /// One artifact kind an entry can hold for a module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
-    /// The `.cinchif` contract projection.
+    /// The package-wide checked contract artifact.
     Interface,
     /// A per-module object file (the code a link consumes).
     Object,
@@ -133,16 +133,13 @@ impl Kind {
         }
     }
 
-    /// The artifact's file name in an entry directory. Module names carry
-    /// dots (`Data.Bool`), so the kind's extension is appended instead of
-    /// replacing a suffix.
+    /// Objects and IR use module names. Interfaces share one package.
     pub fn file_name(self, module: &str) -> String {
-        let ext = match self {
-            Kind::Interface => "cinchif",
-            Kind::Object => "o",
-            Kind::Ir => "ir",
-        };
-        format!("{module}.{ext}")
+        match self {
+            Kind::Interface => "interfaces.cpk".into(),
+            Kind::Object => format!("{module}.o"),
+            Kind::Ir => format!("{module}.ir"),
+        }
     }
 
     /// The artifact's path in an entry directory.
@@ -389,6 +386,16 @@ pub fn package_key_for(
     profile: &TargetProfile,
     adapters: &[WitAdapter],
 ) -> String {
+    let hashed = sources.iter().map(|&(path, source)| (path, content_hash(source)));
+    key_with_source_hashes(pkg, hashed, profile, adapters)
+}
+
+fn key_with_source_hashes<'a>(
+    pkg: &Package,
+    sources: impl IntoIterator<Item = (&'a str, impl AsRef<str>)>,
+    profile: &TargetProfile,
+    adapters: &[WitAdapter],
+) -> String {
     // Tabs separate fields and newlines separate records; no input here
     // is a hash or a rendered structure that can contain either (module
     // names, paths and imports are single-line identifiers, and the
@@ -401,6 +408,7 @@ pub fn package_key_for(
         t.push_str(v);
         t.push('\n');
     }
+    line(&mut text, "store_schema", &STORE_SCHEMA.to_string());
     line(&mut text, "package", &pkg.name);
     line(&mut text, "version", &pkg.version);
     line(&mut text, "manifest", &pkg.manifest_hash);
@@ -411,8 +419,9 @@ pub fn package_key_for(
     line(&mut text, "compiler_build", env!("CINCH_BUILD_ID"));
     line(&mut text, "profile", &profile_identity(profile));
     line(&mut text, "adapters", &format!("{adapters:?}"));
+    let entries: BTreeMap<_, _> = pkg.modules.iter().rev().map(|m| (m.name.as_str(), m)).collect();
     for name in &pkg.order {
-        match pkg.modules.iter().find(|m| &m.name == name) {
+        match entries.get(name.as_str()) {
             Some(m) => line(
                 &mut text,
                 "module",
@@ -429,7 +438,7 @@ pub fn package_key_for(
         }
     }
     for (path, src) in sources {
-        line(&mut text, "source", &format!("{path}\t{}", content_hash(src)));
+        line(&mut text, "source", &format!("{path}\t{}", src.as_ref()));
     }
     content_hash(&text)
 }
@@ -461,12 +470,6 @@ fn profile_identity(p: &TargetProfile) -> String {
 }
 
 // ----------------------------------------------------------------- the store
-
-/// Canonical bytes and the checked contract hash already produced by the driver.
-pub(crate) struct RenderedInterface<'a> {
-    pub json: String,
-    pub contract_hash: &'a str,
-}
 
 /// A package store rooted at one directory.
 #[derive(Clone, Debug)]
@@ -546,10 +549,10 @@ impl Store {
         bodies: &[BodyArtifact],
         rebuild: bool,
     ) -> Result<Outcome, StoreError> {
-        self.write_rendered(pkg, profile, adapters, ifaces, bodies, rebuild, &BTreeMap::new())
+        self.write_with_hashes(pkg, profile, adapters, ifaces, bodies, rebuild, &BTreeMap::new())
     }
 
-    pub(crate) fn write_rendered(
+    pub(crate) fn write_with_hashes(
         &self,
         pkg: &Package,
         profile: &TargetProfile,
@@ -557,53 +560,69 @@ impl Store {
         ifaces: &[Iface],
         bodies: &[BodyArtifact],
         rebuild: bool,
-        rendered: &BTreeMap<&str, RenderedInterface<'_>>,
+        contract_hashes: &BTreeMap<&str, String>,
     ) -> Result<Outcome, StoreError> {
         let sources = pkg.ordered_sources().map_err(|e| StoreError::Package {
             reason: e.to_string(),
         })?;
-        let key = package_key_for(pkg, &sources, profile, adapters);
+        let source_hashes: Vec<_> = sources.iter().map(|&(path, src)| (path, content_hash(src))).collect();
+        let key = key_with_source_hashes(
+            pkg, source_hashes.iter().map(|(path, hash)| (*path, hash)), profile, adapters,
+        );
         // Only the package's own modules go in the entry, in the
         // manifest's check order. A module whose interface does not carry
         // the embedded source's hash is a source module shadowing the
         // package's copy (the compiler accepts that), so this compile's
         // interfaces are not the package's and the entry would not be a
         // function of the key; nothing is written.
-        let mut selected: Vec<&Iface> = Vec::new();
-        for (name, (_path, src)) in pkg.order.iter().zip(sources.iter()) {
-            let Some(iface) = ifaces.iter().find(|i| &i.module == name) else {
+        let by_module: BTreeMap<_, _> = ifaces.iter().rev().map(|iface| (iface.module.as_str(), iface)).collect();
+        let mut selected = Vec::with_capacity(pkg.order.len());
+        for (name, (_path, source_hash)) in pkg.order.iter().zip(&source_hashes) {
+            let Some(&iface) = by_module.get(name.as_str()) else {
                 return Ok(Outcome::Skipped(key));
             };
-            if iface.source_hash != content_hash(src) {
+            if &iface.source_hash != source_hash {
                 return Ok(Outcome::Skipped(key));
             }
-            selected.push(iface);
+            let hash = contract_hashes.get(name.as_str()).cloned().unwrap_or_else(|| iface.iface_hash());
+            selected.push((iface, hash));
         }
-        let expected = expected_records(&selected, bodies, rendered)?;
+        let expected = expected_records(&selected, bodies)?;
         let dir = self.entry_dir(pkg, &key);
         let manifest_path = dir.join(ENTRY_MANIFEST);
-        let manifest = entry_manifest(pkg, &key, profile, &expected);
-        // A warm entry must contain exactly the artifacts this compile would
-        // write. The contract hash excludes details such as compiled units.
-        // Reuse the driver's rendered interfaces when they are available.
-        if !rebuild
-            && std::fs::read(&manifest_path).is_ok_and(|bytes| bytes == manifest.as_bytes())
-            && selected.iter().all(|iface| {
-                let Ok(stored) = std::fs::read(Kind::Interface.path_in(&dir, &iface.module)) else {
-                    return false;
-                };
-                match rendered.get(iface.module.as_str()) {
-                    Some(artifact) => stored == artifact.json.as_bytes(),
-                    None => stored == iface.to_json().as_bytes(),
+        let interface_path = Kind::Interface.path_in(&dir, "");
+        if !rebuild {
+            let verified = || -> Option<()> {
+                let recorded = std::fs::read_to_string(&manifest_path).ok()?;
+                let document = parse_json(&recorded).ok()?;
+                let digest = document.as_object().ok()?.get("interface_package_sha256")?.as_str().ok()?;
+                if recorded != entry_manifest(pkg, &key, profile, &expected, digest) {
+                    return None;
                 }
-            })
-            && bodies.iter().all(|body| {
-                std::fs::read(body.kind.path_in(&dir, &body.module))
-                    .is_ok_and(|stored| stored == body.bytes)
-            })
-        {
-            return Ok(Outcome::Verified(key));
+                let stored = std::fs::read(&interface_path).ok()?;
+                if crate::package_interfaces::wire_digest(&stored) != digest
+                    || !bodies.iter().all(|body| {
+                        std::fs::read(body.kind.path_in(&dir, &body.module))
+                            .is_ok_and(|stored| stored == body.bytes)
+                    })
+                {
+                    return None;
+                }
+                Some(())
+            };
+            if verified().is_some() {
+                return Ok(Outcome::Verified(key));
+            }
         }
+
+        // Encode a replacement only on a miss. The expected rows cover the
+        // full original artifact, and the checksum verifies the stored bytes.
+        let rows: Vec<_> = selected.iter().map(|(iface, hash)| (*iface, hash.as_str())).collect();
+        let package = crate::package_interfaces::encode_interfaces(&rows).map_err(|e| StoreError::Package {
+            reason: e.to_string(),
+        })?;
+        let digest = crate::package_interfaces::wire_digest(&package);
+        let manifest = entry_manifest(pkg, &key, profile, &expected, &digest);
         let prior_entry = manifest_path.exists();
         // Write this compile's set into a directory of this writer's own
         // and swap it in with a single rename. Two writers of one key
@@ -630,13 +649,7 @@ impl Store {
             op: "create the staged entry directory",
             detail: e.to_string(),
         })?;
-        for iface in &selected {
-            let path = Kind::Interface.path_in(&staged, &iface.module);
-            match rendered.get(iface.module.as_str()) {
-                Some(artifact) => write_file(&path, artifact.json.as_bytes())?,
-                None => write_file(&path, iface.to_json().as_bytes())?,
-            }
-        }
+        write_file(&Kind::Interface.path_in(&staged, ""), &package)?;
         for body in bodies {
             write_file(&body.kind.path_in(&staged, &body.module), &body.bytes)?;
         }
@@ -740,71 +753,59 @@ impl Store {
                 current: env!("CARGO_PKG_VERSION").to_string(),
             });
         }
-        let mut ifaces = Vec::new();
+        let path = Kind::Interface.path_in(&dir, "");
+        let contracts = crate::package_interfaces::read_cached_interfaces(&path, &recorded.interface_package_sha256)
+            .map_err(|e| StoreError::Corrupt {
+            path, reason: e.message,
+        })?;
+        if contracts.len() != recorded.modules.len() {
+            return Err(StoreError::Corrupt {
+                path: manifest_path.clone(),
+                reason: "interface package does not cover the recorded modules".into(),
+            });
+        }
+        let mut ifaces = Vec::with_capacity(contracts.len());
         let mut objects = Vec::new();
         let mut ir = Vec::new();
         let mut kinds = BTreeMap::new();
-        for m in &recorded.modules {
-            kinds.insert(m.module.clone(), m.kinds.clone());
+        for (m, (iface, recomputed)) in recorded.modules.iter().zip(contracts) {
+            if iface.module != m.module {
+                return Err(StoreError::IdentityMismatch {
+                    field: "module", recorded: m.module.clone(), current: iface.module,
+                });
+            }
+            if iface.language != interface::LANGUAGE_VERSION {
+                return Err(StoreError::IdentityMismatch {
+                    field: "language", recorded: iface.language, current: interface::LANGUAGE_VERSION.into(),
+                });
+            }
+            check_identity("runtime ABI", iface.runtime_abi.into(), interface::RUNTIME_ABI_VERSION.into())?;
+            if iface.compiler != env!("CARGO_PKG_VERSION") {
+                return Err(StoreError::IdentityMismatch {
+                    field: "compiler", recorded: iface.compiler, current: env!("CARGO_PKG_VERSION").into(),
+                });
+            }
+            if recomputed != m.iface_hash {
+                return Err(StoreError::HashMismatch {
+                    module: m.module.clone(), kind: Kind::Interface, recorded: m.iface_hash.clone(), recomputed,
+                });
+            }
+            if iface.artifact_projection_hash() != m.artifact_projection_hash {
+                return Err(StoreError::Corrupt {
+                    path: manifest_path.clone(),
+                    reason: format!("interface artifact facts differ for {}", m.module),
+                });
+            }
+            if !m.kinds.contains(&Kind::Interface) || kinds.insert(m.module.clone(), m.kinds.clone()).is_some() {
+                return Err(StoreError::Corrupt {
+                    path: manifest_path.clone(),
+                    reason: format!("invalid interface record for {}", m.module),
+                });
+            }
+            ifaces.push(iface);
             for kind in &m.kinds {
                 match kind {
-                    Kind::Interface => {
-                        let path = Kind::Interface.path_in(&dir, &m.module);
-                        let text = std::fs::read_to_string(&path).map_err(|e| {
-                            StoreError::ArtifactUnreadable {
-                                module: m.module.clone(),
-                                kind: Kind::Interface,
-                                path: path.clone(),
-                                reason: e.to_string(),
-                            }
-                        })?;
-                        let iface = Iface::from_json(&text).map_err(|e| {
-                            StoreError::ArtifactUnreadable {
-                                module: m.module.clone(),
-                                kind: Kind::Interface,
-                                path,
-                                reason: e.to_string(),
-                            }
-                        })?;
-                        if iface.module != m.module {
-                            return Err(StoreError::IdentityMismatch {
-                                field: "module",
-                                recorded: m.module.clone(),
-                                current: iface.module,
-                            });
-                        }
-                        if iface.language != interface::LANGUAGE_VERSION {
-                            return Err(StoreError::IdentityMismatch {
-                                field: "language",
-                                recorded: iface.language,
-                                current: interface::LANGUAGE_VERSION.to_string(),
-                            });
-                        }
-                        if iface.runtime_abi != interface::RUNTIME_ABI_VERSION {
-                            return Err(StoreError::IdentityMismatch {
-                                field: "runtime ABI",
-                                recorded: iface.runtime_abi.to_string(),
-                                current: interface::RUNTIME_ABI_VERSION.to_string(),
-                            });
-                        }
-                        if iface.compiler != env!("CARGO_PKG_VERSION") {
-                            return Err(StoreError::IdentityMismatch {
-                                field: "compiler",
-                                recorded: iface.compiler,
-                                current: env!("CARGO_PKG_VERSION").to_string(),
-                            });
-                        }
-                        let recomputed = iface.iface_hash();
-                        if recomputed != m.iface_hash {
-                            return Err(StoreError::HashMismatch {
-                                module: m.module.clone(),
-                                kind: Kind::Interface,
-                                recorded: m.iface_hash.clone(),
-                                recomputed,
-                            });
-                        }
-                        ifaces.push(iface);
-                    }
+                    Kind::Interface => {}
                     Kind::Object | Kind::Ir => {
                         let path = kind.path_in(&dir, &m.module);
                         let bytes = std::fs::read(&path).map_err(|e| {
@@ -926,6 +927,7 @@ impl PackageArtifacts {
 struct ModuleRecord {
     module: String,
     iface_hash: String,
+    artifact_projection_hash: String,
     kinds: Vec<Kind>,
     /// The content hash of each body artifact, so a truncated object or
     /// IR file is caught exactly like a truncated interface.
@@ -943,59 +945,51 @@ struct Entry {
     iface_schema: u64,
     runtime_abi: u64,
     language: String,
+    interface_package_sha256: String,
     modules: Vec<ModuleRecord>,
 }
 
 /// The records a write will put in the entry manifest: the interfaces in
 /// manifest order, each with the body artifacts offered for it.
 fn expected_records(
-    selected: &[&Iface],
+    selected: &[(&Iface, String)],
     bodies: &[BodyArtifact],
-    rendered: &BTreeMap<&str, RenderedInterface<'_>>,
 ) -> Result<Vec<ModuleRecord>, StoreError> {
-    let mut records = Vec::new();
-    let mut consumed: Vec<&str> = Vec::new();
-    for iface in selected {
+    let mut by_module = BTreeMap::<&str, Vec<&BodyArtifact>>::new();
+    for body in bodies {
+        by_module.entry(&body.module).or_default().push(body);
+    }
+    let mut records = Vec::with_capacity(selected.len());
+    for (iface, hash) in selected {
         let mut kinds = vec![Kind::Interface];
         let mut hashes = Vec::new();
-        for body in bodies.iter().filter(|b| b.module == iface.module) {
-            consumed.push(&body.module);
-            if body.kind == Kind::Interface {
+        for body in by_module.remove(iface.module.as_str()).unwrap_or_default() {
+            if kinds.contains(&body.kind) {
                 return Err(StoreError::Package {
-                    reason: format!(
-                        "an interface artifact for module {} was offered as a body",
-                        body.module
-                    ),
+                    reason: format!("duplicate {} artifact for module {}", body.kind.as_str(), body.module),
                 });
             }
             kinds.push(body.kind);
             hashes.push((body.kind, content_hash_bytes(&body.bytes)));
         }
         kinds.sort();
-        kinds.dedup();
         hashes.sort();
         records.push(ModuleRecord {
             module: iface.module.clone(),
-            iface_hash: rendered.get(iface.module.as_str())
-                .map_or_else(|| iface.iface_hash(), |artifact| artifact.contract_hash.to_owned()),
+            iface_hash: hash.clone(),
+            artifact_projection_hash: iface.artifact_projection_hash(),
             kinds,
             bodies: hashes,
         });
     }
-    // A body artifact belongs beside the interface of its module; one
-    // for a module the compile did not produce an interface for has no
-    // place in the entry, and dropping it silently would cache a body
-    // nothing can find.
-    for body in bodies {
-        if !consumed.iter().any(|m| *m == body.module) {
-            return Err(StoreError::Package {
-                reason: format!(
-                    "a {} artifact is offered for module {}, which this compile has no interface for",
-                    body.kind.as_str(),
-                    body.module
-                ),
-            });
-        }
+    if let Some((_, artifacts)) = by_module.first_key_value() {
+        let body = artifacts[0];
+        return Err(StoreError::Package {
+            reason: format!(
+                "a {} artifact is offered for module {}, which this compile has no interface for",
+                body.kind.as_str(), body.module,
+            ),
+        });
     }
     Ok(records)
 }
@@ -1008,6 +1002,7 @@ fn entry_manifest(
     key: &str,
     profile: &TargetProfile,
     modules: &[ModuleRecord],
+    interface_package_sha256: &str,
 ) -> String {
     let mut union: Vec<Kind> = modules.iter().flat_map(|m| m.kinds.iter().copied()).collect();
     union.sort();
@@ -1023,12 +1018,14 @@ fn entry_manifest(
         ("language", interface::LANGUAGE_VERSION.into()),
         ("profile", (&profile.name).into()),
         ("kinds", kind_list(&union)),
+        ("interface_package_sha256", interface_package_sha256.into()),
         (
             "modules",
             JsonValue::arr(modules, |m| {
                 JsonValue::obj([
                     ("module", (&m.module).into()),
                     ("iface_hash", (&m.iface_hash).into()),
+                    ("artifact_projection_hash", (&m.artifact_projection_hash).into()),
                     ("kinds", kind_list(&m.kinds)),
                     (
                         "bodies",
@@ -1111,6 +1108,10 @@ fn parse_entry_manifest(text: &str, path: &Path) -> Result<Entry, StoreError> {
             .as_str()
             .map_err(|e| corrupt(format!("modules[{i}]: {e}")))?
             .to_string();
+        let artifact_projection_hash = field("artifact_projection_hash")?
+            .as_str()
+            .map_err(|e| corrupt(format!("modules[{i}]: {e}")))?
+            .to_string();
         let mut kinds = Vec::new();
         for k in field("kinds")?
             .as_array()
@@ -1150,6 +1151,7 @@ fn parse_entry_manifest(text: &str, path: &Path) -> Result<Entry, StoreError> {
         modules.push(ModuleRecord {
             module,
             iface_hash,
+            artifact_projection_hash,
             kinds,
             bodies,
         });
@@ -1163,6 +1165,7 @@ fn parse_entry_manifest(text: &str, path: &Path) -> Result<Entry, StoreError> {
         iface_schema,
         runtime_abi,
         language,
+        interface_package_sha256: jstr("interface_package_sha256")?,
         modules,
     })
 }

@@ -42,7 +42,7 @@ usage:
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
-  --interface-package-only   omit standalone optimisation sidecars for the packed object
+  --interface-package-only   omit optional unfoldings from the packed object
   --interface-package-private <module>  keep one object-only module in the packed ABI
   --package-object <path>  link an installed package object in build/run
   --shared              build a native shared library (without main)
@@ -65,10 +65,10 @@ flags:
   --inline-model <threshold|benefit>  which site test the inliner uses: GHC's
               weighted-size-against-a-threshold, or Flambda 2's benefit
               against size (the default)
-  --emit-interface-optimisations  write the .cinchopt unfoldings beside this
-              compile's .cinchif files (emit-object does so by default)
-  --interface-optimisations <manifest>  read the .cinchopt unfoldings beside
-              each manifest row's .cinchif and inline those units at this
+  --emit-interface-optimisations  include unfoldings in the checked .cpk
+              package (emit-object does so by default)
+  --interface-optimisations <package>  read the package's unfoldings and
+              inline those units at this
               program's call sites; the units are not emitted here, so link
               the object the artifacts describe
   --no-stack-alloc  keep every allocation on the heap instead of building

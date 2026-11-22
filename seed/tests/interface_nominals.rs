@@ -24,9 +24,7 @@ module Records where
   secret-api x = x
 "#)]);
     common::check(&dir, "Records.cinch").expect("check record fixture");
-    let interface = Iface::from_json(
-        &std::fs::read_to_string(dir.join("build/Records.cinchif")).unwrap(),
-    ).unwrap();
+    let interface = common::project_interface(&dir, "Records.cinch", "Records");
     let packet = interface.exports.types.iter().find(|row| row.name == "Packet").unwrap();
     assert_eq!(packet.kind, "record");
     assert_eq!(packet.fields, ["count", "witness", "marker"]);
@@ -59,7 +57,7 @@ fn resolved_schemes_preserve_definition_sites_and_private_contracts() {
         ("Main.cinch", "module Main where\n  import A\n  import B as Other\n  import Facade (use as call)\n  pair :: A.Token -> Other.Token -> (A.Token, Other.Token)\n  pair x y = (x, y)\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("check nominal fixture");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let a = read("A");
     let facade = read("Facade");
     let main = read("Main");

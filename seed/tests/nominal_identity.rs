@@ -118,10 +118,7 @@ fn imported_interfaces_record_the_actual_type_owner() {
         ("Main.cinch", "module Main where\n  import A (make)\n  import B\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").unwrap();
-    let iface = cinch::interface::Iface::from_json(
-        &std::fs::read_to_string(dir.join("build/A.cinchif")).unwrap(),
-    )
-    .unwrap();
+    let iface = common::project_interface(&dir, "Main.cinch", "A");
     let make = iface
         .exports
         .values

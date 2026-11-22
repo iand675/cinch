@@ -149,12 +149,10 @@ fn run(checks: &[String], optimization: u8, overrides: bool, repetitions: usize)
         .join()
         .unwrap()
         .unwrap();
-    let interface: Value = serde_json::from_slice(
-        &std::fs::read(directory.path().join("build/Data.String.cinchif")).unwrap(),
-    )
-    .unwrap();
+    let interface = cinch::interface::read_package(&directory.path().join("build/Main.cpk")).unwrap()
+        .into_iter().map(|(iface, _)| iface).find(|iface| iface.module == "Data.String").unwrap();
     assert_eq!(
-        interface["source_hash"],
+        interface.source_hash,
         cinch::interface::content_hash(&selected)
     );
     for debug in [false, true] {

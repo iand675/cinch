@@ -869,8 +869,7 @@ module Main where
         manifest.contains("NonEmpty.post-<>") && manifest.contains("derived:"),
         "the manifest carries the postcondition row: {manifest}"
     );
-    let text = std::fs::read_to_string(dir.join("build/Data.NonEmpty.cinchif"))
-        .unwrap_or_else(|e| panic!("post-rows: interface missing: {e}"));
+    let text = common::project_interface(&dir, "Main.cinch", "Data.NonEmpty").to_json();
     assert!(
         text.contains("NonEmpty.post-<>"),
         "the interface carries the postcondition row: {text}"

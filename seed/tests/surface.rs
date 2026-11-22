@@ -57,9 +57,7 @@ fn manifest_has(dir: &Path, needle: &str) -> bool {
 }
 
 fn iface_value_names(dir: &Path, module: &str) -> Vec<String> {
-    let text = std::fs::read_to_string(dir.join(format!("build/{module}.cinchif")))
-        .expect("interface");
-    let iface = cinch::interface::Iface::from_json(&text).expect("parse interface");
+    let iface = common::project_interface(dir, "Main.cinch", module);
     iface.exports.values.into_iter().map(|v| v.name).collect()
 }
 

@@ -520,6 +520,12 @@ def rust(seed, work):
     command = [seed, "build", client, "-o", executable, "--package-object", artifact]
     invoke(command, project)
     invoke([executable], project, status=42)
+    built = project / "build/Main.cpk"
+    document = unpack_contract(built.with_suffix(""), "Main")
+    assert document["module"] == "Main"
+    assert any(value["name"] == "main" for value in document["exports"]["values"])
+    assert not list(built.parent.glob("*.cinchif"))
+    assert not list(built.parent.glob("*.cinchopt"))
     name, _, raw = rows[0]
     publish(package, pack([(name, "not-the-identity", raw), *rows[1:]], execution))
     result = invoke(command, project, status=1)

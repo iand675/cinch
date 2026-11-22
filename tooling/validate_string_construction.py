@@ -81,11 +81,13 @@ def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
 def verify_receipt(project: Path, module: Path, name: str = "Data.String") -> dict:
     """Require the exact selected String source identity in the emitted consumer interface."""
     expected = source_hash(module.read_bytes())
-    path = project/'build'/(name+'.cinchif')
-    interface = json.loads(path.read_text())
+    from pack_interfaces import PackedInterfaces, canonical
+    path = project / "build/Main.cpk"
+    [interface] = [doc for module, _, doc in PackedInterfaces(path.read_bytes()).documents if module == name]
     assert interface['module']==name, interface.get('module')
     assert interface['source_hash']==expected, (interface['source_hash'],expected)
-    return {'interface_sha256':digest(path),'source_hash':expected,'module_source_sha256':digest(module)}
+    return {'interface_sha256':hashlib.sha256(canonical(interface)).hexdigest(), 'interface_package_sha256':digest(path),
+            'source_hash':expected, 'module_source_sha256':digest(module)}
 
 
 def tail_receipt(path: Path) -> dict:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -40,8 +41,9 @@ def main() -> None:
         command += ['--runtime-archive', str(args.runtime.resolve())]
     run(command)
     assert not (project / 'Data.String.cinch').exists(), 'embedded String source shadow'
-    string_interface = project / 'build/Data.String.cinchif'
-    string_contract = json.loads(string_interface.read_text())
+    from pack_interfaces import PackedInterfaces, canonical
+    package = project / "build/Main.cpk"
+    [string_contract] = [doc for name, _, doc in PackedInterfaces(package.read_bytes()).documents if name == "Data.String"]
     profiles = []
     for poisoned in [False, True]:
         environment = {**os.environ, 'CINCH_HEAP_LIMIT': '256M' if poisoned else '32M',
@@ -57,7 +59,8 @@ def main() -> None:
               'source_sha256': {name: digest(source) for name, source in sources.items()},
               'executable_sha256': digest(executable),
               'llvm_sha256': digest(executable.with_suffix('.ll')),
-              'string_interface_sha256': digest(string_interface),
+              'string_interface_sha256': hashlib.sha256(canonical(string_contract)).hexdigest(),
+              'interface_package_sha256': digest(package),
               'string_source_hash': string_contract['source_hash'],
               'profiles': profiles, 'source_shadow_used': False}
     args.output.parent.mkdir(parents=True, exist_ok=True)

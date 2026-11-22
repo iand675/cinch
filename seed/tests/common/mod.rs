@@ -335,58 +335,45 @@ pub fn check_diagnostics(dir: &Path, entry: &str) -> Result<(), String> {
 /// Read checked contracts from the compiler that checked the project.
 pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     check(dir, entry)?;
-    build_interfaces(dir, entry)
+    project_interfaces(dir, entry)
 }
 
 /// [`check_interfaces`] under an explicit target profile.
 pub fn check_interfaces_profile(dir: &Path, entry: &str, profile: &TargetProfile) -> Result<Vec<cinch::interface::Iface>, String> {
     drive_with_profile(Mode::Check, StageMode::Refresh, dir, entry, None, profile)?;
-    build_interfaces(dir, entry)
+    project_interfaces(dir, entry)
 }
 
-/// Read the selected compiler's checked output. The Rust fixture producer
-/// still emits individual contracts on this stage of the migration.
-fn build_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
-    let build = dir.join("build");
+/// Read the checked contracts the selected compiler wrote for this entry.
+pub fn project_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     let name = Path::new(entry).file_stem().expect("fixture entry name");
-    let mut path = build.join(name);
+    let mut path = dir.join("build").join(name);
     path.as_mut_os_string().push(".cpk");
-    if path.is_file() {
-        return cinch::interface::read_package(&path)
-            .map(|rows| rows.into_iter().map(|(iface, _)| iface).collect())
-            .map_err(|error| error.to_string());
-    }
-    let mut interfaces = Vec::new();
-    for artifact in std::fs::read_dir(&build).map_err(|error| format!("{}: {error}", build.display()))? {
-        let path = artifact.map_err(|error| error.to_string())?.path();
-        if path.extension().is_some_and(|extension| extension == "cinchif") {
-            let text = std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let interface = cinch::interface::Iface::from_json(&text)
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            interfaces.push(interface);
-        }
-    }
-    Ok(interfaces)
+    cinch::interface::read_package(&path)
+        .map(|rows| rows.into_iter().map(|(iface, _)| iface).collect())
+        .map_err(|error| error.to_string())
 }
 
-/// Produce Native library contracts used as input to a Cinch consumer test.
-/// This is an explicit fixture producer, independent of the selected frontend;
-/// a selected compiler's failure never reaches this path as a fallback.
+pub fn project_interface(dir: &Path, entry: &str, module: &str) -> cinch::interface::Iface {
+    project_interfaces(dir, entry).expect("read checked project package")
+        .into_iter().find(|iface| iface.module == module)
+        .unwrap_or_else(|| panic!("missing checked interface for {module}"))
+}
+
+/// Produce editable Native contracts for tests that author manifests or
+/// intentionally corrupt individual documents.
 pub fn check_library_fixture_native(dir: &Path, entry: &str) -> Result<(), String> {
     drive_native(Mode::Check, dir, entry, None)?;
-    let artifacts = std::fs::read_dir(dir.join("build")).map_err(|e| e.to_string())?;
-    let mut count = 0;
-    for artifact in artifacts {
-        let path = artifact.map_err(|e| e.to_string())?.path();
-        if path.extension().is_some_and(|extension| extension == "cinchif") {
-            let module = path.file_stem().and_then(|name| name.to_str()).unwrap_or("");
-            if module == "Bootstrap" || module.starts_with("Bootstrap.") {
-                return Err(format!("Native library fixture contains compiler implementation module {module}"));
-            }
-            count += 1;
+    let interfaces = project_interfaces(dir, entry)?;
+    if interfaces.is_empty() { return Err("Native library fixture produced no checked interfaces".into()); }
+    for iface in interfaces {
+        let module = &iface.module;
+        if module == "Bootstrap" || module.starts_with("Bootstrap.") {
+            return Err(format!("Native library fixture contains compiler implementation module {module}"));
         }
+        std::fs::write(dir.join("build").join(format!("{module}.cinchif")), iface.to_json())
+            .map_err(|error| error.to_string())?;
     }
-    if count == 0 { return Err("Native library fixture produced no checked interfaces".into()); }
     Ok(())
 }
 

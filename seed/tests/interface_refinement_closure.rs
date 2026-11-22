@@ -10,7 +10,7 @@ fn private_refinement_contracts_survive_value_only_facades() {
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit actual private refinement contracts");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let a = read("A");
     let facade = read("Facade");
     assert_eq!(a.schema, SCHEMA_VERSION);
@@ -58,7 +58,7 @@ fn list_refinement_contracts_keep_the_checked_carrier_and_predicate() {
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit the checked list refinement");
-    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let read = |name: &str| common::project_interface(&dir, "Main.cinch", name);
     let owner = read("A");
     let facade = read("Facade");
     let template = owner.exports.types.iter().find(|row| row.name == "NonEmpty").unwrap().refinement.as_ref().unwrap();

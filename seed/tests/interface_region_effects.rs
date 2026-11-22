@@ -34,7 +34,7 @@ fn resolved_contracts_keep_region_binders_and_closed_kernel_effects() {
         ("Main.cinch", "module Main where\n  import A\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit region/effect contracts");
-    let a = Iface::from_json(&std::fs::read_to_string(dir.join("build/A.cinchif")).unwrap()).unwrap();
+    let a = common::project_interface(&dir, "Main.cinch", "A");
     assert_eq!(a.schema, SCHEMA_VERSION);
     let signal = a.exports.values.iter().find(|v| v.name == "signal").expect("public operation must not disappear");
     assert_eq!(signal.symbol, "A.signal");
@@ -161,7 +161,7 @@ fn a_one_shot_callback_keeps_its_nominal_and_region_contract() {
         ("Main.cinch", "module Main where\n  import ClockWitness\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit callback contract");
-    let text = std::fs::read_to_string(dir.join("build/ClockWitness.cinchif")).unwrap();
+    let text = common::project_interface(&dir, "Main.cinch", "ClockWitness").to_json();
     let iface = Iface::from_json(&text).unwrap();
     let wait = iface.exports.values.iter().find(|v| v.name == "wait").unwrap();
     let contract = wait.resolved.as_ref().expect("portable one-shot callback");

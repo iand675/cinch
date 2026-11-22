@@ -1996,22 +1996,6 @@ fn materialize(
     let interfaces = source_dir.join("build");
     std::fs::create_dir_all(&interfaces)
         .map_err(|e| Error::plain(format!("{}: {e}", interfaces.display())))?;
-    let project_build = project.join("build");
-    for module in module_names
-        .iter()
-        .map(String::as_str)
-        .chain(std::iter::once("CinchPackageRoot"))
-    {
-        // The optimisation artifact is the contract's optional companion
-        // (`crate::ifaceopt`); an installed package ships it so a consumer
-        // can inline the library's small units without its sources.
-        let opt_from = project_build.join(format!("{module}.cinchopt"));
-        let opt_to = interfaces.join(format!("{module}.cinchopt"));
-        if opt_from.exists() {
-            std::fs::copy(&opt_from, &opt_to)
-                .map_err(|e| Error::plain(format!("{}: {e}", opt_to.display())))?;
-        }
-    }
     if !object.exists() || !abi.exists() || !interfaces.exists() {
         return Err(Error::plain(
             "package object emission did not produce its artifacts",

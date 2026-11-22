@@ -170,7 +170,7 @@ fn an_ill_typed_default_is_reported_at_its_class_with_no_instance() {
 /// The default identities `Shapes`'s interface records, by method.
 fn default_ids(dir: &Path) -> Vec<(String, Option<String>)> {
     outcome(Mode::Build, dir).expect("the project builds");
-    let text = std::fs::read_to_string(dir.join("build").join("Shapes.cinchif")).expect("interface");
+    let text = common::project_interface(dir, "Main.cinch", "Shapes").to_json();
     let iface = cinch::interface::Iface::from_json(&text).expect("the interface parses");
     let mut out = Vec::new();
     for s in &iface.exports.signatures {

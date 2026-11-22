@@ -822,7 +822,7 @@ fn bootstrap_manifest_round_trip_is_byte_identical() {
     );
     common::check(&mdir, "Main.cinch").expect("emit the manifest project's interfaces");
     let original =
-        std::fs::read(mdir.join("build/Main.cinchif")).expect("read build/Main.cinchif");
+        common::project_interface(&mdir, "Main.cinch", "Main").to_json().into_bytes();
     let original_text = String::from_utf8(original.clone()).expect("manifest is UTF-8");
 
     let (dir, exe) = build_exe("manifest-round", CANONICAL_IO);

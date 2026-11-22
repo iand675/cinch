@@ -10,7 +10,7 @@ mod flat;
 mod writer;
 use flat::FlatBodies;
 pub(crate) use flat::PackedClosure;
-pub(crate) use writer::publish;
+pub(crate) use writer::{encode_interfaces, publish, publish_interfaces};
 
 const HEADER: usize = 88;
 const MODULE_ROW: usize = 36;
@@ -396,7 +396,31 @@ pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate:
 }
 
 pub(crate) fn read_interfaces(path: &Path) -> crate::Result<Vec<(Iface, String)>> {
+    read_contract_package(path, false, None).map(|(rows, _)| rows)
+}
+
+pub(crate) fn read_interfaces_with_abi(path: &Path) -> crate::Result<(Vec<(Iface, String)>, Option<JsonValue>)> {
+    read_contract_package(path, true, None)
+}
+
+pub(crate) fn read_cached_interfaces(path: &Path, digest: &str) -> crate::Result<Vec<(Iface, String)>> {
+    read_contract_package(path, false, Some(digest)).map(|(rows, _)| rows)
+}
+
+pub(crate) fn wire_digest(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn read_contract_package(
+    path: &Path,
+    include_abi: bool,
+    expected_digest: Option<&str>,
+) -> crate::Result<(Vec<(Iface, String)>, Option<JsonValue>)> {
     read_package(path, |bytes| {
+        if expected_digest.is_some_and(|digest| wire_digest(bytes.bytes()) != digest) {
+            return Err(invalid("interface package digest mismatch"));
+        }
         let package = Package::open(bytes.bytes())?;
         let mut contracts = Vec::with_capacity(package.modules.len() / MODULE_ROW);
         package.visit_contracts(bytes, |hash, iface| {
@@ -407,7 +431,8 @@ pub(crate) fn read_interfaces(path: &Path) -> crate::Result<Vec<(Iface, String)>
         if names.len() != contracts.len() {
             return Err(invalid("duplicate package module"));
         }
-        Ok(contracts)
+        let abi = (include_abi && !package.abi.is_empty()).then(|| package.abi()).transpose()?;
+        Ok((contracts, abi))
     })
 }
 

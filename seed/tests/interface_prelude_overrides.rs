@@ -1,7 +1,6 @@
 //! Source copies of family homes participate in interface dependency order.
 mod common;
 
-use cinch::interface::Iface;
 
 #[test]
 fn source_family_homes_precede_embedded_consumers_with_checked_hashes() {
@@ -46,12 +45,7 @@ fn source_family_homes_precede_embedded_consumers_with_checked_hashes() {
         files.push(("Main.cinch", main));
         let dir = common::project(tag, &files);
         common::check(&dir, "Main.cinch").expect("check source family replacements");
-        let mut interfaces: Vec<Iface> = std::fs::read_dir(dir.join("build"))
-            .unwrap()
-            .map(|row| row.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|ext| ext == "cinchif"))
-            .map(|path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap())
-            .collect();
+        let mut interfaces = common::project_interfaces(&dir, "Main.cinch").unwrap();
         interfaces.sort_by(|a, b| a.module.cmp(&b.module));
         cinch::interface::verify_chain(&interfaces)
             .expect("all recorded dependency hashes are checked");

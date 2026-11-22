@@ -41,9 +41,7 @@ fn assert_manifest(dir: &Path, entry: &str, modules: &[&str]) {
     );
     let dependencies = manifest["modules"].as_array().expect("manifest module identities");
     for module in modules {
-        let interface = std::fs::read_to_string(build.join(format!("{module}.cinchif")))
-            .expect("checked module interface");
-        let iface = cinch::interface::Iface::from_json(&interface).expect("parse module interface");
+        let iface = common::project_interface(dir, entry, module);
         let hashes: Vec<_> = dependencies.iter().filter(|row| row["module"] == *module)
             .map(|row| row["iface_hash"].as_str().expect("manifest interface hash"))
             .collect();
@@ -76,10 +74,10 @@ fn multi_file_module_links_and_runs() {
     let code = run_entry(&dir, "Main.cinch").expect("multi-file run");
     assert_eq!(code, 0);
     // Per-module interfaces and the artifact manifest are written.
-    for f in ["build/Lib.cinchif", "build/Main.cinchif", "build/Main.manifest.json"] {
+    for f in ["build/Main.cpk", "build/Main.manifest.json"] {
         assert!(dir.join(f).exists(), "missing artifact {f}");
     }
-    let lib_iface = std::fs::read_to_string(dir.join("build/Lib.cinchif")).expect("iface");
+    let lib_iface = common::project_interface(&dir, "Main.cinch", "Lib").to_json();
     assert!(lib_iface.contains("\"module\":\"Lib\""), "{lib_iface}");
     assert!(lib_iface.contains("Lib.double"), "{lib_iface}");
     assert_manifest(&dir, "Main", &["Lib", "Main"]);
@@ -257,9 +255,7 @@ fn multi_module_file_links_and_runs() {
     )]);
     let code = run_entry(&dir, "Main.cinch").expect("multi-module file run");
     assert_eq!(code, 0);
-    for f in ["build/Lib.cinchif", "build/Main.cinchif"] {
-        assert!(dir.join(f).exists(), "missing artifact {f}");
-    }
+    assert!(dir.join("build/Main.cpk").is_file());
     assert_manifest(&dir, "Main", &["Lib", "Main"]);
 }
 
@@ -267,7 +263,7 @@ fn multi_module_file_links_and_runs() {
 fn a_module_can_import_a_signature_declared_later_in_the_same_file() {
     let dir = write_project(&[("Main.cinch", "module Main where\n  import LocalSignature (Echo, echo)\n  implicit instance IntEcho :: Echo Int where\n    echo x = x + 1\n  main :: Int\n  main = if echo 18446744073709551616 == 18446744073709551617 then 213 else 1\nmodule LocalSignature where\n  export Echo, echo\n  signature Echo a where\n    echo :: a -> a\n")]);
     assert_eq!(run_entry(&dir, "Main.cinch").expect("dependency before its importer"), 213);
-    let main = cinch::interface::Iface::from_json(&std::fs::read_to_string(dir.join("build/Main.cinchif")).unwrap()).unwrap();
+    let main = common::project_interface(&dir, "Main.cinch", "Main");
     assert!(main.imports.iter().any(|dependency| dependency.module == "LocalSignature"));
 }
 
@@ -312,7 +308,7 @@ fn interface_round_trips_through_disk() {
          \x20 main = 0\n",
     )]);
     check_entry(&dir, "Main.cinch").expect("check");
-    let text = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("iface");
+    let text = common::project_interface(&dir, "Main.cinch", "Main").to_json();
     let iface = cinch::interface::Iface::from_json(&text).expect("parse written iface");
     assert_eq!(iface.module, "Main");
     assert!(iface.exports.values.iter().any(|v| v.name == "main"));

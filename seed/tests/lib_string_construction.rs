@@ -139,18 +139,16 @@ fn run(checks: &[String], opt_level: u8, override_source: bool) {
         .join()
         .unwrap()
         .unwrap();
-    let interface: Value = serde_json::from_slice(
-        &std::fs::read(directory.path().join("build/Data.String.cinchif")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(interface["module"], "Data.String");
+    let interface = cinch::interface::read_package(&directory.path().join("build/Main.cpk")).unwrap()
+        .into_iter().map(|(iface, _)| iface).find(|iface| iface.module == "Data.String").unwrap();
+    assert_eq!(interface.module, "Data.String");
     assert_eq!(
-        interface["source_hash"],
+        interface.source_hash,
         cinch::interface::content_hash(&selected_source)
     );
     if override_source {
         assert_ne!(
-            interface["source_hash"],
+            interface.source_hash,
             cinch::interface::content_hash(STRING)
         );
     }

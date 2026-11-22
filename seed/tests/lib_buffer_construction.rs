@@ -137,16 +137,10 @@ fn run(checks: &[String], opt_level: u8, overrides: bool) {
         .join()
         .unwrap()
         .unwrap();
+    let interfaces = cinch::interface::read_package(&directory.path().join("build/Main.cpk")).unwrap();
     for (name, text) in selected {
-        let interface: Value = serde_json::from_slice(
-            &std::fs::read(directory.path().join(format!("build/{name}.cinchif"))).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(interface["module"], name);
-        assert_eq!(
-            interface["source_hash"],
-            cinch::interface::content_hash(&text)
-        );
+        let (iface, _) = interfaces.iter().find(|(iface, _)| iface.module == *name).unwrap();
+        assert_eq!(iface.source_hash, cinch::interface::content_hash(&text));
     }
     for debug in [false, true] {
         for batch in 0..names.len() {

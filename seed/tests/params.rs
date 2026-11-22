@@ -246,11 +246,11 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     ]);
     check_entry(&with_units, "Main.cinch").expect("check with units");
     let tally_text =
-        std::fs::read_to_string(with_units.join("build/Tally.cinchif")).expect("Tally iface");
+        common::project_interface(&with_units, "Main.cinch", "Tally").to_json();
     let tally = cinch::interface::Iface::from_json(&tally_text).expect("parse Tally iface");
     assert_eq!(tally.params, vec!["S :: Api.Stepper".to_string()], "{tally_text}");
     let main_text =
-        std::fs::read_to_string(with_units.join("build/Main.cinchif")).expect("Main iface");
+        common::project_interface(&with_units, "Main.cinch", "Main").to_json();
     let main = cinch::interface::Iface::from_json(&main_text).expect("parse Main iface");
     assert_eq!(main.units.len(), 2, "{main_text}");
     let names: Vec<&str> = main.units.iter().map(|u| u.name.as_str()).collect();
@@ -279,7 +279,7 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     ]);
     check_entry(&without_units, "Main.cinch").expect("check without units");
     let tally2_text =
-        std::fs::read_to_string(without_units.join("build/Tally.cinchif")).expect("Tally iface 2");
+        common::project_interface(&without_units, "Main.cinch", "Tally").to_json();
     let tally2 =
         cinch::interface::Iface::from_json(&tally2_text).expect("parse Tally iface 2");
     assert_eq!(
@@ -304,7 +304,7 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     ]);
     check_entry(&one_unit, "Main.cinch").expect("check one unit");
     let main1_text =
-        std::fs::read_to_string(one_unit.join("build/Main.cinchif")).expect("Main iface 1");
+        common::project_interface(&one_unit, "Main.cinch", "Main").to_json();
     let main1 = cinch::interface::Iface::from_json(&main1_text).expect("parse Main iface 1");
     assert_eq!(main.units.len(), 2);
     assert_eq!(main1.units.len(), 1);

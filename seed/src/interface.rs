@@ -904,14 +904,6 @@ impl Iface {
         self.json_document(false, &mut BodyDocuments::canonical())
     }
 
-    /// Stream the same canonical bytes into a buffered file output.
-    pub(crate) fn write_json(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
-        let mut output = CanonicalOutput { writer, error: None };
-        self.artifact_document()
-            .write_canonical_to(&mut output)
-            .map_err(|_| output.error.expect("a failed output records its I/O error"))
-    }
-
     pub(crate) fn packed_document(&self) -> JsonValue {
         self.json_document(false, &mut BodyDocuments::Packed)
     }
@@ -934,7 +926,6 @@ impl Iface {
         let foreign = ordered(&self.exports.foreign);
         let mut ups: Vec<_> = self.upgrades.iter().collect();
         ups.sort_by(|a, b| (&a.old, &a.new).cmp(&(&b.old, &b.new)));
-        let units = if contract { Vec::new() } else { ordered(&self.units) };
         let mut symbols: Vec<String> = self
             .exports
             .values
@@ -1164,17 +1155,7 @@ impl Iface {
             // The module's instantiation units (module parameters as
             // module arguments): representation, excluded from the
             // contract hash.
-            (
-                "units",
-                JsonValue::arr(&units, |u| {
-                    JsonValue::obj([
-                        ("name", (&u.name).into()),
-                        ("target", (&u.target).into()),
-                        ("args", (&u.args).into()),
-                        ("unit_id", (&u.unit_id).into()),
-                    ])
-                }),
-            ),
+            ("units", if contract { JsonValue::Arr(Vec::new()) } else { self.unit_document() }),
             (
                 "abi",
                 JsonValue::obj([
@@ -1231,6 +1212,28 @@ impl Iface {
                 }),
             ),
         ])
+    }
+
+    fn unit_document(&self) -> JsonValue {
+        let mut units: Vec<_> = self.units.iter().collect();
+        units.sort();
+        JsonValue::arr(units, |unit| {
+            JsonValue::obj([
+                ("name", (&unit.name).into()),
+                ("target", (&unit.target).into()),
+                ("args", (&unit.args).into()),
+                ("unit_id", (&unit.unit_id).into()),
+            ])
+        })
+    }
+
+    /// The fields excluded from `iface_hash` still affect artifact reuse.
+    pub(crate) fn artifact_projection_hash(&self) -> String {
+        content_hash(&JsonValue::obj([
+            ("compiler", (&self.compiler).into()),
+            ("source_hash", (&self.source_hash).into()),
+            ("units", self.unit_document()),
+        ]).to_canonical_string())
     }
 
     /// Interface identity: stable across rebuilds with the same contract.
@@ -1927,20 +1930,6 @@ pub(crate) fn write_canonical_str(out: &mut impl fmt::Write, value: &str) -> fmt
     }
     out.write_str(&value[start..])?;
     out.write_char('"')
-}
-
-struct CanonicalOutput<'a, W> {
-    writer: &'a mut W,
-    error: Option<std::io::Error>,
-}
-
-impl<W: std::io::Write> fmt::Write for CanonicalOutput<'_, W> {
-    fn write_str(&mut self, value: &str) -> fmt::Result {
-        self.writer.write_all(value.as_bytes()).map_err(|error| {
-            self.error = Some(error);
-            fmt::Error
-        })
-    }
 }
 
 /// Parse one JSON document (shared with the schema introspection
