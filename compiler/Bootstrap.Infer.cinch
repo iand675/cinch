@@ -75,7 +75,8 @@ module Bootstrap.Infer where
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
     -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
-    MkTypeContext :: Bool -> List (String, Kind) -> (List Decl, HashMap String (String, Option TypeExpr)) -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
+    MkTypeContext :: Bool -> (List (String, Kind), HashMap String Kind) -> (List Decl, HashMap String Decl, HashMap String (String, Option TypeExpr))
+      -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
 
   -- | Remove authority when a source or imported header claims an existing primitive identity.
   revoke-payload :: String -> List PayloadCertificate -> List PayloadCertificate
@@ -115,18 +116,23 @@ module Bootstrap.Infer where
       if handling == enabled then context else MkTypeContext enabled kinds aliases active observers effects classes payloads
   -- | Observe a declared kind without granting any payload evidence.
   context-kind :: String -> TypeContext -> Option Kind
-  context-kind name context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> lookup-kind name kinds
+  context-kind name context = case context of
+    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads -> hash-map-lookup name indexed
   -- | Install an ordinary header and revoke any competing primitive payload authority.
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
-  context-add-kind name kind context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> MkTypeContext handling (Cons (name, kind) kinds) aliases active observers effects source-classes (revoke-payload name payloads)
+  context-add-kind name kind context = case context of
+    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads ->
+      MkTypeContext handling (Cons (name, kind) rows, hash-map-insert name kind indexed)
+        aliases active observers effects source-classes (revoke-payload name payloads)
   -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext handling kinds (rows, parsed) active observers effects source-classes payloads -> rows
+  context-aliases context = case context of MkTypeContext handling kinds (rows, refinements, parsed) active observers effects source-classes payloads -> rows
   -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
   context-add-alias alias context = case context of
-    MkTypeContext handling kinds (aliases, parsed) active observers effects source-classes payloads ->
-      MkTypeContext handling kinds (Cons alias aliases, parsed) active observers effects source-classes (declaration-payloads alias payloads)
+    MkTypeContext handling kinds (aliases, refinements, parsed) active observers effects source-classes payloads ->
+      let indexed = (case alias of DRefine site name parameters binder predicate -> hash-map-insert name alias refinements; other -> refinements) in
+      MkTypeContext handling kinds (Cons alias aliases, indexed, parsed) active observers effects source-classes (declaration-payloads alias payloads)
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
@@ -469,7 +475,13 @@ module Bootstrap.Infer where
     else primitive-type name
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext False ([("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) (Nil, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  primitive-kinds =
+    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
+    MkTypeContext False (builtins, index-kind-rows (reverse builtins) hash-map-empty) (Nil, hash-map-empty, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  index-kind-rows :: List (String, Kind) -> HashMap String Kind -> HashMap String Kind
+  index-kind-rows rows indexed = case rows of
+    Nil -> indexed
+    Cons (name, kind) rest -> index-kind-rows rest (hash-map-insert name kind indexed)
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -586,7 +598,7 @@ module Bootstrap.Infer where
     TName sp raw | same raw "Code" -> (UCon global-stage-code (KFun KType KType), st)
     TName sp name -> case lookup-type-local name locals of
       Some value -> (value, st)
-      None -> case (find-refinement name (context-aliases kinds), context-kind name kinds) of
+      None -> case (find-refinement name kinds, context-kind name kinds) of
         (Some definition, Some kind) -> (UCon name kind, st)
         other -> convert external kinds locals syntax st
     other -> convert external kinds locals syntax st
@@ -630,16 +642,14 @@ module Bootstrap.Infer where
               other -> (None, add-error sp "imported refinement carrier needs defining nominal contracts" checked)
             other -> (None, add-error sp "invalid imported refinement predicate or carrier syntax" checked)
     other -> (None, add-error sp "imported refinement is missing its defining contract" st)
-  find-refinement :: String -> List Decl -> Option Decl
-  find-refinement name declarations = case declarations of
-    Nil -> None
-    Cons (DRefine sp actual params binder predicate) rest -> if same name actual then Some (DRefine sp actual params binder predicate) else find-refinement name rest
-    Cons other rest -> find-refinement name rest
+  find-refinement :: String -> TypeContext -> Option Decl
+  find-refinement name context = case context of
+    MkTypeContext handling kinds (aliases, refinements, parsed) active observers effects source-classes payloads -> hash-map-lookup name refinements
   refinement-application :: UType -> List UType -> (UType, List UType)
   refinement-application ty args = case ty of UApp head value -> refinement-application head (Cons value args); other -> (ty, args)
   unfold-refinement :: Span -> TypeContext -> UType -> Store -> (UType, Store)
   unfold-refinement sp kinds value st = case refinement-application value Nil of
-    (UCon name kind, actuals) -> case find-refinement name (context-aliases kinds) of
+    (UCon name kind, actuals) -> case find-refinement name kinds of
       Some (DRefine source name params binder predicate) -> case context-enter-alias name kinds of
         None -> bad sp "recursive refinement alias expansion" st
         Some scoped ->
@@ -2262,7 +2272,7 @@ module Bootstrap.Infer where
   register-private-refinement :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   register-private-refinement sp name row kinds st = case field "kind" row of
     JStr kind -> if not (same kind "refinement") then (kinds, st)
-      else case find-refinement name (context-aliases kinds) of
+      else case find-refinement name kinds of
         Some existing -> (kinds, st)
         None -> case imported-refinement sp name row st of
           (Some declaration, checked) -> (context-add-alias declaration kinds, checked)
@@ -2497,7 +2507,7 @@ module Bootstrap.Infer where
     other -> None
   parsed-import-scheme :: TypeContext -> Json -> String -> Option TypeExpr
   parsed-import-scheme kinds metadata text = case kinds of
-    MkTypeContext handling rows (aliases, parsed) active observers effects source-classes payloads -> case field "symbol" metadata of
+    MkTypeContext handling rows (aliases, refinements, parsed) active observers effects source-classes payloads -> case field "symbol" metadata of
       JStr name -> (case hash-map-lookup name parsed of
         Some (prior, syntax) | same prior text -> syntax
         other -> read-import-scheme text)
@@ -2513,8 +2523,8 @@ module Bootstrap.Infer where
     Cons other rest -> prepare-import-syntax rest parsed
   context-with-import-syntax :: HashMap String (String, Option TypeExpr) -> TypeContext -> TypeContext
   context-with-import-syntax parsed context = case context of
-    MkTypeContext handling kinds (aliases, prior) active observers effects source-classes payloads ->
-      MkTypeContext handling kinds (aliases, parsed) active observers effects source-classes payloads
+    MkTypeContext handling kinds (aliases, refinements, prior) active observers effects source-classes payloads ->
+      MkTypeContext handling kinds (aliases, refinements, parsed) active observers effects source-classes payloads
   imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
   imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
     None -> (case make-scheme True classes kinds Nil fallback st of
@@ -4388,7 +4398,7 @@ module Bootstrap.Infer where
       (case fresh-meta kind checked of
         (actual, opened) -> refinement-constructor-arguments kinds rest (Cons (param-name parameter, actual) earlier) (UApp head actual) opened)
   refinement-constructor :: Span -> TypeContext -> String -> Store -> (CoreTerm, Store)
-  refinement-constructor sp kinds name st = case (find-refinement name (context-aliases kinds), context-kind name kinds) of
+  refinement-constructor sp kinds name st = case (find-refinement name kinds, context-kind name kinds) of
     (Some (DRefine at owner parameters binder predicate), Some kind) -> (case refinement-constructor-arguments kinds parameters Nil (UCon name kind) st of
       (applied, opened) -> (case unfold-refinement sp kinds applied opened of
         (refined, checked) -> (case refinement-view (normalize checked refined) of
@@ -4415,7 +4425,7 @@ module Bootstrap.Infer where
       let borrowed = memo-demand-term sp (normalize st ty) cell in
       (CPrimitive sp (copy-out-type (core-type borrowed)) "copy-out" (CArgument sp borrowed (CArgumentsEnd sp)), st)
     Some binding -> lookup-value sp name env st
-    None -> case find-refinement name (context-aliases kinds) of
+    None -> case find-refinement name kinds of
       Some declaration -> refinement-constructor sp kinds name st
       None -> if codata-name name (context-aliases kinds) then
         term-error sp "a codata value must use its observed construction form" st
@@ -7388,7 +7398,8 @@ module Bootstrap.Infer where
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   -- | Project declared kind headers without serializing primitive payload authority.
   declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads -> kinds
+  declared-kind-rows context = case context of
+    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads -> rows
   -- | Register only proof-bearing data owners, leaving unrelated unused refinement and class elaboration unchanged.
   usage-json-rows :: List Json -> Json
   usage-json-rows rows = case rows of
@@ -9577,7 +9588,7 @@ module Bootstrap.Infer where
   -- supplies value indices and the subject. Type parameters are inferred
   -- from the subject, and the predicate is interpreted in its defining scope.
   named-predicate :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> List TypeExpr -> Store -> (UType, Store)
-  named-predicate external kinds locals sp name arguments st = case find-refinement name (context-aliases kinds) of
+  named-predicate external kinds locals sp name arguments st = case find-refinement name kinds of
     Some (DRefine at owner parameters binder predicate) -> (case context-enter-alias owner kinds of
       Some scoped -> predicate-parameters external scoped locals sp parameters binder predicate Nil arguments st
       None -> bad sp "recursive refinement predicate expansion" st)
