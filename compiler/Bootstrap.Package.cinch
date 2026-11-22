@@ -19,7 +19,7 @@ module Bootstrap.Package where
   import Text.Fnv (fnv64a-update)
 
   export PackageContract, package-contract, read-package-documents, packaged-abi
-  export PackageSnapshot, read-package-snapshot, authenticated-snapshot-abi
+  export PackageSnapshot, read-package-source, decode-package-snapshot, read-package-snapshot, authenticated-snapshot-abi
   export PackedBodyTable, packed-definition-for
 
   foreign import ccall "cinch.runtime.packageText" package-text :: Bytes -> I64 -> I64 -> Result I64 String
@@ -929,15 +929,20 @@ module Bootstrap.Package where
   -- the same path. Publishers rename a new inode so readers can keep
   -- using the original mapping after publication and descriptor close.
   read-package-snapshot :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract, PackageSnapshot)
-  read-package-snapshot path = case sys-open-read path of
+  read-package-snapshot path = case read-package-source path of
+    Err message -> Err message
+    Ok source -> decode-package-snapshot source
+
+  decode-package-snapshot :: forall r. Bytes ->{IO r} Result String (List PackageContract, PackageSnapshot)
+  decode-package-snapshot source = case hold-package-source source (decode-package source) of
+    Err message -> Err message
+    Ok (rows, table, texts, abi) -> Ok (rows, PackageSnapshot source table texts abi)
+
+  read-package-source :: forall r. using (io :: Io r) => String ->{IO r} Result String Bytes
+  read-package-source path = case sys-open-read path of
     Err error -> Err "cannot open interface package"
     Ok fd -> case read-package-bytes fd of
-      result -> case sys-close fd of
-        _ -> case result of
-          Err message -> Err message
-          Ok source -> case hold-package-source source (decode-package source) of
-            Err message -> Err message
-            Ok (rows, table, texts, abi) -> Ok (rows, PackageSnapshot source table texts abi)
+      result -> case sys-close fd of _ -> result
 
   read-package-bytes :: forall r. using (io :: Io r) => I64 ->{IO r} Result String Bytes
   read-package-bytes fd = case sys-lseek fd 0 sys-seek-end of

@@ -726,6 +726,17 @@ def collect_compiler_sources() -> dict[str, bytes]:
     imports = "".join(f"  import {name} as CompilerSource{i}\n"
                       for i, name in enumerate(modules)).encode()
     files["Main.cinch"] = files["Main.cinch"].replace(header, header + imports, 1)
+    # The native intermediate cache is specific to the compiler sources and
+    # the pinned library/runtime they build against. Hash the bundle before
+    # adding the identity itself, keeping the bootstrapped builds reproducible.
+    epoch_inputs = [source_hash(files), json.dumps(lock, sort_keys=True)]
+    if LIBRARY_ARTIFACT is not None:
+        epoch_inputs.append(file_hash(LIBRARY_ARTIFACT))
+    epoch = hashlib.sha256("\n".join(epoch_inputs).encode()).hexdigest()
+    files["Bootstrap.Host.cinch"] = files["Bootstrap.Host.cinch"].replace(
+        b"  export host-triple, host-os, host-arch, host-libc\n",
+        b"  export host-triple, host-os, host-arch, host-libc, compiler-epoch\n",
+    ) + f'  compiler-epoch :: String\n  compiler-epoch = "{epoch}"\n'.encode()
     return files
 
 

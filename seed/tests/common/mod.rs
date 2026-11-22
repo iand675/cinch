@@ -164,12 +164,15 @@ fn prune_stale_projects() {
     });
 }
 
-fn host_module() -> String {
+fn host_module(directory: &Path) -> String {
     let host = TargetProfile::native();
+    // Each fixture compiler owns a separate project and output directory.
+    let epoch = cinch::interface::content_hash_bytes(directory.as_os_str().as_encoded_bytes());
     let mut source = String::from("module Bootstrap.Host where\n");
     for (name, value) in [
         ("host-triple", host.triple), ("host-os", host.os),
         ("host-arch", host.arch), ("host-libc", host.libc),
+        ("compiler-epoch", epoch),
     ] {
         source.push_str(&format!("  {name} :: String\n  {name} = {value:?}\n"));
     }
@@ -214,7 +217,7 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
             continue;
         }
         let source = if module == "Bootstrap.Host" {
-            host_module()
+            host_module(&dir)
         } else if module == "Data.Array" {
             // The pinned provider omits this compiler toolkit dependency.
             include_str!("../../prelude/Data/Array.cinch").to_owned()

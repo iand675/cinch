@@ -3,8 +3,9 @@
 module Bootstrap.Object where
   import Bootstrap.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
   import Bootstrap.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, load-referenced-object-interfaces, known-contract-end)
+  import Bootstrap.Load (load-validated-package-contracts)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
-  import Bootstrap.Package (PackageSnapshot, authenticated-snapshot-abi, packaged-abi)
+  import Bootstrap.Package (PackageSnapshot, authenticated-snapshot-abi, packaged-abi, read-package-source, decode-package-snapshot)
   import Bootstrap.Target (profile-of-triple, profile-endian, profile-word-size)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Builtin (scalar-intrinsic)
@@ -27,6 +28,7 @@ module Bootstrap.Object where
   export read-runtime-object-publication
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
   export runtime-object-metadata-file, admit-runtime-object-package-client
+  export PackedClient, read-packed-client, packed-client-key, packed-client-code, admit-packed-client
   export object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export read-object-unit-roots
   export llvm-object-symbol
@@ -620,6 +622,43 @@ module Bootstrap.Object where
           Ok (MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash)
         other -> Err "malformed runtime object configuration")
       other -> Err "runtime object configuration is not valid JSON"
+
+  -- Bind the receipt lookup and, on a miss, admission to the same verified
+  -- bytes. The source archive can be atomically replaced after this read.
+  data PackedClient where
+    PackedClient :: String -> String -> String -> String -> Bytes -> Bytes -> PackedClient
+
+  read-packed-client :: forall r. using (io :: Io r) => RuntimeObjectConfig ->{IO r} Result String PackedClient
+  read-packed-client configuration = case configuration of
+    MkRuntimeObjectConfig triple object-file package-file object-hash package-hash ->
+      case read-package-source package-file of
+        Err message -> Err ("bootstrap.interfaces: " <> message)
+        Ok package -> case fs-read (path-from-string object-file) of
+          Err error -> Err "bootstrap.object: cannot read runtime object artifacts"
+          Ok code -> if same (sha256-hex package) package-hash && same (sha256-hex code) object-hash then
+            Ok (PackedClient triple object-file object-hash package-hash code package)
+            else Err "bootstrap.object: runtime object artifact digest mismatch"
+
+  packed-client-key :: PackedClient -> (String, String, String)
+  packed-client-key packed = case packed of
+    PackedClient triple file object-hash package-hash code package -> (triple, object-hash, package-hash)
+
+  packed-client-code :: PackedClient -> Bytes
+  packed-client-code packed = case packed of
+    PackedClient triple file object-hash package-hash code package -> code
+
+  admit-packed-client :: forall r. PackedClient -> Bool ->{IO r} Result String (ValidatedInterfaces, RuntimeObject, Json)
+  admit-packed-client packed reclaim = case packed of
+    PackedClient triple file object-hash package-hash code package ->
+      case decode-package-snapshot package of
+        Err message -> Err ("bootstrap.interfaces: " <> message)
+        Ok (rows, snapshot) -> case load-validated-package-contracts rows of
+          Err message -> Err ("bootstrap.interfaces: " <> message)
+          Ok checked -> case authenticated-snapshot-abi package-hash snapshot of
+            Err message -> Err ("bootstrap.object: " <> message)
+            Ok artifact -> case parse-runtime-abi (Some checked) reclaim triple (validated-interfaces-members checked) file code artifact of
+              Err message -> Err ("bootstrap.object: " <> message)
+              Ok (provider, document, path, bytes) -> Ok (checked, provider, document)
 
   admit-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object = admit-runtime-object-mode True

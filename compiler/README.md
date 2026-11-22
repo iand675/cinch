@@ -311,6 +311,14 @@ for the host. `build` stops after linking. `run` executes that binary and
 returns its exit status. Use `--clang PATH` to select an installed clang
 directly, for example to bypass the macOS toolchain dispatcher.
 
+When the object configuration names the same `.cpk` as `--interfaces`,
+`build` and `run` can reuse `PREFIX.ll` across invocations. They verify the
+package and object bytes and check `PREFIX.ll.receipt` against the compiler,
+source, target, flags, and IR. A matching receipt skips package decoding
+and frontend compilation. A missing or mismatched receipt triggers a
+fresh compile. Clang links the result against the runtime for each
+invocation.
+
 Interface-only mode writes `PREFIX.cpk`. Combined LLVM and interface
 emission writes `IR.cpk` alongside the LLVM file. Both packages contain
 the checked source contracts and their indexed bodies.

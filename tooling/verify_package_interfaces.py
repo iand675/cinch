@@ -255,14 +255,53 @@ def verify_native_object_references(stage, work, package, rows, source, ir, expe
     linker = run_directory / "toolchain clang"
     linker.write_text('#!/bin/sh\n: > selected-clang\nexec clang "$@"\n')
     linker.chmod(0o755)
-    build = [stage / "cinch", "--interfaces", package, "--objects", configuration, "build"]
+    build_package = run_directory / "build-input.cpk"
+    publish(build_package, data)
+    use_embedded_abi(build_package, data)
+    build = [stage / "cinch", "--interfaces", build_package, "--objects", configuration, "build"]
     build_prefix = run_directory / "build-only"
-    linked = invoke([*build, "--clang", linker, runtime, build_prefix, source],
-                    run_directory, leak=True)
+    build_command = [*build, "--clang", linker, runtime, build_prefix, source]
+    linked = invoke(build_command, run_directory, leak=True)
     assert not linked.stdout and (run_directory / "selected-clang").is_file()
     assert build_prefix.with_suffix(".ll").read_bytes() == expected
     built = invoke([build_prefix.with_suffix(".exe")], run_directory, leak=True)
     assert built.stdout == run.stdout
+
+    build_ir = build_prefix.with_suffix(".ll")
+    receipt = build_prefix.with_suffix(".ll.receipt")
+    diagnostics = build_prefix.with_suffix(".ll.diagnostics")
+    library_copy = build_prefix.with_suffix(".library.o")
+    retained = (build_ir, receipt, diagnostics, library_copy)
+    original_receipt = receipt.read_bytes()
+    assert original_receipt.splitlines()[1] == sha256(expected).hexdigest().encode()
+    for artifact in retained:
+        os.utime(artifact, ns=(1_000_000_000, 1_000_000_000))
+    timestamps = [artifact.stat().st_mtime_ns for artifact in retained]
+    invoke(build_command, run_directory, leak=True)
+    assert [artifact.stat().st_mtime_ns for artifact in retained] == timestamps
+
+    build_ir.write_bytes(b"damaged intermediate")
+    invoke(build_command, run_directory, leak=True)
+    assert build_ir.read_bytes() == expected
+    receipt.write_bytes(b"partial receipt")
+    invoke(build_command, run_directory, leak=True)
+    assert receipt.read_bytes() == original_receipt
+
+    original_source = source.read_bytes()
+    source.write_bytes(original_source.replace(b"Hello, world!", b"Hello, again!"))
+    invoke(build_command, run_directory, leak=True)
+    assert receipt.read_bytes() != original_receipt
+    assert invoke([build_prefix.with_suffix(".exe")], run_directory, leak=True).stdout == "Hello, again!\n"
+    source.write_bytes(original_source)
+    invoke(build_command, run_directory, leak=True)
+    assert receipt.read_bytes() == original_receipt
+
+    publish(build_package, data + b"\0")
+    invoke(build_command, run_directory, status=7, leak=True)
+    assert "runtime object artifact digest mismatch" in diagnostics.read_text()
+    publish(build_package, data)
+    invoke(build_command, run_directory, leak=True)
+    assert diagnostics.read_bytes() == b"" and build_ir.read_bytes() == expected
     refused_prefix = run_directory / "refused-build"
     invoke([*build, "--clang", run_directory / "missing clang", runtime, refused_prefix, source],
            run_directory, status=5, leak=True)

@@ -11,7 +11,7 @@ module Bootstrap.Inputs where
 
   export read-interfaces, embedded-library-home
   export InterfaceInputs, read-interface-inputs, interface-input-files, load-interface-inputs
-  export load-client-interface-inputs
+  export load-client-interface-inputs, interface-package-file
   export read-validated-interfaces
 
   data InterfaceInputs where
@@ -92,6 +92,11 @@ module Bootstrap.Inputs where
   interface-input-files inputs = case inputs of
     InterfaceFiles rows -> file-paths rows
     InterfacePackage path -> [path]
+
+  interface-package-file :: InterfaceInputs -> Option String
+  interface-package-file inputs = case inputs of
+    InterfacePackage path -> Some path
+    other -> None
 
   file-paths :: List (String, String, String) -> List String
   file-paths inputs = case inputs of
