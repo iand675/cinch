@@ -327,7 +327,7 @@ def pgo_inputs(profile: dict) -> dict:
 
 
 def pgo_train(family: str, source: str, ir: Path, trainer: Path, directory: Path,
-              log: Path, instrumented_seconds: float | None, interfaces: dict) -> dict:
+              log: Path, instrumented_seconds: float | None, package: Path) -> dict:
     """Train one profile with the instrumented compiler and install it in the cache.
 
     The trainer is the instrumented link of the same IR, so its counters
@@ -337,12 +337,7 @@ def pgo_train(family: str, source: str, ir: Path, trainer: Path, directory: Path
     workload, workload_sha = pgo_workload()
     _, version = pgo.profdata_tool()
     work = directory / "pgo"
-    if work.exists():
-        shutil.rmtree(work)
-    work.mkdir(parents=True)
-    manifest = work / "interfaces.json"
-    write_json(manifest, interfaces)
-    profdata, seconds = pgo.train(trainer, workload, manifest, work, environment(), log)
+    profdata, seconds = pgo.train(trainer, workload, package, work, environment(), log)
     profile = pgo.store(pgo_dir(), source, family, workload_sha, file_hash(ir), profdata,
                         trainer=f"{directory.name}: instrumented link",
                         tool_version=version, instrumented_seconds=instrumented_seconds,
@@ -353,8 +348,8 @@ def pgo_train(family: str, source: str, ir: Path, trainer: Path, directory: Path
     return profile
 
 
-def pgo_base_interfaces(directory: Path, defined: set[str]) -> dict:
-    """A check manifest from the interfaces a seed build already emitted.
+def pgo_base_interfaces(directory: Path, defined: set[str]) -> Path:
+    """Pack the contracts that the seed emitted for the training workload.
 
     Stage1 has no library manifest of its own, and building one would need
     the library producer. The seed emits every interface it checked, so the
@@ -364,25 +359,32 @@ def pgo_base_interfaces(directory: Path, defined: set[str]) -> dict:
     detail whose dependencies the manifest would then have to carry too.
     """
     from bootstrap_interfaces import interface_hash, read_contract
+    from pack_interfaces import canonical, pack, publish
+
     rows = []
     for path in sorted((directory / "sources" / "build").glob("*.cinchif")):
         doc = read_contract(path)
         if doc["module"] in defined:
             continue
-        rows.append([doc["module"], interface_hash(doc), str(path.resolve())])
+        rows.append((doc["module"], interface_hash(doc), canonical(doc)))
     if not rows:
         raise BootstrapError("no base interfaces to train the profile against")
-    return {"schema": 1, "interfaces": rows}
+    work = directory / "pgo"
+    work.mkdir(exist_ok=True)
+    package = work / "interfaces.cpk"
+    publish(package, pack(rows))
+    return package
 
 
 def pgo_relink(exe: Path, ir: Path, record: Path, source: str,
-               directory: Path, log: Path, interfaces: dict) -> dict:
+               directory: Path, log: Path, defined: set[str]) -> dict:
     """Rebuild the seed's link with the profile and install it as the stage compiler."""
     if not ir.is_file():
         raise BootstrapError("the seed did not retain the link input the PGO relink needs")
     profile = pgo_profile("seed", source, ir)
     if profile is None:
-        profile = pgo_train("seed", source, ir, exe, directory, log, None, interfaces)
+        package = pgo_base_interfaces(directory, defined)
+        profile = pgo_train("seed", source, ir, exe, directory, log, None, package)
     print(f"{directory.name}: relinking with profile {profile['profdata_sha256'][:12]}", flush=True)
     argv, cwd = pgo.recorded_link(record)
     wrapper = (ROOT / "tooling" / "shard_ir.py").resolve()
@@ -838,10 +840,8 @@ def build_next_stage(stage: int, builder: Path) -> Path:
     if code == 0 and guided:
         profile = pgo_relink(compiler, seed_ir, record, inputs["source_sha256"],
                              directory, log,
-                             pgo_base_interfaces(directory,
-                                                 {name[:-6] for name in files
-                                                  if name.endswith(".cinch")}
-                                                 | pgo.workload_modules()))
+                             {name[:-6] for name in files if name.endswith(".cinch")}
+                             | pgo.workload_modules())
         inputs["pgo"] = pgo_inputs(profile)
     record_build(directory, inputs, code, log)
     seed_ir.unlink(missing_ok=True)
@@ -1021,7 +1021,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
             seconds = time.monotonic() - started
             if code == 0:
                 profile = pgo_train("cinch", sources, ir, instrumented, directory, log,
-                                    seconds, base)
+                                    seconds, package)
             instrumented.unlink(missing_ok=True)
         if code == 0:
             code = link(exe, tuple(pgo.use_flags(profile, pgo_dir())) if profile else ())
@@ -1194,7 +1194,7 @@ def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
     # Main is the source client in this check, not an imported module.
     rows.pop("Main", None)
     manifest = case / "interfaces.cpk"
-    publish(manifest, pack([rows[name] for name in sorted(rows)], flat_bodies=True, structured_abi=True))
+    publish(manifest, pack([rows[name] for name in sorted(rows)]))
     output = case / "entry"
     diagnostics = case / "entry.diagnostics"
     diagnostics.unlink(missing_ok=True)

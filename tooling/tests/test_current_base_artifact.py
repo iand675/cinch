@@ -104,7 +104,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         name = "Data.String"
         row = next(row for row in self.metadata["interfaces"] if row["module"] == name)
         rows = [(name, row["iface_hash"], json.dumps(row["interface"]).encode())]
-        data = pack(rows, self.metadata, flat_bodies=True, structured_abi=True)
+        data = pack(rows, self.metadata)
         path.write_bytes(data)
         return rows, bootstrap.digest(data)
 
@@ -125,7 +125,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
                                       for row in embedded]
         metadata["private_interfaces"] = [embedded[1]]
         metadata["interface_refs"][0]["iface_hash"] = "wrong"
-        path.write_bytes(pack(rows, metadata, flat_bodies=True, structured_abi=True))
+        path.write_bytes(pack(rows, metadata))
         self.seal(repack=False)
         with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid receipt or checked metadata"):
             self.admit()

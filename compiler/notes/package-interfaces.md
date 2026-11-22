@@ -51,8 +51,8 @@ its original bytes. Keep published package files immutable while mapped.
 
 ## File format
 
-All words are unsigned 32-bit little-endian. The 80-byte header holds the
-eight-byte `CINCHPK2` magic, total file length, format flag 2, and eight
+All words are unsigned 32-bit little-endian. The 88-byte header holds the
+eight-byte `CINCHPK4` magic, total file length, format flag 4, and nine
 offset/length pairs. The section pairs are file-relative and define
 contiguous ranges in this order:
 
@@ -61,25 +61,21 @@ contiguous ranges in this order:
 | Strings | Entry count, one offset/length pair per ID, and packed UTF-8. String spans elsewhere are relative to the packed UTF-8. |
 | Modules | Sorted 36-byte rows. The words carry name and digest spans, value range, contract span, and an inverse index from original input rank to sorted row. |
 | Values | Sorted 32-byte rows within each module. The words carry name, symbol and scheme spans, arity, and root body ID. `0xffffffff` denotes an absent body. |
-| Bodies | Sorted 32-byte rows. The words carry identity, result sort and recipe spans, plus an edge range. |
+| Bodies | Sorted 32-byte rows. The words carry identity and result sorts, parameter and edge ranges, and a root node ID. |
 | Edges | Body IDs packed as words. |
-| Recipes | Typed definition records, with no definition references in a recipe. |
+| Nodes | Checked body nodes, in postorder. |
+| Operands | Parameter sort IDs and lists of argument node IDs. |
 | Contracts | Typed documents preserving the schema-10 field names and values. |
-| ABI | Optional JSON metadata. Public interface metadata references its packed contract by name and digest. Private ABI-only contracts appear in this section once. |
+| ABI | Optional structured metadata. Public interface metadata references its packed contract by name and digest. Private ABI-only contracts appear in this section once. |
 
 Contract values begin with a tag word. Tags 0 through 2 are null, false,
 and true. Tags 3 and 8 carry unsigned and negative integers with a low and
 high magnitude word. Tag 4 carries a string ID. Tags 5 and 6 carry an item or
 field count and their values. Object keys are string IDs in strict byte
-order. Tag 7 carries a count of shared definition spans followed by
-`(first ID, count)` pairs that expand in the recorded order. A contract or
-recipe has a maximum nesting depth of 256 values.
+order. Tag 9 carries a checked body's root definition ID. Structured
+values have a maximum nesting depth of 256.
 
 ### Indexed body format
-
-The indexed format uses `CINCHPK3`, version 3 and an 88-byte header.
-Its directory has nine sections. The Nodes and Operands sections replace
-Recipes in the same position. Other section layouts are unchanged.
 
 A body row holds its identity string ID, result sort string ID, parameter
 start and count, root node ID, call edge start and count, and a reserved
@@ -139,8 +135,7 @@ contract set in the recorded order. The private entry carries its document
 and must satisfy the existing standalone object interface checks.
 ### Structured ABI format
 
-The packer writes version 4 by default. `CINCHPK4` keeps the version-3
-directory and indexed bodies. The optional ABI section starts with the
+The optional ABI section starts with the
 number of string IDs used by the interface contracts, followed by a
 structured value. It shares the contract string table and appends ABI-only
 IDs after the contract strings. Interface readers skip that suffix.
@@ -156,8 +151,6 @@ same package path, it reads one bounded snapshot and reuses the decoded
 contract strings for ABI admission. It verifies the digest of that
 snapshot before decoding the ABI. Interface-only loads also read a bounded
 snapshot so that checked body references can retain their backing bytes.
-Pass `--legacy-json-abi` to write version 3 with a JSON ABI section, or
-`--legacy-recipes` to write version 2.
 
 ## Verification
 

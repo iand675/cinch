@@ -14,6 +14,27 @@ import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_seed_pgo_packs_the_training_contracts(self):
+        from bootstrap_interfaces import canonical, interface_hash
+        from pack_interfaces import PackedInterfaces
+
+        fixture = Path(__file__).parent / "fixtures/checked-interface.json"
+        document = bootstrap.read_json(fixture)
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp)
+            output = stage / "sources" / "build"
+            output.mkdir(parents=True)
+            (output / "training.cinchif").write_bytes(fixture.read_bytes())
+            excluded = {**document, "module": "InWorkload"}
+            (output / "excluded.cinchif").write_text(canonical(excluded))
+
+            package = bootstrap.pgo_base_interfaces(stage, {"InWorkload"})
+
+            self.assertEqual(package, stage / "pgo" / "interfaces.cpk")
+            self.assertEqual(PackedInterfaces(package.read_bytes()).documents,
+                             [(document["module"], interface_hash(document), document)])
+            self.assertEqual(list(package.parent.iterdir()), [package])
+
     def test_seed_frontend_exits_before_the_checked_host_link(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -276,7 +297,7 @@ class BootstrapContract(unittest.TestCase):
                 doc = {**template, "module": name, "runtime_abi": runtime_abi}
                 (root / (name + ".cinchif")).write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             from pack_interfaces import pack
-            (root / "base.cpk").write_bytes(pack([], flat_bodies=True, structured_abi=True))
+            (root / "base.cpk").write_bytes(pack([]))
             bootstrap.require_compiler_interfaces(root, files)
             wrong_abi = 5 if runtime_abi == 6 else 6
             (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": wrong_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
@@ -427,7 +448,7 @@ class BootstrapContract(unittest.TestCase):
         metadata = runtime.parent / "library.cpk"
         if not library.exists():
             library.write_bytes(b"verified library-only object")
-            metadata.write_bytes(pack([], {"interfaces": []}, flat_bodies=True, structured_abi=True))
+            metadata.write_bytes(pack([], {"interfaces": []}))
         return {"runtime": runtime, "object": library,
                 "interfaces": {"schema": 1, "interfaces": []},
                 "configuration": {"schema": 1, "target": "test-host", "object": str(library),

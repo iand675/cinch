@@ -295,7 +295,7 @@ class Builder:
         for name in self.closure[module]:
             rows[name] = (name, self.deltas[name]["iface_hash"], raw[name])
         manifest = directory / "provider.cpk"
-        publish(manifest, pack([rows[name] for name in sorted(rows)], merged, flat_bodies=True, structured_abi=True))
+        publish(manifest, pack([rows[name] for name in sorted(rows)], merged))
         objects = directory / "objects.json"
         bootstrap.write_json(objects, {"schema": 1, "target": self.base.target, "object": str(self.base.stub),
                                        "metadata": str(manifest), "object_sha256": self.base.stub_sha,

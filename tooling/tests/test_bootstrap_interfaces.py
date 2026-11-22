@@ -124,7 +124,7 @@ class CompilerInterfaceGate(unittest.TestCase):
             path = root / "Bootstrap.Check.cinchif"
             path.write_text(contracts.canonical(dependency))
             from pack_interfaces import PackedInterfaces, pack
-            (root / "base.cpk").write_bytes(pack([], flat_bodies=True, structured_abi=True))
+            (root / "base.cpk").write_bytes(pack([]))
             files = {"Main.cinch": b"module Main where\n  import Bootstrap.Check\n", "Bootstrap.Check.cinch": b"checked source"}
 
             def run(command, cwd, log):

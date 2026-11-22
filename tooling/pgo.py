@@ -137,7 +137,7 @@ def load(root: Path, source_sha256: str, family: str, workload_sha256: str,
     return record
 
 
-def train(compiler: Path, workload: Path, manifest: Path, work: Path,
+def train(compiler: Path, workload: Path, package: Path, work: Path,
           env: dict[str, str], log: Path) -> tuple[Path, float]:
     """Run the instrumented compiler on the workload and merge its counters."""
     tool, _ = profdata_tool()
@@ -150,7 +150,7 @@ def train(compiler: Path, workload: Path, manifest: Path, work: Path,
     process_env = dict(env)
     process_env["LLVM_PROFILE_FILE"] = str(raw / "%p-%m.profraw")
     started = time.monotonic()
-    result = subprocess.run([str(compiler), "--check", "--interfaces", str(manifest),
+    result = subprocess.run([str(compiler), "--check", "--interfaces", str(package),
                              str(workload), str(diagnostics)],
                             cwd=work, env=process_env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

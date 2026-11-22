@@ -75,7 +75,7 @@ class LibraryProviderContract(unittest.TestCase):
                                 "reclaim": True, "self_describing": True, "target": "test-host",
                                 "interfaces": rows, "units": [{"symbol": "CinchBaseObject.marker"}]}
                     data = pack([("Data.Core", "Data.Core-hash", bootstrap_objects.canonical(rows[0]["interface"]))],
-                                metadata, flat_bodies=True, structured_abi=True)
+                                metadata)
                     output.with_suffix(".cpk").write_bytes(data)
                 return 0
 

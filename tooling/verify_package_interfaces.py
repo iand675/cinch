@@ -83,7 +83,7 @@ module Main where
     document["exports"]["values"].append({**deepcopy(branch), "name": "branch-alias"})
     document["abi"]["symbols"].append("branch-alias=PackedProbe.branch")
     digest = interface_hash(document)
-    data = pack([*rows, ("PackedProbe", digest, canonical(document).encode())], flat_bodies=True)
+    data = pack([*rows, ("PackedProbe", digest, canonical(document).encode())])
     nodes, size = words(data, 56, 2)
     tags = {words(data, offset, 1)[0] for offset in range(nodes, nodes + size, 16)}
     assert tags == set(range(7))
@@ -110,12 +110,12 @@ module Main where
             if definition["identity"] == "PackedProbe.branch":
                 definition["body"]["yes"]["body"]["no"]["decimal"] = "9"
     changed_digest = interface_hash(changed)
-    publish(package, pack([*rows, ("PackedProbe", changed_digest, canonical(changed).encode())], flat_bodies=True))
+    publish(package, pack([*rows, ("PackedProbe", changed_digest, canonical(changed).encode())]))
     invoke(command, work, status=4, leak=True)
     assert "undischarged refinement obligation" in output.with_suffix(".diagnostics").read_text()
 
     document["digest_probe"]["source_hash"] = "changed nested field"
-    publish(package, pack([*rows, ("PackedProbe", digest, canonical(document).encode())], flat_bodies=True))
+    publish(package, pack([*rows, ("PackedProbe", digest, canonical(document).encode())]))
     invoke(command, work, status=7, leak=True)
     assert "interface contract identity mismatch" in output.with_suffix(".diagnostics").read_text()
 
@@ -199,7 +199,7 @@ def verify_native_object_references(stage, work, package, rows, source, ir, expe
     public = next(row for row in metadata["interface_refs"] if row["module"] not in private)
     public["iface_hash"] = "wrong-interface-identity"
     mismatch = work / "mismatched-abi.cpk"
-    bad_abi = pack(rows, metadata, flat_bodies=True, structured_abi=True)
+    bad_abi = pack(rows, metadata)
     publish(mismatch, bad_abi)
     use_embedded_abi(mismatch, bad_abi)
     invoke(command, work, status=7, leak=True)
@@ -267,8 +267,7 @@ def native_shared_body_ranges(stage, work, package, rows):
     command = [stage / "cinch", "--check-types", "--interfaces", package, main, output]
 
     def publish_contract():
-        publish(package, pack([*rows, ("SharedBodies", digest, canonical(document).encode())],
-                              flat_bodies=True, structured_abi=True))
+        publish(package, pack([*rows, ("SharedBodies", digest, canonical(document).encode())]))
 
     publish_contract()
     invoke(command, work, leak=True)
@@ -303,7 +302,7 @@ def native_packed_object_publication(stage, work, package, rows):
     document = (work / "library.PackedLibrary.cinchif").read_bytes()
     package = work / "built-library.cpk"
     data = pack([*rows, ("PackedLibrary", interface_hash(json.loads(document)), document)],
-                combined, flat_bodies=True, structured_abi=True)
+                combined)
     publish(package, data)
     settings = json.loads(config.read_bytes())
     runtime = Path(settings["object"]).with_name("libcinchruntime.a")
@@ -327,7 +326,7 @@ def native(stage, work, repeats):
     packed = PackedInterfaces(contents)
     rows = [(name, identity, canonical(doc).encode()) for name, identity, doc in packed.documents]
     indexed = work / "repacked.cpk"
-    indexed_contents = pack(rows, packed.full_metadata(), flat_bodies=True, structured_abi=True)
+    indexed_contents = pack(rows, packed.full_metadata())
     publish(indexed, indexed_contents)
     for name in ("base-interfaces.json", "objects.json"):
         assert not (stage / name).exists(), f"stage wrote a redundant interface artifact: {name}"
@@ -388,7 +387,7 @@ def native(stage, work, repeats):
 
     mismatched = work / "bad-identity.cpk"
     name, _, raw = rows[0]
-    publish(mismatched, pack([(name, "not-the-identity", raw), *rows[1:]], flat_bodies=True, structured_abi=True))
+    publish(mismatched, pack([(name, "not-the-identity", raw), *rows[1:]]))
     invoke(command(hello, mismatched), work, status=7, leak=True)
     assert "interface contract identity mismatch" in diagnostics.read_text()
 
@@ -469,16 +468,14 @@ def rust(seed, work):
     invoke([executable], project, status=42)
     package = installed / "build/package.cpk"
     name, _, raw = rows[0]
-    for flat, structured in ((False, False), (True, False), (True, True)):
-        contents = pack(rows, execution, flat_bodies=flat, structured_abi=structured)
-        publish(package, contents)
-        invoke(command, project)
-        invoke([executable], project, status=42)
+    contents = pack(rows, execution)
+    publish(package, contents)
+    invoke(command, project)
+    invoke([executable], project, status=42)
 
-        publish(package, pack([(name, "not-the-identity", raw), *rows[1:]],
-                              flat_bodies=flat, structured_abi=structured))
-        result = invoke(command, project, status=1)
-        assert "package interface identity mismatch" in result.stderr
+    publish(package, pack([(name, "not-the-identity", raw), *rows[1:]]))
+    result = invoke(command, project, status=1)
+    assert "package interface identity mismatch" in result.stderr
 
     body_rows, body_size = words(contents, 40, 2)
     nodes, node_size = words(contents, 56, 2)
