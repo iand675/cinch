@@ -10,6 +10,7 @@ module Bootstrap.Kinds where
   export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme, add-value-parameter
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
   export KindIndex, index-kinds, extend-kind-index, kind-at, nominal-index-closed
+  export KindDeclarations, kind-declarations, declared-kinds, declaration-kind-index, add-kind-declaration, prefix-kind-declarations
   export type-well-formed-in, kind-well-formed-in, scheme-well-formed-in, scheme-type-scope-in, argument-well-formed-in
   export nominal-kinds-closed, add-rigid-kind, constructor-index-key
   export proper-type, argument-well-formed, symbolic-effect-spelling
@@ -68,6 +69,25 @@ module Bootstrap.Kinds where
 
   kind-at :: String -> KindIndex -> Option Kind
   kind-at name (KindIndex size table) = hash-map-lookup name table
+
+  -- Keep declaration order and its first-binding index together. Remember
+  -- duplicate rows so the independent closure check can still refuse them.
+  data KindDeclarations where
+    KindDeclarations :: List (String, Kind) -> KindIndex -> KindDeclarations
+  kind-declarations :: List (String, Kind) -> KindDeclarations
+  kind-declarations rows = KindDeclarations rows (index-kinds rows)
+  declared-kinds :: KindDeclarations -> List (String, Kind)
+  declared-kinds (KindDeclarations rows indexed) = rows
+  declaration-kind-index :: KindDeclarations -> KindIndex
+  declaration-kind-index (KindDeclarations rows indexed) = indexed
+  add-kind-declaration :: String -> Kind -> KindDeclarations -> KindDeclarations
+  add-kind-declaration name kind (KindDeclarations rows (KindIndex size table)) =
+    let count = (case hash-map-lookup name table of None -> size + 1; Some old -> size) in
+    KindDeclarations (Cons (name, kind) rows) (KindIndex count (hash-map-insert name kind table))
+  prefix-kind-declarations :: List (String, Kind) -> KindDeclarations -> KindDeclarations
+  prefix-kind-declarations prefix declarations = case prefix of
+    Nil -> declarations
+    Cons (name, kind) rest -> add-kind-declaration name kind (prefix-kind-declarations rest declarations)
 
   equal-type :: UType -> UType -> Bool
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "kind scope")) of Nil -> True; other -> False)

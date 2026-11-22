@@ -4,6 +4,7 @@ module Main where
   import Bootstrap.Type
   import Bootstrap.Index
   import Bootstrap.Nominal (interface-global)
+  import Data.Char (char-from-code)
   import Effect.Fs (fs-write)
   import Data.Path (path-from-string)
   import Data.String
@@ -22,6 +23,12 @@ module Main where
   nested-indexed = UApp (UCon (interface-global "A.Wrap") (KFun KType KType)) indexed
   row :: String -> Result String String -> String
   row name value = let message = (case value of Ok text -> text; Err error -> string-concat "ERROR:" error) in string-concat-all [name, "\t", message, "\n"]
+  ascii-characters :: Nat -> List Char
+  ascii-characters code = if code < 128 then
+    (case char-from-code code of
+      Some character -> Cons character (ascii-characters (code + 1))
+      None -> Nil)
+    else Nil
   report :: String
   report =
     row "nat" (export-scheme (mono (UFun nat nat))) <>
@@ -53,6 +60,8 @@ module Main where
     row "spelling" (Ok (interface-global "Bootstrap.Infer.Bootstrap.Infer.add-error")) <>
     row "escaped-spelling" (Ok (interface-global "Data.Sym.$")) <>
     row "scalar-spelling" (Ok (interface-global "Data.Sym.→")) <>
+    row "empty-spelling" (Ok (interface-global "")) <>
+    row "byte-spelling" (Ok (interface-global (pack (ascii-characters 0) <> "é→𐍈"))) <>
     row "bang-spelling" (export-global "m.Main.print$21") <>
     row "question-spelling" (Ok (interface-global "Main.empty?")) <>
     row "unsolved" (export-scheme (mono (UMeta 7 KType))) <>

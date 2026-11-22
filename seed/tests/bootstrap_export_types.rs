@@ -35,6 +35,20 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             "spelling" => { assert_eq!(scheme, "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror"); continue; }
             "escaped-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$24"); continue; }
             "scalar-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$e2$86$92"); continue; }
+            "empty-spelling" => { assert_eq!(scheme, "i."); continue; }
+            "byte-spelling" => {
+                let mut expected = String::from("i.");
+                for byte in (0u8..128).chain("é→𐍈".bytes()) {
+                    if byte.is_ascii_alphanumeric() || byte == b'_' {
+                        expected.push(char::from(byte));
+                    } else {
+                        use std::fmt::Write;
+                        write!(&mut expected, "${byte:02x}").unwrap();
+                    }
+                }
+                assert_eq!(scheme, expected);
+                continue;
+            }
             // `!` and `?` are not plain identity characters, so the
             // spelling is the lowercase hex of each byte: `$21` and `$3f`.
             "bang-spelling" => { assert_eq!(scheme, "Main.print!"); continue; }
@@ -73,6 +87,6 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
     }
     // Every row `Run.ExportType.cinch` writes, including the identity
     // escapes and the sigil identifiers.
-    assert_eq!(report.lines().count(), 33, "{report}");
+    assert_eq!(report.lines().count(), 35, "{report}");
     common::cleanup(&dir);
 }

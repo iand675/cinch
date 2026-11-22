@@ -4,7 +4,7 @@
 module Bootstrap.Infer where
 
   import Bootstrap.Ast
-  import Bootstrap.Kinds (symbolic-effect-spelling)
+  import Bootstrap.Kinds (symbolic-effect-spelling, KindDeclarations, kind-declarations, declared-kinds, declaration-kind-index, add-kind-declaration, kind-at)
   import Bootstrap.Type
   import Bootstrap.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
   import Bootstrap.Index
@@ -80,7 +80,7 @@ module Bootstrap.Infer where
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
     -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
-    MkTypeContext :: Bool -> (List (String, Kind), HashMap String Kind) -> (List Decl, HashMap String Decl, HashMap String ImportedSyntax, HashMap String (List Json))
+    MkTypeContext :: Bool -> KindDeclarations -> (List Decl, HashMap String Decl, HashMap String ImportedSyntax, HashMap String (List Json))
       -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
 
   -- | Remove authority when a source or imported header claims an existing primitive identity.
@@ -122,12 +122,12 @@ module Bootstrap.Infer where
   -- | Observe a declared kind without granting any payload evidence.
   context-kind :: String -> TypeContext -> Option Kind
   context-kind name context = case context of
-    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads -> hash-map-lookup name indexed
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> kind-at name (declaration-kind-index kinds)
   -- | Install an ordinary header and revoke any competing primitive payload authority.
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
   context-add-kind name kind context = case context of
-    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads ->
-      MkTypeContext handling (Cons (name, kind) rows, hash-map-insert name kind indexed)
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads ->
+      MkTypeContext handling (add-kind-declaration name kind kinds)
         aliases active observers effects source-classes (revoke-payload name payloads)
   -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
@@ -482,11 +482,7 @@ module Bootstrap.Infer where
   primitive-kinds :: TypeContext
   primitive-kinds =
     let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
-    MkTypeContext False (builtins, index-kind-rows (reverse builtins) hash-map-empty) (Nil, hash-map-empty, hash-map-empty, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
-  index-kind-rows :: List (String, Kind) -> HashMap String Kind -> HashMap String Kind
-  index-kind-rows rows indexed = case rows of
-    Nil -> indexed
-    Cons (name, kind) rest -> index-kind-rows rest (hash-map-insert name kind indexed)
+    MkTypeContext False (kind-declarations builtins) (Nil, hash-map-empty, hash-map-empty, hash-map-empty) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -7532,9 +7528,9 @@ module Bootstrap.Infer where
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   -- | Project declared kind headers without serializing primitive payload authority.
-  declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of
-    MkTypeContext handling (rows, indexed) aliases active observers effects source-classes payloads -> rows
+  context-kind-declarations :: TypeContext -> KindDeclarations
+  context-kind-declarations context = case context of
+    MkTypeContext handling kinds aliases active observers effects source-classes payloads -> kinds
   -- | Register only proof-bearing data owners, leaving unrelated unused refinement and class elaboration unchanged.
   usage-json-rows :: List Json -> Json
   usage-json-rows rows = case rows of
@@ -7601,11 +7597,11 @@ module Bootstrap.Infer where
   -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
-    let rows = declared-kind-rows kinds in
+    let headers = context-kind-declarations kinds in
     let globals = instance-globals instances (global-bindings st bindings empty-global-declarations) in
-    case close-typing-context-with-indexed-globals rows globals (context-effects kinds) datas definitions usage of
+    case close-typing-context-with-indexes headers globals (context-effects kinds) datas definitions usage of
       Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
-      None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows (ordered-global-declarations globals) (context-effects kinds) datas definitions)) st
+      None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal (declared-kinds headers) (ordered-global-declarations globals) (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
   -- constructor type here would discard the exact nominal identities.
   checked-constructors :: List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreConstructor, Store)

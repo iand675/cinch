@@ -16,7 +16,7 @@ module Bootstrap.Global where
 
   export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, GlobalIntrinsicViews, global-name, global-scheme, global-schemes
   export globals-body-context, globals-bodies, globals-guarded-bodies, GlobalGuardedBody
-  export GlobalDeclarations, empty-global-declarations, insert-global-declaration, ordered-global-declarations
+  export GlobalDeclarations, empty-global-declarations, insert-global-declaration, ordered-global-declarations, indexed-global-declaration
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
   export close-globals-with-definitions, close-globals-with-source-data, close-indexed-globals
   export globals-refusal
@@ -143,6 +143,8 @@ module Bootstrap.Global where
   empty-global-declarations = MkGlobalDeclarations Nil hash-map-empty True
   ordered-global-declarations :: GlobalDeclarations -> List CoreGlobal
   ordered-global-declarations globals = case globals of MkGlobalDeclarations declarations index unique -> declarations
+  indexed-global-declaration :: String -> GlobalDeclarations -> Option CoreGlobal
+  indexed-global-declaration name (MkGlobalDeclarations declarations index unique) = hash-map-lookup name index
   -- Index the first declaration with each name. The ordered list is still
   -- needed for deterministic validation, including rejected duplicates.
   insert-global-declaration :: CoreGlobal -> GlobalDeclarations -> GlobalDeclarations

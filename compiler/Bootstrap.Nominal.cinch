@@ -4,12 +4,14 @@ module Bootstrap.Nominal where
 
   import Bootstrap.Ast
   import Bootstrap.Builtin (array-type-name, cell-type-name, cell-effect-name)
+  import Bootstrap.PackedBody (hold-package-source)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Document
   import Text.Lex (Span)
   import Algebra.Semigroup
-  import Data.Bytes (bytes-get, bytes-len, bytes-new, bytes-set)
-  import Data.Nat (nat-div, nat-rem)
+  import Data.Bytes (bytes-copy-range, bytes-data, bytes-get, bytes-len, bytes-new, bytes-set)
+  import Data.Nat (nat-div, nat-rem, nat-to-i64, checked-nat-from-i64)
+  import Data.Machine (wrapping-add-i64, lt-i64)
   import Data.Char (char-from-code)
   import Data.String (string-from-bytes, string-to-bytes)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -140,37 +142,76 @@ module Bootstrap.Nominal where
       else if code >= 97 && code <= 102 then Some (code - 87, rest)
       else None
     Nil -> None
-  -- The identity escape is defined per UTF-8 byte. Read the existing
-  -- encoding without unpacking its scalars or allocating a character list.
-  identity-byte-size :: Bytes -> Nat -> Nat -> Nat
-  identity-byte-size input at size = if at < bytes-len input then
-    identity-byte-size input (at + 1) (size + (if plain-code (bytes-get input at) then 1 else 3))
+  -- Read one byte and mark an escaped byte by adding 256. The outer
+  -- loops check the offset and retain the source buffer across the read.
+  prim classify-identity-byte :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %input = inttoptr i64 %0 to ptr
+      %address = getelementptr i8, ptr %input, i64 %1
+      %code = load i8, ptr %address, align 1
+      %lowercase = or i8 %code, 32
+      %alpha-index = sub i8 %lowercase, 97
+      %alpha = icmp ult i8 %alpha-index, 26
+      %digit-index = sub i8 %code, 48
+      %digit = icmp ult i8 %digit-index, 10
+      %underscore = icmp eq i8 %code, 95
+      %alphanumeric = or i1 %alpha, %digit
+      %plain = or i1 %alphanumeric, %underscore
+      %byte = zext i8 %code to i64
+      %escaped = add i64 %byte, 256
+      %marked = select i1 %plain, i64 %byte, i64 %escaped
+      ret i64 %marked
+    }
+  identity-escaped-size :: I64 -> I64 -> I64 -> I64 -> I64
+  identity-escaped-size input length at size = if lt-i64 at length then
+    let code = classify-identity-byte input at in
+    let next = if lt-i64 code 256 then wrapping-add-i64 size 1 else wrapping-add-i64 size 3 in
+    identity-escaped-size input length (wrapping-add-i64 at 1) next
     else size
+  plain-identity-end :: I64 -> I64 -> I64 -> I64
+  plain-identity-end input length at =
+    if lt-i64 at length && lt-i64 (classify-identity-byte input at) 256 then
+      plain-identity-end input length (wrapping-add-i64 at 1)
+    else at
   identity-hex-byte :: InRange 0 15 Nat -> InRange 48 102 Nat
   identity-hex-byte code = if code < 10 then 48 + code else 87 + code
-  write-identity-bytes :: Bytes -> Nat -> Bytes -> Nat -> Bool
-  write-identity-bytes input at output pos = if at < bytes-len input then
-    let code = bytes-get input at in
-    if plain-code code then
-      (if pos < bytes-len output then
-        let written = bytes-set output pos code in write-identity-bytes input (at + 1) output (pos + 1)
-       else False)
-    else
-      (if pos + 2 < bytes-len output then
-        let dollar = bytes-set output pos 36 in
-        let high = bytes-set output (pos + 1) (identity-hex-byte (nat-rem (nat-div code 16) 16)) in
-        let low = bytes-set output (pos + 2) (identity-hex-byte (nat-rem code 16)) in
-        write-identity-bytes input (at + 1) output (pos + 3)
-       else False)
+  -- Copy complete runs of literal bytes. Punctuation and non-ASCII
+  -- characters still use the same lowercase escape at each byte.
+  write-identity-bytes :: Bytes -> I64 -> I64 -> Nat -> Bytes -> Nat -> Bool
+  write-identity-bytes input address length at output pos =
+    if at < bytes-len input then
+      let stop = hold-package-source input (plain-identity-end address length (nat-to-i64 at)) in
+      case checked-nat-from-i64 stop of
+        Some end | at <= end -> let count = end - at in
+          if at + count <= bytes-len input && pos + count <= bytes-len output then
+            let copied = if count == 0 then () else bytes-copy-range output input pos at count in
+            let next = pos + count in
+            if end < bytes-len input then
+              (if next + 2 < bytes-len output then
+                let code = bytes-get input end in
+                let dollar = bytes-set output next 36 in
+                let high = bytes-set output (next + 1) (identity-hex-byte (nat-rem (nat-div code 16) 16)) in
+                let low = bytes-set output (next + 2) (identity-hex-byte (nat-rem code 16)) in
+                write-identity-bytes input address length (end + 1) output (next + 3)
+              else False)
+            else next == bytes-len output
+          else False
+        other -> False
     else pos == bytes-len output
   identity-global-bytes :: Bytes -> Option String
   identity-global-bytes input =
-    let output = bytes-new (identity-byte-size input 0 2) in
-    if 1 < bytes-len output then
-      let first = bytes-set output 0 105 in
-      let second = bytes-set output 1 46 in
-      if write-identity-bytes input 0 output 2 then string-from-bytes output else None
-    else None
+    let size = bytes-len input in
+    if size > 715827881 then None else
+      let length = nat-to-i64 size in
+      let address = bytes-data input in
+      let required = hold-package-source input (identity-escaped-size address length 0 2) in
+      case checked-nat-from-i64 required of
+        Some count | count >= 2 ->
+          let output = bytes-new count in
+          let first = bytes-set output 0 105 in
+          let second = bytes-set output 1 46 in
+          if write-identity-bytes input address length 0 output 2 then string-from-bytes output else None
+        other -> None
   interface-global :: String -> String
   interface-global identity = case identity-global-bytes (string-to-bytes identity) of
     Some name -> name

@@ -25,7 +25,7 @@ module Bootstrap.Typing where
   export context-body-context, close-typing-context-with-definitions, closure-refusal
   export task-source-forwarder, task-forwarder-type
   export task-free, task-pattern-ids
-  export close-typing-context-with-usage, close-typing-context-with-indexed-globals
+  export close-typing-context-with-usage, close-typing-context-with-indexes
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
@@ -117,16 +117,24 @@ module Bootstrap.Typing where
     Nil -> False
     Cons (GlobalValue name role sc) rest -> if same name (core-operation-name operation) then same role "operation" && scheme-equivalent sc (core-operation-scheme operation) else operation-registered operation rest
     Cons other rest -> operation-registered operation rest
-  operations-registered :: List CoreOperation -> List CoreGlobal -> Bool
-  operations-registered operations declarations = case operations of Nil -> True; Cons first rest -> operation-registered first declarations && operations-registered rest declarations
-  effects-registered :: KindIndex -> List CoreGlobal -> List String -> List CoreEffect -> Bool
-  effects-registered kinds globals seen declarations = case declarations of
+  indexed-operation-registered :: GlobalDeclarations -> CoreOperation -> Bool
+  indexed-operation-registered declarations operation = case indexed-global-declaration (core-operation-name operation) declarations of
+    Some (GlobalValue name role sc) -> same role "operation" && scheme-equivalent sc (core-operation-scheme operation)
+    other -> False
+  operations-registered :: (CoreOperation -> Bool) -> List CoreOperation -> Bool
+  operations-registered registered operations = case operations of
+    Nil -> True
+    Cons first rest -> registered first && operations-registered registered rest
+  effects-registered :: KindIndex -> (CoreOperation -> Bool) -> HashMap String () -> List CoreEffect -> Bool
+  effects-registered kinds registered seen declarations = case declarations of
     Nil -> True
     Cons declaration rest -> let name = core-effect-name declaration in
-      not (has name seen) && core-effect-closed declaration
-        && effect-kind-declared name (core-effect-kind declaration) kinds
-        && operations-registered (core-effect-operations declaration) globals
-        && effects-registered kinds globals (Cons name seen) rest
+      (case hash-map-lookup name seen of
+        Some already -> False
+        None -> core-effect-closed declaration
+          && effect-kind-declared name (core-effect-kind declaration) kinds
+          && operations-registered registered (core-effect-operations declaration)
+          && effects-registered kinds registered (hash-map-insert name () seen) rest)
   close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
   close-typing-context-with-effects kinds declarations effects = close-typing-context-with-data kinds declarations effects Nil
   close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
@@ -156,15 +164,17 @@ module Bootstrap.Typing where
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
   close-typing-context-with-usage kinds declarations effects datas definitions usage =
-    close-typing-context-using kinds declarations effects datas definitions usage (\unit -> close-globals-with-source-data declarations definitions datas)
-  close-typing-context-with-indexed-globals :: List (String, Kind) -> GlobalDeclarations -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
-  close-typing-context-with-indexed-globals kinds declarations effects datas definitions usage =
-    close-typing-context-using kinds (ordered-global-declarations declarations) effects datas definitions usage (\unit -> close-indexed-globals declarations definitions datas)
-  close-typing-context-using :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> (Unit -> Option CoreGlobals) -> Option TypingContext
-  close-typing-context-using kinds declarations effects datas definitions usage close = let declared = kernel-effect-kinds <> kinds in
-    let defined = index-kinds declared in
+    close-typing-context-using (kind-declarations (kernel-effect-kinds <> kinds)) declarations effects datas definitions usage
+      (\operation -> operation-registered operation declarations) (\unit -> close-globals-with-source-data declarations definitions datas)
+  close-typing-context-with-indexes :: KindDeclarations -> GlobalDeclarations -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
+  close-typing-context-with-indexes kinds declarations effects datas definitions usage =
+    close-typing-context-using (prefix-kind-declarations kernel-effect-kinds kinds) (ordered-global-declarations declarations) effects datas definitions usage
+      (indexed-operation-registered declarations) (\unit -> close-indexed-globals declarations definitions datas)
+  close-typing-context-using :: KindDeclarations -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> (CoreOperation -> Bool) -> (Unit -> Option CoreGlobals) -> Option TypingContext
+  close-typing-context-using kinds declarations effects datas definitions usage registered close =
+    let defined = declaration-kind-index kinds in
     let all = extend-kind-index defined (constructor-index-kinds datas) in
-    if nominal-index-closed defined declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
+    if nominal-index-closed defined (declared-kinds kinds) && global-types all declarations && effects-registered all registered hash-map-empty effects && task-data-closed all datas then
       (case index-checked-usage all usage hash-map-empty of
         Some owners | usage-schemes-closed usage declarations datas -> (case close () of
           Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) owners Nil)
@@ -261,7 +271,7 @@ module Bootstrap.Typing where
     let all = extend-kind-index defined (constructor-index-kinds datas) in
     if not (nominal-index-closed defined declared) then "the nominal kind table is not closed"
     else if not (global-types all declarations) then (string-concat "a global scheme is ill-formed: " (ill-formed-scheme all declarations))
-    else if not (effects-registered all declarations Nil effects) then "an effect declaration is not registered"
+    else if not (effects-registered all (\operation -> operation-registered operation declarations) hash-map-empty effects) then "an effect declaration is not registered"
     else if not (task-data-closed all datas) then "task data is not closed"
     else case globals-refusal declarations of
       Some reason -> string-concat "the global reference closure refused: " reason
