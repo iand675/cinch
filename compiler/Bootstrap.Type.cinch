@@ -1056,46 +1056,56 @@ module Bootstrap.Type where
   merge-ids :: List Nat -> List Nat -> List Nat
   merge-ids xs ys = case xs of Nil -> ys; Cons n rest -> merge-ids rest (if contains-id n ys then ys else Cons n ys)
   free-metas :: Store -> UType -> List Nat
-  free-metas st ty = case normalize st ty of
+  free-metas st ty = normalized-free-metas st (normalize st ty)
+  -- The recursive parts of a normalized type have already seen the
+  -- store. An unopened refinement former and forall binder kinds are
+  -- retained as templates, so they enter through the ordinary walkers.
+  normalized-free-metas :: Store -> UType -> List Nat
+  normalized-free-metas st ty = case ty of
     UPropLit value -> Nil
-    UCompare relation left right -> merge-ids (free-metas st left) (free-metas st right)
-    UPropAnd left right -> merge-ids (free-metas st left) (free-metas st right)
-    UPropOr left right -> merge-ids (free-metas st left) (free-metas st right)
-    UPropNot body -> free-metas st body
-    UPropNonZero body -> free-metas st body
-    UPropNotNull body -> free-metas st body
-    UPropAscii body -> free-metas st body
-    UPropOrdered body -> free-metas st body
-    UPropNonZeroPending body -> free-metas st body
-    URequire predicates body -> merge-ids (free-metas st predicates) (free-metas st body)
-    URefine id name carrier predicate -> merge-ids (free-metas st carrier) (free-metas st predicate)
+    UCompare relation left right -> merge-ids (normalized-free-metas st left) (normalized-free-metas st right)
+    UPropAnd left right -> merge-ids (normalized-free-metas st left) (normalized-free-metas st right)
+    UPropOr left right -> merge-ids (normalized-free-metas st left) (normalized-free-metas st right)
+    UPropNot body -> normalized-free-metas st body
+    UPropNonZero body -> normalized-free-metas st body
+    UPropNotNull body -> normalized-free-metas st body
+    UPropAscii body -> normalized-free-metas st body
+    UPropOrdered body -> normalized-free-metas st body
+    UPropNonZeroPending body -> normalized-free-metas st body
+    URequire predicates body -> merge-ids (normalized-free-metas st predicates) (normalized-free-metas st body)
+    URefine id name carrier predicate -> merge-ids (normalized-free-metas st carrier) (normalized-free-metas st predicate)
     URefineFormer name ids body -> free-metas st body
-    UMeta id k -> merge-ids [id] (kind-metas st k)
-    UCon name k -> kind-metas st k
-    UBound id name k -> kind-metas st k
-    URigid id name level k -> kind-metas st k
-    UIndexForget value -> free-metas st value
-    UIndexByteLength value -> free-metas st value
-    UIndexMeasure measure value -> free-metas st value
-    UIndexStringLength value -> free-metas st value
-    UIndexBorrowRead value -> free-metas st value
-    UIndexConstructor name arrow input -> merge-ids (free-metas st arrow) (free-metas st input)
-    UIndexList element fields -> merge-ids (free-metas st element) (free-metas st fields)
-    UIndexCall function args -> free-metas st args
-    UIndexPromote value -> free-metas st value
-    UIndexMath op left right -> merge-ids (free-metas st left) (free-metas st right)
-    UIndex carrier value -> merge-ids (free-metas st carrier) (index-free-metas value)
-    UPi id name domain row result -> merge-ids (free-metas st domain) (merge-ids (free-metas st row) (free-metas st result))
-    UApp f x -> merge-ids (free-metas st f) (free-metas st x)
-    UFun a b -> merge-ids (free-metas st a) (free-metas st b)
-    UFunEff a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
-    UUsageArrow usage arrow -> free-metas st arrow
-    UProofFun a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
-    URow labels -> free-metas st labels
-    URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
-    UTuple xs -> free-metas st xs
-    UForall qs body -> merge-ids (quant-metas st (quants-list qs)) (free-metas st body)
-    UArg x rest -> merge-ids (free-metas st x) (free-metas st rest)
+    UMeta id k -> merge-ids [id] (normalized-kind-metas st k)
+    UCon name k -> normalized-kind-metas st k
+    UBound id name k -> normalized-kind-metas st k
+    URigid id name level k -> normalized-kind-metas st k
+    UIndexForget value -> normalized-free-metas st value
+    UIndexByteLength value -> normalized-free-metas st value
+    UIndexMeasure measure value -> normalized-free-metas st value
+    UIndexStringLength value -> normalized-free-metas st value
+    UIndexBorrowRead value -> normalized-free-metas st value
+    UIndexConstructor name arrow input -> merge-ids (normalized-free-metas st arrow) (normalized-free-metas st input)
+    UIndexList element fields -> merge-ids (normalized-free-metas st element) (normalized-free-metas st fields)
+    UIndexCall function args -> normalized-free-metas st args
+    UIndexPromote value -> normalized-free-metas st value
+    UIndexMath op left right -> merge-ids (normalized-free-metas st left) (normalized-free-metas st right)
+    UIndex carrier value -> merge-ids (normalized-free-metas st carrier) (index-free-metas value)
+    UPi id name domain row result -> merge-ids (normalized-free-metas st domain) (merge-ids (normalized-free-metas st row) (normalized-free-metas st result))
+    UApp f x -> merge-ids (normalized-free-metas st f) (normalized-free-metas st x)
+    UFun a b -> merge-ids (normalized-free-metas st a) (normalized-free-metas st b)
+    UFunEff a row b -> merge-ids (normalized-free-metas st a) (merge-ids (normalized-free-metas st row) (normalized-free-metas st b))
+    UUsageArrow usage arrow -> normalized-free-metas st arrow
+    UProofFun a row b -> merge-ids (normalized-free-metas st a) (merge-ids (normalized-free-metas st row) (normalized-free-metas st b))
+    URow labels -> normalized-free-metas st labels
+    URowJoin a b -> merge-ids (normalized-free-metas st a) (normalized-free-metas st b)
+    UTuple xs -> normalized-free-metas st xs
+    UForall qs body -> merge-ids (quant-metas st (quants-list qs)) (normalized-free-metas st body)
+    UArg x rest -> merge-ids (normalized-free-metas st x) (normalized-free-metas st rest)
+    other -> Nil
+  normalized-kind-metas :: Store -> Kind -> List Nat
+  normalized-kind-metas st kind = case kind of
+    KValue carrier -> normalized-free-metas st carrier
+    KFun a b -> merge-ids (normalized-kind-metas st a) (normalized-kind-metas st b)
     other -> Nil
   kind-metas :: Store -> Kind -> List Nat
   kind-metas st kind = case kind of
@@ -1193,13 +1203,14 @@ module Bootstrap.Type where
     None -> add-error sp "unknown inference variable" st
     Some (MkCell n lev kind solution) ->
       let checked = unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
-      let solution-type = normalize checked ty in
       if store-error-count checked > store-error-count st then checked
-      else if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
-      else if contains-id id (free-metas checked solution-type) then add-error sp "infinite type: inference variable occurs in its own solution" checked
-      else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
-      else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
-      else put-cell (MkCell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev (free-metas checked solution-type) checked)
+      else let solution-type = normalize checked ty in
+        if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
+        else let metas = normalized-free-metas checked solution-type in
+          if contains-id id metas then add-error sp "infinite type: inference variable occurs in its own solution" checked
+          else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
+          else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
+          else put-cell (MkCell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev metas checked)
 
   unify-kind :: Span -> Kind -> Kind -> Store -> Store
   unify-kind sp first second st =
@@ -1513,15 +1524,22 @@ module Bootstrap.Type where
   unique-effects labels = case labels of
     UArg label rest -> let more = unique-effects rest in if has-effect label more then more else UArg label more
     other -> labels
+  -- A checked label spine keeps its shape as metas are solved.
+  -- The matcher unifies each selected label in the current store.
+  effect-label-spine :: Store -> UType -> UType
+  effect-label-spine st labels = case labels of
+    UArg label rest -> labels
+    UEnd -> UEnd
+    other -> normalize st labels
   match-effects :: Span -> Bool -> UType -> UType -> UType -> UType -> Store -> Option Store
-  match-effects sp reverse-pass remaining candidates original-left original-right st = case normalize st remaining of
+  match-effects sp reverse-pass remaining candidates original-left original-right st = case effect-label-spine st remaining of
     UEnd -> if reverse-pass then match-effects sp False original-right original-left UEnd UEnd st else Some st
-    UArg label rest -> match-effect-candidates sp reverse-pass label rest candidates candidates original-left original-right st
+    UArg label rest -> match-effect-candidates sp reverse-pass (normalize st label) rest candidates candidates original-left original-right st
     other -> None
   match-effect-candidates :: Span -> Bool -> UType -> UType -> UType -> UType -> UType -> UType -> Store -> Option Store
-  match-effect-candidates sp reverse-pass label rest remaining all original-left original-right st = case normalize st remaining of
+  match-effect-candidates sp reverse-pass label rest remaining all original-left original-right st = case effect-label-spine st remaining of
     UArg candidate more ->
-      let trial = unify sp label candidate st in
+      let trial = unify sp label (normalize st candidate) st in
       let result = if store-error-count trial == store-error-count st then
             match-effects sp reverse-pass rest all original-left original-right trial else None in
       case result of
@@ -1701,16 +1719,18 @@ module Bootstrap.Type where
   generalize-application-with :: (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
   generalize-application-with blocked ty st = generalize-at True (store-level st) blocked ty st
   generalize-at :: Bool -> Nat -> (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
-  generalize-at current level blocked ty st = case ordered-metas (free-metas st ty) st of
-    None -> (mono UError, Nil)
-    Some ids -> let local = pi-escaping-metas (type-pi-ids (normalize st ty)) ids st Nil in
-      -- A strict let shares each unresolved literal carrier with its uses.
-      -- Default and validate the carrier when the enclosing definition closes.
-      let monomorphic = merge-ids local (number-meta-ids (pending-numbers st) st) in
-      let environment = if generalizable-any current level ids st then blocked () else Nil in
-      case generalized current level (merge-ids environment monomorphic) ids 0 st of
-        (qs, pairs) -> let closed = close-pairs Nil pairs in
-          (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed (normalize st ty)), closed)
+  generalize-at current level blocked ty st =
+    let resolved = normalize st ty in
+    case ordered-metas (normalized-free-metas st resolved) st of
+      None -> (mono UError, Nil)
+      Some ids -> let local = pi-escaping-metas (type-pi-ids resolved) ids st Nil in
+        -- A strict let shares each unresolved literal carrier with its uses.
+        -- Default and validate the carrier when the enclosing definition closes.
+        let monomorphic = merge-ids local (number-meta-ids (pending-numbers st) st) in
+        let environment = if generalizable-any current level ids st then blocked () else Nil in
+        case generalized current level (merge-ids environment monomorphic) ids 0 st of
+          (qs, pairs) -> let closed = close-pairs Nil pairs in
+            (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed resolved), closed)
   -- Whether `generalized` would test any of `ids` against the blocked list.
   generalizable-any :: Bool -> Nat -> List Nat -> Store -> Bool
   generalizable-any current level ids st = case ids of

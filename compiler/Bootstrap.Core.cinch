@@ -1317,51 +1317,61 @@ module Bootstrap.Core where
   -- The private type declarations are collected before freezing, in first
   -- occurrence order. Their numeric ids share the checker's fresh supply.
   type-metas :: Store -> UType -> List (Nat, Kind)
-  type-metas st ty = case normalize st ty of
-    UPropLit value -> Nil
-    UCompare relation left right -> type-metas st left <> type-metas st right
-    UPropAnd left right -> type-metas st left <> type-metas st right
-    UPropOr left right -> type-metas st left <> type-metas st right
-    UPropNot body -> type-metas st body
-    UPropNonZero body -> type-metas st body
-    UPropNotNull body -> type-metas st body
-    UPropAscii body -> type-metas st body
-    UPropOrdered body -> type-metas st body
-    UPropNonZeroPending body -> type-metas st body
-    URequire predicates body -> type-metas st predicates <> type-metas st body
-    URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
-    URefineFormer name ids body -> type-metas st body
-    UIndexForget value -> type-metas st value
-    UIndexByteLength value -> type-metas st value
-    UIndexMeasure measure value -> type-metas st value
-    UIndexStringLength value -> type-metas st value
-    UIndexBorrowRead value -> type-metas st value
-    UIndexConstructor name arrow input -> type-metas st arrow <> type-metas st input
-    UIndexList element fields -> type-metas st element <> type-metas st fields
-    UIndexCall function args -> type-metas st args
-    UIndexPromote value -> type-metas st value
-    UIndexMath op left right -> type-metas st left <> type-metas st right
-    UPi id name domain row result -> type-metas st domain <> type-metas st row <> type-metas st result
-    UIndex carrier value -> type-metas st carrier <> index-type-metas carrier (index-free-metas value)
-    UMeta id k -> Cons (id, k) (kind-type-metas st k)
-    UCon name k -> kind-type-metas st k
-    UBound id name k -> kind-type-metas st k
-    URigid id name level k -> kind-type-metas st k
-    UApp f x -> type-metas st f <> type-metas st x
-    UFun a b -> type-metas st a <> type-metas st b
-    UFunEff a row b -> type-metas st a <> type-metas st row <> type-metas st b
-    UUsageArrow usage arrow -> type-metas st arrow
-    UProofFun a row b -> type-metas st a <> type-metas st row <> type-metas st b
-    URow labels -> type-metas st labels
-    URowJoin a b -> type-metas st a <> type-metas st b
-    UTuple fields -> type-metas st fields
-    UForall qs body -> type-metas st body
-    UArg x rest -> type-metas st x <> type-metas st rest
-    other -> Nil
-  index-type-metas :: UType -> List Nat -> List (Nat, Kind)
-  index-type-metas carrier ids = case ids of Nil -> Nil; Cons id rest -> Cons (id, value-kind carrier) (index-type-metas carrier rest)
-  kind-type-metas :: Store -> Kind -> List (Nat, Kind)
-  kind-type-metas st kind = case kind of KValue carrier -> type-metas st carrier; KFun a b -> kind-type-metas st a <> kind-type-metas st b; other -> Nil
+  type-metas st ty = collect-type-metas st (normalize st ty) Nil
+  -- Walk the normalized type directly and prepend to the remaining
+  -- metas in occurrence order. An unopened refinement former still
+  -- carries its unnormalized body.
+  collect-type-metas :: Store -> UType -> List (Nat, Kind) -> List (Nat, Kind)
+  collect-type-metas st ty tail = case ty of
+    UPropLit value -> tail
+    UCompare relation left right -> collect-type-metas st left (collect-type-metas st right tail)
+    UPropAnd left right -> collect-type-metas st left (collect-type-metas st right tail)
+    UPropOr left right -> collect-type-metas st left (collect-type-metas st right tail)
+    UPropNot body -> collect-type-metas st body tail
+    UPropNonZero body -> collect-type-metas st body tail
+    UPropNotNull body -> collect-type-metas st body tail
+    UPropAscii body -> collect-type-metas st body tail
+    UPropOrdered body -> collect-type-metas st body tail
+    UPropNonZeroPending body -> collect-type-metas st body tail
+    URequire predicates body -> collect-type-metas st predicates (collect-type-metas st body tail)
+    URefine id name carrier predicate -> collect-type-metas st carrier (collect-type-metas st predicate tail)
+    URefineFormer name ids body -> collect-type-metas st (normalize st body) tail
+    UIndexForget value -> collect-type-metas st value tail
+    UIndexByteLength value -> collect-type-metas st value tail
+    UIndexMeasure measure value -> collect-type-metas st value tail
+    UIndexStringLength value -> collect-type-metas st value tail
+    UIndexBorrowRead value -> collect-type-metas st value tail
+    UIndexConstructor name arrow input -> collect-type-metas st arrow (collect-type-metas st input tail)
+    UIndexList element fields -> collect-type-metas st element (collect-type-metas st fields tail)
+    UIndexCall function args -> collect-type-metas st args tail
+    UIndexPromote value -> collect-type-metas st value tail
+    UIndexMath op left right -> collect-type-metas st left (collect-type-metas st right tail)
+    UPi id name domain row result -> collect-type-metas st domain (collect-type-metas st row (collect-type-metas st result tail))
+    UIndex carrier value -> collect-type-metas st carrier (index-type-metas carrier (index-free-metas value) tail)
+    UMeta id k -> Cons (id, k) (collect-kind-type-metas st k tail)
+    UCon name k -> collect-kind-type-metas st k tail
+    UBound id name k -> collect-kind-type-metas st k tail
+    URigid id name level k -> collect-kind-type-metas st k tail
+    UApp f x -> collect-type-metas st f (collect-type-metas st x tail)
+    UFun a b -> collect-type-metas st a (collect-type-metas st b tail)
+    UFunEff a row b -> collect-type-metas st a (collect-type-metas st row (collect-type-metas st b tail))
+    UUsageArrow usage arrow -> collect-type-metas st arrow tail
+    UProofFun a row b -> collect-type-metas st a (collect-type-metas st row (collect-type-metas st b tail))
+    URow labels -> collect-type-metas st labels tail
+    URowJoin a b -> collect-type-metas st a (collect-type-metas st b tail)
+    UTuple fields -> collect-type-metas st fields tail
+    UForall qs body -> collect-type-metas st body tail
+    UArg x rest -> collect-type-metas st x (collect-type-metas st rest tail)
+    other -> tail
+  index-type-metas :: UType -> List Nat -> List (Nat, Kind) -> List (Nat, Kind)
+  index-type-metas carrier ids tail = case ids of
+    Nil -> tail
+    Cons id rest -> Cons (id, value-kind carrier) (index-type-metas carrier rest tail)
+  collect-kind-type-metas :: Store -> Kind -> List (Nat, Kind) -> List (Nat, Kind)
+  collect-kind-type-metas st kind tail = case kind of
+    KValue carrier -> collect-type-metas st carrier tail
+    KFun a b -> collect-kind-type-metas st a (collect-kind-type-metas st b tail)
+    other -> tail
   types-metas :: Store -> List UType -> List (Nat, Kind)
   types-metas st types = case types of Nil -> Nil; Cons ty rest -> type-metas st ty <> types-metas st rest
   given-metas :: Store -> List CoreGiven -> List (Nat, Kind)
