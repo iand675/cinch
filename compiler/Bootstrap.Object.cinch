@@ -608,7 +608,7 @@ module Bootstrap.Object where
 
   parse-runtime-object-bytes :: forall r. Option ValidatedInterfaces -> Bool -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   parse-runtime-object-bytes validated carve reclaim expected-triple interfaces object-file metadata-file code metadata =
-    case packaged-abi metadata-file metadata of
+    case packaged-abi metadata of
       Err message -> Err message
       Ok (Some artifact) -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
       Ok None -> (case validated of
@@ -646,7 +646,7 @@ module Bootstrap.Object where
       (case fs-read (path-from-string object-file) of
         Err error -> Err "cannot read runtime object artifacts"
         Ok code -> if not (same (sha256-hex code) object-hash) then Err "runtime object artifact digest mismatch" else
-          (case authenticated-snapshot-abi metadata-file metadata-hash snapshot of
+          (case authenticated-snapshot-abi metadata-hash snapshot of
             Err message -> Err message
             Ok artifact -> parse-runtime-abi (Some validated) reclaim expected-triple
               (validated-interfaces-members validated) object-file code artifact))

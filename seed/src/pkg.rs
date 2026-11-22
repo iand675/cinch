@@ -2839,11 +2839,10 @@ mod tests {
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
         assert!(installed.interfaces.join("Library.cinchif").exists());
-        assert_eq!(installed.abi, installed.interfaces.join("package.cinchif"));
+        assert_eq!(installed.abi, installed.interfaces.join("package.cpk"));
+        assert!(!installed.interfaces.join("package.cinchif").exists());
         assert!(!installed.object.with_extension("abi.json").exists());
-        let abi: Value =
-            serde_json::from_slice(&std::fs::read(&installed.abi).expect("package ABI"))
-                .expect("package ABI JSON");
+        let abi = read_package_execution(&installed.object).expect("packed package ABI");
         let units = abi["units"].as_array().expect("ABI units");
         assert!(
             units
@@ -2873,8 +2872,8 @@ mod tests {
         assert_eq!(verify(&dir).expect("verify lock").packages, 1);
         let old_sidecar = installed.object.with_extension("abi.json");
         std::fs::rename(&installed.abi, &old_sidecar).expect("move execution interface aside");
-        let error = verify(&dir).err().expect("verification requires package.cinchif");
-        assert!(error.to_string().contains("package.cinchif"), "{error}");
+        let error = verify(&dir).err().expect("verification requires package.cpk");
+        assert!(error.to_string().contains("package.cpk"), "{error}");
         std::fs::rename(&old_sidecar, &installed.abi).expect("restore execution interface");
         let slsa = verify_slsa(&dir).expect("verify slsa");
         assert_eq!(slsa.packages, 1);
@@ -3436,13 +3435,10 @@ mod tests {
             .expect("native build with package objects");
         assert_eq!(status, 8);
         let execution_bytes = std::fs::read(&top.abi).expect("package execution interface");
-        let mut execution: Value =
-            serde_json::from_slice(&execution_bytes).expect("package execution JSON");
-        execution["runtime_abi"] = json!(crate::interface::RUNTIME_ABI_VERSION - 1);
-        std::fs::write(
-            &top.abi,
-            canonical(&execution).expect("encode old runtime ABI"),
-        )
+        crate::package_interfaces::rewrite_abi(&top.abi, |abi| {
+            let crate::interface::JsonValue::Obj(fields) = abi else { panic!("package ABI object") };
+            fields.insert("runtime_abi".into(), (crate::interface::RUNTIME_ABI_VERSION - 1).into());
+        })
         .expect("replace package execution interface");
         let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
             .expect_err("native linker must reject an old package runtime ABI");
@@ -3454,8 +3450,8 @@ mod tests {
         let old_sidecar = top.object.with_extension("abi.json");
         std::fs::rename(&top.abi, &old_sidecar).expect("move execution interface aside");
         let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
-            .expect_err("native package linking requires package.cinchif");
-        assert!(error.to_string().contains("package.cinchif"), "{error}");
+            .expect_err("native package linking requires package.cpk");
+        assert!(error.to_string().contains("package.cpk"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -3553,13 +3549,17 @@ mod tests {
         // compiled against is refused at the link, not linked into an
         // imbalance.
         let path = package_execution_path(&base.object);
-        let mut published: Value = serde_json::from_slice(&std::fs::read(&path).expect("base ABI")).expect("JSON");
-        for unit in published["units"].as_array_mut().expect("units") {
-            if unit["symbol"] == "Base.count" {
-                unit["lent"] = json!([false, false]);
+        crate::package_interfaces::rewrite_abi(&path, |abi| {
+            use crate::interface::JsonValue as J;
+            let J::Obj(fields) = abi else { panic!("package ABI object") };
+            let Some(J::Arr(units)) = fields.get_mut("units") else { panic!("package ABI units") };
+            for unit in units {
+                let J::Obj(fields) = unit else { panic!("package ABI unit") };
+                if fields.get("symbol").and_then(|name| name.as_str().ok()) == Some("Base.count") {
+                    fields.insert("lent".into(), J::Arr(vec![false.into(), false.into()]));
+                }
             }
-        }
-        std::fs::write(&path, canonical(&published).expect("encode")).expect("rewrite base ABI");
+        }).expect("rewrite base ABI");
         let error = driver_opts(Mode::Build, &dir.join("Main.cinch"), Some(&exe), &options)
             .expect_err("a changed lent convention must be refused");
         assert!(error.to_string().contains("lent convention for Base.count"), "{error}");

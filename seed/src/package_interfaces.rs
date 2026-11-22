@@ -12,8 +12,7 @@ use flat::FlatBodies;
 pub(crate) use flat::PackedClosure;
 pub(crate) use writer::publish;
 
-const HEADER: usize = 80;
-const FLAT_HEADER: usize = 88;
+const HEADER: usize = 88;
 const MODULE_ROW: usize = 36;
 const BODY_ROW: usize = 32;
 const MAX_DEPTH: usize = 256;
@@ -93,20 +92,23 @@ impl<'a> Strings<'a> {
 }
 
 struct Package<'a> {
-    strings: Strings<'a>,
+    contract_strings: Strings<'a>,
+    all_strings: Strings<'a>,
     modules: &'a [u8],
-    bodies: BodyTable<'a>,
+    bodies: FlatBodies<'a>,
     documents: &'a [u8],
+    abi: &'a [u8],
 }
 
-enum BodyTable<'a> {
-    Recipes { rows: &'a [u8], payload: &'a [u8] },
-    Flat(FlatBodies<'a>),
+pub(crate) fn read_abi(path: &Path) -> Result<JsonValue, crate::Error> {
+    read_package(path, |bytes| Package::open(bytes.bytes())?.abi())
 }
 
-enum Definitions {
-    Recipes(Vec<JsonValue>),
-    Flat(Arc<flat::CheckedTable>),
+pub(crate) fn read_abi_and_identities(path: &Path) -> Result<(JsonValue, Identities), crate::Error> {
+    read_package(path, |bytes| {
+        let package = Package::open(bytes.bytes())?;
+        Ok((package.abi()?, package.identities(bytes)?))
+    })
 }
 
 /// The decoder projects the checked graph from this exact wire root.
@@ -128,19 +130,13 @@ impl PackedBody {
 
 impl<'a> Package<'a> {
     fn open(file: &'a [u8]) -> Decode<Self> {
-        let (version, header) = match file.get(..8) {
-            Some(b"CINCHPK2") => (2, HEADER),
-            Some(b"CINCHPK3") => (3, FLAT_HEADER),
-            Some(b"CINCHPK4") => (4, FLAT_HEADER),
-            _ => return Err(invalid("invalid interface package header")),
-        };
         let [length, format] = words(file, 8)?;
-        if length as usize != file.len() || format != version {
+        if file.get(..8) != Some(b"CINCHPK4") || length as usize != file.len() || format != 4 {
             return Err(invalid("invalid interface package header"));
         }
         let mut sections = [&file[..0]; 9];
-        let mut next = header;
-        for (i, section) in sections[..(header - 16) / 8].iter_mut().enumerate() {
+        let mut next = HEADER;
+        for (i, section) in sections.iter_mut().enumerate() {
             let [start, length] = words(file, 16 + 8 * i)?;
             if start as usize != next {
                 return Err(invalid("invalid interface package section directory"));
@@ -148,8 +144,7 @@ impl<'a> Package<'a> {
             *section = span(file, start, length)?;
             next += section.len();
         }
-        let [strings, modules, values, bodies, edges, payload, operands_or_documents, documents_or_abi, abi] =
-            sections;
+        let [strings, modules, values, bodies, edges, nodes, operands, documents, abi] = sections;
         if next != file.len()
             || modules.len() % MODULE_ROW != 0
             || values.len() % 32 != 0
@@ -158,56 +153,47 @@ impl<'a> Package<'a> {
         {
             return Err(invalid("mis-sized interface package section"));
         }
-        let strings = Strings::open(strings)?;
-        let strings = if version == 4 && !abi.is_empty() {
+        let all_strings = Strings::open(strings)?;
+        let contract_strings = if !abi.is_empty() {
             let [contract_count] = words(abi, 0)?;
-            strings.prefix(contract_count)?
+            all_strings.prefix(contract_count)?
         } else {
-            strings
-        };
-        let (bodies, documents) = if version >= 3 {
-            (
-                BodyTable::Flat(FlatBodies::open(
-                    strings,
-                    bodies,
-                    edges,
-                    payload,
-                    operands_or_documents,
-                )?),
-                documents_or_abi,
-            )
-        } else {
-            (
-                BodyTable::Recipes {
-                    rows: bodies,
-                    payload,
-                },
-                operands_or_documents,
-            )
+            all_strings
         };
         Ok(Self {
-            strings,
+            contract_strings,
+            all_strings,
             modules,
-            bodies,
+            bodies: FlatBodies::open(contract_strings, bodies, edges, nodes, operands)?,
             documents,
+            abi,
         })
     }
 
+    fn abi(&self) -> Decode<JsonValue> {
+        let value = self.abi.get(4..).ok_or_else(|| invalid("missing structured package ABI"))?;
+        Document::decode(self.all_strings, value, None)
+    }
+
     fn identities(&self, bytes: &Arc<PackageBytes>) -> Decode<Identities> {
-        let definitions = match &self.bodies {
-            BodyTable::Recipes { rows, payload } => Definitions::Recipes(
-                rows.chunks_exact(BODY_ROW)
-                    .map(|row| {
-                        let [offset, length] = words(row, 16)?;
-                        Document::decode(self.strings, span(payload, offset, length)?, None)
-                    })
-                    .collect::<Decode<_>>()?,
-            ),
-            BodyTable::Flat(table) => Definitions::Flat(table.check(Arc::clone(bytes))?),
-        };
+        let mut interfaces = BTreeMap::new();
+        self.visit_contracts(bytes, |hash, iface| {
+            if interfaces.insert(iface.module, (iface.runtime_abi, hash)).is_some() {
+                return Err(invalid("duplicate package module"));
+            }
+            Ok(())
+        })?;
+        Ok(interfaces)
+    }
+
+    fn visit_contracts(
+        &self,
+        bytes: &Arc<PackageBytes>,
+        mut visit: impl FnMut(String, Iface) -> Decode<()>,
+    ) -> Decode<()> {
+        let definitions = self.bodies.check(Arc::clone(bytes))?;
         let count = self.modules.len() / MODULE_ROW;
         let mut seen = vec![false; count];
-        let mut interfaces = BTreeMap::new();
         for rank in self.modules.chunks_exact(MODULE_ROW) {
             let [id] = words(rank, 32)?;
             let Some(slot) = seen.get_mut(id as usize) else {
@@ -219,29 +205,24 @@ impl<'a> Package<'a> {
             let row = id as usize * MODULE_ROW;
             let [name_at, name_len, hash_at, hash_len, _, _, doc_at, doc_len, _] =
                 words(self.modules, row)?;
-            let name = text(self.strings.data, name_at, name_len)?;
-            let hash = text(self.strings.data, hash_at, hash_len)?;
+            let name = text(self.contract_strings.data, name_at, name_len)?;
+            let hash = text(self.contract_strings.data, hash_at, hash_len)?;
             let input = span(self.documents, doc_at, doc_len)?;
-            let value = Document::decode(self.strings, input, Some(&definitions))?;
+            let value = Document::decode(self.contract_strings, input, Some(&definitions))?;
             let iface = Iface::from_document(&value)?;
             if iface.module != name || iface.iface_hash() != hash {
                 return Err(invalid("package interface identity mismatch"));
             }
-            if interfaces
-                .insert(iface.module, (iface.runtime_abi, hash.into()))
-                .is_some()
-            {
-                return Err(invalid("duplicate package module"));
-            }
+            visit(hash.into(), iface)?;
         }
-        Ok(interfaces)
+        Ok(())
     }
 }
 
 struct Document<'a> {
     strings: Strings<'a>,
     source: &'a [u8],
-    definitions: Option<&'a Definitions>,
+    definitions: Option<&'a Arc<flat::CheckedTable>>,
     at: usize,
 }
 
@@ -249,7 +230,7 @@ impl<'a> Document<'a> {
     fn decode(
         strings: Strings<'a>,
         source: &'a [u8],
-        definitions: Option<&'a Definitions>,
+        definitions: Option<&'a Arc<flat::CheckedTable>>,
     ) -> Decode<JsonValue> {
         let mut state = Document {
             strings,
@@ -321,9 +302,8 @@ impl<'a> Document<'a> {
                 }
                 JsonValue::Obj(fields)
             }
-            7 => JsonValue::Arr(self.definition_rows()?),
             9 => {
-                let Some(Definitions::Flat(table)) = self.definitions else {
+                let Some(table) = self.definitions else {
                     return Err(invalid("unexpected packed body root"));
                 };
                 let [root_id] = self.take()?;
@@ -335,25 +315,6 @@ impl<'a> Document<'a> {
         })
     }
 
-    fn definition_rows(&mut self) -> Decode<Vec<JsonValue>> {
-        let Some(Definitions::Recipes(definitions)) = self.definitions else {
-            return Err(invalid("unexpected shared definition table"));
-        };
-        let count = self.count(8)?;
-        let mut rows = Vec::new();
-        for _ in 0..count {
-            let [start, len] = self.take()?;
-            let (start, len) = (start as usize, len as usize);
-            let end = start
-                .checked_add(len)
-                .ok_or_else(|| invalid("definition range overflow"))?;
-            if len == 0 || end > definitions.len() || len > definitions.len() - rows.len() {
-                return Err(invalid("invalid definition range"));
-            }
-            rows.extend_from_slice(&definitions[start..end]);
-        }
-        Ok(rows)
-    }
 }
 
 #[cfg(unix)]
@@ -429,7 +390,28 @@ impl PackageBytes {
 
 /// Read every verified interface. Checked body views share this file's backing.
 /// The caller verifies the same name and digest against the object manifest.
+#[cfg(test)]
 pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate::Error> {
+    read_package(path, |bytes| Package::open(bytes.bytes())?.identities(bytes))
+}
+
+#[cfg(test)]
+pub(crate) fn rewrite_abi(path: &Path, edit: impl FnOnce(&mut JsonValue)) -> crate::Result<()> {
+    let (contracts, mut abi) = read_package(path, |bytes| {
+        let package = Package::open(bytes.bytes())?;
+        let mut contracts = Vec::new();
+        package.visit_contracts(bytes, |hash, iface| {
+            contracts.push((iface, hash));
+            Ok(())
+        })?;
+        Ok((contracts, package.abi()?))
+    })?;
+    edit(&mut abi);
+    let rows: Vec<_> = contracts.iter().map(|(iface, hash)| (iface, hash.as_str())).collect();
+    publish(path, &rows, &abi).map(|_| ())
+}
+
+fn read_package<T>(path: &Path, decode: impl FnOnce(&Arc<PackageBytes>) -> Decode<T>) -> Result<T, crate::Error> {
     let error =
         |error: &dyn std::fmt::Display| crate::Error::plain(format!("{}: {error}", path.display()));
     let file = std::fs::File::open(path).map_err(|e| error(&e))?;
@@ -441,7 +423,5 @@ pub(crate) fn read_verified_identities(path: &Path) -> Result<Identities, crate:
         std::io::Read::read_to_end(&mut &file, &mut owned).map_err(|e| error(&e))?;
         Arc::new(PackageBytes(owned))
     };
-    Package::open(bytes.bytes())
-        .and_then(|package| package.identities(&bytes))
-        .map_err(|e| error(&e))
+    decode(&bytes).map_err(|e| error(&e))
 }

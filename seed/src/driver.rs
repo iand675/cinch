@@ -5360,7 +5360,7 @@ pub fn driver_with_profile(
 }
 
 pub(crate) fn package_execution_path(object: &Path) -> PathBuf {
-    object.with_file_name("build").join("package.cinchif")
+    object.with_file_name("build").join("package.cpk")
 }
 
 /// Apply the same ownership boundary to dumps and code generation.
@@ -5445,10 +5445,33 @@ fn check_lent_imports(
 
 pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
     let abi_path = package_execution_path(path);
-    let bytes = std::fs::read(&abi_path)
-        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
-    let abi: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    let document = crate::package_interfaces::read_abi(&abi_path)?;
+    checked_package_execution(path, &abi_path, document)
+}
+
+fn checked_package_execution(
+    path: &Path,
+    abi_path: &Path,
+    document: crate::interface::JsonValue,
+) -> Result<serde_json::Value> {
+    use crate::interface::JsonValue as Contract;
+    use serde_json::Value;
+
+    fn metadata(value: Contract) -> Result<Value> {
+        Ok(match value {
+            Contract::Null => Value::Null,
+            Contract::Bool(value) => Value::Bool(value),
+            Contract::Num(value) => value.into(),
+            Contract::Str(value) => value.into(),
+            Contract::Arr(items) => Value::Array(items.into_iter().map(metadata).collect::<Result<_>>()?),
+            Contract::Obj(fields) => Value::Object(fields.into_iter().map(|(key, value)| {
+                Ok((key, metadata(value)?))
+            }).collect::<Result<_>>()?),
+            _ => return Err(Error::plain("unexpected packed value in package execution metadata")),
+        })
+    }
+
+    let abi = metadata(document)?;
     let object = path.file_name().and_then(|name| name.to_str());
     if abi.get("schema").and_then(serde_json::Value::as_u64) != Some(1)
         || abi.get("kind").and_then(serde_json::Value::as_str) != Some("package-execution")
@@ -5475,7 +5498,8 @@ pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
 
 fn package_object_modules(path: &Path) -> Result<Vec<String>> {
     let abi_path = package_execution_path(path);
-    let abi = read_package_execution(path)?;
+    let (document, mut packed) = crate::package_interfaces::read_abi_and_identities(&abi_path)?;
+    let abi = checked_package_execution(path, &abi_path, document)?;
     let expected_runtime_abi = crate::interface::RUNTIME_ABI_VERSION;
     let object_bytes =
         std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
@@ -5495,65 +5519,31 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             path.display()
         )));
     }
-    let pack_path = abi_path.with_extension("cpk");
-    let packed = match std::fs::metadata(&pack_path) {
-        Ok(_) => Some(crate::package_interfaces::read_verified_identities(&pack_path)?),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(Error::plain(format!("{}: {e}", pack_path.display()))),
-    };
-    let embedded = abi.get("interfaces");
-    let references = abi.get("interface_refs");
-    if references.is_some() && (embedded.is_some() || packed.is_none()) {
-        return Err(Error::plain(format!(
-            "{}: interface references require a single packed interface set",
-            abi_path.display()
-        )));
+    let interfaces = abi.get("interface_refs").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| Error::plain("package execution metadata is missing interface references"))?;
+    for interface in interfaces {
+        let row = interface.get("module").and_then(serde_json::Value::as_str)
+            .zip(interface.get("iface_hash").and_then(serde_json::Value::as_str));
+        let Some((module, expected_hash)) = row else {
+            return Err(Error::plain("invalid interface row in package execution metadata"));
+        };
+        let (runtime_abi, actual_hash) = packed.remove(module).ok_or_else(|| Error::plain(format!(
+            "{}: no interface for object module {module}", abi_path.display())))?;
+        if runtime_abi != expected_runtime_abi {
+            return Err(Error::plain(format!(
+                "{}: package interface runtime ABI {} does not match this compiler's {expected_runtime_abi}",
+                abi_path.display(), runtime_abi
+            )));
+        }
+        if actual_hash != expected_hash {
+            return Err(Error::plain(format!(
+                "{}: interface hash does not match the package execution interface",
+                abi_path.display()
+            )));
+        }
     }
-    if let Some(interfaces) = embedded.or(references).and_then(serde_json::Value::as_array) {
-        let mut packed = packed;
-        let build = path.parent().map(|parent| parent.join("build"));
-        for interface in interfaces {
-            let row = interface.get("module").and_then(serde_json::Value::as_str)
-                .zip(interface.get("iface_hash").and_then(serde_json::Value::as_str));
-            let Some((module, expected_hash)) = row else {
-                if packed.is_some() {
-                    return Err(Error::plain("invalid interface row in package execution metadata"));
-                }
-                continue;
-            };
-            let (runtime_abi, actual_hash) = if let Some(packed) = packed.as_mut() {
-                packed.remove(module).ok_or_else(|| Error::plain(format!(
-                    "{}: no interface for object module {module}", pack_path.display())))?
-            } else {
-                let Some(path) = build.as_ref().map(|build| build.join(format!("{module}.cinchif"))) else {
-                    continue;
-                };
-                let Ok(text) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let iface = crate::interface::Iface::from_json(&text)
-                    .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-                (iface.runtime_abi, iface.iface_hash())
-            };
-            if runtime_abi != expected_runtime_abi {
-                return Err(Error::plain(format!(
-                    "{}: package interface runtime ABI {} does not match this compiler's {expected_runtime_abi}",
-                    path.display(),
-                    runtime_abi
-                )));
-            }
-            if actual_hash != expected_hash {
-                return Err(Error::plain(format!(
-                    "{}: interface hash does not match the package execution interface",
-                    path.display()
-                )));
-            }
-        }
-        if packed.is_some_and(|interface_set| !interface_set.is_empty()) {
-            return Err(Error::plain(format!("{}: object does not declare every packed interface", pack_path.display())));
-        }
-    } else if packed.is_some() {
-        return Err(Error::plain("package execution metadata is missing interfaces"));
+    if !packed.is_empty() {
+        return Err(Error::plain(format!("{}: object does not declare every packed interface", abi_path.display())));
     }
     let modules = abi
         .get("modules")
@@ -6234,6 +6224,7 @@ fn write_object(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.with_extension("o"));
     let ir_path = out.with_extension("ll");
+    let package_execution = !emit_modules.is_empty();
     let abi_path = if emit_modules.is_empty() {
         out.with_extension("abi.json")
     } else {
@@ -6242,7 +6233,7 @@ fn write_object(
     let package_path = if emit_modules.is_empty() {
         out.with_extension("cpk")
     } else {
-        abi_path.with_extension("cpk")
+        abi_path.clone()
     };
     let private = opts.interface_package_private.as_deref();
     if let Some(module) = private {
@@ -6250,7 +6241,7 @@ fn write_object(
             return Err(Error::plain(format!("invalid object-only interface module {module}")));
         }
     }
-    if out == ir_path || out == abi_path || (opts.interface_package && (out == package_path || path == package_path)) {
+    if out == ir_path || out == abi_path || ((package_execution || opts.interface_package) && (out == package_path || path == package_path)) {
         return Err(Error::plain(
             "emit-object output must differ from its LLVM and ABI companions",
         ));
@@ -6361,7 +6352,7 @@ fn write_object(
         "object_content_hash".into(),
         crate::interface::content_hash_bytes(&bytes).into(),
     );
-    if opts.interface_package {
+    if package_execution || opts.interface_package {
         let entries: Vec<_> = ifaces.iter().zip(&interfaces).filter_map(|(iface, (hash, _))| {
             (Some(iface.module.as_str()) != private).then_some((iface, hash.as_str()))
         }).collect();
@@ -6384,7 +6375,7 @@ fn write_object(
             ])]));
         }
         let digest = crate::package_interfaces::publish(&package_path, &entries, &J::Obj(packed_abi))?;
-        if opts.interface_package_only {
+        if package_execution || opts.interface_package_only {
             return Ok(0);
         }
         fields.insert("interface_package_sha256".into(), digest.into());

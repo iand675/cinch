@@ -30,12 +30,10 @@ The provider's object ABI lives in a binary section of the same package.
 `base-objects.json` records the target, paths, and digests used to authenticate
 the package and the compiled library object.
 
-The Rust compiler accepts a packed interface sidecar for package objects
-alongside their current execution metadata. For an installed package:
+`cinch pkg install` puts the checked contracts and execution ABI together in
+`build/package.cpk` beside the installed object. Build a client with the object:
 
 ```sh
-python3 tooling/pack_interfaces.py "$installed/build/package.cinchif" \
-  "$installed/build/package.cpk" --execution
 cinch build Main.cinch --package-object "$installed/package.o"
 ```
 
@@ -118,7 +116,7 @@ package decode, repeated references to one packed root share its closure
 and compatibility document. Each reference still hashes its graph at the
 current contract position. The reader hashes
 plain strings and indexed body graphs from their file records. Escaped text
-and legacy shared definitions use the canonical value writer.
+and any materialized values use the canonical value writer.
 For packages that repeatedly hash large checked closures, the native loader
 keeps temporary FNV-1a summaries of contiguous body rows. A summary preserves
 the same canonical digest for any preceding contract fields. Each row in a

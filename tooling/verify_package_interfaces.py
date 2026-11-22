@@ -369,6 +369,11 @@ def native(stage, work, repeats):
         invoke(command(hello, path), work, status=7, leak=True)
         assert "bootstrap.interfaces:" in diagnostics.read_text()
 
+    old_package = work / "old-version.cpk"
+    publish(old_package, b"CINCHPK3" + contents[8:12] + struct.pack("<I", 3) + contents[16:])
+    invoke(command(hello, old_package), work, status=7, leak=True)
+    assert "invalid interface package header" in diagnostics.read_text()
+
     bodies, _ = words(indexed_contents, 40, 2)
     _, edge_size = words(indexed_contents, 48, 2)
     nodes, node_size = words(indexed_contents, 56, 2)
@@ -459,21 +464,19 @@ def rust(seed, work):
     invoke([seed, "pkg", "install"], project)
     installed = project / "vendor/test/tiny/0.1.0"
     artifact = installed / "package.o"
-    execution = json.loads((installed / "build/package.cinchif").read_bytes())
-    metadata = execution["interfaces"]
-    rows = [(row["module"], row["iface_hash"], json.dumps(row["interface"]).encode()) for row in metadata]
+    package = installed / "build/package.cpk"
+    assert not package.with_suffix(".cinchif").exists()
+    contents = package.read_bytes()
+    packed = PackedInterfaces(contents)
+    execution = packed.metadata()
+    assert execution["kind"] == "package-execution" and "interfaces" not in execution
+    rows = [(name, digest, canonical(document)) for name, digest, document in packed.documents]
     executable = project / "client"
     command = [seed, "build", client, "-o", executable, "--package-object", artifact]
     invoke(command, project)
     invoke([executable], project, status=42)
-    package = installed / "build/package.cpk"
     name, _, raw = rows[0]
-    contents = pack(rows, execution)
-    publish(package, contents)
-    invoke(command, project)
-    invoke([executable], project, status=42)
-
-    publish(package, pack([(name, "not-the-identity", raw), *rows[1:]]))
+    publish(package, pack([(name, "not-the-identity", raw), *rows[1:]], execution))
     result = invoke(command, project, status=1)
     assert "package interface identity mismatch" in result.stderr
 
@@ -506,20 +509,15 @@ def rust(seed, work):
         result = invoke(command, project, status=1)
         assert error in result.stderr, result.stderr
 
-    # Installed package metadata can refer to the mapped contracts by name
-    # and digest, leaving one copy in the packed artifact.
-    abi_path = installed / "build/package.cinchif"
-    execution["interface_refs"] = [
-        {key: value for key, value in row.items() if key != "interface"}
-        for row in execution.pop("interfaces")
-    ]
-    abi_path.write_text(json.dumps(execution))
     publish(package, contents)
     invoke(command, project)
     invoke([executable], project, status=42)
+    publish(package, b"CINCHPK3" + contents[8:12] + struct.pack("<I", 3) + contents[16:])
+    result = invoke(command, project, status=1)
+    assert "invalid interface package header" in result.stderr
     package.unlink()
     result = invoke(command, project, status=1)
-    assert "interface references require a single packed interface set" in result.stderr
+    assert "package.cpk" in result.stderr
 
 
 def main():

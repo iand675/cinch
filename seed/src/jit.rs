@@ -5,7 +5,7 @@
 //! `llvm-sys` dependency. The LLVM shared library is linked only when the
 //! feature is enabled; a build without it keeps the ordinary clang path.
 
-use crate::interface::{parse_json, JsonValue};
+use crate::interface::JsonValue;
 use crate::{Error, Result};
 use std::collections::BTreeMap;
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
@@ -293,7 +293,7 @@ impl JitEngine {
     }
 
     /// Add one installed package object (`package.o` beside its
-    /// `build/package.cinchif`).
+    /// `build/package.cpk`).
     ///
     /// The manifest is validated against this host's native profile and the
     /// object bytes before anything enters the engine. Blocks describe
@@ -304,7 +304,6 @@ impl JitEngine {
     /// physical arities.
     pub fn add_package_object(&mut self, object: &Path) -> Result<PackageObject> {
         let abi = read_package_abi(object)?;
-        verify_package_interfaces(object, &abi.interfaces)?;
         if !self.package_glue {
             self.add_ir(&package_glue_ir(), "package-glue")?;
             self.package_glue = true;
@@ -324,7 +323,6 @@ impl JitEngine {
     /// objects are linked before the root so their external symbols resolve.
     pub fn add_package_object_dependency(&mut self, object: &Path) -> Result<PackageObject> {
         let abi = read_package_abi(object)?;
-        verify_package_interfaces(object, &abi.interfaces)?;
         self.add_object_file(object)?;
         Ok(PackageObject {
             object: object.to_path_buf(),
@@ -394,7 +392,6 @@ pub struct PackageObject {
 /// The parts of an installed object's physical manifest the JIT consumes.
 struct PackageAbi {
     units: BTreeMap<String, usize>,
-    interfaces: BTreeMap<String, String>,
     reclaim: bool,
 }
 
@@ -410,9 +407,7 @@ fn manifest_error(path: &Path, detail: impl std::fmt::Display) -> Error {
 /// stale manifest never describes newer code.
 fn read_package_abi(object: &Path) -> Result<PackageAbi> {
     let manifest_path = crate::driver::package_execution_path(object);
-    let text =
-        std::fs::read_to_string(&manifest_path).map_err(|e| manifest_error(&manifest_path, e))?;
-    let parsed = parse_json(&text).map_err(|e| manifest_error(&manifest_path, e))?;
+    let (parsed, mut contracts) = crate::package_interfaces::read_abi_and_identities(&manifest_path)?;
     let fields = parsed
         .as_object()
         .map_err(|e| manifest_error(&manifest_path, e))?;
@@ -548,65 +543,26 @@ fn read_package_abi(object: &Path) -> Result<PackageAbi> {
             ))
         }
     }
-    let mut interfaces = BTreeMap::new();
-    if let Some(rows) = fields.get("interfaces") {
-        for row in rows
-            .as_array()
-            .map_err(|e| manifest_error(&manifest_path, format!("interfaces: {e}")))?
-        {
-            let row = row
-                .as_object()
-                .map_err(|e| manifest_error(&manifest_path, format!("interface: {e}")))?;
-            let module = row
-                .get("module")
-                .ok_or_else(|| manifest_error(&manifest_path, "interface without a module"))?
-                .as_str()
-                .map_err(|e| manifest_error(&manifest_path, format!("interface module: {e}")))?;
-            let hash = row
-                .get("iface_hash")
-                .ok_or_else(|| manifest_error(&manifest_path, "interface without iface_hash"))?
-                .as_str()
-                .map_err(|e| manifest_error(&manifest_path, format!("interface hash: {e}")))?;
-            interfaces.insert(module.to_string(), hash.to_string());
+    let rows = fields.get("interface_refs")
+        .ok_or_else(|| manifest_error(&manifest_path, "missing interface references"))?
+        .as_array()
+        .map_err(|e| manifest_error(&manifest_path, format!("interfaces: {e}")))?;
+    for row in rows {
+        let row = row.as_object().map_err(|e| manifest_error(&manifest_path, e))?;
+        let module = row.get("module").and_then(|name| name.as_str().ok())
+            .ok_or_else(|| manifest_error(&manifest_path, "interface without a module name"))?;
+        let hash = row.get("iface_hash").and_then(|hash| hash.as_str().ok())
+            .ok_or_else(|| manifest_error(&manifest_path, "interface without an identity"))?;
+        if !contracts.remove(module).is_some_and(|(abi, found)| {
+            abi == crate::interface::RUNTIME_ABI_VERSION && found == hash
+        }) {
+            return Err(manifest_error(&manifest_path, format!("packed contract does not match interface {module}")));
         }
     }
-    Ok(PackageAbi {
-        units: inventory,
-        interfaces,
-        reclaim,
-    })
-}
-
-/// The installed `.cinchif` files beside the object are the checked contracts
-/// the object was built from. Check the ones the install materialized; the
-/// embedded prelude interfaces are part of the object's physical manifest but
-/// are not copied into a package's `build/` directory.
-fn verify_package_interfaces(object: &Path, expected: &BTreeMap<String, String>) -> Result<()> {
-    let Some(build) = object.parent().map(|parent| parent.join("build")) else {
-        return Ok(());
-    };
-    for (module, hash) in expected {
-        let path = build.join(format!("{module}.cinchif"));
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        let iface = crate::interface::Iface::from_json(&text)
-            .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-        if iface.module != *module {
-            return Err(Error::plain(format!(
-                "{} names module {}, expected {module}",
-                path.display(),
-                iface.module
-            )));
-        }
-        if iface.iface_hash() != *hash {
-            return Err(Error::plain(format!(
-                "{}: interface hash does not match the object manifest",
-                path.display()
-            )));
-        }
+    if !contracts.is_empty() {
+        return Err(manifest_error(&manifest_path, "object does not declare every packed interface"));
     }
-    Ok(())
+    Ok(PackageAbi { units: inventory, reclaim })
 }
 
 /// The consumer's `__apply`: the closure dispatch `codegen::APPLY_DEF`
@@ -778,7 +734,7 @@ mod tests {
                 )
                 .expect("install package bundle");
                 assert!(installed.object.exists(), "install writes package.o");
-                assert_eq!(installed.abi, installed.interfaces.join("package.cinchif"));
+                assert_eq!(installed.abi, installed.interfaces.join("package.cpk"));
                 assert!(installed.abi.is_file());
                 let old_sidecar = installed.object.with_extension("abi.json");
                 assert!(!old_sidecar.exists());

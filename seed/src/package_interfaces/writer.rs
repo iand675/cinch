@@ -1,5 +1,5 @@
 //! Publish a CINCHPK4 interface set from checked compiler artifacts.
-use super::{invalid, Decode, FLAT_HEADER, MAX_DEPTH};
+use super::{invalid, Decode, HEADER, MAX_DEPTH};
 use crate::interface::{Iface, JsonValue as Value};
 use crate::total::{CheckedGraph, Definition, Expr};
 use sha2::{Digest, Sha256};
@@ -335,12 +335,12 @@ pub(crate) fn encode(rows: &[(&Iface, &str)], abi: &Value) -> Decode<Vec<u8>> {
         contracts,
         packed_abi,
     ];
-    let total = FLAT_HEADER + sections.iter().map(Vec::len).sum::<usize>();
+    let total = HEADER + sections.iter().map(Vec::len).sum::<usize>();
     let length = word(total)?;
     let mut bytes = Vec::with_capacity(total);
     bytes.extend_from_slice(b"CINCHPK4");
     put(&mut bytes, [length, 4]);
-    let mut offset = FLAT_HEADER;
+    let mut offset = HEADER;
     for section in &sections {
         put(&mut bytes, [word(offset)?, word(section.len())?]);
         offset += section.len();

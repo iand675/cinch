@@ -507,23 +507,12 @@ def publish(path, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("inputs", type=Path, help="native interface manifest or Rust package execution metadata")
+    parser.add_argument("inputs", type=Path, help="native interface manifest to package")
     parser.add_argument("output", type=Path, help="the .cpk file to publish")
     parser.add_argument("--objects", type=Path, help="native objects.json for the same interface set")
-    parser.add_argument("--execution", action="store_true", help="read the Rust package execution interface")
     args = parser.parse_args()
-    if args.execution:
-        if args.objects:
-            parser.error("--objects applies to the native manifest input")
-        execution = json.loads(args.inputs.read_bytes())
-        if execution.get("schema") != 1 or execution.get("kind") != "package-execution":
-            parser.error("input is not a Rust package execution interface")
-        rows = [(item["module"], item["iface_hash"], canonical(item["interface"]))
-                for item in execution["interfaces"]]
-        metadata = execution
-    else:
-        rows = read_manifest(args.inputs)
-        metadata = read_abi(args.objects)[1] if args.objects else None
+    rows = read_manifest(args.inputs)
+    metadata = read_abi(args.objects)[1] if args.objects else None
     publish(args.output, pack(rows, metadata))
 
 
